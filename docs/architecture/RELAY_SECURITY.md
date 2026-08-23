@@ -1,6 +1,6 @@
 # TRUYN Relay Security Architecture
 
-**Status:** relay/provider authorization core, optional origin guard, generic Cloudflare-compatible edge proxy and optional protected-provider M2M backchannel guard are implemented reference controls; deployment-specific edge/origin/perimeter activation remains operational work.
+**Status:** relay/provider authorization core, optional origin guard, generic edge controls and protected-provider M2M backchannel guard are implemented reference controls. The current production relay additionally has deployment-proven Cloudflare → Azure Front Door → Container Apps → runtime origin-guard bypass protection accepted on 2026-08-23. Other deployments remain environment-specific and must prove their own perimeter.
 
 ## Public relay, private intelligence
 
@@ -109,6 +109,8 @@ Secret proof values are deliberately kept non-enumerable in routine runtime conf
 
 Comparison remains constant-time for equal-length proof values.
 
+Deployments may also use a provider-managed/non-user identity header as the proof carrier when the surrounding edge path establishes the same fail-closed property. Such a carrier is still transport-only and must be stripped before the inner relay.
+
 When both origin and provider-backchannel guards are enabled, the logical chain is:
 
 ```text
@@ -123,11 +125,79 @@ inner TRUYN relay
 
 Each guard removes only its own proof before forwarding inward.
 
-This is an **implementation capability**, not a claim that a particular production origin is already protected. Edge configuration, proof issuance/rotation, firewall/tunnel policy and direct-origin denial remain deployment-specific operational controls.
+The origin guard is an implementation capability. A deployment becomes **deployment-proven** only after the actual public edge, origin network policy and negative bypass paths are exercised against the running system.
+
+## Production Cloudflare → Azure relay perimeter
+
+The current production relay has an accepted multi-layer origin lock:
+
+```text
+Internet
+  ↓
+Cloudflare
+  ↓
+Azure Front Door
+  ↓  unconditional requester-proof sanitize
+  ↓  SocketAddr ∈ Cloudflare CIDRs → trusted proof injection
+Azure Container Apps ingress
+  ↓  AzureFrontDoor.Backend-only network restriction
+runtime origin guard
+  ↓
+inner TRUYN relay on loopback
+```
+
+### Front Door rule invariant
+
+The Azure Front Door rule sequence MUST preserve this order:
+
+1. remove any caller-supplied edge-proof header on every request;
+2. evaluate the direct Front Door socket source using `SocketAddr`;
+3. inject/overwrite trusted edge proof only when that socket source is within the current Cloudflare CIDR set;
+4. never treat a requester-provided proof as authoritative.
+
+Where Azure rule-condition value limits require it, the Cloudflare CIDR set may be split across multiple OR-equivalent inject rules. That is an implementation detail; the logical condition remains `SocketAddr ∈ Cloudflare CIDRs`.
+
+The accepted production implementation uses native Azure Front Door Rule Sets for this gate. It does **not** depend on successful creation of an Azure WAF policy. WAF may still be used independently for abuse controls, but it is not the accepted origin-authentication boundary.
+
+### Data-plane readiness invariant
+
+Control-plane fields such as Azure Front Door `deploymentStatus` are not sufficient evidence that a rule has converged on the serving edge.
+
+Before switching the runtime origin guard to a new edge proof, operations must prove on the real data plane that:
+
+- the unconditional sanitize rule is active;
+- the Cloudflare-only rule is active through the real Cloudflare path;
+- a direct Azure Front Door request does not satisfy the Cloudflare-only condition;
+- public HTTP/WebSocket behavior remains healthy.
+
+The accepted 2026-08-23 gate used non-secret response markers for this convergence proof before enabling the new origin proof requirement.
+
+### Container Apps invariant
+
+Container Apps ingress for the protected relay is restricted to the current `AzureFrontDoor.Backend` service-tag address space. Direct Container App HTTP and WebSocket access must remain denied.
+
+This network restriction is defense in depth: it prevents the Container App itself from becoming a bypass route around Front Door and the socket-bound proof gate.
+
+### Accepted production evidence
+
+The accepted deployment evidence is `../benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`.
+
+On tested source commit `9b419e7d11baf6ec0d17e7075238e3d758ef16e4`, terminal context `truyn/origin-lock-live-v22 = success`, the gate simultaneously proved:
+
+- Cloudflare `/health` = 200 with `CF-Ray`;
+- public HTTP/WebSocket semantics preserved;
+- direct Azure Front Door HTTP = 403;
+- direct Azure Front Door HTTP with forged proof = 403;
+- direct Azure Front Door WebSocket = 403;
+- direct Azure Front Door WebSocket with forged proof = 403;
+- direct Container App HTTP = 403;
+- direct Container App WebSocket = 403.
+
+For this tested production relay, `AZURE_ORIGIN_LOCK = ACTIVE` is therefore a supported deployment claim.
 
 ## Reference Cloudflare-compatible edge proxy
 
-The public reference code contains a generic Cloudflare Worker-compatible proxy that pairs with the origin guard without making origin proof a TRUYN client credential.
+The public reference code also contains a generic Cloudflare Worker-compatible proxy that can pair with the origin guard without making origin proof a TRUYN client credential.
 
 Its fail-closed behavior is:
 
@@ -140,6 +210,8 @@ Its fail-closed behavior is:
 - proxy failures are sanitized and do not expose binding values/upstream exception details;
 - missing/invalid/expired origin-token binding fails before upstream fetch.
 
+This Worker-compatible proxy is a reusable reference pattern. It is distinct from the currently accepted production Azure Front Door Rule Set path described above.
+
 No concrete Worker name, route, private origin hostname or secret value belongs in public source.
 
 ## Legacy-route rule
@@ -148,11 +220,15 @@ Every route capable of causing execution must pass through equivalent provider a
 
 A new secure endpoint does not fix an older endpoint that can dispatch around policy.
 
+The same principle applies to perimeter protection: every public route for the protected hostname must carry the same trusted-edge origin-proof semantics. A secondary Front Door route must not silently omit the origin-lock rule set.
+
 ## Abuse controls
 
 Authorization is the primary billing boundary. Rate limits, replay protection, request size limits, concurrency limits, quotas, anomaly detection and edge/WAF rules provide additional protection.
 
 Failure of an abuse-control subsystem must not silently change an unauthorized request into an authorized provider call.
+
+Origin authentication and WAF/rate limiting are separate concerns. A WAF is not a substitute for trusted-edge proof, and trusted-edge proof is not a substitute for abuse controls.
 
 ## Billing interaction
 
@@ -164,16 +240,20 @@ The architecture reserves operational kill switches for owner-funded external ac
 
 ## Origin protection
 
-Where a public domain is fronted by an edge provider, the origin should be protected against direct bypass. The reference origin guard + edge proxy support edge-authenticated origin access without turning edge proof into a user credential.
+Where a public domain is fronted by an edge provider, the origin should be protected against direct bypass. The reference origin guard, network restrictions and edge proof patterns support edge-authenticated origin access without turning edge proof into a user credential.
 
-Exact origin addresses, protected provider node IDs, proof values, firewall rules and bypass configuration remain private operations.
+For the current production relay, that perimeter is deployment-proven as described above. Exact private resource identifiers, proof values and privileged automation remain private operations.
+
+Any material change to Cloudflare, Front Door route/rule sets, Cloudflare CIDRs, Container Apps ingress, origin proof or relay origin topology reopens the deployment acceptance gate until the bypass matrix is re-run.
 
 ## Operational non-claims
 
+The production relay proof does not imply that every TRUYN deployment has equivalent perimeter enforcement.
+
 The repository does not by itself prove that every deployment has:
 
-- direct-origin firewall/tunnel denial;
-- correctly issued/rotated live edge proof;
+- direct-origin denial equivalent to the accepted production relay;
+- correctly issued/rotated live edge proof after every infrastructure change;
 - correctly issued/rotated protected-provider M2M proof;
 - production IAM/tenant separation;
 - deployed durable sponsored accounting;
@@ -198,9 +278,21 @@ protected provider identity or stolen protected session
 ```
 
 ```text
-direct origin request
-+ missing/expired/wrong trusted edge proof
+direct Container App request
+= zero supported relay data-plane access
+```
+
+```text
+direct Azure Front Door request
++ missing or forged trusted-edge proof
 = zero inner-relay data-plane access
 ```
 
-See `docs/security/` for the detailed security documentation layer and `docs/operations/` for operational responsibilities.
+```text
+Cloudflare → Azure Front Door request
++ SocketAddr matches current Cloudflare CIDRs
++ origin guard validates injected proof
+= eligible to reach normal TRUYN authentication/authorization processing
+```
+
+See `docs/security/` for the detailed security documentation layer, `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md` for accepted production evidence and `docs/operations/` for operational responsibilities.

@@ -1,6 +1,6 @@
 # TRUYN Operations
 
-**Status:** current reference operations baseline for `0.1.0-dev`; not a mainnet SRE/SLO claim.
+**Status:** current reference operations baseline for `0.1.0-dev`; not a mainnet SRE/SLO claim. The current production relay origin perimeter is deployment-proven, but broader network/mainnet operations remain pre-stable.
 
 Operations documentation describes how the implemented reference system is expected to be run safely and what remains unproven. It deliberately excludes private cloud topology, credentials, live allowlists, resource IDs and cost ceilings.
 
@@ -9,25 +9,51 @@ Operations documentation describes how the implemented reference system is expec
 - [Node Operations](NODE_OPERATIONS.md) — identity/state/startup/restart/profile boundaries.
 - [Testnet Operations](TESTNET_OPERATIONS.md) — signed bootstrap, QUIC/Kademlia, churn/repair and evidence discipline.
 - [Billing Operations](BILLING_OPERATIONS.md) — BYOK, owner-funded and entitlement safety rules.
-- [Operational Security](../security/OPERATIONAL_SECURITY.md) — edge/origin/provider proof rotation and incident handling.
+- [Operational Security](../security/OPERATIONAL_SECURITY.md) — accepted Cloudflare → Azure Front Door → Container Apps origin perimeter, edge/origin/provider proof rotation and incident handling.
+- [Production Azure Origin Lock evidence](../benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md) — deployment-proven direct AFD/Container App HTTP+WebSocket and forged-proof denial matrix.
 
 ## Current maturity
 
 The repository has executable relay/provider/node/testnet paths and a CI-proven v0.1 QUIC/Kademlia underlay. A four-node real QUIC/Kademlia trust-lifecycle testnet has also passed a bounded evidence gate.
 
+Separately, the current production relay perimeter has passed its deployment gate:
+
+```text
+Cloudflare
+  ↓
+Azure Front Door SocketAddr sanitize/inject proof
+  ↓
+Container Apps AzureFrontDoor.Backend-only ingress
+  ↓
+runtime origin guard
+  ↓
+inner relay
+```
+
+The accepted gate preserves public Cloudflare HTTP/WebSocket behavior and denies direct Azure Front Door HTTP/WebSocket, forged-proof direct Front Door HTTP/WebSocket and direct Container App HTTP/WebSocket with 403. This is a bounded production relay perimeter claim, not a claim that TRUYN mainnet operations are complete.
+
 What is **not** yet operationally complete:
 
 - stable public mainnet bootstrap;
 - universal NAT/reachability support;
-- 100/1,000 simultaneously running real-node evidence;
+- remaining large real-node / Internet-scale evidence required by the current network roadmap;
 - production SLOs/alerting/on-call commitments;
 - signed release/updater/rollback lifecycle for all supported OSes;
 - production account/tenant commercial control plane;
-- deployed durable sponsored/prepaid/subscription accounting.
+- deployed durable sponsored/prepaid/subscription accounting;
+- automatic equivalence proof for every future deployment or material edge/origin topology change.
 
-## Operational rule
+## Origin-perimeter operational rule
+
+For the protected production relay, Azure Front Door control-plane `deploymentStatus` is not sufficient proof of serving-edge convergence. Before proof cutover, operations must establish real data-plane behavior for the unconditional sanitize rule and the Cloudflare-only `SocketAddr` rule, then re-run the direct AFD/Container App HTTP+WebSocket/spoof denial matrix.
+
+Changes to Cloudflare, Front Door routes/rules, Cloudflare CIDRs, Container Apps ingress, trusted-edge proof handling or origin topology invalidate the prior equivalence assumption until the gate passes again.
+
+## General operational rule
 
 A temporary cloud workflow, successful one-shot deployment or local test is not by itself a production claim. Promote operational maturity only when the result is reproducible and recorded in the durable evidence ledger or a stable release contract.
+
+Completed one-shot privileged origin-lock executors are removed after acceptance; durable evidence, stable architecture and generic runbook invariants remain in the public repository.
 
 ## Public/private boundary
 

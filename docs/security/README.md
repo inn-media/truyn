@@ -4,8 +4,9 @@ This directory is the detailed security documentation layer. Root [`SECURITY.md`
 
 ## Documents
 
-- [Security Architecture Status](SECURITY_ARCHITECTURE_STATUS.md) — what is implemented, proven and still deployment-specific.
-- [Operational Security](OPERATIONAL_SECURITY.md) — safe runtime/edge/provider proof handling and incident rules.
+- [Security Architecture Status](SECURITY_ARCHITECTURE_STATUS.md) — what is implemented, deployment-proven and still environment-specific.
+- [Operational Security](OPERATIONAL_SECURITY.md) — safe runtime/edge/provider proof handling, perimeter acceptance and incident rules.
+- [Production Azure Origin Lock evidence](../benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md) — accepted production relay Cloudflare → Azure Front Door → Container Apps → origin-guard bypass-denial proof.
 
 Related architecture:
 
@@ -26,7 +27,27 @@ A security control can be:
 - deployment-proven;
 - productionized.
 
-Reference code for an origin guard does not prove that a real deployment denies direct-origin bypass. A signed entitlement verifier does not prove that a production issuer/store exists. Security documentation must preserve these distinctions.
+Reference code for an origin guard does not prove that a real deployment denies direct-origin bypass. Conversely, the accepted 2026-08-23 production relay origin-lock gate is a deployment-proven claim for that tested deployment, not a universal property of all TRUYN installations.
+
+A signed entitlement verifier does not prove that a production issuer/store exists. Security documentation must preserve these distinctions.
+
+## Current production relay edge status
+
+The tested production relay now has an accepted origin-lock chain:
+
+```text
+Cloudflare
+  ↓
+Azure Front Door SocketAddr sanitize/inject proof
+  ↓
+Container Apps AzureFrontDoor.Backend-only ingress
+  ↓
+runtime origin guard
+  ↓
+inner relay
+```
+
+The accepted gate proves direct Azure Front Door HTTP/WebSocket and spoofed-proof bypass attempts return 403 while the Cloudflare public path remains healthy. See `../benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`.
 
 ## Core invariant
 
