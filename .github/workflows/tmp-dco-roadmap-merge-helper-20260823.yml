@@ -1,0 +1,101 @@
+name: Temporary DCO roadmap merge helper 2026-08-23
+
+on:
+  push:
+    branches: [ops/dco-roadmap-merge-helper-20260823]
+    paths:
+      - '.github/workflows/tmp-dco-roadmap-merge-helper-20260823.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: governance/mandatory-dco-1.1
+          fetch-depth: 0
+      - name: Merge exact current main and resolve only ROADMAP
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = '6d12567fd1c273df22b93a500b9bf2b58eb5cb57'
+
+          set +e
+          git merge --no-commit --no-ff origin/main
+          merge_rc=$?
+          set -e
+
+          if [ "$merge_rc" -ne 0 ]; then
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            test "$conflicts" = 'ROADMAP.md'
+            git checkout --theirs ROADMAP.md
+            python - <<'PY'
+          from pathlib import Path
+
+          p = Path('ROADMAP.md')
+          s = p.read_text()
+
+          def replace_once(old, new):
+              global s
+              if old not in s:
+                  raise SystemExit(f'ROADMAP merge marker not found: {old[:100]!r}')
+              s = s.replace(old, new, 1)
+
+          replace_once(
+              'Governance and standardization are now a separate mandatory track. TRUYN currently operates under bootstrap Founding Stewardship by InnMedia. Public governance/RFC/extension/decision contracts can be defined immediately, but external maintainers, a multi-organization TSC and neutral legal stewardship require real organizational evidence. A code/spec release MUST NOT be used to imply governance maturity that has not been reached.\n',
+              'Governance and standardization are now a separate mandatory track. TRUYN currently operates under bootstrap Founding Stewardship by InnMedia. Public governance/RFC/extension/decision contracts can be defined immediately, but external maintainers, a multi-organization TSC and neutral legal stewardship require real organizational evidence. A code/spec release MUST NOT be used to imply governance maturity that has not been reached.\n\nContribution provenance is now part of that governance baseline: new contribution commits require **DCO 1.1** sign-off, the canonical DCO text and contribution-IP policy are public, and the existing CI verifies pull-request commit sign-offs. Repository branch/ruleset protection should require that CI status so the normal merge path cannot bypass the DCO gate.\n'
+          )
+          replace_once(
+              '| Governance / standardization | **G1 public governance architecture/process defined; operational governance remains bootstrap Founding Stewardship. External maintainers, multi-org TSC and neutral legal stewardship are not yet facts** |',
+              '| Governance / standardization | **G1 public governance architecture/process defined; mandatory DCO 1.1 contribution policy + PR CI verifier implemented; operational governance remains bootstrap Founding Stewardship. External maintainers, multi-org TSC and neutral legal stewardship are not yet facts** |'
+          )
+          replace_once(
+              '## Governance & Standardization Gate — **GOV-0/GOV-1 DEFINED; ORGANIZATIONAL GATES OPEN**',
+              '## Governance & Standardization Gate — **GOV-0/GOV-1 DEFINED; DCO POLICY + CI IMPLEMENTED; ORGANIZATIONAL GATES OPEN**'
+          )
+          replace_once(
+              'Canonical governance: `GOVERNANCE.md`.  \nProcesses: `docs/governance/`.',
+              'Canonical governance: `GOVERNANCE.md`.  \nContribution provenance: `DCO` + `docs/governance/CONTRIBUTION_IP_POLICY.md`.  \nProcesses: `docs/governance/`.'
+          )
+          replace_once(
+              '- [x] publish factual `MAINTAINERS.md` roster.',
+              '- [x] publish factual `MAINTAINERS.md` roster;\n- [x] adopt and publish mandatory **DCO 1.1** for new contribution commits;\n- [x] publish a contribution-IP policy that keeps Apache-2.0 + DCO as the default inbound posture and does not create a vendor-specific CLA/copyright assignment;\n- [x] record DCO adoption as a public bootstrap governance decision;\n- [x] implement pull-request CI verification of author-matching `Signed-off-by` trailers;\n- [ ] require the CI status containing the DCO gate in repository branch/ruleset protection so normal merges cannot bypass a failing sign-off check.'
+          )
+          replace_once(
+              '- Stable SDK compatibility/deprecation policy\n- Public governance/RFC/extension process in force and factual governance maturity reported independently of technical release maturity',
+              '- Stable SDK compatibility/deprecation policy\n- Mandatory DCO 1.1 contribution provenance policy in force with repository enforcement for the normal merge path\n- Public governance/RFC/extension process in force and factual governance maturity reported independently of technical release maturity'
+          )
+          replace_once(
+              'GOV-0/GOV-1 public process — defined',
+              'GOV-0/GOV-1 public process + DCO contribution provenance — defined/implemented'
+          )
+
+          p.write_text(s)
+          PY
+            git add ROADMAP.md
+          fi
+
+          test -f .git/MERGE_HEAD
+          git diff --check
+          git commit -m $'merge: sync exact current main into DCO governance branch\n\nBase-main: 6d12567fd1c273df22b93a500b9bf2b58eb5cb57\n\nSigned-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
+          git push origin HEAD:governance/mandatory-dco-1.1
+
+      - name: Remove helper from helper branch
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git fetch origin ops/dco-roadmap-merge-helper-20260823
+          git switch -C ops/dco-roadmap-merge-helper-20260823 origin/ops/dco-roadmap-merge-helper-20260823
+          git rm .github/workflows/tmp-dco-roadmap-merge-helper-20260823.yml
+          git commit -m $'chore: remove temporary DCO merge helper\n\nSigned-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
+          git push origin HEAD:ops/dco-roadmap-merge-helper-20260823
