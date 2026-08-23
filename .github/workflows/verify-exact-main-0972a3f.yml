@@ -1,0 +1,63 @@
+name: Verify exact main 0972a3f
+
+on:
+  push:
+    branches: [ci/verify-exact-main-0972a3f]
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0972a3f0373c4ce9df80cd0efe53b9293488077d
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Canonical CI gate for exact main SHA
+        id: gate
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          TRUYN_LOCAL_DEVELOPMENT=1 npm test
+          git diff --check
+      - name: Publish exact-SHA status
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_SHA: 0972a3f0373c4ce9df80cd0efe53b9293488077d
+          GATE_OUTCOME: ${{ steps.gate.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GATE_OUTCOME" = "success" ]; then STATE=success; DESC='Canonical CI passed: npm test + git diff --check'; else STATE=failure; DESC='Canonical CI failed: inspect verifier run'; fi
+          python - <<'PY' > /tmp/status.json
+          import json, os
+          print(json.dumps({
+            'state': os.environ['STATE'],
+            'context': 'truyn/main-ci-exact-0972a3f',
+            'description': os.environ['DESC'],
+            'target_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions"
+          }))
+          PY
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$TARGET_SHA" \
+            --data-binary @/tmp/status.json
+        env:
+          STATE: ${{ steps.gate.outcome == 'success' && 'success' || 'failure' }}
+          DESC: ${{ steps.gate.outcome == 'success' && 'Canonical CI passed: npm test + git diff --check' || 'Canonical CI failed: inspect verifier run' }}
+      - name: Fail workflow if gate failed
+        if: always()
+        shell: bash
+        run: test '${{ steps.gate.outcome }}' = 'success'
