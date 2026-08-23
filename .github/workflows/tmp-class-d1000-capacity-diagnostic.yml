@@ -28,7 +28,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           az vm list-usage -l eastus2 -o json > usage.json
-          for sku in Standard_D2as_v7 Standard_D2s_v7 Standard_D4as_v7 Standard_D4s_v7 Standard_D4d_v7; do
+          for sku in Standard_D2as_v7 Standard_D2s_v7 Standard_D4as_v7 Standard_D4s_v7 Standard_D4d_v7 Standard_E2as_v7 Standard_E2s_v7; do
             az vm list-skus -l eastus2 --size "$sku" --all -o json > "sku-${sku}.json"
           done
           python3 - <<'PY' > diagnostic.txt
@@ -38,10 +38,10 @@ jobs:
           for u in usage:
               n=(u.get('name') or {}).get('localizedValue') or (u.get('name') or {}).get('value')
               low=(n or '').lower().replace(' ','')
-              if n and any(x in low for x in ['totalregionalvcpus','standarddasv7familyvcpus','standarddsv7familyvcpus','standardddsv7familyvcpus']):
+              if n and any(x in low for x in ['totalregionalvcpus','standarddasv7familyvcpus','standarddsv7familyvcpus','standardddsv7familyvcpus','standardeasv7familyvcpus','standardesv7familyvcpus']):
                   print(n, 'current=',u.get('currentValue'),'limit=',u.get('limit'))
           print('SKUS')
-          for sku in ['Standard_D2as_v7','Standard_D2s_v7','Standard_D4as_v7','Standard_D4s_v7','Standard_D4d_v7']:
+          for sku in ['Standard_D2as_v7','Standard_D2s_v7','Standard_D4as_v7','Standard_D4s_v7','Standard_D4d_v7','Standard_E2as_v7','Standard_E2s_v7']:
               arr=json.load(open('sku-'+sku+'.json'))
               print(sku,'records=',len(arr))
               for r in arr[:3]:
@@ -51,7 +51,7 @@ jobs:
           body="$(python3 - <<'PY'
           import pathlib
           s=pathlib.Path('diagnostic.txt').read_text().replace('\n',' | ')
-          print('read_only=true required_hosts=20 '+s[:9000])
+          print('read_only=true required_hosts=20 '+s[:12000])
           PY
           )"
           gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN CLASS D-1000 V7 CAPACITY DIAGNOSTIC' -f "body=${body}" >/dev/null
