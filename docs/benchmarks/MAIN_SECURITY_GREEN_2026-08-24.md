@@ -74,7 +74,7 @@ This is the source SHA used by both the ordinary push CI and immutable verifier 
 
 - Workflow: `CI`
 - Event: `push`
-- Run: `32663536960`
+- Run: `32663507515`
 - Job: `97253157176`
 - Head SHA: `e5b0d959f452f2a5486fc194980588869a14b748`
 - `npm install --ignore-scripts --no-audit --no-fund`: PASS
@@ -84,12 +84,14 @@ This is the source SHA used by both the ordinary push CI and immutable verifier 
 
 The ordinary-run metadata was independently read back by execution-only observer:
 
-- Observer run: `32663761985`
-- Observer job: `97253820009`
+- Observer run: `32663847555`
+- Observer job: `97254045118`
 - Observer conclusion: `success`
 - Observer artifact: `ordinary-ci-evidence-e5b0d959`
-- Observer artifact ID: `9499429334`
-- Observer artifact SHA-256: `sha256:e3c2ee3fec93d2e896223c7bc74d47d589215bf4e533b867d58b8493cdd4b60a`
+- Observer artifact ID: `9499451980`
+- Observer artifact SHA-256: `sha256:72f105275f538f8cd8b8a4223c5a11cd6755ede8c73875d611815fdc53d9fd3e`
+
+The observer artifact independently records `target_sha=e5b0d959f452f2a5486fc194980588869a14b748`, `run_id=32663507515`, `job_id=97253157176`, event `push`, conclusion `success`, and success for install, test, and diff-check.
 
 ## Immutable exact-SHA verifier
 
