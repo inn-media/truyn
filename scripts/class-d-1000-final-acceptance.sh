@@ -4,12 +4,18 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# D-1000 must use the same fail-closed Azure RunCommand admission/retry
+# boundary that was accepted by D-100. This prevents replay after guest
+# admission and preserves every RunCommand message component for diagnosis.
+source "$ROOT/scripts/lib/class-d-run-command.sh"
+
 TMP="$(mktemp -d)"
 cp benchmarks/scale/class-d-azure-1000-provision.sh "$TMP/provision.sh"
 cp benchmarks/scale/class-d-azure-1000-campaign.sh "$TMP/campaign.sh"
 
 python3 - "$TMP/provision.sh" "$TMP/campaign.sh" <<'PY'
 from pathlib import Path
+import re
 import sys
 
 provision = Path(sys.argv[1])
@@ -30,6 +36,41 @@ def canonical(text: str) -> str:
     return text
 
 p = canonical(provision.read_text())
+
+# The source D-1000 provisioner historically carried an inline RunCommand
+# wrapper that retried the whole guest mutation and selected only
+# value[0].message. Replace that wrapper in the immutable prepared copy with
+# the accepted D-100 boundary. The accepted helper retries only explicit
+# control-plane non-admission, never replays after guest admission, and
+# preserves every value[].message component.
+remote_pattern = r'\nremote\(\) \{\n.*?\n\}\n\nmarker\(\)'
+remote_replacement = '''
+remote() {
+  local vm="$1" body="$2"
+  truyn_class_d_remote "$RG" "$vm" "$body"
+}
+
+marker()'''
+p, remote_count = re.subn(remote_pattern, remote_replacement, p, count=1, flags=re.S)
+if remote_count != 1:
+    raise SystemExit(f'expected exactly one D-1000 remote wrapper, replaced={remote_count}')
+
+# Preserve the complete RunCommand response when the semantic READY marker is
+# missing. The old harness captured it in `out` and then discarded it at the
+# assertion, which is why the historical stage=install line=182 artifact could
+# not reveal the failing guest sub-step.
+ready_old = '''  out=$(remote "${VMS[$i]}" "$script")
+  [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]'''
+ready_new = '''  out=$(remote "${VMS[$i]}" "$script")
+  if [[ "$(marker "$out" READY)" != "$NODES_PER_HOST" ]]; then
+    printf '%s\\n' "$out" >&2
+    echo "TRUYN_CLASS_D_1000 install host=$i missing_ready expected=$NODES_PER_HOST" >&2
+    false
+  fi'''
+if p.count(ready_old) != 1:
+    raise SystemExit(f'expected exactly one D-1000 READY assertion, found={p.count(ready_old)}')
+p = p.replace(ready_old, ready_new, 1)
+
 # D-1000 provisioning can legitimately take longer than the D-100 gate. Keep the
 # signed peer lease comfortably above the provisioning/campaign window; lease
 # lifecycle itself is already a separate productionization proof.
@@ -51,6 +92,7 @@ PY
 bash -n "$TMP/provision.sh"
 bash -n "$TMP/campaign.sh"
 bash -n scripts/class-d-1000-strict-acceptance.sh
+bash -n scripts/lib/class-d-run-command.sh
 node --check benchmarks/scale/class-d-1000-safety-probes.js
 node --check benchmarks/scale/class-d-1000-remote-dht-probe.js
 node --check benchmarks/scale/class-d-1000-evidence.js
@@ -73,7 +115,6 @@ grep -q '/bin/bash /tmp/truqyn-d1000-run.sh' "$TMP/provision.sh" && exit 1 || tr
 grep -q '/bin/bash /tmp/truyqn-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
 grep -q '/bin/bash /tmp/truin-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
 grep -q '/bin/bash /tmp/truy n-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
-grep -q '/bin/bash /tmp/truyn-d1000-run.sh' "$TMP/provision.sh"
 grep -q 'WorkingDirectory=/opt/truyn' "$TMP/provision.sh"
 grep -q 'EnvironmentFile=/etc/truqyn-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
 grep -q 'EnvironmentFile=/etc/truyqn-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
@@ -86,7 +127,23 @@ grep -q 'ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js' "$T
 grep -q 'ExecStart=/usr/bin/node /opt/truy n/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/usr/bin/node /opt/truyn/network/testnet/node-service.js' "$TMP/provision.sh"
 
-echo "TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical"
+# RunCommand boundary invariants for the prepared D-1000 harness. These are
+# fail-closed preflight assertions; they do not alter any D-1000 acceptance
+# threshold, topology, evaluator, terminal verifier, or safety predicate.
+grep -Fq 'truyn_class_d_remote "$RG" "$vm" "$body"' "$TMP/provision.sh"
+if grep -Fq "--query 'value[0].message'" "$TMP/provision.sh"; then
+  echo 'legacy D-1000 value[0].message RunCommand boundary survived preparation' >&2
+  exit 1
+fi
+if grep -Fq 'retry az vm run-command invoke' "$TMP/provision.sh"; then
+  echo 'legacy D-1000 whole-guest RunCommand retry survived preparation' >&2
+  exit 1
+fi
+grep -Fq -- "--query 'value[].message'" scripts/lib/class-d-run-command.sh
+grep -Fq 'TRUYN_GUEST_EXECUTION_ADMITTED=1' scripts/lib/class-d-run-command.sh
+grep -Fq 'missing_ready expected=$NODES_PER_HOST' "$TMP/provision.sh"
+
+echo "TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical runCommandBoundary=accepted-d100"
 
 if [[ "${TRUYN_CLASS_D1000_PREPARE_ONLY:-0}" == 1 ]]; then
   rm -rf "$TMP"
