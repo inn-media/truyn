@@ -118,7 +118,7 @@ export class TruynNetworkNode {
   }
 
   schedulePersist() {
-    if (!this.stateStore || !this.stateReady) return;
+    if (!this.stateStore || !this.stateReady || this.closing) return;
     const snapshot = this.snapshotState();
     this.persistQueue = this.persistQueue.then(() => this.stateStore.save(snapshot));
   }
