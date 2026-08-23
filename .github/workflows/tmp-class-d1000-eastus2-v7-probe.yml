@@ -1,0 +1,64 @@
+name: tmp-class-d1000-eastus2-v7-probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tmp-class-d1000-eastus2-v7-probe.yml'
+
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install pinned Azure CLI
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python -m venv "$RUNNER_TEMP/az313"
+          "$RUNNER_TEMP/az313/bin/python" -m pip install --disable-pip-version-check --no-input 'azure-cli==2.89.1' >/dev/null
+          echo "$RUNNER_TEMP/az313/bin" >> "$GITHUB_PATH"
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Probe eastus2 v7 SKUs read-only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az vm list-usage -l eastus2 -o json --only-show-errors > usage.json
+          : > sku.txt
+          for sku in Standard_D4as_v7 Standard_D4s_v7 Standard_D4d_v7; do
+            az vm list-skus -l eastus2 --size "$sku" --all -o json --only-show-errors > "${sku}.json"
+            SKU="$sku" python - <<'PY' >> sku.txt
+          import json, os
+          sku=os.environ['SKU']
+          arr=json.load(open(f'{sku}.json'))
+          restrictions=[]
+          for rec in arr:
+              restrictions.extend(rec.get('restrictions') or [])
+          print(f'{sku}\trecords={len(arr)}\trestrictions={json.dumps(restrictions,separators=(",",":"))}')
+          PY
+          done
+          python - <<'PY' > quota.txt
+          import json
+          usage=json.load(open('usage.json'))
+          for u in usage:
+              name=(u.get('name') or {}).get('localizedValue') or (u.get('name') or {}).get('value') or ''
+              low=name.lower().replace(' ','')
+              if any(x in low for x in ('totalregionalvcpus','standarddasv7familyvcpus','standarddsv7familyvcpus','standardddsv7familyvcpus')):
+                  print(f'{name}\tcurrent={u.get("currentValue")}\tlimit={u.get("limit")}')
+          PY
+          body="read_only=true region=eastus2 required_hosts=20 required_vcpu_if_4_each=80\n\n$(cat quota.txt)\n\n$(cat sku.txt)"
+          gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN D1000 EASTUS2 V7 CAPACITY PROBE' -f "body=${body}" >/dev/null
