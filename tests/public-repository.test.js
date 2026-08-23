@@ -155,6 +155,19 @@ test('published benchmark evidence is preserved and not replaced by stubs', asyn
   }
 });
 
+test('temporary D-1000 launcher workflows are never committed to the public workflow tree', async () => {
+  const files = await collect();
+  const temporaryLaunchers = files
+    .map((file) => file.relative)
+    .filter((relative) => relative.startsWith('.github/workflows/tmp-class-d1000-'))
+    .sort();
+  assert.deepEqual(
+    temporaryLaunchers,
+    [],
+    `Temporary D-1000 launchers must remain execution scaffolding only:\n${temporaryLaunchers.join('\n')}`
+  );
+});
+
 test('public repository contains no known operational/cloud leakage or credential patterns', async () => {
   const files = await collect();
   const violations = [];
