@@ -11,6 +11,17 @@ const ROOT = path.resolve(new URL('..', import.meta.url).pathname);
 // be redacted in-place with an explanatory note; the evidence file remains.
 const evidenceLedger = [
   {
+    path: 'docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md',
+    minBytes: 5000,
+    markers: [
+      '# TRUYN Production Azure Origin Lock — 2026-08-23',
+      '**Status:** ACCEPTED / PASS',
+      'truyn/origin-lock-live-v22',
+      'direct Azure Front Door HTTP',
+      'direct Container App WebSocket'
+    ]
+  },
+  {
     path: 'docs/benchmarks/CROSS_CLOUD_AB_2026-08-15.md',
     minBytes: 5000,
     markers: ['# TRUYN Cross-Cloud A/B Benchmark', '## Evidence', '## Primary measured result', '## Per-sample evidence']
