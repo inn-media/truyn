@@ -39,16 +39,20 @@ jobs:
           set -Eeuo pipefail
           az vm list-usage -l eastus2 -o json --only-show-errors > usage.json
           : > sku.txt
-          for sku in Standard_D4as_v7 Standard_D4s_v7 Standard_D4d_v7; do
+          for sku in Standard_D2as_v7 Standard_D2s_v7 Standard_D4as_v7 Standard_D4s_v7 Standard_D4d_v7; do
             az vm list-skus -l eastus2 --size "$sku" --all -o json --only-show-errors > "${sku}.json"
             SKU="$sku" python - <<'PY' >> sku.txt
           import json, os
           sku=os.environ['SKU']
           arr=json.load(open(f'{sku}.json'))
           restrictions=[]
+          caps={}
           for rec in arr:
               restrictions.extend(rec.get('restrictions') or [])
-          print(f'{sku}\trecords={len(arr)}\trestrictions={json.dumps(restrictions,separators=(",",":"))}')
+              for c in rec.get('capabilities') or []:
+                  if c.get('name') in ('vCPUs','MemoryGB'):
+                      caps[c.get('name')]=c.get('value')
+          print(f'{sku}\trecords={len(arr)}\tvCPUs={caps.get("vCPUs")}\tmemoryGB={caps.get("MemoryGB")}\trestrictions={json.dumps(restrictions,separators=(",",":"))}')
           PY
           done
           python - <<'PY' > quota.txt
@@ -60,5 +64,5 @@ jobs:
               if any(x in low for x in ('totalregionalvcpus','standarddasv7familyvcpus','standarddsv7familyvcpus','standardddsv7familyvcpus')):
                   print(f'{name}\tcurrent={u.get("currentValue")}\tlimit={u.get("limit")}')
           PY
-          body="read_only=true region=eastus2 required_hosts=20 required_vcpu_if_4_each=80\n\n$(cat quota.txt)\n\n$(cat sku.txt)"
+          body="read_only=true region=eastus2 required_hosts=20 required_vcpu_if_2_each=40 required_vcpu_if_4_each=80\n\n$(cat quota.txt)\n\n$(cat sku.txt)"
           gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN D1000 EASTUS2 V7 CAPACITY PROBE' -f "body=${body}" >/dev/null
