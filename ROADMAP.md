@@ -46,6 +46,7 @@ Canonical status matrix: `docs/architecture/IMPLEMENTATION_STATUS.md`.
 | SDK / developer experience | **Defined architecture; repository scaffolding only. Required first-party targets: JavaScript/TypeScript, Python, Go, Java, C#/.NET. Agent Descriptor draft defined; runtime SDK/descriptor implementation open** |
 | Governance / standardization | **G1 public governance architecture/process defined; operational governance remains bootstrap Founding Stewardship. External maintainers, multi-org TSC and neutral legal stewardship are not yet facts** |
 | Network productionization | **In progress — Class B closed; Class C heterogeneous WAN/reachability remains next** |
+| Production relay origin perimeter | **Deployment-proven** — Cloudflare → Azure Front Door `SocketAddr` sanitize/inject proof → Container Apps `AzureFrontDoor.Backend` ingress → runtime origin guard; accepted HTTP/WS/spoof matrix on 2026-08-23 |
 | Operations / compatibility / separate security docs | Documentation baseline implemented in current synchronization |
 | Mainnet | Not productionized / not stable |
 
@@ -66,16 +67,19 @@ The repository already contains an executable MVP/reference implementation and c
 11. low-level provider policy as well as runtime provider defaults to `owner-only`;
 12. local-development mode cannot coexist with public/production relay markers;
 13. oversized HTTP body closes the connection after 413;
-14. origin proof is expiry-bound and rotation-capable;
-15. sponsored mode cannot activate without actor-bound signed entitlement verification and an atomic durable usage store.
+14. generic origin proof is fail-closed, expiry/rotation-capable in token mode and stripped before the inner relay;
+15. the current production relay sanitizes requester proof at Azure Front Door and injects trusted proof only when `SocketAddr` is within current Cloudflare CIDRs;
+16. the current production relay restricts Container Apps ingress to `AzureFrontDoor.Backend` and has deployment-proven direct Front Door/Container App HTTP+WebSocket denial, including forged-proof attempts;
+17. sponsored mode cannot activate without actor-bound signed entitlement verification and an atomic durable usage store.
 
-This baseline is not a claim that rich account/organization tenancy, commercial entitlement issuance, deployed durable accounting, full A2A/MCP interoperability, settlement adapters, full cloud perimeter proof or mainnet security operations are complete.
+This baseline is not a claim that rich account/organization tenancy, commercial entitlement issuance, deployed durable accounting, full A2A/MCP interoperability, settlement adapters or mainnet security operations are complete. The current production relay cloud perimeter is deployment-proven; equivalent protection in other deployments, and after material edge/origin topology changes, remains a deployment acceptance gate.
 
 See:
 
 - `docs/architecture/PROVIDER_OWNERSHIP.md`
 - `docs/architecture/AUTHORIZATION_MODEL.md`
 - `docs/architecture/RELAY_SECURITY.md`
+- `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`
 - `docs/architecture/BILLING_BOUNDARY.md`
 - `docs/architecture/A2A_MCP_INTEROPERABILITY.md`
 - `docs/architecture/SETTLEMENT_ADAPTERS.md`
@@ -381,6 +385,7 @@ Current factual state: provenance/independence, active trust lifecycle, receipts
 - [x] Token, latency, request-body, semantic, trust and infrastructure-scale benchmark work exists
 - [x] Reproducible public reports are preserved under `docs/benchmarks/`
 - [x] Provider-security negative evidence is published without exposing private topology where safe
+- [x] Production relay origin-lock evidence is preserved with direct Azure Front Door/Container App HTTP+WebSocket and forged-proof denial
 - [ ] A2A/MCP interoperability evidence after the bridge gate is implemented
 - [ ] 100/1,000 simultaneously running **real** network-node evidence
 - [ ] large real-WAN adversarial distributions
@@ -399,7 +404,7 @@ Original milestone scope:
 - Recovery and uninstall paths
 - Operational separation of public data plane, owner control plane and provider backchannels
 
-Current factual state: executable node/relay/provider/testnet paths and cloud test exercises exist; `docs/operations/`, `docs/security/` and `docs/compatibility/` now document the current boundary. Production installers, signed updater/rollback and stable mainnet operations remain open.
+Current factual state: executable node/relay/provider/testnet paths and cloud test exercises exist; `docs/operations/`, `docs/security/` and `docs/compatibility/` now document the current boundary. The current production relay origin perimeter is deployment-proven through Cloudflare → Azure Front Door socket-bound proof → `AzureFrontDoor.Backend`-restricted Container Apps → runtime origin guard. Production installers, signed updater/rollback, cross-deployment perimeter automation and stable mainnet operations remain open.
 
 ## v0.9 — Settle — **DEFINED / IMPLEMENTATION DEFERRED**
 
