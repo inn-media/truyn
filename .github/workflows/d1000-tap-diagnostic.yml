@@ -1,10 +1,13 @@
 name: D1000 TAP diagnostic 6de173d2
 
-# Second push intentionally triggers this already-present diagnostic workflow.
+# Diagnostic only: always tests the detached exact failing source SHA below.
 on:
   push:
     branches:
       - d1000/tap-diagnostic-6de173d2
+  pull_request:
+    branches:
+      - d1000/fix-run-command-boundary-e768
 
 permissions:
   contents: read
