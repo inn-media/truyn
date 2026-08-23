@@ -4,6 +4,20 @@ All notable factual repository changes should be recorded here without publishin
 
 ## Unreleased
 
+### Production relay origin lock — 2026-08-23
+
+- Accepted a deployment-proven production relay perimeter on tested source `9b419e7d11baf6ec0d17e7075238e3d758ef16e4`, terminal context `truyn/origin-lock-live-v22 = success`.
+- Final accepted path is Cloudflare → Azure Front Door → Azure Container Apps ingress → runtime origin guard → inner TRUYN relay.
+- Azure Front Door now uses an unconditional requester-proof sanitize rule plus `SocketAddr` matching against current Cloudflare CIDRs before trusted origin proof is injected.
+- Container Apps relay ingress is restricted to the current `AzureFrontDoor.Backend` service-tag address space.
+- The accepted live matrix proves public Cloudflare HTTP/WebSocket semantics remain available while direct Azure Front Door HTTP/WebSocket, forged-proof direct Front Door HTTP/WebSocket and direct Container App HTTP/WebSocket return 403.
+- Corrected readiness semantics: Azure Front Door `deploymentStatus` is not treated as authoritative serving-edge convergence because it may remain `NotStarted` despite successful provisioning; accepted cutover uses real data-plane markers before the runtime origin guard is switched.
+- Preserved `docs/benchmarks/ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md` as earlier negative evidence and added `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md` as the durable accepted evidence record.
+- Updated security architecture/status, relay security, threat model, public edge architecture, operations runbook, architecture contract, implementation status, roadmap, documentation indexes, root `SECURITY.md` and benchmark ledger to reflect the deployment-proven state without promoting the whole network to mainnet/productionized maturity.
+- The final accepted origin-authentication boundary does not depend on an Azure WAF policy. WAF/rate limiting remain separate abuse-control layers.
+- Removed completed one-shot `tmp-azure-cloudflare-origin-lock*` and `tmp-patch-origin-lock*` executors from the current public tree after acceptance.
+- Closed obsolete draft PR #266 as superseded by the accepted `main` evidence and final Rule Set design.
+
 ### Governance and standardization architecture — 2026-08-23
 
 - Added root `GOVERNANCE.md` defining current bootstrap Founding Stewardship, earned Maintainer roles, target multi-organization TSC, quorum/voting, conflicts, security exception, neutral-stewardship target and G0→G5 governance maturity.
