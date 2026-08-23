@@ -26,9 +26,12 @@ The public repository may contain:
 - artifact/result schemas;
 - threat model and negative security tests;
 - benchmark methodology and validated aggregate results;
+- sanitized deployment-security evidence that records public hostname, tested commit/run identity, stable control semantics and pass/fail outcomes without publishing proof values/private resource identifiers;
 - generic examples with placeholders;
 - public service/domain names intentionally exposed to users;
 - intentionally public Agent Descriptor fields such as public participant identity, public interface endpoint, supported protocol versions and public capability classes.
+
+The accepted production origin-lock report is an example of this boundary: it may state that Cloudflare, Azure Front Door `SocketAddr` proof gating, `AzureFrontDoor.Backend` ingress restriction and direct HTTP/WebSocket 403 outcomes were proven, while exact private resource IDs, proof values and privileged enforcement automation remain outside the durable public evidence.
 
 ## Agent Descriptor visibility rule
 
@@ -57,7 +60,7 @@ Do not intentionally publish through source, docs, SDK examples, test fixtures o
 - real privileged caller/tenant allowlists;
 - private provider IDs/capabilities that policy intentionally hides;
 - exact production quotas, cost ceilings, emergency thresholds and credit balances;
-- internal firewall/WAF/bypass configuration;
+- exact production firewall/WAF/rule-set/bypass configuration, private rule/resource IDs, live proof values or privileged mutation automation beyond the sanitized stable invariants needed for public architecture/evidence;
 - private deployment names and topology where disclosure provides no user value;
 - incident details before appropriate remediation/disclosure;
 - sensitive user prompts, outputs or customer data;
@@ -67,7 +70,35 @@ Some of these values may not be credentials by themselves. They are still withhe
 
 ## Public identifiers
 
-Some identifiers are intentionally public, for example a public domain name, published protocol version, public node/capability that its owner deliberately advertises, or an identity included in an intentionally public Agent Descriptor. Public status must be a deliberate property, not an accidental consequence of infrastructure-as-code, SDK logging, descriptor generation or a debug document.
+Some identifiers are intentionally public, for example a public domain name, published protocol version, public node/capability that its owner deliberately advertises, a tested public commit/status identifier in sanitized evidence, or an identity included in an intentionally public Agent Descriptor. Public status must be a deliberate property, not an accidental consequence of infrastructure-as-code, SDK logging, descriptor generation or a debug document.
+
+## Deployment evidence boundary
+
+A production security result may be published when it is sanitized and auditable. A good public evidence record may include:
+
+```text
+public service hostname
+architecture/control invariant
+tested source commit
+public workflow/status identity
+positive/negative probe matrix
+HTTP/WebSocket outcomes
+known limitations and re-acceptance triggers
+```
+
+It should not include:
+
+```text
+edge/origin proof values
+private origin hostname
+subscription/account/resource identifiers
+private firewall/rule IDs
+privileged cloud identity topology
+secret-manager paths
+one-shot privileged mutation scripts when they are no longer needed
+```
+
+This is why `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md` remains public durable evidence while the completed temporary origin-lock executors were removed from the current tree after acceptance.
 
 ## Repository and SDK examples
 
@@ -97,10 +128,11 @@ Identifiers that are not credentials normally do not require emergency rotation 
 Every public architecture/documentation/SDK/descriptor change should ask:
 
 1. Is this needed to understand or implement TRUYN?
-2. Is this a stable protocol/architecture fact or a live deployment detail?
+2. Is this a stable protocol/architecture fact, sanitized evidence fact or a live deployment detail?
 3. Would a placeholder preserve the same public value?
 4. Could this reveal credentials, privileged identity, topology, quota or security-control internals?
 5. For an Agent Descriptor, would normal provider-policy discovery show this capability/interface/provider to the same requester?
 6. For an SDK example, would a developer be encouraged to hard-code a secret or private operational address?
+7. For deployment evidence, can the claim remain reproducible while private resource/proof values stay redacted?
 
-When in doubt, publish the invariant and keep the live operational value private.
+When in doubt, publish the invariant and evidence outcome, and keep the live operational value private.
