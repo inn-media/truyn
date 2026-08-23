@@ -40,7 +40,7 @@ The production Front Door route is associated with a dedicated rule set that tre
 
 The rule sequence is fail-closed:
 
-1. unconditionally delete any requester-supplied `x-truyn-edge-proof` header;
+1. unconditionally delete any requester-supplied edge-proof header;
 2. only when `SocketAddr` matches the current Cloudflare CIDR set, overwrite that header with deployment-managed proof;
 3. split Cloudflare CIDRs across multiple equivalent rules where necessary to remain within Azure rule-condition value limits;
 4. never accept a requester-provided proof value as authoritative.
