@@ -38,4 +38,4 @@ jobs:
           vnets="$(printf '%s\n' "$rows" | awk -F '\t' 'tolower($2)=="microsoft.network/virtualnetworks"{n++} END{print n+0}')"
           nsgs="$(printf '%s\n' "$rows" | awk -F '\t' 'tolower($2)=="microsoft.network/networksecuritygroups"{n++} END{print n+0}')"
           body="campaign_run=32621918334 prefix=${PREFIX} total=${total} vms=${vms} nics=${nics} disks=${disks} vnets=${vnets} nsgs=${nsgs} observation=read_only"
-          gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN CLASS D-1000 RUN 32621918334 RESOURCE SNAPSHOT 4' -f "body=${body}" >/dev/null
+          gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN CLASS D-1000 RUN 32621918334 RESOURCE SNAPSHOT 5' -f "body=${body}" >/dev/null
