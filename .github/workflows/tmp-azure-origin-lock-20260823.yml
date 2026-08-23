@@ -1,0 +1,214 @@
+name: Temporary Azure-only Cloudflare Origin Lock
+
+on:
+  push:
+    branches: [security/azure-origin-lock-20260823]
+    paths: ['.github/workflows/tmp-azure-origin-lock-20260823.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      AZURE_CLIENT_ID_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID_VALUE: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID_VALUE: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
+      PUBLIC_RELAY_URL: https://relay.truyn.org
+      RELAY_HOST: relay.truyn.org
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_ID_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID_VALUE }}
+
+      - name: Install Azure extensions
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          az extension add --name containerapp --upgrade --only-show-errors >/dev/null
+          az extension add --name cdn --upgrade --only-show-errors >/dev/null
+
+      - name: Establish Cloudflare public-path baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS --max-time 20 -D /tmp/public.headers -o /tmp/public.body -w '%{http_code}' "$PUBLIC_RELAY_URL/health" || true)"
+          [[ "$code" == 200 ]] || { echo "PUBLIC_BASELINE=FAIL health=$code"; exit 10; }
+          grep -qi '^cf-ray:' /tmp/public.headers || { echo 'PUBLIC_BASELINE=FAIL cf_ray_missing'; exit 11; }
+          reg="$(curl -sS --max-time 15 -o /tmp/public-register.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "$PUBLIC_RELAY_URL/v1/register" || true)"
+          [[ "$reg" != 000 && ! "$reg" =~ ^5 ]] || { echo "PUBLIC_BASELINE=FAIL register=$reg"; exit 12; }
+          echo "PUBLIC_REGISTER_BASELINE=$reg" >> "$GITHUB_ENV"
+          echo 'PUBLIC_BASELINE=PASS cloudflare_proxied=true'
+
+      - name: Discover exact Front Door route and relay origin
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          profiles="$(az resource list --resource-type Microsoft.Cdn/profiles -o json)"
+          while IFS=$'\t' read -r profile rg sku pid; do
+            [[ -n "$profile" && -n "$rg" ]] || continue
+            domains="$(az afd custom-domain list -g "$rg" --profile-name "$profile" -o json 2>/dev/null || echo '[]')"
+            cdid="$(jq -r --arg h "$RELAY_HOST" '.[]? | select(((.hostName // .properties.hostName // "")|ascii_downcase)==($h|ascii_downcase)) | .id' <<<"$domains" | head -1)"
+            [[ -n "$cdid" ]] || continue
+            endpoints="$(az afd endpoint list -g "$rg" --profile-name "$profile" -o json)"
+            while IFS=$'\t' read -r ep eph epid; do
+              [[ -n "$ep" && -n "$eph" ]] || continue
+              routes="$(az afd route list -g "$rg" --profile-name "$profile" --endpoint-name "$ep" -o json 2>/dev/null || echo '[]')"
+              route="$(jq -c --arg cd "${cdid,,}" '.[]? | select(any(.customDomains[]?; ((.id // "")|ascii_downcase)==$cd))' <<<"$routes" | head -1)"
+              [[ -n "$route" ]] || continue
+              ogid="$(jq -r '.originGroup.id // empty' <<<"$route")"
+              [[ -n "$ogid" ]] || continue
+              og="${ogid##*/}"
+              origins="$(az afd origin list -g "$rg" --profile-name "$profile" --origin-group-name "$og" -o json)"
+              origin_host="$(jq -r '[.[]? | select((.enabledState // .properties.enabledState // "Enabled") == "Enabled") | (.hostName // .properties.hostName // empty)][0] // empty' <<<"$origins")"
+              [[ -n "$origin_host" ]] || continue
+
+              afd_id="$(az afd profile show -g "$rg" --profile-name "$profile" --query 'frontDoorId' -o tsv)"
+              [[ -n "$afd_id" ]] || continue
+              for v in "$profile" "$rg" "$pid" "$ep" "$eph" "$epid" "$cdid" "$ogid" "$origin_host" "$afd_id"; do [[ -n "$v" ]] && echo "::add-mask::$v"; done
+              printf 'AFD_PROFILE=%s\nAFD_RG=%s\nAFD_SKU=%s\nAFD_PROFILE_ID=%s\nAFD_ENDPOINT=%s\nAFD_ENDPOINT_HOST=%s\nAFD_ENDPOINT_ID=%s\nAFD_CUSTOM_DOMAIN_ID=%s\nAFD_ORIGIN_HOST=%s\nAFD_FRONTDOOR_ID=%s\n' "$profile" "$rg" "$sku" "$pid" "$ep" "$eph" "$epid" "$cdid" "$origin_host" "$afd_id" >> "$GITHUB_ENV"
+              found=1
+              break 2
+            done < <(jq -r '.[]? | [(.name // ""),(.hostName // .properties.hostName // ""),(.id // "")] | @tsv' <<<"$endpoints")
+          done < <(jq -r '.[]? | [(.name // ""),(.resourceGroup // ""),(.sku.name // ""),(.id // "")] | @tsv' <<<"$profiles")
+          [[ "$found" == 1 ]] || { echo 'DISCOVERY=FAIL relay_frontdoor_route_not_found'; exit 20; }
+
+          app_found=0
+          while IFS=$'\t' read -r n g f; do
+            [[ -n "$f" ]] || continue
+            if [[ "${f,,}" == "${AFD_ORIGIN_HOST,,}" ]]; then
+              appid="$(az containerapp show -g "$g" -n "$n" --query id -o tsv)"
+              for v in "$n" "$g" "$f" "$appid"; do echo "::add-mask::$v"; done
+              printf 'RELAY_APP=%s\nRELAY_RG=%s\nRELAY_FQDN=%s\nRELAY_APP_ID=%s\n' "$n" "$g" "$f" "$appid" >> "$GITHUB_ENV"
+              app_found=1
+              break
+            fi
+          done < <(az containerapp list --query "[?properties.configuration.ingress.external==\`true\`].[name,resourceGroup,properties.configuration.ingress.fqdn]" -o tsv)
+          [[ "$app_found" == 1 ]] || { echo 'DISCOVERY=FAIL frontdoor_origin_containerapp_not_found'; exit 21; }
+          echo 'DISCOVERY=PASS exact_route=true'
+
+      - name: Prove bypass before enforcement
+        shell: bash
+        run: |
+          set -euo pipefail
+          afd_code="$(curl -sS --max-time 15 --connect-to "$RELAY_HOST:443:$AFD_ENDPOINT_HOST:443" -o /tmp/afd-before.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "$PUBLIC_RELAY_URL/v1/register" || true)"
+          origin_code="$(curl -sS --max-time 15 -o /tmp/origin-before.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "https://$RELAY_FQDN/v1/register" || true)"
+          echo "DIRECT_AFD_BEFORE=$afd_code"
+          echo "DIRECT_ORIGIN_BEFORE=$origin_code"
+          [[ "$afd_code" != 000 ]] || { echo 'BYPASS_BASELINE=FAIL afd_unreachable_for_proof'; exit 30; }
+          echo 'BYPASS_BASELINE=PASS'
+
+      - name: Lock Container App to this Front Door only
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$(az containerapp show -g "$RELAY_RG" -n "$RELAY_APP" -o json)"
+          printf '%s' "$(jq '.properties.configuration.ingress' <<<"$app")" > /tmp/ingress-backup.json
+
+          mapfile -t afd_ranges < <(az network list-service-tags --location global -o json | jq -r '.values[]? | select(.name=="AzureFrontDoor.Backend") | .properties.addressPrefixes[]?' | grep -E '^[0-9.]+/[0-9]+$' | sort -u)
+          [[ "${#afd_ranges[@]}" -ge 5 ]] || { echo 'ORIGIN_NETWORK_LOCK=FAIL service_tag_ranges_missing'; exit 40; }
+          rules='[]'
+          i=0
+          for cidr in "${afd_ranges[@]}"; do
+            i=$((i+1))
+            rules="$(jq --arg c "$cidr" --arg n "afd-backend-$i" '. + [{name:$n,description:"Azure Front Door backend only",ipAddressRange:$c,action:"Allow"}]' <<<"$rules")"
+          done
+          ingress="$(cat /tmp/ingress-backup.json)"
+          locked="$(jq --argjson r "$rules" '.ipSecurityRestrictions=$r' <<<"$ingress")"
+          body="$(jq -nc --argjson i "$locked" '{properties:{configuration:{ingress:$i}}}')"
+          az rest --method patch --url "https://management.azure.com${RELAY_APP_ID}?api-version=2025-01-01" --headers 'Content-Type=application/json' --body "$body" >/dev/null
+
+          az containerapp secret set -g "$RELAY_RG" -n "$RELAY_APP" --secrets "truyn-origin-fdid=$AFD_FRONTDOOR_ID" --only-show-errors >/dev/null
+          az containerapp update -g "$RELAY_RG" -n "$RELAY_APP" \
+            --remove-env-vars TRUYN_ORIGIN_GUARD_TOKEN_EXPIRES_AT TRUYN_ORIGIN_GUARD_PREVIOUS_TOKEN TRUYN_ORIGIN_GUARD_PREVIOUS_TOKEN_EXPIRES_AT \
+            --set-env-vars TRUYN_ORIGIN_GUARD=1 TRUYN_ORIGIN_GUARD_HEADER=x-azure-fdid TRUYN_ORIGIN_GUARD_TOKEN=secretref:truyn-origin-fdid \
+            --only-show-errors >/dev/null
+
+          ok=0
+          for _ in $(seq 1 80); do
+            code="$(curl -sS --max-time 10 -D /tmp/public-after-origin.headers -o /tmp/public-after-origin.body -w '%{http_code}' "$PUBLIC_RELAY_URL/health" || true)"
+            reg="$(curl -sS --max-time 10 -o /tmp/public-after-origin-reg.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "$PUBLIC_RELAY_URL/v1/register" || true)"
+            if [[ "$code" == 200 && "$reg" == "$PUBLIC_REGISTER_BASELINE" ]] && grep -qi '^cf-ray:' /tmp/public-after-origin.headers; then ok=1; break; fi
+            sleep 3
+          done
+          if [[ "$ok" != 1 ]]; then
+            backup="$(cat /tmp/ingress-backup.json)"
+            rb="$(jq -nc --argjson i "$backup" '{properties:{configuration:{ingress:$i}}}')"
+            az rest --method patch --url "https://management.azure.com${RELAY_APP_ID}?api-version=2025-01-01" --headers 'Content-Type=application/json' --body "$rb" >/dev/null || true
+            echo 'ORIGIN_NETWORK_LOCK=FAIL public_path_failed_ingress_rolled_back'
+            exit 41
+          fi
+
+          direct="$(curl -sS --max-time 12 -o /tmp/origin-after.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "https://$RELAY_FQDN/v1/register" || true)"
+          ws="$(curl -sS --http1.1 --max-time 10 -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dHJ1eW4tb3JpZ2luLWxvY2s=' "https://$RELAY_FQDN/v1/fast/socket" || true)"
+          [[ "$direct" == 403 ]] || { echo "ORIGIN_NETWORK_LOCK=FAIL direct_http=$direct"; exit 42; }
+          [[ "$ws" == 403 ]] || { echo "ORIGIN_NETWORK_LOCK=FAIL direct_ws=$ws"; exit 43; }
+          echo "ORIGIN_NETWORK_LOCK=PASS afd_ranges=${#afd_ranges[@]} direct_http=403 direct_ws=403"
+
+      - name: Lock Front Door ingress to Cloudflare proxy network
+        shell: bash
+        run: |
+          set -euo pipefail
+          WAF_NAME='truyn-relay-cloudflare-only'
+          SP_NAME='truyn-relay-cloudflare-only'
+          echo "::add-mask::$WAF_NAME"; echo "::add-mask::$SP_NAME"
+
+          mapfile -t cf_ranges < <({ curl -fsS https://www.cloudflare.com/ips-v4; curl -fsS https://www.cloudflare.com/ips-v6; } | sed '/^[[:space:]]*$/d' | sort -u)
+          [[ "${#cf_ranges[@]}" -ge 15 ]] || { echo 'FRONTDOOR_CLOUDFLARE_LOCK=FAIL cloudflare_ranges_missing'; exit 50; }
+
+          if ! az network front-door waf-policy show -g "$AFD_RG" --name "$WAF_NAME" >/dev/null 2>&1; then
+            az network front-door waf-policy create -g "$AFD_RG" --name "$WAF_NAME" --sku "$AFD_SKU" --location Global --mode Prevention --enabled-state Enabled --only-show-errors >/dev/null
+          else
+            az network front-door waf-policy update -g "$AFD_RG" --name "$WAF_NAME" --mode Prevention --enabled-state Enabled --only-show-errors >/dev/null
+          fi
+
+          az network front-door waf-policy rule delete -g "$AFD_RG" --policy-name "$WAF_NAME" --name CloudflareSocketOnly --only-show-errors >/dev/null 2>&1 || true
+          az network front-door waf-policy rule create -g "$AFD_RG" --policy-name "$WAF_NAME" --name CloudflareSocketOnly --priority 1 --rule-type MatchRule --action Block --defer --only-show-errors >/dev/null
+          az network front-door waf-policy rule match-condition add -g "$AFD_RG" --policy-name "$WAF_NAME" --name CloudflareSocketOnly --match-variable SocketAddr --operator IPMatch --values "${cf_ranges[@]}" --negate true --only-show-errors >/dev/null
+
+          waf_id="$(az network front-door waf-policy show -g "$AFD_RG" --name "$WAF_NAME" --query id -o tsv)"
+          echo "::add-mask::$waf_id"
+          sp_url="https://management.azure.com${AFD_PROFILE_ID}/securityPolicies/${SP_NAME}?api-version=2025-04-15"
+          sp_body="$(jq -nc --arg w "$waf_id" --arg d "$AFD_CUSTOM_DOMAIN_ID" --arg e "$AFD_ENDPOINT_ID" '{properties:{parameters:{type:"WebApplicationFirewall",wafPolicy:{id:$w},associations:[{domains:[{id:$d},{id:$e}],patternsToMatch:["/*"]}]}}}')"
+          az rest --method put --url "$sp_url" --headers 'Content-Type=application/json' --body "$sp_body" >/dev/null
+
+          ready=0
+          for _ in $(seq 1 100); do
+            sp="$(az rest --method get --url "$sp_url" 2>/dev/null || echo '{}')"
+            prov="$(jq -r '.properties.provisioningState // ""' <<<"$sp")"
+            dep="$(jq -r '.properties.deploymentStatus // ""' <<<"$sp")"
+            pub="$(curl -sS --max-time 10 -D /tmp/pub-final.headers -o /tmp/pub-final.body -w '%{http_code}' "$PUBLIC_RELAY_URL/health" || true)"
+            direct="$(curl -sS --max-time 10 --connect-to "$RELAY_HOST:443:$AFD_ENDPOINT_HOST:443" -o /tmp/afd-final.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "$PUBLIC_RELAY_URL/v1/register" || true)"
+            if [[ "$pub" == 200 && "$direct" == 403 ]] && grep -qi '^cf-ray:' /tmp/pub-final.headers && [[ "$prov" == Succeeded && "$dep" == Succeeded ]]; then ready=1; break; fi
+            sleep 6
+          done
+
+          if [[ "$ready" != 1 ]]; then
+            az rest --method delete --url "$sp_url" >/dev/null 2>&1 || true
+            echo 'FRONTDOOR_CLOUDFLARE_LOCK=FAIL public_or_direct_proof_failed security_policy_detached'
+            exit 51
+          fi
+          echo "FRONTDOOR_CLOUDFLARE_LOCK=PASS cloudflare_ranges=${#cf_ranges[@]} direct_afd_http=403"
+
+      - name: Final end-to-end proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          pub_h="$(curl -sS --max-time 15 -D /tmp/final-public.headers -o /tmp/final-public.body -w '%{http_code}' "$PUBLIC_RELAY_URL/health" || true)"
+          pub_r="$(curl -sS --max-time 15 -o /tmp/final-public-reg.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "$PUBLIC_RELAY_URL/v1/register" || true)"
+          afd_r="$(curl -sS --max-time 15 --connect-to "$RELAY_HOST:443:$AFD_ENDPOINT_HOST:443" -o /tmp/final-afd.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "$PUBLIC_RELAY_URL/v1/register" || true)"
+          ori_r="$(curl -sS --max-time 15 -o /tmp/final-origin.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "https://$RELAY_FQDN/v1/register" || true)"
+          afd_ws="$(curl -sS --http1.1 --max-time 10 --connect-to "$RELAY_HOST:443:$AFD_ENDPOINT_HOST:443" -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dHJ1eW4tYWZkLWxvY2s=' "$PUBLIC_RELAY_URL/v1/fast/socket" || true)"
+          ori_ws="$(curl -sS --http1.1 --max-time 10 -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dHJ1eW4tb3JpZ2luLWxvY2s=' "https://$RELAY_FQDN/v1/fast/socket" || true)"
+          [[ "$pub_h" == 200 && "$pub_r" == "$PUBLIC_REGISTER_BASELINE" ]] || { echo "FINAL=FAIL public=$pub_h/$pub_r"; exit 60; }
+          grep -qi '^cf-ray:' /tmp/final-public.headers || { echo 'FINAL=FAIL cf_ray_missing'; exit 61; }
+          [[ "$afd_r" == 403 && "$ori_r" == 403 ]] || { echo "FINAL=FAIL afd=$afd_r origin=$ori_r"; exit 62; }
+          [[ "$afd_ws" == 403 && "$ori_ws" == 403 ]] || { echo "FINAL=FAIL afd_ws=$afd_ws origin_ws=$ori_ws"; exit 63; }
+          echo 'FINAL=PASS cloudflare_path=OPEN direct_afd=CLOSED direct_origin=CLOSED direct_websocket=CLOSED'
