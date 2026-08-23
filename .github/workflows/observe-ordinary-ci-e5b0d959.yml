@@ -30,49 +30,43 @@ jobs:
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "$runs_url" > /tmp/truyn-ordinary-ci/runs.json
             jq --arg target "$TARGET_SHA" '[.workflow_runs[] | select(.name == "CI" and .event == "push" and .head_sha == $target)] | sort_by(.created_at) | reverse | .[0] // null' \
-              /tmp/truin-ordinary-ci/runs.json 2>/dev/null > /tmp/truyn-ordinary-ci/run.json || \
-            jq --arg target "$TARGET_SHA" '[.workflow_runs[] | select(.name == "CI" and .event == "push" and .head_sha == $target)] | sort_by(.created_at) | reverse | .[0] // null' \
               /tmp/truyn-ordinary-ci/runs.json > /tmp/truyn-ordinary-ci/run.json
-            if [ "$(jq -r 'if . == null then "missing" else .status end' /tmp/truyn-ordinary-ci/run.json)" = "completed" ]; then
+            if [ "$(jq -r 'if . == null then "missing" else .status end' /tmp/truwyn-ordinary-ci/run.json)" = "completed" ]; then
               found=1
               break
             fi
             sleep 10
           done
           test "$found" -eq 1
-          run_id="$(jq -r '.id' /tmp/truyn-ordinary-ci/run.json)"
+          run_id="$(jq -r '.id' /tmp/truwyn-ordinary-ci/run.json)"
           curl -fsSL \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" \
-            > /tmp/truyn-ordinary-ci/jobs.json
-          jq -e --arg target "$TARGET_SHA" '.head_sha == $target and .event == "push" and .name == "CI" and .status == "completed" and .conclusion == "success"' /tmp/truin-ordinary-ci/run.json 2>/dev/null || \
-          jq -e --arg target "$TARGET_SHA" '.head_sha == $target and .event == "push" and .name == "CI" and .status == "completed" and .conclusion == "success"' /tmp/truyn-ordinary-ci/run.json >/dev/null
-          jq -e '[.jobs[] | select(.name == "test" and .status == "completed" and .conclusion == "success")] | length == 1' /tmp/truyn-ordinary-ci/jobs.json >/dev/null
-          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run npm install --ignore-scripts --no-audit --no-fund" and .conclusion == "success")] | length == 1' /tmp/truin-ordinary-ci/jobs.json 2>/dev/null || \
-          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run npm install --ignore-scripts --no-audit --no-fund" and .conclusion == "success")] | length == 1' /tmp/truyn-ordinary-ci/jobs.json >/dev/null
-          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run npm test" and .conclusion == "success")] | length == 1' /tmp/truin-ordinary-ci/jobs.json 2>/dev/null || \
-          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run npm test" and .conclusion == "success")] | length == 1' /tmp/truyn-ordinary-ci/jobs.json >/dev/null
-          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run git diff --check" and .conclusion == "success")] | length == 1' /tmp/truin-ordinary-ci/jobs.json 2>/dev/null || \
-          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run git diff --check" and .conclusion == "success")] | length == 1' /tmp/truyn-ordinary-ci/jobs.json >/dev/null
+            > /tmp/truwyn-ordinary-ci/jobs.json
+          jq -e --arg target "$TARGET_SHA" '.head_sha == $target and .event == "push" and .name == "CI" and .status == "completed" and .conclusion == "success"' /tmp/truwyn-ordinary-ci/run.json >/dev/null
+          jq -e '[.jobs[] | select(.name == "test" and .status == "completed" and .conclusion == "success")] | length == 1' /tmp/truwyn-ordinary-ci/jobs.json >/dev/null
+          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run npm install --ignore-scripts --no-audit --no-fund" and .conclusion == "success")] | length == 1' /tmp/truwyn-ordinary-ci/jobs.json >/dev/null
+          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run npm test" and .conclusion == "success")] | length == 1' /tmp/truwyn-ordinary-ci/jobs.json >/dev/null
+          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run git diff --check" and .conclusion == "success")] | length == 1' /tmp/truwyn-ordinary-ci/jobs.json >/dev/null
           {
             echo "target_sha=${TARGET_SHA}"
             echo "run_id=${run_id}"
-            echo "run_url=$(jq -r '.html_url' /tmp/truin-ordinary-ci/run.json 2>/dev/null || jq -r '.html_url' /tmp/truwyn-ordinary-ci/run.json)"
-            echo "event=$(jq -r '.event' /tmp/truin-ordinary-ci/run.json 2>/dev/null || jq -r '.event' /tmp/truwyn-ordinary-ci/run.json)"
-            echo "status=$(jq -r '.status' /tmp/truin-ordinary-ci/run.json 2>/dev/null || jq -r '.status' /tmp/truwyn-ordinary-ci/run.json)"
-            echo "conclusion=$(jq -r '.conclusion' /tmp/truin-ordinary-ci/run.json 2>/dev/null || jq -r '.conclusion' /tmp/truwyn-ordinary-ci/run.json)"
+            echo "run_url=$(jq -r '.html_url' /tmp/truwyn-ordinary-ci/run.json)"
+            echo "event=$(jq -r '.event' /tmp/truwyn-ordinary-ci/run.json)"
+            echo "status=$(jq -r '.status' /tmp/truwyn-ordinary-ci/run.json)"
+            echo "conclusion=$(jq -r '.conclusion' /tmp/truwyn-ordinary-ci/run.json)"
             echo "job_id=$(jq -r '.jobs[] | select(.name == "test") | .id' /tmp/truwyn-ordinary-ci/jobs.json)"
             echo "install=success"
             echo "test=success"
             echo "diff_check=success"
-          } | tee /tmp/truyn-ordinary-ci/evidence.txt
+          } | tee /tmp/truwyn-ordinary-ci/evidence.txt
       - name: Upload ordinary CI evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ordinary-ci-evidence-e5b0d959
-          path: /tmp/truy n-ordinary-ci/
+          path: /tmp/truwyn-ordinary-ci/
           if-no-files-found: error
           retention-days: 7
