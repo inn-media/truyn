@@ -10,8 +10,6 @@ A2A/MCP interoperability is also an explicit implementation track. MCP already h
 
 Governance and standardization are now a separate mandatory track. TRUYN currently operates under bootstrap Founding Stewardship by InnMedia. Public governance/RFC/extension/decision contracts can be defined immediately, but external maintainers, a multi-organization TSC and neutral legal stewardship require real organizational evidence. A code/spec release MUST NOT be used to imply governance maturity that has not been reached.
 
-Contribution provenance is now part of that governance baseline: new contribution commits require **DCO 1.1** sign-off, the canonical DCO text and contribution-IP policy are public, and the existing CI verifies pull-request commit sign-offs. Repository branch/ruleset protection should require that CI status so the normal merge path cannot bypass the DCO gate.
-
 ## Maturity scale
 
 Every substantial subsystem should be described with an explicit maturity state:
@@ -46,7 +44,7 @@ Canonical status matrix: `docs/architecture/IMPLEMENTATION_STATUS.md`.
 | Trustability v1/v2 | Implemented + CI/benchmark proven; bounded real-network trust slice proven |
 | Multi-cloud text/image/video providers | Implemented reference adapter paths; individual deployment availability varies |
 | SDK / developer experience | **Defined architecture; repository scaffolding only. Required first-party targets: JavaScript/TypeScript, Python, Go, Java, C#/.NET. Agent Descriptor draft defined; runtime SDK/descriptor implementation open** |
-| Governance / standardization | **G1 public governance architecture/process defined; mandatory DCO 1.1 contribution policy + PR CI verifier implemented; operational governance remains bootstrap Founding Stewardship. External maintainers, multi-org TSC and neutral legal stewardship are not yet facts** |
+| Governance / standardization | **G1 public governance architecture/process defined; operational governance remains bootstrap Founding Stewardship. External maintainers, multi-org TSC and neutral legal stewardship are not yet facts** |
 | Network productionization | **In progress — Class B closed; Class C heterogeneous WAN/reachability remains next** |
 | Production relay origin perimeter | **Deployment-proven** — Cloudflare → Azure Front Door `SocketAddr` sanitize/inject proof → Container Apps `AzureFrontDoor.Backend` ingress → runtime origin guard; accepted HTTP/WS/spoof matrix on 2026-08-23 |
 | Operations / compatibility / separate security docs | Documentation baseline implemented in current synchronization |
@@ -89,11 +87,10 @@ See:
 - `docs/architecture/THREAT_MODEL.md`
 - `docs/security/`
 
-## Governance & Standardization Gate — **GOV-0/GOV-1 DEFINED; DCO POLICY + CI IMPLEMENTED; ORGANIZATIONAL GATES OPEN**
+## Governance & Standardization Gate — **GOV-0/GOV-1 DEFINED; ORGANIZATIONAL GATES OPEN**
 
 Architecture: `docs/architecture/GOVERNANCE_ARCHITECTURE.md`.  
 Canonical governance: `GOVERNANCE.md`.  
-Contribution provenance: `DCO` + `docs/governance/CONTRIBUTION_IP_POLICY.md`.  
 Processes: `docs/governance/`.
 
 This track is independent from network/SDK/security implementation maturity. Markdown can define governance, but cannot create independent maintainers, organizations or neutral legal stewardship.
@@ -107,12 +104,7 @@ This track is independent from network/SDK/security implementation maturity. Mar
 - [x] define decision classes A-D plus governance changes;
 - [x] define quorum/ordinary/supermajority rules for the future TSC;
 - [x] define conflict/recusal and public decision-record expectations;
-- [x] publish factual `MAINTAINERS.md` roster;
-- [x] adopt and publish mandatory **DCO 1.1** for new contribution commits;
-- [x] publish a contribution-IP policy that keeps Apache-2.0 + DCO as the default inbound posture and does not create a vendor-specific CLA/copyright assignment;
-- [x] record DCO adoption as a public bootstrap governance decision;
-- [x] implement pull-request CI verification of author-matching `Signed-off-by` trailers;
-- [ ] require the CI status containing the DCO gate in repository branch/ruleset protection so normal merges cannot bypass a failing sign-off check.
+- [x] publish factual `MAINTAINERS.md` roster.
 
 ### GOV-1 — RFC + extension framework — **DEFINED**
 
@@ -456,7 +448,6 @@ Architecture: `docs/architecture/SETTLEMENT_ADAPTERS.md`.
 - Published and documented first-party SDKs for JavaScript/TypeScript, Python, Go, Java and C#/.NET
 - Shared SDK conformance suite green across all five first-party languages
 - Stable SDK compatibility/deprecation policy
-- Mandatory DCO 1.1 contribution provenance policy in force with repository enforcement for the normal merge path
 - Public governance/RFC/extension process in force and factual governance maturity reported independently of technical release maturity
 - No claim of multi-organization/vendor-neutral governance unless GOV-3 is actually closed
 - No claim of neutral legal stewardship unless GOV-4 is actually closed
@@ -495,7 +486,7 @@ optional settlement-adapter implementation / capability-economy expansion
 In parallel with those technical stages:
 
 ```text
-GOV-0/GOV-1 public process + DCO contribution provenance — defined/implemented
+GOV-0/GOV-1 public process — defined
         ↓
 GOV-2 external/earned maintainers
         ↓
