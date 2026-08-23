@@ -1,0 +1,70 @@
+name: Observe evidence-main CI d0f228
+
+on:
+  pull_request: {}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TARGET_SHA: d0f228112c97527144c1b07db116fbb56e2fd15f
+    steps:
+      - name: Read ordinary push CI for evidence main SHA
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          out=/tmp/truyn-evidence-main-ci
+          mkdir -p "$out"
+          runs_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${TARGET_SHA}&event=push&per_page=20"
+          found=0
+          for attempt in $(seq 1 18); do
+            curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$runs_url" > "$out/runs.json"
+            jq --arg target "$TARGET_SHA" '[.workflow_runs[] | select(.name == "CI" and .event == "push" and .head_sha == $target)] | sort_by(.created_at) | reverse | .[0] // null' "$out/runs.json" > "$out/run.json"
+            if [ "$(jq -r 'if . == null then "missing" else .status end' "$out/run.json")" = "completed" ]; then
+              found=1
+              break
+            fi
+            sleep 10
+          done
+          test "$found" -eq 1
+          run_id="$(jq -r '.id' "$out/run.json")"
+          curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" > "$out/jobs.json"
+          jq -e --arg target "$TARGET_SHA" '.head_sha == $target and .event == "push" and .name == "CI" and .status == "completed" and .conclusion == "success"' "$out/run.json" >/dev/null
+          jq -e '[.jobs[] | select(.name == "test" and .status == "completed" and .conclusion == "success")] | length == 1' "$out/jobs.json" >/dev/null
+          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run npm install --ignore-scripts --no-audit --no-fund" and .conclusion == "success")] | length == 1' "$out/jobs.json" >/dev/null
+          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run npm test" and .conclusion == "success")] | length == 1' "$out/jobs.json" >/dev/null
+          jq -e '[.jobs[] | select(.name == "test") | .steps[] | select(.name == "Run git diff --check" and .conclusion == "success")] | length == 1' "$out/jobs.json" >/dev/null
+          {
+            echo "target_sha=${TARGET_SHA}"
+            echo "run_id=${run_id}"
+            echo "run_url=$(jq -r '.html_url' "$out/run.json")"
+            echo "status=$(jq -r '.status' "$out/run.json")"
+            echo "conclusion=$(jq -r '.conclusion' "$out/run.json")"
+            echo "job_id=$(jq -r '.jobs[] | select(.name == "test") | .id' "$out/jobs.json")"
+            echo "install=success"
+            echo "test=success"
+            echo "diff_check=success"
+          } | tee "$out/evidence.txt"
+      - name: Upload evidence-main CI observation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-main-ci-d0f228
+          path: /tmp/truyn-evidence-main-ci/
+          if-no-files-found: error
+          retention-days: 7
