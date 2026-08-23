@@ -56,7 +56,7 @@ Governance maturity uses the independent G0-G5 model defined in `../../GOVERNANC
 | TRUYN Agent Descriptor | **Defined draft** | **Not implemented as a served/discovered runtime contract** | none | implement well-known/native discovery, signature/expiry validation and scoped visibility |
 | First-party SDK program | **Defined** | **Scaffolding/documentation only** | no cross-language SDK conformance evidence | implement TS/Python reference pair, then Go/Java/.NET parity and package publication |
 | Governance architecture/process | **Defined (G1)** | **Bootstrap Founding Stewardship operating** | public `GOVERNANCE.md`, `MAINTAINERS.md`, RFC/extension/decision contracts | external maintainers (G2), multi-org TSC (G3), neutral stewardship (G4) remain unproven/not established |
-| Origin guard / edge proxy | Defined | Implemented reference controls | security tests/evaluation | deployment-specific direct-origin proof remains operational |
+| Origin guard / production relay edge perimeter | Defined | Reference controls implemented; current production relay deployment-proven | CI/security tests + `AZURE_ORIGIN_LOCK_2026-08-23.md` live HTTP/WS/spoof negative matrix | proof is deployment-specific; material edge/origin changes require re-acceptance |
 | Protected-provider M2M guard | Defined | Implemented | regression proven | live token issuance/rotation is deployment-specific |
 | Multi-cloud text/image/video adapters | Defined | Implemented reference paths | smoke/benchmark evidence for available deployments | cloud entitlement/quota can block individual models |
 | Operations documentation | Defined | baseline implemented | this docs layer | production runbooks evolve with testnet/mainnet |
@@ -175,9 +175,10 @@ The current reference implementation enforces these core invariants:
 5. public provider execution requires explicit opt-in and does not bypass billing policy;
 6. local development mode hard-fails when combined with public/production relay markers;
 7. oversized HTTP input closes the connection after 413;
-8. origin proof is expiry-bound, supports active/previous rotation and is removed before forwarding inward;
-9. protected provider M2M proof is transport-only and stripped before the inner relay;
-10. sponsored mode cannot activate without an actor-bound signed entitlement verifier and a durable atomic usage store.
+8. origin proof is fail-closed and removed before forwarding inward; the generic token mode is expiry/rotation-capable;
+9. the accepted production relay additionally sanitizes requester proof at Azure Front Door, injects trusted proof only for `SocketAddr` values within Cloudflare CIDRs, restricts Container Apps ingress to `AzureFrontDoor.Backend`, and denies direct Front Door/Container App HTTP and WebSocket bypass;
+10. protected provider M2M proof is transport-only and stripped before the inner relay;
+11. sponsored mode cannot activate without an actor-bound signed entitlement verifier and a durable atomic usage store.
 
 Future SDK/Agent Descriptor and A2A/MCP implementations must preserve these invariants. An SDK, descriptor, Agent Card, MCP tool list or external protocol credential must never turn public metadata into private-provider authorization.
 
@@ -185,11 +186,49 @@ Governance cannot vote these security invariants away silently under a stable pr
 
 See `SECURITY.md`, `docs/security/`, `AUTHORIZATION_MODEL.md`, `BILLING_BOUNDARY.md`, `A2A_MCP_INTEROPERABILITY.md`, `SETTLEMENT_ADAPTERS.md`, `SDK_DEVELOPER_EXPERIENCE.md`, `GOVERNANCE_ARCHITECTURE.md` and `RELAY_SECURITY.md`.
 
+## Production relay origin-perimeter status boundary
+
+The current production relay is now **deployment-proven** for direct-origin bypass denial, but this status is intentionally narrower than “all TRUYN deployments are productionized.”
+
+Accepted path:
+
+```text
+Cloudflare
+  ↓
+Azure Front Door SocketAddr sanitize/inject proof
+  ↓
+Container Apps AzureFrontDoor.Backend-only ingress
+  ↓
+runtime origin guard
+  ↓
+inner relay
+```
+
+Accepted evidence: `../benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`.
+
+Tested source: `9b419e7d11baf6ec0d17e7075238e3d758ef16e4`.
+
+Terminal status: `truyn/origin-lock-live-v22 = success`.
+
+The data-plane gate proved:
+
+- Cloudflare public health remains 200 with `CF-Ray`;
+- public HTTP/WebSocket semantics remain available;
+- direct Azure Front Door HTTP and WebSocket return 403;
+- forged proof on direct Azure Front Door HTTP/WebSocket still returns 403;
+- direct Container App HTTP/WebSocket return 403.
+
+Azure Front Door `deploymentStatus` is not used as the decisive readiness signal because it can remain `NotStarted` after successful provisioning. Serving-edge readiness is proven through real data-plane behavior before origin-guard cutover.
+
+Material changes to Cloudflare, Front Door route/rule sets, Cloudflare CIDRs, Container Apps ingress, origin proof or origin topology reopen this gate until the matrix is re-run.
+
 ## Evidence discipline
 
 A claim is only promoted to a proven technical maturity when a durable public benchmark/security report exists or the repository CI contract is explicitly referenced. Temporary cloud workflows and Actions logs are operational mechanisms, not the durable evidence ledger.
 
 `docs/benchmarks/` remains append-only. Sensitive fields are redacted; measured reports are not deleted as a security shortcut.
+
+The production origin-lock claim is promoted because a durable report now exists at `../benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`; the earlier negative `ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md` remains preserved as history.
 
 SDK maturity follows the same rule: package publication or a compiling language client is not enough. Cross-language conformance/security evidence is required before promoting SDK parity/stability claims.
 
@@ -199,20 +238,14 @@ Governance maturity follows the same rule: documents can close G1, but G2-G5 req
 
 ## Current priority
 
-The primary architecture/engineering priority remains **network productionization**. Class B real multi-host proof is closed and the signed peer-record lifecycle prerequisite is now CI-proven; the next evidence class remains heterogeneous WAN/reachability.
+The primary architecture/engineering priority remains **network productionization**. Closing the production relay origin perimeter removes one security blocker but does not by itself establish mainnet readiness or Internet-scale resilience.
 
 SDK/developer experience, bounded A2A/MCP interoperability and governance institution-building are required pre-v1 productization/standardization tracks that may proceed in parallel where they do not depend on unstable protocol decisions. They do not supersede the network productionization gate and must not be used to imply mainnet maturity.
 
 ```text
 bounded working decentralized primitives
         ↓
-Class B real multi-host testnet — closed
-        ↓
-signed peer-record lifecycle — CI-proven
-        ↓
-packet-path WAN partition / heal + heterogeneous failure domains
-        ↓
-real NAT and relay-failure matrix
+real multi-host / WAN / reachability evidence
         ↓
 100 real nodes
         ↓
@@ -245,4 +278,4 @@ GOV-4 neutral stewardship
 GOV-5 demonstrated continuity
 ```
 
-Until the technical gates are passed, TRUYN should be described as an advanced experimental/reference intelligence-network implementation, not a production mainnet. Until the applicable governance gates are passed, it should be described as an open project with defined public governance under bootstrap Founding Stewardship, not as already neutrally governed.
+Until the remaining technical gates are passed, TRUYN should be described as an advanced experimental/reference intelligence-network implementation with a deployment-proven production relay perimeter, not a production mainnet. Until the applicable governance gates are passed, it should be described as an open project with defined public governance under bootstrap Founding Stewardship, not as already neutrally governed.
