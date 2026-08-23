@@ -3,6 +3,7 @@ name: Verify exact main 0972a3f
 on:
   push:
     branches: [ci/verify-exact-main-0972a3f]
+  pull_request: {}
 
 permissions:
   contents: read
