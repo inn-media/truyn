@@ -13,6 +13,7 @@ Human-facing documentation for TRUYN architecture, factual implementation status
 - [A2A / MCP Interoperability Architecture](architecture/A2A_MCP_INTEROPERABILITY.md) — canonical external agent/tool protocol bridge contract and implementation gate.
 - [Roadmap](../ROADMAP.md) — engineering + governance sequence and maturity gates.
 - [Security Policy](../SECURITY.md) — public repository/security baseline.
+- [Production Azure Origin Lock](benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md) — accepted production relay direct-bypass denial evidence.
 - [Benchmark Evidence](benchmarks/README.md) — append-only public evidence ledger.
 
 ## Governance and standardization
@@ -51,7 +52,7 @@ Community Extensions are permissionless in third-party namespaces. Official proj
 - [SDK & Developer Experience](architecture/SDK_DEVELOPER_EXPERIENCE.md) — SDK ownership, required language matrix, TRUYN Agent Descriptor and cross-language conformance gate.
 - [Provider Ownership](architecture/PROVIDER_OWNERSHIP.md) — implemented node-level provider owner/visibility boundary and future account/tenant model.
 - [Authorization Model](architecture/AUTHORIZATION_MODEL.md) — implemented fail-closed provider authorization baseline and remaining control-plane layers.
-- [Relay Security](architecture/RELAY_SECURITY.md) — public relay, owner control plane, provider backchannel, origin guard, edge proxy and legacy-route rules.
+- [Relay Security](architecture/RELAY_SECURITY.md) — public relay, owner control plane, provider backchannel, origin guard and the deployment-proven Cloudflare → Azure Front Door → Container Apps production origin perimeter.
 - [Billing Boundary](architecture/BILLING_BOUNDARY.md) — actual BYOK/owner-funded/sponsored/prepaid/subscription safety semantics.
 - [A2A / MCP Interoperability Architecture](architecture/A2A_MCP_INTEROPERABILITY.md) — A2A Agent Card/task/artifact and MCP tool/resource bridge boundary; MCP bounded reference exists, A2A and cross-protocol proof remain open.
 - [Settlement Adapter Architecture](architecture/SETTLEMENT_ADAPTERS.md) — settlement-neutral core plus deferred x402/AP2 extension path; architecture only, implementation not started.
@@ -131,6 +132,7 @@ These documents describe the actual reference operational boundary and explicitl
 - [Security docs index](security/README.md)
 - [Security Architecture Status](security/SECURITY_ARCHITECTURE_STATUS.md)
 - [Operational Security](security/OPERATIONAL_SECURITY.md)
+- [Production Azure Origin Lock — 2026-08-23](benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md) — accepted direct Azure Front Door/Container App HTTP+WebSocket and forged-proof denial evidence.
 
 Root `SECURITY.md` remains the public policy/reporting entry point; `docs/security/` provides detailed architecture/status/runbook documentation. Governance allows time-bounded security embargoes but requires a durable public decision record for material permanent normative changes after safe disclosure.
 
@@ -164,7 +166,8 @@ Governance maturity is independently versioned as G0-G5 and is not implied by a 
 - [Distributed Semantic Retrieval — 2026-08-16](benchmarks/DISTRIBUTED_SEMANTIC_RETRIEVAL_2026-08-16.md) — distributed immutable-root retrieval evidence.
 - [Claim-Centric Trustability v1 — 2026-08-16](benchmarks/CLAIM_TRUSTABILITY_V1_2026-08-16.md) — trust evidence/resistance proof.
 - [Trust Network v2 — 2026-08-16](benchmarks/TRUST_NETWORK_V2_2026-08-16.md) — placement/read-quorum/active Trustability resistance proof.
-- [Origin Bypass Security Evaluation — 2026-08-16](benchmarks/ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md) — production-origin bypass evaluation with negative experiments/limitations.
+- [Production Azure Origin Lock — 2026-08-23](benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md) — accepted production relay origin-lock proof: Cloudflare path preserved; direct Azure Front Door HTTP/WS, forged-proof HTTP/WS and direct Container App HTTP/WS denied.
+- [Origin Bypass Security Evaluation — 2026-08-16](benchmarks/ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md) — preserved earlier negative production-origin bypass evaluation; superseded only for the current production origin-lock status by the 2026-08-23 accepted evidence.
 - [Multimodal Provider Parity](benchmarks/MULTIMODAL_PROVIDER_PARITY.md) — apples-to-apples methodology for text/image/video; methodology, not a completed parity result.
 
 A future A2A/MCP interoperability report belongs in `docs/benchmarks/` only after the bidirectional bridge and negative security matrix have actually run.
@@ -178,34 +181,3 @@ Published reports are part of TRUYN's verification record. A sanitized report sh
 Security review must **redact sensitive fields rather than delete the report**. Credentials, private keys, privileged cloud identities, private deployment/resource names, private origins, customer data, secret-bearing URLs, live allowlists and exact operational quota/cost ceilings remain forbidden.
 
 A benchmark result never grants access to provider accounts used to produce it.
-
-## Getting started
-
-- [BYOK](getting-started/BYOK.md) — user-facing provider onboarding/credential locality.
-- [MVP Quickstart](getting-started/MVP_QUICKSTART.md) — current executable relay/node MVP boundary.
-- [MVP AI Interoperability](getting-started/MVP_AI_INTEROP.md) — current adapters/live-demo boundary.
-- [SDK Quickstart target](getting-started/SDK_QUICKSTART.md) — planned first-party cross-language onboarding shape.
-
-## Architecture status rule
-
-Documents explicitly distinguish:
-
-- Defined architecture;
-- Implemented reference behavior;
-- CI-proven behavior;
-- bounded real-testnet evidence;
-- Productionized operation;
-- Internet-scale evidence;
-- Stable compatibility.
-
-Governance separately distinguishes G0-G5. A lower technical or governance maturity state must not be promoted by wording alone. The canonical factual matrix is [Implementation Status](architecture/IMPLEMENTATION_STATUS.md).
-
-## Public documentation rule
-
-Provider catalogs, model versions, external protocol versions, regions, quotas and access requirements change over time. Public docs describe stable TRUYN capabilities/security invariants and sanitized evidence. Exact deployment details remain private when they reveal topology, cloud identities, quotas, billing information, privileged allowlists or secret paths.
-
-The same rule applies to Agent Descriptors, A2A Agent Cards, MCP discovery and SDK examples: public onboarding/interoperability metadata must disclose only intentionally public interfaces/capabilities and must never contain provider credentials/private operational state.
-
-Governance decisions should be public, but an active security embargo may temporarily keep vulnerability details private. The permanent normative outcome must enter the public record when safe.
-
-See [Public / Private Information Boundary](architecture/PUBLIC_PRIVATE_BOUNDARY.md).
