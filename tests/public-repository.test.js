@@ -130,6 +130,12 @@ function hasForbiddenLiteralMarker(relative, content, marker) {
   // GitHub Actions run URLs are reproducibility evidence in sanitized benchmark reports.
   // They remain forbidden elsewhere because arbitrary run links can expose operational context.
   if (isBenchmarkEvidence && marker === 'github.com/inn-media/truyn/actions/runs/') return false;
+  // x-truyn-edge-proof is the stable public transport header name documented by sanitized
+  // benchmark evidence. Keep every other truyn-edge-* value forbidden, including in the
+  // same evidence file, so this exception cannot mask operational resource/topology names.
+  if (isBenchmarkEvidence && marker === 'truyn-edge-') {
+    return content.replaceAll('x-truyn-edge-proof', '').includes(marker);
+  }
   return content.includes(marker);
 }
 
