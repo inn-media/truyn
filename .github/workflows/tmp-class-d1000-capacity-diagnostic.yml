@@ -21,14 +21,14 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Capture regional SKU and quota state
+      - name: Capture v7 SKU and quota state
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -Eeuo pipefail
           az vm list-usage -l eastus2 -o json > usage.json
-          for sku in Standard_D2as_v5 Standard_D4as_v5 Standard_D4s_v5; do
+          for sku in Standard_D2as_v7 Standard_D2s_v7 Standard_D4as_v7 Standard_D4s_v7 Standard_D4d_v7 Standard_E2as_v7 Standard_E2s_v7; do
             az vm list-skus -l eastus2 --size "$sku" --all -o json > "sku-${sku}.json"
           done
           python3 - <<'PY' > diagnostic.txt
@@ -37,22 +37,21 @@ jobs:
           print('USAGE')
           for u in usage:
               n=(u.get('name') or {}).get('localizedValue') or (u.get('name') or {}).get('value')
-              if n and any(x in n.lower() for x in ['total regional vcpus','standard dasv5 family vcpus','standard dsv5 family vcpus','standard dasv5family','standard dsv5family']):
+              low=(n or '').lower().replace(' ','')
+              if n and any(x in low for x in ['totalregionalvcpus','standarddasv7familyvcpus','standarddsv7familyvcpus','standardddsv7familyvcpus','standardeasv7familyvcpus','standardesv7familyvcpus']):
                   print(n, 'current=',u.get('currentValue'),'limit=',u.get('limit'))
           print('SKUS')
-          for sku in ['Standard_D2as_v5','Standard_D4as_v5','Standard_D4s_v5']:
+          for sku in ['Standard_D2as_v7','Standard_D2s_v7','Standard_D4as_v7','Standard_D4s_v7','Standard_D4d_v7','Standard_E2as_v7','Standard_E2s_v7']:
               arr=json.load(open('sku-'+sku+'.json'))
               print(sku,'records=',len(arr))
               for r in arr[:3]:
-                  restr=r.get('restrictions') or []
                   caps={c.get('name'):c.get('value') for c in (r.get('capabilities') or [])}
-                  print(' resourceType=',r.get('resourceType'),'locations=',r.get('locations'),'restrictions=',restr,'vCPUs=',caps.get('vCPUs'),'memoryGB=',caps.get('MemoryGB'))
+                  print(' restrictions=',r.get('restrictions') or [],'vCPUs=',caps.get('vCPUs'),'memoryGB=',caps.get('MemoryGB'))
           PY
-          cat diagnostic.txt
           body="$(python3 - <<'PY'
           import pathlib
           s=pathlib.Path('diagnostic.txt').read_text().replace('\n',' | ')
-          print('read_only=true '+s[:6000])
+          print('read_only=true required_hosts=20 '+s[:12000])
           PY
           )"
-          gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN CLASS D-1000 AZURE CAPACITY DIAGNOSTIC' -f "body=${body}" >/dev/null
+          gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN CLASS D-1000 V7 CAPACITY DIAGNOSTIC' -f "body=${body}" >/dev/null

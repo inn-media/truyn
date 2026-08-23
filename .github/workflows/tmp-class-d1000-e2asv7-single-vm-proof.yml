@@ -1,0 +1,75 @@
+name: tmp-class-d1000-e2asv7-single-vm-proof
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tmp-class-d1000-e2asv7-single-vm-proof.yml'
+
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Record proof start
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN D1000 E2ASV7 SINGLE VM PROOF STARTED' -f "body=run=${GITHUB_RUN_ID} sku=Standard_E2as_v7 location=eastus2 scope=capacity_only" >/dev/null
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Create one representative VM
+        id: create
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          RG=truyn
+          P="truyn-d1000-e2proof-${GITHUB_RUN_ID}"
+          echo "P=$P" >> "$GITHUB_ENV"
+          az network nsg create -g "$RG" -n "${P}-nsg" -l eastus2 --only-show-errors >/dev/null
+          az network vnet create -g "$RG" -n "${P}-vnet" -l eastus2 --address-prefixes 10.250.0.0/16 --subnet-name "${P}-subnet" --subnet-prefixes 10.250.1.0/24 --only-show-errors >/dev/null
+          az network nic create -g "$RG" -n "${P}-nic" -l eastus2 --vnet-name "${P}-vnet" --subnet "${P}-subnet" --only-show-errors >/dev/null
+          az vm create -g "$RG" -n "${P}-vm" -l eastus2 --image Ubuntu2204 --size Standard_E2as_v7 --admin-username truynadmin --generate-ssh-keys --nics "${P}-nic" --os-disk-name "${P}-os" --os-disk-delete-option Delete --only-show-errors >vm-create.out 2>vm-create.err
+          az vm show -g "$RG" -n "${P}-vm" --query '{name:name,size:hardwareProfile.vmSize,provisioningState:provisioningState}' -o json --only-show-errors >vm-proof.json
+      - name: Cleanup proof resources
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          RG=truyn
+          P="${P:-truyn-d1000-e2proof-${GITHUB_RUN_ID}}"
+          az vm delete -g "$RG" -n "${P}-vm" --yes --force-deletion --only-show-errors >/dev/null 2>&1 || true
+          az network nic delete -g "$RG" -n "${P}-nic" --only-show-errors >/dev/null 2>&1 || true
+          az disk delete -g "$RG" -n "${P}-os" --yes --only-show-errors >/dev/null 2>&1 || true
+          az network vnet delete -g "$RG" -n "${P}-vnet" --only-show-errors >/dev/null 2>&1 || true
+          az network nsg delete -g "$RG" -n "${P}-nsg" --only-show-errors >/dev/null 2>&1 || true
+          left="$(az resource list -g "$RG" --query "[?starts_with(name, '${P}')].name" -o tsv --only-show-errors 2>/dev/null | wc -l | tr -d ' ')"
+          echo "cleanup_remaining=$left" >cleanup.txt
+      - name: Record proof result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CREATE_OUTCOME: ${{ steps.create.outcome }}
+        shell: bash
+        run: |
+          err="$(head -c 5000 vm-create.err 2>/dev/null || true)"
+          proof="$(cat vm-proof.json 2>/dev/null | tr '\n' ' ' || true)"
+          cleanup="$(cat cleanup.txt 2>/dev/null || true)"
+          body="run=${GITHUB_RUN_ID} create=${CREATE_OUTCOME} sku=Standard_E2as_v7 location=eastus2 required_hosts=20 required_total_vcpu=40 regional_limit_known=65 ${cleanup} proof=${proof} error=${err}"
+          gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN D1000 E2ASV7 SINGLE VM PROOF RESULT' -f "body=${body}" >/dev/null
+      - name: Require clean proof
+        if: always()
+        env:
+          CREATE_OUTCOME: ${{ steps.create.outcome }}
+        run: |
+          test "$CREATE_OUTCOME" = success
+          grep -q '^cleanup_remaining=0$' cleanup.txt
