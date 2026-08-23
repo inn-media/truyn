@@ -125,20 +125,6 @@ const forbiddenOperationalExecutablePatterns = [
   /process\.env\.GCP_ACCESS_TOKEN\b/
 ];
 
-function hasForbiddenLiteralMarker(relative, content, marker) {
-  const isBenchmarkEvidence = relative.startsWith(BENCHMARK_EVIDENCE_DIR);
-  // GitHub Actions run URLs are reproducibility evidence in sanitized benchmark reports.
-  // They remain forbidden elsewhere because arbitrary run links can expose operational context.
-  if (isBenchmarkEvidence && marker === 'github.com/inn-media/truyn/actions/runs/') return false;
-  // x-truyn-edge-proof is the stable public transport header name documented by sanitized
-  // benchmark evidence. Keep every other truyn-edge-* value forbidden, including in the
-  // same evidence file, so this exception cannot mask operational resource/topology names.
-  if (isBenchmarkEvidence && marker === 'truyn-edge-') {
-    return content.replaceAll('x-truyn-edge-proof', '').includes(marker);
-  }
-  return content.includes(marker);
-}
-
 async function collect(dir = ROOT, out = []) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (entry.name === '.DS_Store') continue;
@@ -169,17 +155,16 @@ test('published benchmark evidence is preserved and not replaced by stubs', asyn
   }
 });
 
-test('benchmark evidence may name only the public edge-proof header, not neighboring topology markers', () => {
-  const evidencePath = 'docs/benchmarks/REGRESSION_EDGE_PROOF.md';
-  assert.equal(
-    hasForbiddenLiteralMarker(evidencePath, 'Sanitized transport header: x-truyn-edge-proof', 'truyn-edge-'),
-    false,
-    'the stable public transport header name is not operational topology leakage'
-  );
-  assert.equal(
-    hasForbiddenLiteralMarker(evidencePath, 'Private resource marker: truyn-edge-production', 'truyn-edge-'),
-    true,
-    'other truyn-edge-* values must remain forbidden'
+test('temporary D-1000 launcher workflows are never committed to the public workflow tree', async () => {
+  const files = await collect();
+  const temporaryLaunchers = files
+    .map((file) => file.relative)
+    .filter((relative) => relative.startsWith('.github/workflows/tmp-class-d1000-'))
+    .sort();
+  assert.deepEqual(
+    temporaryLaunchers,
+    [],
+    `Temporary D-1000 launchers must remain execution scaffolding only:\n${temporaryLaunchers.join('\n')}`
   );
 });
 
@@ -204,8 +189,12 @@ test('public repository contains no known operational/cloud leakage or credentia
     let content;
     try { content = await readFile(file.absolute, 'utf8'); } catch { continue; }
 
+    const isBenchmarkEvidence = file.relative.startsWith(BENCHMARK_EVIDENCE_DIR);
     for (const marker of forbiddenLiteralMarkers) {
-      if (hasForbiddenLiteralMarker(file.relative, content, marker)) violations.push(`${file.relative}: forbidden operational marker category`);
+      // GitHub Actions run URLs are reproducibility evidence in sanitized benchmark reports.
+      // They remain forbidden elsewhere because arbitrary run links can expose operational context.
+      if (isBenchmarkEvidence && marker === 'github.com/inn-media/truyn/actions/runs/') continue;
+      if (content.includes(marker)) violations.push(`${file.relative}: forbidden operational marker category`);
     }
     for (const pattern of forbiddenCredentialPatterns) {
       if (pattern.test(content)) violations.push(`${file.relative}: credential/private-key pattern detected`);
