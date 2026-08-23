@@ -1,0 +1,129 @@
+name: Verify exact main 9b627182
+
+on:
+  pull_request: {}
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      TARGET_SHA: 9b62718242f449c4339ba34245c589950c1be5bc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9b62718242f449c4339ba34245c589950c1be5bc
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run immutable canonical evaluator
+        id: gate
+        shell: bash
+        run: |
+          set -uo pipefail
+          out=/tmp/truyn-main-verifier
+          mkdir -p "$out"
+          actual_sha="$(git rev-parse HEAD)"
+
+          set +e
+          npm install --ignore-scripts --no-audit --no-fund 2>&1 | tee "$out/01-install.log"
+          install_rc=${PIPESTATUS[0]}
+
+          test_rc=125
+          if [ "$install_rc" -eq 0 ]; then
+            TRUYN_LOCAL_DEVELOPMENT=1 npm test 2>&1 | tee "$out/02-test.log"
+            test_rc=${PIPESTATUS[0]}
+          fi
+
+          diff_rc=125
+          if [ "$install_rc" -eq 0 ] && [ "$test_rc" -eq 0 ]; then
+            git diff --check 2>&1 | tee "$out/03-diff-check.log"
+            diff_rc=${PIPESTATUS[0]}
+          fi
+          set +e
+
+          evaluator=FAIL
+          terminal=FAIL
+          gate_rc=1
+          if [ "$install_rc" -eq 0 ] && [ "$test_rc" -eq 0 ] && [ "$diff_rc" -eq 0 ]; then
+            evaluator=PASS
+          fi
+          if [ "$actual_sha" = "$TARGET_SHA" ] && [ "$evaluator" = PASS ]; then
+            terminal=PASS
+            gate_rc=0
+          fi
+
+          python - "$out/evidence.json" "$TARGET_SHA" "$actual_sha" "$install_rc" "$test_rc" "$diff_rc" "$evaluator" "$terminal" <<'PY'
+          import json, os, sys
+          path, target, actual, install_rc, test_rc, diff_rc, evaluator, terminal = sys.argv[1:]
+          evidence = {
+              "schema": "truyn.main-security-green.v1",
+              "target_sha": target,
+              "actual_checkout_sha": actual,
+              "node": os.popen("node --version").read().strip(),
+              "npm": os.popen("npm --version").read().strip(),
+              "commands": [
+                  {"command": "npm install --ignore-scripts --no-audit --no-fund", "exit": int(install_rc)},
+                  {"command": "TRUYN_LOCAL_DEVELOPMENT=1 npm test", "exit": int(test_rc)},
+                  {"command": "git diff --check", "exit": int(diff_rc)},
+              ],
+              "evaluator": evaluator,
+              "terminal": terminal,
+          }
+          with open(path, "w", encoding="utf-8") as fh:
+              json.dump(evidence, fh, indent=2, sort_keys=True)
+              fh.write("\n")
+          print(json.dumps(evidence, indent=2, sort_keys=True))
+          PY
+
+          echo "gate_rc=$gate_rc" >> "$GITHUB_OUTPUT"
+          echo "evaluator=$evaluator" >> "$GITHUB_OUTPUT"
+          echo "terminal=$terminal" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload immutable verifier evidence
+        id: artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: immutable-main-security-green-9b627182
+          path: /tmp/truyn-main-verifier/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish terminal status and enforce verdict
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_RC: ${{ steps.gate.outputs.gate_rc }}
+          EVALUATOR: ${{ steps.gate.outputs.evaluator }}
+          TERMINAL: ${{ steps.gate.outputs.terminal }}
+          ARTIFACT_DIGEST: ${{ steps.artifact.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          state=failure
+          description="Immutable canonical gate failed"
+          if [ "$GATE_RC" = "0" ] && [ "$EVALUATOR" = PASS ] && [ "$TERMINAL" = PASS ] && [ -n "$ARTIFACT_DIGEST" ]; then
+            state=success
+            description="Immutable canonical gate PASS"
+          fi
+          STATE="$state" DESC="$description" python - <<'PY' > /tmp/status.json
+          import json, os
+          print(json.dumps({
+            "state": os.environ["STATE"],
+            "context": "truyn/main-ci-exact-9b627182",
+            "description": os.environ["DESC"],
+            "target_url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions"
+          }))
+          PY
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$TARGET_SHA" \
+            --data-binary @/tmp/status.json
+          test "$state" = success
