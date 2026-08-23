@@ -21,42 +21,44 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Canonical CI gate for exact main SHA
-        id: gate
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --ignore-scripts --no-audit --no-fund
-          TRUYN_LOCAL_DEVELOPMENT=1 npm test
-          git diff --check
-      - name: Publish exact-SHA status
-        if: always()
+      - name: Run and publish exact-main canonical CI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_SHA: 0972a3f0373c4ce9df80cd0efe53b9293488077d
-          GATE_OUTCOME: ${{ steps.gate.outcome }}
         shell: bash
         run: |
-          set -euo pipefail
-          python - <<'PY' > /tmp/status.json
+          set -u
+          post_status() {
+            local state="$1"
+            local desc="$2"
+            STATE="$state" DESC="$desc" python - <<'PY' > /tmp/status.json
           import json, os
-          outcome = os.environ['GATE_OUTCOME']
-          ok = outcome == 'success'
           print(json.dumps({
-            'state': 'success' if ok else 'failure',
-            'context': 'truyn/main-ci-exact-0972a3f',
-            'description': 'Canonical CI passed: npm test + git diff --check' if ok else 'Canonical CI failed: inspect verifier run',
-            'target_url': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions"
+            "state": os.environ["STATE"],
+            "context": "truyn/main-ci-exact-0972a3f",
+            "description": os.environ["DESC"],
+            "target_url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions"
           }))
           PY
-          curl -fsS -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H 'Accept: application/vnd.github+json' \
-            -H 'X-GitHub-Api-Version: 2022-11-28' \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$TARGET_SHA" \
-            --data-binary @/tmp/status.json
-      - name: Fail workflow if gate failed
-        if: always()
-        shell: bash
-        run: test '${{ steps.gate.outcome }}' = 'success'
+            curl -fsS -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$TARGET_SHA" \
+              --data-binary @/tmp/status.json
+          }
+
+          set +e
+          (
+            set -euo pipefail
+            npm install --ignore-scripts --no-audit --no-fund
+            TRUYN_LOCAL_DEVELOPMENT=1 npm test
+            git diff --check
+          )
+          rc=$?
+          if [ "$rc" -eq 0 ]; then
+            post_status success 'Canonical CI passed: npm test + git diff --check'
+          else
+            post_status failure 'Canonical CI failed: inspect verifier run'
+          fi
+          exit "$rc"
