@@ -1,0 +1,86 @@
+name: Immutable D-1000 prepare-only e768bc7c
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact pinned D-1000 source
+        uses: actions/checkout@v4
+        with:
+          ref: e768bc7c5c89d6dd52baacd4744742d49af40bf8
+          fetch-depth: 1
+
+      - name: Verify exact source SHA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "e768bc7c5c89d6dd52baacd4744742d49af40bf8"
+          printf '%s\n' "TRUYN_CLASS_D1000_SOURCE_SHA=$actual"
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run immutable D-1000 prepare-only gate
+        shell: bash
+        env:
+          TRUYN_CLASS_D1000_PREPARE_ONLY: '1'
+        run: |
+          set -Eeuo pipefail
+          bash scripts/class-d-1000-final-acceptance.sh 2>&1 | tee class-d-1000-prepare.log
+          grep -Fq 'TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical' class-d-1000-prepare.log
+
+      - name: Build immutable prepare evidence manifest
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sha256sum \
+            scripts/class-d-1000-final-acceptance.sh \
+            scripts/class-d-1000-strict-acceptance.sh \
+            benchmarks/scale/class-d-azure-1000-provision.sh \
+            benchmarks/scale/class-d-azure-1000-campaign.sh \
+            benchmarks/scale/class-d-1000-safety-probes.js \
+            benchmarks/scale/class-d-1000-remote-dht-probe.js \
+            benchmarks/scale/class-d-1000-evidence.js \
+            benchmarks/scale/evaluate-class-d-1000-evidence.js \
+            benchmarks/scale/verify-class-d-1000-terminal.js \
+            > class-d-1000-prepare-hashes.txt
+          python3 - <<'PY'
+          import json, os
+          manifest = {
+              'gate': 'class-d-1000-prepare-only',
+              'result': 'PASS',
+              'sourceSha': 'e768bc7c5c89d6dd52baacd4744742d49af40bf8',
+              'prepareOnly': True,
+              'azureMutation': False,
+              'preparedHarnessMarker': 'TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical',
+              'workflowRunId': os.environ.get('GITHUB_RUN_ID'),
+              'workflowRunAttempt': os.environ.get('GITHUB_RUN_ATTEMPT'),
+              'runnerWorkflowSha': os.environ.get('GITHUB_SHA'),
+          }
+          with open('class-d-1000-prepare-manifest.json', 'w') as f:
+              json.dump(manifest, f, sort_keys=True, indent=2)
+              f.write('\n')
+          PY
+          cat class-d-1000-prepare-manifest.json
+
+      - name: Upload immutable prepare evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: class-d-1000-prepare-e768bc7c
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            class-d-1000-prepare.log
+            class-d-1000-prepare-manifest.json
+            class-d-1000-prepare-hashes.txt
