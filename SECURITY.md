@@ -53,13 +53,21 @@ TRUYN is pre-1.0 experimental software. The public reference runtime is intentio
 - the reference code also includes a generic Cloudflare Worker-compatible edge proxy that requires an HTTPS origin plus Worker secret binding, overwrites any client-supplied origin proof, preserves normal requester/session and WebSocket headers, and uses manual redirect handling;
 - the edge proxy refuses same-host origin configuration, including alternate ports, so a public Worker route cannot be accidentally configured to recursively fetch itself;
 - edge-proxy failures are sanitized and do not return Worker secret bindings or upstream exception details;
+- the current production relay additionally uses a deployment-proven Cloudflare → Azure Front Door → Container Apps → runtime origin-guard chain;
+- on that deployment, Azure Front Door unconditionally removes requester-supplied edge proof and injects trusted proof only when `SocketAddr` matches the current Cloudflare CIDR set;
+- the production relay Container Apps ingress is restricted to the current `AzureFrontDoor.Backend` service-tag address space;
+- the accepted 2026-08-23 live gate proved public Cloudflare HTTP/WebSocket behavior remains available while direct Azure Front Door HTTP/WebSocket, forged-proof direct Front Door probes, and direct Container App HTTP/WebSocket all return 403;
 - the relay runtime also supports an optional protected-provider M2M guard for explicitly enumerated provider node identities;
 - protected provider identities must present the exact M2M proof before registration can produce a relay session, and protected HTTP/WebSocket traffic continues to require that proof;
 - possession of a protected relay session without the M2M proof is insufficient, while ordinary non-protected nodes preserve normal transport behavior;
 - the provider M2M proof is a transport header only and is stripped before the inner relay; it is never serialized into TRUYN protocol envelopes;
 - incomplete protected-node/M2M-token configuration fails closed.
 
-This implements the first provider ownership/BYOK enforcement boundary plus reference edge-to-origin and protected-provider backchannel defense-in-depth components. Sponsored mode is deliberately non-activatable unless an actor-bound signed entitlement verifier and an atomic durable usage store are supplied; the old process-local quota counter is not accepted as a billing boundary. Rich account/tenant ownership, commercial entitlement issuance, durable store deployment and billing attribution remain later operational layers and must preserve these fail-closed invariants. Deployment-specific edge token issuance/rotation, firewall/tunnel policy and direct-origin denial still require separate operational verification.
+This implements the first provider ownership/BYOK enforcement boundary plus reference edge-to-origin and protected-provider backchannel defense-in-depth components. Sponsored mode is deliberately non-activatable unless an actor-bound signed entitlement verifier and an atomic durable usage store are supplied; the old process-local quota counter is not accepted as a billing boundary. Rich account/tenant ownership, commercial entitlement issuance, durable store deployment and billing attribution remain later operational layers and must preserve these fail-closed invariants.
+
+For the production relay tested on 2026-08-23, direct-origin bypass denial is now **deployment-proven**. The durable evidence is `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`, tested source commit `9b419e7d11baf6ec0d17e7075238e3d758ef16e4`, terminal context `truyn/origin-lock-live-v22 = success`. This is a deployment claim, not a protocol default: other deployments and any materially changed edge/origin topology must prove equivalent denial independently.
+
+The accepted production origin-authentication boundary is implemented with Azure Front Door Rule Set `SocketAddr` sanitize/inject proof, Container Apps `AzureFrontDoor.Backend` ingress restriction and the runtime origin guard. It is **not dependent on an Azure WAF policy**. WAF/rate limiting may still be used for abuse controls, but they are separate from origin authentication.
 
 The TRUYN Agent Descriptor and first-party SDK program are currently **defined architecture/scaffolding**, not implemented runtime security claims. When implemented, they must preserve the existing provider-security invariants in this document.
 
@@ -77,7 +85,9 @@ A private BYOK provider may authorize one or more requester node identities in i
 
 ### Server-side authorization
 
-Provider authorization is enforced before provider selection/dispatch and again at the provider-host execution boundary. UI, CLI, SDK, Agent Descriptor content, obscurity, hidden provider IDs, DNS controls, or Cloudflare rules are not sufficient authorization boundaries.
+Provider authorization is enforced before provider selection/dispatch and again at the provider-host execution boundary. UI, CLI, SDK, Agent Descriptor content, obscurity, hidden provider IDs, DNS controls, or Cloudflare rules are not sufficient provider-authorization boundaries.
+
+Trusted-edge origin proof is likewise not provider authorization. It only establishes that a request reached the relay through the accepted transport perimeter before normal TRUYN authentication/authorization begins.
 
 ### Agent Descriptor is not authorization
 
@@ -110,6 +120,8 @@ Likewise, a governance vote cannot make a private provider public without the pr
 ### Fail closed
 
 If identity, ownership, tenant, authorization, billing responsibility, or required entitlement cannot be resolved, chargeable/private execution must not occur.
+
+For a deployment that declares a trusted-edge origin boundary, inability to establish the required edge proof must fail before inner-relay data-plane access.
 
 ### One execution boundary
 
@@ -156,6 +168,8 @@ Deleting a benchmark report, replacing it with a summary/stub, or globally forbi
 
 The repository regression suite protects the established benchmark evidence files from accidental deletion/truncation while continuing to scan their contents for credentials, private keys and live private topology.
 
+The origin-bypass evidence follows this rule explicitly: `ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md` remains preserved as negative history, while `AZURE_ORIGIN_LOCK_2026-08-23.md` records the later accepted production state.
+
 ## History and secret response
 
 The normal public Git refs were rewritten onto a sanitized root after validated cleanup. Contributors with clones created before that rewrite should discard the old clone/history and re-clone before contributing so the removed ancestry is not accidentally reintroduced.
@@ -196,7 +210,19 @@ The in-repository regression suite now proves at minimum:
 - actual runtime relay entrypoint → protected provider proof enforced before session issuance;
 - protected benchmark evidence files remain present/substantial and are scanned for public-repository leakage rather than banned by path.
 
-Deployment-specific cloud/IAM/edge activation, direct-origin production proof, issuance/rotation of live edge and protected-provider tokens, deployment of the durable sponsored-usage store, and richer account-level tenancy remain separate from these in-repository tests.
+Separately, the accepted production deployment gate proves:
+
+- public Cloudflare `/health` → 200 with `CF-Ray`;
+- public HTTP/WebSocket semantics → preserved;
+- direct Azure Front Door HTTP → 403;
+- direct Azure Front Door HTTP + forged edge proof → 403;
+- direct Azure Front Door WebSocket → 403;
+- direct Azure Front Door WebSocket + forged edge proof → 403;
+- direct Container App HTTP/WebSocket → 403.
+
+See `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`.
+
+Deployment of equivalent origin protection in other environments, issuance/rotation of live edge and protected-provider proofs after infrastructure changes, deployment of the durable sponsored-usage store, and richer account-level tenancy remain separate from the in-repository tests. The current production relay origin perimeter itself is no longer an unproven item.
 
 The future SDK/DX conformance gate must add, before SDK parity/stability is claimed:
 
@@ -223,7 +249,10 @@ These are future SDK/Descriptor acceptance requirements, not claims about tests 
 - `docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`
 - `docs/architecture/THREAT_MODEL.md`
 - `docs/architecture/PUBLIC_PRIVATE_BOUNDARY.md`
+- `docs/security/SECURITY_ARCHITECTURE_STATUS.md`
+- `docs/security/OPERATIONAL_SECURITY.md`
 - `docs/compatibility/SDK_COMPATIBILITY.md`
 - `docs/benchmarks/README.md`
+- `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`
 - `spec/protocol/v1/provider-policy.md`
 - `spec/protocol/v1/agent-descriptor.md`
