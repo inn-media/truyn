@@ -1,0 +1,78 @@
+name: Diagnose exact main 0972a3f
+
+on:
+  push:
+    branches: [ci/verify-exact-main-0972a3f]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0972a3f0373c4ce9df80cd0efe53b9293488077d
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Reproduce canonical commands and capture exact failure
+        id: gate
+        shell: bash
+        run: |
+          set -u
+          mkdir -p /tmp/truyn-ci-diagnostics
+          meta=/tmp/truyn-ci-diagnostics/meta.txt
+          : > "$meta"
+          printf 'target_sha=%s\n' "$(git rev-parse HEAD)" | tee -a "$meta"
+          printf 'node=%s\n' "$(node --version)" | tee -a "$meta"
+          printf 'npm=%s\n' "$(npm --version)" | tee -a "$meta"
+
+          run_logged() {
+            local name="$1"
+            local command="$2"
+            local logfile="/tmp/truyn-ci-diagnostics/${name}.log"
+            printf 'command[%s]=%s\n' "$name" "$command" | tee -a "$meta"
+            set +e
+            bash -o pipefail -c "$command" 2>&1 | tee "$logfile"
+            local rc=${PIPESTATUS[0]}
+            set -e
+            printf 'exit[%s]=%s\n' "$name" "$rc" | tee -a "$meta"
+            return "$rc"
+          }
+
+          set +e
+          run_logged 01-install 'npm install --ignore-scripts --no-audit --no-fund'
+          rc=$?
+          if [ "$rc" -eq 0 ]; then
+            run_logged 02-test 'TRUYN_LOCAL_DEVELOPMENT=1 npm test'
+            rc=$?
+          fi
+          if [ "$rc" -eq 0 ]; then
+            run_logged 03-diff-check 'git diff --check'
+            rc=$?
+          fi
+          set -e
+
+          printf 'gate_exit=%s\n' "$rc" | tee -a "$meta"
+          echo "gate_rc=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload exact diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-0972-canonical-gate-diagnostics
+          path: /tmp/truyn-ci-diagnostics/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve canonical gate conclusion
+        if: always()
+        shell: bash
+        env:
+          GATE_RC: ${{ steps.gate.outputs.gate_rc }}
+        run: |
+          test -n "$GATE_RC"
+          exit "$GATE_RC"
