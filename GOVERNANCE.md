@@ -26,7 +26,7 @@ TRUYN MUST NOT describe itself as neutrally governed until the corresponding org
 
 ## Scope
 
-Project governance applies to normative TRUYN protocol specifications, wire/schema compatibility, official extensions and bindings, Agent Descriptor compatibility, first-party SDK conformance, official interoperability profiles, conformance rules, release/stability/deprecation policy and project governance itself.
+Project governance applies to normative TRUYN protocol specifications, wire/schema compatibility, official extensions and bindings, Agent Descriptor compatibility, first-party SDK conformance, official interoperability profiles, conformance rules, release/stability/deprecation policy, contribution provenance/IP policy and project governance itself.
 
 Governance does not give the project control over third-party products, private provider infrastructure, commercial pricing, cloud accounts or independently operated TRUYN networks.
 
@@ -44,14 +44,39 @@ Protocol governance is separate from implementation ownership, infrastructure ow
 8. **No hidden normative channel.** Private discussion does not replace the public record for normative decisions.
 9. **Conflict transparency.** Decision-makers disclose relevant conflicts and recuse where appropriate.
 10. **No false maturity claims.** Defined governance is not the same as operating multi-vendor governance or neutral legal stewardship.
+11. **Contribution provenance without vendor capture.** New contribution commits use DCO 1.1 certification under the project license; a project-specific CLA, copyright assignment or special relicensing grant is not required unless a future Governance change explicitly adopts one.
+
+## Contribution provenance and inbound IP
+
+TRUYN uses the **Developer Certificate of Origin (DCO) 1.1** as the mandatory provenance mechanism for new contribution commits.
+
+The canonical DCO text is stored in `DCO`. Every new contribution commit must contain a valid `Signed-off-by` trailer. The repository CI verifies pull-request commits and fails the contribution gate when the sign-off is missing or does not match the commit author email.
+
+This policy is intentionally compatible with TRUYN's neutral-stewardship direction:
+
+```text
+contributor retains copyright
+        +
+contribution under Apache License 2.0
+        +
+DCO 1.1 right-to-contribute certification
+        ↓
+auditable inbound provenance without vendor-specific ownership grant
+```
+
+TRUYN does **not** currently require a Contributor License Agreement (CLA), copyright assignment or an InnMedia-specific relicensing right. A future proposal to introduce any of those, to replace DCO, to change the required DCO version, or to create waivers is a **Governance change** and requires a durable public decision.
+
+The DCO policy applies prospectively from adoption. Historical repository commits are not rewritten merely to manufacture retroactive sign-offs.
+
+Canonical policy: `docs/governance/CONTRIBUTION_IP_POLICY.md`.
 
 ## Roles
 
 ### Contributor
-Any participant who proposes, discusses, documents, tests, implements or reviews TRUYN work.
+Any participant who proposes, discusses, documents, tests, implements or reviews TRUYN work. A participant submitting new contribution commits must comply with the mandatory DCO 1.1 contribution policy.
 
 ### Maintainer
-A contributor trusted to review and merge changes within an assigned scope. Maintainer status is earned through sustained contribution and may be removed for prolonged inactivity, repeated policy violations, loss of trust or voluntary resignation. Maintainers cannot redefine normative protocol semantics outside the RFC/decision process.
+A contributor trusted to review and merge changes within an assigned scope. Maintainer status is earned through sustained contribution and may be removed for prolonged inactivity, repeated policy violations, loss of trust or voluntary resignation. Maintainers cannot redefine normative protocol semantics outside the RFC/decision process and must not merge a pull request that fails the mandatory DCO gate.
 
 ### Subsystem Maintainer
 A maintainer with primary review responsibility for a defined subsystem such as networking, protocol/spec, security, SDK/DX, interoperability, Trustability or operations.
@@ -99,7 +124,7 @@ Changes to identity, wire semantics, trust/security model, authorization semanti
 After a stable generation exists, an incompatible change requires a new protocol generation or explicit major compatibility boundary. It cannot ship as a silent change to a stable contract.
 
 ### Governance change
-Changes to this governance contract, voting rules, TSC structure or neutral-stewardship commitments require a governance RFC and supermajority approval once a TSC exists.
+Changes to this governance contract, voting rules, TSC structure, neutral-stewardship commitments or the contribution provenance/inbound-IP policy require a governance RFC/decision process and supermajority approval once a TSC exists.
 
 ## Voting, quorum and consensus
 
@@ -162,6 +187,8 @@ TRUYN intends to transition from founding stewardship to a neutral legal/steward
 
 That future state may include stewardship of protocol/specification IP where applicable, project marks, official extension namespaces, a neutral charter, conformance programs and project infrastructure that must not remain vendor-controlled.
 
+Contribution provenance must remain portable through that transition. The DCO-based inbound record is designed to avoid dependency on a vendor-specific copyright assignment or relicensing grant. A future neutral steward may propose a different mechanism only through the published governance process.
+
 No document may claim that this transfer has happened before the legal and organizational facts exist.
 
 ## Governance maturity
@@ -169,7 +196,7 @@ No document may claim that this transfer has happened before the legal and organ
 | Stage | Meaning |
 |---|---|
 | **G0 — Founder governed** | Single-steward decisions; no complete public governance contract. |
-| **G1 — Public governance defined** | Governance/RFC/extension/decision contracts are public; operational control may still be single-vendor bootstrap. |
+| **G1 — Public governance defined** | Governance/RFC/extension/decision/contribution-provenance contracts are public; operational control may still be single-vendor bootstrap. |
 | **G2 — Open maintainer model operating** | Multiple earned maintainers actively review/merge, including external maintainers. |
 | **G3 — Multi-organization TSC** | 3+ independent constituencies, no single-vendor voting majority, public TSC decisions/minutes. |
 | **G4 — Neutral legal stewardship** | Relevant protocol/mark/namespace stewardship is legally/organizationally neutral. |
@@ -177,4 +204,4 @@ No document may claim that this transfer has happened before the legal and organ
 
 Current status after adoption of this contract is **G1 defined, with bootstrap operations still transitioning from G0**. Independent maintainers, a multi-organization TSC and neutral legal stewardship are not yet facts.
 
-See `ROADMAP.md`, `MAINTAINERS.md`, `docs/governance/` and `docs/architecture/GOVERNANCE_ARCHITECTURE.md`.
+See `ROADMAP.md`, `MAINTAINERS.md`, `DCO`, `docs/governance/` and `docs/architecture/GOVERNANCE_ARCHITECTURE.md`.
