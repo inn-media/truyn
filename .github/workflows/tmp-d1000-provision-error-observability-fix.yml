@@ -1,0 +1,66 @@
+name: Temporary D-1000 Provision Error Observability Fix
+
+on:
+  push:
+    branches:
+      - d1000/provision-error-observability
+    paths:
+      - .github/workflows/tmp-d1000-provision-error-observability-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: d1000/provision-error-observability
+          fetch-depth: 0
+      - name: Patch provision diagnostics only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('benchmarks/scale/class-d-azure-1000-provision.sh')
+          text = path.read_text()
+          old = '''  created=0
+  for size in "$VM_SIZE" Standard_D4s_v5; do
+    if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
+      created=1
+      echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
+      break
+    fi
+  done
+  [[ $created == 1 ]]
+'''
+          new = '''  created=0
+  for size in "$VM_SIZE" Standard_D4s_v5; do
+    vm_create_err="${RUNNER_TEMP:-/tmp}/truyn-d1000-vm-${i}-${size}.err"
+    if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>"$vm_create_err"; then
+      created=1
+      rm -f "$vm_create_err"
+      echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
+      break
+    fi
+    echo "::warning title=TRUYN Class D-1000 VM provision failed::host=$i vmSize=$size" >&2
+    cat "$vm_create_err" >&2 || true
+  done
+  if [[ $created != 1 ]]; then
+    echo "::error title=TRUYN Class D-1000 VM provision exhausted::host=$i primary=$VM_SIZE fallback=Standard_D4s_v5" >&2
+    return 1 2>/dev/null || exit 1
+  fi
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one provision block, found {text.count(old)}')
+          path.write_text(text.replace(old, new))
+          PY
+          bash -n benchmarks/scale/class-d-azure-1000-provision.sh
+          git diff --check
+      - name: Commit source-only fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add benchmarks/scale/class-d-azure-1000-provision.sh
+          git commit -m "benchmark: expose D-1000 Azure provision failures"
+          git push origin HEAD:d1000/provision-error-observability
