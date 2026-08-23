@@ -181,3 +181,34 @@ Published reports are part of TRUYN's verification record. A sanitized report sh
 Security review must **redact sensitive fields rather than delete the report**. Credentials, private keys, privileged cloud identities, private deployment/resource names, private origins, customer data, secret-bearing URLs, live allowlists and exact operational quota/cost ceilings remain forbidden.
 
 A benchmark result never grants access to provider accounts used to produce it.
+
+## Getting started
+
+- [BYOK](getting-started/BYOK.md) — user-facing provider onboarding/credential locality.
+- [MVP Quickstart](getting-started/MVP_QUICKSTART.md) — current executable relay/node MVP boundary.
+- [MVP AI Interoperability](getting-started/MVP_AI_INTEROP.md) — current adapters/live-demo boundary.
+- [SDK Quickstart target](getting-started/SDK_QUICKSTART.md) — planned first-party cross-language onboarding shape.
+
+## Architecture status rule
+
+Documents explicitly distinguish:
+
+- Defined architecture;
+- Implemented reference behavior;
+- CI-proven behavior;
+- bounded real-testnet evidence;
+- Productionized operation;
+- Internet-scale evidence;
+- Stable compatibility.
+
+Governance separately distinguishes G0-G5. A lower technical or governance maturity state must not be promoted by wording alone. The canonical factual matrix is [Implementation Status](architecture/IMPLEMENTATION_STATUS.md).
+
+## Public documentation rule
+
+Provider catalogs, model versions, external protocol versions, regions, quotas and access requirements change over time. Public docs describe stable TRUYN capabilities/security invariants and sanitized evidence. Exact deployment details remain private when they reveal topology, cloud identities, quotas, billing information, privileged allowlists or secret paths.
+
+The same rule applies to Agent Descriptors, A2A Agent Cards, MCP discovery and SDK examples: public onboarding/interoperability metadata must disclose only intentionally public interfaces/capabilities and must never contain provider credentials/private operational state.
+
+Governance decisions should be public, but an active security embargo may temporarily keep vulnerability details private. The permanent normative outcome must enter the public record when safe.
+
+See [Public / Private Information Boundary](architecture/PUBLIC_PRIVATE_BOUNDARY.md).
