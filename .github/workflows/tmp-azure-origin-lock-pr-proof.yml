@@ -1,0 +1,102 @@
+name: Temporary Azure Origin Lock PR Proof
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  prove:
+    if: github.head_ref == 'security/azure-origin-lock-20260823'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AZURE_CLIENT_ID_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID_VALUE: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID_VALUE: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
+      PUBLIC_RELAY_URL: https://relay.truyn.org
+      RELAY_HOST: relay.truyn.org
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_ID_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID_VALUE }}
+
+      - name: Verify Azure-only origin lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          az extension add --name containerapp --upgrade --only-show-errors >/dev/null
+          az extension add --name cdn --upgrade --only-show-errors >/dev/null
+
+          public_health="$(curl -sS --max-time 15 -D /tmp/public.headers -o /tmp/public.body -w '%{http_code}' "$PUBLIC_RELAY_URL/health" || true)"
+          [[ "$public_health" == 200 ]] || { echo "ORIGIN_LOCK_PROOF=FAIL public_health=$public_health"; exit 10; }
+          grep -qi '^cf-ray:' /tmp/public.headers || { echo 'ORIGIN_LOCK_PROOF=FAIL cloudflare_marker_missing'; exit 11; }
+          public_register="$(curl -sS --max-time 15 -o /tmp/public-register.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "$PUBLIC_RELAY_URL/v1/register" || true)"
+          [[ "$public_register" != 000 && ! "$public_register" =~ ^5 ]] || { echo "ORIGIN_LOCK_PROOF=FAIL public_register=$public_register"; exit 12; }
+
+          found=0
+          profiles="$(az resource list --resource-type Microsoft.Cdn/profiles -o json)"
+          while IFS=$'\t' read -r profile rg; do
+            [[ -n "$profile" && -n "$rg" ]] || continue
+            domains="$(az afd custom-domain list -g "$rg" --profile-name "$profile" -o json 2>/dev/null || echo '[]')"
+            cdid="$(jq -r --arg h "$RELAY_HOST" '.[]? | select(((.hostName // .properties.hostName // "")|ascii_downcase)==($h|ascii_downcase)) | .id' <<<"$domains" | head -1)"
+            [[ -n "$cdid" ]] || continue
+            endpoints="$(az afd endpoint list -g "$rg" --profile-name "$profile" -o json)"
+            while IFS=$'\t' read -r ep eph epid; do
+              [[ -n "$ep" && -n "$eph" ]] || continue
+              routes="$(az afd route list -g "$rg" --profile-name "$profile" --endpoint-name "$ep" -o json 2>/dev/null || echo '[]')"
+              route="$(jq -c --arg cd "${cdid,,}" '.[]? | select(any(.customDomains[]?; ((.id // "")|ascii_downcase)==$cd))' <<<"$routes" | head -1)"
+              [[ -n "$route" ]] || continue
+              ogid="$(jq -r '.originGroup.id // empty' <<<"$route")"
+              [[ -n "$ogid" ]] || continue
+              og="${ogid##*/}"
+              origins="$(az afd origin list -g "$rg" --profile-name "$profile" --origin-group-name "$og" -o json)"
+              origin_host="$(jq -r '[.[]? | select((.enabledState // .properties.enabledState // "Enabled") == "Enabled") | (.hostName // .properties.hostName // empty)][0] // empty' <<<"$origins")"
+              [[ -n "$origin_host" ]] || continue
+              for v in "$profile" "$rg" "$ep" "$eph" "$epid" "$cdid" "$origin_host"; do [[ -n "$v" ]] && echo "::add-mask::$v"; done
+              AFD_PROFILE="$profile"; AFD_RG="$rg"; AFD_ENDPOINT="$ep"; AFD_ENDPOINT_HOST="$eph"; AFD_ORIGIN_HOST="$origin_host"; found=1
+              break 2
+            done < <(jq -r '.[]? | [(.name // ""),(.hostName // .properties.hostName // ""),(.id // "")] | @tsv' <<<"$endpoints")
+          done < <(jq -r '.[]? | [(.name // ""),(.resourceGroup // "")] | @tsv' <<<"$profiles")
+          [[ "$found" == 1 ]] || { echo 'ORIGIN_LOCK_PROOF=FAIL frontdoor_route_not_found'; exit 20; }
+
+          app_found=0
+          while IFS=$'\t' read -r n g f; do
+            [[ -n "$f" ]] || continue
+            if [[ "${f,,}" == "${AFD_ORIGIN_HOST,,}" ]]; then
+              for v in "$n" "$g" "$f"; do echo "::add-mask::$v"; done
+              RELAY_APP="$n"; RELAY_RG="$g"; RELAY_FQDN="$f"; app_found=1; break
+            fi
+          done < <(az containerapp list --query "[?properties.configuration.ingress.external==\`true\`].[name,resourceGroup,properties.configuration.ingress.fqdn]" -o tsv)
+          [[ "$app_found" == 1 ]] || { echo 'ORIGIN_LOCK_PROOF=FAIL relay_containerapp_not_found'; exit 21; }
+
+          app="$(az containerapp show -g "$RELAY_RG" -n "$RELAY_APP" -o json)"
+          rule_count="$(jq '(.properties.configuration.ingress.ipSecurityRestrictions // []) | length' <<<"$app")"
+          guard="$(jq -r '[.properties.template.containers[0].env[]? | select(.name=="TRUYN_ORIGIN_GUARD") | .value][0] // empty' <<<"$app")"
+          header="$(jq -r '[.properties.template.containers[0].env[]? | select(.name=="TRUYN_ORIGIN_GUARD_HEADER") | .value][0] // empty' <<<"$app")"
+          [[ "$rule_count" -gt 0 && "$guard" == 1 && "$header" == x-azure-fdid ]] || { echo "ORIGIN_LOCK_PROOF=FAIL origin_config rules=$rule_count guard=${guard:-none} header=${header:-none}"; exit 30; }
+
+          waf="$(az network front-door waf-policy show -g "$AFD_RG" --name truyn-relay-cloudflare-only -o json 2>/dev/null || echo '{}')"
+          [[ "$(jq -r '.provisioningState // .properties.provisioningState // empty' <<<"$waf")" == Succeeded ]] || { echo 'ORIGIN_LOCK_PROOF=FAIL waf_policy_missing'; exit 31; }
+          waf_rule="$(az network front-door waf-policy rule show -g "$AFD_RG" --policy-name truyn-relay-cloudflare-only --name CloudflareSocketOnly -o json 2>/dev/null || echo '{}')"
+          [[ "$(jq -r '.action // empty' <<<"$waf_rule")" == Block ]] || { echo 'ORIGIN_LOCK_PROOF=FAIL waf_rule_missing'; exit 32; }
+
+          profile_id="$(az afd profile show -g "$AFD_RG" --profile-name "$AFD_PROFILE" --query id -o tsv)"
+          echo "::add-mask::$profile_id"
+          sp="$(az rest --method get --url "https://management.azure.com${profile_id}/securityPolicies/truyn-relay-cloudflare-only?api-version=2025-04-15" 2>/dev/null || echo '{}')"
+          [[ "$(jq -r '.properties.provisioningState // empty' <<<"$sp")" == Succeeded ]] || { echo 'ORIGIN_LOCK_PROOF=FAIL afd_security_policy_missing'; exit 33; }
+
+          afd_http="$(curl -sS --max-time 15 --connect-to "$RELAY_HOST:443:$AFD_ENDPOINT_HOST:443" -o /tmp/afd-http.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "$PUBLIC_RELAY_URL/v1/register" || true)"
+          origin_http="$(curl -sS --max-time 15 -o /tmp/origin-http.body -w '%{http_code}' -X POST -H 'content-type: application/json' --data '{}' "https://$RELAY_FQDN/v1/register" || true)"
+          afd_ws="$(curl -sS --http1.1 --max-time 10 --connect-to "$RELAY_HOST:443:$AFD_ENDPOINT_HOST:443" -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dHJ1eW4tYWZkLXByb29m' "$PUBLIC_RELAY_URL/v1/fast/socket" || true)"
+          origin_ws="$(curl -sS --http1.1 --max-time 10 -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dHJ1eW4tb3JpZ2luLXByb29m' "https://$RELAY_FQDN/v1/fast/socket" || true)"
+
+          [[ "$afd_http" == 403 && "$origin_http" == 403 ]] || { echo "ORIGIN_LOCK_PROOF=FAIL direct_http afd=$afd_http origin=$origin_http"; exit 40; }
+          [[ "$afd_ws" == 403 && "$origin_ws" == 403 ]] || { echo "ORIGIN_LOCK_PROOF=FAIL direct_ws afd=$afd_ws origin=$origin_ws"; exit 41; }
+          echo "ORIGIN_LOCK_PROOF=PASS public_health=200 public_register=$public_register direct_afd_http=403 direct_origin_http=403 direct_afd_ws=403 direct_origin_ws=403 origin_rules=$rule_count"
