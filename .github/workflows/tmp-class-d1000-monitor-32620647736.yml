@@ -22,7 +22,7 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Observe D-1000 resource state
+      - name: Observe D-1000 resources and capacity
         env:
           GH_TOKEN: ${{ github.token }}
           PREFIX: truyn-d1000-32620647736
@@ -31,12 +31,16 @@ jobs:
         run: |
           set -Eeuo pipefail
           rows="$(az resource list -g "$RG" --query "[?starts_with(name, '${PREFIX}')].[name,type]" -o tsv --only-show-errors)"
-          printf '%s\n' "$rows"
           total="$(printf '%s\n' "$rows" | sed '/^$/d' | wc -l | tr -d ' ')"
           vms="$(printf '%s\n' "$rows" | awk -F '\t' 'tolower($2)=="microsoft.compute/virtualmachines"{n++} END{print n+0}')"
           nics="$(printf '%s\n' "$rows" | awk -F '\t' 'tolower($2)=="microsoft.network/networkinterfaces"{n++} END{print n+0}')"
           disks="$(printf '%s\n' "$rows" | awk -F '\t' 'tolower($2)=="microsoft.compute/disks"{n++} END{print n+0}')"
           vnets="$(printf '%s\n' "$rows" | awk -F '\t' 'tolower($2)=="microsoft.network/virtualnetworks"{n++} END{print n+0}')"
           nsgs="$(printf '%s\n' "$rows" | awk -F '\t' 'tolower($2)=="microsoft.network/networksecuritygroups"{n++} END{print n+0}')"
-          body="campaign_run=32620647736 prefix=${PREFIX} total=${total} vms=${vms} nics=${nics} disks=${disks} vnets=${vnets} nsgs=${nsgs} observation=read_only"
-          gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN CLASS D-1000 RESOURCE OBSERVATION' -f "body=${body}" >/dev/null
+          az vm list-usage -l eastus2 -o json > usage.json
+          usage="$(jq -r '.[] | select((((.name.localizedValue // .name.value // "") | ascii_downcase) | contains("vcpu"))) | [(.name.localizedValue // .name.value),(.currentValue|tostring),(.limit|tostring)] | @tsv' usage.json | tr '\n' ';')"
+          d2="$(az vm list-skus -l eastus2 --size Standard_D2as_v5 --all --query '[0].restrictions' -o json --only-show-errors | tr -d '\n')"
+          d4a="$(az vm list-skus -l eastus2 --size Standard_D4as_v5 --all --query '[0].restrictions' -o json --only-show-errors | tr -d '\n')"
+          d4="$(az vm list-skus -l eastus2 --size Standard_D4s_v5 --all --query '[0].restrictions' -o json --only-show-errors | tr -d '\n')"
+          body="campaign_run=32620647736 cleanup_snapshot_total=${total} vms=${vms} nics=${nics} disks=${disks} vnets=${vnets} nsgs=${nsgs}\n\nusage=${usage}\n\nD2as_v5_restrictions=${d2}\nD4as_v5_restrictions=${d4a}\nD4s_v5_restrictions=${d4}\nobservation=read_only"
+          gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN CLASS D-1000 CAPACITY OBSERVATION' -f "body=${body}" >/dev/null
