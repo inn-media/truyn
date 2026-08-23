@@ -1,5 +1,6 @@
 name: D1000 TAP diagnostic 6de173d2
 
+# Second push intentionally triggers this already-present diagnostic workflow.
 on:
   push:
     branches:
