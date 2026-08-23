@@ -36,7 +36,7 @@ jobs:
           az extension add --name containerapp --upgrade --only-show-errors >/dev/null
           az extension add --name cdn --upgrade --only-show-errors >/dev/null
           az extension add --name front-door --upgrade --only-show-errors >/dev/null 2>&1 || true
-          python scripts/tmp-patch-origin-lock-v6.py
+          python scripts/tmp-patch-origin-lock-v7.py
       - name: Enforce and prove
         id: enforce
         continue-on-error: true
@@ -52,7 +52,7 @@ jobs:
           set -euo pipefail
           text="$(cat "$ORIGIN_LOCK_RESULT_FILE" 2>/dev/null || echo 'FAIL no_result_file')"
           text="$(printf '%s' "$text" | tr '\n' ' ' | cut -c1-135)"
-          if [[ "$ENFORCE_OUTCOME" == success && "$text" == PASS* ]]; then state=success; context='truyn/origin-lock-live-v6'; else state=failure; slug="$(printf '%s' "$text" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-62)"; context="truyn/origin-lock-v6-fail/${slug:-unknown}"; fi
+          if [[ "$ENFORCE_OUTCOME" == success && "$text" == PASS* ]]; then state=success; context='truyn/origin-lock-live-v7'; else state=failure; slug="$(printf '%s' "$text" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-62)"; context="truyn/origin-lock-v7-fail/${slug:-unknown}"; fi
           jq -nc --arg s "$state" --arg c "$context" --arg d "$text" '{state:$s,context:$c,description:$d}' >/tmp/status.json
           curl -fsS -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' --data @/tmp/status.json "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" >/dev/null
           [[ "$state" == success ]]
