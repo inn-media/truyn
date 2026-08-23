@@ -1,16 +1,19 @@
 # TRUYN Governance Documentation
 
-This directory contains the process documents that govern how the TRUYN technical standard evolves.
+This directory contains the process documents that govern how the TRUYN technical standard evolves and how contributions enter the project with auditable provenance.
 
 ## Canonical documents
 
-- [`../../GOVERNANCE.md`](../../GOVERNANCE.md) — roles, bootstrap stewardship, TSC target, voting and governance maturity.
+- [`../../GOVERNANCE.md`](../../GOVERNANCE.md) — roles, bootstrap stewardship, TSC target, voting, contribution provenance and governance maturity.
+- [`../../DCO`](../../DCO) — verbatim Developer Certificate of Origin 1.1 text.
+- [`CONTRIBUTION_IP_POLICY.md`](CONTRIBUTION_IP_POLICY.md) — mandatory DCO sign-off, Apache-2.0 inbound posture, CLA/copyright-assignment boundary and enforcement rules.
 - [`../../MAINTAINERS.md`](../../MAINTAINERS.md) — factual current role roster.
 - [`RFC_PROCESS.md`](RFC_PROCESS.md) — lifecycle and minimum content for normative proposals.
 - [`EXTENSIONS.md`](EXTENSIONS.md) — Community → Experimental → Official → Core Candidate lifecycle.
 - [`DECISION_PROCESS.md`](DECISION_PROCESS.md) — decision classes, review requirements, quorum, conflicts and records.
 - [`EXTENSION_REGISTRY.md`](EXTENSION_REGISTRY.md) — factual registry of project-governed Experimental/Official/Core Candidate extensions.
 - [`../architecture/GOVERNANCE_ARCHITECTURE.md`](../architecture/GOVERNANCE_ARCHITECTURE.md) — governance as an architectural boundary of the standard.
+- [`decisions/`](decisions/) — durable accepted/rejected/superseded governance decision records, including the DCO 1.1 adoption record.
 
 ## Templates
 
@@ -33,9 +36,21 @@ commercial ownership
 
 A company may build or operate TRUYN infrastructure without thereby gaining permanent authority over the protocol standard.
 
+Contribution provenance follows the same neutrality principle:
+
+```text
+Apache-2.0 project license
+        +
+DCO 1.1 contributor certification
+        ↓
+public auditable inbound provenance
+```
+
+TRUYN does not currently require a project-specific CLA, copyright assignment or bootstrap-vendor relicensing grant. A material change to that contribution-IP posture is a Governance change.
+
 ## Current maturity
 
-The governance contracts are **Defined / G1**. Operational governance is still bootstrap/founding-steward controlled. External maintainers, a multi-organization TSC and neutral legal stewardship remain roadmap work and must not be claimed before they exist.
+The governance contracts are **Defined / G1**. Mandatory DCO 1.1 contribution provenance is now part of that baseline for new contribution commits. Operational governance is still bootstrap/founding-steward controlled. External maintainers, a multi-organization TSC and neutral legal stewardship remain roadmap work and must not be claimed before they exist.
 
 The official extension registry is intentionally empty until an extension actually completes the applicable promotion process. External protocols/adapters are not automatically official TRUYN extensions.
 
@@ -44,3 +59,5 @@ The official extension registry is intentionally empty until an extension actual
 Normative technical decisions belong in public GitHub issues/RFCs/PRs and durable decision records. Security embargoes may delay disclosure, but they do not create a permanent hidden channel for changing stable protocol semantics.
 
 Rejected, withdrawn and superseded proposals remain part of the technical history when they materially informed the standard; governance history should not be rewritten merely to present unanimous-looking hindsight.
+
+Contribution provenance is also a durable public record. The DCO policy is prospective: established history is not rewritten merely to manufacture retroactive sign-offs.
