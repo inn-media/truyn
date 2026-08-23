@@ -29,6 +29,7 @@ tests/provider-access.test.js @ilucomutcnas
 tests/runtime-security.test.js @ilucomutcnas
 
 docs/benchmarks/ @ilucomutcnas
+docs/security/ @ilucomutcnas
 
 docs/architecture/PROVIDER_OWNERSHIP.md @ilucomutcnas
 docs/architecture/AUTHORIZATION_MODEL.md @ilucomutcnas
@@ -37,3 +38,4 @@ docs/architecture/BILLING_BOUNDARY.md @ilucomutcnas
 docs/architecture/BYOK_ARCHITECTURE.md @ilucomutcnas
 docs/architecture/THREAT_MODEL.md @ilucomutcnas
 docs/architecture/PUBLIC_PRIVATE_BOUNDARY.md @ilucomutcnas
+docs/architecture/PUBLIC_EDGE_DOMAINS.md @ilucomutcnas
