@@ -1,0 +1,80 @@
+name: Temporary origin-lock documentation sync 2026-08-23
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/tmp-origin-lock-doc-sync-20260823.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch current documentation atomically
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              if old not in s:
+                  raise SystemExit(f'marker not found in {path}: {old[:80]!r}')
+              p.write_text(s.replace(old, new, 1))
+
+          # ROADMAP: factual current deployment status only; do not alter the parallel scale/D-1000 track.
+          replace_once(
+              'ROADMAP.md',
+              '| Network productionization | **In progress — Class B closed; Class C heterogeneous WAN/reachability remains next** |\n| Operations / compatibility / separate security docs | Documentation baseline implemented in current synchronization |',
+              '| Network productionization | **In progress — Class B closed; Class C heterogeneous WAN/reachability remains next** |\n| Production relay origin perimeter | **Deployment-proven** — Cloudflare → Azure Front Door `SocketAddr` sanitize/inject proof → Container Apps `AzureFrontDoor.Backend` ingress → runtime origin guard; accepted HTTP/WS/spoof matrix on 2026-08-23 |\n| Operations / compatibility / separate security docs | Documentation baseline implemented in current synchronization |'
+          )
+          replace_once(
+              'ROADMAP.md',
+              '14. origin proof is expiry-bound and rotation-capable;\n15. sponsored mode cannot activate without actor-bound signed entitlement verification and an atomic durable usage store.\n\nThis baseline is not a claim that rich account/organization tenancy, commercial entitlement issuance, deployed durable accounting, full A2A/MCP interoperability, settlement adapters, full cloud perimeter proof or mainnet security operations are complete.',
+              '14. generic origin proof is fail-closed, expiry/rotation-capable in token mode and stripped before the inner relay;\n15. the current production relay sanitizes requester proof at Azure Front Door and injects trusted proof only when `SocketAddr` is within current Cloudflare CIDRs;\n16. the current production relay restricts Container Apps ingress to `AzureFrontDoor.Backend` and has deployment-proven direct Front Door/Container App HTTP+WebSocket denial, including forged-proof attempts;\n17. sponsored mode cannot activate without actor-bound signed entitlement verification and an atomic durable usage store.\n\nThis baseline is not a claim that rich account/organization tenancy, commercial entitlement issuance, deployed durable accounting, full A2A/MCP interoperability, settlement adapters or mainnet security operations are complete. The current production relay cloud perimeter is deployment-proven; equivalent protection in other deployments, and after material edge/origin topology changes, remains a deployment acceptance gate.'
+          )
+          replace_once(
+              'ROADMAP.md',
+              '- `docs/architecture/RELAY_SECURITY.md`\n- `docs/architecture/BILLING_BOUNDARY.md`',
+              '- `docs/architecture/RELAY_SECURITY.md`\n- `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`\n- `docs/architecture/BILLING_BOUNDARY.md`'
+          )
+          replace_once(
+              'ROADMAP.md',
+              'Current factual state: executable node/relay/provider/testnet paths and cloud test exercises exist; `docs/operations/`, `docs/security/` and `docs/compatibility/` now document the current boundary. Production installers, signed updater/rollback and stable mainnet operations remain open.',
+              'Current factual state: executable node/relay/provider/testnet paths and cloud test exercises exist; `docs/operations/`, `docs/security/` and `docs/compatibility/` now document the current boundary. The current production relay origin perimeter is deployment-proven through Cloudflare → Azure Front Door socket-bound proof → `AzureFrontDoor.Backend`-restricted Container Apps → runtime origin guard. Production installers, signed updater/rollback, cross-deployment perimeter automation and stable mainnet operations remain open.'
+          )
+
+          # Documentation index: point readers to the accepted deployment evidence and the current architecture.
+          replace_once(
+              'docs/README.md',
+              '- [Relay Security](architecture/RELAY_SECURITY.md) — public relay, owner control plane, provider backchannel, origin guard, edge proxy and legacy-route rules.',
+              '- [Relay Security](architecture/RELAY_SECURITY.md) — public relay, owner control plane, provider backchannel, origin guard and the deployment-proven Cloudflare → Azure Front Door → Container Apps production origin perimeter.'
+          )
+          replace_once(
+              'docs/README.md',
+              '- [Operational Security](security/OPERATIONAL_SECURITY.md)\n\nRoot `SECURITY.md` remains the public policy/reporting entry point;',
+              '- [Operational Security](security/OPERATIONAL_SECURITY.md)\n- [Production Azure Origin Lock — 2026-08-23](benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md) — accepted direct AFD/Container App HTTP+WebSocket and forged-proof denial evidence.\n\nRoot `SECURITY.md` remains the public policy/reporting entry point;'
+          )
+          replace_once(
+              'docs/README.md',
+              '- [Origin Bypass Security Evaluation — 2026-08-16](benchmarks/ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md) — production-origin bypass evaluation with negative experiments/limitations.',
+              '- [Production Azure Origin Lock — 2026-08-23](benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md) — accepted production relay origin-lock proof: Cloudflare path preserved; direct Azure Front Door HTTP/WS, forged-proof HTTP/WS and direct Container App HTTP/WS denied.\n- [Origin Bypass Security Evaluation — 2026-08-16](benchmarks/ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md) — preserved earlier negative production-origin bypass evaluation; superseded only for the current production origin-lock status by the 2026-08-23 accepted evidence.'
+          )
+          PY
+      - name: Commit sync and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'TRUYN Docs Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add ROADMAP.md docs/README.md
+          git rm .github/workflows/tmp-origin-lock-doc-sync-20260823.yml
+          git commit -m 'docs: synchronize accepted production origin perimeter'
+          git push origin HEAD:main
