@@ -30,6 +30,18 @@ def canonical(text: str) -> str:
     return text
 
 p = canonical(provision.read_text())
+# Canonicalization intentionally redirects the historical clone and service
+# paths to /opt/truyn. That makes the legacy relocation command a GNU mv
+# source==destination failure under set -e, aborting guest install before READY.
+# Remove exactly that no-op after canonicalization; no acceptance predicate,
+# topology, evaluator, terminal verifier, or safety threshold changes.
+self_move = 'mv /opt/truyn /opt/truyn'
+if p.count(self_move) != 1:
+    raise SystemExit(f'expected exactly one D-1000 canonical install self-move, got {p.count(self_move)}')
+p = p.replace(self_move, ': # repository already cloned at canonical /opt/truyn path', 1)
+if self_move in p:
+    raise SystemExit('fatal D-1000 canonical install self-move survived preparation')
+
 # D-1000 provisioning can legitimately take longer than the D-100 gate. Keep the
 # signed peer lease comfortably above the provisioning/campaign window; lease
 # lifecycle itself is already a separate productionization proof.
@@ -85,6 +97,7 @@ grep -q 'ExecStart=/usr/bin/node /opt/truqyn/network/testnet/node-service.js' "$
 grep -q 'ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/usr/bin/node /opt/truy n/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/usr/bin/node /opt/truyn/network/testnet/node-service.js' "$TMP/provision.sh"
+grep -Fq 'mv /opt/truyn /opt/truyn' "$TMP/provision.sh" && exit 1 || true
 
 echo "TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical"
 
