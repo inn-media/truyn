@@ -1,0 +1,49 @@
+name: D1000 TAP diagnostic 6de173d2
+
+on:
+  push:
+    branches:
+      - d1000/tap-diagnostic-6de173d2
+
+permissions:
+  contents: read
+
+jobs:
+  tap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact failing source
+        uses: actions/checkout@v4
+        with:
+          ref: 6de173d20b0606bfc0f687d43bd928c1c99185ef
+          fetch-depth: 0
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Capture exact TAP
+        id: tap
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          node --test tests/class-d-1000-run-command-boundary.test.js 2>&1 | tee /tmp/d1000-tap.log
+          rc=${PIPESTATUS[0]}
+          echo "$rc" > /tmp/d1000-tap.rc
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload TAP artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d1000-tap-6de173d2
+          path: |
+            /tmp/d1000-tap.log
+            /tmp/d1000-tap.rc
+          if-no-files-found: error
+      - name: Preserve failing status
+        if: always()
+        shell: bash
+        run: exit "$(cat /tmp/d1000-tap.rc)"
