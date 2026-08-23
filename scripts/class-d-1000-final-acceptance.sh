@@ -131,7 +131,7 @@ grep -q 'ExecStart=/usr/bin/node /opt/truyn/network/testnet/node-service.js' "$T
 # fail-closed preflight assertions; they do not alter any D-1000 acceptance
 # threshold, topology, evaluator, terminal verifier, or safety predicate.
 grep -Fq 'truyn_class_d_remote "$RG" "$vm" "$body"' "$TMP/provision.sh"
-if grep -Fq "--query 'value[0].message'" "$TMP/provision.sh"; then
+if grep -Fq -- "--query 'value[0].message'" "$TMP/provision.sh"; then
   echo 'legacy D-1000 value[0].message RunCommand boundary survived preparation' >&2
   exit 1
 fi
