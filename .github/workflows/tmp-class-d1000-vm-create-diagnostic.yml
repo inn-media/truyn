@@ -1,0 +1,70 @@
+name: tmp-class-d1000-vm-create-diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tmp-class-d1000-vm-create-diagnostic.yml'
+
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Record diagnostic start
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN D1000 VM CREATE DIAGNOSTIC STARTED' -f "body=run=${GITHUB_RUN_ID} sha=${GITHUB_SHA} read_scope=isolated_reproduction" >/dev/null
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Reproduce exact VM create operation
+        id: repro
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -u
+          RG=truyn
+          P="truyn-d1000-diag-${GITHUB_RUN_ID}"
+          echo "P=$P" >>"$GITHUB_ENV"
+          az network nsg create -g "$RG" -n "${P}-nsg" -l eastus2 --only-show-errors >/dev/null
+          az network vnet create -g "$RG" -n "${P}-vnet" -l eastus2 --address-prefixes 10.251.0.0/16 --subnet-name "${P}-subnet" --subnet-prefixes 10.251.1.0/24 --only-show-errors >/dev/null
+          az network nic create -g "$RG" -n "${P}-nic" -l eastus2 --vnet-name "${P}-vnet" --subnet "${P}-subnet" --only-show-errors >/dev/null
+          set +e
+          az vm create -g "$RG" -n "${P}-vm" -l eastus2 --image Ubuntu2204 --size Standard_D4as_v5 --admin-username truynadmin --generate-ssh-keys --nics "${P}-nic" --os-disk-name "${P}-os" --os-disk-delete-option Delete --only-show-errors >vm-create.out 2>vm-create.err
+          rc=$?
+          set -e
+          echo "vm_create_rc=$rc" >vm-create-summary.txt
+          cat vm-create.err >>vm-create-summary.txt
+          exit "$rc"
+      - name: Cleanup diagnostic resources
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          RG=truyn
+          P="${P:-truyn-d1000-diag-${GITHUB_RUN_ID}}"
+          az vm delete -g "$RG" -n "${P}-vm" --yes --force-deletion --only-show-errors >/dev/null 2>&1 || true
+          az network nic delete -g "$RG" -n "${P}-nic" --only-show-errors >/dev/null 2>&1 || true
+          az disk delete -g "$RG" -n "${P}-os" --yes --only-show-errors >/dev/null 2>&1 || true
+          az network vnet delete -g "$RG" -n "${P}-vnet" --only-show-errors >/dev/null 2>&1 || true
+          az network nsg delete -g "$RG" -n "${P}-nsg" --only-show-errors >/dev/null 2>&1 || true
+          left="$(az resource list -g "$RG" --query "[?starts_with(name, '${P}')].name" -o tsv --only-show-errors 2>/dev/null | wc -l | tr -d ' ')"
+          echo "diagnostic_cleanup_remaining=$left" >>vm-create-summary.txt
+      - name: Record exact diagnostic result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPRO_OUTCOME: ${{ steps.repro.outcome }}
+        shell: bash
+        run: |
+          text="$(cat vm-create-summary.txt 2>/dev/null | head -c 6000 || true)"
+          gh api "repos/${GITHUB_REPOSITORY}/issues" -f 'title=TRUYN D1000 VM CREATE DIAGNOSTIC RESULT' -f "body=run=${GITHUB_RUN_ID} outcome=${REPRO_OUTCOME}\n${text}" >/dev/null
