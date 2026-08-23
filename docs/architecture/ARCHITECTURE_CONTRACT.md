@@ -20,6 +20,7 @@ This document prevents architectural ideas and factual implementation status fro
 | Provider ownership | `docs/architecture/PROVIDER_OWNERSHIP.md` |
 | Provider authorization | `docs/architecture/AUTHORIZATION_MODEL.md` and `spec/protocol/v1/provider-policy.md` |
 | Relay/control-plane boundary | `docs/architecture/RELAY_SECURITY.md` |
+| Production relay origin perimeter evidence | `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md` plus `docs/security/SECURITY_ARCHITECTURE_STATUS.md` |
 | BYOK model | `docs/architecture/BYOK_ARCHITECTURE.md` |
 | Billing/quota/entitlement boundary | `docs/architecture/BILLING_BOUNDARY.md` |
 | A2A/MCP interoperability boundary | `docs/architecture/A2A_MCP_INTEROPERABILITY.md` and `docs/compatibility/A2A_MCP_COMPATIBILITY.md` |
@@ -57,6 +58,8 @@ TRUYN documentation distinguishes:
 - **Stable** — compatibility guarantees are declared.
 
 The repository is intentionally mixed maturity. The v0.1 QUIC/Kademlia underlay is implemented and CI-proven; the trust lifecycle has bounded real four-node QUIC/Kademlia evidence; semantic retrieval and provider security have substantial implementation/evidence; MCP has bounded executable reference integration; A2A, large real-node WAN scale, rich commercial/account control planes and stable mainnet remain open.
+
+The current production relay origin perimeter is a narrower **deployment-proven** security slice: Cloudflare → Azure Front Door socket-bound proof → Container Apps `AzureFrontDoor.Backend` ingress → runtime origin guard is accepted for the tested production relay. This does not promote the whole network to Productionized/Mainnet maturity and does not automatically apply to other deployments.
 
 The SDK/DX architecture and Agent Descriptor are **Defined**, but the five required first-party SDK packages and Agent Descriptor runtime serving/discovery path are not yet implementation-complete.
 
@@ -401,13 +404,45 @@ The reference provider security path is defense in depth: relay filtering plus p
 
 Provider runtimes may use an authenticated machine-to-machine backchannel. Edge/WAF/cloud controls are additive and do not replace TRUYN authorization.
 
+The currently accepted production relay transport perimeter is additionally defense in depth:
+
+```text
+Cloudflare
+  ↓
+Azure Front Door: sanitize requester proof
+  ↓
+SocketAddr ∈ Cloudflare CIDRs: inject trusted edge proof
+  ↓
+Container Apps: AzureFrontDoor.Backend-only ingress
+  ↓
+runtime origin guard
+  ↓
+inner relay
+```
+
+Trusted-edge proof only establishes the transport path. It does not grant a provider capability, billing entitlement or requester authorization.
+
 ## Reference edge/origin security
 
 The reference runtime includes an optional origin guard, Cloudflare-compatible edge proxy and protected-provider M2M guard.
 
-Origin proof is expiry-bound, supports an active+previous rotation window and is stripped before the inner relay. Protected-provider M2M proof is also transport-only and stripped before protocol handling. Oversized HTTP bodies return 413 and close the connection to prevent keep-alive poisoning. Local-development mode hard-fails if combined with public/production markers.
+Origin proof is expiry-bound in the generic token mode, supports an active+previous rotation window and is stripped before the inner relay. Protected-provider M2M proof is also transport-only and stripped before protocol handling. Oversized HTTP bodies return 413 and close the connection to prevent keep-alive poisoning. Local-development mode hard-fails if combined with public/production markers.
 
-Reference code does not prove that a particular production perimeter is correctly activated; deployment proof is operational work.
+The current production relay adds a deployment-specific Azure Front Door rule-set binding:
+
+1. all requester-supplied origin proof is deleted;
+2. `SocketAddr` is matched against current Cloudflare CIDRs;
+3. trusted proof is injected only for matching Cloudflare socket sources;
+4. Container Apps ingress accepts only `AzureFrontDoor.Backend` ranges;
+5. the runtime origin guard requires the injected proof before inner-relay data-plane access.
+
+The accepted implementation does not depend on an Azure WAF policy. WAF remains a separate optional abuse-control layer.
+
+Deployment readiness MUST be proven on the real data plane rather than inferred from Azure Front Door `deploymentStatus`, which can remain `NotStarted` despite successfully provisioned/serving configuration. The accepted gate used non-secret edge response markers before origin-guard cutover, then direct HTTP/WebSocket and forged-proof negative probes.
+
+Accepted evidence: `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`, tested source `9b419e7d11baf6ec0d17e7075238e3d758ef16e4`, terminal context `truyn/origin-lock-live-v22 = success`.
+
+This is a deployment-proven claim for the current production relay. Reference code alone still does not prove another deployment's perimeter; other deployments and materially changed production topology require equivalent evidence.
 
 ## Multi-cloud and multimodal provider contract
 
@@ -461,6 +496,8 @@ Private operational state includes credentials/private keys, unnecessary cloud i
 Public governance does not require publication of active vulnerability details, private security-team identities where disclosure creates risk, or commercial secrets that are irrelevant to normative decisions. It does require a durable public record for normative decisions after any legitimate embargo ends.
 
 Public Agent Descriptors, A2A Agent Cards, MCP examples and SDK examples MUST follow the same boundary. Quickstarts/examples must never normalize embedding real provider credentials or private topology into source code, descriptor/card payloads or protocol discovery surfaces.
+
+Sanitized deployment evidence may expose a public hostname, tested commit SHA, public workflow/status identity and acceptance outcomes while keeping private resource identifiers, proof values and privileged automation out of the public tree.
 
 Security MUST remain correct even if the public architecture and all SDK/adapter source code are fully known.
 
