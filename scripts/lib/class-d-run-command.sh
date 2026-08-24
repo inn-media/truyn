@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 
-# Class D-100 acceptance-specific Azure RunCommand boundary.
+# Class D acceptance-specific Azure RunCommand boundary.
 #
 # Safety contract:
 # - never replay a guest script after Azure has admitted guest execution;
+# - a nonce-bound guest terminal marker is authoritative for guest completion;
 # - retry only explicit control-plane non-admission conditions;
 # - RunCommand-busy uses bounded fixed waits;
 # - HTTP 429 / Too Many Requests uses bounded exponential backoff;
-# - all other non-zero results fail closed immediately.
+# - all other results fail closed immediately.
 truyn_class_d_remote() {
   local rg="$1" vm="$2" script="$3" enc remote_script
   local rc=0 out_file err_file
@@ -17,37 +18,76 @@ truyn_class_d_remote() {
   local throttle_max="${TRUYN_AZ_RUN_COMMAND_429_RETRIES:-6}"
   local throttle_base="${TRUYN_AZ_RUN_COMMAND_429_BASE_DELAY_SECONDS:-2}"
   local throttle_cap="${TRUYN_AZ_RUN_COMMAND_429_MAX_DELAY_SECONDS:-30}"
-  local delay=0
+  local delay=0 admitted=false terminal_rc='' terminal_line=''
   local guest_marker='TRUYN_GUEST_EXECUTION_ADMITTED=1'
+  local terminal_nonce terminal_prefix
 
+  terminal_nonce="${RANDOM}${RANDOM}$(date +%s%N)"
+  terminal_prefix="TRUYN_GUEST_TERMINAL_${terminal_nonce}="
   enc="$(printf '%s' "$script" | base64 -w0)"
-  remote_script="echo ${guest_marker}; printf '%s' '$enc' | base64 -d >/tmp/truyn-d100-run.sh; chmod 700 /tmp/truyn-d100-run.sh; /bin/bash /tmp/truyn-d100-run.sh"
+  remote_script="echo ${guest_marker}; printf '%s' '$enc' | base64 -d >/tmp/truyn-d100-run.sh; chmod 700 /tmp/truyn-d100-run.sh; set +e; /bin/bash /tmp/truyn-d100-run.sh; guest_rc=\$?; printf '${terminal_prefix}%s\\n' \"\$guest_rc\"; exit \"\$guest_rc\""
   out_file="$(mktemp)"
   err_file="$(mktemp)"
 
   while true; do
     : >"$out_file"
     : >"$err_file"
+    rc=0
 
-    # Azure RunCommand may return stdout/stderr in more than one value element.
-    # Preserve every message component: later elements can contain both the guest
-    # admission marker and semantic campaign markers. Never rely on array order.
+    # Azure RunCommand may report extension success even when the guest shell
+    # returned non-zero. Capture all message elements, then evaluate our own
+    # nonce-bound guest terminal marker instead of trusting the CLI exit alone.
     if command az vm run-command invoke -g "$rg" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[].message' -o tsv --only-show-errors >"$out_file" 2>"$err_file"; then
-      cat "$out_file"
-      rm -f "$out_file" "$err_file"
-      return 0
+      rc=0
     else
       rc=$?
     fi
 
-    # Once the guest marker is visible, execution was admitted. Any non-zero
-    # is terminal and must never be replayed, even if stderr also mentions a
-    # transient-looking condition.
+    admitted=false
     if grep -Fq "$guest_marker" "$out_file" || grep -Fq "$guest_marker" "$err_file"; then
+      admitted=true
+    fi
+
+    terminal_line="$(grep -F "${terminal_prefix}" "$out_file" "$err_file" 2>/dev/null | tail -1 || true)"
+    terminal_rc=''
+    if [[ -n "$terminal_line" ]]; then
+      terminal_rc="${terminal_line##*${terminal_prefix}}"
+      terminal_rc="${terminal_rc%%[^0-9]*}"
+    fi
+
+    if [[ "$admitted" == true ]]; then
+      # Admission is a no-replay boundary. If the guest completed, its explicit
+      # terminal code decides success/failure. If the terminal marker is absent,
+      # fail closed: the guest may have run partially and must not be replayed.
+      if [[ "$terminal_rc" =~ ^[0-9]+$ ]] && (( terminal_rc >= 0 && terminal_rc <= 255 )); then
+        if (( terminal_rc == 0 )); then
+          cat "$out_file"
+          [[ -s "$err_file" ]] && cat "$err_file" >&2
+          rm -f "$out_file" "$err_file"
+          return 0
+        fi
+        cat "$out_file" >&2
+        cat "$err_file" >&2
+        echo "TRUYN_GUEST_TERMINAL_FAILURE vm=${vm} rc=${terminal_rc}" >&2
+        rm -f "$out_file" "$err_file"
+        return "$terminal_rc"
+      fi
+
       cat "$out_file" >&2
       cat "$err_file" >&2
+      echo "TRUYN_GUEST_TERMINAL_MISSING vm=${vm} azureRc=${rc}" >&2
       rm -f "$out_file" "$err_file"
-      return "$rc"
+      return 125
+    fi
+
+    # A control-plane success without our admission marker is not proof that the
+    # guest ran. Fail closed instead of silently accepting an unobservable run.
+    if (( rc == 0 )); then
+      cat "$out_file" >&2
+      cat "$err_file" >&2
+      echo "TRUYN_GUEST_ADMISSION_MISSING vm=${vm}" >&2
+      rm -f "$out_file" "$err_file"
+      return 125
     fi
 
     if grep -Fqi 'managed VM RunCommand extension execution is in progress' "$err_file" || \
@@ -85,8 +125,6 @@ truyn_class_d_remote() {
       continue
     fi
 
-    # Ordinary guest/command non-zero is terminal for this invocation.
-    # Fail closed immediately and never replay the guest script.
     cat "$out_file" >&2
     cat "$err_file" >&2
     rm -f "$out_file" "$err_file"
