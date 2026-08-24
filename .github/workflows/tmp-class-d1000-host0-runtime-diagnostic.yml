@@ -1,0 +1,196 @@
+name: tmp-class-d1000-host0-runtime-diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tmp-class-d1000-host0-runtime-diagnostic.yml'
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  issues: write
+
+env:
+  TESTED_COMMIT: d2efee563bf90aa9c34a208d70ee6ce3e6bfcb1e
+  PINNED_REF: d1000/pinned-d2efee56
+  PREFLIGHT_RUN: '32659447636'
+  PREFLIGHT_ARTIFACT: class-d-1000-prepare-d2efee56-v3
+  RUNTIME_SHA256: dc4bf562a3507a4857451042a76763e8766ff0d0336751ec9c2c0aa3a39dcbc5
+  LOCATION: eastus2
+  VM_SIZE: Standard_E2as_v7
+  RG: truyn
+  STORAGE_ACCOUNT: td1kdiag${{ github.run_id }}
+  CONTAINER: runtime
+  BLOB: truyn-d1000-runtime.tgz
+  PREFIX: truyn-d1kdiag-${{ github.run_id }}
+
+jobs:
+  host0-runtime-diagnostic:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Enforce one-shot diagnostic commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          commit_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}")"
+          test "$(jq '.files | length' <<<"$commit_json")" = 1
+          test "$(jq -r '.files[0].filename' <<<"$commit_json")" = '.github/workflows/tmp-class-d1000-host0-runtime-diagnostic.yml'
+          test "$(jq -r '.files[0].status' <<<"$commit_json")" = added
+
+      - name: Download exact immutable runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p /tmp/d1kdiag
+          gh run download "$PREFLIGHT_RUN" --repo "$GITHUB_REPOSITORY" -n "$PREFLIGHT_ARTIFACT" -D /tmp/d1kdiag
+          printf '%s  %s\n' "$RUNTIME_SHA256" /tmp/d1kdiag/truyn-d1000-runtime.tgz | sha256sum -c -
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Stage immutable runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az storage account create -g "$RG" -n "$STORAGE_ACCOUNT" -l "$LOCATION" --sku Standard_LRS --kind StorageV2 --https-only true --allow-blob-public-access false -o none --only-show-errors
+          key="$(az storage account keys list -g "$RG" -n "$STORAGE_ACCOUNT" --query '[0].value' -o tsv --only-show-errors)"
+          echo "::add-mask::$key"
+          az storage container create --name "$CONTAINER" --account-name "$STORAGE_ACCOUNT" --account-key "$key" -o none --only-show-errors
+          az storage blob upload --container-name "$CONTAINER" --name "$BLOB" --file /tmp/d1kdiag/truyn-d1000-runtime.tgz --account-name "$STORAGE_ACCOUNT" --account-key "$key" --overwrite true -o none --only-show-errors
+          expiry="$(date -u -d '+2 hours' '+%Y-%m-%dT%H:%MZ')"
+          sas="$(az storage blob generate-sas --container-name "$CONTAINER" --name "$BLOB" --account-name "$STORAGE_ACCOUNT" --account-key "$key" --permissions r --https-only --expiry "$expiry" -o tsv --only-show-errors)"
+          url="https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER}/${BLOB}?${sas}"
+          echo "::add-mask::$sas"
+          echo "::add-mask::$url"
+          umask 077
+          printf '%s' "$url" >/tmp/d1kdiag-url
+
+      - name: Provision one diagnostic Ubuntu 22.04 VM
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az network vnet create -g "$RG" -n "${PREFIX}-vnet" -l "$LOCATION" --address-prefixes 10.253.0.0/16 --subnet-name "${PREFIX}-subnet" --subnet-prefixes 10.253.1.0/24 -o none --only-show-errors
+          az network nic create -g "$RG" -n "${PREFIX}-nic" -l "$LOCATION" --vnet-name "${PREFIX}-vnet" --subnet "${PREFIX}-subnet" -o none --only-show-errors
+          az vm create -g "$RG" -n "${PREFIX}-vm" -l "$LOCATION" --image Ubuntu2204 --size "$VM_SIZE" --admin-username truynadmin --generate-ssh-keys --nics "${PREFIX}-nic" --os-disk-name "${PREFIX}-os" --os-disk-delete-option Delete -o none --only-show-errors
+
+      - name: Probe exact host0 bootstrap and systemd
+        id: probe
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          url="$(cat /tmp/d1kdiag-url)"
+          url_b64="$(printf '%s' "$url" | base64 -w0)"
+          read -r -d '' body <<'GUEST' || true
+          set +e
+          echo 'DIAG_BEGIN=1'
+          uname -a
+          cat /etc/os-release | grep -E '^(NAME|VERSION|VERSION_ID)=' || true
+          bundle=/tmp/truyn-d1000-runtime.tgz
+          python3 - '__URL_B64__' "$bundle" <<'PY'
+          import base64, sys, urllib.request
+          urllib.request.urlretrieve(base64.b64decode(sys.argv[1]).decode(), sys.argv[2])
+          PY
+          echo DIAG_DOWNLOAD_RC=$?
+          printf '%s  %s\n' '__SHA__' "$bundle" | sha256sum -c -
+          echo DIAG_SHA_RC=$?
+          rm -rf /opt/truyn && mkdir -p /opt/truyn
+          tar -xzf "$bundle" -C /opt/truyn
+          echo DIAG_TAR_RC=$?
+          /opt/truyn/runtime/bin/node --version; echo DIAG_NODE_VERSION_RC=$?
+          /opt/truyn/runtime/bin/jq --version; echo DIAG_JQ_VERSION_RC=$?
+          /opt/truyn/runtime/bin/curl --version | head -1; echo DIAG_CURL_VERSION_RC=${PIPESTATUS[0]}
+          /opt/truyn/runtime/bin/openssl version; echo DIAG_OPENSSL_VERSION_RC=$?
+          mkdir -p /etc/truyn-d1000 /var/lib/truyn-d1000
+          /opt/truyn/runtime/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout /etc/truyn-d1000/key.pem -out /etc/truyn-d1000/cert.pem -subj '/CN=127.0.0.1' -days 1 -addext 'subjectAltName=IP:127.0.0.1'
+          openssl_req_rc=$?
+          echo DIAG_OPENSSL_REQ_RC=$openssl_req_rc
+          ls -l /etc/truyn-d1000 || true
+          if [[ "$openssl_req_rc" == 0 ]]; then
+            cat >/etc/truyn-d1000/node-0.env <<'ENV'
+          TRUYN_IDENTITY_PATH=/var/lib/truyn-d1000/node-0-identity.json
+          TRUYN_NETWORK_STATE_PATH=/var/lib/truqyn-d1000/node-0-state.json
+          TRUYN_TLS_KEY_PATH=/etc/truin-d1000/key.pem
+          TRUYN_TLS_CERT_PATH=/etc/truyqn-d1000/cert.pem
+          TRUYN_ADVERTISE_HOST=127.0.0.1
+          TRUYN_QUIC_HOST=127.0.0.1
+          TRUYN_QUIC_PORT=4400
+          TRUYN_CONTROL_HOST=127.0.0.1
+          TRUYN_CONTROL_PORT=8700
+          TRUYN_PEER_RECORD_TTL_MS=14400000
+          TRUYN_DHT_REPLICATION_FACTOR=3
+          TRUYN_DHT_WRITE_QUORUM=2
+          TRUYN_DHT_RPC_TIMEOUT_MS=5000
+          ENV
+            sed -i 's/truqyn/truyn/g; s/truin/truyn/g; s/truyqn/truyn/g' /etc/truin-d1000/node-0.env 2>/dev/null || true
+            if [[ -f /etc/truin-d1000/node-0.env ]]; then mv /etc/truin-d1000/node-0.env /etc/truyn-d1000/node-0.env; fi
+            cat >/etc/systemd/system/truyn-d1000@.service <<'UNIT'
+          [Unit]
+          After=network-online.target
+          [Service]
+          WorkingDirectory=/opt/truyn/app
+          EnvironmentFile=/etc/truin-d1000/node-%i.env
+          ExecStart=/opt/truqyn/runtime/bin/node /opt/truyqn/app/network/testnet/node-service.js
+          Restart=on-failure
+          RestartSec=1
+          LimitNOFILE=65536
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+            sed -i 's/truqyn/truyn/g; s/truin/truyn/g; s/truyqn/truyn/g' /etc/systemd/system/truy n-d1000@.service 2>/dev/null || true
+            if [[ -f '/etc/systemd/system/truy n-d1000@.service' ]]; then mv '/etc/systemd/system/truy n-d1000@.service' /etc/systemd/system/truyn-d1000@.service; fi
+            systemctl daemon-reload
+            systemctl start truyn-d1000@0.service
+            echo DIAG_SYSTEMCTL_START_RC=$?
+            sleep 5
+            systemctl is-active truyn-d1000@0.service; echo DIAG_SYSTEMCTL_ACTIVE_RC=$?
+            systemctl --no-pager --full status truyn-d1000@0.service || true
+            journalctl -u truyn-d1000@0.service --no-pager -n 80 || true
+            /opt/truyn/runtime/bin/curl -fsS http://127.0.0.1:8700/status; echo; echo DIAG_READY_CURL_RC=$?
+          else
+            echo DIAG_UNIT_CREATED=0
+          fi
+          echo DIAG_END=1
+          exit 0
+          GUEST
+          body="${body//__URL_B64__/$url_b64}"
+          body="${body//__SHA__/$RUNTIME_SHA256}"
+          enc="$(printf '%s' "$body" | base64 -w0)"
+          remote="printf '%s' '$enc' | base64 -d >/tmp/d1kdiag.sh; chmod 700 /tmp/d1kdiag.sh; /bin/bash /tmp/d1kdiag.sh"
+          az vm run-command invoke -g "$RG" -n "${PREFIX}-vm" --command-id RunShellScript --scripts "$remote" --query 'value[].message' -o tsv --only-show-errors | tee host0-runtime-diagnostic.txt
+          grep -F 'DIAG_BEGIN=1' host0-runtime-diagnostic.txt
+          grep -F 'DIAG_END=1' host0-runtime-diagnostic.txt
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d1000-host0-runtime-diagnostic-${{ github.run_id }}
+          if-no-files-found: warn
+          path: host0-runtime-diagnostic.txt
+
+      - name: Cleanup diagnostic resources
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          az vm delete -g "$RG" -n "${PREFIX}-vm" --yes --force-deletion --only-show-errors >/dev/null 2>&1 || true
+          az network nic delete -g "$RG" -n "${PREFIX}-nic" --only-show-errors >/dev/null 2>&1 || true
+          az disk delete -g "$RG" -n "${PREFIX}-os" --yes --only-show-errors >/dev/null 2>&1 || true
+          az network vnet delete -g "$RG" -n "${PREFIX}-vnet" --only-show-errors >/dev/null 2>&1 || true
+          az storage account delete -g "$RG" -n "$STORAGE_ACCOUNT" --yes --only-show-errors >/dev/null 2>&1 || true
+          left="$(az resource list -g "$RG" --query "[?starts_with(name, '${PREFIX}') || name=='${STORAGE_ACCOUNT}'].name" -o tsv --only-show-errors 2>/dev/null | wc -l | tr -d ' ')"
+          echo "DIAG_CLEANUP_REMAINING=$left"
+          test "$left" = 0
