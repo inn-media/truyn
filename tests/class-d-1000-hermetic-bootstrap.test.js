@@ -19,6 +19,14 @@ test('D-1000 accepted harness uses a digest-pinned runtime bundle and bans netwo
   assert.match(builder, /copy_tool jq/);
   assert.match(builder, /copy_tool curl/);
   assert.match(builder, /copy_tool openssl/);
+  assert.match(builder, /tool-scoped-non-base-abi/);
+  assert.match(builder, /is_base_abi_library/);
+  assert.match(builder, /libc\.so\.\*/);
+  assert.match(builder, /runtime\/lib\/\$name/);
+  assert.match(builder, /openssl" req -x509 -newkey rsa:2048/);
+  assert.match(builder, /network\/testnet\/node-service\.js/);
+  assert.match(builder, /smoke_ready/);
+  assert.match(builder, /D-1000 runtime bundle unexpectedly contains a base ABI library/);
   assert.match(builder, /--sort=name/);
   assert.match(builder, /SOURCE_SHA/);
 });
