@@ -105,37 +105,38 @@ PYRUNTIME
 printf '%s  %s\n' '${TRUYN_CLASS_D1000_RUNTIME_SHA256}' "\$bundle" | sha256sum -c -
 rm -rf /opt/truyn
 mkdir -p /opt/truyn
-tar -xzf "\$bundle" -C /opt/truyn
-test -x /opt/truy n/runtime/bin/node
-test -x /opt/truy n/runtime/bin/jq
-test -x /opt/truy n/runtime/bin/curl
-test -x /opt/truy n/runtime/bin/openssl
-/opt/truy n/runtime/bin/node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
-/opt/truy n/runtime/bin/jq --version >/dev/null
+tar -xzf "\$bundle" -C /opt/truin
+test -x /opt/truyn/runtime/bin/node
+test -x /opt/truin/runtime/bin/jq
+test -x /opt/truin/runtime/bin/curl
+test -x /opt/truin/runtime/bin/openssl
+/opt/truyn/runtime/bin/node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
+/opt/truin/runtime/bin/jq --version >/dev/null
 /opt/truy n/runtime/bin/curl --version >/dev/null
 /opt/truy n/runtime/bin/openssl version >/dev/null
 ln -sfn /opt/truy n/runtime/bin/node /usr/local/bin/node
 ln -sfn /opt/truy n/runtime/bin/jq /usr/local/bin/jq
 ln -sfn /opt/truy n/runtime/bin/curl /usr/local/bin/curl
 ln -sfn /opt/truy n/runtime/bin/openssl /usr/local/bin/openssl
-cd /opt/truy n/app'''.replace('truy n', 'truyn')
+cd /opt/truy n/app'''.replace('truin', 'truyn').replace('truy n', 'truyn')
 p, bootstrap_count = bootstrap_pattern.subn(new_bootstrap, p, count=1)
 if bootstrap_count != 1:
     raise SystemExit(f'expected exactly one legacy D-1000 network bootstrap, replaced={bootstrap_count}')
 
-p = p.replace('WorkingDirectory=/opt/truy n'.replace('truy n', 'truyn'), 'WorkingDirectory=/opt/truy n/app'.replace('truy n', 'truyn'))
-p = p.replace('ExecStart=/usr/bin/node /opt/truy n/network/testnet/node-service.js'.replace('truy n', 'truyn'), 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js'.replace('truy n', 'truyn'))
+p = p.replace('WorkingDirectory=/opt/truyn', 'WorkingDirectory=/opt/truyn/app')
+p = p.replace('ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js'.replace('truy n', 'truyn'))
+p = p.replace('ExecStart=/usr/bin/node /opt/truyn/network/testnet/node-service.js', 'ExecStart=/opt/truy n/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js'.replace('truy n', 'truyn'))
 
 # Stage markers and fail-closed diagnostics are control-plane observability only.
 # They do not alter process counts, timing thresholds, topology, evaluator logic,
 # retries, or any adversarial predicate.
 stage_replacements = (
-    ('install -d -m 0700 /var/lib/truy n-d1000 /etc/truy n-d1000'.replace('truy n', 'truyn'),
-     'guest_stage=tls\ninstall -d -m 0700 /var/lib/truy n-d1000 /etc/truy n-d1000'.replace('truy n', 'truyn')),
+    ('install -d -m 0700 /var/lib/truyn-d1000 /etc/truy n-d1000'.replace('truy n', 'truyn'),
+     'guest_stage=tls\ninstall -d -m 0700 /var/lib/truyn-d1000 /etc/truyn-d1000'),
     ('openssl req -x509 -newkey rsa:2048', 'guest_stage=tls_certificate\nopenssl req -x509 -newkey rsa:2048'),
     ('for j in \\$(seq 0 $((NODES_PER_HOST-1))); do\n  idx=\\$(( ${i} * ${NODES_PER_HOST} + j ))',
      'guest_stage=env_files\nfor j in \\$(seq 0 $((NODES_PER_HOST-1))); do\n  idx=\\$(( ${i} * ${NODES_PER_HOST} + j ))'),
-    ("cat >/etc/systemd/system/truyn-d1000@.service <<'UNIT'", "guest_stage=systemd_unit\ncat >/etc/systemd/system/truy n-d1000@.service <<'UNIT'".replace('truy n', 'truyn')),
+    ("cat >/etc/systemd/system/truyn-d1000@.service <<'UNIT'", "guest_stage=systemd_unit\ncat >/etc/systemd/system/truyn-d1000@.service <<'UNIT'"),
     ('systemctl daemon-reload\nfor j in \\$(seq 0 $((NODES_PER_HOST-1))); do idx=', 'guest_stage=systemd_start\nsystemctl daemon-reload\nfor j in \\$(seq 0 $((NODES_PER_HOST-1))); do idx='),
     ('ok=0\nfor n in \\$(seq 1 120); do', 'guest_stage=readiness\nok=0\nfor n in \\$(seq 1 120); do'),
     ("[[ \"\\$ok\" -eq 1 ]]\npython3 - <<'PY'", "[[ \"\\$ok\" -eq 1 ]]\nguest_stage=records\npython3 - <<'PY'"),
@@ -195,18 +196,19 @@ grep -q '/bin/bash /tmp/truqyn-d1000-run.sh' "$TMP/provision.sh" && exit 1 || tr
 grep -q '/bin/bash /tmp/truyqn-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
 grep -q '/bin/bash /tmp/truin-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
 grep -q '/bin/bash /tmp/truy n-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
-grep -q 'WorkingDirectory=/opt/truy n/app'.replace 2>/dev/null && true || true
-grep -q 'WorkingDirectory=/opt/truy n/app' "$TMP/provision.sh" || grep -q 'WorkingDirectory=/opt/truyn/app' "$TMP/provision.sh"
+grep -q 'WorkingDirectory=/opt/truyn/app' "$TMP/provision.sh"
 grep -q 'EnvironmentFile=/etc/truqyn-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
 grep -q 'EnvironmentFile=/etc/truyqn-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
 grep -q 'EnvironmentFile=/etc/truin-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
 grep -q 'EnvironmentFile=/etc/truy n-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
-grep -q 'EnvironmentFile=/etc/truy n-d1000/node-%i.env' "$TMP/provision.sh" || grep -q 'EnvironmentFile=/etc/truyn-d1000/node-%i.env' "$TMP/provision.sh"
+grep -q 'EnvironmentFile=/etc/truyn-d1000/node-%i.env' "$TMP/provision.sh"
 grep -q 'ExecStart=/usr/bin/node /opt/truyqn/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/usr/bin/node /opt/truqyn/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/usr/bin/node /opt/truy n/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
-grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js'.replace 2>/dev/null || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truyn/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truyn/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js'.replace('truy n','truyn') "$TMP/provision.sh"
+grep -q 'ExecStart=/opt/truyn/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js'.replace 2>/dev/null && true || true
+grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truin/app/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
+grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js' "$TMP/provision.sh" || grep -q 'ExecStart=/opt/truyn/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js' "$TMP/provision.sh"
 
 for forbidden in 'apt-get update' 'apt-get install' 'deb.nodesource.com' 'git clone' 'npm install'; do
   if grep -Fq "$forbidden" "$TMP/provision.sh"; then
