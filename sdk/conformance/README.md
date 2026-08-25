@@ -39,10 +39,20 @@ The shared fixture `discovery.private-capability-nondisclosure` captures this in
 
 Clients must inspect both Agent Descriptor `descriptorVersion` and advertised `protocols`. Unsupported required versions fail explicitly as `version_mismatch`; clients must not guess or silently downgrade.
 
+## Golden conformance rules
+
+`v1/golden-fixtures.json` is one shared dataset, not language-specific test data. TypeScript and Python must consume the same cases and produce the same acceptance/normalization outcomes.
+
+- Every foundational DTO has at least one positive and one negative case.
+- Behavior cases include private capability/provider non-disclosure and descriptor/protocol version mismatch.
+- `errorNormalizationCases` pins representative current protocol, relay HTTP and client failures to the shared `NormalizedError` taxonomy, including retryability.
+- Raw relay/protocol values remain source facts; normalized errors are an SDK projection and do not change wire responses.
+- The repository gate reads the current protocol, node client, relay and Agent Descriptor sources so obvious contract drift fails PR CI instead of silently forking the SDK surface.
+
 ## Files
 
 - `v1/sdk-contract.schema.json` — language-neutral JSON Schema definitions for the shared DTOs.
 - `v1/golden-fixtures.json` — the single golden dataset that TypeScript and Python must consume in DX-1.
-- `../../tests/sdk-shared-contract.test.js` — repository gate that checks fixture coverage and the invariants above without adding a JSON Schema runtime dependency.
+- `../../tests/sdk-shared-contract.test.js` — repository gate that checks fixture coverage, source mapping and the invariants above without adding a JSON Schema runtime dependency.
 
 The fixtures are contract data, not mocked claims of network productionization. Later SDK PRs will consume the same dataset for TypeScript and Python runtime conformance.
