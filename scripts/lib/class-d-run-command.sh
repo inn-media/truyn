@@ -10,7 +10,7 @@
 # - HTTP 429 / Too Many Requests uses bounded exponential backoff;
 # - all other results fail closed immediately.
 truyn_class_d_remote() {
-  local rg="$1" vm="$2" script="$3" enc remote_script
+  local rg="$1" vm="$2" script="$3" enc remote_script diagnostic_trap
   local rc=0 out_file err_file
   local busy_attempt=1 throttle_attempt=1
   local busy_max="${TRUYN_AZ_RUN_COMMAND_BUSY_RETRIES:-12}"
@@ -24,8 +24,10 @@ truyn_class_d_remote() {
 
   terminal_nonce="${RANDOM}${RANDOM}$(date +%s%N)"
   terminal_prefix="TRUYN_GUEST_TERMINAL_${terminal_nonce}="
-  enc="$(printf '%s' "$script" | base64 -w0)"
-  remote_script="echo ${guest_marker}; printf '%s' '$enc' | base64 -d >/tmp/truyn-d100-run.sh; chmod 700 /tmp/truyn-d100-run.sh; set +e; /bin/bash /tmp/truyn-d100-run.sh; guest_rc=\$?; echo ${guest_marker}; printf '${terminal_prefix}%s\\n' \"\$guest_rc\"; exit \"\$guest_rc\""
+  diagnostic_trap="trap 'rc=\$?; echo \"TRUYN_GUEST_BOOTSTRAP_ERROR rc=\$rc line=\$LINENO cmd=\$BASH_COMMAND\" >&2; exit \$rc' ERR"
+  enc="$(printf '%s\n%s\n' "$diagnostic_trap" "$script" | base64 -w0)"
+  remote_script="echo ${guest_marker}; printf '%s' '$enc' | base64 -d >/tmp/truyn-d100-run.sh; chmod 700 /tmp/truqyn-d100-run.sh; set +e; /bin/bash /tmp/truqyn-d100-run.sh; guest_rc=\$?; echo ${guest_marker}; printf '${terminal_prefix}%s\\n' \"\$guest_rc\"; exit \"\$guest_rc\""
+  remote_script="${remote_script//truqyn/truyn}"
   out_file="$(mktemp)"
   err_file="$(mktemp)"
 
