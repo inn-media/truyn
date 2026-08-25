@@ -1,6 +1,6 @@
 # TRUYN/1 Agent Descriptor
 
-**Status:** draft discovery metadata specification.  
+**Status:** draft discovery metadata specification with executable DX-1 v1 validation/signature semantics.  
 **Wire status:** not a new top-level TRUYN envelope kind.
 
 The **TRUYN Agent Descriptor** is a signed, cacheable self-description document used to bootstrap interoperability with a TRUYN-facing agent, service or node.
@@ -93,16 +93,40 @@ Security metadata is descriptive. Actual authorization remains server/node polic
 
 ## 7. Signature semantics
 
-A descriptor SHOULD be signed.
+A descriptor SHOULD be signed. The current executable DX-1 v1 path verifies the participant's **current TRUYN identity key** using the same Ed25519 and canonical-JSON primitives already used for signed TRUYN values.
 
-The verifier MUST be able to determine whether the signing key is:
+### 7.1 v1 identity-key signing input
 
-- the participant's current TRUYN identity key; or
-- a key explicitly delegated/authorized by that identity for descriptor signing.
+For `truyn.agent-descriptor/v1`, the signing input is constructed as follows:
 
-A valid signature proves descriptor integrity and key binding. It does not prove capability quality, current availability, requester authorization or result truth.
+1. start from the complete descriptor object;
+2. remove the top-level `signature` and `signatures` fields;
+3. canonicalize the remaining JSON value with the TRUYN `canonicalize()` algorithm used by `core/protocol/index.js` / `core/identity/index.js`;
+4. encode the resulting canonical JSON string as UTF-8 bytes;
+5. sign those bytes with Ed25519;
+6. encode the 64-byte signature using standard padded base64.
 
-Descriptors MUST be expiry-bound. Clients SHOULD reject expired descriptors unless an explicit offline/cache policy says otherwise.
+A verifier MUST resolve the participant public key **outside the descriptor** and MUST require:
+
+```text
+nodeIdFromPublicKey(resolvedPublicKey) == descriptor.identity
+```
+
+The descriptor MUST NOT become its own root of trust by supplying an untrusted key and asking the verifier to trust it.
+
+A descriptor MAY use `signature` or `signatures[]`. Under the current identity-key path, verification succeeds when at least one syntactically valid signature verifies against the identity-bound public key. Both signature fields are excluded from the signed projection.
+
+### 7.2 Delegated descriptor keys
+
+The broader architecture permits a descriptor-signing key explicitly delegated by the participant identity. However, the current draft does not yet define a portable delegation proof, key identifier, validity window and revocation contract.
+
+Therefore first-party SDKs MUST fail closed on a key that does not bind directly to `descriptor.identity` until such a delegation contract is specified and added to the shared conformance fixtures. Implementations MUST NOT silently treat an arbitrary non-identity key as delegated.
+
+### 7.3 What a valid signature proves
+
+A valid signature proves descriptor integrity and current identity-key binding. It does not prove capability quality, current availability, requester authorization or result truth.
+
+Descriptors MUST be expiry-bound. Clients reject expired descriptors by default. An explicit offline/cache policy MAY opt into using an expired descriptor, but that is a caller policy decision rather than silent fallback.
 
 ## 8. Example
 
@@ -139,11 +163,11 @@ Descriptors MUST be expiry-bound. Clients SHOULD reject expired descriptors unle
   },
   "issuedAt": "2026-08-22T00:00:00Z",
   "expiresAt": "2026-08-23T00:00:00Z",
-  "signature": "example-signature-value"
+  "signature": "base64-ed25519-signature"
 }
 ```
 
-The example is illustrative while TRUYN/1 remains draft; concrete signature encoding/schema serialization may evolve before stabilization.
+The example values are illustrative while TRUYN/1 remains draft. The executable canonicalization/signature contract and real cryptographic golden vector live under `sdk/conformance/v1/`.
 
 ## 9. Descriptor versus OFFER
 
@@ -165,16 +189,32 @@ Clients MUST inspect `descriptorVersion` and `protocols` rather than assuming th
 
 Unknown optional fields/extensions SHOULD be ignored unless the extension declares different handling. Unknown required semantics MUST fail explicitly rather than being guessed.
 
+The shared DX-1 negotiation semantics are:
+
+- descriptor schema/version validation happens first;
+- protocol selection follows the client's declared supported-protocol preference order and selects the first protocol also advertised by the descriptor;
+- interface selection follows descriptor interface order and chooses the first interface type supported by the client;
+- no protocol overlap fails explicitly as `version_mismatch` / `unsupported_protocol`;
+- no interface overlap fails explicitly as `version_mismatch` / `unsupported_interface`.
+
 ## 11. Relation to SDKs
 
-First-party SDKs SHOULD provide:
+First-party SDKs provide or target:
 
 - descriptor retrieval;
 - schema parsing;
 - expiry validation;
-- signature validation;
+- identity-bound signature validation;
 - protocol/interface selection;
 - visibility-safe capability enumeration;
 - clear errors for unsupported descriptor/protocol versions.
+
+The executable reference semantics and shared cryptographic/negotiation vectors are in:
+
+- `sdk/conformance/reference/agent-descriptor.js`;
+- `sdk/conformance/v1/golden-fixtures.json`;
+- `sdk/conformance/v1/agent-descriptor-runtime-fixtures.json`.
+
+TypeScript and Python implementations MUST pass the same logical `truyn.sdk-conformance/v1` fixture set rather than maintaining divergent language-local expectations.
 
 See `docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`.
