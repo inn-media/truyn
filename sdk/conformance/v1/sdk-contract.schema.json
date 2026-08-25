@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://truyn.org/schema/sdk/conformance/v1/sdk-contract.schema.json",
+  "title": "TRUYN shared SDK contract v1",
+  "description": "Language-neutral DTO contract for DX-1. Wire-backed message DTOs preserve the current TRUYN/1 signed envelope; SDK-only DTOs do not create new protocol fields.",
+  "$defs": {
+    "JsonValue": {
+      "description": "Any JSON value.",
+      "anyOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "number" },
+        { "type": "string" },
+        { "type": "array", "items": { "$ref": "#/$defs/JsonValue" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/JsonValue" } }
+      ]
+    },
+    "Identity": {
+      "type": "object",
+      "description": "Public identity facts available from the current relay identity surface. Session credentials are intentionally excluded.",
+      "required": ["nodeId", "publicKey"],
+      "properties": {
+        "nodeId": { "type": "string", "pattern": "^truyn:node:.+" },
+        "publicKey": { "type": "string", "minLength": 1 },
+        "algorithm": { "type": ["string", "null"] },
+        "protocols": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "name": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "Capability": {
+      "type": "object",
+      "description": "SDK logical capability projection. Descriptor capabilities[].id and runtime OFFER/NEED payload.capability.name normalize to id; this is not a new wire field.",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "inputModes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "outputModes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "interactionModes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "SignedEnvelopeBase": {
+      "type": "object",
+      "required": ["protocol", "type", "id", "from", "to", "createdAt", "publicKey", "payload", "signature"],
+      "properties": {
+        "protocol": { "const": "TRUYN/1" },
+        "type": { "enum": ["IDENTITY", "OFFER", "NEED", "RESULT", "REVOKE"] },
+        "id": { "type": "string", "minLength": 1 },
+        "from": { "type": "string", "pattern": "^truyn:node:.+" },
+        "to": { "type": ["string", "null"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "publicKey": { "type": "string", "minLength": 1 },
+        "payload": { "$ref": "#/$defs/JsonValue" },
+        "signature": { "type": "string", "minLength": 1 }
+      }
+    },
+    "Offer": {
+      "description": "Current TRUYN/1 signed OFFER envelope.",
+      "allOf": [
+        { "$ref": "#/$defs/SignedEnvelopeBase" },
+        {
+          "type": "object",
+          "required": ["type", "payload"],
+          "properties": {
+            "type": { "const": "OFFER" },
+            "payload": {
+              "type": "object",
+              "required": ["capability", "metadata"],
+              "properties": {
+                "capability": {
+                  "type": "object",
+                  "required": ["name"],
+                  "properties": { "name": { "type": "string", "minLength": 1 } },
+                  "additionalProperties": false
+                },
+                "metadata": { "type": "object" }
+              },
+              "additionalProperties": false
+            },
+            "trust": { "$ref": "#/$defs/JsonValue" }
+          }
+        }
+      ]
+    },
+    "Need": {
+      "description": "Current TRUYN/1 signed NEED envelope.",
+      "allOf": [
+        { "$ref": "#/$defs/SignedEnvelopeBase" },
+        {
+          "type": "object",
+          "required": ["type", "payload"],
+          "properties": {
+            "type": { "const": "NEED" },
+            "payload": {
+              "type": "object",
+              "required": ["capability", "input", "policy"],
+              "properties": {
+                "capability": {
+                  "type": "object",
+                  "required": ["name"],
+                  "properties": { "name": { "type": "string", "minLength": 1 } },
+                  "additionalProperties": false
+                },
+                "input": { "$ref": "#/$defs/JsonValue" },
+                "policy": { "type": "object" }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+    "Result": {
+      "description": "Current TRUYN/1 signed RESULT envelope.",
+      "allOf": [
+        { "$ref": "#/$defs/SignedEnvelopeBase" },
+        {
+          "type": "object",
+          "required": ["type", "payload"],
+          "properties": {
+            "type": { "const": "RESULT" },
+            "payload": {
+              "type": "object",
+              "required": ["requestId", "output", "completedAt", "metadata"],
+              "properties": {
+                "requestId": { "type": "string", "minLength": 1 },
+                "output": { "$ref": "#/$defs/JsonValue" },
+                "completedAt": { "type": "string", "format": "date-time" },
+                "metadata": { "type": "object" }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+    "ArtifactRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Opaque reference to content/artifact data. DX-1 deliberately does not invent a generic Artifact wire object before that TRUYN/1 contract stabilizes. Existing values may include content-addressed references such as truyn:ctx:* identifiers."
+    },
+    "AgentDescriptorInterface": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "endpoint": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "contentTypes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      },
+      "additionalProperties": true
+    },
+    "AgentDescriptor": {
+      "type": "object",
+      "description": "Draft truyn.agent-descriptor/v1 shape from spec/protocol/v1/agent-descriptor.md.",
+      "required": ["schema", "descriptorVersion", "identity", "protocols", "interfaces", "capabilities", "issuedAt", "expiresAt"],
+      "properties": {
+        "schema": { "const": "truyn.agent-descriptor/v1" },
+        "descriptorVersion": { "const": "1" },
+        "identity": { "type": "string", "pattern": "^truyn:node:.+" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "protocols": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "interfaces": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/AgentDescriptorInterface" } },
+        "capabilities": { "type": "array", "items": { "$ref": "#/$defs/Capability" } },
+        "features": { "type": "object" },
+        "security": { "type": "object" },
+        "extensions": { "type": "object" },
+        "documentation": { "$ref": "#/$defs/JsonValue" },
+        "sdkHints": { "$ref": "#/$defs/JsonValue" },
+        "issuedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "signature": { "type": "string", "minLength": 1 },
+        "signatures": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      },
+      "anyOf": [
+        { "required": ["signature"] },
+        { "required": ["signatures"] }
+      ],
+      "additionalProperties": true
+    },
+    "NormalizedError": {
+      "type": "object",
+      "description": "SDK-only normalized error. source preserves raw relay/protocol details when safe; this object is not a TRUYN wire message.",
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": {
+          "enum": [
+            "transport_error",
+            "invalid_response",
+            "validation_error",
+            "version_mismatch",
+            "unauthenticated",
+            "permission_denied",
+            "not_found",
+            "conflict",
+            "resource_exhausted",
+            "deadline_exceeded",
+            "cancelled",
+            "internal_error"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1 },
+        "retryable": { "type": "boolean" },
+        "source": {
+          "type": "object",
+          "properties": {
+            "httpStatus": { "type": "integer", "minimum": 100, "maximum": 599 },
+            "relayCode": { "type": "string", "minLength": 1 },
+            "protocolReason": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "details": { "$ref": "#/$defs/JsonValue" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
