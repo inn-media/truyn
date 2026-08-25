@@ -16,9 +16,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify DCO 1.1 sign-offs
+        if: github.event_name == 'pull_request'
+        env:
+          DCO_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DCO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-dco.mjs "$DCO_BASE_SHA" "$DCO_HEAD_SHA"
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm test
         env:

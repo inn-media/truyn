@@ -12,7 +12,8 @@ Before proposing a normative protocol, stable compatibility, official extension 
 - `MAINTAINERS.md`;
 - `docs/governance/RFC_PROCESS.md`;
 - `docs/governance/EXTENSIONS.md`;
-- `docs/governance/DECISION_PROCESS.md`.
+- `docs/governance/DECISION_PROCESS.md`;
+- `docs/governance/CONTRIBUTION_IP_POLICY.md`.
 
 Routine non-normative implementation work can use the normal PR process. A PR does not silently acquire normative authority merely because it is merged into the reference implementation.
 
@@ -21,6 +22,44 @@ TRUYN is currently in bootstrap governance: InnMedia is the Founding Steward whi
 ## License for contributions
 
 TRUYN is licensed under the **Apache License 2.0**. Contributions are accepted under the Apache License 2.0 unless explicitly stated otherwise. See [`LICENSE`](LICENSE).
+
+## Mandatory DCO 1.1 sign-off
+
+TRUYN requires the **Developer Certificate of Origin (DCO) 1.1** for every new contribution commit.
+
+By adding a `Signed-off-by` trailer, you certify the DCO 1.1 terms in [`DCO`](DCO) and confirm that you have the right to submit the contribution under the applicable open-source license.
+
+Create a signed-off commit with:
+
+```bash
+git commit -s -m "your commit message"
+```
+
+which adds a trailer like:
+
+```text
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+The sign-off is a legal/provenance certification, not a cryptographic signature. CI verifies every commit in a pull request and requires a `Signed-off-by` email matching the commit author's email. A pull request with a missing or mismatched DCO sign-off is not eligible for merge.
+
+To fix the latest unsigned commit:
+
+```bash
+git commit --amend --signoff --no-edit
+```
+
+For multiple commits, add a sign-off to every contribution commit, for example with an appropriate interactive rebase or:
+
+```bash
+git rebase --signoff <base-branch>
+```
+
+This requirement applies to code, specifications, tests, SDKs, adapters, documentation, benchmark changes, governance records and repository configuration.
+
+TRUYN does **not** currently require a Contributor License Agreement (CLA), copyright assignment or an InnMedia-specific relicensing grant. DCO 1.1 is the project's inbound contribution provenance mechanism. Any future material change to that posture is a Governance change.
+
+The policy is prospective from adoption and does not require rewriting historical repository commits. See [`docs/governance/CONTRIBUTION_IP_POLICY.md`](docs/governance/CONTRIBUTION_IP_POLICY.md).
 
 ## Principles
 
@@ -133,4 +172,4 @@ The repository is intentionally evolving quickly. Proposed protocol, descriptor,
 
 Stable-v1 technical maturity does not by itself prove neutral governance maturity. See the Governance & Standardization Gate in `ROADMAP.md`.
 
-See `ROADMAP.md`, `GOVERNANCE.md`, `SECURITY.md`, `spec/`, `sdk/`, `docs/governance/` and `docs/architecture/` for the current direction.
+See `ROADMAP.md`, `GOVERNANCE.md`, `SECURITY.md`, `DCO`, `spec/`, `sdk/`, `docs/governance/` and `docs/architecture/` for the current direction.

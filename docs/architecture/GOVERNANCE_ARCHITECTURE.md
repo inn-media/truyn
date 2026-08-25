@@ -2,7 +2,7 @@
 
 **Status:** Defined architecture / bootstrap governance operating state.
 
-TRUYN governance is part of the architecture of the standard because it defines **how normative architecture is allowed to change**.
+TRUYN governance is part of the architecture of the standard because it defines **how normative architecture is allowed to change** and **how contributions enter the project with auditable provenance**.
 
 A protocol that is technically vendor-neutral but permanently controlled by one vendor is not fully vendor-neutral as a standard. TRUYN therefore treats governance maturity as a first-class pre-stability dimension alongside network productionization, security, compatibility, interoperability and developer experience.
 
@@ -45,6 +45,7 @@ Governance authority is split across:
 | Concern | Source of truth |
 |---|---|
 | Governance principles, roles, TSC target, maturity | `GOVERNANCE.md` |
+| Contribution provenance / inbound IP | `DCO` + `docs/governance/CONTRIBUTION_IP_POLICY.md` |
 | Factual current role roster | `MAINTAINERS.md` |
 | Normative proposal lifecycle | `docs/governance/RFC_PROCESS.md` |
 | Extension lifecycle and official namespace | `docs/governance/EXTENSIONS.md` |
@@ -61,6 +62,7 @@ Current factual state:
 ```text
 Founding Steward: InnMedia
 Public governance contract: defined
+Contribution provenance: DCO 1.1 mandatory for new contribution commits
 Independent maintainer model: not yet operating
 Multi-organization TSC: not yet constituted
 Neutral legal stewardship: not yet established
@@ -69,6 +71,38 @@ Neutral legal stewardship: not yet established
 This is **G1 defined governance with bootstrap operations still transitioning from G0**.
 
 The project MUST NOT convert this documentation into a false claim that neutral governance already exists.
+
+## Contribution provenance as a governance boundary
+
+A neutral standard needs more than an outbound open-source license. It also needs a durable answer to the inbound question:
+
+> Did the contributor have the right to submit this contribution under the project's open-source license?
+
+TRUYN answers that question with **DCO 1.1** rather than a project-specific CLA.
+
+The architectural model is:
+
+```text
+contributor
+    ↓
+new contribution commit
+    ↓
+Signed-off-by trailer
+    ↓
+DCO 1.1 certification
+    ↓
+Apache-2.0 contribution
+    ↓
+public auditable provenance record
+```
+
+The sign-off does not transfer copyright to InnMedia and does not give the Founding Steward a special relicensing right. This is deliberate: the contribution record should remain portable if stewardship later moves to a neutral foundation or standards body.
+
+Every pull-request contribution commit is checked by CI for a `Signed-off-by` trailer matching the commit author email. Maintainers must not merge a DCO-failing pull request.
+
+The DCO policy is prospective. Governance MUST NOT rewrite established history merely to create artificial retroactive sign-offs.
+
+Changing the required DCO version, replacing DCO with a CLA, adding copyright assignment, creating a vendor-specific relicensing right or introducing a waiver mechanism is a Governance change, not a routine repository-maintenance decision.
 
 ## Steady-state architecture
 
@@ -94,6 +128,8 @@ At G3:
 - routine implementation authority remains delegated to Maintainers rather than centralized in the TSC.
 
 At G4, appropriate project IP/marks/official namespace stewardship moves to a legally/organizationally neutral home. The exact vehicle is a future organizational decision; architecture does not pretend that a foundation already exists.
+
+The contribution provenance mechanism must remain suitable for that transfer. DCO-based provenance is intended to avoid making future neutral stewardship dependent on a special copyright grant held only by the bootstrap vendor.
 
 ## Extension-first standard evolution
 
@@ -162,13 +198,13 @@ Security review can delay disclosure; it cannot create a hidden permanent standa
 | Stage | Architecture requirement |
 |---|---|
 | G0 | Single-steward operation; governance incomplete. |
-| G1 | Public governance, RFC, extension and decision contracts defined. |
+| G1 | Public governance, RFC, extension, decision and contribution-provenance contracts defined. |
 | G2 | Earned maintainer model demonstrably operating with external maintainers. |
 | G3 | Multi-organization TSC with no single-vendor majority and public decisions. |
 | G4 | Neutral legal/stewardship home for the standard/marks/namespaces as applicable. |
 | G5 | Succession, appeals, deprecation/release authority and continuity demonstrated in operation. |
 
-Governance maturity is factual. Markdown alone can close G1, but cannot close G2-G5.
+Governance maturity is factual. Markdown and repository policy can close G1, but cannot close G2-G5.
 
 ## Pre-v1 stability rule
 
@@ -182,11 +218,11 @@ Network/security/SDK/interoperability gates and governance gates are independent
 
 The Governance & Standardization Gate in `ROADMAP.md` is the implementation plan for this architecture:
 
-- GOV-0 — public governance contract;
+- GOV-0 — public governance contract + contribution provenance baseline;
 - GOV-1 — RFC + extension framework;
 - GOV-2 — open maintainer model;
 - GOV-3 — multi-organization TSC;
 - GOV-4 — neutral stewardship;
 - GOV-5 — stable ecosystem governance.
 
-GOV-0/GOV-1 are documentation/process work and can be completed immediately. GOV-2 through GOV-5 require real organizational evidence and cannot be closed by text alone.
+GOV-0/GOV-1 are documentation/process/repository-policy work and can be completed immediately. GOV-2 through GOV-5 require real organizational evidence and cannot be closed by text alone.
