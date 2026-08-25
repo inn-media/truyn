@@ -34,7 +34,7 @@ Governance uses its independent G0→G5 factual maturity axis.
 | Provider ownership/authorization/BYOK | Implemented reference baseline |
 | Billing safety | BYOK/owner-funded implemented; sponsored guard requires external durable store/issuer; prepaid/subscription fail closed |
 | **DCO 1.1 contribution provenance** | **Accepted + CI-implemented**; PR-only `DCO` job checks full PR base→head commit range; no manual DCO dispatch |
-| A2A/MCP interoperability | MCP `2026-07-28` C1 current-contract + C2 general tool discovery/import slices implemented/CI-proven; broader optional MCP surfaces and A2A/bidirectional A2A↔TRUYN↔MCP bridge remain open |
+| A2A/MCP interoperability | MCP `2026-07-28` C1 current-contract + C2 general tool discovery/import and A2A `1.0` C3 server-facade slices implemented/CI-proven; A2A client/provider and bidirectional A2A↔TRUYN↔MCP bridge remain open |
 | Settlement adapters | Defined only; implementation intentionally deferred; first targets x402 + AP2 |
 | Trustability v1/v2 | Implemented + CI/benchmark proven; bounded real-network trust slice proven |
 | Multi-cloud text/image/video providers | Implemented reference adapter paths; individual deployment availability varies |
@@ -252,15 +252,15 @@ Implemented:
 - [x] loopback MCP HTTP bridge;
 - [x] configured remote MCP HTTP tool provider reference;
 - [x] selected MCP `2026-07-28` current-contract conformance slice with explicit version/header/content-type failures and private-provider execution-denial coverage — PR `#324`, CI `32858272119`;
-- [x] **C2 general MCP tool discovery/import** — modern `server/discover`, bounded paginated `tools/list`, explicit allowlist/filter, supported `x-mcp-header` forwarding, selected signed TRUYN `OFFER`s, and unauthorized zero-remote-execution proof — PR `#332`.
+- [x] **C2 general MCP tool discovery/import** — modern `server/discover`, bounded paginated `tools/list`, explicit allowlist/filter, supported `x-mcp-header` forwarding, selected signed TRUYN `OFFER`s, and unauthorized zero-remote-execution proof — PR `#332`;
+- [x] **C3 A2A server facade** — A2A `1.0` well-known Agent Card, authorized public/extended skill projection, `SendMessage`/`GetTask`, Message → TRUYN NEED → verified RESULT → Artifact, principal-scoped non-blocking task polling, explicit unsupported-operation/version failures, and unauthorized zero-NEED/zero-provider-execution proof.
 
 Open:
 
-- [ ] implement A2A server facade with authorized Agent Card projection and Message/Task/Artifact handling;
 - [ ] implement A2A client/provider adapter;
 - [ ] prove A2A→TRUYN→MCP and MCP→TRUYN→A2A real round trips;
-- [ ] prove artifact/provenance integrity and asynchronous A2A lifecycle;
-- [ ] negative-test private-provider non-disclosure/execution across bridges beyond the bounded C1/C2 MCP edges;
+- [ ] prove generalized referenced-file artifact/provenance integrity and broader asynchronous lifecycle semantics where claimed;
+- [ ] negative-test private-provider non-disclosure/execution across the complete bidirectional bridge beyond the bounded C1/C2/C3 edges;
 - [ ] publish complete cross-protocol exact-version interoperability evidence.
 
 ### Developer Experience Gate — **REQUIRED PRE-v1**
@@ -293,7 +293,7 @@ Provenance/independence, active trust lifecycle, receipts, decentralized placeme
 - [x] production relay origin-lock evidence;
 - [x] **100 simultaneously running real network processes/nodes accepted in Class D-100**;
 - [ ] **1,000 simultaneously running real network processes/nodes accepted in Class D-1000**;
-- [ ] A2A/MCP interoperability evidence after bridge implementation;
+- [ ] A2A/MCP interoperability evidence after complete bridge implementation;
 - [ ] larger real-WAN/long-duration adversarial distributions.
 
 Semantic block counts or simulations must never be described as simultaneously running real network nodes.
@@ -349,7 +349,7 @@ long-duration / broader operational durability + adversarial SLO closure
         ↓
 operations + compatibility stabilization
         ↓
-A2A/MCP bridge + negative interoperability evidence
+A2A client/provider adapter + bidirectional A2A↔TRUYN↔MCP evidence
         ↓
 DX-1/DX-2/DX-3 + five-language conformance
         ↓
@@ -357,21 +357,3 @@ TRUYN/1 + interoperability + Agent Descriptor + SDK stabilization
         ↓
 optional settlement-adapter implementation / capability-economy expansion
 ```
-
-In parallel:
-
-```text
-GOV-0/GOV-1 public process + DCO — defined/implemented baseline
-        ↓
-GOV-2 external/earned maintainers
-        ↓
-GOV-3 multi-organization TSC
-        ↓
-GOV-4 neutral stewardship
-        ↓
-GOV-5 demonstrated governance continuity
-```
-
-## Versioning rule
-
-Software releases (`v0.1.0`, `v1.0.0`), TRUYN protocol generations (`TRUYN/1`, `TRUYN/2`), A2A/MCP external protocol versions, SDK package versions and governance maturity (G0-G5) are independent compatibility dimensions. A newer node may support multiple protocol generations simultaneously. Current software remains `0.1.0-dev`; `TRUYN/1` remains draft until explicitly stabilized.
