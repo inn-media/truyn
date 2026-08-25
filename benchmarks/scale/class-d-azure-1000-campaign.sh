@@ -53,7 +53,7 @@ done
 conv_rate=$(python3 -c "print(round($conv_success/$conv_total,6))")
 python3 - <<PY
 assert float('$conv_rate') >= .99, '$conv_rate'
-assert float('$conv_p95') <= 180000, '$conv_p95'
+assert float('$conv_p95') <= 120000, '$conv_p95'
 PY
 
 STAGE=baseline-routing
@@ -184,7 +184,7 @@ done
 rm -rf "$restart_dir"
 recovery_p95=$(printf '%s\n' "${recovery_values[@]}" | python3 -c 'import sys; a=sorted(float(x) for x in sys.stdin if x.strip()); print(a[min(len(a)-1,int((len(a)-1)*.95))])')
 python3 - <<PY
-assert float('$recovery_p95') <= 180000, '$recovery_p95'
+assert float('$recovery_p95') <= 120000, '$recovery_p95'
 PY
 echo "TRUYN_CLASS_D_1000 stage=restart-recovery restarted=100 recoveryP95Ms=${recovery_p95} status=PASS"
 
@@ -239,7 +239,7 @@ for n in $(seq 1 90); do
 done
 [[ "$(marker "$out" HEAL_CODE)" == 200 ]]
 partition_recovery_ms=$(( $(date +%s%3N) - heal_start ))
-[[ "$partition_recovery_ms" -le 180000 ]]
+[[ "$partition_recovery_ms" -le 120000 ]]
 echo "TRUYN_CLASS_D_1000 stage=packet-partition realPacketPath=true blockedSuccesses=${partition_successes}/${partition_probes} recoveryMs=${partition_recovery_ms} status=PASS"
 
 STAGE=healed-routing
