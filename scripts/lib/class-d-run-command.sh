@@ -20,11 +20,15 @@ truyn_class_d_remote() {
   local throttle_cap="${TRUYN_AZ_RUN_COMMAND_429_MAX_DELAY_SECONDS:-30}"
   local delay=0 admitted=false terminal_rc='' terminal_line=''
   local guest_marker='TRUYN_GUEST_EXECUTION_ADMITTED=1'
-  local terminal_nonce terminal_prefix
+  local terminal_nonce terminal_prefix guest_preamble
 
   terminal_nonce="${RANDOM}${RANDOM}$(date +%s%N)"
   terminal_prefix="TRUYN_GUEST_TERMINAL_${terminal_nonce}="
-  enc="$(printf '%s' "$script" | base64 -w0)"
+  guest_preamble=$(cat <<'TRUYN_GUEST_PREAMBLE'
+trap 'rc=$?; echo "TRUYN_GUEST_BOOTSTRAP_ERROR rc=$rc line=$LINENO cmd=$BASH_COMMAND" >&2; exit $rc' ERR
+TRUYN_GUEST_PREAMBLE
+)
+  enc="$(printf '%s\n%s' "$guest_preamble" "$script" | base64 -w0)"
   remote_script="echo ${guest_marker}; printf '%s' '$enc' | base64 -d >/tmp/truyn-d100-run.sh; chmod 700 /tmp/truyn-d100-run.sh; set +e; /bin/bash /tmp/truyn-d100-run.sh; guest_rc=\$?; echo ${guest_marker}; printf '${terminal_prefix}%s\\n' \"\$guest_rc\"; exit \"\$guest_rc\""
   out_file="$(mktemp)"
   err_file="$(mktemp)"
