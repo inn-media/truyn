@@ -29,8 +29,10 @@ class PythonLocalNodeE2ETests(unittest.TestCase):
         try:
             self.assertNotEqual(provider.node_id, requester.node_id)
 
-            offer = provider.offer(FLOW['capabilityId'], FLOW['offerMetadata'])
-            self.assertTrue(offer.get('offerId'))
+            # TypeScript PR5 treats OFFER publication as a successful operation and does not
+            # define its raw relay response as part of the SDK parity surface. Keep Python
+            # parity at exactly that boundary rather than inventing a Python-only shape.
+            provider.offer(FLOW['capabilityId'], FLOW['offerMetadata'])
 
             receipt = requester.need(FLOW['capabilityId'], FLOW['needInput'], FLOW['needPolicy'])
             self.assertTrue(receipt['ok'])
