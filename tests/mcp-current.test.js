@@ -15,6 +15,7 @@ import {
   MCP_CLIENT_CAPABILITIES_META_KEY,
   MCP_SERVER_INFO_META_KEY
 } from '../adapters/mcp/server.js';
+import { encodeMcpHeaderValue, decodeMcpHeaderValue } from '../adapters/mcp/http-headers.js';
 import { createMcpHttpToolProvider } from '../adapters/providers/mcp-http-tool.js';
 
 function stubNode() {
@@ -40,7 +41,7 @@ function modernHeaders(method, name) {
     accept: 'application/json, text/event-stream',
     'mcp-protocol-version': MCP_MODERN_VERSION,
     'mcp-method': method,
-    ...(name ? { 'mcp-name': name } : {})
+    ...(name ? { 'mcp-name': encodeMcpHeaderValue(name) } : {})
   };
 }
 
@@ -154,6 +155,17 @@ test('MCP 2026-07-28 requires protocol version and client capabilities in reques
   assert.equal(withoutClientInfo.error, undefined, 'clientInfo is recommended, not mandatory');
 });
 
+test('MCP header values use the 2026-07-28 Base64 sentinel when plain ASCII is unsafe', () => {
+  for (const value of ['исследование', ' padded ', 'line1\nline2', '=?base64?literal?=']) {
+    const encoded = encodeMcpHeaderValue(value);
+    assert.match(encoded, /^=\?base64\?.+\?=$/);
+    assert.equal(decodeMcpHeaderValue(encoded), value);
+  }
+  assert.equal(encodeMcpHeaderValue('research'), 'research');
+  assert.equal(decodeMcpHeaderValue('research'), 'research');
+  assert.equal(decodeMcpHeaderValue('=?base64?***?='), null);
+});
+
 test('MCP Streamable HTTP enforces modern routing headers, metadata and JSON content type', async (t) => {
   const mcp = createMcpHttpServer({ node: stubNode() });
   const url = await mcp.listen({ port: 0 });
@@ -162,6 +174,10 @@ test('MCP Streamable HTTP enforces modern routing headers, metadata and JSON con
   const valid = await postJson(url, 'tools/call', modernParams({ name: 'truyn_identity', arguments: {} }));
   assert.equal(valid.status, 200);
   assert.equal((await valid.json()).result.structuredContent.nodeId, 'truyn:node:mcp-test');
+
+  const encodedUnknown = await postJson(url, 'tools/call', modernParams({ name: 'исследование', arguments: {} }));
+  assert.equal(encodedUnknown.status, 200, 'encoded Mcp-Name must pass HTTP header/body validation');
+  assert.equal((await encodedUnknown.json()).error.code, -32602, 'unknown tool fails after routing validation');
 
   const missingVersionHeader = await postJson(
     url,
@@ -189,6 +205,15 @@ test('MCP Streamable HTTP enforces modern routing headers, metadata and JSON con
   );
   assert.equal(nameMismatch.status, 400);
   assert.equal((await nameMismatch.json()).error.code, -32020);
+
+  const missingName = await postJson(
+    url,
+    'tools/call',
+    modernParams({ name: 'truyn_identity', arguments: {} }),
+    { ...modernHeaders('tools/call', 'truyn_identity'), 'mcp-name': undefined }
+  );
+  assert.equal(missingName.status, 400);
+  assert.equal((await missingName.json()).error.code, -32020);
 
   const unsupportedVersion = await postJson(
     url,
@@ -224,7 +249,7 @@ test('MCP remote tool provider emits a self-describing stateless 2026-07-28 call
         status: 200,
         headers: { get: (name) => name.toLowerCase() === 'content-type' ? 'text/event-stream' : null },
         async text() {
-          return `event: message\ndata: ${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { resultType: 'complete', structuredContent: { answer: 42 } } })}\n\n`;
+          return `event: message\ndata: ${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { resultType: 'complete', content: [], structuredContent: { answer: 42 } } })}\n\n`;
         }
       };
     }
@@ -240,6 +265,29 @@ test('MCP remote tool provider emits a self-describing stateless 2026-07-28 call
   assert.deepEqual(body.params._meta[MCP_CLIENT_CAPABILITIES_META_KEY], {});
   assert.equal(body.params._meta[MCP_CLIENT_INFO_META_KEY].name, 'truyn-byok-provider');
   assert.deepEqual(result.output, { answer: 42 });
+});
+
+test('MCP remote tool provider Base64-encodes unsafe Mcp-Name values', async () => {
+  let capturedHeader;
+  const tool = 'исследование';
+  const provider = createMcpHttpToolProvider({
+    endpoint: 'https://mcp.example.test/mcp',
+    tool,
+    authMode: 'none',
+    fetchImpl: async (_url, options) => {
+      capturedHeader = options.headers['mcp-name'];
+      const request = JSON.parse(options.body);
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === 'content-type' ? 'application/json' : null },
+        async json() { return { jsonrpc: '2.0', id: request.id, result: { resultType: 'complete', content: [] } }; }
+      };
+    }
+  });
+  await provider.execute({ capability: 'research', input: {}, policy: {} });
+  assert.equal(decodeMcpHeaderValue(capturedHeader), tool);
+  assert.notEqual(capturedHeader, tool);
 });
 
 test('MCP edge cannot discover or dispatch an unauthorized private provider', async (t) => {
