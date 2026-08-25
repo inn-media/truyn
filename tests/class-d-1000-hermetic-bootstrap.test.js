@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 test('D-1000 accepted harness uses a digest-pinned self-contained runtime bundle and bans network package bootstrap', async () => {
   const finalAcceptance = await readFile('scripts/class-d-1000-final-acceptance.sh', 'utf8');
   const builder = await readFile('scripts/build-class-d-1000-runtime-bundle.sh', 'utf8');
+  const runCommand = await readFile('scripts/lib/class-d-run-command.sh', 'utf8');
 
   assert.match(finalAcceptance, /TRUYN_CLASS_D1000_RUNTIME_URL/);
   assert.match(finalAcceptance, /TRUYN_CLASS_D1000_RUNTIME_SHA256/);
@@ -14,8 +15,9 @@ test('D-1000 accepted harness uses a digest-pinned self-contained runtime bundle
   assert.match(finalAcceptance, /non-hermetic D-1000 guest bootstrap survived preparation/);
   assert.match(finalAcceptance, /WorkingDirectory=\/opt\/truyn\/app/);
   assert.match(finalAcceptance, /ExecStart=\/opt\/truyn\/runtime\/bin\/node \/opt\/truyn\/app\/network\/testnet\/node-service\.js/);
-  assert.match(finalAcceptance, /TRUYN_GUEST_BOOTSTRAP_ERROR rc=/);
-  assert.match(finalAcceptance, /iptables-save readlink/);
+
+  assert.match(runCommand, /TRUYN_GUEST_BOOTSTRAP_ERROR rc=\$rc line=\$LINENO cmd=\$BASH_COMMAND/);
+  assert.match(runCommand, /printf '%s\\n%s'/);
 
   assert.match(builder, /git archive/);
   assert.match(builder, /node_modules/);
