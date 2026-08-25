@@ -1,8 +1,8 @@
 # TRUYN A2A / MCP Interoperability Architecture
 
-**Status:** canonical interoperability architecture. MCP has bounded executable reference paths; A2A and the end-to-end A2A↔TRUYN↔MCP bridge are defined here but not yet implemented or certified.
+**Status:** canonical interoperability architecture. MCP current-contract, configured-tool and general tool-discovery/import paths have bounded executable reference implementations; A2A and the end-to-end A2A↔TRUYN↔MCP bridge are defined here but not yet implemented or certified.
 
-**Snapshot:** 2026-08-22
+**Snapshot:** 2026-08-25
 
 ## Purpose
 
@@ -40,11 +40,13 @@ TRUYN should use A2A where an external agent expects agent-to-agent discovery an
 
 MCP provides a standard way for model/agent clients to discover and invoke tools and other server capabilities. TRUYN should use MCP where an agent/runtime expects tools/resources exposed by an MCP server or where a remote MCP tool should be presented as a TRUYN capability.
 
-The current repository already contains bounded MCP reference paths:
+The current repository contains bounded MCP reference paths:
 
 - `adapters/mcp/server.js`: TRUYN-as-MCP server over stdio and loopback HTTP;
 - `adapters/providers/mcp-http-tool.js`: one configured remote MCP HTTP tool exposed through the provider-adapter contract;
-- tests covering MCP discovery/tool invocation and modern HTTP routing headers.
+- `adapters/mcp/client.js`: modern MCP `2026-07-28` discovery/list/call client with bounded pagination and schema-derived routing headers;
+- `adapters/providers/mcp-discovery.js`: explicit allowlist/filter importer that maps selected remote MCP tools into TRUYN provider capabilities;
+- tests covering current-contract MCP behavior, general tool discovery/import, authorized execution and private-provider negative cases.
 
 These paths are implementation evidence, not a claim of complete ecosystem certification or full conformance with every current MCP feature.
 
@@ -136,17 +138,21 @@ truyn_result
 
 This is the minimum agent-facing bridge for MCP clients.
 
-The next MCP compatibility gate MUST distinguish three layers:
+The MCP compatibility architecture distinguishes three layers:
 
 1. **TRUYN-as-MCP server**: MCP client invokes TRUYN tools;
 2. **MCP-tool-as-TRUYN provider**: TRUYN invokes an authorized external MCP tool;
-3. **general MCP import/discovery**: discover a remote MCP server's allowed tools/resources and map selected entries to TRUYN capabilities/objects.
+3. **general MCP tool import/discovery**: discover a remote MCP server's tool catalog, validate it and map explicitly selected tools to TRUYN capabilities.
 
-Only the first two have bounded reference implementation today, and the second is currently a configured single-tool path rather than a general discovery/import bridge.
+All three tool layers now have bounded reference implementations. The configured-provider path remains useful for one fixed tool; C2 adds the general tool path using `server/discover` → bounded paginated `tools/list` → explicit allowlist/filter → selected signed TRUYN `OFFER`s.
+
+The general importer is intentionally default-deny. A remote tool catalog is descriptive input, not publication authority. No tool becomes a TRUYN capability unless local selection permits it and its supported schema/header contract validates. Provider ownership remains the cryptographic TRUYN identity operating the importer, and remote MCP transport authentication/metadata cannot replace TRUYN authorization or billing policy.
+
+For supported `x-mcp-header` tool parameters, the importer only accepts statically reachable property bindings with unique valid header tokens and supported primitive types, then mirrors actual argument values as `Mcp-Param-*` headers. Malformed annotated tools are excluded rather than weakening the whole catalog or being silently imported.
 
 ### MCP resources
 
-A future general MCP resource adapter MAY map immutable resources to TRUYN `OBJECT` references and mutable resource views to explicit state objects when the semantics are safe. It MUST NOT assume every MCP resource is immutable, content-addressed or globally publishable.
+General **tool** discovery/import is implemented by C2. Resource import remains separate future work: a future MCP resource adapter MAY map immutable resources to TRUYN `OBJECT` references and mutable resource views to explicit state objects when the semantics are safe. It MUST NOT assume every MCP resource is immutable, content-addressed or globally publishable.
 
 ### MCP prompts
 
@@ -154,7 +160,7 @@ MCP prompts are an application/client assistance surface, not a TRUYN network pr
 
 ## A2A ↔ TRUYN ↔ MCP bridge
 
-The implementation milestone is not complete merely because separate A2A and MCP adapters exist. TRUYN must prove cross-protocol cooperation in both directions.
+The implementation milestone is not complete merely because MCP tool adapters exist. TRUYN must still implement A2A and prove cross-protocol cooperation in both directions.
 
 Required reference flows:
 
@@ -196,7 +202,7 @@ A2A, MCP and TRUYN versions are independent dimensions.
 
 The adapter layer MUST record and negotiate the external protocol version it actually supports. A compatibility update SHOULD remain adapter-local whenever possible.
 
-As of this snapshot, the implementation work should target the current A2A 1.x released line and MCP `2026-07-28`, while retaining explicitly tested legacy MCP behavior only where useful. Version names belong in compatibility/evidence documents rather than the stable TRUYN capability namespace.
+As of this snapshot, the implementation work targets the current A2A 1.x released line and MCP `2026-07-28`, while retaining explicitly tested legacy MCP behavior only where useful. Version names belong in compatibility/evidence documents rather than the stable TRUYN capability namespace.
 
 ## Security invariants
 
@@ -213,19 +219,28 @@ All A2A/MCP bridges MUST satisfy:
 - keep Trustability separate from external-protocol authentication;
 - keep settlement adapters separate from interoperability adapters.
 
+C2 additionally preserves these tool-import invariants:
+
+- no implicit import-all behavior;
+- bounded remote catalog traversal;
+- malformed imported tool schemas fail closed for that tool;
+- remote MCP identity/auth metadata never overrides TRUYN provider ownership/access policy;
+- unauthorized TRUYN requesters cause zero remote MCP tool execution.
+
 ## Implementation gate
 
-The A2A/MCP interoperability step is closed only when all of the following are true:
+The complete A2A/MCP interoperability step is closed only when all of the following are true:
 
-1. **MCP conformance closure**: current supported MCP server path follows the targeted current transport/message contract; configured remote-tool path remains compatible; tests cover unsupported versions and security failure cases.
-2. **A2A server facade**: authorized TRUYN capabilities can be exposed through an Agent Card and A2A task interface without leaking private providers.
-3. **A2A client/provider adapter**: selected remote A2A skills can be imported as TRUYN providers and executed through the normal authorization boundary.
-4. **Bidirectional cross-protocol proof**: A2A→TRUYN→MCP and MCP→TRUYN→A2A complete real task/result round trips.
-5. **Artifact proof**: structured/text and referenced file/media outputs preserve integrity/provenance through translation.
-6. **Long-running task proof**: at least one asynchronous A2A task survives polling/streaming lifecycle without semantic loss.
-7. **Negative security matrix**: unauthorized private provider discovery/execution remains zero through both external protocols.
-8. **Version matrix**: exact A2A/MCP versions and tested compatibility are recorded under `docs/compatibility/`.
-9. **Durable evidence**: a public sanitized interoperability report records tested commit, cases, failures/limitations and results.
+1. **MCP current-contract closure — CLOSED bounded slice**: current supported MCP server path follows the targeted current transport/message contract; configured remote-tool path remains compatible; tests cover unsupported versions and security failure cases.
+2. **General MCP tool import — CLOSED bounded C2 slice**: remote discovery/list, explicit selection, supported schema/header forwarding, authorized TRUYN OFFER publication/execution and negative zero-execution cases are CI-proven.
+3. **A2A server facade**: authorized TRUYN capabilities can be exposed through an Agent Card and A2A task interface without leaking private providers.
+4. **A2A client/provider adapter**: selected remote A2A skills can be imported as TRUYN providers and executed through the normal authorization boundary.
+5. **Bidirectional cross-protocol proof**: A2A→TRUYN→MCP and MCP→TRUYN→A2A complete real task/result round trips.
+6. **Artifact proof**: structured/text and referenced file/media outputs preserve integrity/provenance through translation.
+7. **Long-running task proof**: at least one asynchronous A2A task survives polling/streaming lifecycle without semantic loss.
+8. **Negative security matrix**: unauthorized private provider discovery/execution remains zero through both external protocols.
+9. **Version matrix**: exact A2A/MCP versions and tested compatibility are recorded under `docs/compatibility/`.
+10. **Durable evidence**: a public sanitized interoperability report records tested commit, cases, failures/limitations and results.
 
 ## Non-goals
 
@@ -244,7 +259,7 @@ Target implementation locations:
 
 ```text
 adapters/a2a/                 # A2A server facade + client/provider bridge
-adapters/mcp/                 # MCP-facing TRUYN server
+adapters/mcp/                 # MCP-facing TRUYN server/client glue
 adapters/providers/           # MCP/A2A-backed provider adapters where appropriate
 tests/interoperability/       # cross-protocol contract and negative tests
 docs/compatibility/           # tested version/support matrix

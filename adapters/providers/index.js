@@ -10,6 +10,7 @@ import { createVertexImageProvider } from './vertex-image.js';
 import { createVertexVeoProvider } from './vertex-veo.js';
 import { createCustomHttpProvider } from './custom-http.js';
 import { createMcpHttpToolProvider } from './mcp-http-tool.js';
+export { createMcpDiscoveryProvider } from './mcp-discovery.js';
 
 export function createProviderAdapter(provider, options = {}) {
   if (provider === 'openai') return createOpenAIProvider(options);
