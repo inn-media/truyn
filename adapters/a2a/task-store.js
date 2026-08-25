@@ -12,10 +12,14 @@ function nowIso(now = Date.now()) {
   return new Date(now).toISOString();
 }
 
+function cloneList(values) {
+  return values.map((value) => structuredClone(value));
+}
+
 function boundedHistory(history, historyLength) {
   if (historyLength === 0) return undefined;
-  if (!Number.isInteger(historyLength) || historyLength < 0) return history.map(structuredClone);
-  return history.slice(-historyLength).map(structuredClone);
+  if (!Number.isInteger(historyLength) || historyLength < 0) return cloneList(history);
+  return cloneList(history.slice(-historyLength));
 }
 
 export class A2aTaskStore {
@@ -158,11 +162,9 @@ export class A2aTaskStore {
     const result = {
       id: task.id,
       contextId: task.contextId,
-      status: structuredClone(task.status),
-      createdAt: task.createdAt,
-      lastModified: task.lastModified
+      status: structuredClone(task.status)
     };
-    if (includeArtifacts && task.artifacts.length > 0) result.artifacts = task.artifacts.map(structuredClone);
+    if (includeArtifacts && task.artifacts.length > 0) result.artifacts = cloneList(task.artifacts);
     const history = boundedHistory(task.history, historyLength);
     if (history !== undefined && history.length > 0) result.history = history;
     return result;
