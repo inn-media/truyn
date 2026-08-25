@@ -1,0 +1,333 @@
+name: tmp-class-d1000-0e7f16c1-e2asv7-pinned-v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tmp-class-d1000-0e7f16c1-e2asv7-pinned-v1.yml'
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  issues: write
+
+concurrency:
+  group: class-d1000-0e7f16c1-e2asv7-single-shot-v1
+  cancel-in-progress: false
+
+env:
+  TESTED_COMMIT: 0e7f16c1ff74d85e9d4dbbc0fec9a35a0840f094
+  PINNED_REF: d1000/pinned-0e7f16c1
+  EXACT_CI_RUN: '32867819485'
+  EXACT_CODEQL_RUN: '32867819162'
+  IMMUTABLE_PREFLIGHT_RUN: '32868395311'
+  IMMUTABLE_PREFLIGHT_JOB: '97869220645'
+  IMMUTABLE_PREFLIGHT_ISSUE: '342'
+  IMMUTABLE_PREFLIGHT_ARTIFACT_ID: '9571195219'
+  IMMUTABLE_PREFLIGHT_ARTIFACT: class-d-1000-prepare-0e7f16c1-v1
+  IMMUTABLE_PREFLIGHT_DIGEST: 'sha256:0beb64fd39ed59242113f66a1998a94ba406b5c055bbe6318a86e6bf61273795'
+  RUNTIME_BUNDLE_SHA256: 6bbb128ba568f6a7dca033dd3e0b3373809577249c28dd4c6c2a6d180ae67ee4
+  AZURE_RESOURCE_GROUP: truyn
+  AZURE_LOCATION: eastus2
+  AZURE_VM_SIZE: Standard_E2as_v7
+  REQUIRED_HOSTS: '20'
+  REQUIRED_VCPU: '40'
+  STAGING_ACCOUNT: td1k${{ github.run_id }}
+  STAGING_CONTAINER: runtime
+  STAGING_BLOB: truyn-d1000-runtime.tgz
+
+jobs:
+  accepted-d1000:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    steps:
+      - name: Enforce one-shot main launch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          commit_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}")"
+          test "$(jq '.files | length' <<<"$commit_json")" = '1'
+          test "$(jq -r '.files[0].filename' <<<"$commit_json")" = '.github/workflows/tmp-class-d1000-0e7f16c1-e2asv7-pinned-v1.yml'
+          test "$(jq -r '.files[0].status' <<<"$commit_json")" = 'added'
+
+      - name: Record accepted D-1000 run start
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          body="run=${GITHUB_RUN_ID} attempt=${GITHUB_RUN_ATTEMPT} launcher_sha=${GITHUB_SHA} tested_sha=${TESTED_COMMIT} pinned_ref=${PINNED_REF} exact_ci_run=${EXACT_CI_RUN} exact_codeql_run=${EXACT_CODEQL_RUN} immutable_preflight_run=${IMMUTABLE_PREFLIGHT_RUN} immutable_preflight_job=${IMMUTABLE_PREFLIGHT_JOB} immutable_preflight_issue=${IMMUTABLE_PREFLIGHT_ISSUE} immutable_preflight_artifact_id=${IMMUTABLE_PREFLIGHT_ARTIFACT_ID} immutable_preflight_digest=${IMMUTABLE_PREFLIGHT_DIGEST} runtime_bundle_sha256=${RUNTIME_BUNDLE_SHA256} azure_location=${AZURE_LOCATION} vm_size=${AZURE_VM_SIZE} hosts=20 nodes=1000 nodes_per_host=50 stage=accepted_d1000_started"
+          gh api "repos/${GITHUB_REPOSITORY}/issues" \
+            -f 'title=TRUYN CLASS D-1000 0e7f16c1 IMMUTABLE BUNDLE PINNED V1 RUN STARTED' \
+            -f "body=${body}" >/dev/null
+
+      - name: Checkout exact pinned D-1000 source
+        uses: actions/checkout@v4
+        with:
+          ref: d1000/pinned-0e7f16c1
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify exact green source, VM-smoke preflight and immutable artifact bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$TESTED_COMMIT"
+          test "$(git ls-remote origin "refs/heads/${PINNED_REF}" | cut -f1)" = "$TESTED_COMMIT"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CI_RUN}" --jq '.head_sha')" = "$TESTED_COMMIT"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CI_RUN}" --jq '.name')" = CI
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CI_RUN}" --jq '.status')" = completed
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CI_RUN}" --jq '.conclusion')" = success
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CODEQL_RUN}" --jq '.head_sha')" = "$TESTED_COMMIT"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CODEQL_RUN}" --jq '.status')" = completed
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CODEQL_RUN}" --jq '.conclusion')" = success
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${IMMUTABLE_PREFLIGHT_RUN}" --jq '.status')" = completed
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${IMMUTABLE_PREFLIGHT_RUN}" --jq '.conclusion')" = success
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${IMMUTABLE_PREFLIGHT_JOB}" --jq '.conclusion')" = success
+
+          artifact_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${IMMUTABLE_PREFLIGHT_ARTIFACT_ID}")"
+          test "$(jq -r '.name' <<<"$artifact_json")" = "$IMMUTABLE_PREFLIGHT_ARTIFACT"
+          test "$(jq -r '.expired' <<<"$artifact_json")" = false
+          source scripts/lib/sha256-digest.sh
+          artifact_digest="$(truyn_normalize_sha256_digest "$(jq -r '.digest' <<<"$artifact_json")")"
+          test "$artifact_digest" = "$IMMUTABLE_PREFLIGHT_DIGEST"
+
+          issue_body="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${IMMUTABLE_PREFLIGHT_ISSUE}" --jq '.body')"
+          for token in result=PASS "tested_sha=${TESTED_COMMIT}" "pinned_ref=${PINNED_REF}" "artifact_id=${IMMUTABLE_PREFLIGHT_ARTIFACT_ID}" "artifact_digest=${IMMUTABLE_PREFLIGHT_DIGEST}" "runtime_bundle_sha256=${RUNTIME_BUNDLE_SHA256}" prepareOnly=true azureMutation=true vmSmoke=PASS vmSmokeHosts=1 vmSmokeCleanup=true vmSmokeRemainingResources=0 vmSmokeNodeService=true vmSmokeSymlinkTools=true; do
+            grep -Fq "$token" <<<"$issue_body"
+          done
+
+          rm -rf /tmp/truyn-d1000-preflight /tmp/truyn-d1000-runtime
+          mkdir -p /tmp/truyn-d1000-preflight /tmp/truyn-d1000-runtime
+          gh run download "$IMMUTABLE_PREFLIGHT_RUN" --repo "$GITHUB_REPOSITORY" -n "$IMMUTABLE_PREFLIGHT_ARTIFACT" -D /tmp/truyn-d1000-preflight
+          bundle=/tmp/truyn-d1000-preflight/truyn-d1000-runtime.tgz
+          manifest=/tmp/truyn-d1000-preflight/class-d-1000-prepare-manifest.json
+          test -s "$bundle"
+          printf '%s  %s\n' "$RUNTIME_BUNDLE_SHA256" "$bundle" | sha256sum -c -
+          test "$(tr -d '\r\n ' </tmp/truyn-d1000-preflight/runtime-bundle-sha256.txt)" = "$RUNTIME_BUNDLE_SHA256"
+          test "$(jq -r '.result' "$manifest")" = PASS
+          test "$(jq -r '.sourceSha' "$manifest")" = "$TESTED_COMMIT"
+          test "$(jq -r '.prepareOnly' "$manifest")" = true
+          test "$(jq -r '.azureMutation' "$manifest")" = true
+          test "$(jq -r '.pinnedRef' "$manifest")" = "$PINNED_REF"
+          test "$(jq -r '.runtimeBundle.sha256' "$manifest")" = "$RUNTIME_BUNDLE_SHA256"
+          test "$(jq -r '.runtimeBundle.osCompatibility' "$manifest")" = ubuntu-22.04-amd64
+          test "$(jq -r '.vmSmoke.result' "$manifest")" = PASS
+          test "$(jq -r '.vmSmoke.guest' "$manifest")" = true
+          test "$(jq -r '.vmSmoke.hosts' "$manifest")" = 1
+          test "$(jq -r '.vmSmoke.cleanup' "$manifest")" = true
+          test "$(jq -r '.vmSmoke.remainingResources' "$manifest")" = 0
+          test "$(jq -r '.vmSmoke.nodeService' "$manifest")" = true
+          test "$(jq -r '.vmSmoke.symlinkTools' "$manifest")" = true
+          test "$(jq -r '.vmSmoke.location' "$manifest")" = "$AZURE_LOCATION"
+          test "$(jq -r '.vmSmoke.vmSize' "$manifest")" = "$AZURE_VM_SIZE"
+          test "$(jq -r '.vmSmoke.runCommandBoundary' "$manifest")" = nonce-bound-no-replay
+          test "$(jq -r '.preparedHarnessMarker' "$manifest")" = 'TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical runCommandBoundary=accepted-d100 runtimeBundle=sha256-pinned'
+          tar -xzf "$bundle" -C /tmp/truyn-d1000-runtime
+          test -x /tmp/truyn-d1000-runtime/runtime/bin/node
+          test -x /tmp/truyn-d1000-runtime/runtime/bin/openssl
+          test "$(/tmp/truyn-d1000-runtime/runtime/bin/node -p 'process.versions.node.split(".")[0]')" = 22
+          test -d /tmp/truyn-d1000-runtime/app/node_modules
+          rm -rf node_modules
+          ln -s /tmp/truyn-d1000-runtime/app/node_modules node_modules
+          git diff --check
+          printf 'tested_commit=%s\npinned_ref=%s\nlauncher_sha=%s\nrun_id=%s\nexact_ci_run=%s\nexact_codeql_run=%s\nimmutable_preflight_run=%s\nimmutable_preflight_job=%s\nimmutable_preflight_issue=%s\nimmutable_preflight_artifact_id=%s\nimmutable_preflight_digest=%s\nruntime_bundle_sha256=%s\nhost_count=20\nnode_count=1000\nnodes_per_host=50\n' "$TESTED_COMMIT" "$PINNED_REF" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$EXACT_CI_RUN" "$EXACT_CODEQL_RUN" "$IMMUTABLE_PREFLIGHT_RUN" "$IMMUTABLE_PREFLIGHT_JOB" "$IMMUTABLE_PREFLIGHT_ISSUE" "$IMMUTABLE_PREFLIGHT_ARTIFACT_ID" "$IMMUTABLE_PREFLIGHT_DIGEST" "$RUNTIME_BUNDLE_SHA256" > class-d-1000-input-tuple.txt
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fail-closed Azure capacity preflight
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          usage_json="$(az vm list-usage -l "$AZURE_LOCATION" -o json --only-show-errors)"
+          regional_current="$(jq -r '[.[] | select((((.name.localizedValue // .name.value // "") | ascii_downcase) | contains("total regional vcpus")))][0].currentValue' <<<"$usage_json")"
+          regional_limit="$(jq -r '[.[] | select((((.name.localizedValue // .name.value // "") | ascii_downcase) | contains("total regional vcpus")))][0].limit' <<<"$usage_json")"
+          test "$regional_current" != null
+          test "$regional_limit" != null
+          test $((regional_limit - regional_current)) -ge "$REQUIRED_VCPU"
+          sku_json="$(az vm list-skus -l "$AZURE_LOCATION" --size "$AZURE_VM_SIZE" --all -o json --only-show-errors)"
+          test "$(jq 'length' <<<"$sku_json")" -ge 1
+          vcpu="$(jq -r '[.[].capabilities[]? | select(.name=="vCPUs") | .value][0]' <<<"$sku_json")"
+          memory="$(jq -r '[.[].capabilities[]? | select(.name=="MemoryGB") | .value][0]' <<<"$sku_json")"
+          location_blocks="$(jq '[.[].restrictions[]? | select(.type=="Location" and .reasonCode=="NotAvailableForSubscription")] | length' <<<"$sku_json")"
+          test "$vcpu" = 2
+          test "$memory" = 16
+          test "$location_blocks" = 0
+          echo "TRUYN_CLASS_D1000_AZURE_PREFLIGHT=PASS location=${AZURE_LOCATION} vmSize=${AZURE_VM_SIZE} vcpu=${vcpu} memoryGB=${memory} regionalCurrent=${regional_current} regionalLimit=${regional_limit} requiredVcpu=${REQUIRED_VCPU}"
+
+      - name: Stage exact immutable runtime bundle for all 20 hosts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bundle=/tmp/truyn-d1000-preflight/truyn-d1000-runtime.tgz
+          printf '%s  %s\n' "$RUNTIME_BUNDLE_SHA256" "$bundle" | sha256sum -c -
+          if az storage account show -g "$AZURE_RESOURCE_GROUP" -n "$STAGING_ACCOUNT" >/dev/null 2>&1; then echo "staging account unexpectedly exists" >&2; exit 1; fi
+          az storage account create -g "$AZURE_RESOURCE_GROUP" -n "$STAGING_ACCOUNT" -l "$AZURE_LOCATION" --sku Standard_LRS --kind StorageV2 --https-only true --min-tls-version TLS1_2 --allow-blob-public-access false -o none --only-show-errors
+          key="$(az storage account keys list -g "$AZURE_RESOURCE_GROUP" -n "$STAGING_ACCOUNT" --query '[0].value' -o tsv --only-show-errors)"
+          test -n "$key"
+          echo "::add-mask::$key"
+          az storage container create --name "$STAGING_CONTAINER" --account-name "$STAGING_ACCOUNT" --account-key "$key" -o none --only-show-errors
+          az storage blob upload --container-name "$STAGING_CONTAINER" --name "$STAGING_BLOB" --file "$bundle" --account-name "$STAGING_ACCOUNT" --account-key "$key" --overwrite true -o none --only-show-errors
+          expiry="$(date -u -d '+8 hours' '+%Y-%m-%dT%H:%MZ')"
+          sas="$(az storage blob generate-sas --container-name "$STAGING_CONTAINER" --name "$STAGING_BLOB" --account-name "$STAGING_ACCOUNT" --account-key "$key" --permissions r --https-only --expiry "$expiry" -o tsv --only-show-errors)"
+          test -n "$sas"
+          echo "::add-mask::$sas"
+          runtime_url="https://${STAGING_ACCOUNT}.blob.core.windows.net/${STAGING_CONTAINER}/${STAGING_BLOB}?${sas}"
+          echo "::add-mask::$runtime_url"
+          echo "TRUYN_CLASS_D1000_RUNTIME_URL=$runtime_url" >>"$GITHUB_ENV"
+          echo "TRUYN_CLASS_D1000_RUNTIME_SHA256=$RUNTIME_BUNDLE_SHA256" >>"$GITHUB_ENV"
+          staged=/tmp/truyn-d1000-staged-download.tgz
+          curl -fsSL "$runtime_url" -o "$staged"
+          printf '%s  %s\n' "$RUNTIME_BUNDLE_SHA256" "$staged" | sha256sum -c -
+          echo "TRUYN_CLASS_D1000_STAGED_RUNTIME=PASS sha256=${RUNTIME_BUNDLE_SHA256}"
+
+      - name: Reconfirm prepared harness against staged immutable bytes
+        shell: bash
+        env:
+          TRUYN_CLASS_D1000_PREPARE_ONLY: '1'
+        run: |
+          set -Eeuo pipefail
+          TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_CLASS_D1000_RUNTIME_URL" TRUYN_CLASS_D1000_RUNTIME_SHA256="$RUNTIME_BUNDLE_SHA256" bash scripts/class-d-1000-final-acceptance.sh | tee class-d-1000-prepared-before-run.txt
+          grep -Fqx 'TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical runCommandBoundary=accepted-d100 runtimeBundle=sha256-pinned' class-d-1000-prepared-before-run.txt
+
+      - name: Execute real 20-host 1000-process adversarial campaign
+        id: campaign
+        continue-on-error: true
+        shell: bash
+        env:
+          TRUYN_AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
+          TRUYN_CLASS_D1000_LOCATION: ${{ env.AZURE_LOCATION }}
+          TRUYN_CLASS_D1000_VM_SIZE: ${{ env.AZURE_VM_SIZE }}
+          TRUYN_CLASS_D1000_RUNTIME_URL: ${{ env.TRUYN_CLASS_D1000_RUNTIME_URL }}
+          TRUYN_CLASS_D1000_RUNTIME_SHA256: ${{ env.RUNTIME_BUNDLE_SHA256 }}
+        run: |
+          set +e
+          GITHUB_SHA="$TESTED_COMMIT" bash scripts/class-d-1000-strict-acceptance.sh | tee class-d-1000-strict.log
+          rc=${PIPESTATUS[0]}
+          echo "campaign_rc=${rc}" >>"$GITHUB_OUTPUT"
+          exit "$rc"
+
+      - name: Delete runtime staging account
+        id: staging_cleanup
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          az storage account delete -g "$AZURE_RESOURCE_GROUP" -n "$STAGING_ACCOUNT" --yes --only-show-errors >/dev/null 2>&1 || true
+          ok=false
+          for _ in $(seq 1 30); do
+            if az storage account show -g "$AZURE_RESOURCE_GROUP" -n "$STAGING_ACCOUNT" >/dev/null 2>&1; then sleep 10; else ok=true; break; fi
+          done
+          echo "staging_cleanup=${ok}" >>"$GITHUB_OUTPUT"
+          echo "TRUYN_CLASS_D1000_STAGING_CLEANUP=${ok} account=${STAGING_ACCOUNT}"
+          [[ "$ok" == true ]]
+
+      - name: Canonical post-cleanup evaluator and terminal verification
+        id: postcheck
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          EVIDENCE="${GITHUB_WORKSPACE}/class-d-1000-evidence.json"
+          EVALUATION="${GITHUB_WORKSPACE}/class-d-1000-evaluation.json"
+          TERMINAL="${GITHUB_WORKSPACE}/class-d-1000-terminal.json"
+          if [[ -f "$EVIDENCE" ]]; then
+            node benchmarks/scale/evaluate-class-d-1000-evidence.js "$EVIDENCE" >"$EVALUATION"; evaluator_rc=$?
+            node benchmarks/scale/verify-class-d-1000-terminal.js "$EVIDENCE" >"$TERMINAL"; terminal_rc=$?
+            cleanup_confirmed="$(jq -r '.cleanup.confirmed // false' "$EVIDENCE")"
+            remaining_resources="$(jq -r '.cleanup.remainingResources // -1' "$EVIDENCE")"
+          else
+            printf '%s\n' '{"ok":false,"error":"class_d_1000_evidence_missing"}' >"$EVALUATION"
+            printf '%s\n' '{"ok":false,"error":"class_d_1000_terminal_evidence_missing"}' >"$TERMINAL"
+            evaluator_rc=99; terminal_rc=99; cleanup_confirmed=false; remaining_resources=-1
+          fi
+          echo "evaluator_rc=${evaluator_rc}" >>"$GITHUB_OUTPUT"
+          echo "terminal_rc=${terminal_rc}" >>"$GITHUB_OUTPUT"
+          echo "cleanup_confirmed=${cleanup_confirmed}" >>"$GITHUB_OUTPUT"
+          echo "remaining_resources=${remaining_resources}" >>"$GITHUB_OUTPUT"
+          echo "TRUYN_CLASS_D1000_POSTCHECK evaluator_rc=${evaluator_rc} terminal_rc=${terminal_rc} cleanup_confirmed=${cleanup_confirmed} remaining_resources=${remaining_resources}"
+          exit 0
+
+      - name: Upload immutable D-1000 evidence bundle
+        id: evidence_upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-class-d1000-0e7f16c1-e2asv7-v1-${{ github.run_id }}
+          path: |
+            class-d-1000-*.json
+            class-d-1000-*.txt
+            class-d-1000-*.log
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Normalize immutable D-1000 artifact digest
+        id: evidence_digest
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash scripts/class-d-1000-normalize-artifact-digest.sh '${{ steps.evidence_upload.outputs.artifact-digest }}'
+
+      - name: Record terminal marker
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CAMPAIGN_RC: ${{ steps.campaign.outputs.campaign_rc }}
+          EVALUATOR_RC: ${{ steps.postcheck.outputs.evaluator_rc }}
+          TERMINAL_RC: ${{ steps.postcheck.outputs.terminal_rc }}
+          CLEANUP_CONFIRMED: ${{ steps.postcheck.outputs.cleanup_confirmed }}
+          REMAINING_RESOURCES: ${{ steps.postcheck.outputs.remaining_resources }}
+          STAGING_CLEANUP: ${{ steps.staging_cleanup.outputs.staging_cleanup }}
+          ARTIFACT_ID: ${{ steps.evidence_upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.evidence_digest.outputs.artifact_digest }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          status=FAIL
+          if [[ "${CAMPAIGN_RC:-99}" == 0 && "$EVALUATOR_RC" == 0 && "$TERMINAL_RC" == 0 && "$CLEANUP_CONFIRMED" == true && "$REMAINING_RESOURCES" == 0 && "$STAGING_CLEANUP" == true && -n "$ARTIFACT_ID" && "$ARTIFACT_DIGEST" == sha256:* ]]; then status=PASS; fi
+          body="result=${status} run=${GITHUB_RUN_ID} attempt=${GITHUB_RUN_ATTEMPT} launcher_sha=${GITHUB_SHA} tested_sha=${TESTED_COMMIT} pinned_ref=${PINNED_REF} exact_ci_run=${EXACT_CI_RUN} exact_codeql_run=${EXACT_CODEQL_RUN} immutable_preflight_run=${IMMUTABLE_PREFLIGHT_RUN} immutable_preflight_job=${IMMUTABLE_PREFLIGHT_JOB} immutable_preflight_issue=${IMMUTABLE_PREFLIGHT_ISSUE} immutable_preflight_artifact_id=${IMMUTABLE_PREFLIGHT_ARTIFACT_ID} immutable_preflight_digest=${IMMUTABLE_PREFLIGHT_DIGEST} runtime_bundle_sha256=${RUNTIME_BUNDLE_SHA256} campaign_rc=${CAMPAIGN_RC:-99} evaluator_rc=${EVALUATOR_RC} terminal_rc=${TERMINAL_RC} cleanup_confirmed=${CLEANUP_CONFIRMED} remainingResources=${REMAINING_RESOURCES} staging_cleanup=${STAGING_CLEANUP} artifact_id=${ARTIFACT_ID} artifact_name=truyn-class-d1000-0e7f16c1-e2asv7-v1-${GITHUB_RUN_ID} artifact_digest=${ARTIFACT_DIGEST} azure_location=${AZURE_LOCATION} vm_size=${AZURE_VM_SIZE} hosts=20 nodes=1000 nodes_per_host=50"
+          gh api "repos/${GITHUB_REPOSITORY}/issues" -f "title=TRUYN CLASS D-1000 0e7f16c1 IMMUTABLE BUNDLE PINNED V1 ${status}" -f "body=${body}" >/dev/null
+
+      - name: Strict accepted D-1000 gate
+        if: always()
+        shell: bash
+        env:
+          CAMPAIGN_RC: ${{ steps.campaign.outputs.campaign_rc }}
+          EVALUATOR_RC: ${{ steps.postcheck.outputs.evaluator_rc }}
+          TERMINAL_RC: ${{ steps.postcheck.outputs.terminal_rc }}
+          CLEANUP_CONFIRMED: ${{ steps.postcheck.outputs.cleanup_confirmed }}
+          REMAINING_RESOURCES: ${{ steps.postcheck.outputs.remaining_resources }}
+          STAGING_CLEANUP: ${{ steps.staging_cleanup.outputs.staging_cleanup }}
+          ARTIFACT_ID: ${{ steps.evidence_upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.evidence_digest.outputs.artifact_digest }}
+        run: |
+          set -Eeuo pipefail
+          test "${CAMPAIGN_RC:-99}" = 0
+          test "$EVALUATOR_RC" = 0
+          test "$TERMINAL_RC" = 0
+          test "$CLEANUP_CONFIRMED" = true
+          test "$REMAINING_RESOURCES" = 0
+          test "$STAGING_CLEANUP" = true
+          test -n "$ARTIFACT_ID"
+          [[ "$ARTIFACT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          test -f class-d-1000-evidence.json
+          node benchmarks/scale/verify-class-d-1000-terminal.js class-d-1000-evidence.json >/tmp/truyn-terminal-final.json
+          echo "TRUYN_CLASS_D1000_ACCEPTED=PASS run=${GITHUB_RUN_ID} artifact_id=${ARTIFACT_ID} artifact_digest=${ARTIFACT_DIGEST}"
