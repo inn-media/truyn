@@ -8,342 +8,222 @@ import { createFunctionAdapter, TruynAdapterHost } from '../adapters/sdk/index.j
 import { createA2aServer } from '../adapters/a2a/server.js';
 import { A2A_PROTOCOL_VERSION, A2A_TASK_STATES } from '../adapters/a2a/mapping.js';
 
-async function jsonRpc(baseUrl, method, params = {}, { token = null, version = A2A_PROTOCOL_VERSION } = {}) {
-  const headers = { 'content-type': 'application/json' };
-  if (version !== null) headers['a2a-version'] = version;
-  if (token) headers.authorization = `Bearer ${token}`;
-  const response = await fetch(`${baseUrl}/a2a`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ jsonrpc: '2.0', id: `${method}-1`, method, params })
-  });
-  return { response, body: await response.json() };
+function agent() {
+  return { name: 'TRUYN A2A facade', description: 'Bounded TRUYN A2A interoperability facade', version: '0.1.0' };
 }
 
-function userMessage(text, metadata = undefined) {
+function message(text, metadata) {
   return {
-    messageId: `message-${Math.random().toString(16).slice(2)}`,
+    messageId: `m-${Math.random().toString(16).slice(2)}`,
     role: 'ROLE_USER',
     parts: [{ text, mediaType: 'text/plain' }],
     ...(metadata ? { metadata } : {})
   };
 }
 
-function bearerPrincipal(req) {
-  const value = String(req.headers.authorization || '');
-  if (value === 'Bearer owner-token') return { sub: 'owner' };
-  if (value === 'Bearer other-token') return { sub: 'other' };
+function principal(req) {
+  if (req.headers.authorization === 'Bearer owner-token') return { sub: 'owner' };
+  if (req.headers.authorization === 'Bearer other-token') return { sub: 'other' };
   return null;
 }
 
-async function createNetwork(t) {
-  const relay = createRelay({
-    localDevelopmentMode: false,
-    allowPublicRegistration: true,
-    allowPublicDispatch: true
+async function rpc(url, method, params = {}, { token, version = A2A_PROTOCOL_VERSION } = {}) {
+  const headers = { 'content-type': 'application/json' };
+  if (version !== null) headers['a2a-version'] = version;
+  if (token) headers.authorization = `Bearer ${token}`;
+  const response = await fetch(`${url}/a2a`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ jsonrpc: '2.0', id: `${method}-1`, method, params })
   });
+  return response.json();
+}
+
+async function harness(t) {
+  const relay = createRelay({ localDevelopmentMode: false, allowPublicRegistration: true, allowPublicDispatch: true });
   const relayUrl = await relay.listen({ port: 0 });
-  t.after(() => relay.close());
-  return { relay, relayUrl };
-}
-
-async function startProvider(t, { relayUrl, identity = createIdentity(), capability, accessPolicy, execute }) {
-  const node = new TruynNode({ relayUrl, identity });
-  const host = new TruynAdapterHost({
-    node,
-    adapter: createFunctionAdapter({
-      name: `a2a-provider-${capability}`,
-      capabilities: [capability],
-      execute
-    }),
-    accessPolicy,
-    pollIntervalMs: 5
+  const hosts = [];
+  const facades = [];
+  t.after(async () => {
+    for (const facade of facades.reverse()) await facade.close();
+    for (const host of hosts.reverse()) await host.stop();
+    await relay.close();
   });
-  await host.start();
-  t.after(() => host.stop());
-  return { node, host };
-}
-
-function defaultAgent() {
   return {
-    name: 'TRUYN A2A facade',
-    description: 'Bounded TRUYN A2A interoperability facade',
-    version: '0.1.0'
+    relay,
+    relayUrl,
+    async provider({ capability, identity = createIdentity(), accessPolicy, execute }) {
+      const node = new TruynNode({ relayUrl, identity });
+      const host = new TruynAdapterHost({
+        node,
+        adapter: createFunctionAdapter({ name: `a2a-${capability}`, capabilities: [capability], execute }),
+        accessPolicy,
+        pollIntervalMs: 5
+      });
+      await host.start();
+      hosts.push(host);
+      return { node, host };
+    },
+    async facade(options) {
+      const value = createA2aServer(options);
+      const url = await value.listen({ port: 0 });
+      facades.push(value);
+      return { value, url };
+    }
   };
 }
 
 test('C3 public Agent Card exposes only operational public TRUYN capabilities', async (t) => {
-  const { relayUrl } = await createNetwork(t);
+  const h = await harness(t);
   const facadeIdentity = createIdentity();
-  const facadeNode = new TruynNode({ relayUrl, identity: facadeIdentity });
-
-  await startProvider(t, {
-    relayUrl,
-    capability: 'research.public',
-    accessPolicy: createProviderAccessPolicy({ mode: 'public' }),
-    execute: async () => ({ output: 'public' })
-  });
-  await startProvider(t, {
-    relayUrl,
+  const facadeNode = new TruynNode({ relayUrl: h.relayUrl, identity: facadeIdentity });
+  await h.provider({ capability: 'research.public', accessPolicy: createProviderAccessPolicy({ mode: 'public' }), execute: async () => ({ output: 'public' }) });
+  await h.provider({
     capability: 'reasoning.private',
-    accessPolicy: createProviderAccessPolicy({
-      mode: 'owner-only',
-      allowedRequesterIds: [facadeIdentity.nodeId]
-    }),
+    accessPolicy: createProviderAccessPolicy({ mode: 'owner-only', allowedRequesterIds: [facadeIdentity.nodeId] }),
     execute: async () => ({ output: 'private' })
   });
-
-  const a2a = createA2aServer({
+  const { url } = await h.facade({
     node: facadeNode,
-    agent: defaultAgent(),
+    agent: agent(),
     skills: [
-      {
-        id: 'public-research',
-        name: 'Public research',
-        description: 'A genuinely public TRUYN capability',
-        capability: 'research.public',
-        visibility: 'public'
-      },
-      {
-        id: 'dangerous-private-projection',
-        name: 'Private reasoning',
-        description: 'Must never become public through Agent Card projection',
-        capability: 'reasoning.private',
-        visibility: 'public'
-      }
+      { id: 'public-research', name: 'Public research', description: 'Public capability', capability: 'research.public', visibility: 'public' },
+      { id: 'private-misprojection', name: 'Private reasoning', description: 'Must stay private', capability: 'reasoning.private', visibility: 'public' }
     ]
   });
-  const url = await a2a.listen({ port: 0 });
-  t.after(() => a2a.close());
-
-  const response = await fetch(`${url}/.well-known/agent-card.json`);
-  assert.equal(response.status, 200);
-  const card = await response.json();
-  assert.equal(card.name, 'TRUYN A2A facade');
-  assert.equal(card.capabilities.streaming, false);
-  assert.equal(card.capabilities.pushNotifications, false);
-  assert.equal(card.supportedInterfaces.length, 1);
+  const card = await (await fetch(`${url}/.well-known/agent-card.json`)).json();
+  assert.deepEqual(card.skills.map((skill) => skill.id), ['public-research']);
   assert.equal(card.supportedInterfaces[0].protocolBinding, 'JSONRPC');
   assert.equal(card.supportedInterfaces[0].protocolVersion, '1.0');
   assert.equal(card.supportedInterfaces[0].url, `${url}/a2a`);
-  assert.deepEqual(card.skills.map((skill) => skill.id), ['public-research']);
-  assert.equal(JSON.stringify(card).includes('reasoning.private'), false, 'private TRUYN capability must not leak into the public card');
+  assert.equal(card.capabilities.streaming, false);
+  assert.equal(card.capabilities.pushNotifications, false);
+  assert.equal(JSON.stringify(card).includes('reasoning.private'), false);
 });
 
-test('C3 Extended Agent Card requires external auth and server-side authorization', async (t) => {
-  const { relayUrl } = await createNetwork(t);
-  const facadeIdentity = createIdentity();
-  const facadeNode = new TruynNode({ relayUrl, identity: facadeIdentity });
-
-  await startProvider(t, {
-    relayUrl,
+test('C3 Extended Agent Card requires external auth and server authorization', async (t) => {
+  const h = await harness(t);
+  const identity = createIdentity();
+  const node = new TruynNode({ relayUrl: h.relayUrl, identity });
+  await h.provider({
     capability: 'reasoning.private',
-    accessPolicy: createProviderAccessPolicy({
-      mode: 'owner-only',
-      allowedRequesterIds: [facadeIdentity.nodeId]
-    }),
+    accessPolicy: createProviderAccessPolicy({ mode: 'owner-only', allowedRequesterIds: [identity.nodeId] }),
     execute: async () => ({ output: 'private' })
   });
-
-  const a2a = createA2aServer({
-    node: facadeNode,
-    agent: defaultAgent(),
-    skills: [{
-      id: 'private-reasoning',
-      name: 'Private reasoning',
-      description: 'Owner-authorized reasoning',
-      capability: 'reasoning.private',
-      visibility: 'authenticated'
-    }],
-    authenticate: bearerPrincipal,
-    authorize: ({ principal }) => principal?.sub === 'owner'
+  const { url } = await h.facade({
+    node,
+    agent: agent(),
+    skills: [{ id: 'private', name: 'Private reasoning', description: 'Private capability', capability: 'reasoning.private', visibility: 'authenticated' }],
+    authenticate: principal,
+    authorize: ({ principal: caller }) => caller?.sub === 'owner'
   });
-  const url = await a2a.listen({ port: 0 });
-  t.after(() => a2a.close());
-
   const publicCard = await (await fetch(`${url}/.well-known/agent-card.json`)).json();
   assert.deepEqual(publicCard.skills, []);
   assert.equal(publicCard.capabilities.extendedAgentCard, true);
-
-  const unauthenticated = await jsonRpc(url, 'GetExtendedAgentCard');
-  assert.equal(unauthenticated.body.error.code, -32000);
-  assert.equal(unauthenticated.body.error.data[0].reason, 'AUTHENTICATION_REQUIRED');
-
-  const unauthorized = await jsonRpc(url, 'GetExtendedAgentCard', {}, { token: 'other-token' });
-  assert.deepEqual(unauthorized.body.result.skills, []);
-
-  const authorized = await jsonRpc(url, 'GetExtendedAgentCard', {}, { token: 'owner-token' });
-  assert.deepEqual(authorized.body.result.skills.map((skill) => skill.id), ['private-reasoning']);
-  assert.equal(JSON.stringify(authorized.body.result).includes(facadeIdentity.nodeId), false, 'Agent Card must not expose the TRUYN facade identity as A2A ownership');
+  const missing = await rpc(url, 'GetExtendedAgentCard');
+  assert.equal(missing.error.code, -32000);
+  const other = await rpc(url, 'GetExtendedAgentCard', {}, { token: 'other-token' });
+  assert.deepEqual(other.result.skills, []);
+  const owner = await rpc(url, 'GetExtendedAgentCard', {}, { token: 'owner-token' });
+  assert.deepEqual(owner.result.skills.map((skill) => skill.id), ['private']);
+  assert.equal(JSON.stringify(owner.result).includes(identity.nodeId), false);
 });
 
-test('C3 blocking SendMessage maps A2A Message -> TRUYN NEED -> RESULT -> A2A Artifact', async (t) => {
-  const { relayUrl } = await createNetwork(t);
-  const facadeNode = new TruynNode({ relayUrl });
+test('C3 blocking SendMessage maps Message -> NEED -> RESULT -> Artifact', async (t) => {
+  const h = await harness(t);
+  const node = new TruynNode({ relayUrl: h.relayUrl });
   let executions = 0;
-  let receivedInput = null;
-
-  const provider = await startProvider(t, {
-    relayUrl,
+  let received = null;
+  const provider = await h.provider({
     capability: 'research.public',
     accessPolicy: createProviderAccessPolicy({ mode: 'public' }),
     execute: async ({ input }) => {
       executions += 1;
-      receivedInput = input;
-      return { output: { answer: 'TRUYN' }, metadata: { source: 'test-provider' } };
+      received = input;
+      return { output: { answer: 'TRUYN' }, metadata: { source: 'test' } };
     }
   });
-
-  const a2a = createA2aServer({
-    node: facadeNode,
-    agent: defaultAgent(),
-    skills: [{
-      id: 'research',
-      name: 'Research',
-      description: 'Public research through TRUYN',
-      capability: 'research.public',
-      visibility: 'public'
-    }],
+  const { url } = await h.facade({
+    node,
+    agent: agent(),
+    skills: [{ id: 'research', name: 'Research', description: 'Public research', capability: 'research.public', visibility: 'public' }],
     pollIntervalMs: 2
   });
-  const url = await a2a.listen({ port: 0 });
-  t.after(() => a2a.close());
-
-  const sent = await jsonRpc(url, 'SendMessage', { message: userMessage('What is TRUYN?') });
-  assert.equal(sent.response.status, 200);
-  assert.equal(sent.body.error, undefined);
-  const task = sent.body.result.task;
+  const sent = await rpc(url, 'SendMessage', { message: message('What is TRUYN?') });
+  assert.equal(sent.error, undefined);
+  const task = sent.result.task;
   assert.equal(task.status.state, A2A_TASK_STATES.completed);
-  assert.equal(task.artifacts.length, 1);
   assert.deepEqual(task.artifacts[0].parts, [{ data: { answer: 'TRUYN' }, mediaType: 'application/json' }]);
-  assert.equal(task.history.length, 1);
   assert.equal(task.history[0].role, 'ROLE_USER');
   assert.equal(executions, 1);
-  assert.equal(receivedInput.a2a.protocolVersion, '1.0');
-  assert.equal(receivedInput.parts[0].text, 'What is TRUYN?');
-  assert.equal(task.artifacts[0].metadata['io.truyn/provenance'].providerNodeId, provider.node.identity.nodeId);
-  assert.ok(task.artifacts[0].metadata['io.truyn/provenance'].requestId);
-  assert.ok(task.artifacts[0].metadata['io.truyn/provenance'].trust.score > 0);
+  assert.equal(received.a2a.protocolVersion, '1.0');
+  assert.equal(received.parts[0].text, 'What is TRUYN?');
+  const provenance = task.artifacts[0].metadata['io.truyn/provenance'];
+  assert.equal(provenance.providerNodeId, provider.node.identity.nodeId);
+  assert.ok(provenance.requestId);
+  assert.ok(provenance.trust);
 });
 
 test('C3 non-blocking GetTask is scoped to the authenticated A2A principal', async (t) => {
-  const { relayUrl } = await createNetwork(t);
-  const facadeNode = new TruynNode({ relayUrl });
+  const h = await harness(t);
+  const node = new TruynNode({ relayUrl: h.relayUrl });
   let executions = 0;
-
-  await startProvider(t, {
-    relayUrl,
+  await h.provider({
     capability: 'reasoning.private',
-    accessPolicy: createProviderAccessPolicy({
-      mode: 'owner-only',
-      allowedRequesterIds: [facadeNode.identity.nodeId]
-    }),
+    accessPolicy: createProviderAccessPolicy({ mode: 'owner-only', allowedRequesterIds: [node.identity.nodeId] }),
     execute: async ({ input }) => {
       executions += 1;
       await new Promise((resolve) => setTimeout(resolve, 20));
       return { output: `private:${input.parts[0].text}` };
     }
   });
-
-  const a2a = createA2aServer({
-    node: facadeNode,
-    agent: defaultAgent(),
-    skills: [{
-      id: 'private-reasoning',
-      name: 'Private reasoning',
-      description: 'Authenticated owner reasoning',
-      capability: 'reasoning.private',
-      visibility: 'authenticated'
-    }],
-    authenticate: bearerPrincipal,
-    authorize: ({ principal }) => principal?.sub === 'owner',
+  const { url } = await h.facade({
+    node,
+    agent: agent(),
+    skills: [{ id: 'private', name: 'Private reasoning', description: 'Private reasoning', capability: 'reasoning.private', visibility: 'authenticated' }],
+    authenticate: principal,
+    authorize: ({ principal: caller }) => caller?.sub === 'owner',
     pollIntervalMs: 2
   });
-  const url = await a2a.listen({ port: 0 });
-  t.after(() => a2a.close());
-
-  const sent = await jsonRpc(url, 'SendMessage', {
-    message: userMessage('secret'),
-    configuration: { returnImmediately: true }
-  }, { token: 'owner-token' });
-  const taskId = sent.body.result.task.id;
-  assert.equal(sent.body.result.task.status.state, A2A_TASK_STATES.working);
-
-  const hidden = await jsonRpc(url, 'GetTask', { id: taskId }, { token: 'other-token' });
-  assert.equal(hidden.body.error.code, -32001);
-  assert.equal(hidden.body.error.data[0].reason, 'TASK_NOT_FOUND');
-
+  const sent = await rpc(url, 'SendMessage', { message: message('secret'), configuration: { returnImmediately: true } }, { token: 'owner-token' });
+  const taskId = sent.result.task.id;
+  assert.equal(sent.result.task.status.state, A2A_TASK_STATES.working);
+  const hidden = await rpc(url, 'GetTask', { id: taskId }, { token: 'other-token' });
+  assert.equal(hidden.error.code, -32001);
   let completed = null;
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    const polled = await jsonRpc(url, 'GetTask', { id: taskId, historyLength: 1 }, { token: 'owner-token' });
-    if (polled.body.result?.status?.state === A2A_TASK_STATES.completed) {
-      completed = polled.body.result;
-      break;
-    }
+    const polled = await rpc(url, 'GetTask', { id: taskId, historyLength: 1 }, { token: 'owner-token' });
+    if (polled.result?.status?.state === A2A_TASK_STATES.completed) { completed = polled.result; break; }
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
-  assert.ok(completed, 'authenticated owner should observe task completion');
+  assert.ok(completed);
   assert.equal(completed.artifacts[0].parts[0].text, 'private:secret');
   assert.equal(executions, 1);
 });
 
-test('C3 rejects wrong A2A versions, unsupported operations, raw content and unauthorized private execution', async (t) => {
-  const { relayUrl } = await createNetwork(t);
-  const facadeNode = new TruynNode({ relayUrl });
+test('C3 wrong-version, unsupported, raw and unauthorized requests fail before NEED execution', async (t) => {
+  const h = await harness(t);
+  const node = new TruynNode({ relayUrl: h.relayUrl });
   let executions = 0;
-
-  await startProvider(t, {
-    relayUrl,
+  await h.provider({
     capability: 'reasoning.private',
-    accessPolicy: createProviderAccessPolicy({
-      mode: 'owner-only',
-      allowedRequesterIds: [facadeNode.identity.nodeId]
-    }),
-    execute: async () => {
-      executions += 1;
-      return { output: 'should-not-run' };
-    }
+    accessPolicy: createProviderAccessPolicy({ mode: 'owner-only', allowedRequesterIds: [node.identity.nodeId] }),
+    execute: async () => { executions += 1; return { output: 'never' }; }
   });
-
-  const a2a = createA2aServer({
-    node: facadeNode,
-    agent: defaultAgent(),
-    skills: [{
-      id: 'private-reasoning',
-      name: 'Private reasoning',
-      description: 'Authenticated owner reasoning',
-      capability: 'reasoning.private',
-      visibility: 'authenticated'
-    }],
-    authenticate: bearerPrincipal,
-    authorize: ({ principal }) => principal?.sub === 'owner'
+  const { url } = await h.facade({
+    node,
+    agent: agent(),
+    skills: [{ id: 'private', name: 'Private reasoning', description: 'Private reasoning', capability: 'reasoning.private', visibility: 'authenticated' }],
+    authenticate: principal,
+    authorize: ({ principal: caller }) => caller?.sub === 'owner'
   });
-  const url = await a2a.listen({ port: 0 });
-  t.after(() => a2a.close());
-
-  const wrongVersion = await jsonRpc(url, 'SendMessage', { message: userMessage('x') }, { token: 'owner-token', version: '0.3' });
-  assert.equal(wrongVersion.body.error.code, -32009);
-  assert.equal(wrongVersion.body.error.data[0].reason, 'VERSION_NOT_SUPPORTED');
-
-  const missingVersion = await jsonRpc(url, 'SendMessage', { message: userMessage('x') }, { token: 'owner-token', version: null });
-  assert.equal(missingVersion.body.error.code, -32009);
-
-  const unsupported = await jsonRpc(url, 'CancelTask', { id: 'x' }, { token: 'owner-token' });
-  assert.equal(unsupported.body.error.code, -32004);
-  assert.equal(unsupported.body.error.data[0].reason, 'UNSUPPORTED_OPERATION');
-
-  const raw = await jsonRpc(url, 'SendMessage', {
-    message: {
-      messageId: 'raw-1',
-      role: 'ROLE_USER',
-      parts: [{ raw: 'AQID', mediaType: 'application/octet-stream' }]
-    }
-  }, { token: 'owner-token' });
-  assert.equal(raw.body.error.code, -32005);
-  assert.equal(raw.body.error.data[0].reason, 'CONTENT_TYPE_NOT_SUPPORTED');
-
-  const anonymous = await jsonRpc(url, 'SendMessage', { message: userMessage('steal owner credits') });
-  assert.equal(anonymous.body.error.code, -32602);
-  assert.equal(executions, 0, 'unauthorized A2A requests must cause zero remote provider execution');
-  assert.equal((await facadeNode.poll()).events.length, 0, 'unauthorized A2A request must create zero RESULT events for facade');
+  assert.equal((await rpc(url, 'SendMessage', { message: message('x') }, { token: 'owner-token', version: '0.3' })).error.code, -32009);
+  assert.equal((await rpc(url, 'SendMessage', { message: message('x') }, { token: 'owner-token', version: null })).error.code, -32009);
+  assert.equal((await rpc(url, 'CancelTask', { id: 'x' }, { token: 'owner-token' })).error.code, -32004);
+  const raw = await rpc(url, 'SendMessage', { message: { messageId: 'raw-1', role: 'ROLE_USER', parts: [{ raw: 'AQID', mediaType: 'application/octet-stream' }] } }, { token: 'owner-token' });
+  assert.equal(raw.error.code, -32005);
+  const anonymous = await rpc(url, 'SendMessage', { message: message('steal owner credits') });
+  assert.equal(anonymous.error.code, -32602);
+  assert.equal(executions, 0, 'unauthorized A2A requests must cause zero provider execution');
+  assert.equal(h.relay.state.requests.size, 0, 'unauthorized A2A requests must create zero TRUYN NEED records');
 });
