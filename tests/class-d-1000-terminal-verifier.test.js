@@ -24,7 +24,7 @@ function evidence(remainingResources = 0) {
       healedSuccessRatio: 0.993
     },
     convergence: { latencyMs: { p95: 120000 } },
-    recovery: { latencyMs: { p95: 130000 } },
+    recovery: { latencyMs: { p95: 120000 } },
     adversarial: {
       packetPartition: {
         exercised: true,
@@ -89,6 +89,18 @@ test('strict terminal verifier rejects nonzero remaining resources', () => {
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.ok, false);
   assert.ok(parsed.failed.includes('zeroRemainingResources'));
+});
+
+test('strict terminal verifier rejects convergence or recovery p95 above 120 seconds', () => {
+  const raw = evidence(0);
+  raw.convergence.latencyMs.p95 = 120001;
+  raw.recovery.latencyMs.p95 = 120001;
+  const result = run(raw);
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.failed.includes('convergenceP95'));
+  assert.ok(parsed.failed.includes('recoveryP95'));
 });
 
 test('strict terminal verifier rejects missing safety evidence', () => {

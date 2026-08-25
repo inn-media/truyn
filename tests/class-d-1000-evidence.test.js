@@ -21,7 +21,7 @@ function passing() {
       healedSuccessRatio: 0.993
     },
     convergence: { latencyMs: { p95: 120_000 } },
-    recovery: { latencyMs: { p95: 130_000 } },
+    recovery: { latencyMs: { p95: 120_000 } },
     adversarial: {
       packetPartition: {
         exercised: true,
@@ -68,6 +68,16 @@ test('real D-1000 evidence passes only with exact topology, probe-backed safety 
   assert.equal(result.derivation.staleReceiptProbe, true);
   assert.equal(result.derivation.providerAuthorizationProbe, true);
   assert.equal(result.derivation.packetPartitionProbe, true);
+});
+
+test('D-1000 evidence rejects convergence or recovery p95 above 120 seconds', () => {
+  const raw = passing();
+  raw.convergence.latencyMs.p95 = 120_001;
+  raw.recovery.latencyMs.p95 = 120_001;
+  const result = evaluateAzureClassD1000Evidence(raw);
+  assert.equal(result.passed, false);
+  assert.ok(result.failed.includes('convergenceP95'));
+  assert.ok(result.failed.includes('recoveryP95'));
 });
 
 test('logical count cannot substitute for 1000 real processes', () => {
