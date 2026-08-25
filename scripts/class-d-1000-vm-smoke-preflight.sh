@@ -105,10 +105,9 @@ for required in python3 tar sha256sum systemctl iptables iptables-save readlink;
   command -v "\$required" >/dev/null
   echo "TRUYN_VM_SMOKE_BASE_TOOL=\$required"
 done
-runtime_url_b64='${url_b64}'
 bundle=/tmp/truyn-d1000-runtime.tgz
 rm -f "\$bundle"
-python3 - "\$runtime_url_b64" "\$bundle" <<'PY'
+python3 - '${url_b64}' "\$bundle" <<'PY'
 import base64, sys, urllib.request
 url = base64.b64decode(sys.argv[1]).decode('utf-8')
 urllib.request.urlretrieve(url, sys.argv[2])
@@ -117,17 +116,18 @@ printf '%s  %s\n' '${EXPECTED_SHA}' "\$bundle" | sha256sum -c -
 rm -rf /opt/truyn
 mkdir -p /opt/truyn
 tar -xzf "\$bundle" -C /opt/truqyn
+EOS
+)
+guest_script="${guest_script//truqyn/truyn}"
+guest_script+=$(cat <<EOS
 for tool in node jq curl openssl; do
-  test -x "/opt/truqyn/runtime/bin/\$tool"
+  test -x "/opt/truyn/runtime/bin/\$tool"
   echo "TRUYN_VM_SMOKE_RUNTIME_TOOL=\$tool"
 done
-/opt/truqyn/runtime/bin/node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
-/opt/truqyn/runtime/bin/jq --version >/dev/null
+/opt/truyn/runtime/bin/node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
+/opt/truyn/runtime/bin/jq --version >/dev/null
 /opt/truqyn/runtime/bin/curl --version >/dev/null
 /opt/truqyn/runtime/bin/openssl version >/dev/null
-
-# Reproduce the accepted D-1000 install path: every bundled runtime tool must
-# remain valid when reached through /usr/local/bin symlinks.
 for tool in node jq curl openssl; do
   ln -sfn "/opt/truqyn/runtime/bin/\$tool" "/usr/local/bin/\$tool"
 done
@@ -135,7 +135,6 @@ done
 /usr/local/bin/jq --version >/dev/null
 /usr/local/bin/curl --version >/dev/null
 /usr/local/bin/openssl version >/dev/null
-
 install -d -m 0700 /var/lib/truqyn-d1000 /etc/truqyn-d1000
 /usr/local/bin/openssl req -x509 -newkey rsa:2048 -nodes \
   -keyout /etc/truqyn-d1000/key.pem -out /etc/truqyn-d1000/cert.pem \
