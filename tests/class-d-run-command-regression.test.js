@@ -23,30 +23,40 @@ count=0
 count=$((count+1))
 printf '%s' "$count" >"$TRUYN_TEST_COUNTER"
 query_ok=0
+remote_script=''
 previous=''
 for arg in "$@"; do
   if [[ "$previous" == '--query' && "$arg" == 'value[].message' ]]; then query_ok=1; fi
+  if [[ "$previous" == '--scripts' ]]; then remote_script="$arg"; fi
   previous="$arg"
 done
 if (( query_ok != 1 )); then
   echo 'RunCommand must query every value[].message component' >&2
   exit 98
 fi
+terminal_prefix="$(printf '%s\n' "$remote_script" | grep -oE 'TRUYN_GUEST_TERMINAL_[0-9]+=' | head -1 || true)"
+if [[ -z "$terminal_prefix" ]]; then
+  echo 'RunCommand must carry a nonce-bound guest terminal marker' >&2
+  exit 96
+fi
 case "$TRUYN_TEST_SCENARIO" in
   429-then-success)
     if (( count < 3 )); then echo "ERROR: Operation returned an invalid status 'Too Many Requests'" >&2; exit 29; fi
     echo 'TRUYN_GUEST_EXECUTION_ADMITTED=1'
     echo 'RESULT=ok'
+    echo "\${terminal_prefix}0"
     ;;
   busy-then-success)
     if (( count < 3 )); then echo 'managed VM RunCommand extension execution is in progress. Please wait for completion before invoking a run command' >&2; exit 31; fi
     echo 'TRUYN_GUEST_EXECUTION_ADMITTED=1'
     echo 'RESULT=ok'
+    echo "\${terminal_prefix}0"
     ;;
   guest-nonzero)
     echo 'TRUYN_GUEST_EXECUTION_ADMITTED=1'
+    echo "\${terminal_prefix}17"
     echo 'guest failed after mutation' >&2
-    exit 17
+    exit 0
     ;;
   429-always)
     echo 'ERROR: HTTP 429 Too Many Requests' >&2
@@ -110,10 +120,11 @@ test('RunCommand busy before guest admission is retried', () => {
   assert.match(result.stderr, /TRUYN_AZ_RUN_COMMAND_BUSY_WAIT[\s\S]*attempt=1[\s\S]*attempt=2/);
 });
 
-test('guest non-zero after admission fails immediately without replay', () => {
+test('guest terminal non-zero after admission overrides Azure extension success without replay', () => {
   const result = runScenario('guest-nonzero');
-  assert.notEqual(result.status, 0);
+  assert.equal(result.status, 17, result.stderr);
   assert.equal(result.attempts, 1);
+  assert.match(result.stderr, /TRUYN_GUEST_TERMINAL_FAILURE vm=vm rc=17/);
   assert.doesNotMatch(result.stderr, /TRUYN_AZ_RUN_COMMAND_(?:429_BACKOFF|BUSY_WAIT)/);
 });
 
