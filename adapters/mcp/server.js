@@ -4,6 +4,13 @@ import readline from 'node:readline';
 export const MCP_MODERN_VERSION = '2026-07-28';
 export const MCP_LEGACY_VERSIONS = Object.freeze(['2025-11-25', '2025-06-18']);
 export const MCP_SUPPORTED_VERSIONS = Object.freeze([MCP_MODERN_VERSION, ...MCP_LEGACY_VERSIONS]);
+export const MCP_PROTOCOL_VERSION_META_KEY = 'io.modelcontextprotocol/protocolVersion';
+export const MCP_CLIENT_INFO_META_KEY = 'io.modelcontextprotocol/clientInfo';
+export const MCP_CLIENT_CAPABILITIES_META_KEY = 'io.modelcontextprotocol/clientCapabilities';
+export const MCP_SERVER_INFO_META_KEY = 'io.modelcontextprotocol/serverInfo';
+
+const CACHE_TTL_MS = 1000;
+const CACHE_SCOPE = 'private';
 
 const TOOLS = Object.freeze([
   { name: 'truyn_identity', title: 'TRUYN Identity', description: 'Return the cryptographic TRUYN Node identity connected to this MCP server.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
@@ -16,7 +23,62 @@ const TOOLS = Object.freeze([
 
 function rpcResult(id, result) { return { jsonrpc: '2.0', id, result }; }
 function rpcError(id, code, message, data = undefined) { return { jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data === undefined ? {} : { data }) } }; }
-function toolResult(value) { return { resultType: 'complete', content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value }; }
+function isObject(value) { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
+
+export function createMcpModernMeta({ clientName = 'truyn-client', clientVersion = '0.1.0', clientCapabilities = {} } = {}) {
+  if (!isObject(clientCapabilities)) throw new Error('clientCapabilities must be an object');
+  return {
+    [MCP_PROTOCOL_VERSION_META_KEY]: MCP_MODERN_VERSION,
+    [MCP_CLIENT_INFO_META_KEY]: { name: clientName, version: clientVersion },
+    [MCP_CLIENT_CAPABILITIES_META_KEY]: clientCapabilities
+  };
+}
+
+function modernEnvelopeError(params) {
+  const meta = params?._meta;
+  if (!isObject(meta)) return 'Modern MCP request requires params._meta';
+  if (meta[MCP_PROTOCOL_VERSION_META_KEY] !== MCP_MODERN_VERSION) return `Modern MCP request requires ${MCP_PROTOCOL_VERSION_META_KEY}=${MCP_MODERN_VERSION}`;
+  if (!isObject(meta[MCP_CLIENT_CAPABILITIES_META_KEY])) return `Modern MCP request requires ${MCP_CLIENT_CAPABILITIES_META_KEY}`;
+  const clientInfo = meta[MCP_CLIENT_INFO_META_KEY];
+  if (clientInfo !== undefined && (!isObject(clientInfo) || typeof clientInfo.name !== 'string' || typeof clientInfo.version !== 'string')) {
+    return `${MCP_CLIENT_INFO_META_KEY} must contain string name/version when present`;
+  }
+  return null;
+}
+
+function requestMetaVersion(message) {
+  return isObject(message?.params?._meta) ? message.params._meta[MCP_PROTOCOL_VERSION_META_KEY] : undefined;
+}
+
+function isModernMessage(message) {
+  return message?.method === 'server/discover' || requestMetaVersion(message) === MCP_MODERN_VERSION;
+}
+
+function withServerInfo(result, serverInfo) {
+  return {
+    ...result,
+    _meta: {
+      ...(isObject(result?._meta) ? result._meta : {}),
+      [MCP_SERVER_INFO_META_KEY]: serverInfo
+    }
+  };
+}
+
+function toolResult(value, modern) {
+  return {
+    ...(modern ? { resultType: 'complete' } : {}),
+    content: [{ type: 'text', text: JSON.stringify(value) }],
+    structuredContent: value
+  };
+}
+
+function toolErrorResult(modern) {
+  return {
+    ...(modern ? { resultType: 'complete' } : {}),
+    isError: true,
+    content: [{ type: 'text', text: 'TRUYN tool request failed' }]
+  };
+}
 
 function assertLoopback(host) {
   if (!['127.0.0.1', '::1', 'localhost'].includes(host)) {
@@ -34,15 +96,64 @@ function originIsLoopback(origin) {
   }
 }
 
+function isJsonContentType(value) {
+  if (typeof value !== 'string') return false;
+  return value.split(';', 1)[0].trim().toLowerCase() === 'application/json';
+}
+
+function expectedRoutingName(message) {
+  if (typeof message?.params?.name === 'string') return message.params.name;
+  if (typeof message?.params?.uri === 'string') return message.params.uri;
+  return null;
+}
+
+function validateHttpProtocol(req, message) {
+  const headerVersion = req.headers['mcp-protocol-version'];
+  const metaVersion = requestMetaVersion(message);
+  if (headerVersion && !MCP_SUPPORTED_VERSIONS.includes(headerVersion)) {
+    return { status: 400, body: rpcError(message?.id, -32022, 'Unsupported protocol version', { supported: MCP_SUPPORTED_VERSIONS }) };
+  }
+  if (metaVersion && !MCP_SUPPORTED_VERSIONS.includes(metaVersion)) {
+    return { status: 400, body: rpcError(message?.id, -32022, 'Unsupported protocol version', { supported: MCP_SUPPORTED_VERSIONS }) };
+  }
+
+  const modern = message?.method === 'server/discover' || headerVersion === MCP_MODERN_VERSION || metaVersion === MCP_MODERN_VERSION;
+  if (!modern) {
+    if (headerVersion && metaVersion && headerVersion !== metaVersion) {
+      return { status: 400, body: rpcError(message?.id, -32020, 'MCP protocol version header/body mismatch') };
+    }
+    return { modern: false };
+  }
+
+  if (headerVersion !== MCP_MODERN_VERSION || metaVersion !== MCP_MODERN_VERSION) {
+    return { status: 400, body: rpcError(message?.id, -32020, 'Modern MCP protocol version header/body mismatch') };
+  }
+  if (req.headers['mcp-method'] !== message?.method) {
+    return { status: 400, body: rpcError(message?.id, -32020, 'Mcp-Method header mismatch') };
+  }
+  const expectedName = expectedRoutingName(message);
+  if (expectedName !== null && req.headers['mcp-name'] !== expectedName) {
+    return { status: 400, body: rpcError(message?.id, -32020, 'Mcp-Name header mismatch') };
+  }
+  const envelopeError = modernEnvelopeError(message?.params || {});
+  if (envelopeError) {
+    return { status: 400, body: rpcError(message?.id, -32602, envelopeError) };
+  }
+  return { modern: true };
+}
+
 export function createMcpHandler({ node, serverName = 'truyn-mvp', serverVersion = '0.1.0-mvp.2' }) {
   if (!node) throw new Error('node is required');
   let registered = false;
+  const serverInfo = Object.freeze({ name: serverName, version: serverVersion });
+
   async function ensureRegistered() {
     if (!registered || !node.sessionToken) {
       await node.register({ name: serverName });
       registered = true;
     }
   }
+
   async function callTool(name, args = {}) {
     if (name === 'truyn_identity') return { nodeId: node.identity.nodeId, algorithm: node.identity.algorithm, protocol: 'TRUYN/1' };
     if (name === 'truyn_find') { if (!args.capability) throw new Error('capability is required'); await ensureRegistered(); return node.find(args.capability); }
@@ -52,26 +163,64 @@ export function createMcpHandler({ node, serverName = 'truyn-mvp', serverVersion
     if (name === 'truyn_result') { if (!args.requestId || !Object.prototype.hasOwnProperty.call(args, 'output')) throw new Error('requestId and output are required'); await ensureRegistered(); return node.result(args.requestId, args.output, args.metadata || {}); }
     const error = new Error(`Unknown tool: ${name}`); error.code = -32602; throw error;
   }
+
+  function result(id, value, modern) {
+    return rpcResult(id, modern ? withServerInfo(value, serverInfo) : value);
+  }
+
   return async function handle(message) {
     if (!message || message.jsonrpc !== '2.0' || typeof message.method !== 'string') return rpcError(message?.id, -32600, 'Invalid Request');
     const { id, method, params = {} } = message;
+    const metaVersion = requestMetaVersion(message);
+    if (metaVersion && !MCP_SUPPORTED_VERSIONS.includes(metaVersion)) {
+      return rpcError(id, -32022, 'Unsupported protocol version', { supported: MCP_SUPPORTED_VERSIONS });
+    }
+    const modern = isModernMessage(message);
+    if (modern) {
+      const envelopeError = modernEnvelopeError(params);
+      if (envelopeError) return rpcError(id, -32602, envelopeError);
+      if (method === 'initialize') return rpcError(id, -32601, 'Method not found');
+    }
+
     try {
-      if (method === 'server/discover') return rpcResult(id, { resultType: 'complete', supportedVersions: [...MCP_SUPPORTED_VERSIONS], capabilities: { tools: { listChanged: false } }, serverInfo: { name: serverName, version: serverVersion }, instructions: 'Use TRUYN tools through the relay authorization boundary.' });
+      if (method === 'server/discover') {
+        return result(id, {
+          resultType: 'complete',
+          supportedVersions: [...MCP_SUPPORTED_VERSIONS],
+          capabilities: { tools: { listChanged: false } },
+          instructions: 'Use TRUYN tools through the relay authorization boundary.',
+          ttlMs: CACHE_TTL_MS,
+          cacheScope: CACHE_SCOPE
+        }, true);
+      }
       if (method === 'initialize') {
         const requested = params.protocolVersion;
-        const protocolVersion = MCP_LEGACY_VERSIONS.includes(requested) ? requested : MCP_LEGACY_VERSIONS[0];
-        return rpcResult(id, { protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo: { name: serverName, version: serverVersion }, instructions: 'TRUYN connects agent capabilities through signed and authorized OFFER, NEED, and RESULT messages.' });
+        if (!MCP_LEGACY_VERSIONS.includes(requested)) {
+          return rpcError(id, -32022, 'Unsupported protocol version for initialize', { supported: MCP_LEGACY_VERSIONS });
+        }
+        return rpcResult(id, {
+          protocolVersion: requested,
+          capabilities: { tools: { listChanged: false } },
+          serverInfo,
+          instructions: 'TRUYN connects agent capabilities through signed and authorized OFFER, NEED, and RESULT messages.'
+        });
       }
       if (method === 'notifications/initialized') return null;
-      if (method === 'tools/list') return rpcResult(id, { tools: [...TOOLS], ttlMs: 1000, cacheScope: 'private' });
+      if (method === 'tools/list') {
+        return result(id, {
+          ...(modern ? { resultType: 'complete' } : {}),
+          tools: [...TOOLS],
+          ...(modern ? { ttlMs: CACHE_TTL_MS, cacheScope: CACHE_SCOPE } : {})
+        }, modern);
+      }
       if (method === 'tools/call') {
         if (!params.name) return rpcError(id, -32602, 'Tool name is required');
         const value = await callTool(params.name, params.arguments || {});
-        return rpcResult(id, toolResult(value));
+        return result(id, toolResult(value, modern), modern);
       }
       return rpcError(id, -32601, 'Method not found');
     } catch (error) {
-      if (method === 'tools/call' && error.code !== -32602) return rpcResult(id, { resultType: 'complete', isError: true, content: [{ type: 'text', text: 'TRUYN tool request failed' }] });
+      if (method === 'tools/call' && error.code !== -32602) return result(id, toolErrorResult(modern), modern);
       return rpcError(id, error.code || -32603, error.code === -32602 ? error.message : 'Request failed');
     }
   };
@@ -130,17 +279,15 @@ export function createMcpHttpServer({ node, maxBodyBytes = 256 * 1024 }) {
   const server = http.createServer(async (req, res) => {
     try {
       if (req.url !== '/mcp') return sendJson(res, 404, rpcError(null, -32601, 'Not found'));
-      if (req.method === 'GET') { res.writeHead(405, { allow: 'POST' }); return res.end(); }
+      if (req.method === 'GET' || req.method === 'DELETE') { res.writeHead(405, { allow: 'POST' }); return res.end(); }
       if (req.method !== 'POST') { res.writeHead(405, { allow: 'POST' }); return res.end(); }
       if (!originIsLoopback(req.headers.origin)) return sendJson(res, 403, rpcError(null, -32000, 'Origin not allowed'));
+      if (!isJsonContentType(req.headers['content-type'])) return sendJson(res, 415, rpcError(null, -32600, 'Content-Type must be application/json'));
+
       const message = await readJson(req, maxBodyBytes);
-      const version = req.headers['mcp-protocol-version'];
-      if (version === MCP_MODERN_VERSION) {
-        if (req.headers['mcp-method'] !== message.method) return sendJson(res, 400, rpcError(message.id, -32020, 'Mcp-Method header mismatch'));
-        if (message.method === 'tools/call' && req.headers['mcp-name'] !== message.params?.name) return sendJson(res, 400, rpcError(message.id, -32020, 'Mcp-Name header mismatch'));
-      } else if (version && !MCP_SUPPORTED_VERSIONS.includes(version)) {
-        return sendJson(res, 400, rpcError(message.id, -32022, 'Unsupported protocol version', { supported: MCP_SUPPORTED_VERSIONS }));
-      }
+      const protocol = validateHttpProtocol(req, message);
+      if (protocol.body) return sendJson(res, protocol.status, protocol.body);
+
       const response = await handle(message);
       if (!response) { res.writeHead(202); return res.end(); }
       return sendJson(res, 200, response);
