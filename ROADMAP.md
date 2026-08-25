@@ -34,7 +34,7 @@ Governance uses its independent G0→G5 factual maturity axis.
 | Provider ownership/authorization/BYOK | Implemented reference baseline |
 | Billing safety | BYOK/owner-funded implemented; sponsored guard requires external durable store/issuer; prepaid/subscription fail closed |
 | **DCO 1.1 contribution provenance** | **Accepted + CI-implemented**; PR-only `DCO` job checks full PR base→head commit range; no manual DCO dispatch |
-| A2A/MCP interoperability | MCP `2026-07-28` selected current-contract slice implemented/CI-proven; general MCP discovery/import remains open; A2A and bidirectional A2A↔TRUYN↔MCP bridge defined only |
+| A2A/MCP interoperability | MCP `2026-07-28` C1 current-contract + C2 general tool discovery/import slices implemented/CI-proven; broader optional MCP surfaces and A2A/bidirectional A2A↔TRUYN↔MCP bridge remain open |
 | Settlement adapters | Defined only; implementation intentionally deferred; first targets x402 + AP2 |
 | Trustability v1/v2 | Implemented + CI/benchmark proven; bounded real-network trust slice proven |
 | Multi-cloud text/image/video providers | Implemented reference adapter paths; individual deployment availability varies |
@@ -251,16 +251,16 @@ Implemented:
 - [x] TRUYN-as-MCP server over stdio;
 - [x] loopback MCP HTTP bridge;
 - [x] configured remote MCP HTTP tool provider reference;
-- [x] selected MCP `2026-07-28` current-contract conformance slice with explicit version/header/content-type failures and private-provider execution-denial coverage — PR `#324`, CI `32858272119`.
+- [x] selected MCP `2026-07-28` current-contract conformance slice with explicit version/header/content-type failures and private-provider execution-denial coverage — PR `#324`, CI `32858272119`;
+- [x] **C2 general MCP tool discovery/import** — modern `server/discover`, bounded paginated `tools/list`, explicit allowlist/filter, supported `x-mcp-header` forwarding, selected signed TRUYN `OFFER`s, and unauthorized zero-remote-execution proof — PR `#332`.
 
 Open:
 
-- [ ] implement authorized general MCP discovery/import;
 - [ ] implement A2A server facade with authorized Agent Card projection and Message/Task/Artifact handling;
 - [ ] implement A2A client/provider adapter;
 - [ ] prove A2A→TRUYN→MCP and MCP→TRUYN→A2A real round trips;
 - [ ] prove artifact/provenance integrity and asynchronous A2A lifecycle;
-- [ ] negative-test private-provider non-disclosure/execution across bridges beyond the bounded C1 MCP edge;
+- [ ] negative-test private-provider non-disclosure/execution across bridges beyond the bounded C1/C2 MCP edges;
 - [ ] publish complete cross-protocol exact-version interoperability evidence.
 
 ### Developer Experience Gate — **REQUIRED PRE-v1**
