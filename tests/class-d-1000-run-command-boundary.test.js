@@ -55,6 +55,12 @@ case "$AZ_MODE" in
     /bin/bash -c "$script"
     exit 0
     ;;
+  tail-only)
+    set +e
+    output="$(/bin/bash -c "$script" 2>&1)"
+    printf '%s\n' "$output" | tail -c 4096
+    exit 0
+    ;;
   *) exit 97 ;;
 esac
 `);
@@ -98,6 +104,15 @@ test('explicit guest terminal rc overrides Azure extension success and is never 
   assert.match(result.stdout, /TRUYN_GUEST_EXECUTION_ADMITTED=1/);
   assert.match(result.stdout, /TRUYN_GUEST_TERMINAL_.*=7/);
   assert.match(result.stdout, /TRUYN_GUEST_TERMINAL_FAILURE vm=vm rc=7/);
+  assert.equal(result.calls, 1);
+});
+
+test('RunCommand output tail preserves admission proof beside the terminal marker', () => {
+  const result = runBoundary({ mode: 'tail-only', body: "printf 'X%.0s' {1..8192}; exit 19" });
+  assert.match(result.stdout, /RC=19/);
+  assert.equal(result.stdout.match(/TRUYN_GUEST_EXECUTION_ADMITTED=1/g)?.length, 1);
+  assert.match(result.stdout, /TRUYN_GUEST_TERMINAL_.*=19/);
+  assert.match(result.stdout, /TRUYN_GUEST_TERMINAL_FAILURE vm=vm rc=19/);
   assert.equal(result.calls, 1);
 });
 
