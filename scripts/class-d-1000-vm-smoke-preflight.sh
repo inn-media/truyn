@@ -115,18 +115,14 @@ PY
 printf '%s  %s\n' '${EXPECTED_SHA}' "\$bundle" | sha256sum -c -
 rm -rf /opt/truyn
 mkdir -p /opt/truyn
-tar -xzf "\$bundle" -C /opt/truqyn
-EOS
-)
-guest_script="${guest_script//truqyn/truyn}"
-guest_script+=$(cat <<EOS
+tar -xzf "\$bundle" -C /opt/truyn
 for tool in node jq curl openssl; do
   test -x "/opt/truyn/runtime/bin/\$tool"
   echo "TRUYN_VM_SMOKE_RUNTIME_TOOL=\$tool"
 done
 /opt/truyn/runtime/bin/node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
 /opt/truyn/runtime/bin/jq --version >/dev/null
-/opt/truqyn/runtime/bin/curl --version >/dev/null
+/opt/truyn/runtime/bin/curl --version >/dev/null
 /opt/truqyn/runtime/bin/openssl version >/dev/null
 for tool in node jq curl openssl; do
   ln -sfn "/opt/truqyn/runtime/bin/\$tool" "/usr/local/bin/\$tool"
