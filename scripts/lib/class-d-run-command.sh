@@ -25,7 +25,7 @@ truyn_class_d_remote() {
   terminal_nonce="${RANDOM}${RANDOM}$(date +%s%N)"
   terminal_prefix="TRUYN_GUEST_TERMINAL_${terminal_nonce}="
   enc="$(printf '%s' "$script" | base64 -w0)"
-  remote_script="echo ${guest_marker}; printf '%s' '$enc' | base64 -d >/tmp/truyn-d100-run.sh; chmod 700 /tmp/truyn-d100-run.sh; set +e; /bin/bash /tmp/truyn-d100-run.sh; guest_rc=\$?; printf '${terminal_prefix}%s\\n' \"\$guest_rc\"; exit \"\$guest_rc\""
+  remote_script="echo ${guest_marker}; printf '%s' '$enc' | base64 -d >/tmp/truyn-d100-run.sh; chmod 700 /tmp/truyn-d100-run.sh; set +e; /bin/bash /tmp/truyn-d100-run.sh; guest_rc=\$?; echo ${guest_marker}; printf '${terminal_prefix}%s\\n' \"\$guest_rc\"; exit \"\$guest_rc\""
   out_file="$(mktemp)"
   err_file="$(mktemp)"
 
