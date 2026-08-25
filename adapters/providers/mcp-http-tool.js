@@ -1,3 +1,5 @@
+import { encodeMcpHeaderValue } from '../mcp/http-headers.js';
+
 export const MCP_PROVIDER_PROTOCOL_VERSION = '2026-07-28';
 
 const MCP_PROTOCOL_VERSION_META_KEY = 'io.modelcontextprotocol/protocolVersion';
@@ -69,6 +71,19 @@ async function readProviderResponse(response, expectedId) {
   return body;
 }
 
+function assertModernToolResult(body, expectedId) {
+  if (!body || body.jsonrpc !== '2.0' || body.id !== expectedId || !body.result || typeof body.result !== 'object') {
+    throw new Error('MCP modern tool response is not a matching JSON-RPC result');
+  }
+  if (body.result.resultType !== 'complete') {
+    if (body.result.resultType === 'input_required') {
+      throw new Error('MCP input_required is not supported by the configured single-tool provider path');
+    }
+    throw new Error('MCP modern tool response requires resultType=complete');
+  }
+  if (!Array.isArray(body.result.content)) throw new Error('MCP modern tool response requires content array');
+}
+
 export function createMcpHttpToolProvider({
   endpoint = process.env.MCP_HTTP_ENDPOINT,
   tool = process.env.MCP_HTTP_TOOL,
@@ -95,7 +110,7 @@ export function createMcpHttpToolProvider({
         accept: 'application/json, text/event-stream',
         'mcp-protocol-version': MCP_PROVIDER_PROTOCOL_VERSION,
         'mcp-method': 'tools/call',
-        'mcp-name': tool
+        'mcp-name': encodeMcpHeaderValue(tool)
       };
       if (authMode === 'bearer') headers.authorization = `Bearer ${apiKey}`;
 
@@ -124,16 +139,17 @@ export function createMcpHttpToolProvider({
       const body = await readProviderResponse(response, id);
       if (!response.ok) throw new Error(body?.error?.message || `MCP HTTP ${response.status}`);
       if (body?.error) throw new Error(body.error.message || 'MCP JSON-RPC error');
-      if (body?.result?.isError) throw new Error(errorText(body.result).slice(0, 500));
+      assertModernToolResult(body, id);
+      if (body.result.isError) throw new Error(errorText(body.result).slice(0, 500));
 
       return {
-        output: outputFromResult(body?.result),
+        output: outputFromResult(body.result),
         metadata: {
           provider: 'mcp-http',
           tool,
-          providerRequestId: body?.id ?? null,
+          providerRequestId: body.id,
           providerLatencyMs: Date.now() - startedAt,
-          usage: body?.result?._meta?.usage || null
+          usage: body.result._meta?.usage || null
         }
       };
     }
