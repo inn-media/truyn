@@ -63,6 +63,7 @@ test('custom MCP provider sends stateless 2026-07-28 tools/call request and no s
         jsonrpc: '2.0',
         id: sent.id,
         result: {
+          resultType: 'complete',
           structuredContent: { answer: 42 },
           content: [{ type: 'text', text: '42' }],
           _meta: { usage: { units: 1 } }
@@ -91,6 +92,8 @@ test('custom MCP provider sends stateless 2026-07-28 tools/call request and no s
     input: { q: 'life' },
     policy: { purpose: 'test' }
   });
+  assert.equal(body.params._meta['io.modelcontextprotocol/protocolVersion'], MCP_PROVIDER_PROTOCOL_VERSION);
+  assert.deepEqual(body.params._meta['io.modelcontextprotocol/clientCapabilities'], {});
   assert.equal(body.params._meta['io.modelcontextprotocol/clientInfo'].name, 'truyn-byok-provider');
   assert.deepEqual(result.output, { answer: 42 });
   assert.equal(result.metadata.provider, 'mcp-http');
@@ -112,7 +115,7 @@ test('custom MCP no-auth omits Authorization and returns text content', async ()
       return response({
         jsonrpc: '2.0',
         id: sent.id,
-        result: { content: [{ type: 'text', text: 'LOCAL_MCP_OK' }] }
+        result: { resultType: 'complete', content: [{ type: 'text', text: 'LOCAL_MCP_OK' }] }
       });
     }
   });
@@ -132,7 +135,7 @@ test('custom MCP tool errors fail without leaking endpoint/token', async () => {
       return response({
         jsonrpc: '2.0',
         id: sent.id,
-        result: { isError: true, content: [{ type: 'text', text: 'tool refused request' }] }
+        result: { resultType: 'complete', isError: true, content: [{ type: 'text', text: 'tool refused request' }] }
       });
     }
   });
@@ -141,4 +144,25 @@ test('custom MCP tool errors fail without leaking endpoint/token', async () => {
     (error) => error.message === 'tool refused request' && !error.message.includes('runtime-mcp-secret') && !error.message.includes('mcp.example.test')
   );
   assert.throws(() => createMcpHttpToolProvider({ endpoint: 'file:///tmp/mcp', tool: 'x' }), /http or https/);
+});
+
+test('custom MCP modern provider rejects missing resultType and input_required explicitly', async () => {
+  for (const result of [
+    { content: [] },
+    { resultType: 'input_required', content: [], inputRequests: {} }
+  ]) {
+    const provider = createMcpHttpToolProvider({
+      endpoint: 'https://mcp.example.test/mcp',
+      tool: 'research',
+      authMode: 'none',
+      fetchImpl: async (_url, options) => {
+        const sent = JSON.parse(options.body);
+        return response({ jsonrpc: '2.0', id: sent.id, result });
+      }
+    });
+    await assert.rejects(
+      provider.execute({ capability: 'reasoning.general', input: 'x', policy: {} }),
+      /resultType=complete|input_required is not supported/
+    );
+  }
 });
