@@ -1,6 +1,6 @@
 # A2A / MCP Compatibility Matrix
 
-**Snapshot:** 2026-08-22  
+**Snapshot:** 2026-08-25  
 **TRUYN software:** `0.1.0-dev`  
 **TRUYN protocol:** `TRUYN/1` draft
 
@@ -10,10 +10,10 @@ This document records factual compatibility status for the A2A and MCP interoper
 
 | Surface | Target external line | Status | Evidence / limitation |
 |---|---|---|---|
-| TRUYN as MCP server, stdio | MCP current + selected legacy behavior | **Implemented reference path** | `adapters/mcp/server.js`; bounded tests exist |
-| TRUYN as MCP server, loopback HTTP | MCP `2026-07-28` transport shape + selected legacy behavior | **Implemented / bounded CI-proven** | POST-only loopback bridge, Origin guard, modern routing headers; not claimed as complete ecosystem certification |
-| MCP client/provider path | MCP `2026-07-28` | **Implemented bounded single-tool path** | `adapters/providers/mcp-http-tool.js`; configured tool only, not general discovery/import |
-| General MCP tool discovery/import | MCP `2026-07-28` | **Not implemented** | planned interoperability gate |
+| TRUYN as MCP server, stdio | MCP `2026-07-28` + selected legacy behavior | **Implemented / bounded CI-proven current-contract slice** | `adapters/mcp/server.js`; `tests/mcp-current.test.js` proves self-describing modern requests, modern response shape/cache hints and legacy separation |
+| TRUYN as MCP server, loopback HTTP | MCP `2026-07-28` + selected legacy behavior | **Implemented / bounded CI-proven current-contract slice** | POST-only loopback bridge; modern protocol/method/name header agreement, JSON content-type gate, no modern session ID, Origin guard; not claimed as complete ecosystem certification |
+| MCP client/provider path | MCP `2026-07-28` | **Implemented / bounded CI-proven single-tool path** | `adapters/providers/mcp-http-tool.js`; complete modern request envelope + routing headers and bounded JSON/SSE result handling; configured tool only, not general discovery/import |
+| General MCP tool discovery/import | MCP `2026-07-28` | **Not implemented** | C2 interoperability gate |
 | MCP resources → TRUYN objects/state | MCP `2026-07-28` | **Defined only** | semantic mapping requires explicit immutability/publication rules |
 | A2A Agent Card facade | A2A 1.x | **Defined only** | no `adapters/a2a/` implementation yet |
 | A2A server task interface | A2A 1.x | **Defined only** | Send Message / Task / Artifact bridge not implemented |
@@ -25,7 +25,7 @@ This document records factual compatibility status for the A2A and MCP interoper
 
 ## What the existing MCP code proves
 
-The repository currently proves a bounded MCP integration, not a merely aspirational adapter declaration.
+The repository now proves a bounded MCP `2026-07-28` current-contract slice for the MCP features TRUYN actually implements; this is not a claim of complete MCP ecosystem certification or every optional MCP feature.
 
 `adapters/mcp/server.js` exposes:
 
@@ -36,11 +36,13 @@ The repository currently proves a bounded MCP integration, not a merely aspirati
 - `truyn_poll`;
 - `truyn_result`.
 
-`tests/adapters.test.js` exercises MCP discovery/tool listing/tool execution and the loopback HTTP path with modern protocol routing headers.
+For the modern `2026-07-28` path, every request is self-describing with the protocol version and client capabilities in `_meta`; `clientInfo` is accepted as optional but validated when present. `server/discover` and cacheable list results carry explicit cache hints, server identity is projected through response `_meta`, and the HTTP binding enforces matched protocol/method/name routing headers without creating an `Mcp-Session-Id`.
 
-`adapters/providers/mcp-http-tool.js` can invoke one configured remote MCP tool as a TRUYN provider path.
+`tests/mcp-current.test.js` covers the modern discovery/list/tool path, legacy `initialize` separation, missing/mismatched protocol metadata and routing headers, unsupported versions, invalid HTTP content type and modern no-session behavior. `tests/adapters.test.js` retains the composed TRUYN integration path using the modern request envelope.
 
-The boundary that remains open is **generalized and certified interoperability**: complete current MCP conformance, generic discovery/import, A2A support and real bidirectional A2A↔TRUYN↔MCP proof.
+`adapters/providers/mcp-http-tool.js` can invoke one configured remote MCP tool as a TRUYN provider path. That outbound request now carries the full modern per-request envelope and routing headers and accepts bounded JSON or SSE JSON-RPC results with response-ID validation.
+
+The boundary that remains open is **generalized interoperability**: generic MCP discovery/import, broader optional MCP surfaces/extensions, A2A support and real bidirectional A2A↔TRUYN↔MCP proof.
 
 ## A2A mapping target
 
@@ -80,12 +82,12 @@ A2A, MCP and TRUYN have independent release cadence.
 
 ## Acceptance evidence required
 
-Before this matrix can mark A2A/MCP bridge compatibility as proven, the repository needs a durable evidence report covering:
+Before this matrix can mark the complete A2A/MCP bridge compatibility gate as proven, the repository still needs a durable evidence report covering:
 
 1. A2A Agent Card discovery and authenticated/private discovery behavior;
 2. A2A task + artifact execution through TRUYN;
 3. TRUYN execution of a remote A2A provider;
-4. current MCP server/client compatibility for the selected feature set;
+4. general authorized MCP discovery/import for the selected feature set;
 5. A2A→TRUYN→MCP round trip;
 6. MCP→TRUYN→A2A round trip;
 7. text/structured data and at least one referenced file/artifact case;
