@@ -1,5 +1,10 @@
 export const MCP_PROVIDER_PROTOCOL_VERSION = '2026-07-28';
 
+const MCP_PROTOCOL_VERSION_META_KEY = 'io.modelcontextprotocol/protocolVersion';
+const MCP_CLIENT_INFO_META_KEY = 'io.modelcontextprotocol/clientInfo';
+const MCP_CLIENT_CAPABILITIES_META_KEY = 'io.modelcontextprotocol/clientCapabilities';
+const MAX_SSE_RESPONSE_BYTES = 1024 * 1024;
+
 function normalizeEndpoint(endpoint) {
   let parsed;
   try { parsed = new URL(endpoint); } catch { throw new Error('MCP_HTTP_ENDPOINT must be an absolute URL'); }
@@ -32,6 +37,38 @@ function errorText(result) {
   return text || 'MCP tool returned an error';
 }
 
+function parseSseJsonRpc(text, expectedId) {
+  if (Buffer.byteLength(text, 'utf8') > MAX_SSE_RESPONSE_BYTES) throw new Error('MCP SSE response exceeds size limit');
+  const events = text.split(/\r?\n\r?\n/);
+  for (const event of events) {
+    const data = event
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trimStart())
+      .join('\n');
+    if (!data) continue;
+    let message;
+    try { message = JSON.parse(data); } catch { continue; }
+    if (message?.id === expectedId) return message;
+  }
+  throw new Error('MCP SSE response did not contain the matching JSON-RPC result');
+}
+
+async function readProviderResponse(response, expectedId) {
+  const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
+  let body;
+  if (contentType.includes('application/json')) {
+    body = await response.json();
+  } else if (contentType.includes('text/event-stream')) {
+    if (typeof response.text !== 'function') throw new Error('MCP SSE response body is unavailable');
+    body = parseSseJsonRpc(await response.text(), expectedId);
+  } else {
+    throw new Error(`MCP HTTP provider requires application/json or text/event-stream response, received ${contentType || 'unknown content type'}`);
+  }
+  if (body?.id !== undefined && body.id !== expectedId) throw new Error('MCP JSON-RPC response id mismatch');
+  return body;
+}
+
 export function createMcpHttpToolProvider({
   endpoint = process.env.MCP_HTTP_ENDPOINT,
   tool = process.env.MCP_HTTP_TOOL,
@@ -55,7 +92,7 @@ export function createMcpHttpToolProvider({
       const id = `truyn-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       const headers = {
         'content-type': 'application/json',
-        accept: 'application/json',
+        accept: 'application/json, text/event-stream',
         'mcp-protocol-version': MCP_PROVIDER_PROTOCOL_VERSION,
         'mcp-method': 'tools/call',
         'mcp-name': tool
@@ -73,20 +110,18 @@ export function createMcpHttpToolProvider({
             name: tool,
             arguments: { capability, input, policy: policy || {} },
             _meta: {
-              'io.modelcontextprotocol/clientInfo': {
+              [MCP_PROTOCOL_VERSION_META_KEY]: MCP_PROVIDER_PROTOCOL_VERSION,
+              [MCP_CLIENT_INFO_META_KEY]: {
                 name: 'truyn-byok-provider',
                 version: '0.1.0'
-              }
+              },
+              [MCP_CLIENT_CAPABILITIES_META_KEY]: {}
             }
           }
         })
       });
 
-      const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
-      if (!contentType.includes('application/json')) {
-        throw new Error(`MCP HTTP provider requires application/json response, received ${contentType || 'unknown content type'}`);
-      }
-      const body = await response.json();
+      const body = await readProviderResponse(response, id);
       if (!response.ok) throw new Error(body?.error?.message || `MCP HTTP ${response.status}`);
       if (body?.error) throw new Error(body.error.message || 'MCP JSON-RPC error');
       if (body?.result?.isError) throw new Error(errorText(body.result).slice(0, 500));
