@@ -172,7 +172,7 @@ test('public repository contains no known operational/cloud leakage or credentia
     }
 
     const ext = path.extname(file.relative).toLowerCase();
-    if (!TEXT_EXTENSIONS.has(ext) && !['Dockerfile', 'LICENSE', 'VERSION'].includes(path.basename(file.relative))) continue;
+    if (!TEXT_EXTENSIONS.has(ext) && !['DCO', 'Dockerfile', 'LICENSE', 'VERSION'].includes(path.basename(file.relative))) continue;
     let content;
     try { content = await readFile(file.absolute, 'utf8'); } catch { continue; }
 
