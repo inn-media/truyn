@@ -53,7 +53,7 @@ Governance maturity uses the independent G0-G5 model defined in `../../GOVERNANC
 | Sponsored billing | Defined | Guard implementation exists | activation requires signed entitlement + durable atomic usage store | production entitlement issuance/store deployment open |
 | Prepaid/subscription billing | Defined | fail-closed placeholder | denies without resolver | entitlement resolver/accounting not implemented |
 | **Contribution provenance / DCO 1.1** | Accepted governance policy | **Implemented in CI for pull requests** | root `DCO`; decision `2026-08-23-mandatory-dco-1.1.md`; `DCO` job checks exact PR base SHA → head SHA; no manual `workflow_dispatch` path | repository ruleset/branch-policy enforcement is an operational setting and is not inferred by this document without separate proof |
-| MCP interoperability edge | Defined | **Implemented bounded reference server + configured remote-tool path** | adapter tests cover tools/header path | full current MCP conformance/general discovery-import not yet proven |
+| MCP interoperability edge | Defined | **Implemented bounded MCP `2026-07-28` current-contract server + configured remote-tool path** | PR `#324`; CI `32858272119`; `tests/mcp-current.test.js` + composed adapter tests | general MCP discovery/import and broader optional MCP ecosystem/extension conformance not yet proven |
 | A2A interoperability edge | **Defined** | **Not implemented** | none | Agent Card + task/artifact server/client bridges required |
 | A2A↔TRUYN↔MCP bridge | **Defined** | **Not implemented** | none | bidirectional cross-protocol proof + security matrix required |
 | Settlement adapters (x402/AP2) | **Defined** | **Not implemented** | none | deferred v0.9 milestone after higher-priority productionization/operations gates |
@@ -174,9 +174,9 @@ Current state must therefore be described as:
 
 ## A2A / MCP interoperability status boundary
 
-The repository contains working bounded MCP integration code, so MCP is not “planned only.” Implemented reference paths include TRUYN-as-MCP over stdio, a loopback MCP HTTP bridge, a configured remote MCP HTTP tool provider path, and bounded adapter tests.
+The repository now contains a bounded CI-proven selected MCP `2026-07-28` current-contract slice: TRUYN-as-MCP over stdio, a loopback MCP HTTP bridge, a configured remote MCP HTTP tool provider path, self-describing modern request metadata, modern routing-header agreement, bounded JSON/SSE result handling, explicit version/content-type failures, and private-provider execution-denial coverage.
 
-Still open: full selected-version MCP conformance, general MCP discovery/import, A2A Agent Card/server/client bridges, bidirectional A2A↔TRUYN↔MCP real round trips, artifact/provenance translation and cross-protocol negative provider-security evidence.
+Still open: authorized general MCP discovery/import, broader optional MCP ecosystem/extension conformance, A2A Agent Card/server/client bridges, bidirectional A2A↔TRUYN↔MCP real round trips, artifact/provenance translation and complete cross-protocol negative provider-security evidence.
 
 Transport authentication from A2A or MCP never substitutes for TRUYN provider authorization, billing responsibility or Trustability.
 
