@@ -6,7 +6,7 @@ import { createIdentity } from '../core/identity/index.js';
 import { createFunctionAdapter, TruynAdapterHost } from '../adapters/sdk/index.js';
 import { createProviderAccessPolicy } from '../core/security/provider-access.js';
 import { createHttpAdapterServer } from '../adapters/http/server.js';
-import { createMcpHandler, createMcpHttpServer, MCP_MODERN_VERSION } from '../adapters/mcp/server.js';
+import { createMcpHandler, createMcpHttpServer, createMcpModernMeta, MCP_MODERN_VERSION } from '../adapters/mcp/server.js';
 
 async function fixture() {
   const relay = createRelay({ localDevelopmentMode: true });
@@ -15,6 +15,13 @@ async function fixture() {
   const provider = new TruynNode({ relayUrl, identity: createIdentity() });
   await requester.register({ name: 'requester' });
   return { relay, relayUrl, requester, provider };
+}
+
+function modernParams(extra = {}) {
+  return {
+    ...extra,
+    _meta: createMcpModernMeta({ clientName: 'adapters-test', clientVersion: '1' })
+  };
 }
 
 test('AdapterHost executes a signed NEED and returns RESULT', async (t) => {
@@ -43,13 +50,13 @@ test('MCP handler supports modern discovery, legacy initialize and TRUYN tools',
   const { relay, requester } = await fixture();
   t.after(() => relay.close());
   const handle = createMcpHandler({ node: requester });
-  const discover = await handle({ jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: {} } });
+  const discover = await handle({ jsonrpc: '2.0', id: 1, method: 'server/discover', params: modernParams() });
   assert.ok(discover.result.supportedVersions.includes(MCP_MODERN_VERSION));
   const initialize = await handle({ jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '2025-11-25' } });
   assert.equal(initialize.result.protocolVersion, '2025-11-25');
-  const list = await handle({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} });
+  const list = await handle({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: modernParams() });
   assert.ok(list.result.tools.some((tool) => tool.name === 'truyn_need'));
-  const identity = await handle({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'truyn_identity', arguments: {} } });
+  const identity = await handle({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: modernParams({ name: 'truyn_identity', arguments: {} }) });
   assert.equal(identity.result.structuredContent.nodeId, requester.identity.nodeId);
 });
 
@@ -82,7 +89,7 @@ test('MCP Streamable HTTP validates modern routing headers and executes tools', 
       'mcp-method': 'tools/call',
       'mcp-name': 'truyn_identity'
     },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 'a', method: 'tools/call', params: { name: 'truyn_identity', arguments: {}, _meta: {} } })
+    body: JSON.stringify({ jsonrpc: '2.0', id: 'a', method: 'tools/call', params: modernParams({ name: 'truyn_identity', arguments: {} }) })
   });
   assert.equal(response.status, 200);
   const body = await response.json();
