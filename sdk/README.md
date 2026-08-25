@@ -2,7 +2,7 @@
 
 Native first-party client libraries for applications that integrate directly with TRUYN without depending on an agent-specific provider adapter.
 
-**Current maturity:** architecture/scaffolding only. These directories do not yet represent published production-ready SDK packages.
+**Current maturity:** DX-1 shared conformance/runtime foundation is active; language package directories remain unpublished scaffolds and are not yet production-ready SDK distributions.
 
 ## Required first-party SDKs
 
@@ -39,7 +39,7 @@ The SDK is a client convenience layer. It is never an authorization bypass and m
 
 ### Shared DX-1 conformance data
 
-The language-neutral DX-1 contract is now rooted at [`conformance/`](conformance/). It contains the shared DTO schema and the single golden fixture set that the TypeScript and Python reference SDKs must consume.
+The language-neutral DX-1 contract is rooted at [`conformance/`](conformance/). It contains the shared DTO schema, foundational golden fixtures, Agent Descriptor cryptographic/negotiation vectors and executable reference semantics that the TypeScript and Python implementations must consume.
 
 The contract is intentionally mapped onto existing TRUYN/1 runtime/spec surfaces. It does not add network endpoints, protocol message kinds, routing behavior, provider-policy behavior or D-1000 semantics.
 
@@ -55,8 +55,19 @@ https://<domain>/.well-known/truyn-agent.json
 
 The Descriptor provides identity, supported TRUYN versions/interfaces, public capability classes and interaction features. It does **not** replace dynamic `OFFER` state and never grants requester authorization.
 
+The shared DX-1 reference now implements:
+
+- v1 JSON parsing and structural validation;
+- expiry validation with explicit offline/cache override;
+- descriptor/protocol/interface compatibility negotiation;
+- identity-bound Ed25519 signature verification using existing TRUYN canonicalization;
+- fail-closed behavior for tampering, wrong identity keys and unsupported delegated descriptor keys.
+
+These are conformance semantics for the upcoming language SDKs; they do not yet make the TypeScript or Python package directories published SDKs.
+
 See:
 
+- `conformance/README.md`
 - `../docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`
 - `../spec/protocol/v1/agent-descriptor.md`
 - `../docs/compatibility/SDK_COMPATIBILITY.md`
