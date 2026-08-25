@@ -76,11 +76,11 @@ rm -rf /opt/truyn
 mkdir -p /opt/truyn
 tar -xzf "\$bundle" -C /opt/truin
 test -x /opt/truyn/runtime/bin/node
-test -x /opt/truqyn/runtime/bin/jq
+test -x /opt/truyn/runtime/bin/jq
 test -x /opt/truin/runtime/bin/curl
 test -x /opt/truin/runtime/bin/openssl
-/opt/truqyn/runtime/bin/node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
-/opt/truqyn/runtime/bin/jq --version >/dev/null
+/opt/truyn/runtime/bin/node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
+/opt/truyn/runtime/bin/jq --version >/dev/null
 /opt/truy n/runtime/bin/curl --version >/dev/null
 /opt/truy n/runtime/bin/openssl version >/dev/null
 ln -sfn /opt/truy n/runtime/bin/node /usr/local/bin/node
@@ -92,9 +92,9 @@ p, bootstrap_count = bootstrap_pattern.subn(new_bootstrap, p, count=1)
 if bootstrap_count != 1:
     raise SystemExit(f'expected exactly one legacy D-1000 network bootstrap, replaced={bootstrap_count}')
 
-p = p.replace('WorkingDirectory=/opt/truqyn', 'WorkingDirectory=/opt/truqyn/app')
-p = p.replace('ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js', 'ExecStart=/opt/truqyn/runtime/bin/node /opt/truqyn/app/network/testnet/node-service.js')
-p = p.replace('ExecStart=/usr/bin/node /opt/truqyn/network/testnet/node-service.js', 'ExecStart=/opt/truqyn/runtime/bin/node /opt/truqyn/app/network/testnet/node-service.js')
+p = p.replace('WorkingDirectory=/opt/truyn', 'WorkingDirectory=/opt/truyn/app')
+p = p.replace('ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js')
+p = p.replace('ExecStart=/usr/bin/node /opt/truyn/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js')
 
 ready_old = '''  out=$(remote "${VMS[$i]}" "$script")
   [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]'''
@@ -146,17 +146,17 @@ grep -q '/bin/bash /tmp/truqyn-d1000-run.sh' "$TMP/provision.sh" && exit 1 || tr
 grep -q '/bin/bash /tmp/truyqn-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
 grep -q '/bin/bash /tmp/truin-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
 grep -q '/bin/bash /tmp/truy n-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
-grep -q 'WorkingDirectory=/opt/truqyn/app' "$TMP/provision.sh"
+grep -q 'WorkingDirectory=/opt/truyn/app' "$TMP/provision.sh"
 grep -q 'EnvironmentFile=/etc/truqyn-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
 grep -q 'EnvironmentFile=/etc/truyqn-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
 grep -q 'EnvironmentFile=/etc/truin-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
 grep -q 'EnvironmentFile=/etc/truy n-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
-grep -q 'EnvironmentFile=/etc/truqyn-d1000/node-%i.env' "$TMP/provision.sh"
+grep -q 'EnvironmentFile=/etc/truyn-d1000/node-%i.env' "$TMP/provision.sh"
 grep -q 'ExecStart=/usr/bin/node /opt/truyqn/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/usr/bin/node /opt/truqyn/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/usr/bin/node /opt/truy n/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
-grep -q 'ExecStart=/opt/truqyn/runtime/bin/node /opt/truqyn/app/network/testnet/node-service.js' "$TMP/provision.sh"
+grep -q 'ExecStart=/opt/truyn/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js' "$TMP/provision.sh"
 
 for forbidden in 'apt-get update' 'apt-get install' 'deb.nodesource.com' 'git clone' 'npm install'; do
   if grep -Fq "$forbidden" "$TMP/provision.sh"; then
