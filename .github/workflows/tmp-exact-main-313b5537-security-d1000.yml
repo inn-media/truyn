@@ -42,7 +42,7 @@ jobs:
           commit_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}")"
           test "$(jq '.files | length' <<<"$commit_json")" = '1'
           test "$(jq -r '.files[0].filename' <<<"$commit_json")" = '.github/workflows/tmp-exact-main-313b5537-security-d1000.yml'
-          test "$(jq -r '.files[0].status' <<<"$commit_json")" = 'added'
+          test "$(jq -r '.files[0].status' <<<"$commit_json")" = 'modified'
 
       - name: Verify ordinary CI and CodeQL on exact main
         env:
@@ -241,10 +241,12 @@ jobs:
           test -n "$SECURITY_ARTIFACT_DIGEST"
           test -n "$D1000_ARTIFACT_ID"
           test -n "$D1000_ARTIFACT_DIGEST"
+          security_digest="sha256:${SECURITY_ARTIFACT_DIGEST#sha256:}"
+          d1000_digest="sha256:${D1000_ARTIFACT_DIGEST#sha256:}"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${SECURITY_ARTIFACT_ID}" --jq '.name')" = "$SECURITY_ARTIFACT"
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${SECURITY_ARTIFACT_ID}" --jq '.digest')" = "$SECURITY_ARTIFACT_DIGEST"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${SECURITY_ARTIFACT_ID}" --jq '.digest')" = "$security_digest"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${D1000_ARTIFACT_ID}" --jq '.name')" = "$D1000_ARTIFACT"
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${D1000_ARTIFACT_ID}" --jq '.digest')" = "$D1000_ARTIFACT_DIGEST"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${D1000_ARTIFACT_ID}" --jq '.digest')" = "$d1000_digest"
           bundle_sha="$(awk '{print $1}' d1000/truyn-d1000-runtime.tgz.sha256)"
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
@@ -270,11 +272,11 @@ jobs:
           security_status=truyn/main-ci-exact-313b5537
           security_artifact_id=${SECURITY_ARTIFACT_ID}
           security_artifact_name=${SECURITY_ARTIFACT}
-          security_artifact_digest=${SECURITY_ARTIFACT_DIGEST}
+          security_artifact_digest=${security_digest}
           d1000_status=truyn/d1000-prepare-exact-313b5537
           d1000_artifact_id=${D1000_ARTIFACT_ID}
           d1000_artifact_name=${D1000_ARTIFACT}
-          d1000_artifact_digest=${D1000_ARTIFACT_DIGEST}
+          d1000_artifact_digest=${d1000_digest}
           runtime_bundle_sha256=${bundle_sha}
           prepareOnly=true
           azureMutation=false
