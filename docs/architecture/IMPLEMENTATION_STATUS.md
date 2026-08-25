@@ -1,14 +1,13 @@
 # TRUYN Implementation Status
 
-**Status:** canonical factual status index.
-
-**Snapshot date:** 2026-08-23  
+**Status:** canonical factual status index.  
+**Snapshot date:** 2026-08-25  
 **Software version:** `0.1.0-dev`  
 **Protocol generation:** `TRUYN/1` draft
 
-This document answers one question: **what is actually implemented and proven now, versus only designed or planned?**
+This document answers one question: **what is actually implemented and proven now, versus only designed, admitted for a later gate, or planned?**
 
-Architecture documents define contracts. Benchmark reports prove bounded claims. Governance documents define how the standard may change. This file connects those dimensions and MUST be updated when implementation or governance maturity materially changes.
+Architecture documents define contracts. Benchmark reports prove bounded claims. Governance documents define how the standard may change. GitHub Actions, temporary launcher workflows, diagnostic pull requests and operational issues are execution mechanisms; they are not substitutes for durable benchmark evidence.
 
 ## Status vocabulary
 
@@ -22,6 +21,8 @@ Technical maturity:
 - **Internet-scale proven** — large real-node/WAN/adversarial evidence exists.
 - **Stable** — compatibility guarantees are declared.
 
+An **admission/preflight PASS** means the exact source, immutable runtime and prerequisites are accepted to start the corresponding paid/real campaign. It does **not** promote the campaign itself to PASS.
+
 Governance maturity uses the independent G0-G5 model defined in `../../GOVERNANCE.md` and `GOVERNANCE_ARCHITECTURE.md`.
 
 ## System status matrix
@@ -29,19 +30,21 @@ Governance maturity uses the independent G0-G5 model defined in `../../GOVERNANC
 | Subsystem | Architecture | Implementation / operating state | Evidence | Current limitation / next gate |
 |---|---|---|---|---|
 | Node identity / signed envelopes | Defined | Implemented | CI-proven | protocol still draft |
-| QUIC underlay | Defined | Implemented | CI-proven | multi-host/WAN productionization still open |
+| QUIC underlay | Defined | Implemented | CI-proven | Internet-scale lifecycle/SLO closure open |
 | Authenticated peer sessions | Defined | Implemented | CI-proven | Internet churn/reachability scale open |
-| Signed peer-record lifecycle | Defined | Implemented | CI-proven renewal, durable sequence-before-dissemination, authenticated announce/PING repair and stale-client invalidation | heterogeneous WAN/NAT lifecycle evidence still open |
-| Kademlia discovery/state RPC | Defined | Implemented | CI-proven | durability/repair/large real-node scale open |
-| Direct-first P2P + relay fallback | Defined | Implemented | CI-proven | heterogeneous NAT matrix open |
+| Signed peer-record lifecycle | Defined | Implemented | CI-proven renewal, durable sequence-before-dissemination, authenticated announce/PING repair and stale-client invalidation | larger operational lifecycle evidence open |
+| Kademlia discovery/state RPC | Defined | Implemented | CI-proven | larger durability/repair scale open |
+| Direct-first P2P + relay fallback | Defined | Implemented | CI-proven + Class C real WAN proof | broader production SLO closure open |
 | STUN / same-port hole punching | Defined | Implemented reference path | CI-proven bounded path | universal NAT traversal is not claimed |
+| **Class C heterogeneous WAN/reachability** | Defined | **Accepted / PASS** | `CLASS_C_HETEROGENEOUS_WAN_2026-08-18.md`; real Azure/GCP, partition/heal, NAT, double-NAT/CGNAT-like, authenticated relay outage/recovery | carrier-operated CGNAT field validation and broader production SLOs are separate gates |
+| **Class D-100 scale/resilience** | Defined | **Accepted / PASS — 100 real processes, identities and QUIC endpoints on 4 hosts** | `CLASS_D_100_2026-08-22.md`; canonical evaluator PASS, strict terminal PASS, cleanup confirmed, remaining resources 0 | does not prove D-1000 or Internet scale |
+| **Class D-1000 scale/resilience** | Defined | **Admission/preflight PASS only for current candidate `ee0732b57a602bea8df9f964bf5fe27d19ee77f8`** | exact CI `32853716543` PASS; CodeQL `32853711776` PASS; immutable preflight issue `#320`, run `32853975632`, artifact `9565547060`, digest `sha256:cbcce8b42d52791799a50d18fe9313897fccba7725890badec82a006a9881b75`; runtime bundle SHA-256 `3951f3a5bd3099ffd4bafe9cb13959e9cec06e07e464f62c5bdc3839691723bd`; 1-VM guest smoke + strict cleanup PASS | **full 20-host × 50 = 1,000-real-process campaign has not yet produced evaluator PASS + terminal PASS + cleanup=true + remainingResources=0** |
 | Semantic index lifecycle | Defined | Implemented | benchmark/CI proven | broader operational SLOs open |
 | Semantic retrieval v2/v3 | Defined | Implemented | extensive benchmark evidence | infrastructure-block scale is not real-node scale |
 | Distributed semantic retrieval | Defined | Implemented | benchmark/CI proven | larger decentralized holder networks open |
 | Byzantine read-quorum placement | Defined | Implemented reference slice | benchmark/CI proven | open-network adversarial scale open |
 | Claim-centric Trustability | Defined | Implemented | CI/benchmark proven | policy calibration/domain operations continue |
 | Active trust lifecycle | Defined | Implemented | CI/benchmark proven | production authority/revocation operations open |
-| QUIC/Kademlia trust network | Defined | Implemented | bounded four-node real-testnet proven | 100/1,000 real nodes + adversarial WAN open |
 | Provider ownership | Defined | Implemented node-level reference boundary | negative-test proven | rich account/org tenant control plane open |
 | Provider discovery authorization | Defined | Implemented | negative-test proven | richer grant policy open |
 | Provider-host access control | Defined | Implemented | negative-test proven | stable account binding open |
@@ -49,6 +52,7 @@ Governance maturity uses the independent G0-G5 model defined in `../../GOVERNANC
 | Owner-funded billing safety | Defined | Implemented | fail-closed tests | production accounting/tenant attribution open |
 | Sponsored billing | Defined | Guard implementation exists | activation requires signed entitlement + durable atomic usage store | production entitlement issuance/store deployment open |
 | Prepaid/subscription billing | Defined | fail-closed placeholder | denies without resolver | entitlement resolver/accounting not implemented |
+| **Contribution provenance / DCO 1.1** | Accepted governance policy | **Implemented in CI for pull requests** | root `DCO`; decision `2026-08-23-mandatory-dco-1.1.md`; `DCO` job checks exact PR base SHA → head SHA; no manual `workflow_dispatch` path | repository ruleset/branch-policy enforcement is an operational setting and is not inferred by this document without separate proof |
 | MCP interoperability edge | Defined | **Implemented bounded reference server + configured remote-tool path** | adapter tests cover tools/header path | full current MCP conformance/general discovery-import not yet proven |
 | A2A interoperability edge | **Defined** | **Not implemented** | none | Agent Card + task/artifact server/client bridges required |
 | A2A↔TRUYN↔MCP bridge | **Defined** | **Not implemented** | none | bidirectional cross-protocol proof + security matrix required |
@@ -59,13 +63,76 @@ Governance maturity uses the independent G0-G5 model defined in `../../GOVERNANC
 | Origin guard / production relay edge perimeter | Defined | Reference controls implemented; current production relay deployment-proven | CI/security tests + `AZURE_ORIGIN_LOCK_2026-08-23.md` live HTTP/WS/spoof negative matrix | proof is deployment-specific; material edge/origin changes require re-acceptance |
 | Protected-provider M2M guard | Defined | Implemented | regression proven | live token issuance/rotation is deployment-specific |
 | Multi-cloud text/image/video adapters | Defined | Implemented reference paths | smoke/benchmark evidence for available deployments | cloud entitlement/quota can block individual models |
-| Operations documentation | Defined | baseline implemented | this docs layer | production runbooks evolve with testnet/mainnet |
-| Compatibility documentation | Defined | baseline implemented | this docs layer | no stable `TRUYN/1`, A2A/MCP or SDK compatibility promise yet |
-| Mainnet | Defined conceptually | Not productionized | none | requires productionization + stabilization gates |
+| Operations documentation | Defined | baseline implemented | docs layer + accepted benchmark records | production runbooks evolve with testnet/mainnet |
+| Compatibility documentation | Defined | baseline implemented | docs layer | no stable `TRUYN/1`, A2A/MCP or SDK compatibility promise yet |
+| Mainnet | Defined conceptually | Not productionized | none | requires D-1000 acceptance plus later productionization/stabilization gates |
+
+## Network-productionization boundary
+
+The roadmap has advanced beyond the 2026-08-23 wording that still described Class C and 100-real-node scale as future work.
+
+### Closed durable gates
+
+**Class C — ACCEPTED / PASS.** The durable report proves a heterogeneous Azure/GCP topology with real direct cross-cloud QUIC, a packet-path partition and heal, real Azure NAT, two-layer CGNAT-like traversal, authenticated relay fallback, relay outage fail-closed behavior, recovery and cleanup.
+
+**Class D-100 V17 — ACCEPTED / PASS.** The durable report proves 100 real processes, 100 identities, 100 QUIC endpoints on four hosts; 100% baseline/healed routing; recovery/convergence p95 32,090 ms; all required adversarial classes; zero accepted safety violations; canonical evaluator PASS; strict terminal PASS; cleanup confirmed and zero remaining run resources.
+
+### Current D-1000 admission tuple — PASS, campaign still open
+
+Current accepted source candidate:
+
+```text
+tested source: ee0732b57a602bea8df9f964bf5fe27d19ee77f8
+pinned ref: d1000/pinned-ee0732b5
+exact CI: 32853716543 = success
+exact CodeQL: 32853711776 = success
+immutable preflight: 32853975632 = PASS
+immutable preflight issue: #320
+artifact ID: 9565547060
+artifact digest: sha256:cbcce8b42d52791799a50d18fe9313897fccba7725890badec82a006a9881b75
+runtime bundle sha256: 3951f3a5bd3099ffd4bafe9cb13959e9cec06e07e464f62c5bdc3839691723bd
+1-VM immutable guest smoke: PASS
+preflight cleanup: true
+preflight remaining resources: 0
+```
+
+The current preflight includes a real Azure Ubuntu 22.04 / `Standard_E2as_v7` guest smoke and validates the portable immutable runtime bundle introduced by merged PR `#315`.
+
+**This is not a D-1000 acceptance result.** Promotion requires a new pinned full run with all of the canonical predicates simultaneously satisfied, including:
+
+- 20 hosts × 50 real processes = 1,000 real processes;
+- 1,000 distinct identities and QUIC sockets/endpoints;
+- baseline and healed routing `>=99%`;
+- recovery and convergence p95 `<=120 s`;
+- all required adversarial predicates;
+- zero safety violations;
+- canonical evaluator `PASS`;
+- strict terminal verifier `PASS`;
+- `cleanup=true`;
+- `remainingResources=0`;
+- immutable run artifact and digest;
+- durable sanitized benchmark report committed under `docs/benchmarks/`.
+
+Historical D-1000 starts, failures, capacity probes and diagnostic runs remain useful audit history, but once superseded they are closed operational records rather than current roadmap gates.
+
+## DCO 1.1 status boundary
+
+TRUYN adopted mandatory **Developer Certificate of Origin 1.1** contribution provenance on 2026-08-23.
+
+The current repository CI contract is intentionally narrow and deterministic:
+
+- the required job name in the workflow is `DCO`;
+- it runs only when `github.event_name == 'pull_request'`;
+- it verifies the full `pull_request.base.sha → pull_request.head.sha` commit range;
+- `workflow_dispatch` is absent from the CI workflow;
+- pushes to `main` run the normal test job; DCO is not re-evaluated against a synthetic `HEAD^` merge range;
+- new cleanup/documentation commits created by project automation must also contain a valid `Signed-off-by` trailer when proposed through a PR.
+
+DCO is contribution provenance, not a replacement for Apache-2.0 licensing, code review, security checks or governance review.
 
 ## Governance status boundary
 
-Governance is now an explicit architecture dimension rather than an implicit repository-owner policy.
+Governance is an explicit architecture dimension rather than an implicit repository-owner policy.
 
 What is **defined now (G1)**:
 
@@ -76,54 +143,25 @@ What is **defined now (G1)**:
 - decision classes A-D plus governance changes;
 - future TSC quorum, ordinary and two-thirds supermajority rules;
 - conflict/recusal/public decision-record expectations;
-- architectural separation of protocol governance, repository ownership, infrastructure operation and commercial ownership;
-- explicit transition target from Founding Stewardship to multi-organization and neutral stewardship.
+- architectural separation of protocol governance, repository ownership, infrastructure operation and commercial ownership.
 
-What is **not yet factual**:
-
-- a demonstrated external/independent Maintainer cohort (G2);
-- a constituted multi-organization TSC (G3);
-- three independent constituencies with no single-vendor voting majority;
-- neutral legal/foundation/stewardship ownership of marks/namespaces/specification stewardship (G4);
-- demonstrated succession/appeals/governance continuity (G5).
+What is **not yet factual**: a demonstrated external Maintainer cohort (G2), a multi-organization TSC (G3), neutral legal stewardship (G4), or demonstrated continuity/succession (G5).
 
 Current state must therefore be described as:
 
 > **Public governance architecture/process defined; operational governance remains bootstrap Founding Stewardship.**
 
-It must **not** be described as already neutrally governed, foundation-governed or multi-vendor governed.
-
-GitHub collaborator/CODEOWNERS permissions are implementation controls, not automatic governance roles. The factual role roster is `../../MAINTAINERS.md`.
-
-See `GOVERNANCE_ARCHITECTURE.md`, `../../GOVERNANCE.md`, `../../MAINTAINERS.md` and `../governance/`.
-
 ## A2A / MCP interoperability status boundary
 
-The repository already contains working bounded MCP integration code, so the factual status is **not** “MCP planned only.”
+The repository contains working bounded MCP integration code, so MCP is not “planned only.” Implemented reference paths include TRUYN-as-MCP over stdio, a loopback MCP HTTP bridge, a configured remote MCP HTTP tool provider path, and bounded adapter tests.
 
-Implemented today:
+Still open: full selected-version MCP conformance, general MCP discovery/import, A2A Agent Card/server/client bridges, bidirectional A2A↔TRUYN↔MCP real round trips, artifact/provenance translation and cross-protocol negative provider-security evidence.
 
-- TRUYN-as-MCP server over stdio;
-- loopback MCP HTTP bridge exposing `truyn_identity`, `truyn_find`, `truyn_offer`, `truyn_need`, `truyn_poll`, `truyn_result`;
-- configured remote MCP HTTP tool provider path;
-- bounded adapter tests for MCP discovery/tool execution and modern HTTP routing headers.
-
-Not implemented/proven today:
-
-- complete current MCP feature/conformance closure;
-- general MCP tool/resource discovery/import;
-- any A2A Agent Card/server task bridge;
-- any A2A client/provider adapter;
-- A2A→TRUYN→MCP or MCP→TRUYN→A2A real round-trip evidence;
-- cross-protocol negative security evidence.
-
-The architecture is defined in `A2A_MCP_INTEROPERABILITY.md`; the factual version/support matrix is `../compatibility/A2A_MCP_COMPATIBILITY.md`.
-
-A2A/MCP transport authentication never substitutes for TRUYN provider authorization, billing responsibility or Trustability.
+Transport authentication from A2A or MCP never substitutes for TRUYN provider authorization, billing responsibility or Trustability.
 
 ## Developer Experience status boundary
 
-The required stable-v1 first-party SDK targets are:
+The required stable-v1 first-party SDK targets remain:
 
 ```text
 JavaScript / TypeScript
@@ -133,149 +171,70 @@ Java
 C# / .NET
 ```
 
-Rust is an optional additional track and does not replace any of the five required targets.
-
-What is now **defined**:
-
-- common SDK semantic surface;
-- SDK security/authorization invariants;
-- shared conformance expectations;
-- draft TRUYN Agent Descriptor semantics;
-- target public well-known path `/.well-known/truyn-agent.json` for intentionally public HTTP-facing participants;
-- language/package distribution targets;
-- DX-0 through DX-4 implementation gates.
-
-What is **not yet implemented/proven**:
-
-- published first-party SDK packages;
-- runtime Agent Descriptor serving/discovery;
-- descriptor signature/expiry validation in the SDK/node path;
-- shared golden conformance fixtures across languages;
-- cross-language CI parity;
-- stable SDK compatibility/deprecation guarantees.
-
-The `sdk/` tree must therefore be described as scaffolding/documentation until executable client libraries and conformance evidence exist.
-
-See `SDK_DEVELOPER_EXPERIENCE.md`, `../../spec/protocol/v1/agent-descriptor.md` and `../compatibility/SDK_COMPATIBILITY.md`.
+Rust is optional and does not replace any required target. The architecture, common SDK semantics, security invariants, package targets, compatibility policy and draft TRUYN Agent Descriptor are defined, but the `sdk/` tree remains scaffolding/documentation until executable clients, package publication and shared cross-language conformance evidence exist.
 
 ## Settlement status boundary
 
-TRUYN/1 is explicitly settlement-neutral. The core does not define a currency, payment processor, blockchain, smart contract or settlement rail.
-
-The first planned external adapter targets are x402 (payment/settlement) and AP2 (verifiable agent payment authorization). Their architecture is defined in `docs/architecture/SETTLEMENT_ADAPTERS.md`, but **no adapter implementation, live money movement or production settlement claim exists yet**.
+TRUYN/1 remains settlement-neutral. The core does not define a currency, payment processor, blockchain, smart contract or settlement rail. x402 and AP2 remain planned external adapters; there is no live money-movement or production settlement claim.
 
 ## Implemented security baseline
 
-The current reference implementation enforces these core invariants:
+The current reference implementation keeps the following invariants:
 
-1. provider access defaults to `owner-only` at the low-level provider policy and provider runtime;
+1. provider access defaults to `owner-only` at low-level policy and provider runtime;
 2. unauthorized private providers are filtered before dispatch and checked again before adapter execution;
-3. provider ownership is derived from authenticated/signed provider identity, not requester-controlled ownership metadata;
-4. owner-funded and BYOK provider execution remain private by default;
-5. public provider execution requires explicit opt-in and does not bypass billing policy;
+3. provider ownership is derived from authenticated/signed provider identity, not requester-controlled metadata;
+4. owner-funded and BYOK execution remain private by default;
+5. public provider execution requires explicit opt-in and cannot bypass billing policy;
 6. local development mode hard-fails when combined with public/production relay markers;
 7. oversized HTTP input closes the connection after 413;
-8. origin proof is fail-closed and removed before forwarding inward; the generic token mode is expiry/rotation-capable;
-9. the accepted production relay additionally sanitizes requester proof at Azure Front Door, injects trusted proof only for `SocketAddr` values within Cloudflare CIDRs, restricts Container Apps ingress to `AzureFrontDoor.Backend`, and denies direct Front Door/Container App HTTP and WebSocket bypass;
-10. protected provider M2M proof is transport-only and stripped before the inner relay;
-11. sponsored mode cannot activate without an actor-bound signed entitlement verifier and a durable atomic usage store.
+8. origin proof is fail-closed and stripped before forwarding inward;
+9. the accepted production relay sanitizes requester proof at Azure Front Door, injects trusted proof only from Cloudflare CIDRs, restricts Container Apps ingress to `AzureFrontDoor.Backend`, and denies direct Front Door/Container App HTTP and WebSocket bypass;
+10. protected-provider M2M proof is transport-only and stripped before the inner relay;
+11. sponsored mode cannot activate without actor-bound signed entitlement verification and a durable atomic usage store.
 
-Future SDK/Agent Descriptor and A2A/MCP implementations must preserve these invariants. An SDK, descriptor, Agent Card, MCP tool list or external protocol credential must never turn public metadata into private-provider authorization.
+Future SDK, Agent Descriptor and A2A/MCP implementations must preserve these invariants.
 
-Governance cannot vote these security invariants away silently under a stable protocol identifier. Material normative security changes follow the RFC/decision process, except for time-bounded embargoed incident response followed by a public record after safe disclosure.
+## Evidence and repository-hygiene discipline
 
-See `SECURITY.md`, `docs/security/`, `AUTHORIZATION_MODEL.md`, `BILLING_BOUNDARY.md`, `A2A_MCP_INTEROPERABILITY.md`, `SETTLEMENT_ADAPTERS.md`, `SDK_DEVELOPER_EXPERIENCE.md`, `GOVERNANCE_ARCHITECTURE.md` and `RELAY_SECURITY.md`.
+Durable measured evidence under `docs/benchmarks/` is append-only: **redact sensitive fields, do not delete the report.** Negative historical benchmark evidence remains part of the audit trail.
 
-## Production relay origin-perimeter status boundary
+Operational hygiene follows a different lifecycle:
 
-The current production relay is now **deployment-proven** for direct-origin bypass denial, but this status is intentionally narrower than “all TRUYN deployments are productionized.”
+- temporary one-shot cloud workflows are removed from the default branch after their terminal evidence is pinned;
+- temporary verification/diagnostic PRs are closed without merge once superseded;
+- STARTED/FAIL/PASS operational issues may be closed when the attempt is finished or superseded; closing preserves history and does not erase evidence;
+- one current gate marker may remain open while it is the active admission/evidence pointer (for the current D-1000 candidate, issue `#320`);
+- a successful full D-1000 campaign must be promoted into a durable sanitized benchmark report before this document can say “D-1000 accepted.”
 
-Accepted path:
-
-```text
-Cloudflare
-  ↓
-Azure Front Door SocketAddr sanitize/inject proof
-  ↓
-Container Apps AzureFrontDoor.Backend-only ingress
-  ↓
-runtime origin guard
-  ↓
-inner relay
-```
-
-Accepted evidence: `../benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`.
-
-Tested source: `9b419e7d11baf6ec0d17e7075238e3d758ef16e4`.
-
-Terminal status: `truyn/origin-lock-live-v22 = success`.
-
-The data-plane gate proved:
-
-- Cloudflare public health remains 200 with `CF-Ray`;
-- public HTTP/WebSocket semantics remain available;
-- direct Azure Front Door HTTP and WebSocket return 403;
-- forged proof on direct Azure Front Door HTTP/WebSocket still returns 403;
-- direct Container App HTTP/WebSocket return 403.
-
-Azure Front Door `deploymentStatus` is not used as the decisive readiness signal because it can remain `NotStarted` after successful provisioning. Serving-edge readiness is proven through real data-plane behavior before origin-guard cutover.
-
-Material changes to Cloudflare, Front Door route/rule sets, Cloudflare CIDRs, Container Apps ingress, origin proof or origin topology reopen this gate until the matrix is re-run.
-
-## Evidence discipline
-
-A claim is only promoted to a proven technical maturity when a durable public benchmark/security report exists or the repository CI contract is explicitly referenced. Temporary cloud workflows and Actions logs are operational mechanisms, not the durable evidence ledger.
-
-`docs/benchmarks/` remains append-only. Sensitive fields are redacted; measured reports are not deleted as a security shortcut.
-
-The production origin-lock claim is promoted because a durable report now exists at `../benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`; the earlier negative `ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md` remains preserved as history.
-
-SDK maturity follows the same rule: package publication or a compiling language client is not enough. Cross-language conformance/security evidence is required before promoting SDK parity/stability claims.
-
-A2A/MCP maturity follows the same rule: separate adapter files are not enough. Bidirectional cross-protocol execution, exact-version compatibility and negative provider-security evidence are required before claiming a completed bridge.
-
-Governance maturity follows the same rule: documents can close G1, but G2-G5 require real people/organizations/decisions/legal arrangements. A future foundation name in a document is not evidence of neutral stewardship.
+This distinction prevents temporary operational machinery from accumulating indefinitely while preserving the evidence ledger.
 
 ## Current priority
 
-The primary architecture/engineering priority remains **network productionization**. Closing the production relay origin perimeter removes one security blocker but does not by itself establish mainnet readiness or Internet-scale resilience.
-
-SDK/developer experience, bounded A2A/MCP interoperability and governance institution-building are required pre-v1 productization/standardization tracks that may proceed in parallel where they do not depend on unstable protocol decisions. They do not supersede the network productionization gate and must not be used to imply mainnet maturity.
+The primary architecture/engineering priority is now the **full pinned D-1000 acceptance campaign**, not Class C and not the 100-real-node gate; both of those are already accepted.
 
 ```text
-bounded working decentralized primitives
+Class C heterogeneous WAN/reachability — ACCEPTED
         ↓
-real multi-host / WAN / reachability evidence
+Class D-100 — ACCEPTED
         ↓
-100 real nodes
+D-1000 exact-source admission/preflight — PASS
         ↓
-1,000 real nodes
+D-1000 full 20×50 campaign — CURRENT GATE
         ↓
-Byzantine / Sybil / eclipse / collusion exercises
+long-duration / broader real-network durability + adversarial operations
         ↓
 stable operational and compatibility contracts
         ↓
 A2A/MCP bridge + negative interoperability evidence
         ↓
-SDK DX-1/DX-2/DX-3 completion + five-language conformance
+SDK DX-1/DX-2/DX-3 + five-language conformance
         ↓
-TRUYN/1 + A2A/MCP adapter boundary + Agent Descriptor + SDK compatibility stabilization
+TRUYN/1 + interoperability + Agent Descriptor + SDK compatibility stabilization
         ↓
-settlement-adapter implementation milestone
+optional settlement-adapter implementation
 ```
 
-In parallel, governance evolves independently:
+Governance evolves independently through G2 → G5.
 
-```text
-GOV-0/GOV-1 public governance/process — defined
-        ↓
-GOV-2 open external-maintainer model
-        ↓
-GOV-3 multi-organization TSC
-        ↓
-GOV-4 neutral stewardship
-        ↓
-GOV-5 demonstrated continuity
-```
-
-Until the remaining technical gates are passed, TRUYN should be described as an advanced experimental/reference intelligence-network implementation with a deployment-proven production relay perimeter, not a production mainnet. Until the applicable governance gates are passed, it should be described as an open project with defined public governance under bootstrap Founding Stewardship, not as already neutrally governed.
+Until the remaining technical gates are passed, TRUYN should be described as an advanced experimental/reference intelligence-network implementation with accepted bounded WAN and 100-real-node resilience evidence, a deployment-proven relay perimeter, and an admitted but not yet accepted D-1000 candidate — **not** as a production Internet-scale mainnet.
