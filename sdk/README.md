@@ -37,6 +37,12 @@ All first-party SDKs must provide equivalent TRUYN semantics while remaining idi
 
 The SDK is a client convenience layer. It is never an authorization bypass and must not contain upstream provider credentials in network metadata.
 
+### Shared DX-1 conformance data
+
+The language-neutral DX-1 contract is now rooted at [`conformance/`](conformance/). It contains the shared DTO schema and the single golden fixture set that the TypeScript and Python reference SDKs must consume.
+
+The contract is intentionally mapped onto existing TRUYN/1 runtime/spec surfaces. It does not add network endpoints, protocol message kinds, routing behavior, provider-policy behavior or D-1000 semantics.
+
 ## Agent Descriptor
 
 The onboarding/discovery metadata contract is the **TRUYN Agent Descriptor**.
