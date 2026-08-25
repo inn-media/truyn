@@ -1,0 +1,227 @@
+name: tmp-class-d1000-ee0732b5-immutable-preflight-v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tmp-class-d1000-ee0732b5-immutable-preflight-v2.yml'
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  issues: write
+
+concurrency:
+  group: class-d1000-ee0732b5-immutable-preflight-v2
+  cancel-in-progress: false
+
+env:
+  TESTED_COMMIT: ee0732b57a602bea8df9f964bf5fe27d19ee77f8
+  PINNED_REF: d1000/pinned-ee0732b5
+  EXACT_CI_RUN: '32853716543'
+  EXACT_CODEQL_RUN: '32853711776'
+  ARTIFACT_NAME: class-d-1000-prepare-ee0732b5-v2
+  AZURE_RESOURCE_GROUP: truyn
+  AZURE_LOCATION: eastus2
+  AZURE_VM_SIZE: Standard_E2as_v7
+
+jobs:
+  immutable-preflight:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Enforce one-shot launcher commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          commit_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}")"
+          test "$(jq '.files | length' <<<"$commit_json")" = '1'
+          test "$(jq -r '.files[0].filename' <<<"$commit_json")" = '.github/workflows/tmp-class-d1000-ee0732b5-immutable-preflight-v2.yml'
+          test "$(jq -r '.files[0].status' <<<"$commit_json")" = 'added'
+
+      - name: Record immutable preflight start
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          body="run=${GITHUB_RUN_ID} attempt=${GITHUB_RUN_ATTEMPT} launcher_sha=${GITHUB_SHA} tested_sha=${TESTED_COMMIT} pinned_ref=${PINNED_REF} exact_ci_run=${EXACT_CI_RUN} exact_codeql_run=${EXACT_CODEQL_RUN} vm_smoke=required stage=started"
+          gh api "repos/${GITHUB_REPOSITORY}/issues" \
+            -f 'title=TRUYN CLASS D-1000 ee0732b5 IMMUTABLE PREFLIGHT V2 STARTED' \
+            -f "body=${body}" >/dev/null
+
+      - name: Checkout exact pinned source
+        uses: actions/checkout@v4
+        with:
+          ref: d1000/pinned-ee0732b5
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify exact green source and full regression
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUYN_LOCAL_DEVELOPMENT: '1'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$TESTED_COMMIT"
+          test "$(git ls-remote origin "refs/heads/${PINNED_REF}" | cut -f1)" = "$TESTED_COMMIT"
+
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CI_RUN}" --jq '.head_sha')" = "$TESTED_COMMIT"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CI_RUN}" --jq '.name')" = CI
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CI_RUN}" --jq '.status')" = completed
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CI_RUN}" --jq '.conclusion')" = success
+
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CODEQL_RUN}" --jq '.head_sha')" = "$TESTED_COMMIT"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CODEQL_RUN}" --jq '.status')" = completed
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_CODEQL_RUN}" --jq '.conclusion')" = success
+
+          npm install --ignore-scripts --no-audit --no-fund
+          npm test
+          git diff --check
+
+      - name: Immutable prepare-only acceptance harness gate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          TRUYN_CLASS_D1000_PREPARE_ONLY=1 bash scripts/class-d-1000-final-acceptance.sh | tee class-d-1000-prerun.txt
+          grep -Fqx 'TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical runCommandBoundary=accepted-d100 runtimeBundle=sha256-pinned' class-d-1000-prerun.txt
+
+      - name: Build and local-smoke immutable runtime bundle
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p preflight runtime-smoke
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" bash scripts/build-class-d-1000-runtime-bundle.sh preflight/truyn-d1000-runtime.tgz | tee preflight/runtime-build.txt
+          bundle_sha="$(awk '{print $1}' preflight/truyn-d1000-runtime.tgz.sha256)"
+          [[ "$bundle_sha" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s  %s\n' "$bundle_sha" preflight/truyn-d1000-runtime.tgz | sha256sum -c -
+          tar -xzf preflight/truyn-d1000-runtime.tgz -C runtime-smoke
+          test "$(jq -r '.sourceSha' runtime-smoke/manifest.json)" = "$TESTED_COMMIT"
+          test "$(jq -r '.schema' runtime-smoke/manifest.json)" = 'truyn.class-d1000.runtime-bundle.v1'
+          for tool in node jq curl openssl; do
+            test -x "runtime-smoke/runtime/bin/${tool}"
+          done
+          test "$(runtime-smoke/runtime/bin/node -p 'process.versions.node.split(".")[0]')" = 22
+          runtime-smoke/runtime/bin/jq --version >/dev/null
+          runtime-smoke/runtime/bin/curl --version >/dev/null
+          runtime-smoke/runtime/bin/openssl version >/dev/null
+          runtime-smoke/runtime/bin/node -e "import(process.cwd() + '/runtime-smoke/app/network/testnet/node-service.js').then(()=>console.log('TRUYN_CLASS_D1000_RUNTIME_IMPORT=PASS'))"
+          printf '%s\n' "$bundle_sha" > preflight/runtime-bundle-sha256.txt
+          cp class-d-1000-prerun.txt preflight/
+          printf 'exact_ci_run=%s\nexact_codeql_run=%s\n' "$EXACT_CI_RUN" "$EXACT_CODEQL_RUN" > preflight/exact-green-runs.txt
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Real 1-VM immutable guest smoke and strict cleanup
+        shell: bash
+        env:
+          TRUYN_AZURE_RESOURCE_GROUP: ${{ env.AZURE_RESOURCE_GROUP }}
+          TRUYN_CLASS_D1000_LOCATION: ${{ env.AZURE_LOCATION }}
+          TRUYN_CLASS_D1000_VM_SIZE: ${{ env.AZURE_VM_SIZE }}
+        run: |
+          set -Eeuo pipefail
+          bundle_sha="$(cat preflight/runtime-bundle-sha256.txt)"
+          bash scripts/class-d-1000-vm-smoke-preflight.sh preflight/truyn-d1000-runtime.tgz "$bundle_sha" | tee preflight/vm-smoke.txt
+          grep -Fqx "TRUYN_CLASS_D1000_VM_SMOKE=PASS guest=true cleanup=true remaining=0 location=${AZURE_LOCATION} vmSize=${AZURE_VM_SIZE}" preflight/vm-smoke.txt
+
+      - name: Build immutable preflight manifest
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bundle_sha="$(cat preflight/runtime-bundle-sha256.txt)"
+          python3 - "$TESTED_COMMIT" "$PINNED_REF" "$bundle_sha" "$EXACT_CI_RUN" "$EXACT_CODEQL_RUN" "$AZURE_LOCATION" "$AZURE_VM_SIZE" > preflight/class-d-1000-prepare-manifest.json <<'PY'
+          import json, sys
+          source, pinned, bundle_sha, ci_run, codeql_run, location, vm_size = sys.argv[1:]
+          print(json.dumps({
+            'result':'PASS',
+            'sourceSha':source,
+            'pinnedRef':pinned,
+            'prepareOnly':True,
+            'azureMutation':True,
+            'preparedHarnessMarker':'TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical runCommandBoundary=accepted-d100 runtimeBundle=sha256-pinned',
+            'runtimeBundle':{
+              'file':'truyn-d1000-runtime.tgz',
+              'sha256':bundle_sha,
+              'schema':'truyn.class-d1000.runtime-bundle.v1',
+              'osCompatibility':'ubuntu-22.04-amd64'
+            },
+            'exactChecks':{'ciRun':int(ci_run),'codeqlRun':int(codeql_run)},
+            'vmSmoke':{
+              'result':'PASS','hosts':1,'image':'Ubuntu2204','location':location,'vmSize':vm_size,
+              'guest':True,'cleanup':True,'remainingResources':0,
+              'runCommandBoundary':'nonce-bound-no-replay'
+            }
+          },sort_keys=True,separators=(',',':')))
+          PY
+          test "$(jq -r '.result' preflight/class-d-1000-prepare-manifest.json)" = PASS
+          test "$(jq -r '.sourceSha' preflight/class-d-1000-prepare-manifest.json)" = "$TESTED_COMMIT"
+          test "$(jq -r '.vmSmoke.result' preflight/class-d-1000-prepare-manifest.json)" = PASS
+          test "$(jq -r '.vmSmoke.cleanup' preflight/class-d-1000-prepare-manifest.json)" = true
+          test "$(jq -r '.vmSmoke.remainingResources' preflight/class-d-1000-prepare-manifest.json)" = 0
+
+      - name: Upload immutable preflight artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: preflight/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish immutable preflight PASS
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST_RAW: ${{ steps.upload.outputs.artifact-digest }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          source scripts/lib/sha256-digest.sh
+          test -n "$ARTIFACT_ID"
+          artifact_digest="$(truyn_normalize_sha256_digest "$ARTIFACT_DIGEST_RAW")"
+          [[ "$artifact_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          api_digest_raw="$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}" --jq '.digest')"
+          api_digest="$(truyn_normalize_sha256_digest "$api_digest_raw")"
+          test "$api_digest" = "$artifact_digest"
+
+          bundle_sha="$(cat preflight/runtime-bundle-sha256.txt)"
+          test "$(sha256sum preflight/truyn-d1000-runtime.tgz | awk '{print $1}')" = "$bundle_sha"
+          test "$(jq -r '.result' preflight/class-d-1000-prepare-manifest.json)" = PASS
+          test "$(jq -r '.sourceSha' preflight/class-d-1000-prepare-manifest.json)" = "$TESTED_COMMIT"
+          test "$(jq -r '.vmSmoke.result' preflight/class-d-1000-prepare-manifest.json)" = PASS
+          test "$(jq -r '.vmSmoke.cleanup' preflight/class-d-1000-prepare-manifest.json)" = true
+          test "$(jq -r '.vmSmoke.remainingResources' preflight/class-d-1000-prepare-manifest.json)" = 0
+          grep -Fqx "TRUYN_CLASS_D1000_VM_SMOKE=PASS guest=true cleanup=true remaining=0 location=${AZURE_LOCATION} vmSize=${AZURE_VM_SIZE}" preflight/vm-smoke.txt
+
+          body="result=PASS run=${GITHUB_RUN_ID} attempt=${GITHUB_RUN_ATTEMPT} launcher_sha=${GITHUB_SHA} tested_sha=${TESTED_COMMIT} pinned_ref=${PINNED_REF} exact_ci_run=${EXACT_CI_RUN} exact_codeql_run=${EXACT_CODEQL_RUN} artifact_id=${ARTIFACT_ID} artifact_name=${ARTIFACT_NAME} artifact_digest=${artifact_digest} runtime_bundle_sha256=${bundle_sha} prepareOnly=true azureMutation=true vmSmoke=PASS vmSmokeHosts=1 vmSmokeCleanup=true vmSmokeRemainingResources=0 azure_location=${AZURE_LOCATION} vm_size=${AZURE_VM_SIZE}"
+          gh api "repos/${GITHUB_REPOSITORY}/issues" \
+            -f 'title=TRUYN CLASS D-1000 ee0732b5 IMMUTABLE PREFLIGHT V2 PASS' \
+            -f "body=${body}" >/dev/null
+
+      - name: Publish immutable preflight failure evidence
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set +e
+          body="result=FAIL run=${GITHUB_RUN_ID} attempt=${GITHUB_RUN_ATTEMPT} launcher_sha=${GITHUB_SHA} tested_sha=${TESTED_COMMIT} pinned_ref=${PINNED_REF} exact_ci_run=${EXACT_CI_RUN} exact_codeql_run=${EXACT_CODEQL_RUN} vm_smoke=required"
+          gh api "repos/${GITHUB_REPOSITORY}/issues" \
+            -f 'title=TRUYN CLASS D-1000 ee0732b5 IMMUTABLE PREFLIGHT V2 FAIL' \
+            -f "body=${body}" >/dev/null
