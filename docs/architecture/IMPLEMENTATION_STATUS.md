@@ -5,7 +5,7 @@
 **Software version:** `0.1.0-dev`  
 **Protocol generation:** `TRUYN/1` draft
 
-This document answers one question: **what is actually implemented and proven now, versus only designed, admitted for a later gate, or planned?**
+This document answers one question: **what is actually implemented and proven now, versus only designed, admitted for a later gate, attempted but not accepted, or planned?**
 
 Architecture documents define contracts. Benchmark reports prove bounded claims. Governance documents define how the standard may change. GitHub Actions, temporary launcher workflows, diagnostic pull requests and operational issues are execution mechanisms; they are not substitutes for durable benchmark evidence.
 
@@ -21,7 +21,7 @@ Technical maturity:
 - **Internet-scale proven** — large real-node/WAN/adversarial evidence exists.
 - **Stable** — compatibility guarantees are declared.
 
-An **admission/preflight PASS** means the exact source, immutable runtime and prerequisites are accepted to start the corresponding paid/real campaign. It does **not** promote the campaign itself to PASS.
+An **admission/preflight PASS** means the exact source, immutable runtime and prerequisites are accepted to start the corresponding paid/real campaign. It does **not** promote the campaign itself to PASS. A failed full campaign remains failed even if its infrastructure cleanup succeeds.
 
 Governance maturity uses the independent G0-G5 model defined in `../../GOVERNANCE.md` and `GOVERNANCE_ARCHITECTURE.md`.
 
@@ -38,7 +38,7 @@ Governance maturity uses the independent G0-G5 model defined in `../../GOVERNANC
 | STUN / same-port hole punching | Defined | Implemented reference path | CI-proven bounded path | universal NAT traversal is not claimed |
 | **Class C heterogeneous WAN/reachability** | Defined | **Accepted / PASS** | `CLASS_C_HETEROGENEOUS_WAN_2026-08-18.md`; real Azure/GCP, partition/heal, NAT, double-NAT/CGNAT-like, authenticated relay outage/recovery | carrier-operated CGNAT field validation and broader production SLOs are separate gates |
 | **Class D-100 scale/resilience** | Defined | **Accepted / PASS — 100 real processes, identities and QUIC endpoints on 4 hosts** | `CLASS_D_100_2026-08-22.md`; canonical evaluator PASS, strict terminal PASS, cleanup confirmed, remaining resources 0 | does not prove D-1000 or Internet scale |
-| **Class D-1000 scale/resilience** | Defined | **Admission/preflight PASS only for current candidate `ee0732b57a602bea8df9f964bf5fe27d19ee77f8`** | exact CI `32853716543` PASS; CodeQL `32853711776` PASS; immutable preflight issue `#320`, run `32853975632`, artifact `9565547060`, digest `sha256:cbcce8b42d52791799a50d18fe9313897fccba7725890badec82a006a9881b75`; runtime bundle SHA-256 `3951f3a5bd3099ffd4bafe9cb13959e9cec06e07e464f62c5bdc3839691723bd`; 1-VM guest smoke + strict cleanup PASS | **full 20-host × 50 = 1,000-real-process campaign has not yet produced evaluator PASS + terminal PASS + cleanup=true + remainingResources=0** |
+| **Class D-1000 scale/resilience** | Defined | **Admission/preflight PASS; latest full 20×50 attempt FAIL; acceptance OPEN** | exact CI `32853716543` PASS; CodeQL `32853711776` PASS; immutable preflight `#320` / run `32853975632` PASS; full run `32854968438`, start `#321`, terminal `#323` = FAIL during host0 install; campaign finalizer independently confirmed cleanup `remaining=0` | **active blocker `#325`: repair host0 install/bootstrap, then new exact-SHA CI/CodeQL + immutable bundle/preflight + one new pinned 20×50 run with evaluator PASS, terminal PASS and canonical cleanup evidence** |
 | Semantic index lifecycle | Defined | Implemented | benchmark/CI proven | broader operational SLOs open |
 | Semantic retrieval v2/v3 | Defined | Implemented | extensive benchmark evidence | infrastructure-block scale is not real-node scale |
 | Distributed semantic retrieval | Defined | Implemented | benchmark/CI proven | larger decentralized holder networks open |
@@ -77,9 +77,9 @@ The roadmap has advanced beyond the 2026-08-23 wording that still described Clas
 
 **Class D-100 V17 — ACCEPTED / PASS.** The durable report proves 100 real processes, 100 identities, 100 QUIC endpoints on four hosts; 100% baseline/healed routing; recovery/convergence p95 32,090 ms; all required adversarial classes; zero accepted safety violations; canonical evaluator PASS; strict terminal PASS; cleanup confirmed and zero remaining run resources.
 
-### Current D-1000 admission tuple — PASS, campaign still open
+### Current D-1000 state — admission PASS, latest full campaign FAIL, acceptance OPEN
 
-Current accepted source candidate:
+Admitted source tuple:
 
 ```text
 tested source: ee0732b57a602bea8df9f964bf5fe27d19ee77f8
@@ -87,7 +87,7 @@ pinned ref: d1000/pinned-ee0732b5
 exact CI: 32853716543 = success
 exact CodeQL: 32853711776 = success
 immutable preflight: 32853975632 = PASS
-immutable preflight issue: #320
+immutable preflight issue: #320 (closed completed operational evidence)
 artifact ID: 9565547060
 artifact digest: sha256:cbcce8b42d52791799a50d18fe9313897fccba7725890badec82a006a9881b75
 runtime bundle sha256: 3951f3a5bd3099ffd4bafe9cb13959e9cec06e07e464f62c5bdc3839691723bd
@@ -96,22 +96,43 @@ preflight cleanup: true
 preflight remaining resources: 0
 ```
 
-The current preflight includes a real Azure Ubuntu 22.04 / `Standard_E2as_v7` guest smoke and validates the portable immutable runtime bundle introduced by merged PR `#315`.
+The preflight includes a real Azure Ubuntu 22.04 / `Standard_E2as_v7` guest smoke and validates the portable immutable runtime bundle introduced by merged PR `#315`.
 
-**This is not a D-1000 acceptance result.** Promotion requires a new pinned full run with all of the canonical predicates simultaneously satisfied, including:
+Latest full pinned attempt:
 
-- 20 hosts × 50 real processes = 1,000 real processes;
-- 1,000 distinct identities and QUIC sockets/endpoints;
-- baseline and healed routing `>=99%`;
-- recovery and convergence p95 `<=120 s`;
-- all required adversarial predicates;
-- zero safety violations;
+```text
+run: 32854968438
+launcher: 99e64ad27c8f51b4b616ca85cfb7b4709759a07e
+start record: #321 (closed completed operational evidence)
+terminal record: #323 (closed completed negative operational evidence)
+target: 20 hosts × 50 = 1,000 real processes
+result: FAIL
+failure stage: host0 guest install
+failure location: scripts/class-d-1000-final-acceptance.sh line 194
+evaluator_rc: 99
+terminal_rc: 99
+terminal issue fields: cleanup=false, remainingResources=-1
+actual campaign finalizer: TRUYN_CLASS_D_1000_CLEANUP confirmed=true remaining=0
+active remediation: #325
+```
+
+The generated terminal record's `cleanup=false` / `remainingResources=-1` values do not mean Azure resources were left behind. The host0 install failure happened before `class-d-1000-evidence.json` existed, so the post-verifier emitted fail-closed placeholders. The campaign's finalizer independently confirmed cleanup with zero remaining resources. This distinction is operationally important but does **not** change the acceptance verdict: canonical evaluator and terminal acceptance were never reached, therefore D-1000 remains OPEN.
+
+Promotion now requires:
+
+- minimal repair of the host0 install/bootstrap failure without changing topology, thresholds, evaluator semantics, adversarial predicates or safety gates;
+- ordinary CI + CodeQL PASS on the new exact source SHA;
+- a fresh immutable runtime bundle + digest;
+- a fresh immutable admission/preflight PASS for that exact SHA;
+- one new pinned 20×50 run proving 1,000 real processes, 1,000 identities and 1,000 QUIC endpoints;
+- baseline/healed routing `>=99%`;
+- recovery/convergence p95 `<=120 s`;
+- all required adversarial predicates and zero safety violations;
 - canonical evaluator `PASS`;
 - strict terminal verifier `PASS`;
-- `cleanup=true`;
-- `remainingResources=0`;
-- immutable run artifact and digest;
-- durable sanitized benchmark report committed under `docs/benchmarks/`.
+- canonical `cleanup=true` and `remainingResources=0` evidence;
+- immutable accepted-run artifact/digest;
+- durable sanitized benchmark report under `docs/benchmarks/`.
 
 Historical D-1000 starts, failures, capacity probes and diagnostic runs remain useful audit history, but once superseded they are closed operational records rather than current roadmap gates.
 
@@ -203,24 +224,32 @@ Operational hygiene follows a different lifecycle:
 
 - temporary one-shot cloud workflows are removed from the default branch after their terminal evidence is pinned;
 - temporary verification/diagnostic PRs are closed without merge once superseded;
-- STARTED/FAIL/PASS operational issues may be closed when the attempt is finished or superseded; closing preserves history and does not erase evidence;
-- one current gate marker may remain open while it is the active admission/evidence pointer (for the current D-1000 candidate, issue `#320`);
+- STARTED/FAIL/PASS operational issues are closed when the attempt is finished or superseded; closing preserves history and does not erase evidence;
+- active remediation is consolidated into one actionable issue (`#325` for the current D-1000 blocker) rather than keeping generated status records open;
 - a successful full D-1000 campaign must be promoted into a durable sanitized benchmark report before this document can say “D-1000 accepted.”
 
 This distinction prevents temporary operational machinery from accumulating indefinitely while preserving the evidence ledger.
 
 ## Current priority
 
-The primary architecture/engineering priority is now the **full pinned D-1000 acceptance campaign**, not Class C and not the 100-real-node gate; both of those are already accepted.
+The primary architecture/engineering priority is now the **host0 D-1000 install/bootstrap repair tracked by `#325`**, followed by a fresh exact-SHA admission sequence and one new full pinned D-1000 acceptance campaign. Class C and D-100 are already accepted.
 
 ```text
 Class C heterogeneous WAN/reachability — ACCEPTED
         ↓
 Class D-100 — ACCEPTED
         ↓
-D-1000 exact-source admission/preflight — PASS
+D-1000 exact-source admission/preflight — PASS for ee0732b5
         ↓
-D-1000 full 20×50 campaign — CURRENT GATE
+latest D-1000 full 20×50 campaign — FAIL at host0 install
+        ↓
+repair host0 install/bootstrap — ACTIVE #325
+        ↓
+new exact SHA → ordinary CI + CodeQL → immutable bundle/digest → immutable preflight PASS
+        ↓
+one new pinned D-1000 full 20×50 campaign
+        ↓
+D-1000 factual promotion only after evaluator PASS + terminal PASS + canonical cleanup PASS
         ↓
 long-duration / broader real-network durability + adversarial operations
         ↓
@@ -237,4 +266,4 @@ optional settlement-adapter implementation
 
 Governance evolves independently through G2 → G5.
 
-Until the remaining technical gates are passed, TRUYN should be described as an advanced experimental/reference intelligence-network implementation with accepted bounded WAN and 100-real-node resilience evidence, a deployment-proven relay perimeter, and an admitted but not yet accepted D-1000 candidate — **not** as a production Internet-scale mainnet.
+Until the remaining technical gates are passed, TRUYN should be described as an advanced experimental/reference intelligence-network implementation with accepted bounded WAN and 100-real-node resilience evidence, a deployment-proven relay perimeter, and a D-1000 line with immutable admission PASS but no accepted 1,000-node campaign — **not** as a production Internet-scale mainnet.
