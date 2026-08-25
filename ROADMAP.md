@@ -29,7 +29,7 @@ Governance uses its independent G0→G5 factual maturity axis.
 | Signed peer-record lifecycle | Implemented + CI-proven |
 | **Class C heterogeneous WAN/reachability** | **ACCEPTED / PASS — 2026-08-18**; real Azure/GCP, direct QUIC, packet partition/heal, NAT, double-NAT/CGNAT-like path, authenticated relay outage/recovery, cleanup |
 | **Class D-100** | **ACCEPTED / PASS — 2026-08-22**; 100 real processes/identities/QUIC endpoints on 4 hosts, canonical evaluator + strict terminal PASS, all required adversarial classes, cleanup with 0 remaining resources |
-| **Class D-1000** | **Current gate: exact-source admission/preflight PASS only** for `ee0732b57a602bea8df9f964bf5fe27d19ee77f8`; full 20×50 campaign not yet accepted |
+| **Class D-1000** | **Admission/preflight PASS; latest full 20×50 attempt FAIL; acceptance OPEN.** Exact candidate `ee0732b57a602bea8df9f964bf5fe27d19ee77f8` passed immutable admission, but run `32854968438` / issue `#323` failed during host0 install before evaluator/terminal acceptance. Actual finalizer cleanup confirmed 0 remaining Azure resources. |
 | Semantic retrieval/index/distributed retrieval | Implemented + extensive CI/benchmark evidence |
 | Provider ownership/authorization/BYOK | Implemented reference baseline |
 | Billing safety | BYOK/owner-funded implemented; sponsored guard requires external durable store/issuer; prepaid/subscription fail closed |
@@ -51,7 +51,7 @@ TRUYN separates **durable evidence** from **temporary operational machinery**:
 - one-shot cloud launchers are removed from `main` after their terminal evidence is pinned;
 - temporary diagnostic/verification PRs are closed without merge when superseded;
 - completed/superseded STARTED/FAIL/PASS operational issues are closed while preserving their discussion and audit history;
-- a current admission/evidence issue may remain open while it is the active pointer for the next gate;
+- active remediation is represented by one actionable issue rather than a trail of stale generated status issues;
 - stale operational artifacts must never remain open merely because they once participated in a historical run.
 
 Contribution provenance is DCO 1.1. The current CI job named `DCO` runs only for pull requests and verifies `pull_request.base.sha → pull_request.head.sha`. Pushes to `main` run the ordinary test job; no synthetic `HEAD^` merge-commit DCO re-check is used.
@@ -77,9 +77,9 @@ Durable evidence:
 - `docs/benchmarks/CLASS_C_HETEROGENEOUS_WAN_2026-08-18.md`
 - `docs/benchmarks/CLASS_D_100_2026-08-22.md`
 
-### Current D-1000 admission — **PASS; full campaign OPEN**
+### Current D-1000 state — **admission PASS; latest full campaign FAIL; acceptance OPEN**
 
-Current exact candidate:
+Current admitted exact candidate:
 
 ```text
 tested source: ee0732b57a602bea8df9f964bf5fe27d19ee77f8
@@ -87,7 +87,7 @@ pinned ref: d1000/pinned-ee0732b5
 exact CI run: 32853716543 = success
 exact CodeQL run: 32853711776 = success
 immutable preflight run: 32853975632 = PASS
-immutable preflight issue: #320
+immutable preflight issue: #320 (completed/closed operational evidence)
 artifact ID: 9565547060
 artifact digest: sha256:cbcce8b42d52791799a50d18fe9313897fccba7725890badec82a006a9881b75
 runtime bundle sha256: 3951f3a5bd3099ffd4bafe9cb13959e9cec06e07e464f62c5bdc3839691723bd
@@ -98,8 +98,32 @@ preflight remaining resources: 0
 
 The candidate includes the portable immutable runtime correction merged by PR `#315`. The preflight proves exact green source, immutable runtime identity and successful execution/cleanup on a real Azure Ubuntu 22.04 `Standard_E2as_v7` guest.
 
-It does **not** prove the 1,000-node campaign. The next accepted D-1000 must satisfy, without lowering the canonical contract:
+The subsequent full pinned attempt did **not** pass:
 
+```text
+full run: 32854968438
+start issue: #321 (completed/closed operational evidence)
+terminal issue: #323 (completed/closed negative operational evidence)
+launcher commit: 99e64ad27c8f51b4b616ca85cfb7b4709759a07e
+hosts/nodes target: 20 × 50 = 1,000
+result: FAIL
+failure stage: host0 guest install
+failure location: scripts/class-d-1000-final-acceptance.sh line 194
+evaluator_rc: 99
+terminal_rc: 99
+terminal issue cleanup fields: cleanup=false, remainingResources=-1
+actual campaign finalizer cleanup: confirmed=true, remaining=0
+active remediation issue: #325
+```
+
+The `cleanup=false` / `remainingResources=-1` values in the generated terminal issue are fail-closed placeholders: the host0 install failure occurred before `class-d-1000-evidence.json` existed. The campaign job's finalizer independently recorded `TRUYN_CLASS_D_1000_CLEANUP confirmed=true remaining=0`, so this failed attempt left no Azure run-resource leak. That cleanup fact does **not** promote the attempt to PASS: evaluator/terminal acceptance was never reached.
+
+The next accepted D-1000 must repair only the install/bootstrap failure and then repeat the exact-source admission and full pinned campaign without lowering the canonical contract:
+
+- [ ] minimal host0 install/bootstrap repair on a new exact source SHA;
+- [ ] ordinary CI + CodeQL PASS on that exact SHA;
+- [ ] fresh immutable runtime bundle + digest;
+- [ ] fresh immutable admission/preflight PASS for that exact SHA;
 - [ ] 20 VM / host failure domains as defined by the D-1000 harness;
 - [ ] 50 real processes per host = **1,000 real processes**;
 - [ ] 1,000 distinct identities;
@@ -117,7 +141,7 @@ It does **not** prove the 1,000-node campaign. The next accepted D-1000 must sat
 - [ ] immutable accepted-run artifact + digest;
 - [ ] durable sanitized `docs/benchmarks/CLASS_D_1000_*.md` evidence record.
 
-Historical D-1000 attempts with `evaluator_rc=99`, `terminal_rc=99`, skipped/failing campaign state or incomplete cleanup remain historical negatives; they do not compete with or override the current candidate admission tuple.
+Historical D-1000 attempts with `evaluator_rc=99`, `terminal_rc=99`, skipped/failing campaign state or incomplete canonical evidence remain historical negatives; they do not compete with or override a future accepted exact-source tuple.
 
 ### After D-1000 acceptance
 
@@ -311,9 +335,15 @@ Class D-100 — ACCEPTED
         ↓
 D-1000 exact-source immutable admission — PASS
         ↓
-ONE full pinned D-1000 20×50 acceptance campaign — CURRENT
+latest full pinned D-1000 20×50 attempt — FAIL at host0 install
         ↓
-durable D-1000 benchmark evidence + factual status promotion
+repair host0 install/bootstrap on new exact SHA — ACTIVE #325
+        ↓
+ordinary CI + CodeQL → fresh immutable bundle/digest → fresh admission PASS
+        ↓
+one new pinned D-1000 20×50 acceptance campaign
+        ↓
+durable D-1000 benchmark evidence + factual status promotion only after PASS
         ↓
 long-duration / broader operational durability + adversarial SLO closure
         ↓
