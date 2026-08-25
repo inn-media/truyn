@@ -4,9 +4,19 @@ import test from 'node:test';
 
 const schemaUrl = new URL('../sdk/conformance/v1/sdk-contract.schema.json', import.meta.url);
 const fixturesUrl = new URL('../sdk/conformance/v1/golden-fixtures.json', import.meta.url);
+const protocolUrl = new URL('../core/protocol/index.js', import.meta.url);
+const nodeClientUrl = new URL('../node/client.js', import.meta.url);
+const relayUrl = new URL('../network/relay/server.js', import.meta.url);
+const descriptorSpecUrl = new URL('../spec/protocol/v1/agent-descriptor.md', import.meta.url);
 
-const schema = JSON.parse(await readFile(schemaUrl, 'utf8'));
-const fixtures = JSON.parse(await readFile(fixturesUrl, 'utf8'));
+const [schema, fixtures, protocolSource, nodeClientSource, relaySource, descriptorSpec] = await Promise.all([
+  readFile(schemaUrl, 'utf8').then(JSON.parse),
+  readFile(fixturesUrl, 'utf8').then(JSON.parse),
+  readFile(protocolUrl, 'utf8'),
+  readFile(nodeClientUrl, 'utf8'),
+  readFile(relayUrl, 'utf8'),
+  readFile(descriptorSpecUrl, 'utf8')
+]);
 
 const requiredDtos = [
   'Identity',
@@ -42,7 +52,14 @@ function validateEnvelope(value, expectedType) {
 }
 
 function validateDto(dto, value) {
-  if (dto === 'Identity') return Boolean(value && isNonEmptyString(value.nodeId) && value.nodeId.startsWith('truyn:node:') && isNonEmptyString(value.publicKey));
+  if (dto === 'Identity') {
+    return Boolean(
+      value &&
+      isNonEmptyString(value.nodeId) &&
+      value.nodeId.startsWith('truyn:node:') &&
+      isNonEmptyString(value.publicKey)
+    );
+  }
   if (dto === 'Capability') return Boolean(value && isNonEmptyString(value.id));
   if (dto === 'ArtifactRef') return isNonEmptyString(value);
   if (dto === 'NormalizedError') {
@@ -68,13 +85,31 @@ function validateDto(dto, value) {
     );
   }
   if (dto === 'Offer') {
-    return validateEnvelope(value, 'OFFER') && isNonEmptyString(value.payload?.capability?.name) && value.payload?.metadata && typeof value.payload.metadata === 'object';
+    return Boolean(
+      validateEnvelope(value, 'OFFER') &&
+      isNonEmptyString(value.payload?.capability?.name) &&
+      value.payload?.metadata &&
+      typeof value.payload.metadata === 'object'
+    );
   }
   if (dto === 'Need') {
-    return validateEnvelope(value, 'NEED') && isNonEmptyString(value.payload?.capability?.name) && Object.hasOwn(value.payload, 'input') && value.payload?.policy && typeof value.payload.policy === 'object';
+    return Boolean(
+      validateEnvelope(value, 'NEED') &&
+      isNonEmptyString(value.payload?.capability?.name) &&
+      Object.hasOwn(value.payload, 'input') &&
+      value.payload?.policy &&
+      typeof value.payload.policy === 'object'
+    );
   }
   if (dto === 'Result') {
-    return validateEnvelope(value, 'RESULT') && isNonEmptyString(value.payload?.requestId) && Object.hasOwn(value.payload, 'output') && isNonEmptyString(value.payload?.completedAt) && value.payload?.metadata && typeof value.payload.metadata === 'object';
+    return Boolean(
+      validateEnvelope(value, 'RESULT') &&
+      isNonEmptyString(value.payload?.requestId) &&
+      Object.hasOwn(value.payload, 'output') &&
+      isNonEmptyString(value.payload?.completedAt) &&
+      value.payload?.metadata &&
+      typeof value.payload.metadata === 'object'
+    );
   }
   return false;
 }
@@ -85,17 +120,25 @@ test('shared SDK contract declares every DX-1 foundational DTO', () => {
   assert.equal(schema.$defs.SignedEnvelopeBase.properties.protocol.const, 'TRUYN/1');
 });
 
-test('one fixture set covers every DTO and has unique deterministic case ids', () => {
+test('one fixture set covers every DTO in both polarities with globally unique case ids', () => {
   assert.equal(fixtures.fixtureSet, 'truyn.sdk-conformance/v1');
   assert.equal(fixtures.protocol, 'TRUYN/1');
-  const ids = [...fixtures.dtoCases, ...fixtures.behaviorCases].map((entry) => entry.id);
+
+  const allCases = [
+    ...fixtures.dtoCases,
+    ...fixtures.behaviorCases,
+    ...fixtures.errorNormalizationCases
+  ];
+  const ids = allCases.map((entry) => entry.id);
   assert.equal(new Set(ids).size, ids.length, 'fixture ids must be unique');
 
   for (const dto of requiredDtos) {
-    assert.ok(
-      fixtures.dtoCases.some((entry) => entry.dto === dto && entry.polarity === 'positive'),
-      `missing positive fixture for ${dto}`
-    );
+    for (const polarity of ['positive', 'negative']) {
+      assert.ok(
+        fixtures.dtoCases.some((entry) => entry.dto === dto && entry.polarity === polarity),
+        `missing ${polarity} fixture for ${dto}`
+      );
+    }
   }
 });
 
@@ -119,6 +162,32 @@ test('OFFER NEED and RESULT fixtures preserve the existing signed envelope and p
   assert.equal(result.payload.requestId, need.id);
 });
 
+test('shared mapping is anchored to current protocol, node client, relay and descriptor sources', () => {
+  assert.match(protocolSource, /export const PROTOCOL = 'TRUYN\/1';/);
+  for (const type of ['IDENTITY', 'OFFER', 'NEED', 'RESULT', 'REVOKE']) {
+    assert.ok(protocolSource.includes(`'${type}'`), `protocol source no longer declares ${type}`);
+  }
+  assert.match(
+    protocolSource,
+    /const unsigned = \{\s*protocol: PROTOCOL,\s*type,\s*id,\s*from,\s*to,\s*createdAt,\s*publicKey: publicKeyPem,\s*payload\s*\};/s
+  );
+  assert.match(protocolSource, /return \{ \.\.\.unsigned, signature \};/);
+
+  for (const route of ['/v1/register', '/v1/nodes/', '/v1/offers', '/v1/needs', '/v1/results']) {
+    assert.ok(nodeClientSource.includes(route), `node client mapping lost ${route}`);
+  }
+  assert.ok(nodeClientSource.includes('capability: { name: capability }'));
+
+  assert.ok(relaySource.includes('providerPolicyAllowsRequester'));
+  assert.ok(relaySource.includes('matchingOffers({ capability, requesterNodeId })'));
+  assert.match(relaySource, /\.map\(\(offer\) => \(\{ \.\.\.offer\.envelope, trust: trustFor\(offer\.envelope\.from\) \}\)\)/);
+
+  assert.ok(descriptorSpec.includes('truyn.agent-descriptor/v1'));
+  assert.ok(descriptorSpec.includes('descriptorVersion'));
+  assert.ok(descriptorSpec.includes('MUST NOT reveal a private capability/provider'));
+  assert.ok(descriptorSpec.includes('Clients MUST inspect `descriptorVersion` and `protocols`'));
+});
+
 test('ArtifactRef remains opaque and does not invent a generic artifact wire object', () => {
   assert.equal(schema.$defs.ArtifactRef.type, 'string');
   const fixture = fixtures.dtoCases.find((entry) => entry.id === 'artifact-ref.context.valid');
@@ -137,7 +206,9 @@ test('private capability non-disclosure is represented at the server-to-SDK boun
     assert.ok(serverOfferIds.has(id), `hidden offer ${id} must exist only in server fixture state`);
     assert.equal(wireOfferIds.has(id), false, `hidden offer ${id} leaked into SDK-facing response`);
   }
-  for (const nodeId of entry.expect.hiddenProviderNodeIds) assert.equal(wireProviderIds.has(nodeId), false, `hidden provider ${nodeId} leaked`);
+  for (const nodeId of entry.expect.hiddenProviderNodeIds) {
+    assert.equal(wireProviderIds.has(nodeId), false, `hidden provider ${nodeId} leaked`);
+  }
 });
 
 test('unsupported descriptor and protocol versions fail explicitly as version_mismatch', () => {
@@ -153,6 +224,44 @@ test('unsupported descriptor and protocol versions fail explicitly as version_mi
   assert.equal(protocol.expect.protocolReason, 'unsupported_protocol');
   assert.equal(protocol.expect.error.code, 'version_mismatch');
   assert.equal(protocol.expect.error.source.protocolReason, 'unsupported_protocol');
+});
+
+test('representative relay, protocol and client failures normalize identically across SDKs', () => {
+  assert.ok(Array.isArray(fixtures.errorNormalizationCases));
+  assert.ok(fixtures.errorNormalizationCases.length >= 8);
+
+  for (const entry of fixtures.errorNormalizationCases) {
+    assert.ok(normalizedErrorCodes.has(entry.expect.code), `${entry.id} targets unknown normalized code`);
+    assert.equal(typeof entry.expect.retryable, 'boolean', `${entry.id} must define retryable`);
+
+    const source = entry.source || {};
+    assert.ok(
+      source.protocolReason || source.relayCode || source.clientKind,
+      `${entry.id} must carry a source discriminator`
+    );
+    if (source.protocolReason) {
+      assert.ok(protocolSource.includes(`'${source.protocolReason}'`), `${entry.id} protocol reason drifted from runtime`);
+    }
+    if (source.relayCode) {
+      assert.ok(relaySource.includes(`'${source.relayCode}'`), `${entry.id} relay code drifted from runtime`);
+    }
+  }
+
+  const protocolMismatch = fixtures.errorNormalizationCases.find(
+    (entry) => entry.id === 'error-map.protocol.unsupported-protocol'
+  );
+  assert.equal(protocolMismatch.expect.code, 'version_mismatch');
+
+  const unauthorized = fixtures.errorNormalizationCases.find(
+    (entry) => entry.id === 'error-map.http.unauthorized'
+  );
+  assert.equal(unauthorized.expect.code, 'unauthenticated');
+
+  const timeout = fixtures.errorNormalizationCases.find(
+    (entry) => entry.id === 'error-map.http.result-wait-timeout'
+  );
+  assert.equal(timeout.expect.code, 'deadline_exceeded');
+  assert.equal(timeout.expect.retryable, true);
 });
 
 test('normalized errors are SDK-only, finite and preserve safe raw source details', () => {
