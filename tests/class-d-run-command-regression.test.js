@@ -44,17 +44,17 @@ case "$TRUYN_TEST_SCENARIO" in
     if (( count < 3 )); then echo "ERROR: Operation returned an invalid status 'Too Many Requests'" >&2; exit 29; fi
     echo 'TRUYN_GUEST_EXECUTION_ADMITTED=1'
     echo 'RESULT=ok'
-    echo "${terminal_prefix}0"
+    echo "\${terminal_prefix}0"
     ;;
   busy-then-success)
     if (( count < 3 )); then echo 'managed VM RunCommand extension execution is in progress. Please wait for completion before invoking a run command' >&2; exit 31; fi
     echo 'TRUYN_GUEST_EXECUTION_ADMITTED=1'
     echo 'RESULT=ok'
-    echo "${terminal_prefix}0"
+    echo "\${terminal_prefix}0"
     ;;
   guest-nonzero)
     echo 'TRUYN_GUEST_EXECUTION_ADMITTED=1'
-    echo "${terminal_prefix}17"
+    echo "\${terminal_prefix}17"
     echo 'guest failed after mutation' >&2
     exit 0
     ;;
