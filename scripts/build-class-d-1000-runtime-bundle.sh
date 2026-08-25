@@ -8,7 +8,7 @@ OUT="${1:?usage: build-class-d-1000-runtime-bundle.sh OUTPUT_TGZ}"
 SOURCE_SHA="${TRUYN_TESTED_COMMIT:-$(git rev-parse HEAD)}"
 [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
 [[ -d node_modules ]]
-for tool in node npm jq curl openssl ldd; do command -v "$tool" >/dev/null; done
+for tool in node npm jq curl openssl ldd readlink; do command -v "$tool" >/dev/null; done
 
 STAGE="$(mktemp -d)"
 VERIFY="$(mktemp -d)"
@@ -48,7 +48,9 @@ copy_tool() {
   cat >"$STAGE/runtime/bin/$name" <<'WRAP'
 #!/usr/bin/env bash
 set -Eeuo pipefail
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+test -n "$SELF"
+HERE="$(cd "$(dirname "$SELF")" && pwd)"
 LOADER="$HERE/../lib/__LOADER__"
 test -x "$LOADER"
 exec "$LOADER" --library-path "$HERE/../lib" "$HERE/../tool-bin/__TOOL__" "$@"
@@ -102,6 +104,23 @@ tar -xzf "$OUT" -C "$VERIFY"
 "$VERIFY/runtime/bin/jq" --version >/dev/null
 "$VERIFY/runtime/bin/curl" --version >/dev/null
 "$VERIFY/runtime/bin/openssl" version >/dev/null
+
+# Regression for the D-1000 host0 failure: wrappers must resolve their physical
+# location even when invoked through /usr/local/bin-style symlinks.
+mkdir -p "$VERIFY/symlink-bin"
+for tool in node jq curl openssl; do
+  ln -s "../runtime/bin/$tool" "$VERIFY/symlink-bin/$tool"
+done
+"$VERIFY/symlink-bin/node" -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
+"$VERIFY/symlink-bin/jq" --version >/dev/null
+"$VERIFY/symlink-bin/curl" --version >/dev/null
+"$VERIFY/symlink-bin/openssl" version >/dev/null
+"$VERIFY/symlink-bin/openssl" req -x509 -newkey rsa:2048 -nodes \
+  -keyout "$VERIFY/symlink-key.pem" -out "$VERIFY/symlink-cert.pem" \
+  -subj '/CN=truyn-d1000-symlink-regression' -days 1 >/dev/null 2>&1
+test -s "$VERIFY/symlink-key.pem"
+test -s "$VERIFY/symlink-cert.pem"
+
 test -f "$VERIFY/app/network/testnet/node-service.js"
 test -d "$VERIFY/app/node_modules"
 test -s "$VERIFY/dependency-tree.json"
