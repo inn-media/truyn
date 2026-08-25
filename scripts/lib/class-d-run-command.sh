@@ -26,7 +26,7 @@ truyn_class_d_remote() {
   terminal_prefix="TRUYN_GUEST_TERMINAL_${terminal_nonce}="
   diagnostic_trap="trap 'rc=\$?; echo \"TRUYN_GUEST_BOOTSTRAP_ERROR rc=\$rc line=\$LINENO cmd=\$BASH_COMMAND\" >&2; exit \$rc' ERR"
   enc="$(printf '%s\n%s\n' "$diagnostic_trap" "$script" | base64 -w0)"
-  remote_script="echo ${guest_marker}; printf '%s' '$enc' | base64 -d >/tmp/truyn-d100-run.sh; chmod 700 /tmp/truqyn-d100-run.sh; set +e; /bin/bash /tmp/truqyn-d100-run.sh; guest_rc=\$?; echo ${guest_marker}; printf '${terminal_prefix}%s\\n' \"\$guest_rc\"; exit \"\$guest_rc\""
+  remote_script="echo ${guest_marker}; printf '%s' '$enc' | base64 -d >/tmp/truqyn-d100-run.sh; chmod 700 /tmp/truqyn-d100-run.sh; set +e; /bin/bash /tmp/truqyn-d100-run.sh; guest_rc=\$?; echo ${guest_marker}; printf '${terminal_prefix}%s\\n' \"\$guest_rc\"; exit \"\$guest_rc\""
   remote_script="${remote_script//truqyn/truyn}"
   out_file="$(mktemp)"
   err_file="$(mktemp)"
@@ -36,9 +36,6 @@ truyn_class_d_remote() {
     : >"$err_file"
     rc=0
 
-    # Azure RunCommand may report extension success even when the guest shell
-    # returned non-zero. Capture all message elements, then evaluate our own
-    # nonce-bound guest terminal marker instead of trusting the CLI exit alone.
     if command az vm run-command invoke -g "$rg" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[].message' -o tsv --only-show-errors >"$out_file" 2>"$err_file"; then
       rc=0
     else
@@ -58,9 +55,6 @@ truyn_class_d_remote() {
     fi
 
     if [[ "$admitted" == true ]]; then
-      # Admission is a no-replay boundary. If the guest completed, its explicit
-      # terminal code decides success/failure. If the terminal marker is absent,
-      # fail closed: the guest may have run partially and must not be replayed.
       if [[ "$terminal_rc" =~ ^[0-9]+$ ]] && (( terminal_rc >= 0 && terminal_rc <= 255 )); then
         if (( terminal_rc == 0 )); then
           cat "$out_file"
@@ -82,8 +76,6 @@ truyn_class_d_remote() {
       return 125
     fi
 
-    # A control-plane success without our admission marker is not proof that the
-    # guest ran. Fail closed instead of silently accepting an unobservable run.
     if (( rc == 0 )); then
       cat "$out_file" >&2
       cat "$err_file" >&2
