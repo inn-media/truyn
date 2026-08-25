@@ -54,8 +54,8 @@ Governance maturity uses the independent G0-G5 model defined in `../../GOVERNANC
 | Prepaid/subscription billing | Defined | fail-closed placeholder | denies without resolver | entitlement resolver/accounting not implemented |
 | **Contribution provenance / DCO 1.1** | Accepted governance policy | **Implemented in CI for pull requests** | root `DCO`; decision `2026-08-23-mandatory-dco-1.1.md`; `DCO` job checks exact PR base SHA → head SHA; no manual `workflow_dispatch` path | repository ruleset/branch-policy enforcement is an operational setting and is not inferred by this document without separate proof |
 | MCP interoperability edge | Defined | **Implemented bounded MCP `2026-07-28` current-contract + configured-tool + general tool-discovery/import paths** | PR `#324` + `#332`; `tests/mcp-current.test.js`, `tests/mcp-discovery-import.test.js` + composed adapter tests | broader optional MCP resources/prompts/subscriptions/MRTR/extensions and ecosystem certification remain open |
-| A2A interoperability edge | **Defined** | **Not implemented** | none | Agent Card + task/artifact server/client bridges required |
-| A2A↔TRUYN↔MCP bridge | **Defined** | **Not implemented** | none | bidirectional cross-protocol proof + security matrix required |
+| A2A interoperability edge | **Defined** | **Implemented bounded A2A `1.0` server-facade slice** | `adapters/a2a/`; `tests/a2a-server.test.js`; authorized Agent Card projection, Message → NEED → RESULT → Artifact, scoped Task polling and zero-NEED/zero-provider-execution negative proof | reverse A2A client/provider adapter, remote Agent Card import, broader artifact/lifecycle semantics and ecosystem certification remain open |
+| A2A↔TRUYN↔MCP bridge | **Defined** | **Not implemented as a complete bidirectional bridge** | bounded MCP C1/C2 + A2A C3 edge tests only | A2A client/provider + both cross-protocol round trips + complete security matrix required |
 | Settlement adapters (x402/AP2) | **Defined** | **Not implemented** | none | deferred v0.9 milestone after higher-priority productionization/operations gates |
 | TRUYN Agent Descriptor | **Defined draft** | **Not implemented as a served/discovered runtime contract** | none | implement well-known/native discovery, signature/expiry validation and scoped visibility |
 | First-party SDK program | **Defined** | **Scaffolding/documentation only** | no cross-language SDK conformance evidence | implement TS/Python reference pair, then Go/Java/.NET parity and package publication |
@@ -174,11 +174,15 @@ Current state must therefore be described as:
 
 ## A2A / MCP interoperability status boundary
 
-The repository now contains two bounded CI-proven MCP `2026-07-28` layers. C1 covers TRUYN-as-MCP over stdio/loopback HTTP and the configured single-tool remote provider path with self-describing modern metadata, routing-header agreement, bounded JSON/SSE result handling, explicit failure semantics and private-provider execution-denial coverage. C2 adds general remote tool discovery/import: `server/discover`, bounded paginated `tools/list`, default-deny allowlist/filter selection, supported schema-driven `x-mcp-header` forwarding, deterministic mapping to TRUYN capabilities, publication as signed TRUYN `OFFER`s through the existing provider authorization boundary, and authorized NEED → remote `tools/call` → TRUYN RESULT execution.
+The repository now contains three bounded CI-proven interoperability slices. C1 covers TRUYN-as-MCP over stdio/loopback HTTP and the configured single-tool remote provider path with self-describing modern metadata, routing-header agreement, bounded JSON/SSE result handling, explicit failure semantics and private-provider execution-denial coverage. C2 adds general remote MCP tool discovery/import: `server/discover`, bounded paginated `tools/list`, default-deny allowlist/filter selection, supported schema-driven `x-mcp-header` forwarding, deterministic mapping to TRUYN capabilities, publication as signed TRUYN `OFFER`s through the existing provider authorization boundary, and authorized NEED → remote `tools/call` → TRUYN RESULT execution.
 
-C2 negative tests prove that an unauthorized requester sees zero imported private MCP offers, creates zero provider events and causes zero remote MCP execution. Remote MCP server metadata or transport authentication never becomes authoritative TRUYN ownership, requester identity, billing responsibility or Trustability input.
+C3 adds the bounded A2A `1.0` server facade under `adapters/a2a/`: well-known Agent Card discovery, fail-closed authorized public skill projection, authenticated Extended Agent Card projection, exact-version JSON-RPC `SendMessage`/`GetTask`, A2A Message → authorized TRUYN NEED, verified TRUYN RESULT → A2A Artifact with provenance metadata, blocking completion and principal-scoped non-blocking polling. Unsupported streaming, push, cancellation/continuation and inline raw content fail explicitly rather than being approximated.
 
-Still open: broader optional MCP resources/prompts/subscriptions/MRTR/extensions, ecosystem-wide MCP certification, A2A Agent Card/server/client bridges, bidirectional A2A↔TRUYN↔MCP real round trips, artifact/provenance translation and complete cross-protocol negative provider-security evidence.
+The negative boundary is also explicit. C2 proves that an unauthorized requester sees zero imported private MCP offers and causes zero remote MCP execution. C3 proves that an unauthorized A2A private execution request creates zero TRUYN request records/NEEDs and causes zero provider execution; a public Agent Card also fails closed instead of projecting owner-only/private TRUYN providers.
+
+Remote A2A/MCP metadata or transport authentication never becomes authoritative TRUYN ownership, requester identity, billing responsibility or Trustability input.
+
+Still open: broader optional MCP resources/prompts/subscriptions/MRTR/extensions, ecosystem-wide MCP certification, the reverse A2A client/provider adapter and remote Agent Card import, generalized referenced-file artifact integrity, broader A2A lifecycle semantics where claimed, both bidirectional A2A↔TRUYN↔MCP round trips and the complete cross-protocol security matrix.
 
 Transport authentication from A2A or MCP never substitutes for TRUYN provider authorization, billing responsibility or Trustability.
 
@@ -216,7 +220,7 @@ The current reference implementation keeps the following invariants:
 10. protected-provider M2M proof is transport-only and stripped before the inner relay;
 11. sponsored mode cannot activate without actor-bound signed entitlement verification and a durable atomic usage store.
 
-Future SDK, Agent Descriptor and A2A/MCP implementations must preserve these invariants.
+Future SDK, Agent Descriptor and remaining A2A/MCP implementations must preserve these invariants.
 
 ## Evidence and repository-hygiene discipline
 
@@ -257,7 +261,7 @@ long-duration / broader real-network durability + adversarial operations
         ↓
 stable operational and compatibility contracts
         ↓
-A2A/MCP bridge + negative interoperability evidence
+A2A client/provider adapter + bidirectional A2A↔TRUYN↔MCP negative interoperability evidence
         ↓
 SDK DX-1/DX-2/DX-3 + five-language conformance
         ↓
