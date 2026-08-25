@@ -1,5 +1,6 @@
 import http from 'node:http';
 import readline from 'node:readline';
+import { decodeMcpHeaderValue } from './http-headers.js';
 
 export const MCP_MODERN_VERSION = '2026-07-28';
 export const MCP_LEGACY_VERSIONS = Object.freeze(['2025-11-25', '2025-06-18']);
@@ -11,6 +12,7 @@ export const MCP_SERVER_INFO_META_KEY = 'io.modelcontextprotocol/serverInfo';
 
 const CACHE_TTL_MS = 1000;
 const CACHE_SCOPE = 'private';
+const NAME_ROUTED_METHODS = new Set(['tools/call', 'resources/read', 'prompts/get']);
 
 const TOOLS = Object.freeze([
   { name: 'truyn_identity', title: 'TRUYN Identity', description: 'Return the cryptographic TRUYN Node identity connected to this MCP server.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
@@ -131,9 +133,12 @@ function validateHttpProtocol(req, message) {
   if (req.headers['mcp-method'] !== message?.method) {
     return { status: 400, body: rpcError(message?.id, -32020, 'Mcp-Method header mismatch') };
   }
-  const expectedName = expectedRoutingName(message);
-  if (expectedName !== null && req.headers['mcp-name'] !== expectedName) {
-    return { status: 400, body: rpcError(message?.id, -32020, 'Mcp-Name header mismatch') };
+  if (NAME_ROUTED_METHODS.has(message?.method)) {
+    const expectedName = expectedRoutingName(message);
+    const actualName = decodeMcpHeaderValue(req.headers['mcp-name']);
+    if (expectedName === null || actualName === null || actualName !== expectedName) {
+      return { status: 400, body: rpcError(message?.id, -32020, 'Mcp-Name header mismatch') };
+    }
   }
   const envelopeError = modernEnvelopeError(message?.params || {});
   if (envelopeError) {
