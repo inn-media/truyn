@@ -118,6 +118,9 @@ test('D-1000 campaign proves packet-path failure and a full post-heal routing ga
   assert.match(campaign, /assert float\('\$healed_rate'\) >= \.99/);
   assert.match(campaign, /"healedSuccessRatio":\$\{healed_rate\}/);
   assert.match(campaign, /"realPacketPath":true/);
+  assert.match(campaign, /assert float\('\$conv_p95'\) <= 120000/);
+  assert.match(campaign, /assert float\('\$recovery_p95'\) <= 120000/);
+  assert.match(campaign, /partition_recovery_ms" -le 120000/);
 });
 
 test('D-100 prepared harness removes invalid bootstrap and guest paths without cloud access', () => {
