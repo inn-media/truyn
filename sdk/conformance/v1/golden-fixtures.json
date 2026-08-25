@@ -1,0 +1,290 @@
+{
+  "fixtureSet": "truyn.sdk-conformance/v1",
+  "contractVersion": 1,
+  "protocol": "TRUYN/1",
+  "notes": "Single language-neutral fixture set for DX-1 TypeScript and Python implementations. Descriptor signature bytes are structural placeholders in PR1; cryptographic descriptor verification is a later DX-1 implementation step because its concrete encoding is still draft.",
+  "dtoCases": [
+    {
+      "id": "identity.public.valid",
+      "dto": "Identity",
+      "polarity": "positive",
+      "value": {
+        "nodeId": "truyn:node:provider-public-001",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nFIXTURE_PUBLIC_KEY\n-----END PUBLIC KEY-----",
+        "algorithm": "Ed25519",
+        "protocols": ["TRUYN/1"],
+        "name": "Fixture Provider"
+      },
+      "expect": { "valid": true }
+    },
+    {
+      "id": "capability.reasoning.valid",
+      "dto": "Capability",
+      "polarity": "positive",
+      "value": {
+        "id": "reasoning.general",
+        "name": "General reasoning",
+        "inputModes": ["application/json", "text/plain"],
+        "outputModes": ["application/json", "text/plain"],
+        "interactionModes": ["request-response"]
+      },
+      "expect": { "valid": true }
+    },
+    {
+      "id": "descriptor.public.valid",
+      "dto": "AgentDescriptor",
+      "polarity": "positive",
+      "value": {
+        "schema": "truyn.agent-descriptor/v1",
+        "descriptorVersion": "1",
+        "identity": "truyn:node:provider-public-001",
+        "name": "Fixture Provider",
+        "protocols": ["TRUYN/1"],
+        "interfaces": [
+          { "type": "https", "endpoint": "https://fixture.example/truyn" }
+        ],
+        "capabilities": [
+          {
+            "id": "reasoning.general",
+            "inputModes": ["application/json", "text/plain"],
+            "outputModes": ["application/json", "text/plain"],
+            "interactionModes": ["request-response"]
+          }
+        ],
+        "features": { "streaming": false, "artifacts": true, "trustReceipts": true },
+        "security": { "signedEnvelopes": true, "authorization": "policy-before-dispatch" },
+        "issuedAt": "2026-08-25T10:00:00.000Z",
+        "expiresAt": "2026-08-26T10:00:00.000Z",
+        "signature": "fixture-descriptor-signature"
+      },
+      "expect": { "valid": true, "supportedProtocol": "TRUYN/1" }
+    },
+    {
+      "id": "offer.signed.valid",
+      "dto": "Offer",
+      "polarity": "positive",
+      "value": {
+        "protocol": "TRUYN/1",
+        "type": "OFFER",
+        "id": "offer-001",
+        "from": "truyn:node:provider-public-001",
+        "to": null,
+        "createdAt": "2026-08-25T10:01:00.000Z",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nFIXTURE_PUBLIC_KEY\n-----END PUBLIC KEY-----",
+        "payload": {
+          "capability": { "name": "reasoning.general" },
+          "metadata": { "providerPolicy": "public" }
+        },
+        "signature": "fixture-offer-signature"
+      },
+      "expect": { "valid": true, "capabilityId": "reasoning.general" }
+    },
+    {
+      "id": "need.signed.valid",
+      "dto": "Need",
+      "polarity": "positive",
+      "value": {
+        "protocol": "TRUYN/1",
+        "type": "NEED",
+        "id": "need-001",
+        "from": "truyn:node:requester-001",
+        "to": null,
+        "createdAt": "2026-08-25T10:02:00.000Z",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nFIXTURE_REQUESTER_PUBLIC_KEY\n-----END PUBLIC KEY-----",
+        "payload": {
+          "capability": { "name": "reasoning.general" },
+          "input": { "question": "fixture question" },
+          "policy": { "deadlineMs": 30000 }
+        },
+        "signature": "fixture-need-signature"
+      },
+      "expect": { "valid": true, "capabilityId": "reasoning.general" }
+    },
+    {
+      "id": "result.signed.valid",
+      "dto": "Result",
+      "polarity": "positive",
+      "value": {
+        "protocol": "TRUYN/1",
+        "type": "RESULT",
+        "id": "result-001",
+        "from": "truyn:node:provider-public-001",
+        "to": null,
+        "createdAt": "2026-08-25T10:02:01.000Z",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nFIXTURE_PUBLIC_KEY\n-----END PUBLIC KEY-----",
+        "payload": {
+          "requestId": "need-001",
+          "output": { "answer": "fixture answer" },
+          "completedAt": "2026-08-25T10:02:01.000Z",
+          "metadata": { "model": "fixture-model" }
+        },
+        "signature": "fixture-result-signature"
+      },
+      "expect": { "valid": true, "requestId": "need-001" }
+    },
+    {
+      "id": "artifact-ref.context.valid",
+      "dto": "ArtifactRef",
+      "polarity": "positive",
+      "value": "truyn:ctx:0123456789abcdef",
+      "expect": { "valid": true, "opaque": true }
+    },
+    {
+      "id": "error.version-mismatch.valid",
+      "dto": "NormalizedError",
+      "polarity": "positive",
+      "value": {
+        "code": "version_mismatch",
+        "message": "Unsupported TRUYN protocol generation",
+        "retryable": false,
+        "source": { "protocolReason": "unsupported_protocol" },
+        "details": { "supported": ["TRUYN/1"], "received": "TRUYN/2" }
+      },
+      "expect": { "valid": true }
+    },
+    {
+      "id": "descriptor.required-field-missing",
+      "dto": "AgentDescriptor",
+      "polarity": "negative",
+      "value": {
+        "schema": "truyn.agent-descriptor/v1",
+        "descriptorVersion": "1",
+        "identity": "truyn:node:provider-public-001",
+        "protocols": ["TRUYN/1"],
+        "interfaces": [],
+        "capabilities": [],
+        "issuedAt": "2026-08-25T10:00:00.000Z",
+        "expiresAt": "2026-08-26T10:00:00.000Z"
+      },
+      "expect": {
+        "valid": false,
+        "error": { "code": "validation_error", "retryable": false }
+      }
+    },
+    {
+      "id": "artifact-ref.empty",
+      "dto": "ArtifactRef",
+      "polarity": "negative",
+      "value": "",
+      "expect": {
+        "valid": false,
+        "error": { "code": "validation_error", "retryable": false }
+      }
+    },
+    {
+      "id": "error.unknown-code",
+      "dto": "NormalizedError",
+      "polarity": "negative",
+      "value": {
+        "code": "made_up_error",
+        "message": "must not be accepted",
+        "retryable": false
+      },
+      "expect": {
+        "valid": false,
+        "error": { "code": "validation_error", "retryable": false }
+      }
+    }
+  ],
+  "behaviorCases": [
+    {
+      "id": "discovery.private-capability-nondisclosure",
+      "operation": "discover",
+      "requesterNodeId": "truyn:node:requester-001",
+      "capabilityId": "reasoning.general",
+      "serverSideOnly": {
+        "offers": [
+          {
+            "id": "offer-001",
+            "from": "truyn:node:provider-public-001",
+            "capabilityId": "reasoning.general",
+            "authorizedForRequester": true
+          },
+          {
+            "id": "offer-private-001",
+            "from": "truyn:node:provider-private-001",
+            "capabilityId": "reasoning.general",
+            "authorizedForRequester": false
+          }
+        ]
+      },
+      "wireResponse": {
+        "ok": true,
+        "offers": [
+          {
+            "protocol": "TRUYN/1",
+            "type": "OFFER",
+            "id": "offer-001",
+            "from": "truyn:node:provider-public-001",
+            "to": null,
+            "createdAt": "2026-08-25T10:01:00.000Z",
+            "publicKey": "-----BEGIN PUBLIC KEY-----\nFIXTURE_PUBLIC_KEY\n-----END PUBLIC KEY-----",
+            "payload": {
+              "capability": { "name": "reasoning.general" },
+              "metadata": { "providerPolicy": "public" }
+            },
+            "signature": "fixture-offer-signature"
+          }
+        ]
+      },
+      "expect": {
+        "visibleOfferIds": ["offer-001"],
+        "absentOfferIds": ["offer-private-001"],
+        "hiddenProviderNodeIds": ["truyn:node:provider-private-001"]
+      }
+    },
+    {
+      "id": "descriptor.version-mismatch",
+      "operation": "parseDescriptor",
+      "value": {
+        "schema": "truyn.agent-descriptor/v2",
+        "descriptorVersion": "2",
+        "identity": "truyn:node:provider-future-001",
+        "protocols": ["TRUYN/2"],
+        "interfaces": [{ "type": "https", "endpoint": "https://future.example/truyn" }],
+        "capabilities": [],
+        "issuedAt": "2026-08-25T10:00:00.000Z",
+        "expiresAt": "2026-08-26T10:00:00.000Z",
+        "signature": "fixture-future-signature"
+      },
+      "expect": {
+        "accepted": false,
+        "error": {
+          "code": "version_mismatch",
+          "message": "Unsupported Agent Descriptor version",
+          "retryable": false,
+          "details": { "supportedDescriptorVersions": ["1"], "receivedDescriptorVersion": "2" }
+        }
+      }
+    },
+    {
+      "id": "protocol.version-mismatch",
+      "operation": "verifyEnvelope",
+      "value": {
+        "protocol": "TRUYN/2",
+        "type": "NEED",
+        "id": "need-future-001",
+        "from": "truyn:node:requester-001",
+        "to": null,
+        "createdAt": "2026-08-25T10:02:00.000Z",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nFIXTURE_REQUESTER_PUBLIC_KEY\n-----END PUBLIC KEY-----",
+        "payload": {
+          "capability": { "name": "reasoning.general" },
+          "input": { "question": "future protocol" },
+          "policy": {}
+        },
+        "signature": "fixture-future-need-signature"
+      },
+      "expect": {
+        "accepted": false,
+        "protocolReason": "unsupported_protocol",
+        "error": {
+          "code": "version_mismatch",
+          "message": "Unsupported TRUYN protocol generation",
+          "retryable": false,
+          "source": { "protocolReason": "unsupported_protocol" }
+        }
+      }
+    }
+  ]
+}
