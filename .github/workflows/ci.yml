@@ -1,7 +1,9 @@
 name: CI
 
 on:
-  push: {}
+  push:
+    branches:
+      - main
   pull_request: {}
   workflow_dispatch: {}
 
@@ -9,7 +11,55 @@ permissions:
   contents: read
 
 jobs:
+  dco:
+    name: DCO
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify DCO 1.1 sign-offs
+        env:
+          DCO_EVENT_NAME: ${{ github.event_name }}
+          DCO_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DCO_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DCO_PUSH_BASE_SHA: ${{ github.event.before }}
+          DCO_HEAD_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          case "$DCO_EVENT_NAME" in
+            pull_request)
+              base_sha="$DCO_PR_BASE_SHA"
+              head_sha="$DCO_PR_HEAD_SHA"
+              ;;
+            push)
+              base_sha="$DCO_PUSH_BASE_SHA"
+              head_sha="$DCO_HEAD_SHA"
+              ;;
+            workflow_dispatch)
+              base_sha="$(git rev-parse "${DCO_HEAD_SHA}^")"
+              head_sha="$DCO_HEAD_SHA"
+              ;;
+            *)
+              printf 'Unsupported DCO event: %s\n' "$DCO_EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
+            printf 'DCO base SHA is unavailable for %s\n' "$DCO_EVENT_NAME" >&2
+            exit 1
+          fi
+
+          node scripts/check-dco.mjs "$base_sha" "$head_sha"
+
   test:
+    name: test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -20,12 +70,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify DCO 1.1 sign-offs
-        if: github.event_name == 'pull_request'
-        env:
-          DCO_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          DCO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node scripts/check-dco.mjs "$DCO_BASE_SHA" "$DCO_HEAD_SHA"
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm test
         env:
