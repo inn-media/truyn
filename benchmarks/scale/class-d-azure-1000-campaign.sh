@@ -12,6 +12,82 @@ out=$(remote "${VMS[0]}" "set -Eeuo pipefail; f=/var/lib/truyn-d1000/records-by-
 [[ "$(marker "$out" EPS)" == "$NODE_COUNT" ]]
 echo "TRUYN_CLASS_D_1000 stage=topology nodes=${NODE_COUNT} identities=${NODE_COUNT} sockets=${NODE_COUNT} hosts=${HOST_COUNT} status=PASS"
 
+STAGE=readiness-barrier
+readiness_ready=0; readiness_total=0
+readiness_min_valid=999999; readiness_max_valid=0
+readiness_min_buckets=999999; readiness_max_buckets=0
+readiness_min_hosts=999999; readiness_max_hosts=0
+readiness_start_ms=$(date +%s%3N)
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  script=$(cat <<EOS
+set -Eeuo pipefail
+deadline=\$((\$(date +%s) + 120))
+ready=0
+min_valid=999999
+max_valid=0
+min_buckets=999999
+max_buckets=0
+min_hosts=999999
+max_hosts=0
+while [[ "\$(date +%s)" -lt "\$deadline" ]]; do
+  ready=0
+  min_valid=999999
+  max_valid=0
+  min_buckets=999999
+  max_buckets=0
+  min_hosts=999999
+  max_hosts=0
+  for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+    control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
+    readiness=\$(curl -fsS --max-time 10 "\${control_url}/dht/readiness")
+    status=\$(printf '%s' "\$readiness" | jq -r '.refresh.status')
+    valid=\$(printf '%s' "\$readiness" | jq -r '.validPeers')
+    buckets=\$(printf '%s' "\$readiness" | jq -r '.populatedBuckets')
+    hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount')
+    if [[ "\$status" == refreshed && "\$valid" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE} && "\$buckets" -gt 0 && "\$hosts" -ge 2 ]]; then
+      ready=\$((ready + 1))
+    fi
+    if [[ "\$valid" -lt "\$min_valid" ]]; then min_valid="\$valid"; fi
+    if [[ "\$valid" -gt "\$max_valid" ]]; then max_valid="\$valid"; fi
+    if [[ "\$buckets" -lt "\$min_buckets" ]]; then min_buckets="\$buckets"; fi
+    if [[ "\$buckets" -gt "\$max_buckets" ]]; then max_buckets="\$buckets"; fi
+    if [[ "\$hosts" -lt "\$min_hosts" ]]; then min_hosts="\$hosts"; fi
+    if [[ "\$hosts" -gt "\$max_hosts" ]]; then max_hosts="\$hosts"; fi
+  done
+  [[ "\$ready" -eq ${NODES_PER_HOST} ]] && break
+  sleep 2
+done
+[[ "\$ready" -eq ${NODES_PER_HOST} ]]
+echo READINESS_READY=\$ready
+echo READINESS_TOTAL=${NODES_PER_HOST}
+echo READINESS_MIN_VALID=\$min_valid
+echo READINESS_MAX_VALID=\$max_valid
+echo READINESS_MIN_BUCKETS=\$min_buckets
+echo READINESS_MAX_BUCKETS=\$max_buckets
+echo READINESS_MIN_HOSTS=\$min_hosts
+echo READINESS_MAX_HOSTS=\$max_hosts
+EOS
+)
+  out=$(remote "${VMS[$i]}" "$script")
+  ready=$(marker "$out" READINESS_READY); total=$(marker "$out" READINESS_TOTAL)
+  [[ "$ready" == "$NODES_PER_HOST" ]]
+  [[ "$total" == "$NODES_PER_HOST" ]]
+  readiness_ready=$((readiness_ready+ready)); readiness_total=$((readiness_total+total))
+  min_valid=$(marker "$out" READINESS_MIN_VALID); max_valid=$(marker "$out" READINESS_MAX_VALID)
+  min_buckets=$(marker "$out" READINESS_MIN_BUCKETS); max_buckets=$(marker "$out" READINESS_MAX_BUCKETS)
+  min_hosts=$(marker "$out" READINESS_MIN_HOSTS); max_hosts=$(marker "$out" READINESS_MAX_HOSTS)
+  if [[ "$min_valid" -lt "$readiness_min_valid" ]]; then readiness_min_valid="$min_valid"; fi
+  if [[ "$max_valid" -gt "$readiness_max_valid" ]]; then readiness_max_valid="$max_valid"; fi
+  if [[ "$min_buckets" -lt "$readiness_min_buckets" ]]; then readiness_min_buckets="$min_buckets"; fi
+  if [[ "$max_buckets" -gt "$readiness_max_buckets" ]]; then readiness_max_buckets="$max_buckets"; fi
+  if [[ "$min_hosts" -lt "$readiness_min_hosts" ]]; then readiness_min_hosts="$min_hosts"; fi
+  if [[ "$max_hosts" -gt "$readiness_max_hosts" ]]; then readiness_max_hosts="$max_hosts"; fi
+  echo "TRUYN_CLASS_D_1000 stage=readiness-barrier host=$i ready=${ready}/${total} validMin=${min_valid} validMax=${max_valid} bucketsMin=${min_buckets} bucketsMax=${max_buckets} remoteHostsMin=${min_hosts} remoteHostsMax=${max_hosts} status=PASS"
+done
+readiness_ms=$(( $(date +%s%3N) - readiness_start_ms ))
+[[ "$readiness_ready" == "$NODE_COUNT" ]]
+echo "TRUYN_CLASS_D_1000 stage=readiness-barrier ready=${readiness_ready}/${readiness_total} validMin=${readiness_min_valid} validMax=${readiness_max_valid} bucketsMin=${readiness_min_buckets} bucketsMax=${readiness_max_buckets} remoteHostsMin=${readiness_min_hosts} remoteHostsMax=${readiness_max_hosts} ms=${readiness_ms} status=PASS"
+
 STAGE=convergence
 conv_success=0; conv_total=0; conv_p95=0; conv_p99=0
 for i in $(seq 0 $((HOST_COUNT-1))); do
@@ -309,6 +385,7 @@ cat >"$EVIDENCE" <<JSON
   "testedCommit":"${GITHUB_SHA}",
   "workflowRunId":"${GITHUB_RUN_ID}",
   "topology":{"nodeCount":${NODE_COUNT},"realProcessCount":${NODE_COUNT},"hostCount":${HOST_COUNT},"realProcessesPerHost":${NODES_PER_HOST},"uniqueIdentityCount":${NODE_COUNT},"uniqueEndpointCount":${NODE_COUNT},"syntheticNodeCount":0,"transport":"real UDP/QUIC over Azure VNet","bootstrap":"sparse Kademlia local+bridge"},
+  "readiness":{"readyNodeCount":${readiness_ready},"readyNodeRatio":1,"barrierMs":${readiness_ms},"validPeers":{"min":${readiness_min_valid},"max":${readiness_max_valid}},"populatedBuckets":{"min":${readiness_min_buckets},"max":${readiness_max_buckets}},"remoteEndpointHosts":{"min":${readiness_min_hosts},"max":${readiness_max_hosts}}},
   "routing":{"baselineSuccessRatio":${base_rate},"baselineProbes":${base_total},"postRestartSuccessRatio":${post_rate},"healedSuccessRatio":${healed_rate},"healedProbes":${healed_total},"latencyMs":{"aggregation":"max-of-host-quantiles","p50":${base_p50},"p90":${base_p90},"p95":${base_p95},"p99":${base_p99}},"healedLatencyMs":{"aggregation":"max-of-host-quantiles","p50":${healed_p50},"p90":${healed_p90},"p95":${healed_p95},"p99":${healed_p99}}},
   "convergence":{"latencyMs":{"p95":${conv_p95},"p99":${conv_p99}},"routingSuccessRatio":${conv_rate},"nodeProbeCount":${conv_total}},
   "recovery":{"latencyMs":{"p95":${recovery_p95}},"restartedNodeCount":100,"identityAndStatePathsPreserved":true,"packetPartitionRecoveryMs":${partition_recovery_ms}},
@@ -319,5 +396,5 @@ cat >"$EVIDENCE" <<JSON
   "cleanup":{"confirmed":false,"remainingResources":null,"finalizedByExitTrap":true}
 }
 JSON
-echo "TRUYN_CLASS_D_1000_GATE=CANDIDATE nodes=${NODE_COUNT} hosts=${HOST_COUNT} baseline=${base_rate} healed=${healed_rate} convergenceP95Ms=${conv_p95} recoveryP95Ms=${recovery_p95} ackLoss=${ack_loss} invalidSigned=${invalid_signed_state_accepted} staleReceipt=${stale_receipt_accepted} unauthorizedProviderExecution=${unauthorized_provider_execution}"
+echo "TRUYN_CLASS_D_1000_GATE=CANDIDATE nodes=${NODE_COUNT} hosts=${HOST_COUNT} readiness=${readiness_ready}/${readiness_total} baseline=${base_rate} healed=${healed_rate} convergenceP95Ms=${conv_p95} recoveryP95Ms=${recovery_p95} ackLoss=${ack_loss} invalidSigned=${invalid_signed_state_accepted} staleReceipt=${stale_receipt_accepted} unauthorizedProviderExecution=${unauthorized_provider_execution}"
 cat "$EVIDENCE"
