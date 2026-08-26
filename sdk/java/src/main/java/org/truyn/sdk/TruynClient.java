@@ -6,8 +6,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Flow;
 
-/** DX-2 Java client skeleton for the TRUYN/1 SDK surface. */
+/** Java client skeleton for the stable TRUYN/1 SDK surface. */
 public final class TruynClient {
   public static final String PROTOCOL = "TRUYN/1";
   public static final String AGENT_DESCRIPTOR_SCHEMA = "truyn.agent-descriptor/v1";
@@ -55,16 +56,35 @@ public final class TruynClient {
     return failed("submitNeed");
   }
 
+  public CompletableFuture<TruynModels.ResultResponse> submitNeed(TruynModels.NeedRequest request) {
+    Objects.requireNonNull(request, "need request is required");
+    requireNonBlank(request.capability(), "capability is required");
+    return failed("submitNeedRequest");
+  }
+
   public CompletableFuture<TruynModels.Result> result(String needId) {
     requireNonBlank(needId, "need ID is required");
     return failed("result");
+  }
+
+  public Flow.Publisher<TruynModels.StreamEvent> streamResult(String needId) {
+    requireNonBlank(needId, "need ID is required");
+    return subscriber -> subscriber.onError(new TruynException(
+        TruynException.Code.UNIMPLEMENTED,
+        "streamResult is not implemented in the Java SDK skeleton",
+        false));
+  }
+
+  public CompletableFuture<Void> cancel(String requestId) {
+    requireNonBlank(requestId, "request ID is required");
+    return failed("cancel");
   }
 
   private static <T> CompletableFuture<T> failed(String operation) {
     return CompletableFuture.failedFuture(
         new TruynException(
             TruynException.Code.UNIMPLEMENTED,
-            operation + " is not implemented in the Java DX-2 skeleton",
+            operation + " is not implemented in the Java SDK skeleton",
             false));
   }
 
