@@ -58,6 +58,8 @@ export async function createA2aDiscoveryProvider({
   allowCrossOriginInterface = false,
   allowInsecureHttp = false,
   maxResponseBytes,
+  maxArtifactBytes,
+  resolveArtifactUrl = null,
   taskTimeoutMs,
   pollIntervalMs,
   taskExecutionMode = 'blocking',
@@ -71,6 +73,9 @@ export async function createA2aDiscoveryProvider({
   if (typeof capabilityPrefix !== 'string') throw new Error('capabilityPrefix must be a string');
   if (mapCapability !== undefined && typeof mapCapability !== 'function') throw new Error('mapCapability must be a function');
   if (mapInput !== undefined && typeof mapInput !== 'function') throw new Error('mapInput must be a function');
+  if (resolveArtifactUrl !== null && resolveArtifactUrl !== undefined && typeof resolveArtifactUrl !== 'function') {
+    throw new Error('resolveArtifactUrl must be a function when provided');
+  }
 
   const client = createA2aClient({
     agentCardUrl,
@@ -79,6 +84,8 @@ export async function createA2aDiscoveryProvider({
     allowCrossOriginInterface,
     allowInsecureHttp,
     ...(maxResponseBytes !== undefined ? { maxResponseBytes } : {}),
+    ...(maxArtifactBytes !== undefined ? { maxArtifactBytes } : {}),
+    ...(resolveArtifactUrl ? { resolveArtifactUrl } : {}),
     ...(taskTimeoutMs !== undefined ? { taskTimeoutMs } : {}),
     ...(pollIntervalMs !== undefined ? { pollIntervalMs } : {}),
     taskExecutionMode,
@@ -127,7 +134,8 @@ export async function createA2aDiscoveryProvider({
           remoteAgent,
           inputModes: skill.inputModes || [],
           outputModes: skill.outputModes || [],
-          taskExecutionMode
+          taskExecutionMode,
+          artifactIntegrity: 'sha256'
         }
       }
     })),
@@ -138,6 +146,10 @@ export async function createA2aDiscoveryProvider({
       remoteAgent,
       extended: Boolean(useExtendedAgentCard),
       taskExecutionMode,
+      artifactIntegrity: {
+        algorithm: 'sha256',
+        urlResolution: resolveArtifactUrl ? 'explicit-resolver' : 'disabled'
+      },
       selectedSkills: selected.map(({ skill, capability }) => ({ skill: skill.id, capability }))
     },
     async execute({ capability, input, need, policy }) {
