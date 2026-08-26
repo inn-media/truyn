@@ -1,21 +1,21 @@
 # TRUYN Compatibility
 
-**Current software:** `0.1.0-dev`  
-**Current protocol generation:** `TRUYN/1` draft
+**Snapshot:** 2026-08-27  
+**Protocol generation:** `TRUYN/1` draft  
+**Synchronized source:** `main@63e54cbe30d363ef4609732b512fe64ab860cf9d`
 
-TRUYN separates compatibility dimensions instead of pretending that one version number governs the whole system:
+TRUYN separates compatibility dimensions instead of pretending one version controls everything:
 
 1. software release;
-2. network protocol generation;
+2. TRUYN network protocol generation;
 3. wire schema generation;
-4. Agent Descriptor schema/version;
-5. first-party SDK semantic/API version;
-6. SDK package publication state and provenance;
-7. local storage/config format;
-8. external interoperability protocol versions such as A2A and MCP;
-9. provider/model API versions behind adapters.
+4. Agent Descriptor version;
+5. first-party SDK semantic/API/package version;
+6. local storage/config formats;
+7. external A2A/MCP versions;
+8. provider/model API versions behind adapters.
 
-A newer software or SDK build does not automatically imply a new protocol generation, and a draft `TRUYN/1` implementation does not yet carry a stable v1 compatibility guarantee. Likewise, an A2A or MCP adapter update should not force a new TRUYN generation unless TRUYN network semantics themselves change.
+A new adapter/SDK build does not automatically create a new TRUYN protocol generation. TRUYN/1 remains draft and does not yet carry a stable-v1 compatibility promise.
 
 ## Documents
 
@@ -23,58 +23,56 @@ A newer software or SDK build does not automatically imply a new protocol genera
 - [Adapter Compatibility](ADAPTER_COMPATIBILITY.md)
 - [A2A / MCP Compatibility Matrix](A2A_MCP_COMPATIBILITY.md)
 - [SDK Compatibility](SDK_COMPATIBILITY.md)
-- [SDK Packaging and Versioning Policy](SDK_PACKAGING.md)
-- [A2A / MCP Interoperability Architecture](../architecture/A2A_MCP_INTEROPERABILITY.md)
+- [SDK Packaging and Versioning](SDK_PACKAGING.md)
+- [A2A / MCP Architecture](../architecture/A2A_MCP_INTEROPERABILITY.md)
 
 ## Current A2A / MCP boundary
 
-The MCP edge has bounded executable reference code today: TRUYN-as-MCP server and a configured remote MCP HTTP tool provider path. This does not imply complete current MCP feature coverage or external certification.
+The old “A2A is architecture-only” compatibility statement is obsolete.
 
-A2A is currently architecture-only: the Agent Card/server task facade, client/provider adapter and bidirectional A2A↔TRUYN↔MCP proof have not been implemented.
+Current accepted bounded profile:
 
-Compatibility claims MUST distinguish:
+```text
+C1  MCP current contract                       accepted / CI-proven
+C2  MCP general discovery/import              accepted / CI-proven
+C3  A2A server facade                         accepted / CI-proven
+C4  A2A client/provider adapter               accepted / CI-proven
+C5  A2A bounded polling lifecycle             accepted / CI-proven
+C6  A2A artifact integrity                    accepted / CI-proven
+C7  both A2A↔TRUYN↔MCP round trips           accepted / CI-proven
+C8  complete cross-protocol security matrix   OPEN (#369)
+```
+
+C7 is in-repository interoperability evidence, not independent external ecosystem certification. Independent A2A/MCP SDK/reference-server proof and a stable compatibility declaration remain open.
+
+## SDK compatibility boundary
+
+Current main contains TypeScript/JavaScript and Python reference SDK clients and the merged DX-3 bounded developer surface. Go, Java and .NET parity/publication remains incomplete. Public stable package compatibility is not claimed merely because API-v1 primitives exist in the repository.
+
+Compatibility claims must distinguish:
 
 ```text
 Defined
 Implemented
 CI-proven
-Internal package
+Bounded interoperability-proven
+Independent externally interoperable/evidenced
 Public pre-release package
-Externally interoperable / evidenced
 Stable
 ```
 
-## SDK language and packaging policy
-
-The required first-party SDK targets before stable v1 are:
-
-- JavaScript / TypeScript;
-- Python;
-- Go;
-- Java;
-- C# / .NET.
-
-Rust is an optional additional track and does not replace any of those required targets.
-
-Every SDK release must declare the protocol and Agent Descriptor versions it understands, its tested node/server version range, its own SDK semantic version and its package publication state.
-
-Current TypeScript and Python SDK code is internal/pre-stable. `@truyn/sdk` and `truyn-sdk` are not public stable package claims until the packaging release gate in [SDK Packaging and Versioning Policy](SDK_PACKAGING.md) is met.
-
 ## Current policy
 
-Before v1.0/stable TRUYN/1:
+Before a stable TRUYN/1 release:
 
-- compatibility is best-effort and explicitly versioned;
-- internal SDK packages are not public compatibility promises;
-- testnet may introduce breaking changes;
-- mainnet compatibility is not yet promised;
-- nodes/adapters/SDKs should validate the protocol/wire/descriptor/external-protocol versions they actually understand;
-- SDKs must fail explicitly on unknown required semantics rather than guessing;
-- unsupported A2A/MCP versions should fail explicitly rather than silently changing semantics;
+- compatibility remains explicitly versioned and may evolve;
+- unsupported TRUYN/A2A/MCP versions fail explicitly;
 - external protocol authentication never replaces TRUYN provider authorization;
-- migrations should be explicit when persisted state/config formats change;
-- architecture/evidence should name the tested software commit/version when behavior is compatibility-sensitive;
-- A2A/MCP evidence should name the exact external protocol versions exercised;
-- cross-language SDK parity is not claimed until the shared conformance suite exists and is green.
+- request/provider/billing authority cannot be taken from remote metadata;
+- SDKs/adapters must not guess unknown required semantics;
+- migrations must be explicit where persisted state/config changes;
+- evidence must name concrete tested source and external protocol versions;
+- package publication and stable API compatibility are separate gates from in-repository implementation;
+- mainnet compatibility is not promised until the mainnet/stability gates close.
 
-Stable protocol, Agent Descriptor, SDK and external-adapter compatibility are v1.0 gates, not present claims.
+See `A2A_MCP_COMPATIBILITY.md` and `../architecture/IMPLEMENTATION_STATUS.md` for the current factual boundary.
