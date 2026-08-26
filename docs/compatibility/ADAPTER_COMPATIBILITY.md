@@ -1,26 +1,76 @@
 # TRUYN Adapter Compatibility
 
-**Status:** reference adapter compatibility map; provider availability, entitlement and external-protocol certification remain independent.
+**Snapshot:** 2026-08-27  
+**Status:** reference adapter compatibility map synchronized with `main@63e54cbe30d363ef4609732b512fe64ab860cf9d`.
 
-## Compatibility principle
+An adapter being present does not imply cloud entitlement, public provider access, stable compatibility or complete external-protocol certification. External protocol objects remain adapter metadata, not TRUYN/1 wire vocabulary.
 
-TRUYN exposes stable logical capabilities; vendor/model IDs and external protocol objects are adapter metadata, not the TRUYN capability namespace.
+## Adapter security rule
 
-An adapter being present does **not** imply:
-
-- the cloud model is deployed/entitled;
-- the provider is publicly usable;
-- the provider version is permanently stable;
-- every vendor-specific feature maps to a TRUYN capability;
-- an external protocol implementation is complete or certified;
-- A2A/MCP authentication replaces TRUYN provider authorization.
-
-## Adapters versus first-party SDKs
-
-Adapters and SDKs serve different directions of interoperability:
+All execution-capable adapters preserve the same central boundary:
 
 ```text
-external AI/provider/framework
+external protocol/provider
+        ↓
+adapter auth + version/correlation validation
+        ↓
+TRUYN requester/provider authorization
+        ↓
+billing/entitlement gate
+        ↓
+upstream execution
+```
+
+Transport authentication never substitutes for TRUYN authorization. Remote owner/requester/billing metadata is descriptive unless independently authorized by TRUYN policy.
+
+## Current reference adapter surfaces
+
+The repository contains bounded executable paths for combinations including:
+
+- OpenAI and OpenAI-compatible providers;
+- Anthropic;
+- Azure OpenAI;
+- Vertex Gemini;
+- generic HTTP JSON providers;
+- TRUYN-as-MCP stdio/loopback HTTP;
+- configured MCP HTTP tool providers;
+- general explicitly selected MCP tool discovery/import;
+- A2A `1.0` server facade;
+- A2A `1.0` client/provider discovery/import;
+- bounded A2A polling lifecycle;
+- integrity-validated A2A artifact mapping.
+
+Provider/model deployment availability is independent of adapter implementation.
+
+## A2A / MCP status
+
+| Surface | Current factual state |
+|---|---|
+| MCP TRUYN-server path | **Implemented / bounded CI-proven** |
+| MCP configured remote tool provider | **Implemented / bounded CI-proven** |
+| General MCP discovery/import | **Implemented / bounded CI-proven — C2** |
+| A2A Agent Card/server facade | **Implemented / bounded CI-proven — C3** |
+| A2A client/provider adapter | **Implemented / bounded CI-proven — C4** |
+| A2A polling task lifecycle | **Implemented / bounded CI-proven — C5** |
+| A2A artifact integrity | **Implemented / bounded CI-proven — C6** |
+| A2A→TRUYN→MCP | **Implemented / bounded CI-proven — C7** |
+| MCP→TRUYN→A2A | **Implemented / bounded CI-proven — C7** |
+| Complete cross-protocol adversarial matrix | **OPEN — C8 / PR #369** |
+| Independent external A2A/MCP reference-SDK certification | **Not yet proven** |
+| Stable A2A/MCP compatibility guarantee | **Not available** |
+
+The key correction is that the project **does have** the reverse A2A adapter and both in-repository cross-protocol round trips. What remains open is C8 and broader independent external certification, not C4/C7 implementation.
+
+See `A2A_MCP_COMPATIBILITY.md` for the detailed matrix.
+
+## Artifact/reference handling
+
+Large media/reference payloads must preserve integrity and credential locality. C6 requires bounded content, SHA-256/size checks, canonical encodings where applicable, authoritative provenance and no implicit remote URL fetch. A referenced artifact is not trusted merely because an adapter can parse its URL.
+
+## SDKs versus adapters
+
+```text
+external AI/provider/protocol
           ↓
        adapter
           ↓
@@ -31,77 +81,22 @@ external AI/provider/framework
 application / agent code
 ```
 
-- **Adapters** bridge external provider/agent ecosystems into TRUYN capabilities.
-- **First-party SDKs** let application developers consume TRUYN from JavaScript/TypeScript, Python, Go, Java and C#/.NET without manually implementing the protocol.
+Adapters bridge external ecosystems into TRUYN. SDKs let developers consume TRUYN directly. They are separate compatibility surfaces.
 
-An SDK does not replace provider adapters, and an adapter does not satisfy the first-party SDK requirement.
+Current main contains TypeScript/JavaScript and Python reference SDK work plus merged DX-3 developer-surface primitives. Go/Java/.NET parity/publication remains incomplete.
 
-SDK compatibility is defined separately in `SDK_COMPATIBILITY.md`.
+## Compatibility requirements
 
-## User/BYOK reference surfaces
+Adapters should preserve:
 
-The current repository contains reference setup/runtime support for combinations including:
+- logical capability identity independent of vendor/model ID;
+- explicit external protocol versions;
+- normalized provenance/usage/latency metadata where available;
+- central provider authorization/billing before upstream work;
+- bounded response and artifact handling;
+- explicit unsupported/error states rather than false success;
+- credentials inside adapter/runtime secret boundaries;
+- correlation integrity and exactly-once side-effect behavior where claimed;
+- public discovery visibility no broader than TRUYN authorization permits.
 
-- OpenAI;
-- OpenAI-compatible and user-controlled local compatible runtimes;
-- Anthropic;
-- Azure OpenAI;
-- Vertex Gemini;
-- generic custom HTTP JSON provider;
-- MCP stdio/loopback HTTP server exposing TRUYN tools;
-- stateless/configured MCP HTTP tool provider.
-
-BYOK profiles store non-secret settings and credential environment-variable references rather than raw credential values.
-
-## A2A / MCP interoperability status
-
-The two protocol families are intentionally treated as **external interoperability edges**, not as TRUYN/1 wire dependencies.
-
-Current factual status:
-
-- MCP TRUYN-server path: **implemented reference path**;
-- MCP loopback HTTP path: **bounded CI-proven** for the covered tool/header behavior;
-- MCP remote provider path: **implemented bounded configured single-tool path**;
-- general MCP discovery/import: **not implemented**;
-- A2A Agent Card/server facade: **defined only**;
-- A2A client/provider adapter: **defined only**;
-- A2A→TRUYN→MCP and MCP→TRUYN→A2A end-to-end bridges: **not implemented / not proven**.
-
-This distinction matters: the project already has working MCP code, but it does **not** yet have the full A2A/MCP interoperability bridge or a cross-protocol certification gate.
-
-See:
-
-- `A2A_MCP_COMPATIBILITY.md`
-- `../architecture/A2A_MCP_INTEROPERABILITY.md`
-
-## Project reference multi-cloud providers
-
-The provider layer also contains project/reference adapter paths for text/image/video families used in TRUYN smoke/benchmark work, including Gemini, GPT, Grok, DeepSeek, Llama, Mistral, Kimi, Google image generation, Azure image paths, Veo and Sora-family paths.
-
-Individual cloud deployment access can remain `blocked_access` even when adapter code exists.
-
-## Compatibility requirements for adapters
-
-An adapter should preserve:
-
-- logical capability identity independent of concrete model or external-protocol version;
-- normalized provider provenance/usage/latency metadata where available;
-- provider access/billing checks before upstream execution;
-- artifact references/digests for large media rather than leaking private storage credentials;
-- provider-specific errors without leaking secrets/private topology;
-- explicit unsupported/blocked status rather than pretending success;
-- version negotiation/failure semantics for external protocols;
-- external credentials inside the adapter/runtime secret boundary;
-- the distinction between transport authentication, provider authorization, Trustability and settlement.
-
-If an adapter exposes participant discovery metadata through a TRUYN Agent Descriptor, the descriptor must contain only intentionally visible capability/interface information for that requester. It does not replace provider-policy discovery or grant authorization.
-
-A2A/MCP adapters must additionally avoid exposing private offers/resources/tools merely because an external discovery endpoint is reachable.
-
-## Version changes
-
-Model catalogs and external agent protocols change faster than the TRUYN protocol. Adapter/model/A2A/MCP upgrades should therefore be independently testable and should not require a new TRUYN protocol generation unless network semantics themselves change.
-
-When a provider or external protocol version change materially affects compatibility or benchmark comparability, record the concrete tested version in compatibility/evidence documentation.
-
-SDK API/version changes follow the separate SDK compatibility policy rather than being coupled to provider model releases.
+Model catalogs and A2A/MCP versions can evolve independently of TRUYN/1. Adapter upgrades should not require a new TRUYN protocol generation unless TRUYN network semantics themselves change.
