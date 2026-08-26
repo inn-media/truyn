@@ -83,6 +83,26 @@ test('D-1000 Azure provisioner uses the per-node XOR bootstrap planner', async (
   assert.doesNotMatch(provisioner, /value\[0:\$bridges\]/);
 });
 
+test('D-1000 Azure provisioner refreshes each node after bootstrap without warm-up need calls', async () => {
+  const provisioner = await readFile(new URL('../benchmarks/scale/class-d-azure-1000-provision.sh', import.meta.url), 'utf8');
+  const bootstrapStage = provisioner.match(/STAGE=bootstrap[\s\S]*?STAGE=bandwidth-meter/)?.[0];
+  assert.ok(bootstrapStage, 'expected a bounded bootstrap warm-up stage');
+
+  const bootstrapIndex = bootstrapStage.indexOf('/bootstrap');
+  const refreshIndex = bootstrapStage.indexOf('/dht/refresh');
+  const readinessIndex = bootstrapStage.indexOf('/dht/readiness');
+  assert.ok(bootstrapIndex > -1, 'expected warm-up to call /bootstrap');
+  assert.ok(refreshIndex > -1, 'expected warm-up to call /dht/refresh');
+  assert.ok(readinessIndex > -1, 'expected warm-up to read /dht/readiness after refresh');
+  assert.ok(bootstrapIndex < refreshIndex, 'expected /dht/refresh only after /bootstrap');
+  assert.ok(refreshIndex < readinessIndex, 'expected readiness validation only after /dht/refresh');
+  assert.match(bootstrapStage, /BOOTSTRAP_REFRESH_COUNT/);
+  assert.match(bootstrapStage, /BOOTSTRAP_REFRESH_STATUS=refreshed/);
+  assert.match(bootstrapStage, /refresh=per-node/);
+  assert.doesNotMatch(bootstrapStage, /\/need\b/);
+  assert.doesNotMatch(bootstrapStage, /testnet\.echo/);
+});
+
 test('D-1000 planner rejects duplicate identities', () => {
   assert.throws(
     () => buildClassD1000BootstrapPlan([{ nodeId: 'a' }, { nodeId: 'a' }]),

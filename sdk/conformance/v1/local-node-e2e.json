@@ -1,0 +1,26 @@
+{
+  "fixtureSet": "truyn.sdk-conformance/v1",
+  "contractVersion": 1,
+  "flowId": "local-node.need-result/v1",
+  "providerName": "SDK E2E Provider",
+  "requesterName": "SDK E2E Requester",
+  "capabilityId": "sdk.echo",
+  "offerMetadata": {
+    "description": "DX-1 local SDK E2E capability"
+  },
+  "needInput": {
+    "text": "hello from SDK"
+  },
+  "needPolicy": {
+    "purpose": "dx1-local-e2e"
+  },
+  "result": {
+    "outputPrefix": "echo:",
+    "expectedOutput": {
+      "text": "echo:hello from SDK"
+    },
+    "metadata": {
+      "e2e": "dx1-local-e2e"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot date:** 2026-08-25  
+**Snapshot date:** 2026-08-26  
 **Software version:** `0.1.0-dev`  
 **Protocol generation:** `TRUYN/1` draft
 
@@ -57,8 +57,8 @@ Governance maturity uses the independent G0-G5 model defined in `../../GOVERNANC
 | A2A interoperability edge | **Defined** | **Implemented bounded A2A `1.0` server-facade slice** | `adapters/a2a/`; `tests/a2a-server.test.js`; authorized Agent Card projection, Message → NEED → RESULT → Artifact, scoped Task polling and zero-NEED/zero-provider-execution negative proof | reverse A2A client/provider adapter, remote Agent Card import, broader artifact/lifecycle semantics and ecosystem certification remain open |
 | A2A↔TRUYN↔MCP bridge | **Defined** | **Not implemented as a complete bidirectional bridge** | bounded MCP C1/C2 + A2A C3 edge tests only | A2A client/provider + both cross-protocol round trips + complete security matrix required |
 | Settlement adapters (x402/AP2) | **Defined** | **Not implemented** | none | deferred v0.9 milestone after higher-priority productionization/operations gates |
-| TRUYN Agent Descriptor | **Defined draft** | **Not implemented as a served/discovered runtime contract** | none | implement well-known/native discovery, signature/expiry validation and scoped visibility |
-| First-party SDK program | **Defined** | **Scaffolding/documentation only** | no cross-language SDK conformance evidence | implement TS/Python reference pair, then Go/Java/.NET parity and package publication |
+| TRUYN Agent Descriptor | **Defined draft** | **Runtime parser/verifier conformance implemented in SDK DX-1; not yet served/discovered as a complete runtime contract** | PR `#331`; SDK conformance fixtures/tests | implement well-known/native discovery, signature/expiry validation and scoped visibility |
+| First-party SDK program | **Defined** | **DX-1 completed / CI-proven for TypeScript/JavaScript + Python** | PR `#326`, `#331`, `#334`, `#335`, `#337`, `#341`; shared fixtures; TS/Python real local-node `NEED → RESULT` E2E; PR `#341` exact-head `DCO`, `npm test`, `git diff --check`, CodeQL PASS | Go/Java/C# parity, package publication, copy-paste quickstarts, five-language conformance and stable compatibility remain open |
 | Governance architecture/process | **Defined (G1)** | **Bootstrap Founding Stewardship operating** | public `GOVERNANCE.md`, `MAINTAINERS.md`, RFC/extension/decision contracts | external maintainers (G2), multi-org TSC (G3), neutral stewardship (G4) remain unproven/not established |
 | Origin guard / production relay edge perimeter | Defined | Reference controls implemented; current production relay deployment-proven | CI/security tests + `AZURE_ORIGIN_LOCK_2026-08-23.md` live HTTP/WS/spoof negative matrix | proof is deployment-specific; material edge/origin changes require re-acceptance |
 | Protected-provider M2M guard | Defined | Implemented | regression proven | live token issuance/rotation is deployment-specific |
@@ -198,7 +198,17 @@ Java
 C# / .NET
 ```
 
-Rust is optional and does not replace any required target. The architecture, common SDK semantics, security invariants, package targets, compatibility policy and draft TRUYN Agent Descriptor are defined, but the `sdk/` tree remains scaffolding/documentation until executable clients, package publication and shared cross-language conformance evidence exist.
+Rust is optional and does not replace any required target.
+
+| DX slice | Status | Factual evidence | Remaining boundary |
+|---|---|---|---|
+| DX-0 architecture/scaffolding | **Defined / closed** | SDK architecture, common semantics, security invariants, package targets, compatibility policy and draft TRUYN Agent Descriptor are defined | stable package/runtime compatibility is not declared |
+| DX-1 TypeScript + Python executable pair | **Completed / CI-proven** | PR `#326`, `#331`, `#334`, `#335`, `#337`, `#341`; shared golden/runtime fixtures; Agent Descriptor runtime conformance; TS/Python cores; real local-node `NEED → RESULT` E2E; final PR `#341` exact-head `DCO`, full `npm test`, `git diff --check`, CodeQL PASS | no stable npm/PyPI publication or stable-v1 compatibility promise yet |
+| DX-2 required language parity | **Open** | none for Go/Java/C# parity yet | implement Go, Java and C#/.NET SDKs with the shared conformance contract |
+| DX-3 publication/onboarding | **Open** | repo-local SDK docs only | publish packages, copy-paste quickstarts, compatibility matrix and reproducible release flow |
+| DX-4 stable-v1 SDK gate | **Open** | none | five-language conformance/security/compatibility gate must be green before stable-v1 SDK claims |
+
+DX-1 does **not** change `network/**`, relay runtime, QUIC/Kademlia, D-1000 evaluator/thresholds/bootstrap/runtime/evidence or mainnet maturity. It proves the first executable first-party SDK pair and local SDK execution-path parity only.
 
 ## Settlement status boundary
 
@@ -238,7 +248,7 @@ This distinction prevents temporary operational machinery from accumulating inde
 
 ## Current priority
 
-The primary architecture/engineering priority is now the **host0 D-1000 install/bootstrap repair tracked by `#325`**, followed by a fresh exact-SHA admission sequence and one new full pinned D-1000 acceptance campaign. Class C and D-100 are already accepted.
+The primary architecture/engineering priority remains the **host0 D-1000 install/bootstrap repair tracked by `#325`**, followed by a fresh exact-SHA admission sequence and one new full pinned D-1000 acceptance campaign. Class C and D-100 are already accepted. SDK DX-1 is now complete and no longer part of the open DX critical path.
 
 ```text
 Class C heterogeneous WAN/reachability — ACCEPTED
@@ -263,7 +273,9 @@ stable operational and compatibility contracts
         ↓
 A2A client/provider adapter + bidirectional A2A↔TRUYN↔MCP negative interoperability evidence
         ↓
-SDK DX-1/DX-2/DX-3 + five-language conformance
+SDK DX-1 — COMPLETED / CI-PROVEN
+        ↓
+SDK DX-2/DX-3 + five-language conformance
         ↓
 TRUYN/1 + interoperability + Agent Descriptor + SDK compatibility stabilization
         ↓
@@ -272,4 +284,4 @@ optional settlement-adapter implementation
 
 Governance evolves independently through G2 → G5.
 
-Until the remaining technical gates are passed, TRUYN should be described as an advanced experimental/reference intelligence-network implementation with accepted bounded WAN and 100-real-node resilience evidence, a deployment-proven relay perimeter, and a D-1000 line with immutable admission PASS but no accepted 1,000-node campaign — **not** as a production Internet-scale mainnet.
+Until the remaining technical gates are passed, TRUYN should be described as an advanced experimental/reference intelligence-network implementation with accepted bounded WAN and 100-real-node resilience evidence, a deployment-proven relay perimeter, completed SDK DX-1 evidence for TypeScript/Python, and a D-1000 line with immutable admission PASS but no accepted 1,000-node campaign — **not** as a production Internet-scale mainnet.
