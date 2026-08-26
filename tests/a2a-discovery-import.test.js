@@ -179,7 +179,15 @@ test('C4 selected remote A2A skill becomes a signed TRUYN OFFER and Artifact bec
   const handled = await host.runOnce();
   assert.equal(handled.handled, 1);
   assert.equal(remoteExecutions, 1);
-  assert.deepEqual(remoteInput.parts[0], { data: { query: 'TRUYN' }, mediaType: 'application/json' }, 'TRUYN structured input must survive the selected A2A skill mapping');
+  const remotePart = remoteInput.parts[0];
+  assert.deepEqual({ data: remotePart.data, mediaType: remotePart.mediaType }, { data: { query: 'TRUYN' }, mediaType: 'application/json' }, 'TRUYN structured input must survive the selected A2A skill mapping');
+  assert.deepEqual(remotePart.metadata['io.truyn/integrity'], {
+    algorithm: 'sha256',
+    digest: '1d1c22bb76ecf2bd3a4360870a4512855523e53475848503c6003012ecb2bac9',
+    sizeBytes: 17,
+    encoding: 'truyn-json-c14n-v1',
+    verified: true
+  });
   assert.equal(remoteInput.a2a.protocolVersion, A2A_PROTOCOL_VERSION);
 
   const events = (await requester.poll()).events;

@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { A2A_PROTOCOL_VERSION, A2A_TASK_STATES } from './mapping.js';
+import { normalizeOutboundA2aPart, normalizeVerifiedRemoteArtifact, normalizeVerifiedRemotePart, partIntegrity } from './artifact-integrity.js';
 
 const DEFAULT_MAX_RESPONSE_BYTES = 1024 * 1024;
+const DEFAULT_MAX_ARTIFACT_BYTES = 1024 * 1024;
 const DEFAULT_TASK_TIMEOUT_MS = 120_000;
 const DEFAULT_POLL_INTERVAL_MS = 250;
+const MAX_REMOTE_ARTIFACT_PARTS = 64;
 const TASK_EXECUTION_MODES = new Set(['blocking', 'polling']);
 const TERMINAL_STATES = new Set([
   A2A_TASK_STATES.completed,
@@ -148,39 +151,89 @@ export function validateA2aAgentCard(card, {
   return { card: normalized, interface: selectedInterface, cardUrl: resolvedCardUrl.toString() };
 }
 
-function normalizeRemotePart(part) {
-  if (!isObject(part)) throw new Error('A2A remote Part must be an object');
-  const fields = ['text', 'data', 'url', 'raw'].filter((key) => Object.prototype.hasOwnProperty.call(part, key));
-  if (fields.length !== 1) throw new Error('A2A remote Part must contain exactly one of text, data, url, raw');
-  const kind = fields[0];
-  if (kind === 'raw') throw new Error('A2A raw inline content is not supported by bounded C4/C5');
-  if (kind === 'text' && typeof part.text !== 'string') throw new Error('A2A remote text Part requires string text');
-  if (kind === 'url' && typeof part.url !== 'string') throw new Error('A2A remote URL Part requires string url');
-  return structuredClone(part);
-}
-
-function outputFromParts(parts) {
-  if (!Array.isArray(parts) || parts.length === 0) throw new Error('A2A remote result contains no parts');
-  const normalized = parts.map(normalizeRemotePart);
-  if (normalized.length === 1) {
-    const part = normalized[0];
+function legacyOutputFromNormalizedParts(parts) {
+  if (parts.length === 1) {
+    const part = parts[0];
     if (Object.prototype.hasOwnProperty.call(part, 'text')) return part.text;
     if (Object.prototype.hasOwnProperty.call(part, 'data')) return structuredClone(part.data);
-    if (Object.prototype.hasOwnProperty.call(part, 'url')) return { url: part.url, ...(part.mediaType ? { mediaType: part.mediaType } : {}), ...(part.filename ? { filename: part.filename } : {}) };
+    if (Object.prototype.hasOwnProperty.call(part, 'raw')) {
+      return {
+        raw: part.raw,
+        ...(part.mediaType ? { mediaType: part.mediaType } : {}),
+        ...(part.filename ? { filename: part.filename } : {}),
+        ...(isObject(part.metadata) ? { metadata: structuredClone(part.metadata) } : {})
+      };
+    }
   }
-  return { parts: normalized };
+  return { parts: structuredClone(parts) };
 }
 
-function outputFromTask(task) {
-  if (!Array.isArray(task.artifacts) || task.artifacts.length === 0) throw new Error('Completed A2A task contains no artifacts');
-  if (task.artifacts.length === 1) return outputFromParts(task.artifacts[0].parts);
+function partIntegritySummary(parts) {
+  return parts.map((part, index) => ({
+    partIndex: index,
+    kind: ['text', 'data', 'raw', 'url'].find((key) => Object.prototype.hasOwnProperty.call(part, key)),
+    integrity: partIntegrity(part)
+  }));
+}
+
+function normalizedPartBytes(parts) {
+  return parts.reduce((total, part) => total + (partIntegrity(part)?.sizeBytes || 0), 0);
+}
+
+function assertRemotePartCount(parts, label) {
+  if (!Array.isArray(parts) || parts.length === 0) throw new Error(`${label} contains no parts`);
+  if (parts.length > MAX_REMOTE_ARTIFACT_PARTS) throw new Error(`${label} exceeds remote artifact part limit`);
+}
+
+async function verifiedOutputFromParts(parts, options) {
+  assertRemotePartCount(parts, 'A2A remote result');
+  const normalized = [];
+  let remaining = options.maxArtifactBytes;
+  for (const part of parts) {
+    const normalizedPart = await normalizeVerifiedRemotePart(part, { ...options, maxArtifactBytes: remaining });
+    remaining -= partIntegrity(normalizedPart)?.sizeBytes || 0;
+    if (remaining < 0) throw new Error('A2A remote result exceeds maxArtifactBytes');
+    normalized.push(normalizedPart);
+  }
   return {
-    artifacts: task.artifacts.map((artifact) => ({
-      artifactId: artifact.artifactId || null,
-      name: artifact.name || null,
-      parts: (artifact.parts || []).map(normalizeRemotePart),
-      ...(isObject(artifact.metadata) ? { metadata: structuredClone(artifact.metadata) } : {})
-    }))
+    output: legacyOutputFromNormalizedParts(normalized),
+    parts: normalized,
+    integrity: partIntegritySummary(normalized)
+  };
+}
+
+async function verifiedOutputFromTask(task, options) {
+  if (!Array.isArray(task.artifacts) || task.artifacts.length === 0) throw new Error('Completed A2A task contains no artifacts');
+  let totalParts = 0;
+  for (const artifact of task.artifacts) {
+    if (!isObject(artifact) || !Array.isArray(artifact.parts)) throw new Error('Completed A2A task contains an invalid artifact');
+    totalParts += artifact.parts.length;
+    if (totalParts > MAX_REMOTE_ARTIFACT_PARTS) throw new Error('Completed A2A task exceeds remote artifact part limit');
+  }
+  const artifacts = [];
+  const artifactIds = new Set();
+  let remaining = options.maxArtifactBytes;
+  for (const artifact of task.artifacts) {
+    if (remaining < 1) throw new Error('Completed A2A task exceeds maxArtifactBytes');
+    const normalized = await normalizeVerifiedRemoteArtifact(artifact, { ...options, maxArtifactBytes: remaining });
+    const artifactBytes = normalizedPartBytes(normalized.parts);
+    remaining -= artifactBytes;
+    if (remaining < 0) throw new Error('Completed A2A task exceeds maxArtifactBytes');
+    if (artifactIds.has(normalized.artifactId)) throw new Error(`Completed A2A task contains duplicate artifactId: ${normalized.artifactId}`);
+    artifactIds.add(normalized.artifactId);
+    artifacts.push(normalized);
+  }
+  if (artifacts.length === 1) {
+    return {
+      output: legacyOutputFromNormalizedParts(artifacts[0].parts),
+      artifacts,
+      integrity: [{ artifactId: artifacts[0].artifactId, parts: partIntegritySummary(artifacts[0].parts) }]
+    };
+  }
+  return {
+    output: { artifacts: structuredClone(artifacts) },
+    artifacts,
+    integrity: artifacts.map((artifact) => ({ artifactId: artifact.artifactId, parts: partIntegritySummary(artifact.parts) }))
   };
 }
 
@@ -229,6 +282,8 @@ export function createA2aClient({
   allowCrossOriginInterface = false,
   allowInsecureHttp = false,
   maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
+  maxArtifactBytes = DEFAULT_MAX_ARTIFACT_BYTES,
+  resolveArtifactUrl = null,
   taskTimeoutMs = DEFAULT_TASK_TIMEOUT_MS,
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
   taskExecutionMode = 'blocking',
@@ -237,11 +292,14 @@ export function createA2aClient({
   const cardUrl = absoluteHttpUrl(agentCardUrl, 'A2A Agent Card URL', { allowInsecureHttp });
   if (getAuthHeaders !== null && getAuthHeaders !== undefined && typeof getAuthHeaders !== 'function') throw new Error('A2A getAuthHeaders must be a function');
   if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1024) throw new Error('A2A maxResponseBytes must be an integer >= 1024');
+  if (!Number.isSafeInteger(maxArtifactBytes) || maxArtifactBytes < 1) throw new Error('A2A maxArtifactBytes must be a positive safe integer');
+  if (resolveArtifactUrl !== null && resolveArtifactUrl !== undefined && typeof resolveArtifactUrl !== 'function') throw new Error('A2A resolveArtifactUrl must be a function');
   if (!Number.isInteger(taskTimeoutMs) || taskTimeoutMs < 1) throw new Error('A2A taskTimeoutMs must be a positive integer');
   if (!Number.isInteger(pollIntervalMs) || pollIntervalMs < 0) throw new Error('A2A pollIntervalMs must be a non-negative integer');
   if (!TASK_EXECUTION_MODES.has(taskExecutionMode)) throw new Error('A2A taskExecutionMode must be blocking or polling');
   if (typeof fetchImpl !== 'function') throw new Error('A2A fetchImpl must be a function');
 
+  const artifactOptions = { maxArtifactBytes, resolveArtifactUrl };
   let discovery = null;
 
   async function requestHeaders(extra = {}) {
@@ -312,7 +370,19 @@ export function createA2aClient({
 
   async function sendMessage(message, configuration = {}) {
     const current = await requireDiscovery();
-    const result = await rpc(current.interface.url, 'SendMessage', { message, configuration });
+    if (!isObject(message) || !Array.isArray(message.parts) || message.parts.length === 0) {
+      throw new Error('A2A SendMessage message requires a non-empty parts array');
+    }
+    if (message.parts.length > MAX_REMOTE_ARTIFACT_PARTS) throw new Error('A2A SendMessage message exceeds artifact part limit');
+    let remaining = maxArtifactBytes;
+    const normalizedParts = message.parts.map((part) => {
+      const normalized = normalizeOutboundA2aPart(part, { maxArtifactBytes: remaining });
+      remaining -= partIntegrity(normalized)?.sizeBytes || 0;
+      if (remaining < 0) throw new Error('A2A SendMessage message exceeds maxArtifactBytes');
+      return normalized;
+    });
+    const outboundMessage = { ...structuredClone(message), parts: normalizedParts };
+    const result = await rpc(current.interface.url, 'SendMessage', { message: outboundMessage, configuration });
     if (!isObject(result)) throw new Error('A2A SendMessage result must be an object');
     const hasTask = Object.prototype.hasOwnProperty.call(result, 'task');
     const hasMessage = Object.prototype.hasOwnProperty.call(result, 'message');
@@ -361,8 +431,9 @@ export function createA2aClient({
     const current = await requireDiscovery();
     const response = await sendMessage(message, { returnImmediately: taskExecutionMode === 'polling' });
     if (response.message) {
+      const verified = await verifiedOutputFromParts(response.message.parts, artifactOptions);
       return {
-        output: outputFromParts(response.message.parts),
+        output: verified.output,
         metadata: {
           interoperability: {
             protocol: 'a2a',
@@ -371,7 +442,8 @@ export function createA2aClient({
             remoteSkillId: skill.id,
             remoteMessageId: response.message.messageId || null,
             interfaceUrl: current.interface.url,
-            taskExecutionMode
+            taskExecutionMode,
+            artifactIntegrity: verified.integrity
           }
         }
       };
@@ -379,8 +451,9 @@ export function createA2aClient({
 
     const { task, pollCount } = await pollTask(response.task);
     if (task.status.state !== A2A_TASK_STATES.completed) throw remoteExecutionError(task);
+    const verified = await verifiedOutputFromTask(task, artifactOptions);
     return {
-      output: outputFromTask(task),
+      output: verified.output,
       metadata: {
         interoperability: {
           protocol: 'a2a',
@@ -390,9 +463,10 @@ export function createA2aClient({
           remoteTaskId: task.id,
           remoteContextId: task.contextId || null,
           interfaceUrl: current.interface.url,
-          artifactCount: task.artifacts.length,
+          artifactCount: verified.artifacts.length,
           taskExecutionMode,
-          taskPollCount: pollCount
+          taskPollCount: pollCount,
+          artifactIntegrity: verified.integrity
         }
       }
     };
