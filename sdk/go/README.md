@@ -1,26 +1,24 @@
 # TRUYN Go SDK
 
-**Status:** planned first-party SDK / repository scaffold.
+**Status:** DX-2 skeleton client surface. Internal only; not a public stable Go module.
 
-This directory is reserved for the required Go first-party TRUYN SDK.
+This directory now contains the first Go shape for the required first-party SDK matrix:
 
-Target distribution: **Go module**.
+- `go.mod` reserves the in-repository module path;
+- `truyn.go` defines the client, config, foundational DTOs, signed envelope aliases and normalized error taxonomy;
+- all network-facing operations fail closed with `unimplemented` until the Go transport binding is implemented.
 
-## Required core surface
+The skeleton is pinned to:
 
-- context-aware client connect/configuration;
-- Agent Descriptor retrieval + verification;
-- identity retrieval;
-- authorization-aware discovery;
-- `OFFER` publish/revoke;
-- `NEED` submission + async/streaming/polling `RESULT` handling;
-- `context.Context` cancellation/deadlines;
-- content/artifact references;
-- normalized errors and compatibility metadata.
+```text
+protocol: TRUYN/1
+agent descriptor schema: truyn.agent-descriptor/v1
+```
 
-## Implementation stage
+Run the shared source/fixture conformance gate from the repository root:
 
-This SDK is part of **DX-2**, after the TypeScript/Python reference pair and shared conformance fixtures establish the common behavior.
+```bash
+node sdk/conformance/run-conformance.mjs --language=go --json
+```
 
-Architecture: `../../docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`.  
-Quickstart target: `../../docs/getting-started/SDK_QUICKSTART.md`.
+DX-2 does not publish a Go module, does not call cloud providers, does not start a relay, and does not change `network/**`, relay runtime, QUIC/Kademlia or D-1000 behavior.
