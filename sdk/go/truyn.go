@@ -1,4 +1,4 @@
-// Package truyn contains the DX-2 Go SDK skeleton for the TRUYN/1 client surface.
+// Package truyn contains the Go SDK skeleton for the TRUYN/1 client surface.
 //
 // This package intentionally defines the stable shape that must be driven by the
 // shared SDK conformance fixtures before public package publication. Methods are
@@ -15,7 +15,7 @@ const (
 	// Protocol is the TRUYN protocol generation targeted by this skeleton.
 	Protocol = "TRUYN/1"
 
-	// AgentDescriptorSchema is the Agent Descriptor schema expected by DX-2.
+	// AgentDescriptorSchema is the Agent Descriptor schema expected by the SDK.
 	AgentDescriptorSchema = "truyn.agent-descriptor/v1"
 )
 
@@ -33,7 +33,7 @@ type Client struct {
 }
 
 // NewClient creates a client. Network behavior is intentionally deferred until
-// the DX-2 transport implementation; construction validates only local shape.
+// the transport implementation; construction validates only local shape.
 func NewClient(config ClientConfig) (*Client, error) {
 	if config.BaseURL == "" {
 		return nil, NewError(InvalidArgument, "base URL is required", false)
@@ -80,6 +80,14 @@ func (c *Client) SubmitNeed(ctx context.Context, need Need) (*Need, error) {
 	return nil, c.unimplemented(ctx, "SubmitNeed")
 }
 
+// SubmitNeedRequest submits a stable high-level NEED request.
+func (c *Client) SubmitNeedRequest(ctx context.Context, request NeedRequest) (*ResultResponse, error) {
+	if request.Capability == "" {
+		return nil, NewError(InvalidArgument, "capability is required", false)
+	}
+	return nil, c.unimplemented(ctx, "SubmitNeedRequest")
+}
+
 // Result retrieves or waits for a RESULT correlated to a NEED.
 func (c *Client) Result(ctx context.Context, needID string) (*Result, error) {
 	if needID == "" {
@@ -88,12 +96,28 @@ func (c *Client) Result(ctx context.Context, needID string) (*Result, error) {
 	return nil, c.unimplemented(ctx, "Result")
 }
 
+// StreamResult returns ordered streaming events for a submitted NEED.
+func (c *Client) StreamResult(ctx context.Context, needID string) (<-chan StreamEvent, error) {
+	if needID == "" {
+		return nil, NewError(InvalidArgument, "need ID is required", false)
+	}
+	return nil, c.unimplemented(ctx, "StreamResult")
+}
+
+// Cancel requests cancellation for an in-flight NEED/result stream.
+func (c *Client) Cancel(ctx context.Context, requestID string) error {
+	if requestID == "" {
+		return NewError(InvalidArgument, "request ID is required", false)
+	}
+	return c.unimplemented(ctx, "Cancel")
+}
+
 func (c *Client) unimplemented(ctx context.Context, operation string) error {
 	select {
 	case <-ctx.Done():
-		return NewError(DeadlineExceeded, ctx.Err().Error(), true)
+		return NewError(Cancelled, ctx.Err().Error(), false)
 	default:
-		return NewError(Unimplemented, operation+" is not implemented in the Go DX-2 skeleton", false)
+		return NewError(Unimplemented, operation+" is not implemented in the Go SDK skeleton", false)
 	}
 }
 
@@ -168,6 +192,43 @@ type Result = SignedEnvelope[ResultPayload]
 
 type ArtifactRef string
 
+type ArtifactPayload struct {
+	Kind        string         `json:"kind"`
+	ContentType string         `json:"contentType"`
+	Name        string         `json:"name,omitempty"`
+	URI         string         `json:"uri,omitempty"`
+	Data        string         `json:"data,omitempty"`
+	SizeBytes   int64          `json:"sizeBytes,omitempty"`
+	Digest      string         `json:"digest,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+}
+
+type NeedRequest struct {
+	Capability string            `json:"capability"`
+	Input      any               `json:"input"`
+	Artifacts  []ArtifactPayload `json:"artifacts,omitempty"`
+	Metadata   map[string]any    `json:"metadata,omitempty"`
+}
+
+type ResultResponse struct {
+	RequestID   string            `json:"requestId"`
+	Output      any               `json:"output,omitempty"`
+	Artifacts   []ArtifactPayload `json:"artifacts,omitempty"`
+	CompletedAt string            `json:"completedAt,omitempty"`
+	Metadata    map[string]any    `json:"metadata,omitempty"`
+}
+
+type StreamEvent struct {
+	Type      string            `json:"type"`
+	RequestID string            `json:"requestId,omitempty"`
+	Sequence  int64             `json:"sequence,omitempty"`
+	Delta     any               `json:"delta,omitempty"`
+	Artifact  *ArtifactPayload  `json:"artifact,omitempty"`
+	Result    *ResultResponse   `json:"result,omitempty"`
+	Error     any               `json:"error,omitempty"`
+	Metadata  map[string]any    `json:"metadata,omitempty"`
+}
+
 type ErrorCode string
 
 const (
@@ -175,6 +236,7 @@ const (
 	Unauthenticated  ErrorCode = "unauthenticated"
 	PermissionDenied ErrorCode = "permission_denied"
 	DeadlineExceeded ErrorCode = "deadline_exceeded"
+	Cancelled        ErrorCode = "cancelled"
 	InvalidArgument  ErrorCode = "invalid_argument"
 	Unimplemented    ErrorCode = "unimplemented"
 )
