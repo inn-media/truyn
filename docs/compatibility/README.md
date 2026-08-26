@@ -10,9 +10,10 @@ TRUYN separates compatibility dimensions instead of pretending that one version 
 3. wire schema generation;
 4. Agent Descriptor schema/version;
 5. first-party SDK semantic/API version;
-6. local storage/config format;
-7. external interoperability protocol versions such as A2A and MCP;
-8. provider/model API versions behind adapters.
+6. SDK package publication state and provenance;
+7. local storage/config format;
+8. external interoperability protocol versions such as A2A and MCP;
+9. provider/model API versions behind adapters.
 
 A newer software or SDK build does not automatically imply a new protocol generation, and a draft `TRUYN/1` implementation does not yet carry a stable v1 compatibility guarantee. Likewise, an A2A or MCP adapter update should not force a new TRUYN generation unless TRUYN network semantics themselves change.
 
@@ -22,6 +23,7 @@ A newer software or SDK build does not automatically imply a new protocol genera
 - [Adapter Compatibility](ADAPTER_COMPATIBILITY.md)
 - [A2A / MCP Compatibility Matrix](A2A_MCP_COMPATIBILITY.md)
 - [SDK Compatibility](SDK_COMPATIBILITY.md)
+- [SDK Packaging and Versioning Policy](SDK_PACKAGING.md)
 - [A2A / MCP Interoperability Architecture](../architecture/A2A_MCP_INTEROPERABILITY.md)
 
 ## Current A2A / MCP boundary
@@ -36,11 +38,13 @@ Compatibility claims MUST distinguish:
 Defined
 Implemented
 CI-proven
+Internal package
+Public pre-release package
 Externally interoperable / evidenced
 Stable
 ```
 
-## SDK language policy
+## SDK language and packaging policy
 
 The required first-party SDK targets before stable v1 are:
 
@@ -52,13 +56,16 @@ The required first-party SDK targets before stable v1 are:
 
 Rust is an optional additional track and does not replace any of those required targets.
 
-Every SDK release must declare the protocol and Agent Descriptor versions it understands, its tested node/server version range and its own SDK semantic version.
+Every SDK release must declare the protocol and Agent Descriptor versions it understands, its tested node/server version range, its own SDK semantic version and its package publication state.
+
+Current TypeScript and Python SDK code is internal/pre-stable. `@truyn/sdk` and `truyn-sdk` are not public stable package claims until the packaging release gate in [SDK Packaging and Versioning Policy](SDK_PACKAGING.md) is met.
 
 ## Current policy
 
 Before v1.0/stable TRUYN/1:
 
 - compatibility is best-effort and explicitly versioned;
+- internal SDK packages are not public compatibility promises;
 - testnet may introduce breaking changes;
 - mainnet compatibility is not yet promised;
 - nodes/adapters/SDKs should validate the protocol/wire/descriptor/external-protocol versions they actually understand;
