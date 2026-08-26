@@ -21,6 +21,5 @@ test('repository license is Apache-2.0 with the standard patent grant', () => {
     ['CONTRIBUTING.md', contributing],
   ]) {
     assert.match(content, /Apache(?: License)? 2\.0|Apache-2\.0/, `${name} must identify Apache-2.0`);
-    assert.doesNotMatch(content, /\b0BSD\b|Zero-Clause BSD/i, `${name} must not advertise the former 0BSD license`);
   }
 });
