@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -197,10 +198,10 @@ func NewObjectPayload(value any, metadata map[string]any) ObjectPayload {
 var sha256Pattern = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
 
 func NewArtifactPayload(ref, mediaType string, bytes *int64, sha256 string, metadata map[string]any) (ArtifactPayload, error) {
-	if ref == "" {
+	if strings.TrimSpace(ref) == "" {
 		return ArtifactPayload{}, NewError(InvalidArgument, "artifact ref is required", false)
 	}
-	if mediaType == "" {
+	if strings.TrimSpace(mediaType) == "" {
 		return ArtifactPayload{}, NewError(InvalidArgument, "artifact media type is required", false)
 	}
 	if bytes != nil && *bytes < 0 {
@@ -209,7 +210,7 @@ func NewArtifactPayload(ref, mediaType string, bytes *int64, sha256 string, meta
 	if sha256 != "" && !sha256Pattern.MatchString(sha256) {
 		return ArtifactPayload{}, NewError(InvalidArgument, "artifact sha256 must be 64 hexadecimal characters", false)
 	}
-	return ArtifactPayload{Kind: "artifact", Ref: ref, MediaType: mediaType, Bytes: bytes, SHA256: sha256, Metadata: metadata}, nil
+	return ArtifactPayload{Kind: "artifact", Ref: ref, MediaType: mediaType, Bytes: bytes, SHA256: strings.ToLower(sha256), Metadata: metadata}, nil
 }
 
 // StreamItem provides language-neutral sequence numbering for SDK event streams.
