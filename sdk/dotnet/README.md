@@ -1,26 +1,25 @@
-# TRUYN C# / .NET SDK
+# TRUYN C#/.NET SDK
 
-**Status:** planned first-party SDK / repository scaffold.
+**Status:** DX-2 skeleton client surface. Internal only; not a public stable NuGet release.
 
-This directory is reserved for the required C#/.NET first-party TRUYN SDK.
+This directory now contains the first C#/.NET shape for the required first-party SDK matrix:
 
-Target distribution: **NuGet**.
+- `Truyn.Sdk.csproj` declares the in-repository .NET skeleton project;
+- `Client.cs` defines the client options and async operation surface;
+- `Models.cs` defines foundational DTOs and signed envelope payload records;
+- `TruynException.cs` defines the normalized error taxonomy.
 
-## Required core surface
+The skeleton is pinned to:
 
-- idiomatic async client configuration/connect;
-- Agent Descriptor retrieval + verification;
-- identity retrieval;
-- authorization-aware discovery;
-- `OFFER` publish/revoke;
-- `NEED` submission + async/streaming/polling `RESULT` handling;
-- `CancellationToken`/deadline support;
-- content/artifact references;
-- normalized exceptions/errors and compatibility metadata.
+```text
+protocol: TRUYN/1
+agent descriptor schema: truyn.agent-descriptor/v1
+```
 
-## Implementation stage
+Run the shared source/fixture conformance gate from the repository root:
 
-This SDK is part of **DX-2**, with Go and Java, and must pass the same shared TRUYN conformance fixtures established by the reference SDK pair.
+```bash
+node sdk/conformance/run-conformance.mjs --language=dotnet --json
+```
 
-Architecture: `../../docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`.  
-Quickstart target: `../../docs/getting-started/SDK_QUICKSTART.md`.
+DX-2 does not publish a NuGet package, does not call cloud providers, does not start a relay, and does not change `network/**`, relay runtime, QUIC/Kademlia or D-1000 behavior.

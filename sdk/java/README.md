@@ -1,26 +1,25 @@
 # TRUYN Java SDK
 
-**Status:** planned first-party SDK / repository scaffold.
+**Status:** DX-2 skeleton client surface. Internal only; not a public stable Maven-compatible release.
 
-This directory is reserved for the required Java first-party TRUYN SDK.
+This directory now contains the first Java shape for the required first-party SDK matrix:
 
-Target distribution: **Maven Central-compatible package publication**.
+- `pom.xml` declares the in-repository Java skeleton project;
+- `src/main/java/org/truyn/sdk/TruynClient.java` defines the client builder and async operation surface;
+- `TruynModels.java` defines foundational DTOs and signed envelope payload records;
+- `TruynException.java` defines the normalized error taxonomy.
 
-## Required core surface
+The skeleton is pinned to:
 
-- idiomatic client/builder configuration;
-- Agent Descriptor retrieval + verification;
-- identity retrieval;
-- authorization-aware discovery;
-- `OFFER` publish/revoke;
-- `NEED` submission + async/streaming/polling `RESULT` handling;
-- timeout/cancellation support appropriate to the Java runtime;
-- content/artifact references;
-- normalized exceptions/errors and compatibility metadata.
+```text
+protocol: TRUYN/1
+agent descriptor schema: truyn.agent-descriptor/v1
+```
 
-## Implementation stage
+Run the shared source/fixture conformance gate from the repository root:
 
-This SDK is part of **DX-2**, with Go and C#/.NET, and must pass the same shared TRUYN conformance fixtures established by the reference SDK pair.
+```bash
+node sdk/conformance/run-conformance.mjs --language=java --json
+```
 
-Architecture: `../../docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`.  
-Quickstart target: `../../docs/getting-started/SDK_QUICKSTART.md`.
+DX-2 does not publish a Maven artifact, does not call cloud providers, does not start a relay, and does not change `network/**`, relay runtime, QUIC/Kademlia or D-1000 behavior.
