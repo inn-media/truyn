@@ -95,6 +95,20 @@ export class PeerDiscovery {
     return [...this.records.values()].filter((record) => verifyPeerRecord(record, { now }).ok).map((record) => structuredClone(record));
   }
 
+  routingSnapshot({ now = Date.now() } = {}) {
+    const routing = this.routing.routingSnapshot();
+    const validPeers = [...this.records.values()]
+      .filter((record) => verifyPeerRecord(record, { now }).ok)
+      .length;
+
+    return {
+      ...routing,
+      validPeers,
+      recordCount: this.records.size,
+      staleRoutingPeers: Math.max(0, routing.routingSize - validPeers)
+    };
+  }
+
   durableSnapshot() {
     // Persistence needs enough cryptographically authenticated endpoint history to
     // recover after a lease expires while this node is offline. Expired records are
