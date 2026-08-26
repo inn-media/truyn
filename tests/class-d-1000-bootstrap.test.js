@@ -48,6 +48,29 @@ test('D-1000 bootstrap plan preserves production-scale XOR invariants', () => {
   }
 });
 
+test('D-1000 bootstrap plan does not reuse a host-common seed set', () => {
+  const input = records(1000);
+  const plan = buildClassD1000BootstrapPlan(input, {
+    seed: 'host-common-seed-gate',
+    maxPeersPerNode: 32,
+    peersPerBucket: 2
+  });
+
+  for (let host = 0; host < 20; host += 1) {
+    const signatures = [];
+    for (let node = 0; node < 50; node += 1) {
+      const nodeId = `truyn:node:scale-${host * 50 + node}`;
+      signatures.push(peerNodeIds(plan, nodeId).join('\n'));
+    }
+
+    assert.equal(
+      new Set(signatures).size,
+      50,
+      `expected 50 distinct per-node bootstrap seed sets for host ${host}`
+    );
+  }
+});
+
 test('D-1000 Azure provisioner uses the per-node XOR bootstrap planner', async () => {
   const provisioner = await readFile(new URL('../benchmarks/scale/class-d-azure-1000-provision.sh', import.meta.url), 'utf8');
 
