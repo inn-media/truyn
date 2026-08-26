@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   buildClassD1000BootstrapPlan,
   summarizeClassD1000BootstrapPlan
@@ -45,6 +46,18 @@ test('D-1000 bootstrap plan preserves production-scale XOR invariants', () => {
     assert.deepEqual(peerIds, deterministicPeerIds, `expected deterministic peer order for ${record.nodeId}`);
     assert.ok(buckets.size >= 4, `expected XOR bucket diversity for ${record.nodeId}, got ${buckets.size}`);
   }
+});
+
+test('D-1000 Azure provisioner uses the per-node XOR bootstrap planner', async () => {
+  const provisioner = await readFile(new URL('../benchmarks/scale/class-d-azure-1000-provision.sh', import.meta.url), 'utf8');
+
+  assert.match(provisioner, /BOOTSTRAP_MAX_PEERS_PER_NODE=32/);
+  assert.match(provisioner, /BOOTSTRAP_PEERS_PER_BUCKET=2/);
+  assert.match(provisioner, /buildClassD1000BootstrapPlan/);
+  assert.match(provisioner, /bootstrap-plan-by-node\.json/);
+  assert.match(provisioner, /plan=per-node-xor/);
+  assert.doesNotMatch(provisioner, /BRIDGES_PER_REMOTE_HOST/);
+  assert.doesNotMatch(provisioner, /value\[0:\$bridges\]/);
 });
 
 test('D-1000 planner rejects duplicate identities', () => {
