@@ -13,5 +13,13 @@ from .descriptor import (
     verify_agent_descriptor_signature,
 )
 from .errors import TruynError, normalize_error
+from .local_node import (
+    LocalIdentity,
+    TruynLocalNodeClient,
+    create_envelope,
+    create_local_identity,
+    unsigned_envelope,
+    verify_envelope,
+)
 
 __all__ = [name for name in globals() if not name.startswith('_')]

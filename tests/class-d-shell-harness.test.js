@@ -108,6 +108,32 @@ test('D-1000 campaign source uses canonical runtime paths for remote payloads', 
   assert.match(campaign, /cd \/opt\/truyn/);
 });
 
+test('D-1000 campaign waits for DHT readiness before convergence probes', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const campaign = await readFile('benchmarks/scale/class-d-azure-1000-campaign.sh', 'utf8');
+  const topologyIndex = campaign.indexOf('STAGE=topology');
+  const readinessIndex = campaign.indexOf('STAGE=readiness-barrier');
+  const convergenceIndex = campaign.indexOf('STAGE=convergence');
+  const readinessBlock = campaign.slice(readinessIndex, convergenceIndex);
+
+  assert.ok(topologyIndex >= 0, 'expected topology stage');
+  assert.ok(readinessIndex > topologyIndex, 'expected readiness after topology');
+  assert.ok(convergenceIndex > readinessIndex, 'expected convergence after readiness');
+  assert.match(readinessBlock, /\/dht\/readiness/);
+  assert.match(readinessBlock, /\.refresh\.status/);
+  assert.match(readinessBlock, /refreshed/);
+  assert.match(readinessBlock, /validPeers/);
+  assert.match(readinessBlock, /populatedBuckets/);
+  assert.match(readinessBlock, /remoteEndpointDiversity\.hostCount/);
+  assert.match(readinessBlock, /READINESS_READY/);
+  assert.doesNotMatch(readinessBlock, /\/need/);
+  assert.match(campaign, /"readiness":\{/);
+  assert.match(campaign, /"readyNodeCount":\$\{readiness_ready\}/);
+  assert.match(campaign, /TRUYN_CLASS_D_1000_GATE=CANDIDATE[^\n]*readiness=\$\{readiness_ready\}\/\$\{readiness_total\}/);
+  assert.match(campaign, /assert float\('\$conv_rate'\) >= \.99/);
+  assert.match(campaign, /assert float\('\$conv_p95'\) <= 120000/);
+});
+
 test('D-1000 campaign proves packet-path failure and a full post-heal routing gate', async () => {
   const { readFile } = await import('node:fs/promises');
   const campaign = await readFile('benchmarks/scale/class-d-azure-1000-campaign.sh', 'utf8');
