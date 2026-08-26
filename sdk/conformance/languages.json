@@ -1,6 +1,7 @@
 {
   "fixtureSet": "truyn.sdk-conformance/v1",
   "protocol": "TRUYN/1",
+  "stableSdkApiVersion": "1",
   "requiredFirstPartyLanguages": ["typescript", "python", "go", "java", "dotnet"],
   "foundationalDtos": [
     "Identity",
@@ -12,18 +13,20 @@
     "ArtifactRef",
     "NormalizedError"
   ],
+  "dx3PortablePayloadKinds": ["object", "artifact"],
   "languages": [
     {
       "id": "typescript",
       "name": "TypeScript / JavaScript",
-      "status": "implemented-dx1-reference",
+      "status": "implemented-dx3-reference-surface",
       "root": "sdk/typescript",
       "sourceFiles": [
         "sdk/typescript/src/types.ts",
         "sdk/typescript/src/client.ts",
         "sdk/typescript/src/local-node.ts",
         "sdk/typescript/src/descriptor.ts",
-        "sdk/typescript/src/errors.ts"
+        "sdk/typescript/src/errors.ts",
+        "sdk/typescript/src/stable-api.ts"
       ],
       "requiredMarkers": [
         "export interface Identity",
@@ -31,6 +34,11 @@
         "export interface Offer",
         "export type ArtifactRef",
         "export interface NormalizedError",
+        "TRUYN_SDK_STABLE_API_VERSION",
+        "createObjectPayload",
+        "createArtifactPayload",
+        "streamTruynItems",
+        "streamEvents",
         "TRUYN/1",
         "truyn.agent-descriptor/v1"
       ],
@@ -39,18 +47,24 @@
     {
       "id": "python",
       "name": "Python",
-      "status": "implemented-dx1-reference",
+      "status": "implemented-dx3-reference-surface",
       "root": "sdk/python",
       "sourceFiles": [
         "sdk/python/src/truyn/client.py",
         "sdk/python/src/truyn/descriptor.py",
         "sdk/python/src/truyn/errors.py",
-        "sdk/python/src/truyn/local_node.py"
+        "sdk/python/src/truyn/local_node.py",
+        "sdk/python/src/truyn/stable_api.py"
       ],
       "requiredMarkers": [
         "class TruynClient",
         "fetch_agent_descriptor",
         "normalize_error",
+        "TRUYN_SDK_STABLE_API_VERSION",
+        "CancellationToken",
+        "object_payload",
+        "artifact_payload",
+        "stream_items",
         "TRUYN/1",
         "truyn.agent-descriptor/v1"
       ],
