@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Truyn.Sdk</PackageId>
+    <Version>0.0.0-dx2</Version>
+    <Authors>TRUYN maintainers</Authors>
+    <Description>DX-2 C#/.NET SDK skeleton for TRUYN/1.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+</Project>
