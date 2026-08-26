@@ -1,0 +1,426 @@
+name: tmp-d1000-partial-evidence-patcher
+
+on:
+  push:
+    branches: [fix/d1000-partial-convergence-evidence]
+    paths:
+      - '.github/workflows/tmp-d1000-partial-evidence-patcher.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/d1000-partial-convergence-evidence
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply partial evidence diagnostics patch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          node_service = Path('network/testnet/node-service.js')
+          text = node_service.read_text()
+          anchor = "  const requireFaultControl = () => {\n"
+          diagnostics = r'''
+  const diagnosticsSnapshot = () => {
+    const peerRecords = node.discovery.snapshot().map((record) => ({
+      nodeId: record.nodeId,
+      endpoints: record.endpoints,
+      sequence: record.sequence,
+      issuedAt: record.issuedAt,
+      expiresAt: record.expiresAt,
+      capabilities: record.capabilities || []
+    }));
+    const routingPeers = node.discovery.routing.snapshot().map((peer) => ({
+      nodeId: peer.nodeId,
+      endpoints: peer.endpoints || [],
+      lastSeenAt: peer.lastSeenAt || null
+    }));
+    const routingBuckets = node.discovery.routing.buckets
+      .map((bucket, index) => ({ index, size: bucket.length }))
+      .filter((bucket) => bucket.size > 0);
+    const connectedPeerNodeIds = [...node.router.connections.keys()].sort();
+    return {
+      ...statusSnapshot(),
+      diagnosticsVersion: 1,
+      routing: {
+        size: node.discovery.routing.size(),
+        bucketCount: routingBuckets.length,
+        buckets: routingBuckets,
+        peers: routingPeers
+      },
+      discovery: {
+        knownPeerRecords: peerRecords.length,
+        peers: peerRecords
+      },
+      connectionManager: {
+        connectedPeerCount: connectedPeerNodeIds.length,
+        connectedPeerNodeIds,
+        outboundAdmission: node.router.admissionSnapshot(),
+        inboundAdmission: node.quic.admissionSnapshot(),
+        quicClientCount: node.quic.clients.size
+      },
+      dht: {
+        recordCount: node.recordStore.snapshot().length,
+        rpcTimeoutMs: node.rpc.timeoutMs
+      },
+      peerRecordLifecycle: node.peerRecordLifecycleSnapshot(),
+      faults: node.faultSnapshot()
+    };
+  };
+
+'''
+          if diagnostics.strip() not in text:
+              if anchor not in text:
+                  raise SystemExit('node-service diagnostics anchor missing')
+              text = text.replace(anchor, diagnostics + anchor, 1)
+          status_line = "      if (req.method === 'GET' && url.pathname === '/status') return json(res, 200, statusSnapshot());\n"
+          diag_line = "      if (req.method === 'GET' && url.pathname === '/diagnostics') return json(res, 200, diagnosticsSnapshot());\n"
+          if diag_line not in text:
+              if status_line not in text:
+                  raise SystemExit('node-service status route anchor missing')
+              text = text.replace(status_line, status_line + diag_line, 1)
+          node_service.write_text(text)
+
+          campaign = Path('benchmarks/scale/class-d-azure-1000-campaign.sh')
+          text = campaign.read_text()
+          start = text.index('STAGE=convergence\n')
+          end = text.index('\nSTAGE=baseline-routing\n')
+          new_convergence = r'''STAGE=convergence
+CONVERGENCE_HOSTS_JSONL="${GITHUB_WORKSPACE:-$PWD}/class-d-1000-convergence-hosts.jsonl"
+CONVERGENCE_NODE_DIAGNOSTICS_JSONL="${GITHUB_WORKSPACE:-$PWD}/class-d-1000-node-diagnostics.jsonl"
+CONVERGENCE_DIAGNOSTICS_JSON="${GITHUB_WORKSPACE:-$PWD}/class-d-1000-convergence-diagnostics.json"
+: >"$CONVERGENCE_HOSTS_JSONL"
+: >"$CONVERGENCE_NODE_DIAGNOSTICS_JSONL"
+
+collect_convergence_node_diagnostics() {
+  : >"$CONVERGENCE_NODE_DIAGNOSTICS_JSONL"
+  for i in $(seq 0 $((HOST_COUNT-1))); do
+    script=$(cat <<EOS
+set -Eeuo pipefail
+python3 - <<'PY'
+import base64, collections, json, urllib.request
+records=json.load(open('/var/lib/truyn-d1000/records-by-host.json'))
+node_to_host={record['nodeId']: host for host, rows in enumerate(records) for record in rows}
+host=${i}; base=${CONTROL_BASE}; N=${NODES_PER_HOST}
+nodes=[]
+for local in range(N):
+    port=base+local
+    try:
+        with urllib.request.urlopen(f'http://127.0.0.1:{port}/diagnostics', timeout=3) as response:
+            diag=json.load(response)
+    except Exception as error:
+        nodes.append({'localIndex':local,'ok':False,'error':type(error).__name__+':'+str(error)[:160]})
+        continue
+    peer_records=diag.get('discovery',{}).get('peers',[])
+    routing_peers=diag.get('routing',{}).get('peers',[])
+    known_by_host=collections.Counter(str(node_to_host.get(peer.get('nodeId'),'unknown')) for peer in peer_records)
+    routing_by_host=collections.Counter(str(node_to_host.get(peer.get('nodeId'),'unknown')) for peer in routing_peers)
+    cm=diag.get('connectionManager',{})
+    nodes.append({
+        'localIndex': local,
+        'ok': True,
+        'nodeId': diag.get('nodeId'),
+        'routingTableSize': diag.get('routing',{}).get('size'),
+        'routingBucketCount': diag.get('routing',{}).get('bucketCount'),
+        'knownPeerRecords': diag.get('discovery',{}).get('knownPeerRecords'),
+        'knownPeersByRemoteHost': dict(sorted(known_by_host.items())),
+        'routingPeersByRemoteHost': dict(sorted(routing_by_host.items())),
+        'connectedPeerCount': cm.get('connectedPeerCount'),
+        'connectedPeerNodeIds': cm.get('connectedPeerNodeIds',[]),
+        'outboundAdmission': cm.get('outboundAdmission'),
+        'inboundAdmission': cm.get('inboundAdmission'),
+        'quicClientCount': cm.get('quicClientCount'),
+        'dhtRecordCount': diag.get('dht',{}).get('recordCount'),
+        'dhtRpcTimeoutMs': diag.get('dht',{}).get('rpcTimeoutMs'),
+        'peerRecordSequence': diag.get('peerRecordSequence'),
+        'peerRecordLifecycle': diag.get('peerRecordLifecycle')
+    })
+valid=[node for node in nodes if node.get('ok')]
+def values(key): return [node.get(key) for node in valid if isinstance(node.get(key),(int,float))]
+result={
+    'host': host,
+    'ok': len(valid),
+    'total': N,
+    'aggregate': {
+        'routingTableSizeMin': min(values('routingTableSize') or [0]),
+        'routingTableSizeMax': max(values('routingTableSize') or [0]),
+        'routingTableSizeAvg': round(sum(values('routingTableSize') or [0]) / max(1, len(values('routingTableSize'))), 3),
+        'knownPeerRecordsMin': min(values('knownPeerRecords') or [0]),
+        'knownPeerRecordsMax': max(values('knownPeerRecords') or [0]),
+        'connectedPeerCountMin': min(values('connectedPeerCount') or [0]),
+        'connectedPeerCountMax': max(values('connectedPeerCount') or [0]),
+        'dhtRecordCountMax': max(values('dhtRecordCount') or [0])
+    },
+    'nodes': nodes
+}
+print('NODE_DIAG_B64='+base64.b64encode(json.dumps(result,separators=(',',':')).encode()).decode())
+PY
+EOS
+)
+    out=$(remote "${VMS[$i]}" "$script")
+    diag_b64=$(marker "$out" NODE_DIAG_B64)
+    [[ -n "$diag_b64" ]]
+    printf '%s' "$diag_b64" | base64 -d >>"$CONVERGENCE_NODE_DIAGNOSTICS_JSONL"
+    printf '\n' >>"$CONVERGENCE_NODE_DIAGNOSTICS_JSONL"
+  done
+}
+
+write_convergence_partial_evidence() {
+  local reason="$1"
+  local end_ms
+  end_ms=$(date +%s%3N)
+  python3 - "$EVIDENCE" "$CONVERGENCE_HOSTS_JSONL" "$CONVERGENCE_NODE_DIAGNOSTICS_JSONL" "$CONVERGENCE_DIAGNOSTICS_JSON" "$reason" "$conv_success" "$conv_total" "$conv_rate" "$conv_p95" "$conv_p99" "$NODE_COUNT" "$HOST_COUNT" "$NODES_PER_HOST" "$START_MS" "$end_ms" <<'PY'
+import collections, json, os, sys
+(evidence_path, host_rows_path, node_rows_path, diagnostics_path, reason,
+ conv_success, conv_total, conv_rate, conv_p95, conv_p99,
+ node_count, host_count, nodes_per_host, start_ms, end_ms) = sys.argv[1:]
+def read_jsonl(path):
+    rows=[]
+    try:
+        with open(path, 'r', encoding='utf-8') as handle:
+            for line in handle:
+                line=line.strip()
+                if line:
+                    rows.append(json.loads(line))
+    except FileNotFoundError:
+        pass
+    return rows
+host_rows=read_jsonl(host_rows_path)
+node_rows=read_jsonl(node_rows_path)
+failure_reasons=collections.Counter()
+http_codes=collections.Counter()
+return_codes=collections.Counter()
+target_success=collections.Counter()
+target_probes=collections.Counter()
+for row in host_rows:
+    for key, value in (row.get('failureReasons') or {}).items(): failure_reasons[key]+=value
+    for key, value in (row.get('httpCodes') or {}).items(): http_codes[key]+=value
+    for key, value in (row.get('returnCodes') or {}).items(): return_codes[key]+=value
+    for key, value in (row.get('targetHostSuccesses') or {}).items(): target_success[key]+=value
+    for key, value in (row.get('targetHostProbes') or {}).items(): target_probes[key]+=value
+node_aggs=[row.get('aggregate') or {} for row in node_rows]
+def agg_values(name):
+    return [value for value in (row.get(name) for row in node_aggs) if isinstance(value,(int,float))]
+diagnostics={
+    'version': 1,
+    'convergenceHosts': host_rows,
+    'nodeDiagnosticsByHost': node_rows,
+    'summary': {
+        'failureReasons': dict(failure_reasons),
+        'httpCodes': dict(http_codes),
+        'returnCodes': dict(return_codes),
+        'targetHostSuccesses': dict(target_success),
+        'targetHostProbes': dict(target_probes),
+        'routingTableSizeMin': min(agg_values('routingTableSizeMin') or [0]),
+        'routingTableSizeMax': max(agg_values('routingTableSizeMax') or [0]),
+        'knownPeerRecordsMin': min(agg_values('knownPeerRecordsMin') or [0]),
+        'knownPeerRecordsMax': max(agg_values('knownPeerRecordsMax') or [0]),
+        'connectedPeerCountMin': min(agg_values('connectedPeerCountMin') or [0]),
+        'connectedPeerCountMax': max(agg_values('connectedPeerCountMax') or [0])
+    }
+}
+with open(diagnostics_path, 'w', encoding='utf-8') as handle:
+    json.dump(diagnostics, handle, sort_keys=True, separators=(',',':'))
+    handle.write('\n')
+evidence={
+    'class':'D-1000',
+    'scope':'1000-real-process-scale+partial-convergence-diagnostics',
+    'partial': True,
+    'result': 'FAIL',
+    'failureStage': 'convergence',
+    'failureReason': reason,
+    'testedCommit': os.environ.get('GITHUB_SHA'),
+    'workflowRunId': os.environ.get('GITHUB_RUN_ID'),
+    'topology': {
+        'nodeCount': int(node_count),
+        'realProcessCount': int(node_count),
+        'hostCount': int(host_count),
+        'realProcessesPerHost': int(nodes_per_host),
+        'uniqueIdentityCount': int(node_count),
+        'uniqueEndpointCount': int(node_count),
+        'syntheticNodeCount': 0,
+        'transport':'real UDP/QUIC over Azure VNet',
+        'bootstrap':'sparse Kademlia local+bridge'
+    },
+    'routing': {
+        'baselineSuccessRatio': 0,
+        'healedSuccessRatio': 0,
+        'notRunBecause': 'convergence_failed_before_baseline'
+    },
+    'convergence': {
+        'routingSuccessRatio': float(conv_rate),
+        'successfulProbes': int(conv_success),
+        'nodeProbeCount': int(conv_total),
+        'latencyMs': {'p95': float(conv_p95), 'p99': float(conv_p99)},
+        'hosts': host_rows
+    },
+    'diagnostics': diagnostics,
+    'recovery': {'latencyMs': {'p95': float('inf')}, 'notRunBecause': 'convergence_failed'},
+    'adversarial': {'notRunBecause': 'convergence_failed'},
+    'safety': {
+        'acknowledgedWriteLossCount': 999999,
+        'invalidSignedStateAcceptedCount': 999999,
+        'staleRevokedReceiptAcceptedCount': 999999,
+        'unauthorizedProviderExecutionCount': 999999,
+        'notRunBecause': 'convergence_failed'
+    },
+    'resources': {'notCollectedBecause': 'convergence_failed'},
+    'timing': {'campaignMs': int(end_ms) - int(start_ms)},
+    'cleanup': {'confirmed': False, 'remainingResources': None, 'finalizedByExitTrap': True}
+}
+with open(evidence_path, 'w', encoding='utf-8') as handle:
+    json.dump(evidence, handle, sort_keys=True, separators=(',',':'))
+    handle.write('\n')
+print('TRUYN_CLASS_D_1000_PARTIAL_EVIDENCE=PASS stage=convergence reason='+reason+' diagnostics='+diagnostics_path)
+PY
+}
+
+conv_success=0; conv_total=0; conv_p95=0; conv_p99=0
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  script=$(cat <<EOS
+set -Eeuo pipefail
+python3 - <<'PY'
+import base64, collections, concurrent.futures, json, subprocess, time
+records=json.load(open('/var/lib/truyn-d1000/records-by-host.json'))
+host=${i}; H=${HOST_COUNT}; N=${NODES_PER_HOST}; base=${CONTROL_BASE}
+def classify_failure(proc, path):
+    code=proc.stdout.strip()
+    if proc.returncode == 28:
+        return {'reason':'curl_timeout','httpCode':code or '000','returnCode':proc.returncode}
+    if proc.returncode != 0:
+        return {'reason':'curl_rc_'+str(proc.returncode),'httpCode':code or '000','returnCode':proc.returncode,'stderr':proc.stderr.strip()[-240:]}
+    if code != '200':
+        reason='http_'+(code or '000')
+        try:
+            with open(path, 'r', encoding='utf-8') as handle:
+                body=json.load(handle)
+            if body.get('error'):
+                reason=str(body.get('error'))
+        except Exception:
+            pass
+        return {'reason':reason,'httpCode':code or '000','returnCode':proc.returncode}
+    return {'reason':'unknown_failure','httpCode':code or '000','returnCode':proc.returncode}
+def one(j):
+    target_host=(host+1+(j%(H-1)))%H
+    target_local=(j*17+host*7)%N
+    node_id=records[target_host][target_local]['nodeId']
+    body=json.dumps({'nodeId':node_id,'input':{'scenario':'d1000-convergence','source':host*N+j,'targetHost':target_host,'targetLocal':target_local}},separators=(',',':'))
+    start=time.monotonic(); deadline=start+175; attempts=0; last_failure=None
+    path='/tmp/d1000-conv-'+str(j)
+    while time.monotonic()<deadline:
+        attempts += 1
+        proc=subprocess.run(['curl','-sS','--max-time','12','-o',path,'-w','%{http_code}','-H','content-type: application/json','--data-binary',body,f'http://127.0.0.1:{base+j}/need'],text=True,capture_output=True)
+        if proc.returncode==0 and proc.stdout.strip()=='200':
+            return {'ok':True,'latencyMs':round((time.monotonic()-start)*1000,3),'attempts':attempts,'sourceLocal':j,'targetHost':target_host,'targetLocal':target_local,'targetNodeId':node_id}
+        last_failure=classify_failure(proc, path)
+        time.sleep(.5)
+    return {'ok':False,'latencyMs':175000.0,'attempts':attempts,'sourceLocal':j,'targetHost':target_host,'targetLocal':target_local,'targetNodeId':node_id,'failure':last_failure or {'reason':'deadline_expired','httpCode':'000','returnCode':-1}}
+with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+    rows=list(ex.map(one,range(N)))
+lat=sorted(row['latencyMs'] for row in rows if row.get('ok'))
+success=sum(1 for row in rows if row.get('ok'))
+def q(p):
+    if not lat:return 999999
+    return round(lat[min(len(lat)-1,max(0,int((len(lat)-1)*p)))],3)
+failure_reasons=collections.Counter(row.get('failure',{}).get('reason','none') for row in rows if not row.get('ok'))
+http_codes=collections.Counter(str(row.get('failure',{}).get('httpCode','200' if row.get('ok') else '000')) for row in rows)
+return_codes=collections.Counter(str(row.get('failure',{}).get('returnCode',0 if row.get('ok') else -1)) for row in rows)
+target_successes=collections.Counter(str(row['targetHost']) for row in rows if row.get('ok'))
+target_probes=collections.Counter(str(row['targetHost']) for row in rows)
+diag={'host':host,'success':success,'total':N,'p95Ms':q(.95),'p99Ms':q(.99),'failureReasons':dict(failure_reasons),'httpCodes':dict(http_codes),'returnCodes':dict(return_codes),'targetHostSuccesses':dict(target_successes),'targetHostProbes':dict(target_probes),'probes':rows}
+print('CONV_OK='+str(success)); print('CONV_TOTAL='+str(N)); print('CONV_P95='+str(q(.95))); print('CONV_P99='+str(q(.99)))
+print('CONV_DIAG_B64='+base64.b64encode(json.dumps(diag,separators=(',',':')).encode()).decode())
+PY
+EOS
+)
+  out=$(remote "${VMS[$i]}" "$script")
+  ok=$(marker "$out" CONV_OK); total=$(marker "$out" CONV_TOTAL); p95=$(marker "$out" CONV_P95); p99=$(marker "$out" CONV_P99); diag_b64=$(marker "$out" CONV_DIAG_B64)
+  [[ -n "$diag_b64" ]]
+  printf '%s' "$diag_b64" | base64 -d >>"$CONVERGENCE_HOSTS_JSONL"
+  printf '\n' >>"$CONVERGENCE_HOSTS_JSONL"
+  conv_success=$((conv_success+ok)); conv_total=$((conv_total+total))
+  conv_p95=$(python3 -c "print(max(float('$conv_p95'),float('$p95')))" )
+  conv_p99=$(python3 -c "print(max(float('$conv_p99'),float('$p99')))" )
+  echo "TRUYN_CLASS_D_1000 stage=convergence host=$i success=${ok}/${total} p95Ms=${p95} p99Ms=${p99}"
+done
+conv_rate=$(python3 -c "print(round($conv_success/$conv_total,6))")
+if ! python3 - <<PY
+conv_rate=float('$conv_rate')
+conv_p95=float('$conv_p95')
+if conv_rate < .99 or conv_p95 > 120000:
+    raise SystemExit(1)
+PY
+then
+  collect_convergence_node_diagnostics
+  write_convergence_partial_evidence "threshold_failed"
+  false
+fi
+'''
+          text = text[:start] + new_convergence + text[end:]
+          campaign.write_text(text)
+
+          tests = Path('tests/class-d-1000-partial-evidence.test.js')
+          tests.write_text(r'''import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+test('D-1000 convergence failures emit partial evidence diagnostics before failing closed', async () => {
+  const campaign = await readFile('benchmarks/scale/class-d-azure-1000-campaign.sh', 'utf8');
+  assert.match(campaign, /class-d-1000-convergence-hosts\.jsonl/);
+  assert.match(campaign, /class-d-1000-node-diagnostics\.jsonl/);
+  assert.match(campaign, /class-d-1000-convergence-diagnostics\.json/);
+  assert.match(campaign, /write_convergence_partial_evidence/);
+  assert.match(campaign, /TRUYN_CLASS_D_1000_PARTIAL_EVIDENCE=PASS/);
+  assert.match(campaign, /CONV_DIAG_B64/);
+  assert.match(campaign, /NODE_DIAG_B64/);
+  assert.match(campaign, /failureReasons/);
+  assert.match(campaign, /targetHostSuccesses/);
+  assert.match(campaign, /targetHostProbes/);
+  assert.match(campaign, /connectedPeerCount/);
+  assert.match(campaign, /knownPeersByRemoteHost/);
+  assert.match(campaign, /routingTableSize/);
+  assert.match(campaign, /threshold_failed/);
+});
+
+test('testnet node service exposes route-level diagnostics for D-1000 convergence analysis', async () => {
+  const service = await readFile('network/testnet/node-service.js', 'utf8');
+  assert.match(service, /diagnosticsSnapshot/);
+  assert.match(service, /url\.pathname === '\/diagnostics'/);
+  assert.match(service, /routingBucketCount/);
+  assert.match(service, /knownPeerRecords/);
+  assert.match(service, /connectedPeerCount/);
+  assert.match(service, /outboundAdmission/);
+  assert.match(service, /inboundAdmission/);
+  assert.match(service, /quicClientCount/);
+  assert.match(service, /peerRecordLifecycleSnapshot/);
+});
+''')
+          PY
+      - name: Validate patch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n benchmarks/scale/class-d-azure-1000-campaign.sh
+          node --check network/testnet/node-service.js
+          npm install --ignore-scripts --no-audit --no-fund
+          npm test
+          git diff --check
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f .github/workflows/tmp-d1000-partial-evidence-patcher.yml
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add benchmarks/scale/class-d-azure-1000-campaign.sh network/testnet/node-service.js tests/class-d-1000-partial-evidence.test.js .github/workflows/tmp-d1000-partial-evidence-patcher.yml
+          git commit -m "fix(d1000): preserve partial convergence evidence" -m "Signed-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>"
+          git push origin HEAD:fix/d1000-partial-convergence-evidence
