@@ -1,269 +1,171 @@
 # TRUYN A2A / MCP Interoperability Architecture
 
-**Status:** canonical interoperability architecture. MCP current-contract, configured-tool and general tool-discovery/import paths have bounded executable reference implementations; A2A and the end-to-end A2A↔TRUYN↔MCP bridge are defined here but not yet implemented or certified.
-
-**Snapshot:** 2026-08-25
+**Status:** canonical interoperability architecture synchronized with current `main`.  
+**Snapshot:** 2026-08-27  
+**Source baseline:** `63e54cbe30d363ef4609732b512fe64ab860cf9d`  
+**Protocol state:** TRUYN/1 draft; A2A/MCP compatibility is bounded, not stable.
 
 ## Purpose
 
-TRUYN is an intelligence network, not a replacement for every agent protocol. A2A and MCP solve adjacent interoperability problems and should connect at the edge without becoming mandatory TRUYN/1 wire dependencies.
-
-The target is:
+A2A and MCP are external interoperability edges around TRUYN. They do not redefine TRUYN identity, provider ownership, authorization, billing, settlement, provenance or Trustability.
 
 ```text
-A2A agent / client                  MCP client / server
-       │                                   │
-       └──── A2A adapter ─┐   ┌─ MCP adapter ─────┘
-                          ▼   ▼
-                       TRUYN Node
-              IDENTITY · OFFER · NEED · RESULT
-              authorization · provenance · trust
-                          │
-                    TRUYN network
-```
-
-The architectural rule is:
-
-> **A2A and MCP are replaceable interoperability edges. TRUYN remains the network contract.**
-
-Protocol evolution in A2A or MCP MUST NOT force a new TRUYN protocol generation unless TRUYN network semantics themselves change.
-
-## External protocol roles
-
-### A2A
-
-A2A provides a standard interaction model for independent agent systems. Its released specification defines Agent Cards for discovery, skills/capabilities, Messages, Tasks, task state, Artifacts, streaming updates and authentication requirements.
-
-TRUYN should use A2A where an external agent expects agent-to-agent discovery and task lifecycle semantics.
-
-### MCP
-
-MCP provides a standard way for model/agent clients to discover and invoke tools and other server capabilities. TRUYN should use MCP where an agent/runtime expects tools/resources exposed by an MCP server or where a remote MCP tool should be presented as a TRUYN capability.
-
-The current repository contains bounded MCP reference paths:
-
-- `adapters/mcp/server.js`: TRUYN-as-MCP server over stdio and loopback HTTP;
-- `adapters/providers/mcp-http-tool.js`: one configured remote MCP HTTP tool exposed through the provider-adapter contract;
-- `adapters/mcp/client.js`: modern MCP `2026-07-28` discovery/list/call client with bounded pagination and schema-derived routing headers;
-- `adapters/providers/mcp-discovery.js`: explicit allowlist/filter importer that maps selected remote MCP tools into TRUYN provider capabilities;
-- tests covering current-contract MCP behavior, general tool discovery/import, authorized execution and private-provider negative cases.
-
-These paths are implementation evidence, not a claim of complete ecosystem certification or full conformance with every current MCP feature.
-
-## Compatibility boundary
-
-TRUYN does not copy A2A or MCP objects into the core protocol verbatim. Adapters normalize external semantics into stable TRUYN concepts and retain external identifiers as provenance/correlation metadata when useful.
-
-External authentication is also not TRUYN provider authorization:
-
-```text
-A2A/MCP transport authentication
-          ≠
-TRUYN requester/provider authorization
-          ≠
-Trustability
-          ≠
-settlement
-```
-
-A request that entered through A2A or MCP MUST pass the same provider ownership, visibility, billing/entitlement and trust policy as an equivalent native TRUYN request.
-
-## A2A → TRUYN mapping
-
-The first A2A bridge SHOULD map concepts as follows.
-
-| A2A concept | TRUYN mapping | Notes |
-|---|---|---|
-| Agent Card identity/provider metadata | adapter identity metadata + TRUYN cryptographic node identity | A2A metadata never replaces TRUYN signed identity |
-| Agent Card skill | `CAPABILITY` / `OFFER` candidate | only offers authorized for the A2A audience may be published |
-| Agent Card security requirements | adapter/gateway authentication policy | not a substitute for provider authorization |
-| Message initiating work | `NEED` | content becomes normalized input; policy is derived explicitly |
-| Task ID / context ID | bridge correlation metadata | A2A task state remains an adapter concern |
-| Task status | bridge-local lifecycle/status projection | does not create a new TRUYN/1 primitive |
-| Artifact | `RESULT` output or content-addressed artifact reference | preserve media type, digest and provenance where available |
-| Streaming updates | adapter stream derived from TRUYN/provider progress where supported | absence of native streaming must be represented honestly |
-| Cancel task | adapter cancellation when the execution path supports cancellation | MUST NOT pretend `REVOKE` is universally equivalent to task cancel |
-| Extended Agent Card | authenticated adapter discovery view | must preserve TRUYN discovery authorization |
-
-### Agent Card exposure
-
-A TRUYN A2A server facade MUST NOT dump every known `OFFER` into a public Agent Card.
-
-The card is a compatibility view over the **authorized/publishable** capability set. Private owner-only/BYOK providers remain hidden unless the caller is explicitly permitted through an authenticated extended-card/discovery path.
-
-A2A skills are descriptive compatibility metadata; the authoritative execution decision remains the TRUYN capability + authorization + policy pipeline.
-
-## TRUYN → A2A provider adapter
-
-The reverse bridge allows a remote A2A agent to participate as a TRUYN provider without becoming a native TRUYN implementation.
-
-Target flow:
-
-```text
-remote A2A Agent Card
-        ↓ validate / authenticate
-A2A client adapter
-        ↓ normalize selected skills
-TRUYN OFFER(s)
-        ↓ authorized NEED
-A2A Send Message / Task
+A2A / MCP endpoint
         ↓
-A2A Artifact / terminal response
-        ↓ normalize + provenance
+adapter authentication + version/correlation validation
+        ↓
+TRUYN capability / OFFER / NEED / RESULT
+        ↓
+central provider authorization + billing boundary
+        ↓
+network/provider execution
+```
+
+The security rule is invariant across protocols:
+
+> transport authentication proves access to the external interface; it never grants TRUYN provider authorization or billing authority.
+
+## Current implementation state
+
+The architecture is no longer A2A-server-only. The accepted in-repository implementation is:
+
+| Gate | Current state | Evidence |
+|---|---|---|
+| C1 — MCP current-contract baseline | **Accepted / CI-proven** | current MCP server/configured provider tests |
+| C2 — general MCP discovery/import | **Accepted / CI-proven** | PR `#332`, `adapters/mcp/client.js`, `adapters/providers/mcp-discovery.js` |
+| C3 — A2A server facade | **Accepted / CI-proven** | `adapters/a2a/server.js`, `tests/a2a-server.test.js` |
+| C4 — A2A client/provider adapter | **Accepted / CI-proven** | PR `#340`, merge `1735528461a04de60f9f8572b466a732a6f03c62` |
+| C5 — bounded async polling lifecycle | **Accepted / CI-proven** | PR `#352`, merge `591d30d8f57fb7c661c847bb059cd437f437dd08` |
+| C6 — artifact integrity mapping | **Accepted / CI-proven** | PR `#368`, merge `0e6e4119450e9de55fb9be32b993a28f98dda148` |
+| C7 — bidirectional A2A↔MCP bridge composition | **Accepted / CI-proven** | PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a`; `tests/interoperability-bidirectional.test.js` |
+| C8 — complete cross-protocol adversarial matrix | **OPEN** | active PR `#369`; must not be described as accepted yet |
+
+## A2A server edge
+
+The A2A facade projects only intentionally visible and authorized TRUYN capabilities into Agent Card skills. It maps:
+
+```text
+Agent Card skill       ← authorized TRUYN capability/OFFER view
+A2A Message            → TRUYN NEED input
+A2A Task/context IDs   ↔ adapter-local correlation state
+TRUYN RESULT           → A2A Artifact / terminal task state
+```
+
+The public Agent Card is not a public dump of private/BYOK providers. Authenticated Extended Agent Card behavior remains server-authorized.
+
+## A2A client/provider edge
+
+C4 implements the reverse edge:
+
+```text
+remote Agent Card
+      ↓ discover + validate A2A 1.0 interface
+explicit allowSkills/filter
+      ↓
+selected remote skill
+      ↓ local signed TRUYN OFFER through TruynAdapterHost
+TRUYN NEED
+      ↓
+A2A SendMessage / Task polling
+      ↓
+verified remote Message/Artifact
+      ↓
 TRUYN RESULT
 ```
 
-Required properties:
+Remote Agent Card provider/owner/security metadata remains descriptive. The local signed TRUYN provider identity and local provider access policy remain authoritative.
 
-1. skill import is explicit and bounded; do not blindly expose every remote skill;
-2. remote A2A endpoint/auth credentials remain adapter-local;
-3. provider ownership is the TRUYN identity operating the adapter, not requester-supplied A2A metadata;
-4. A2A task/context IDs are correlation metadata, not TRUYN authorization identities;
-5. remote artifacts preserve digest/media/provenance metadata where possible;
-6. failures, unsupported modalities and task rejection remain explicit;
-7. no A2A response can bypass the provider-host billing/access boundary.
+## Asynchronous lifecycle
 
-## MCP → TRUYN mapping
+C5 adds bounded polling semantics without duplicate side effects:
 
-The existing MCP server surface exposes TRUYN operations as tools:
+- `taskExecutionMode: "blocking"` remains available;
+- polling mode submits one initial `SendMessage` with `returnImmediately:true`;
+- subsequent progress uses bounded `GetTask` polling;
+- task/context substitution fails closed;
+- failed/rejected/canceled and input/auth-required states are explicit;
+- polling never falls back to a second `SendMessage`.
 
-```text
-truyn_identity
-truyn_find
-truyn_offer
-truyn_need
-truyn_poll
-truyn_result
-```
+Streaming token deltas, push notifications and full remote cancellation equivalence are separate features and must not be inferred from polling support.
 
-This is the minimum agent-facing bridge for MCP clients.
+## Artifact integrity
 
-The MCP compatibility architecture distinguishes three layers:
+C6 owns cross-A2A artifact normalization and integrity requirements:
 
-1. **TRUYN-as-MCP server**: MCP client invokes TRUYN tools;
-2. **MCP-tool-as-TRUYN provider**: TRUYN invokes an authorized external MCP tool;
-3. **general MCP tool import/discovery**: discover a remote MCP server's tool catalog, validate it and map explicitly selected tools to TRUYN capabilities.
+- SHA-256 and exact byte-size validation;
+- deterministic canonical JSON (`truyn-json-c14n-v1`);
+- canonical base64 validation;
+- bounded artifact bytes/part counts;
+- no implicit URL fetching or SSRF;
+- referenced URLs require an explicit resolver before materialization;
+- authoritative TRUYN provenance replaces spoofable remote provider provenance;
+- corrupt or unverifiable artifacts do not become successful results.
 
-All three tool layers now have bounded reference implementations. The configured-provider path remains useful for one fixed tool; C2 adds the general tool path using `server/discover` → bounded paginated `tools/list` → explicit allowlist/filter → selected signed TRUYN `OFFER`s.
+This integrity layer is reusable by C7/C8 but is not itself a claim of external ecosystem certification.
 
-The general importer is intentionally default-deny. A remote tool catalog is descriptive input, not publication authority. No tool becomes a TRUYN capability unless local selection permits it and its supported schema/header contract validates. Provider ownership remains the cryptographic TRUYN identity operating the importer, and remote MCP transport authentication/metadata cannot replace TRUYN authorization or billing policy.
+## Bidirectional bridge composition
 
-For supported `x-mcp-header` tool parameters, the importer only accepts statically reachable property bindings with unique valid header tokens and supported primitive types, then mirrors actual argument values as `Mcp-Param-*` headers. Malformed annotated tools are excluded rather than weakening the whole catalog or being silently imported.
+C7 proves both in-repository paths.
 
-### MCP resources
-
-General **tool** discovery/import is implemented by C2. Resource import remains separate future work: a future MCP resource adapter MAY map immutable resources to TRUYN `OBJECT` references and mutable resource views to explicit state objects when the semantics are safe. It MUST NOT assume every MCP resource is immutable, content-addressed or globally publishable.
-
-### MCP prompts
-
-MCP prompts are an application/client assistance surface, not a TRUYN network primitive. They may be passed through an adapter but should not become protocol-level TRUYN capabilities unless an implementation explicitly models them as executable behavior.
-
-## A2A ↔ TRUYN ↔ MCP bridge
-
-The implementation milestone is not complete merely because MCP tool adapters exist. TRUYN must still implement A2A and prove cross-protocol cooperation in both directions.
-
-Required reference flows:
+### A2A → TRUYN → MCP
 
 ```text
 A2A client
-   ↓ Agent Card + Send Message
-TRUYN A2A facade
-   ↓ NEED
-TRUYN network
-   ↓ authorized provider
-MCP tool provider
-   ↓
-TRUYN RESULT
-   ↓
-A2A Task/Artifact
+→ TRUYN A2A facade
+→ authorized NEED
+→ imported MCP provider
+→ remote MCP tools/call
+→ RESULT
+→ completed A2A Task/Artifact
 ```
 
-and:
+The proof asserts exactly one remote MCP execution and preserves authoritative TRUYN provider identity.
+
+### MCP → TRUYN → A2A
 
 ```text
 MCP client
-   ↓ truyn_need
-TRUYN MCP facade
-   ↓ NEED
-TRUYN network
-   ↓ authorized provider
-remote A2A agent
-   ↓ Task/Artifact
-TRUYN RESULT
-   ↓
-MCP tool result
+→ TRUYN MCP facade / truyn_need
+→ authorized NEED
+→ imported A2A provider
+→ remote A2A SendMessage/Task/Artifact
+→ RESULT
+→ MCP truyn_poll result
 ```
 
-Both flows MUST preserve correlation, identity, authorization, provenance, error state and artifact integrity without allowing external-protocol metadata to become authoritative TRUYN ownership/billing data.
+The proof asserts exactly one remote A2A execution and preserves request/message/task correlation without promoting remote metadata into TRUYN authority.
+
+## Authorization and authority invariants
+
+Every bridge implementation MUST preserve these invariants:
+
+1. unauthorized discovery hides private providers/capabilities;
+2. unauthorized execution causes zero upstream provider execution;
+3. remote A2A/MCP requester/owner/tenant/billing metadata cannot substitute signed TRUYN authority;
+4. transport credentials remain adapter-local and are never emitted into TRUYN discovery/OFFER/NEED/RESULT payloads;
+5. correlation mismatches fail closed;
+6. retry/poll/fallback logic cannot duplicate remote side effects;
+7. invalid artifacts and malformed external-protocol responses cannot be converted into success.
+
+C8 is the bounded acceptance matrix intended to exercise these invariants systematically across both directions. Until C8 is merged and exact-main verification is green, the **complete negative matrix remains open**.
+
+## MCP boundary
+
+The implemented MCP profile covers the surfaces TRUYN currently claims: server discovery/tool calls, configured provider invocation and general explicitly selected tool discovery/import. Broader optional MCP resources, prompts, subscriptions, Apps/extensions and ecosystem-wide certification remain outside the accepted profile unless separately implemented and evidenced.
+
+## Adoption boundary
+
+C7 means the bidirectional bridge exists and is CI-proven inside the repository. It does **not** mean:
+
+- independent A2A SDK/reference-server interoperability has been certified;
+- independent MCP SDK/reference-server interoperability has been certified;
+- every A2A/MCP optional feature is supported;
+- the adapters have a stable-v1 compatibility guarantee.
+
+The next adoption proof should therefore test the existing bridge against independent external implementations, not recreate C4–C7.
 
 ## Versioning
 
-A2A, MCP and TRUYN versions are independent dimensions.
+A2A, MCP and TRUYN are versioned independently. Unsupported external protocol versions fail explicitly. A2A/MCP changes belong in adapters unless they change TRUYN network semantics. Exact versions exercised by evidence must be recorded in compatibility/evidence documents.
 
-The adapter layer MUST record and negotiate the external protocol version it actually supports. A compatibility update SHOULD remain adapter-local whenever possible.
-
-As of this snapshot, the implementation work targets the current A2A 1.x released line and MCP `2026-07-28`, while retaining explicitly tested legacy MCP behavior only where useful. Version names belong in compatibility/evidence documents rather than the stable TRUYN capability namespace.
-
-## Security invariants
-
-All A2A/MCP bridges MUST satisfy:
-
-- fail closed when external authentication or TRUYN authorization is ambiguous;
-- never accept external `ownerId`, tenant, billing mode or provider identity as authoritative merely because it appears in protocol metadata;
-- never expose private TRUYN offers through Agent Cards, MCP tool lists or resource lists without authorization;
-- keep remote A2A/MCP credentials in the adapter/runtime secret boundary;
-- preserve equivalent authorization across HTTP, streaming, stdio and native paths;
-- prevent protocol translation from turning unsupported states into apparent success;
-- bound request sizes, streams, task lifetimes and polling to prevent resource abuse;
-- preserve artifact digests/provenance where available;
-- keep Trustability separate from external-protocol authentication;
-- keep settlement adapters separate from interoperability adapters.
-
-C2 additionally preserves these tool-import invariants:
-
-- no implicit import-all behavior;
-- bounded remote catalog traversal;
-- malformed imported tool schemas fail closed for that tool;
-- remote MCP identity/auth metadata never overrides TRUYN provider ownership/access policy;
-- unauthorized TRUYN requesters cause zero remote MCP tool execution.
-
-## Implementation gate
-
-The complete A2A/MCP interoperability step is closed only when all of the following are true:
-
-1. **MCP current-contract closure — CLOSED bounded slice**: current supported MCP server path follows the targeted current transport/message contract; configured remote-tool path remains compatible; tests cover unsupported versions and security failure cases.
-2. **General MCP tool import — CLOSED bounded C2 slice**: remote discovery/list, explicit selection, supported schema/header forwarding, authorized TRUYN OFFER publication/execution and negative zero-execution cases are CI-proven.
-3. **A2A server facade**: authorized TRUYN capabilities can be exposed through an Agent Card and A2A task interface without leaking private providers.
-4. **A2A client/provider adapter**: selected remote A2A skills can be imported as TRUYN providers and executed through the normal authorization boundary.
-5. **Bidirectional cross-protocol proof**: A2A→TRUYN→MCP and MCP→TRUYN→A2A complete real task/result round trips.
-6. **Artifact proof**: structured/text and referenced file/media outputs preserve integrity/provenance through translation.
-7. **Long-running task proof**: at least one asynchronous A2A task survives polling/streaming lifecycle without semantic loss.
-8. **Negative security matrix**: unauthorized private provider discovery/execution remains zero through both external protocols.
-9. **Version matrix**: exact A2A/MCP versions and tested compatibility are recorded under `docs/compatibility/`.
-10. **Durable evidence**: a public sanitized interoperability report records tested commit, cases, failures/limitations and results.
-
-## Non-goals
-
-This work does not:
-
-- make A2A or MCP mandatory for TRUYN nodes;
-- replace TRUYN cryptographic identity with Agent Cards or MCP client metadata;
-- add A2A Task or MCP Tool as new TRUYN/1 wire primitives;
-- promise one-to-one semantic equivalence for every A2A/MCP feature;
-- make a public A2A/MCP endpoint permission to consume owner-funded AI quota;
-- couple TRUYN protocol releases to external protocol release cadence.
-
-## Repository ownership
-
-Target implementation locations:
-
-```text
-adapters/a2a/                 # A2A server facade + client/provider bridge
-adapters/mcp/                 # MCP-facing TRUYN server/client glue
-adapters/providers/           # MCP/A2A-backed provider adapters where appropriate
-tests/interoperability/       # cross-protocol contract and negative tests
-docs/compatibility/           # tested version/support matrix
-docs/benchmarks/              # durable interoperability evidence
-```
-
-The architecture belongs here; normative TRUYN wire semantics remain under `spec/`.
+See `../compatibility/A2A_MCP_COMPATIBILITY.md` for the factual matrix and `IMPLEMENTATION_STATUS.md` for repository-wide maturity.
