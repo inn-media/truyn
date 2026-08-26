@@ -12,6 +12,6 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "node --experimental-strip-types --test test/core.test.ts"
+    "test": "node --experimental-strip-types --test test/*.test.ts"
   }
 }
