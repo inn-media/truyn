@@ -55,6 +55,27 @@ export class KademliaRoutingTable {
       .map((peer) => ({ ...peer }));
   }
 
+  routingSnapshot() {
+    const bucketOccupancy = this.buckets.map((bucket, index) => ({ index, count: bucket.length }));
+    const peers = this.buckets.flat();
+    const validPeers = peers.filter((peer) => (
+      peer?.nodeId &&
+      peer.nodeId !== this.localNodeId &&
+      Array.isArray(peer.endpoints) &&
+      peer.endpoints.length > 0
+    )).length;
+
+    return {
+      localNodeId: this.localNodeId,
+      k: this.k,
+      bucketCount: KADEMLIA_ID_BITS,
+      routingSize: peers.length,
+      validPeers,
+      populatedBuckets: bucketOccupancy.filter((bucket) => bucket.count > 0).length,
+      bucketOccupancy
+    };
+  }
+
   snapshot() { return this.buckets.flat().map((peer) => ({ ...peer })); }
   restore(peers = []) { for (const peer of peers) this.upsert(peer); return this.size(); }
   size() { return this.buckets.reduce((sum, bucket) => sum + bucket.length, 0); }
