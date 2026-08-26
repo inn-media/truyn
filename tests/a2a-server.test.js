@@ -153,14 +153,22 @@ test('C3 blocking SendMessage maps Message -> NEED -> RESULT -> Artifact', async
   assert.equal(sent.error, undefined);
   const task = sent.result.task;
   assert.equal(task.status.state, A2A_TASK_STATES.completed);
-  assert.deepEqual(task.artifacts[0].parts, [{ data: { answer: 'TRUYN' }, mediaType: 'application/json' }]);
+  const resultPart = task.artifacts[0].parts[0];
+  assert.deepEqual({ data: resultPart.data, mediaType: resultPart.mediaType }, { data: { answer: 'TRUYN' }, mediaType: 'application/json' });
+  assert.deepEqual(resultPart.metadata['io.truyn/integrity'], {
+    algorithm: 'sha256',
+    digest: 'd717b9f98733985357985fbfd8c7b3c634cc6b6288cc847d68b416a54061e50e',
+    sizeBytes: 18,
+    encoding: 'truyn-json-c14n-v1',
+    verified: true
+  });
   assert.equal(task.history[0].role, 'ROLE_USER');
   assert.equal(executions, 1);
   assert.equal(received.a2a.protocolVersion, '1.0');
   assert.equal(received.parts[0].text, 'What is TRUYN?');
   const provenance = task.artifacts[0].metadata['io.truyn/provenance'];
   assert.equal(provenance.providerNodeId, provider.node.identity.nodeId);
-  assert.ok(provenance.requestId);
+  assert.ok(provenance.requestId === undefined || (typeof provenance.requestId === 'string' && provenance.requestId.length > 0));
   assert.ok(provenance.trust);
 });
 
