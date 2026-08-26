@@ -10,6 +10,10 @@ function assertIdentity(identity) {
   if (nodeIdFromPublicKey(identity.publicKeyPem) !== identity.nodeId) throw new Error('peer identity mismatch');
 }
 
+function uniqueNonEmptyStrings(values = []) {
+  return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()))];
+}
+
 export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 300_000, capabilities = [], nat = null, issuedAt = new Date().toISOString() } = {}) {
   assertIdentity(identity);
   const normalizedEndpoints = [...new Set((endpoints || []).filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()))].sort();
@@ -161,6 +165,82 @@ export class PeerDiscovery {
     }
     if (removed && notify) this.onChange?.();
     return removed;
+  }
+
+  refreshTargets({ targetCount = this.k, now = Date.now(), seed = 'truyn-refresh' } = {}) {
+    const limit = Math.max(0, Number.isInteger(targetCount) ? targetCount : this.k);
+    if (limit === 0) return [];
+
+    const routingSnapshot = this.routing.routingSnapshot();
+    const livePeerTargets = this.snapshot({ now }).map((record) => record.nodeId);
+    const routingPeerTargets = this.routing.snapshot().map((peer) => peer.nodeId);
+    const bucketTargets = routingSnapshot.bucketOccupancy
+      .filter((bucket) => bucket.count > 0)
+      .map((bucket) => `${seed}:${this.identity.nodeId}:bucket:${bucket.index}`);
+
+    return uniqueNonEmptyStrings([...livePeerTargets, ...routingPeerTargets, ...bucketTargets])
+      .filter((targetNodeId) => targetNodeId !== this.identity.nodeId)
+      .sort((left, right) => {
+        const dl = xorDistance(left, this.identity.nodeId);
+        const dr = xorDistance(right, this.identity.nodeId);
+        return dl < dr ? -1 : dl > dr ? 1 : left.localeCompare(right);
+      })
+      .slice(0, limit);
+  }
+
+  async refreshRoutingTable({ targets = null, targetCount = this.k, maxRounds = 4, now = Date.now(), seed = 'truyn-refresh' } = {}) {
+    const before = this.routingSnapshot({ now });
+    const limit = Math.max(0, Number.isInteger(targetCount) ? targetCount : this.k);
+    const selectedTargets = uniqueNonEmptyStrings(Array.isArray(targets)
+      ? targets
+      : this.refreshTargets({ targetCount: limit, now, seed }))
+      .filter((targetNodeId) => targetNodeId !== this.identity.nodeId)
+      .slice(0, limit);
+
+    if (typeof this.rpc?.findNode !== 'function') {
+      return {
+        refreshed: false,
+        reason: 'rpc_unavailable',
+        before,
+        after: this.routingSnapshot({ now }),
+        targets: selectedTargets,
+        walks: [],
+        queriedPeers: [],
+        responses: 0,
+        routingSizeDelta: 0,
+        validPeersDelta: 0
+      };
+    }
+
+    const rounds = Math.max(0, Number.isInteger(maxRounds) ? maxRounds : 4);
+    const walks = [];
+    for (const targetNodeId of selectedTargets) {
+      const result = await this.walk(targetNodeId, { maxRounds: rounds, stopOnFound: false });
+      walks.push({
+        targetNodeId,
+        found: Boolean(result.found),
+        foundNodeId: result.found?.nodeId || null,
+        queried: result.queried,
+        rounds: result.rounds,
+        responses: result.responses
+      });
+    }
+
+    const after = this.routingSnapshot({ now });
+    const queriedPeers = uniqueNonEmptyStrings(walks.flatMap((walk) => walk.queried));
+    const responses = walks.reduce((sum, walk) => sum + walk.responses, 0);
+
+    return {
+      refreshed: true,
+      before,
+      after,
+      targets: selectedTargets,
+      walks,
+      queriedPeers,
+      responses,
+      routingSizeDelta: after.routingSize - before.routingSize,
+      validPeersDelta: after.validPeers - before.validPeers
+    };
   }
 
   async walk(targetNodeId, { maxRounds = 16, stopOnFound = true } = {}) {
