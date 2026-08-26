@@ -10,7 +10,9 @@
     "Need",
     "Result",
     "ArtifactRef",
-    "NormalizedError",
+    "NormalizedError"
+  ],
+  "dx3StableApiDtos": [
     "ArtifactPayload",
     "NeedRequest",
     "ResultResponse",
