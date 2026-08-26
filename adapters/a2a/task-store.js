@@ -22,6 +22,12 @@ function boundedHistory(history, historyLength) {
   return cloneList(history.slice(-historyLength));
 }
 
+function messageCorrelationKey(ownerKey, message) {
+  const messageId = typeof message?.messageId === 'string' && message.messageId.length > 0 ? message.messageId : null;
+  if (!messageId) return null;
+  return `${ownerKey === null ? '<anonymous>' : ownerKey}\u0000${messageId}`;
+}
+
 export class A2aTaskStore {
   constructor({ maxTasks = 1024, taskTtlMs = 60 * 60 * 1000, now = () => Date.now() } = {}) {
     if (!Number.isInteger(maxTasks) || maxTasks < 1) throw new Error('A2A maxTasks must be a positive integer');
@@ -31,6 +37,7 @@ export class A2aTaskStore {
     this.now = now;
     this.tasks = new Map();
     this.byTruynRequestId = new Map();
+    this.byMessageCorrelation = new Map();
   }
 
   prune() {
@@ -50,12 +57,19 @@ export class A2aTaskStore {
     const task = this.tasks.get(taskId);
     if (!task) return false;
     if (task.truynRequestId) this.byTruynRequestId.delete(task.truynRequestId);
+    if (task.messageCorrelationKey) this.byMessageCorrelation.delete(task.messageCorrelationKey);
     this.tasks.delete(taskId);
     return true;
   }
 
   create({ ownerKey = null, contextId = null, message, skill }) {
     this.prune();
+    const correlationKey = messageCorrelationKey(ownerKey, message);
+    if (correlationKey && this.byMessageCorrelation.has(correlationKey)) {
+      const error = new Error('A2A messageId replay detected');
+      error.code = 'A2A_MESSAGE_ID_REPLAY';
+      throw error;
+    }
     const timestamp = nowIso(this.now());
     const task = {
       id: randomUUID(),
@@ -70,9 +84,11 @@ export class A2aTaskStore {
       lastModified: timestamp,
       truynRequestId: null,
       providerNodeId: null,
-      providerTrust: null
+      providerTrust: null,
+      messageCorrelationKey: correlationKey
     };
     this.tasks.set(task.id, task);
+    if (correlationKey) this.byMessageCorrelation.set(correlationKey, task.id);
     return task;
   }
 
