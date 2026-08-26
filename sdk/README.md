@@ -2,14 +2,14 @@
 
 Native first-party client libraries for applications that integrate directly with TRUYN without depending on an agent-specific provider adapter.
 
-**Current maturity:** DX-1 shared conformance/runtime foundation is active; language package directories remain unpublished scaffolds and are not yet production-ready SDK distributions.
+**Current maturity:** DX-1 shared conformance/runtime foundation is active; TypeScript and Python are executable in-repository reference implementations; language package distributions remain private/internal and are not production-ready public SDK releases.
 
 ## Required first-party SDKs
 
 | Language | Directory | Distribution target | Current status |
 |---|---|---|---|
-| JavaScript / TypeScript | `typescript/` | npm | planned / scaffold |
-| Python | `python/` | PyPI | planned / scaffold |
+| JavaScript / TypeScript | `typescript/` | npm `@truyn/sdk` | DX-1 reference package, `private: true`, not public npm |
+| Python | `python/` | PyPI `truyn-sdk` / import `truyn` | DX-1 reference package, internal/editable, not public PyPI |
 | Go | `go/` | Go module | planned / scaffold |
 | Java | `java/` | Maven-compatible publication | planned / scaffold |
 | C# / .NET | `dotnet/` | NuGet | planned / scaffold |
@@ -18,6 +18,16 @@ Native first-party client libraries for applications that integrate directly wit
 The five required first-party targets before stable v1 are **JavaScript/TypeScript, Python, Go, Java and C#/.NET**.
 
 Rust may be maintained as an additional SDK but does not replace any required first-party language.
+
+## Current packaging boundary
+
+The repository currently reserves package identities for the DX-1 reference work, but does not authorize public package publication.
+
+- `sdk/typescript/package.json` identifies `@truyn/sdk` with an internal `0.0.0-dx1.0` version and `private: true`.
+- `sdk/python/pyproject.toml` identifies the `truyn-sdk` distribution with import package `truyn` and an internal `0.0.0` version.
+- Go, Java and C#/.NET package coordinates remain open until their parity work starts.
+
+Before any public package release, follow `../docs/compatibility/SDK_PACKAGING.md`.
 
 ## Common contract
 
@@ -71,6 +81,7 @@ See:
 - `../docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`
 - `../spec/protocol/v1/agent-descriptor.md`
 - `../docs/compatibility/SDK_COMPATIBILITY.md`
+- `../docs/compatibility/SDK_PACKAGING.md`
 - `../docs/getting-started/SDK_QUICKSTART.md`
 
 ## Implementation sequence
