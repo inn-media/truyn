@@ -7,6 +7,8 @@ Public examples are deliberately limited to **loopback local development** or **
 - `mvp-demo.js` — local loopback relay, deterministic nodes, no paid AI.
 - `ai-mvp-demo.js` — local loopback relay with deterministic function adapters, no paid AI.
 - `live-ai-demo.js` — local loopback relay plus the local user's own OpenAI/Anthropic credentials (BYOK). It does not use or expose TRUYN-operated provider credentials.
+- `sdk/hello-need-result.ts` — DX-1 TypeScript local-node SDK `NEED -> RESULT` onboarding example, no paid AI.
+- `sdk/hello_need_result.py` — DX-1 Python local-node SDK `NEED -> RESULT` onboarding example against a loopback relay, no paid AI.
 
 Operational cross-cloud proofs, owner-cloud deployment workflows, private provider bootstraps, and raw production benchmark execution tooling do not belong in this public examples directory.
 
@@ -24,4 +26,4 @@ Examples MUST NOT contain:
 
 A live-provider example is BYOK only. Publishing adapter code never makes any provider account a public TRUYN resource.
 
-See `../docs/getting-started/BYOK.md`, `../SECURITY.md`, and `../docs/architecture/THREAT_MODEL.md`.
+See `../docs/getting-started/BYOK.md`, `../docs/getting-started/SDK_QUICKSTART.md`, `../SECURITY.md`, and `../docs/architecture/THREAT_MODEL.md`.
