@@ -1,3 +1,9 @@
+import {
+  isA2aArtifactBundle,
+  normalizeOutboundA2aArtifactBundle,
+  normalizeOutboundA2aPart
+} from './artifact-integrity.js';
+
 export const A2A_PROTOCOL_VERSION = '1.0';
 
 export const A2A_TASK_STATES = Object.freeze({
@@ -14,6 +20,7 @@ export const A2A_TASK_STATES = Object.freeze({
 const VISIBILITY = new Set(['public', 'authenticated']);
 const DEFAULT_INPUT_MODES = ['text/plain', 'application/json'];
 const DEFAULT_OUTPUT_MODES = ['text/plain', 'application/json'];
+const DEFAULT_MAX_ARTIFACT_BYTES = 1024 * 1024;
 
 function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -70,7 +77,7 @@ function normalizePart(part) {
   if (members.length !== 1) throw new Error('A2A v1 Part must contain exactly one of text, data, url, raw');
   const content = members[0];
   if (content === 'raw') {
-    const error = new Error('Inline raw A2A parts are not supported by the bounded C3 facade');
+    const error = new Error('Inline raw A2A request parts are not supported by the bounded C3 facade');
     error.a2aCode = -32005;
     error.a2aReason = 'CONTENT_TYPE_NOT_SUPPORTED';
     throw error;
@@ -123,25 +130,65 @@ export async function mapA2aMessageToTruynInput(skill, message, context = {}) {
   return mapped;
 }
 
-export function artifactFromTruynResult(output, { artifactId, requestId, providerNodeId, trust = null, metadata = null } = {}) {
-  const parts = typeof output === 'string'
-    ? [{ text: output, mediaType: 'text/plain' }]
-    : [{ data: structuredClone(output), mediaType: 'application/json' }];
-  const provenance = {
-    protocol: 'TRUYN/1',
-    ...(requestId ? { requestId } : {}),
-    ...(providerNodeId ? { providerNodeId } : {}),
-    ...(trust ? { trust: structuredClone(trust) } : {})
+function provenanceMetadata({ requestId, providerNodeId, trust, metadata }) {
+  return {
+    'io.truyn/provenance': {
+      protocol: 'TRUYN/1',
+      ...(requestId ? { requestId } : {}),
+      ...(providerNodeId ? { providerNodeId } : {}),
+      ...(trust ? { trust: structuredClone(trust) } : {})
+    },
+    ...(metadata && isObject(metadata) ? { 'io.truyn/resultMetadata': structuredClone(metadata) } : {})
   };
+}
+
+export function artifactFromTruynResult(output, {
+  artifactId,
+  requestId,
+  providerNodeId,
+  trust = null,
+  metadata = null,
+  maxArtifactBytes = DEFAULT_MAX_ARTIFACT_BYTES
+} = {}) {
+  const rawPart = typeof output === 'string'
+    ? { text: output, mediaType: 'text/plain' }
+    : { data: structuredClone(output), mediaType: 'application/json' };
   return {
     artifactId,
     name: 'TRUYN result',
-    parts,
-    metadata: {
-      'io.truyn/provenance': provenance,
-      ...(metadata && isObject(metadata) ? { 'io.truyn/resultMetadata': structuredClone(metadata) } : {})
-    }
+    parts: [normalizeOutboundA2aPart(rawPart, { maxArtifactBytes })],
+    metadata: provenanceMetadata({ requestId, providerNodeId, trust, metadata })
   };
+}
+
+export function artifactsFromTruynResult(output, {
+  artifactId,
+  requestId,
+  providerNodeId,
+  trust = null,
+  metadata = null,
+  maxArtifactBytes = DEFAULT_MAX_ARTIFACT_BYTES
+} = {}) {
+  if (!isA2aArtifactBundle(output)) {
+    return [artifactFromTruynResult(output, {
+      artifactId,
+      requestId,
+      providerNodeId,
+      trust,
+      metadata,
+      maxArtifactBytes
+    })];
+  }
+
+  const normalized = normalizeOutboundA2aArtifactBundle(output, { maxArtifactBytes });
+  const authoritative = provenanceMetadata({ requestId, providerNodeId, trust, metadata });
+  return normalized.artifacts.map((artifact) => ({
+    ...artifact,
+    metadata: {
+      ...(isObject(artifact.metadata) ? artifact.metadata : {}),
+      ...authoritative
+    }
+  }));
 }
 
 export function a2aError(code, message, reason, metadata = {}) {
