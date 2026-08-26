@@ -78,6 +78,39 @@ public sealed record Result(
 
 public sealed record ArtifactRef(string Value);
 
+public sealed record ArtifactPayload(
+    string Kind,
+    string ContentType,
+    string? Name = null,
+    string? Uri = null,
+    string? Data = null,
+    long? SizeBytes = null,
+    string? Digest = null,
+    IReadOnlyDictionary<string, object>? Metadata = null);
+
+public sealed record NeedRequest(
+    string Capability,
+    object Input,
+    IReadOnlyList<ArtifactPayload>? Artifacts = null,
+    IReadOnlyDictionary<string, object>? Metadata = null);
+
+public sealed record ResultResponse(
+    string RequestId,
+    object? Output = null,
+    IReadOnlyList<ArtifactPayload>? Artifacts = null,
+    string? CompletedAt = null,
+    IReadOnlyDictionary<string, object>? Metadata = null);
+
+public sealed record StreamEvent(
+    string Type,
+    string? RequestId = null,
+    long? Sequence = null,
+    object? Delta = null,
+    ArtifactPayload? Artifact = null,
+    ResultResponse? Result = null,
+    object? Error = null,
+    IReadOnlyDictionary<string, object>? Metadata = null);
+
 public sealed record NormalizedError(
     TruynErrorCode Code,
     string Message,
