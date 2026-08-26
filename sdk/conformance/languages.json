@@ -10,20 +10,32 @@
     "Need",
     "Result",
     "ArtifactRef",
-    "NormalizedError"
+    "NormalizedError",
+    "ArtifactPayload",
+    "NeedRequest",
+    "ResultResponse",
+    "StreamEvent"
+  ],
+  "dx3StableApiFeatures": [
+    "streaming",
+    "cancellation",
+    "object_artifact_payloads",
+    "stable_sdk_api",
+    "external_developer_docs"
   ],
   "languages": [
     {
       "id": "typescript",
       "name": "TypeScript / JavaScript",
-      "status": "implemented-dx1-reference",
+      "status": "dx3-stable-api-reference",
       "root": "sdk/typescript",
       "sourceFiles": [
         "sdk/typescript/src/types.ts",
         "sdk/typescript/src/client.ts",
         "sdk/typescript/src/local-node.ts",
         "sdk/typescript/src/descriptor.ts",
-        "sdk/typescript/src/errors.ts"
+        "sdk/typescript/src/errors.ts",
+        "sdk/typescript/src/stable-api.ts"
       ],
       "requiredMarkers": [
         "export interface Identity",
@@ -31,6 +43,12 @@
         "export interface Offer",
         "export type ArtifactRef",
         "export interface NormalizedError",
+        "export interface ArtifactPayload",
+        "export interface NeedRequest",
+        "export interface ResultResponse",
+        "export interface StreamEvent",
+        "assertNotCancelled",
+        "streamEvents",
         "TRUYN/1",
         "truyn.agent-descriptor/v1"
       ],
@@ -39,18 +57,25 @@
     {
       "id": "python",
       "name": "Python",
-      "status": "implemented-dx1-reference",
+      "status": "dx3-stable-api-reference",
       "root": "sdk/python",
       "sourceFiles": [
         "sdk/python/src/truyn/client.py",
         "sdk/python/src/truyn/descriptor.py",
         "sdk/python/src/truyn/errors.py",
-        "sdk/python/src/truyn/local_node.py"
+        "sdk/python/src/truyn/local_node.py",
+        "sdk/python/src/truyn/stable_api.py"
       ],
       "requiredMarkers": [
         "class TruynClient",
         "fetch_agent_descriptor",
         "normalize_error",
+        "class ArtifactPayload",
+        "class NeedRequest",
+        "class ResultResponse",
+        "class StreamEvent",
+        "class CancellationToken",
+        "stream_events",
         "TRUYN/1",
         "truyn.agent-descriptor/v1"
       ],
@@ -59,7 +84,7 @@
     {
       "id": "go",
       "name": "Go",
-      "status": "dx2-skeleton",
+      "status": "dx3-stable-api-skeleton",
       "root": "sdk/go",
       "sourceFiles": [
         "sdk/go/go.mod",
@@ -75,6 +100,13 @@
         "type ResultPayload struct",
         "type ArtifactRef string",
         "type NormalizedError struct",
+        "type ArtifactPayload struct",
+        "type NeedRequest struct",
+        "type ResultResponse struct",
+        "type StreamEvent struct",
+        "StreamResult",
+        "Cancel",
+        "context.Context",
         "TRUYN/1",
         "truyn.agent-descriptor/v1"
       ],
@@ -83,7 +115,7 @@
     {
       "id": "java",
       "name": "Java",
-      "status": "dx2-skeleton",
+      "status": "dx3-stable-api-skeleton",
       "root": "sdk/java",
       "sourceFiles": [
         "sdk/java/pom.xml",
@@ -101,6 +133,13 @@
         "record ResultPayload",
         "record ArtifactRef",
         "record NormalizedError",
+        "record ArtifactPayload",
+        "record NeedRequest",
+        "record ResultResponse",
+        "record StreamEvent",
+        "Flow.Publisher",
+        "streamResult",
+        "cancel",
         "TRUYN/1",
         "truyn.agent-descriptor/v1"
       ],
@@ -109,7 +148,7 @@
     {
       "id": "dotnet",
       "name": "C# / .NET",
-      "status": "dx2-skeleton",
+      "status": "dx3-stable-api-skeleton",
       "root": "sdk/dotnet",
       "sourceFiles": [
         "sdk/dotnet/Truyn.Sdk.csproj",
@@ -127,6 +166,14 @@
         "record ResultPayload",
         "record ArtifactRef",
         "record NormalizedError",
+        "record ArtifactPayload",
+        "record NeedRequest",
+        "record ResultResponse",
+        "record StreamEvent",
+        "IAsyncEnumerable<StreamEvent>",
+        "StreamResultAsync",
+        "CancelAsync",
+        "CancellationToken",
         "TRUYN/1",
         "truyn.agent-descriptor/v1"
       ],
