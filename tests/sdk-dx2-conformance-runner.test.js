@@ -16,6 +16,7 @@ const dx3Features = [
   'stable_sdk_api',
   'external_developer_docs'
 ];
+const dx3Dtos = ['ArtifactPayload', 'NeedRequest', 'ResultResponse', 'StreamEvent'];
 
 async function runConformance(args = []) {
   const { stdout } = await execFileAsync(process.execPath, [runner.pathname, '--json', ...args], {
@@ -29,14 +30,15 @@ test('DX conformance matrix covers all required first-party SDK languages', asyn
   assert.deepEqual(manifest.requiredFirstPartyLanguages, requiredLanguages);
   assert.deepEqual(manifest.languages.map((language) => language.id), requiredLanguages);
   assert.deepEqual(manifest.dx3StableApiFeatures, dx3Features);
+  assert.deepEqual(manifest.dx3StableApiDtos, dx3Dtos);
   assert.equal(manifest.languages.find((language) => language.id === 'typescript').status, 'dx3-stable-api-reference');
   assert.equal(manifest.languages.find((language) => language.id === 'python').status, 'dx3-stable-api-reference');
   assert.equal(manifest.languages.find((language) => language.id === 'go').status, 'dx3-stable-api-skeleton');
   assert.equal(manifest.languages.find((language) => language.id === 'java').status, 'dx3-stable-api-skeleton');
   assert.equal(manifest.languages.find((language) => language.id === 'dotnet').status, 'dx3-stable-api-skeleton');
   assert.equal(manifest.languages.every((language) => language.publicDistribution === false), true);
-  for (const dto of ['ArtifactPayload', 'NeedRequest', 'ResultResponse', 'StreamEvent']) {
-    assert.ok(manifest.foundationalDtos.includes(dto), `${dto} must be a foundational DX-3 DTO`);
+  for (const dto of dx3Dtos) {
+    assert.equal(manifest.foundationalDtos.includes(dto), false, `${dto} must not be silently promoted into v1 fixture foundational DTOs`);
   }
 });
 
