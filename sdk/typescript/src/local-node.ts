@@ -11,6 +11,12 @@ export interface LocalNodeConnectOptions {
 export interface LocalNodeWaitOptions {
   timeoutMs?: number;
   pollIntervalMs?: number;
+  signal?: AbortSignal;
+}
+
+export interface LocalNodeStreamOptions {
+  pollIntervalMs?: number;
+  signal?: AbortSignal;
 }
 
 export interface LocalNeedReceipt {
@@ -46,8 +52,34 @@ function nonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function cancelledError(signal?: AbortSignal): TruynError {
+  const message = signal?.reason instanceof Error
+    ? signal.reason.message
+    : typeof signal?.reason === 'string' && signal.reason.length > 0
+      ? signal.reason
+      : 'TRUYN SDK operation cancelled';
+  return new TruynError({ code: 'cancelled', message, retryable: false });
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw cancelledError(signal);
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  throwIfAborted(signal);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      reject(cancelledError(signal));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 function normalizedRuntimeError(error: any): TruynError {
@@ -157,15 +189,41 @@ export class TruynLocalNodeClient {
     return this.pendingEvents.splice(index, 1)[0] ?? null;
   }
 
+  async *streamEvents({ signal, pollIntervalMs = 20 }: LocalNodeStreamOptions = {}): AsyncGenerator<RuntimeEvent> {
+    const interval = Math.max(0, Math.floor(pollIntervalMs));
+    for (;;) {
+      throwIfAborted(signal);
+      const pending = this.pendingEvents.shift();
+      if (pending) {
+        yield pending;
+        continue;
+      }
+      let polled: any;
+      try {
+        polled = await this.runtime.poll();
+      } catch (error) {
+        throw normalizedRuntimeError(error);
+      }
+      throwIfAborted(signal);
+      const events = Array.isArray(polled?.events) ? polled.events : [];
+      if (events.length > 0) {
+        this.pendingEvents.push(...events);
+        continue;
+      }
+      if (interval > 0) await sleep(interval, signal);
+    }
+  }
+
   private async waitForEvent(
     predicate: (event: RuntimeEvent) => boolean,
-    { timeoutMs = 5_000, pollIntervalMs = 20 }: LocalNodeWaitOptions = {}
+    { timeoutMs = 5_000, pollIntervalMs = 20, signal }: LocalNodeWaitOptions = {}
   ): Promise<RuntimeEvent> {
     const timeout = Math.max(1, Math.floor(timeoutMs));
     const interval = Math.max(0, Math.floor(pollIntervalMs));
     const deadline = Date.now() + timeout;
 
     for (;;) {
+      throwIfAborted(signal);
       const pending = this.takePending(predicate);
       if (pending) return pending;
       let polled: any;
@@ -174,6 +232,7 @@ export class TruynLocalNodeClient {
       } catch (error) {
         throw normalizedRuntimeError(error);
       }
+      throwIfAborted(signal);
       const events = Array.isArray(polled?.events) ? polled.events : [];
       const index = events.findIndex(predicate);
       if (index >= 0) {
@@ -189,7 +248,7 @@ export class TruynLocalNodeClient {
           retryable: true
         });
       }
-      if (interval > 0) await sleep(Math.min(interval, Math.max(0, deadline - Date.now())));
+      if (interval > 0) await sleep(Math.min(interval, Math.max(0, deadline - Date.now())), signal);
     }
   }
 
