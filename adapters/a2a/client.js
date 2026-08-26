@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { A2A_PROTOCOL_VERSION, A2A_TASK_STATES } from './mapping.js';
-import { normalizeVerifiedRemoteArtifact, normalizeVerifiedRemotePart, partIntegrity } from './artifact-integrity.js';
+import { normalizeOutboundA2aPart, normalizeVerifiedRemoteArtifact, normalizeVerifiedRemotePart, partIntegrity } from './artifact-integrity.js';
 
 const DEFAULT_MAX_RESPONSE_BYTES = 1024 * 1024;
 const DEFAULT_MAX_ARTIFACT_BYTES = 1024 * 1024;
 const DEFAULT_TASK_TIMEOUT_MS = 120_000;
 const DEFAULT_POLL_INTERVAL_MS = 250;
+const MAX_REMOTE_ARTIFACT_PARTS = 64;
 const TASK_EXECUTION_MODES = new Set(['blocking', 'polling']);
 const TERMINAL_STATES = new Set([
   A2A_TASK_STATES.completed,
@@ -175,10 +176,25 @@ function partIntegritySummary(parts) {
   }));
 }
 
+function normalizedPartBytes(parts) {
+  return parts.reduce((total, part) => total + (partIntegrity(part)?.sizeBytes || 0), 0);
+}
+
+function assertRemotePartCount(parts, label) {
+  if (!Array.isArray(parts) || parts.length === 0) throw new Error(`${label} contains no parts`);
+  if (parts.length > MAX_REMOTE_ARTIFACT_PARTS) throw new Error(`${label} exceeds remote artifact part limit`);
+}
+
 async function verifiedOutputFromParts(parts, options) {
-  if (!Array.isArray(parts) || parts.length === 0) throw new Error('A2A remote result contains no parts');
+  assertRemotePartCount(parts, 'A2A remote result');
   const normalized = [];
-  for (const part of parts) normalized.push(await normalizeVerifiedRemotePart(part, options));
+  let remaining = options.maxArtifactBytes;
+  for (const part of parts) {
+    const normalizedPart = await normalizeVerifiedRemotePart(part, { ...options, maxArtifactBytes: remaining });
+    remaining -= partIntegrity(normalizedPart)?.sizeBytes || 0;
+    if (remaining < 0) throw new Error('A2A remote result exceeds maxArtifactBytes');
+    normalized.push(normalizedPart);
+  }
   return {
     output: legacyOutputFromNormalizedParts(normalized),
     parts: normalized,
@@ -188,10 +204,21 @@ async function verifiedOutputFromParts(parts, options) {
 
 async function verifiedOutputFromTask(task, options) {
   if (!Array.isArray(task.artifacts) || task.artifacts.length === 0) throw new Error('Completed A2A task contains no artifacts');
+  let totalParts = 0;
+  for (const artifact of task.artifacts) {
+    if (!isObject(artifact) || !Array.isArray(artifact.parts)) throw new Error('Completed A2A task contains an invalid artifact');
+    totalParts += artifact.parts.length;
+    if (totalParts > MAX_REMOTE_ARTIFACT_PARTS) throw new Error('Completed A2A task exceeds remote artifact part limit');
+  }
   const artifacts = [];
   const artifactIds = new Set();
+  let remaining = options.maxArtifactBytes;
   for (const artifact of task.artifacts) {
-    const normalized = await normalizeVerifiedRemoteArtifact(artifact, options);
+    if (remaining < 1) throw new Error('Completed A2A task exceeds maxArtifactBytes');
+    const normalized = await normalizeVerifiedRemoteArtifact(artifact, { ...options, maxArtifactBytes: remaining });
+    const artifactBytes = normalizedPartBytes(normalized.parts);
+    remaining -= artifactBytes;
+    if (remaining < 0) throw new Error('Completed A2A task exceeds maxArtifactBytes');
     if (artifactIds.has(normalized.artifactId)) throw new Error(`Completed A2A task contains duplicate artifactId: ${normalized.artifactId}`);
     artifactIds.add(normalized.artifactId);
     artifacts.push(normalized);
@@ -343,7 +370,19 @@ export function createA2aClient({
 
   async function sendMessage(message, configuration = {}) {
     const current = await requireDiscovery();
-    const result = await rpc(current.interface.url, 'SendMessage', { message, configuration });
+    if (!isObject(message) || !Array.isArray(message.parts) || message.parts.length === 0) {
+      throw new Error('A2A SendMessage message requires a non-empty parts array');
+    }
+    if (message.parts.length > MAX_REMOTE_ARTIFACT_PARTS) throw new Error('A2A SendMessage message exceeds artifact part limit');
+    let remaining = maxArtifactBytes;
+    const normalizedParts = message.parts.map((part) => {
+      const normalized = normalizeOutboundA2aPart(part, { maxArtifactBytes: remaining });
+      remaining -= partIntegrity(normalized)?.sizeBytes || 0;
+      if (remaining < 0) throw new Error('A2A SendMessage message exceeds maxArtifactBytes');
+      return normalized;
+    });
+    const outboundMessage = { ...structuredClone(message), parts: normalizedParts };
+    const result = await rpc(current.interface.url, 'SendMessage', { message: outboundMessage, configuration });
     if (!isObject(result)) throw new Error('A2A SendMessage result must be an object');
     const hasTask = Object.prototype.hasOwnProperty.call(result, 'task');
     const hasMessage = Object.prototype.hasOwnProperty.call(result, 'message');
