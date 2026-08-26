@@ -14,7 +14,8 @@ NSG="${PREFIX}-nsg"
 HOST_COUNT=20
 NODES_PER_HOST=50
 NODE_COUNT=$((HOST_COUNT * NODES_PER_HOST))
-BRIDGES_PER_REMOTE_HOST=3
+BOOTSTRAP_MAX_PEERS_PER_NODE=32
+BOOTSTRAP_PEERS_PER_BUCKET=2
 QUIC_BASE=4400
 CONTROL_BASE=8700
 EVIDENCE="${GITHUB_WORKSPACE:-$PWD}/class-d-1000-evidence.json"
@@ -194,27 +195,86 @@ for ip in \$(printf '%s' "\$ips" | jq -r '.[]'); do
   curl -fsS --max-time 20 "http://\${ip}:9900/records.json" | jq -c '.' >>/tmp/all-host-records.jsonl
 done
 jq -s '.' /tmp/all-host-records.jsonl >/tmp/records-by-host.json
+jq '[.[][]]' /tmp/records-by-host.json >/tmp/all-records.json
 [[ "\$(jq 'length' /tmp/records-by-host.json)" -eq ${HOST_COUNT} ]]
-[[ "\$(jq '[.[][]] | length' /tmp/records-by-host.json)" -eq ${NODE_COUNT} ]]
-[[ "\$(jq -r '[.[][]] | .[].nodeId' /tmp/records-by-host.json | sort -u | wc -l)" -eq ${NODE_COUNT} ]]
-[[ "\$(jq -r '[.[][]] | .[].endpoints[0]' /tmp/records-by-host.json | sort -u | wc -l)" -eq ${NODE_COUNT} ]]
-jq --argjson self ${i} --argjson bridges ${BRIDGES_PER_REMOTE_HOST} '[to_entries[] | if .key == \$self then .value[] else .value[0:\$bridges][] end]' /tmp/records-by-host.json >/tmp/bootstrap.json
-payload=\$(jq -c '{records:.}' /tmp/bootstrap.json)
-bytes=\$(printf '%s' "\$payload" | wc -c)
-[[ "\$bytes" -lt 900000 ]]
-t0=\$(date +%s%3N)
-for j in \$(seq 0 $((NODES_PER_HOST-1))); do curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/bootstrap >/dev/null; done
-t1=\$(date +%s%3N)
+[[ "\$(jq 'length' /tmp/all-records.json)" -eq ${NODE_COUNT} ]]
+[[ "\$(jq -r '.[].nodeId' /tmp/all-records.json | sort -u | wc -l)" -eq ${NODE_COUNT} ]]
+[[ "\$(jq -r '.[].endpoints[0]' /tmp/all-records.json | sort -u | wc -l)" -eq ${NODE_COUNT} ]]
+cd /opt/truyqn
+TRUYN_BOOTSTRAP_PLAN_SEED='${GITHUB_SHA}' TRUYN_BOOTSTRAP_MAX_PEERS_PER_NODE=${BOOTSTRAP_MAX_PEERS_PER_NODE} TRUYN_BOOTSTRAP_PEERS_PER_BUCKET=${BOOTSTRAP_PEERS_PER_BUCKET} node --input-type=module <<'NODE'
+import fs from 'node:fs';
+import {
+  buildClassD1000BootstrapPlan,
+  summarizeClassD1000BootstrapPlan
+} from '/opt/truyqn/benchmarks/scale/class-d-1000-bootstrap.js';
+
+const records = JSON.parse(fs.readFileSync('/tmp/all-records.json', 'utf8'));
+const maxPeersPerNode = Number.parseInt(process.env.TRUYN_BOOTSTRAP_MAX_PEERS_PER_NODE || '32', 10);
+const peersPerBucket = Number.parseInt(process.env.TRUYN_BOOTSTRAP_PEERS_PER_BUCKET || '2', 10);
+const plan = buildClassD1000BootstrapPlan(records, {
+  seed: process.env.TRUYN_BOOTSTRAP_PLAN_SEED || 'truyn-class-d-1000',
+  maxPeersPerNode,
+  peersPerBucket
+});
+const summary = summarizeClassD1000BootstrapPlan(plan);
+if (summary.nodeCount !== records.length) throw new Error('bootstrap plan node count mismatch');
+if (summary.minPeers !== maxPeersPerNode || summary.maxPeers !== maxPeersPerNode) throw new Error('bootstrap plan peer bound mismatch');
+if (summary.allToAll) throw new Error('bootstrap plan must not be all-to-all');
+const byNode = {};
+for (const [nodeId, peers] of plan.entries()) {
+  const peerIds = peers.map((peer) => peer.nodeId);
+  if (peerIds.includes(nodeId)) throw new Error('bootstrap plan contains self peer for ' + nodeId);
+  if (new Set(peerIds).size !== peerIds.length) throw new Error('bootstrap plan contains duplicate peers for ' + nodeId);
+  byNode[nodeId] = peers;
+}
+fs.writeFileSync('/tmp/bootstrap-plan-by-node.json', JSON.stringify(byNode));
+fs.writeFileSync('/tmp/bootstrap-plan-summary.json', JSON.stringify(summary));
+NODE
 cp /tmp/records-by-host.json /var/lib/truyqn-d1000/records-by-host.json
+cp /tmp/bootstrap-plan-by-node.json /var/lib/truyqn-d1000/bootstrap-plan-by-node.json
+cp /tmp/bootstrap-plan-summary.json /var/lib/truyqn-d1000/bootstrap-plan-summary.json
+min_records=999999
+max_records=0
+min_bytes=999999999
+max_bytes=0
+total_bytes=0
+t0=\$(date +%s%3N)
+for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+  node_id=\$(jq -r --argjson host ${i} --argjson node "\$j" '.[\$host][\$node].nodeId' /tmp/records-by-host.json)
+  payload=\$(jq -c --arg node "\$node_id" '{records:.[\$node]}' /tmp/bootstrap-plan-by-node.json)
+  records=\$(jq -r --arg node "\$node_id" '.[\$node] | length' /tmp/bootstrap-plan-by-node.json)
+  [[ "\$records" -eq ${BOOTSTRAP_MAX_PEERS_PER_NODE} ]]
+  if printf '%s' "\$payload" | jq -e --arg node "\$node_id" '.records | any(.nodeId == \$node)' >/dev/null; then echo "self peer leaked for \$node_id" >&2; exit 1; fi
+  unique=\$(printf '%s' "\$payload" | jq -r '.records[].nodeId' | sort -u | wc -l | tr -d ' ')
+  [[ "\$unique" -eq "\$records" ]]
+  bytes=\$(printf '%s' "\$payload" | wc -c | tr -d ' ')
+  [[ "\$bytes" -lt 900000 ]]
+  if [[ "\$records" -lt "\$min_records" ]]; then min_records="\$records"; fi
+  if [[ "\$records" -gt "\$max_records" ]]; then max_records="\$records"; fi
+  if [[ "\$bytes" -lt "\$min_bytes" ]]; then min_bytes="\$bytes"; fi
+  if [[ "\$bytes" -gt "\$max_bytes" ]]; then max_bytes="\$bytes"; fi
+  total_bytes=\$((total_bytes + bytes))
+  curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/bootstrap >/dev/null
+done
+t1=\$(date +%s%3N)
+mean_bytes=\$((total_bytes / ${NODES_PER_HOST}))
 echo BOOTSTRAP_MS=\$((t1-t0))
-echo BOOTSTRAP_BYTES=\$bytes
-echo BOOTSTRAP_RECORDS=\$(jq 'length' /tmp/bootstrap.json)
+echo BOOTSTRAP_PLAN_NODE_COUNT=\$(jq -r '.nodeCount' /tmp/bootstrap-plan-summary.json)
+echo BOOTSTRAP_PLAN_MIN_RECORDS=\$min_records
+echo BOOTSTRAP_PLAN_MAX_RECORDS=\$max_records
+echo BOOTSTRAP_PLAN_ALL_TO_ALL=\$(jq -r '.allToAll' /tmp/bootstrap-plan-summary.json)
+echo BOOTSTRAP_MIN_BYTES=\$min_bytes
+echo BOOTSTRAP_MAX_BYTES=\$max_bytes
+echo BOOTSTRAP_MEAN_BYTES=\$mean_bytes
 EOS
 )
   script="${script//truyqn/truqyn}"
   script="${script//truqyn/truyn}"
   out=$(remote "${VMS[$i]}" "$script")
-  echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i records=$(marker "$out" BOOTSTRAP_RECORDS) bytes=$(marker "$out" BOOTSTRAP_BYTES) ms=$(marker "$out" BOOTSTRAP_MS)"
+  [[ "$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
+  [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
+  [[ "$(marker "$out" BOOTSTRAP_PLAN_ALL_TO_ALL)" == false ]]
+  echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i plan=per-node-xor recordsMin=$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS) recordsMax=$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS) bytesMin=$(marker "$out" BOOTSTRAP_MIN_BYTES) bytesMax=$(marker "$out" BOOTSTRAP_MAX_BYTES) bytesMean=$(marker "$out" BOOTSTRAP_MEAN_BYTES) ms=$(marker "$out" BOOTSTRAP_MS)"
 done
 
 STAGE=bandwidth-meter
