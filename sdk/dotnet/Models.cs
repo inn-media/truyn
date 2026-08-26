@@ -131,16 +131,17 @@ public sealed record ArtifactPayload
     }
 }
 
-public sealed record StreamItem<T>(long Sequence, T Item)
+public sealed record StreamItem<T>
 {
-    public StreamItem(long sequence, T item) : this()
+    public long Sequence { get; }
+    public T Item { get; }
+
+    public StreamItem(long sequence, T item)
     {
         if (sequence < 0) throw new ArgumentOutOfRangeException(nameof(sequence), "stream sequence must be non-negative");
         Sequence = sequence;
         Item = item;
     }
-
-    private StreamItem() : this(0, default!) { }
 }
 
 public sealed record NormalizedError(
