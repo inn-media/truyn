@@ -68,8 +68,16 @@ public final class TruynModels {
       Long bytes,
       String sha256,
       Map<String, Object> metadata) {
+    public ArtifactPayload {
+      if (!"artifact".equals(kind)) throw new IllegalArgumentException("artifact kind must be artifact");
+      ref = requireText(ref, "artifact ref");
+      mediaType = requireText(mediaType, "artifact media type");
+      bytes = requireBytes(bytes);
+      sha256 = requireSha256(sha256);
+    }
+
     public ArtifactPayload(String ref, String mediaType, Long bytes, String sha256, Map<String, Object> metadata) {
-      this("artifact", requireText(ref, "artifact ref"), requireText(mediaType, "artifact media type"), requireBytes(bytes), requireSha256(sha256), metadata);
+      this("artifact", ref, mediaType, bytes, sha256, metadata);
     }
   }
 
@@ -90,7 +98,7 @@ public final class TruynModels {
   }
 
   private static String requireSha256(String value) {
-    if (value != null && !value.isBlank() && !SHA256.matcher(value).matches()) {
+    if (value != null && !SHA256.matcher(value).matches()) {
       throw new IllegalArgumentException("artifact sha256 must be 64 hexadecimal characters");
     }
     return value == null ? null : value.toLowerCase();
