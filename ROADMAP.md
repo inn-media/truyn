@@ -20,7 +20,7 @@ An immutable **preflight/admission PASS is not the same as the campaign PASS**. 
 
 Governance uses its independent G0→G5 factual maturity axis.
 
-## Current snapshot — 2026-08-25
+## Current snapshot — 2026-08-26
 
 | Area | Current maturity |
 |---|---|
@@ -38,7 +38,7 @@ Governance uses its independent G0→G5 factual maturity axis.
 | Settlement adapters | Defined only; implementation intentionally deferred; first targets x402 + AP2 |
 | Trustability v1/v2 | Implemented + CI/benchmark proven; bounded real-network trust slice proven |
 | Multi-cloud text/image/video providers | Implemented reference adapter paths; individual deployment availability varies |
-| SDK / developer experience | Defined architecture; repository scaffolding only; required first-party targets: JavaScript/TypeScript, Python, Go, Java, C#/.NET |
+| SDK / developer experience | **DX-1 completed / CI-proven for TypeScript/JavaScript + Python.** Shared SDK contract, Agent Descriptor runtime conformance, TS/Python reference cores and real local-node NEED→RESULT E2E are merged; Go, Java, C#/.NET parity and package publication remain open |
 | Governance / standardization | G1 public governance architecture/process defined; operational governance remains bootstrap Founding Stewardship |
 | Production relay origin perimeter | Deployment-proven for the accepted Cloudflare → Azure Front Door → Container Apps path |
 | Mainnet | Not productionized / not stable |
@@ -273,7 +273,16 @@ DX-0 — **DEFINED / CLOSED**:
 - [x] TRUYN Agent Descriptor draft defined;
 - [x] SDK compatibility/conformance policy and scaffolds created.
 
-DX-1 — **OPEN**: TypeScript/JavaScript + Python SDKs, shared golden fixtures, Agent Descriptor parser/verifier, runnable core-path examples.
+DX-1 — **COMPLETED / CI-PROVEN**:
+
+- [x] shared SDK contract and golden fixtures — PR `#326`;
+- [x] Agent Descriptor runtime conformance — PR `#331`;
+- [x] TypeScript/JavaScript DX-1 reference core — PR `#334`;
+- [x] Python DX-1 parity core — PR `#335`;
+- [x] TypeScript real local-node `NEED → RESULT` E2E — PR `#337`;
+- [x] Python real local-node `NEED → RESULT` parity E2E — PR `#341`;
+- [x] exact-head CI evidence for PR `#341`: `DCO` PASS, full `npm test` PASS, `git diff --check` PASS, CodeQL PASS;
+- [x] DX-1 boundaries preserved: no change to `network/**`, relay runtime, QUIC/Kademlia, D-1000 evaluator, thresholds, bootstrap/runtime or evidence semantics.
 
 DX-2 — **OPEN**: Go + Java + C#/.NET parity and idiomatic async/cancellation/streaming.
 
@@ -351,7 +360,9 @@ operations + compatibility stabilization
         ↓
 A2A client/provider adapter + bidirectional A2A↔TRUYN↔MCP evidence
         ↓
-DX-1/DX-2/DX-3 + five-language conformance
+DX-1 — COMPLETED / CI-PROVEN
+        ↓
+DX-2/DX-3 + five-language conformance
         ↓
 TRUYN/1 + interoperability + Agent Descriptor + SDK stabilization
         ↓
