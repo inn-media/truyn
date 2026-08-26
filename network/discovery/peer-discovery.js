@@ -14,6 +14,12 @@ function uniqueNonEmptyStrings(values = []) {
   return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()))];
 }
 
+function boundedInteger(value, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const parsed = value == null ? fallback : Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) return fallback;
+  return parsed;
+}
+
 export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 300_000, capabilities = [], nat = null, issuedAt = new Date().toISOString() } = {}) {
   assertIdentity(identity);
   const normalizedEndpoints = [...new Set((endpoints || []).filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()))].sort();
@@ -64,6 +70,21 @@ export class PeerDiscovery {
     this.rpc = rpc;
     this.onChange = onChange;
     this.onRecordAccepted = typeof onRecordAccepted === 'function' ? onRecordAccepted : null;
+    this.periodicRefreshTimer = null;
+    this.periodicRefreshTimerApi = { setTimeout, clearTimeout };
+    this.periodicRefreshInFlight = null;
+    this.periodicRefresh = {
+      enabled: false,
+      scheduled: false,
+      inFlight: false,
+      runs: 0,
+      failures: 0,
+      config: null,
+      lastStartedAt: null,
+      lastCompletedAt: null,
+      lastResult: null,
+      lastError: null
+    };
   }
 
   ingest(record, options = {}) {
@@ -165,6 +186,136 @@ export class PeerDiscovery {
     }
     if (removed && notify) this.onChange?.();
     return removed;
+  }
+
+  periodicRefreshSnapshot() {
+    return structuredClone(this.periodicRefresh);
+  }
+
+  #clearPeriodicRefreshTimer() {
+    if (!this.periodicRefreshTimer) return;
+    this.periodicRefreshTimerApi.clearTimeout(this.periodicRefreshTimer);
+    this.periodicRefreshTimer = null;
+    this.periodicRefresh.scheduled = false;
+  }
+
+  startPeriodicRefresh({
+    intervalMs,
+    targetCount = this.k,
+    maxRounds = 4,
+    seed = 'truyn-periodic-refresh',
+    timerApi = null
+  } = {}) {
+    const interval = Number(intervalMs);
+    if (!Number.isFinite(interval) || interval <= 0) throw new Error('periodic refresh intervalMs must be positive');
+    const normalized = {
+      intervalMs: Math.floor(interval),
+      targetCount: boundedInteger(targetCount, this.k, { min: 0, max: 256 }),
+      maxRounds: boundedInteger(maxRounds, 4, { min: 0, max: 64 }),
+      seed: typeof seed === 'string' && seed.trim() ? seed.trim() : 'truyn-periodic-refresh'
+    };
+    this.stopPeriodicRefresh();
+    this.periodicRefreshTimerApi = {
+      setTimeout: typeof timerApi?.setTimeout === 'function' ? timerApi.setTimeout.bind(timerApi) : setTimeout,
+      clearTimeout: typeof timerApi?.clearTimeout === 'function' ? timerApi.clearTimeout.bind(timerApi) : clearTimeout
+    };
+    this.periodicRefresh = {
+      ...this.periodicRefresh,
+      enabled: true,
+      scheduled: false,
+      inFlight: false,
+      config: structuredClone(normalized),
+      lastError: null
+    };
+    this.#schedulePeriodicRefresh();
+    return this.periodicRefreshSnapshot();
+  }
+
+  stopPeriodicRefresh() {
+    this.#clearPeriodicRefreshTimer();
+    this.periodicRefresh = {
+      ...this.periodicRefresh,
+      enabled: false,
+      scheduled: false,
+      config: this.periodicRefresh.config ? structuredClone(this.periodicRefresh.config) : null
+    };
+    return this.periodicRefreshSnapshot();
+  }
+
+  close() {
+    this.stopPeriodicRefresh();
+  }
+
+  #schedulePeriodicRefresh() {
+    this.#clearPeriodicRefreshTimer();
+    if (!this.periodicRefresh.enabled || !this.periodicRefresh.config) return;
+    const { intervalMs } = this.periodicRefresh.config;
+    this.periodicRefreshTimer = this.periodicRefreshTimerApi.setTimeout(() => {
+      this.periodicRefreshTimer = null;
+      this.periodicRefresh.scheduled = false;
+      void this.#runPeriodicRefresh();
+    }, intervalMs);
+    this.periodicRefresh.scheduled = true;
+    this.periodicRefreshTimer?.unref?.();
+  }
+
+  async #runPeriodicRefresh() {
+    if (!this.periodicRefresh.enabled || !this.periodicRefresh.config) return;
+    if (this.periodicRefreshInFlight) {
+      this.#schedulePeriodicRefresh();
+      return;
+    }
+
+    const config = structuredClone(this.periodicRefresh.config);
+    const run = this.periodicRefresh.runs + 1;
+    this.periodicRefresh.inFlight = true;
+    this.periodicRefresh.lastStartedAt = new Date().toISOString();
+    const operation = this.refreshRoutingTable({
+      targetCount: config.targetCount,
+      maxRounds: config.maxRounds,
+      seed: `${config.seed}:${run}`
+    });
+    this.periodicRefreshInFlight = operation;
+
+    try {
+      const result = await operation;
+      if (this.periodicRefreshInFlight === operation) {
+        this.periodicRefresh = {
+          ...this.periodicRefresh,
+          inFlight: false,
+          runs: this.periodicRefresh.runs + 1,
+          lastCompletedAt: new Date().toISOString(),
+          lastResult: {
+            refreshed: Boolean(result.refreshed),
+            reason: result.reason || null,
+            targets: Array.isArray(result.targets) ? result.targets.length : 0,
+            walks: Array.isArray(result.walks) ? result.walks.length : 0,
+            queriedPeers: Array.isArray(result.queriedPeers) ? result.queriedPeers.length : 0,
+            responses: result.responses || 0,
+            routingSizeDelta: result.routingSizeDelta || 0,
+            validPeersDelta: result.validPeersDelta || 0
+          },
+          lastError: null
+        };
+      }
+    } catch (error) {
+      if (this.periodicRefreshInFlight === operation) {
+        this.periodicRefresh = {
+          ...this.periodicRefresh,
+          inFlight: false,
+          failures: this.periodicRefresh.failures + 1,
+          lastCompletedAt: new Date().toISOString(),
+          lastError: {
+            at: new Date().toISOString(),
+            code: error?.code || null,
+            message: error?.message || String(error)
+          }
+        };
+      }
+    } finally {
+      if (this.periodicRefreshInFlight === operation) this.periodicRefreshInFlight = null;
+      this.#schedulePeriodicRefresh();
+    }
   }
 
   refreshTargets({ targetCount = this.k, now = Date.now(), seed = 'truyn-refresh' } = {}) {
