@@ -161,6 +161,10 @@ function enforceClaimBytes(claim, maxArtifactBytes) {
   }
 }
 
+function validateByteBudget(value) {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error('maxArtifactBytes must be a non-negative safe integer');
+}
+
 function partShape(part) {
   if (!isObject(part)) throw new Error('A2A Part must be an object');
   const fields = ['text', 'data', 'url', 'raw'].filter((key) => Object.prototype.hasOwnProperty.call(part, key));
@@ -207,7 +211,7 @@ export async function normalizeVerifiedRemotePart(part, {
   maxArtifactBytes,
   resolveArtifactUrl = null
 } = {}) {
-  if (!Number.isSafeInteger(maxArtifactBytes) || maxArtifactBytes < 1) throw new Error('maxArtifactBytes must be a positive safe integer');
+  validateByteBudget(maxArtifactBytes);
   if (resolveArtifactUrl !== null && resolveArtifactUrl !== undefined && typeof resolveArtifactUrl !== 'function') {
     throw new Error('resolveArtifactUrl must be a function when provided');
   }
@@ -247,7 +251,17 @@ export async function normalizeVerifiedRemotePart(part, {
   if (!resolveArtifactUrl) {
     throw codedError('A2A_ARTIFACT_URL_UNVERIFIED', 'A2A URL Part requires an explicit resolveArtifactUrl hook before it can enter a verified TRUYN RESULT', { url });
   }
-  const resolved = await resolveArtifactUrl({ url, part: structuredClone(part) });
+  enforceClaimBytes(claim, maxArtifactBytes);
+  if (maxArtifactBytes === 0 && (!claim || claim.sizeBytes !== 0)) {
+    throw codedError('A2A_ARTIFACT_TOO_LARGE', 'A2A URL Part cannot be resolved with an exhausted artifact byte budget', {
+      maxArtifactBytes
+    });
+  }
+  const resolved = await resolveArtifactUrl({
+    url,
+    part: structuredClone(part),
+    maxBytes: maxArtifactBytes
+  });
   const bytes = normalizeResolvedBytes(resolved);
   enforceBytes(bytes, maxArtifactBytes);
   const integrity = computeIntegrity(bytes, 'raw');
@@ -261,7 +275,7 @@ export async function normalizeVerifiedRemotePart(part, {
 }
 
 export function normalizeOutboundA2aPart(part, { maxArtifactBytes } = {}) {
-  if (!Number.isSafeInteger(maxArtifactBytes) || maxArtifactBytes < 1) throw new Error('maxArtifactBytes must be a positive safe integer');
+  validateByteBudget(maxArtifactBytes);
   const kind = partShape(part);
   const metadata = kind === 'url' ? normalizeMetadata(part.metadata) : inlineMetadata(part.metadata);
   const base = basePartFields(part);
@@ -327,7 +341,7 @@ export async function normalizeVerifiedRemoteArtifact(artifact, options) {
   const normalized = normalizeArtifactFields(artifact);
   normalized.parts = [];
   let remaining = options?.maxArtifactBytes;
-  if (!Number.isSafeInteger(remaining) || remaining < 1) throw new Error('maxArtifactBytes must be a positive safe integer');
+  validateByteBudget(remaining);
   for (const part of artifact.parts) {
     const normalizedPart = await normalizeVerifiedRemotePart(part, { ...options, maxArtifactBytes: remaining });
     const sizeBytes = partIntegrity(normalizedPart)?.sizeBytes || 0;
@@ -341,7 +355,7 @@ export async function normalizeVerifiedRemoteArtifact(artifact, options) {
 export function normalizeOutboundA2aArtifact(artifact, options) {
   const normalized = normalizeArtifactFields(artifact);
   let remaining = options?.maxArtifactBytes;
-  if (!Number.isSafeInteger(remaining) || remaining < 1) throw new Error('maxArtifactBytes must be a positive safe integer');
+  validateByteBudget(remaining);
   normalized.parts = artifact.parts.map((part) => {
     const normalizedPart = normalizeOutboundA2aPart(part, { ...options, maxArtifactBytes: remaining });
     const sizeBytes = partIntegrity(normalizedPart)?.sizeBytes || 0;
@@ -373,11 +387,20 @@ export function isA2aArtifactBundle(value) {
 
 export function normalizeOutboundA2aArtifactBundle(value, options) {
   if (!isA2aArtifactBundle(value) || value.artifacts.length === 0) throw new Error('Invalid TRUYN A2A artifact bundle');
+  const totalParts = value.artifacts.reduce((count, artifact) => count + (Array.isArray(artifact?.parts) ? artifact.parts.length : 0), 0);
+  if (totalParts > MAX_ARTIFACT_PARTS) {
+    throw codedError('A2A_ARTIFACT_COLLECTION_TOO_LARGE', `A2A artifact bundle exceeds ${MAX_ARTIFACT_PARTS} total parts`);
+  }
+  let remaining = options?.maxArtifactBytes;
+  validateByteBudget(remaining);
   const seen = new Set();
   const artifacts = value.artifacts.map((artifact) => {
-    const normalized = normalizeOutboundA2aArtifact(artifact, options);
+    const normalized = normalizeOutboundA2aArtifact(artifact, { ...options, maxArtifactBytes: remaining });
     if (seen.has(normalized.artifactId)) throw new Error(`Duplicate A2A artifactId in bundle: ${normalized.artifactId}`);
     seen.add(normalized.artifactId);
+    const artifactBytes = normalized.parts.reduce((total, part) => total + (partIntegrity(part)?.sizeBytes || 0), 0);
+    remaining -= artifactBytes;
+    if (remaining < 0) throw codedError('A2A_ARTIFACT_TOO_LARGE', 'A2A artifact bundle exceeds aggregate maxArtifactBytes');
     return normalized;
   });
   return createA2aArtifactBundle(artifacts);
