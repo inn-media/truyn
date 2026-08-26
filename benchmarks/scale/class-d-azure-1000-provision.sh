@@ -238,6 +238,15 @@ max_records=0
 min_bytes=999999999
 max_bytes=0
 total_bytes=0
+refresh_count=0
+refresh_min_valid=999999
+refresh_max_valid=0
+refresh_min_buckets=999999
+refresh_max_buckets=0
+refresh_min_endpoints=999999
+refresh_max_endpoints=0
+refresh_min_hosts=999999
+refresh_max_hosts=0
 t0=\$(date +%s%3N)
 for j in \$(seq 0 $((NODES_PER_HOST-1))); do
   node_id=\$(jq -r --argjson host ${i} --argjson node "\$j" '.[\$host][\$node].nodeId' /tmp/records-by-host.json)
@@ -254,7 +263,27 @@ for j in \$(seq 0 $((NODES_PER_HOST-1))); do
   if [[ "\$bytes" -lt "\$min_bytes" ]]; then min_bytes="\$bytes"; fi
   if [[ "\$bytes" -gt "\$max_bytes" ]]; then max_bytes="\$bytes"; fi
   total_bytes=\$((total_bytes + bytes))
-  curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/bootstrap >/dev/null
+  control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
+  curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" "\${control_url}/bootstrap" >/dev/null
+  refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,seed:$seed}')
+  refresh_result=\$(curl -fsS --max-time 120 -H 'content-type: application/json' --data-binary "\$refresh_payload" "\${control_url}/dht/refresh")
+  [[ "\$(printf '%s' "\$refresh_result" | jq -r '.refreshed')" == true ]]
+  readiness=\$(curl -fsS --max-time 20 "\${control_url}/dht/readiness")
+  [[ "\$(printf '%s' "\$readiness" | jq -r '.refresh.status')" == refreshed ]]
+  valid=\$(printf '%s' "\$readiness" | jq -r '.validPeers')
+  buckets=\$(printf '%s' "\$readiness" | jq -r '.populatedBuckets')
+  endpoints=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.endpointCount')
+  hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount')
+  [[ "\$valid" -ge "\$records" ]]
+  if [[ "\$valid" -lt "\$refresh_min_valid" ]]; then refresh_min_valid="\$valid"; fi
+  if [[ "\$valid" -gt "\$refresh_max_valid" ]]; then refresh_max_valid="\$valid"; fi
+  if [[ "\$buckets" -lt "\$refresh_min_buckets" ]]; then refresh_min_buckets="\$buckets"; fi
+  if [[ "\$buckets" -gt "\$refresh_max_buckets" ]]; then refresh_max_buckets="\$buckets"; fi
+  if [[ "\$endpoints" -lt "\$refresh_min_endpoints" ]]; then refresh_min_endpoints="\$endpoints"; fi
+  if [[ "\$endpoints" -gt "\$refresh_max_endpoints" ]]; then refresh_max_endpoints="\$endpoints"; fi
+  if [[ "\$hosts" -lt "\$refresh_min_hosts" ]]; then refresh_min_hosts="\$hosts"; fi
+  if [[ "\$hosts" -gt "\$refresh_max_hosts" ]]; then refresh_max_hosts="\$hosts"; fi
+  refresh_count=\$((refresh_count + 1))
 done
 t1=\$(date +%s%3N)
 mean_bytes=\$((total_bytes / ${NODES_PER_HOST}))
@@ -266,6 +295,16 @@ echo BOOTSTRAP_PLAN_ALL_TO_ALL=\$(jq -r '.allToAll' /tmp/bootstrap-plan-summary.
 echo BOOTSTRAP_MIN_BYTES=\$min_bytes
 echo BOOTSTRAP_MAX_BYTES=\$max_bytes
 echo BOOTSTRAP_MEAN_BYTES=\$mean_bytes
+echo BOOTSTRAP_REFRESH_COUNT=\$refresh_count
+echo BOOTSTRAP_REFRESH_STATUS=refreshed
+echo BOOTSTRAP_REFRESH_MIN_VALID=\$refresh_min_valid
+echo BOOTSTRAP_REFRESH_MAX_VALID=\$refresh_max_valid
+echo BOOTSTRAP_REFRESH_MIN_BUCKETS=\$refresh_min_buckets
+echo BOOTSTRAP_REFRESH_MAX_BUCKETS=\$refresh_max_buckets
+echo BOOTSTRAP_REFRESH_MIN_ENDPOINTS=\$refresh_min_endpoints
+echo BOOTSTRAP_REFRESH_MAX_ENDPOINTS=\$refresh_max_endpoints
+echo BOOTSTRAP_REFRESH_MIN_HOSTS=\$refresh_min_hosts
+echo BOOTSTRAP_REFRESH_MAX_HOSTS=\$refresh_max_hosts
 EOS
 )
   script="${script//truyqn/truqyn}"
@@ -274,7 +313,9 @@ EOS
   [[ "$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
   [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
   [[ "$(marker "$out" BOOTSTRAP_PLAN_ALL_TO_ALL)" == false ]]
-  echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i plan=per-node-xor recordsMin=$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS) recordsMax=$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS) bytesMin=$(marker "$out" BOOTSTRAP_MIN_BYTES) bytesMax=$(marker "$out" BOOTSTRAP_MAX_BYTES) bytesMean=$(marker "$out" BOOTSTRAP_MEAN_BYTES) ms=$(marker "$out" BOOTSTRAP_MS)"
+  [[ "$(marker "$out" BOOTSTRAP_REFRESH_COUNT)" == "$NODES_PER_HOST" ]]
+  [[ "$(marker "$out" BOOTSTRAP_REFRESH_STATUS)" == refreshed ]]
+  echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i plan=per-node-xor refresh=per-node recordsMin=$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS) recordsMax=$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS) refreshCount=$(marker "$out" BOOTSTRAP_REFRESH_COUNT) validMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_VALID) validMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_VALID) bucketsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_BUCKETS) bucketsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_BUCKETS) endpointsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_ENDPOINTS) endpointsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_ENDPOINTS) hostsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_HOSTS) hostsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_HOSTS) bytesMin=$(marker "$out" BOOTSTRAP_MIN_BYTES) bytesMax=$(marker "$out" BOOTSTRAP_MAX_BYTES) bytesMean=$(marker "$out" BOOTSTRAP_MEAN_BYTES) ms=$(marker "$out" BOOTSTRAP_MS)"
 done
 
 STAGE=bandwidth-meter
