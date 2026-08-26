@@ -3,7 +3,7 @@
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`; governance rules live in `GOVERNANCE.md` and `docs/governance/`.
 
 **Snapshot:** 2026-08-27  
-**Synchronized source:** `main@63e54cbe30d363ef4609732b512fe64ab860cf9d`  
+**Synchronized source:** `main@789fee50d6c3eacfe9f973de6d64ba7ae9df1fb8`  
 **Protocol:** `TRUYN/1` draft
 
 The project has not evolved strictly in numerical version order. Network scale, semantic retrieval, Trustability, provider security, external interoperability and SDK/DX progress in parallel. A completed track does not promote an unrelated track.
@@ -96,10 +96,10 @@ The old roadmap wording stopped at C3. Actual accepted state is now:
 - [x] **C1** — MCP current-contract baseline;
 - [x] **C2** — general MCP discovery/import;
 - [x] **C3** — A2A Agent Card/server task facade;
-- [x] **C4** — A2A client/provider adapter + remote skill import, PR `#340`;
+- [x] **C4** — A2A client/provider adapter + remote skill import, PR `#340`, merge `1735528461a04de60f9f8572b466a732a6f03c62`;
 - [x] **C5** — bounded polling async lifecycle with exactly-one initial `SendMessage`, PR `#352`;
 - [x] **C6** — artifact integrity/no-implicit-SSRF/provenance hardening, PR `#368`;
-- [x] **C7** — both `A2A→TRUYN→MCP` and `MCP→TRUYN→A2A` in-repository round trips with exactly-once remote execution, PR `#357`;
+- [x] **C7** — both `A2A→TRUYN→MCP` and `MCP→TRUYN→A2A` are **Implemented / bounded CI-proven** by `tests/interoperability-bidirectional.test.js`, PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a`, with exactly-once remote execution assertions;
 - [ ] **C8** — complete adversarial cross-protocol security matrix, active PR `#369`.
 
 ### C8 acceptance

@@ -2,7 +2,7 @@
 
 **Status:** canonical factual status index.  
 **Snapshot date:** 2026-08-27  
-**Synchronized source:** `main@63e54cbe30d363ef4609732b512fe64ab860cf9d`  
+**Synchronized source:** `main@789fee50d6c3eacfe9f973de6d64ba7ae9df1fb8`  
 **Protocol generation:** `TRUYN/1` draft
 
 This document answers one question: **what is actually implemented and proven now, versus only defined, attempted, or still open?** Architecture documents define contracts; tests and durable evidence prove bounded claims. Old operational issues remain historical records and are not current status merely because they once existed.
@@ -47,8 +47,8 @@ An admission/preflight PASS authorizes a campaign; it does not convert a failed 
 | A2A client/provider adapter | **Implemented / bounded CI-proven — C4** | PR `#340`, merge `1735528461a04de60f9f8572b466a732a6f03c62` |
 | A2A polling async lifecycle | **Implemented / bounded CI-proven — C5** | PR `#352`, merge `591d30d8f57fb7c661c847bb059cd437f437dd08` |
 | A2A artifact integrity | **Implemented / bounded CI-proven — C6** | PR `#368`, merge `0e6e4119450e9de55fb9be32b993a28f98dda148` |
-| A2A→TRUYN→MCP | **Implemented / bounded CI-proven — C7** | `tests/interoperability-bidirectional.test.js`, PR `#357` |
-| MCP→TRUYN→A2A | **Implemented / bounded CI-proven — C7** | same C7 suite; exactly-once remote A2A execution |
+| A2A→TRUYN→MCP | **Implemented / bounded CI-proven — C7** | `tests/interoperability-bidirectional.test.js`; PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a`; exactly-once remote MCP execution |
+| MCP→TRUYN→A2A | **Implemented / bounded CI-proven — C7** | `tests/interoperability-bidirectional.test.js`; PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a`; exactly-once remote A2A execution |
 | Complete A2A/MCP adversarial matrix | **OPEN — C8** | PR `#369`; acceptance not yet earned |
 | Independent external A2A/MCP ecosystem proof | **Not yet proven** | next adoption-level gate after bounded C7/C8 |
 | First-party TypeScript/JavaScript SDK | **Implemented / CI-proven reference client** | DX-1 onward; current API below |
@@ -138,10 +138,10 @@ The repository has progressed past the old C3-only snapshot.
 C1 MCP current contract                ACCEPTED
 C2 MCP discovery/import               ACCEPTED
 C3 A2A server facade                  ACCEPTED
-C4 A2A client/provider adapter        ACCEPTED
+C4 A2A client/provider adapter        ACCEPTED — PR #340 / 1735528461a04de60f9f8572b466a732a6f03c62
 C5 bounded async polling              ACCEPTED
 C6 artifact integrity                 ACCEPTED
-C7 both bidirectional bridge paths    ACCEPTED / bounded CI-proven
+C7 both bidirectional bridge paths    ACCEPTED / bounded CI-proven — tests/interoperability-bidirectional.test.js / PR #357 / f04fcd1d4d72af85a6b97686c7c875388ef6038a
 C8 complete adversarial matrix        OPEN (#369)
 ```
 
