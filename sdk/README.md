@@ -2,17 +2,17 @@
 
 Native first-party client libraries for applications that integrate directly with TRUYN without depending on an agent-specific provider adapter.
 
-**Current maturity:** DX-1 shared conformance/runtime foundation is active; TypeScript and Python are executable in-repository reference implementations; language package distributions remain private/internal and are not production-ready public SDK releases.
+**Current maturity:** DX-2 skeleton parity is active. TypeScript and Python are executable in-repository DX-1 reference implementations; Go, Java and C#/.NET now expose DX-2 skeleton client surfaces pinned to the same shared conformance runner. Language package distributions remain private/internal and are not production-ready public SDK releases.
 
 ## Required first-party SDKs
 
 | Language | Directory | Distribution target | Current status |
 |---|---|---|---|
-| JavaScript / TypeScript | `typescript/` | npm `@truyn/sdk` | DX-1 reference package, `private: true`, not public npm |
-| Python | `python/` | PyPI `truyn-sdk` / import `truyn` | DX-1 reference package, internal/editable, not public PyPI |
-| Go | `go/` | Go module | planned / scaffold |
-| Java | `java/` | Maven-compatible publication | planned / scaffold |
-| C# / .NET | `dotnet/` | NuGet | planned / scaffold |
+| JavaScript / TypeScript | `typescript/` | npm `@truyn/sdk` | DX-1 executable reference; not public npm |
+| Python | `python/` | PyPI `truyn-sdk` / import `truyn` | DX-1 executable reference; internal/editable only |
+| Go | `go/` | Go module | DX-2 skeleton client surface |
+| Java | `java/` | Maven-compatible publication | DX-2 skeleton client surface |
+| C# / .NET | `dotnet/` | NuGet | DX-2 skeleton client surface |
 | Rust | `rust/` | crates.io-compatible if maintained | optional secondary track / scaffold |
 
 The five required first-party targets before stable v1 are **JavaScript/TypeScript, Python, Go, Java and C#/.NET**.
@@ -21,11 +21,11 @@ Rust may be maintained as an additional SDK but does not replace any required fi
 
 ## Current packaging boundary
 
-The repository currently reserves package identities for the DX-1 reference work, but does not authorize public package publication.
+The repository currently reserves package identities for DX reference work, but does not authorize public package publication.
 
-- `sdk/typescript/package.json` identifies `@truyn/sdk` with an internal `0.0.0-dx1.0` version and `private: true`.
-- `sdk/python/pyproject.toml` identifies the `truyn-sdk` distribution with import package `truyn` and an internal `0.0.0` version.
-- Go, Java and C#/.NET package coordinates remain open until their parity work starts.
+- `sdk/typescript/package.json` identifies `@truyn/sdk` with an internal development version and remains marked non-publishable.
+- `sdk/python/pyproject.toml` identifies the `truyn-sdk` distribution with import package `truyn` and an internal development version.
+- Go, Java and C#/.NET package coordinates are DX-2 skeleton coordinates only; they are not public compatibility promises.
 
 Before any public package release, follow `../docs/compatibility/SDK_PACKAGING.md`.
 
@@ -47,11 +47,18 @@ All first-party SDKs must provide equivalent TRUYN semantics while remaining idi
 
 The SDK is a client convenience layer. It is never an authorization bypass and must not contain upstream provider credentials in network metadata.
 
-### Shared DX-1 conformance data
+### Shared conformance data and runner
 
-The language-neutral DX-1 contract is rooted at [`conformance/`](conformance/). It contains the shared DTO schema, foundational golden fixtures, Agent Descriptor cryptographic/negotiation vectors and executable reference semantics that the TypeScript and Python implementations must consume.
+The language-neutral conformance contract is rooted at [`conformance/`](conformance/). It contains the shared DTO schema, foundational golden fixtures, Agent Descriptor cryptographic/negotiation vectors and executable reference semantics.
 
-The contract is intentionally mapped onto existing TRUYN/1 runtime/spec surfaces. It does not add network endpoints, protocol message kinds, routing behavior, provider-policy behavior or D-1000 semantics.
+DX-2 adds a unified runner that checks all five required first-party language directories against this shared source of truth:
+
+```bash
+node sdk/conformance/run-conformance.mjs --json
+node sdk/conformance/run-conformance.mjs --language=go --json
+```
+
+The runner validates the language matrix, required source files, foundational DTO markers, fixture-set identity, protocol generation and the private/internal package boundary. It does not add network endpoints, protocol message kinds, routing behavior, provider-policy behavior or D-1000 semantics.
 
 ## Agent Descriptor
 
@@ -65,7 +72,7 @@ https://<domain>/.well-known/truyn-agent.json
 
 The Descriptor provides identity, supported TRUYN versions/interfaces, public capability classes and interaction features. It does **not** replace dynamic `OFFER` state and never grants requester authorization.
 
-The shared DX-1 reference now implements:
+The shared reference now implements:
 
 - v1 JSON parsing and structural validation;
 - expiry validation with explicit offline/cache override;
@@ -73,7 +80,7 @@ The shared DX-1 reference now implements:
 - identity-bound Ed25519 signature verification using existing TRUYN canonicalization;
 - fail-closed behavior for tampering, wrong identity keys and unsupported delegated descriptor keys.
 
-These are conformance semantics for the upcoming language SDKs; they do not yet make the TypeScript or Python package directories published SDKs.
+These are conformance semantics for first-party SDKs; they do not yet make any package directory a published public SDK release.
 
 See:
 
@@ -88,8 +95,8 @@ See:
 
 1. **DX-0:** architecture, Agent Descriptor, SDK contract, language scaffolds.
 2. **DX-1:** TypeScript/JavaScript + Python reference SDKs and shared conformance fixtures.
-3. **DX-2:** Go + Java + C#/.NET parity.
-4. **DX-3:** package publication, examples, CI matrix, version/compatibility documentation.
+3. **DX-2:** Go + Java + C#/.NET skeleton parity plus unified conformance runner.
+4. **DX-3:** package build automation, examples, CI matrix, version/compatibility documentation.
 5. **DX-4:** stable v1 conformance gate across all five required SDKs.
 
 See `../ROADMAP.md` for sequencing relative to the broader network productionization program.
