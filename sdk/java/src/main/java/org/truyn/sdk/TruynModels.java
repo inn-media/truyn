@@ -56,24 +56,36 @@ public final class TruynModels {
       boolean retryable,
       Map<String, Object> source) {}
 
-  public static final class Offer extends SignedEnvelope<OfferPayload> {
-    public Offer(String protocol, String type, String id, String from, String to, String createdAt,
-        String publicKey, OfferPayload payload, String signature) {
-      super(protocol, type, id, from, to, createdAt, publicKey, payload, signature);
-    }
-  }
+  public record Offer(
+      String protocol,
+      String type,
+      String id,
+      String from,
+      String to,
+      String createdAt,
+      String publicKey,
+      OfferPayload payload,
+      String signature) {}
 
-  public static final class Need extends SignedEnvelope<NeedPayload> {
-    public Need(String protocol, String type, String id, String from, String to, String createdAt,
-        String publicKey, NeedPayload payload, String signature) {
-      super(protocol, type, id, from, to, createdAt, publicKey, payload, signature);
-    }
-  }
+  public record Need(
+      String protocol,
+      String type,
+      String id,
+      String from,
+      String to,
+      String createdAt,
+      String publicKey,
+      NeedPayload payload,
+      String signature) {}
 
-  public static final class Result extends SignedEnvelope<ResultPayload> {
-    public Result(String protocol, String type, String id, String from, String to, String createdAt,
-        String publicKey, ResultPayload payload, String signature) {
-      super(protocol, type, id, from, to, createdAt, publicKey, payload, signature);
-    }
-  }
+  public record Result(
+      String protocol,
+      String type,
+      String id,
+      String from,
+      String to,
+      String createdAt,
+      String publicKey,
+      ResultPayload payload,
+      String signature) {}
 }
