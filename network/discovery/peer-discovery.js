@@ -163,15 +163,16 @@ export class PeerDiscovery {
     return removed;
   }
 
-  async findNode(targetNodeId, { maxRounds = 16 } = {}) {
-    if (targetNodeId === this.identity.nodeId) return null;
-    const local = this.get(targetNodeId);
-    if (local) return local;
-    if (typeof this.rpc?.findNode !== 'function') return null;
+  async walk(targetNodeId, { maxRounds = 16, stopOnFound = true } = {}) {
+    if (typeof this.rpc?.findNode !== 'function') {
+      return { targetNodeId, found: null, queried: [], rounds: 0, responses: 0 };
+    }
 
     const queried = new Set();
+    let responsesReceived = 0;
+    let rounds = 0;
     let frontier = this.closest(targetNodeId, this.k);
-    for (let round = 0; round < maxRounds && frontier.length; round += 1) {
+    for (; rounds < maxRounds && frontier.length; rounds += 1) {
       const batch = frontier.filter((peer) => !queried.has(peer.nodeId)).slice(0, this.alpha);
       if (batch.length === 0) break;
       for (const peer of batch) queried.add(peer.nodeId);
@@ -179,9 +180,19 @@ export class PeerDiscovery {
         try { return await this.rpc.findNode(peer, targetNodeId); } catch { this.rpc?.forget?.(peer.nodeId); return null; }
       }));
       for (const response of responses) {
-        for (const record of response?.records || []) this.ingest(record);
+        if (!response) continue;
+        responsesReceived += 1;
+        for (const record of response.records || []) this.ingest(record);
         const found = this.get(targetNodeId);
-        if (found) return found;
+        if (found && stopOnFound) {
+          return {
+            targetNodeId,
+            found,
+            queried: [...queried],
+            rounds: rounds + 1,
+            responses: responsesReceived
+          };
+        }
       }
       frontier = this.closest(targetNodeId, this.k)
         .filter((peer) => !queried.has(peer.nodeId))
@@ -191,6 +202,23 @@ export class PeerDiscovery {
           return da < db ? -1 : da > db ? 1 : a.nodeId.localeCompare(b.nodeId);
         });
     }
-    return null;
+
+    return {
+      targetNodeId,
+      found: this.get(targetNodeId),
+      queried: [...queried],
+      rounds,
+      responses: responsesReceived
+    };
+  }
+
+  async findNode(targetNodeId, { maxRounds = 16 } = {}) {
+    if (targetNodeId === this.identity.nodeId) return null;
+    const local = this.get(targetNodeId);
+    if (local) return local;
+    if (typeof this.rpc?.findNode !== 'function') return null;
+
+    const result = await this.walk(targetNodeId, { maxRounds, stopOnFound: true });
+    return result.found;
   }
 }
