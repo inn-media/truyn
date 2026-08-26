@@ -232,6 +232,17 @@ export async function createTestnetNodeService({
     return { peers, records };
   };
 
+  const refreshDht = async (body = {}) => {
+    const result = await node.discovery.refreshRoutingTable({
+      targets: Array.isArray(body.targets) ? body.targets : null,
+      targetCount: int(body.targetCount, node.discovery.k, { min: 0, max: 256 }),
+      maxRounds: int(body.maxRounds, 4, { min: 0, max: 64 }),
+      seed: typeof body.seed === 'string' && body.seed.trim() ? body.seed.trim() : 'truyn-testnet-refresh'
+    });
+    await node.persistState();
+    return result;
+  };
+
   node.onEnvelope(async (message, context) => {
     const capability = message.payload?.capability?.name;
     const input = message.payload?.input ?? {};
@@ -261,6 +272,7 @@ export async function createTestnetNodeService({
     if (command === 'replicate') return replicate(input);
     if (command === 'find') return find(input);
     if (command === 'repair') return repair(input);
+    if (command === 'refresh') return refreshDht(input);
     if (command === 'sweep') return sweep();
     if (command === 'faults') return faultStatus();
     if (command === 'partition') return partition(input);
@@ -286,6 +298,7 @@ export async function createTestnetNodeService({
       if (req.method === 'POST' && url.pathname === '/replicate') return json(res, 200, await replicate(await readJson(req)));
       if (req.method === 'GET' && url.pathname === '/find') return json(res, 200, await find({ namespace: url.searchParams.get('namespace'), key: url.searchParams.get('key'), fanout: url.searchParams.get('fanout') }));
       if (req.method === 'POST' && url.pathname === '/repair') return json(res, 200, await repair(await readJson(req)));
+      if (req.method === 'POST' && url.pathname === '/dht/refresh') return json(res, 200, await refreshDht(await readJson(req)));
       if (req.method === 'POST' && url.pathname === '/sweep') return json(res, 200, await sweep());
       if (req.method === 'GET' && url.pathname === '/faults') return json(res, 200, faultStatus());
       if (req.method === 'POST' && url.pathname === '/faults/partition') return json(res, 200, partition(await readJson(req)));
