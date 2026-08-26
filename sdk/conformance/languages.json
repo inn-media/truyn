@@ -1,0 +1,136 @@
+{
+  "fixtureSet": "truyn.sdk-conformance/v1",
+  "protocol": "TRUYN/1",
+  "requiredFirstPartyLanguages": ["typescript", "python", "go", "java", "dotnet"],
+  "foundationalDtos": [
+    "Identity",
+    "AgentDescriptor",
+    "Capability",
+    "Offer",
+    "Need",
+    "Result",
+    "ArtifactRef",
+    "NormalizedError"
+  ],
+  "languages": [
+    {
+      "id": "typescript",
+      "name": "TypeScript / JavaScript",
+      "status": "implemented-dx1-reference",
+      "root": "sdk/typescript",
+      "sourceFiles": [
+        "sdk/typescript/src/types.ts",
+        "sdk/typescript/src/client.ts",
+        "sdk/typescript/src/local-node.ts",
+        "sdk/typescript/src/descriptor.ts",
+        "sdk/typescript/src/errors.ts"
+      ],
+      "requiredMarkers": [
+        "export interface Identity",
+        "export interface AgentDescriptor",
+        "export interface Offer",
+        "export type ArtifactRef",
+        "export interface NormalizedError",
+        "TRUYN/1",
+        "truyn.agent-descriptor/v1"
+      ],
+      "publicDistribution": false
+    },
+    {
+      "id": "python",
+      "name": "Python",
+      "status": "implemented-dx1-reference",
+      "root": "sdk/python",
+      "sourceFiles": [
+        "sdk/python/src/truyn/client.py",
+        "sdk/python/src/truyn/descriptor.py",
+        "sdk/python/src/truyn/errors.py",
+        "sdk/python/src/truyn/local_node.py"
+      ],
+      "requiredMarkers": [
+        "class TruynClient",
+        "fetch_agent_descriptor",
+        "normalize_error",
+        "TRUYN/1",
+        "truyn.agent-descriptor/v1"
+      ],
+      "publicDistribution": false
+    },
+    {
+      "id": "go",
+      "name": "Go",
+      "status": "dx2-skeleton",
+      "root": "sdk/go",
+      "sourceFiles": [
+        "sdk/go/go.mod",
+        "sdk/go/truyn.go"
+      ],
+      "requiredMarkers": [
+        "module github.com/inn-media/truyn/sdk/go",
+        "type Client struct",
+        "type Identity struct",
+        "type AgentDescriptor struct",
+        "type OfferPayload struct",
+        "type NeedPayload struct",
+        "type ResultPayload struct",
+        "type ArtifactRef string",
+        "type NormalizedError struct",
+        "TRUYN/1",
+        "truyn.agent-descriptor/v1"
+      ],
+      "publicDistribution": false
+    },
+    {
+      "id": "java",
+      "name": "Java",
+      "status": "dx2-skeleton",
+      "root": "sdk/java",
+      "sourceFiles": [
+        "sdk/java/pom.xml",
+        "sdk/java/src/main/java/org/truyn/sdk/TruynClient.java",
+        "sdk/java/src/main/java/org/truyn/sdk/TruynModels.java",
+        "sdk/java/src/main/java/org/truyn/sdk/TruynException.java"
+      ],
+      "requiredMarkers": [
+        "artifactId>truyn-sdk</artifactId",
+        "public final class TruynClient",
+        "record Identity",
+        "record AgentDescriptor",
+        "record OfferPayload",
+        "record NeedPayload",
+        "record ResultPayload",
+        "record ArtifactRef",
+        "record NormalizedError",
+        "TRUYN/1",
+        "truyn.agent-descriptor/v1"
+      ],
+      "publicDistribution": false
+    },
+    {
+      "id": "dotnet",
+      "name": "C# / .NET",
+      "status": "dx2-skeleton",
+      "root": "sdk/dotnet",
+      "sourceFiles": [
+        "sdk/dotnet/Truyn.Sdk.csproj",
+        "sdk/dotnet/Client.cs",
+        "sdk/dotnet/Models.cs",
+        "sdk/dotnet/TruynException.cs"
+      ],
+      "requiredMarkers": [
+        "<PackageId>Truyn.Sdk</PackageId>",
+        "public sealed class TruynClient",
+        "record Identity",
+        "record AgentDescriptor",
+        "record OfferPayload",
+        "record NeedPayload",
+        "record ResultPayload",
+        "record ArtifactRef",
+        "record NormalizedError",
+        "TRUYN/1",
+        "truyn.agent-descriptor/v1"
+      ],
+      "publicDistribution": false
+    }
+  ]
+}
