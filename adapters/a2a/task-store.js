@@ -145,7 +145,9 @@ export class A2aTaskStore {
     const taskId = this.byTruynRequestId.get(requestId);
     if (!taskId) return null;
     const task = this.tasks.get(taskId);
-    if (!task || TERMINAL.has(task.status.state)) return task || null;
+    if (!task) return null;
+    if (task.providerNodeId && event.envelope?.from !== task.providerNodeId) return null;
+    if (TERMINAL.has(task.status.state)) return task;
 
     const payload = event.envelope.payload || {};
     const metadata = payload.metadata && typeof payload.metadata === 'object' ? payload.metadata : {};
