@@ -60,6 +60,7 @@ export async function createA2aDiscoveryProvider({
   maxResponseBytes,
   taskTimeoutMs,
   pollIntervalMs,
+  taskExecutionMode = 'blocking',
   fetchImpl = fetch
 } = {}) {
   const allowed = normalizeAllowSkills(allowSkills);
@@ -80,6 +81,7 @@ export async function createA2aDiscoveryProvider({
     ...(maxResponseBytes !== undefined ? { maxResponseBytes } : {}),
     ...(taskTimeoutMs !== undefined ? { taskTimeoutMs } : {}),
     ...(pollIntervalMs !== undefined ? { pollIntervalMs } : {}),
+    taskExecutionMode,
     fetchImpl
   });
   const discovered = await client.discover({ extended: useExtendedAgentCard });
@@ -124,7 +126,8 @@ export async function createA2aDiscoveryProvider({
           remoteSkillId: skill.id,
           remoteAgent,
           inputModes: skill.inputModes || [],
-          outputModes: skill.outputModes || []
+          outputModes: skill.outputModes || [],
+          taskExecutionMode
         }
       }
     })),
@@ -134,6 +137,7 @@ export async function createA2aDiscoveryProvider({
       interface: structuredClone(discovered.interface),
       remoteAgent,
       extended: Boolean(useExtendedAgentCard),
+      taskExecutionMode,
       selectedSkills: selected.map(({ skill, capability }) => ({ skill: skill.id, capability }))
     },
     async execute({ capability, input, need, policy }) {

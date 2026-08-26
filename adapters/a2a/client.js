@@ -4,6 +4,7 @@ import { A2A_PROTOCOL_VERSION, A2A_TASK_STATES } from './mapping.js';
 const DEFAULT_MAX_RESPONSE_BYTES = 1024 * 1024;
 const DEFAULT_TASK_TIMEOUT_MS = 120_000;
 const DEFAULT_POLL_INTERVAL_MS = 250;
+const TASK_EXECUTION_MODES = new Set(['blocking', 'polling']);
 const TERMINAL_STATES = new Set([
   A2A_TASK_STATES.completed,
   A2A_TASK_STATES.failed,
@@ -13,6 +14,12 @@ const TERMINAL_STATES = new Set([
 const INTERRUPTED_STATES = new Set([
   A2A_TASK_STATES.inputRequired,
   A2A_TASK_STATES.authRequired
+]);
+const KNOWN_TASK_STATES = new Set([
+  A2A_TASK_STATES.submitted,
+  A2A_TASK_STATES.working,
+  ...TERMINAL_STATES,
+  ...INTERRUPTED_STATES
 ]);
 const RESERVED_HEADERS = new Set([
   'a2a-version',
@@ -146,7 +153,7 @@ function normalizeRemotePart(part) {
   const fields = ['text', 'data', 'url', 'raw'].filter((key) => Object.prototype.hasOwnProperty.call(part, key));
   if (fields.length !== 1) throw new Error('A2A remote Part must contain exactly one of text, data, url, raw');
   const kind = fields[0];
-  if (kind === 'raw') throw new Error('A2A raw inline content is not supported by bounded C4');
+  if (kind === 'raw') throw new Error('A2A raw inline content is not supported by bounded C4/C5');
   if (kind === 'text' && typeof part.text !== 'string') throw new Error('A2A remote text Part requires string text');
   if (kind === 'url' && typeof part.url !== 'string') throw new Error('A2A remote URL Part requires string url');
   return structuredClone(part);
@@ -181,6 +188,12 @@ function normalizeTask(task) {
   if (!isObject(task)) throw new Error('A2A task response must be an object');
   if (typeof task.id !== 'string' || !task.id) throw new Error('A2A task response requires id');
   if (!isObject(task.status) || typeof task.status.state !== 'string') throw new Error('A2A task response requires status.state');
+  if (!KNOWN_TASK_STATES.has(task.status.state)) {
+    const error = new Error(`A2A task response contains unsupported state: ${task.status.state}`);
+    error.code = 'A2A_TASK_STATE_INVALID';
+    error.remoteTask = structuredClone(task);
+    throw error;
+  }
   return structuredClone(task);
 }
 
@@ -198,6 +211,13 @@ function remoteExecutionError(task) {
   return error;
 }
 
+function taskCorrelationError(code, message, task) {
+  const error = new Error(message);
+  error.code = code;
+  error.remoteTask = structuredClone(task);
+  return error;
+}
+
 function delay(ms) {
   return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
 }
@@ -211,6 +231,7 @@ export function createA2aClient({
   maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
   taskTimeoutMs = DEFAULT_TASK_TIMEOUT_MS,
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
+  taskExecutionMode = 'blocking',
   fetchImpl = fetch
 } = {}) {
   const cardUrl = absoluteHttpUrl(agentCardUrl, 'A2A Agent Card URL', { allowInsecureHttp });
@@ -218,6 +239,7 @@ export function createA2aClient({
   if (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1024) throw new Error('A2A maxResponseBytes must be an integer >= 1024');
   if (!Number.isInteger(taskTimeoutMs) || taskTimeoutMs < 1) throw new Error('A2A taskTimeoutMs must be a positive integer');
   if (!Number.isInteger(pollIntervalMs) || pollIntervalMs < 0) throw new Error('A2A pollIntervalMs must be a non-negative integer');
+  if (!TASK_EXECUTION_MODES.has(taskExecutionMode)) throw new Error('A2A taskExecutionMode must be blocking or polling');
   if (typeof fetchImpl !== 'function') throw new Error('A2A fetchImpl must be a function');
 
   let discovery = null;
@@ -302,12 +324,42 @@ export function createA2aClient({
     const current = await requireDiscovery();
     const params = { id };
     if (historyLength !== undefined) params.historyLength = historyLength;
-    return normalizeTask(await rpc(current.interface.url, 'GetTask', params));
+    const task = normalizeTask(await rpc(current.interface.url, 'GetTask', params));
+    if (task.id !== id) {
+      throw taskCorrelationError('A2A_TASK_ID_MISMATCH', `A2A GetTask returned task ${task.id} for requested task ${id}`, task);
+    }
+    return task;
+  }
+
+  async function pollTask(initialTask) {
+    let task = normalizeTask(initialTask);
+    const taskId = task.id;
+    const contextId = typeof task.contextId === 'string' && task.contextId ? task.contextId : null;
+    const deadline = Date.now() + taskTimeoutMs;
+    let pollCount = 0;
+
+    while (!TERMINAL_STATES.has(task.status.state) && !INTERRUPTED_STATES.has(task.status.state)) {
+      if (Date.now() >= deadline) {
+        const error = new Error(`A2A remote task ${taskId} timed out`);
+        error.code = 'A2A_TASK_TIMEOUT';
+        error.remoteTask = structuredClone(task);
+        error.pollCount = pollCount;
+        throw error;
+      }
+      await delay(pollIntervalMs);
+      const next = await getTask(taskId);
+      pollCount += 1;
+      if (contextId && next.contextId && next.contextId !== contextId) {
+        throw taskCorrelationError('A2A_CONTEXT_ID_MISMATCH', `A2A task ${taskId} changed contextId during polling`, next);
+      }
+      task = next;
+    }
+    return { task, pollCount };
   }
 
   async function execute({ skill, message }) {
     const current = await requireDiscovery();
-    const response = await sendMessage(message, { returnImmediately: false });
+    const response = await sendMessage(message, { returnImmediately: taskExecutionMode === 'polling' });
     if (response.message) {
       return {
         output: outputFromParts(response.message.parts),
@@ -318,19 +370,14 @@ export function createA2aClient({
             remoteAgent: current.card.name,
             remoteSkillId: skill.id,
             remoteMessageId: response.message.messageId || null,
-            interfaceUrl: current.interface.url
+            interfaceUrl: current.interface.url,
+            taskExecutionMode
           }
         }
       };
     }
 
-    let task = response.task;
-    const deadline = Date.now() + taskTimeoutMs;
-    while (!TERMINAL_STATES.has(task.status.state) && !INTERRUPTED_STATES.has(task.status.state)) {
-      if (Date.now() >= deadline) throw new Error(`A2A remote task ${task.id} timed out`);
-      await delay(pollIntervalMs);
-      task = await getTask(task.id);
-    }
+    const { task, pollCount } = await pollTask(response.task);
     if (task.status.state !== A2A_TASK_STATES.completed) throw remoteExecutionError(task);
     return {
       output: outputFromTask(task),
@@ -343,7 +390,9 @@ export function createA2aClient({
           remoteTaskId: task.id,
           remoteContextId: task.contextId || null,
           interfaceUrl: current.interface.url,
-          artifactCount: task.artifacts.length
+          artifactCount: task.artifacts.length,
+          taskExecutionMode,
+          taskPollCount: pollCount
         }
       }
     };
@@ -351,6 +400,7 @@ export function createA2aClient({
 
   return {
     protocolVersion: A2A_PROTOCOL_VERSION,
+    taskExecutionMode,
     discover,
     sendMessage,
     getTask,
