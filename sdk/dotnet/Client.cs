@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace Truyn.Sdk;
 
-/// <summary>DX-2 C#/.NET client skeleton for the TRUYN/1 SDK surface.</summary>
+/// <summary>C#/.NET client skeleton for the stable TRUYN/1 SDK surface.</summary>
 public sealed class TruynClient
 {
     public const string Protocol = "TRUYN/1";
@@ -61,6 +61,16 @@ public sealed class TruynClient
         return FailAsync<Need>("SubmitNeedAsync", cancellationToken);
     }
 
+    public Task<ResultResponse> SubmitNeedAsync(NeedRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (string.IsNullOrWhiteSpace(request.Capability))
+        {
+            throw new TruynException(TruynErrorCode.InvalidArgument, "capability is required", false);
+        }
+        return FailAsync<ResultResponse>("SubmitNeedRequestAsync", cancellationToken);
+    }
+
     public Task<Result> GetResultAsync(string needId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(needId))
@@ -68,6 +78,29 @@ public sealed class TruynClient
             throw new TruynException(TruynErrorCode.InvalidArgument, "need ID is required", false);
         }
         return FailAsync<Result>("GetResultAsync", cancellationToken);
+    }
+
+    public async IAsyncEnumerable<StreamEvent> StreamResultAsync(string needId, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(needId))
+        {
+            throw new TruynException(TruynErrorCode.InvalidArgument, "need ID is required", false);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        await Task.FromException(new TruynException(
+            TruynErrorCode.Unimplemented,
+            "StreamResultAsync is not implemented in the C#/.NET SDK skeleton",
+            false));
+        yield break;
+    }
+
+    public Task CancelAsync(string requestId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(requestId))
+        {
+            throw new TruynException(TruynErrorCode.InvalidArgument, "request ID is required", false);
+        }
+        return FailAsync<object>("CancelAsync", cancellationToken);
     }
 
     private static Task<T> FailAsync<T>(string operation, CancellationToken cancellationToken)
@@ -79,7 +112,7 @@ public sealed class TruynClient
 
         return Task.FromException<T>(new TruynException(
             TruynErrorCode.Unimplemented,
-            operation + " is not implemented in the C#/.NET DX-2 skeleton",
+            operation + " is not implemented in the C#/.NET SDK skeleton",
             false));
     }
 }
