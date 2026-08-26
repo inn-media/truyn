@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const normalizePreparedTemplate = (source) => source.replaceAll('\\"', '"');
+const normalizePreparedTemplate = (source) => source.replace(/\\+"/g, '"');
 
 // Structural guard for the prepared D-1000 runner: convergence must remain a
 // hard gate, but the ERR trap must still materialize evidence before the EXIT
