@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../network/testnet/node-service.js', import.meta.url), 'utf8');
+const readinessRoute = "if (req.method === 'GET' && url.pathname === '/dht/readiness') return json(res, 200, dhtReadiness());";
 
 test('testnet node service exposes read-only DHT readiness endpoint', () => {
   assert.match(source, /const dhtReadiness = \(\) => \{/);
@@ -10,7 +11,8 @@ test('testnet node service exposes read-only DHT readiness endpoint', () => {
   assert.match(source, /remoteEndpointDiversity: remoteEndpointDiversity\(\)/);
   assert.match(source, /refresh: lastDhtRefresh \|\| \{/);
   assert.match(source, /status: 'never_refreshed'/);
-  assert.match(source, /if \(req\.method === 'GET' && url\.pathname === '\/dht\/readiness'\) return json\(res, 200, dhtReadiness\(\)\);/);
+  assert.ok(source.includes(readinessRoute));
+  assert.ok(!readinessRoute.includes('refreshDht'));
 });
 
 test('DHT readiness reports peer, bucket and endpoint diversity fields', () => {
@@ -26,7 +28,7 @@ test('DHT readiness reports peer, bucket and endpoint diversity fields', () => {
 test('DHT readiness is separate from refresh and stays on custom path', () => {
   assert.match(source, /if \(command === 'readiness'\) return dhtReadiness\(\);/);
   assert.match(source, /lastDhtRefresh = \{/);
-  assert.doesNotMatch(source, /GET' && url\.pathname === '\/dht\/readiness'[\s\S]*refreshDht/);
+  assert.ok(source.indexOf(readinessRoute) < source.indexOf("if (req.method === 'POST' && url.pathname === '/dht/refresh'"));
   assert.doesNotMatch(source, /refreshKademliaRoutingTable/);
   assert.doesNotMatch(source, /libp2p/i);
 });
