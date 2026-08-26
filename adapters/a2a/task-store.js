@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { A2A_TASK_STATES, artifactFromTruynResult } from './mapping.js';
+import { A2A_TASK_STATES, artifactsFromTruynResult } from './mapping.js';
 
 const TERMINAL = new Set([
   A2A_TASK_STATES.completed,
@@ -147,14 +147,30 @@ export class A2aTaskStore {
       return task;
     }
 
-    task.artifacts = [artifactFromTruynResult(payload.output, {
-      artifactId: randomUUID(),
-      requestId,
-      providerNodeId: task.providerNodeId,
-      trust: task.providerTrust,
-      metadata
-    })];
-    task.status = { state: A2A_TASK_STATES.completed, timestamp };
+    try {
+      task.artifacts = artifactsFromTruynResult(payload.output, {
+        artifactId: randomUUID(),
+        requestId,
+        providerNodeId: task.providerNodeId,
+        trust: task.providerTrust,
+        metadata
+      });
+      task.status = { state: A2A_TASK_STATES.completed, timestamp };
+    } catch (error) {
+      task.artifacts = [];
+      task.status = {
+        state: A2A_TASK_STATES.failed,
+        timestamp,
+        message: {
+          messageId: randomUUID(),
+          role: 'ROLE_AGENT',
+          parts: [{ text: 'TRUYN result failed A2A artifact integrity validation', mediaType: 'text/plain' }],
+          metadata: {
+            'io.truyn/errorCode': error?.code || 'A2A_ARTIFACT_MAPPING_FAILED'
+          }
+        }
+      };
+    }
     return task;
   }
 
