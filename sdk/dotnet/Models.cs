@@ -120,7 +120,7 @@ public sealed record ArtifactPayload
         if (string.IsNullOrWhiteSpace(@ref)) throw new ArgumentException("artifact ref is required", nameof(@ref));
         if (string.IsNullOrWhiteSpace(mediaType)) throw new ArgumentException("artifact media type is required", nameof(mediaType));
         if (bytes is < 0) throw new ArgumentOutOfRangeException(nameof(bytes), "artifact bytes must be non-negative");
-        if (!string.IsNullOrWhiteSpace(sha256) && !Sha256Pattern.IsMatch(sha256))
+        if (sha256 is not null && !Sha256Pattern.IsMatch(sha256))
             throw new ArgumentException("artifact sha256 must be 64 hexadecimal characters", nameof(sha256));
 
         Ref = @ref;
