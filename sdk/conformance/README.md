@@ -4,11 +4,11 @@ This directory is the language-neutral source of truth for SDK DTO shape and gol
 
 ## Scope
 
-DX-1 maps the SDK surface to contracts that already exist in the repository. This layer **does not add network endpoints, protocol message types, routing behavior, provider policy, authorization rules, or D-1000 behavior**.
+DX-1 mapped the SDK surface to contracts that already exist in the repository. DX-2 adds a unified multi-language runner and skeleton parity for Go, Java and C#/.NET. This layer **does not add network endpoints, protocol message types, routing behavior, provider policy, authorization rules, or D-1000 behavior**.
 
 The current mapping is:
 
-| SDK surface | Existing TRUYN source | DX-1 rule |
+| SDK surface | Existing TRUYN source | Rule |
 |---|---|---|
 | `Identity` | `POST /v1/register`, `GET /v1/nodes/:id`, `IDENTITY` envelope | Normalize the public identity facts already returned by the relay. Session tokens are not part of `Identity`. |
 | `AgentDescriptor` | `spec/protocol/v1/agent-descriptor.md`; `core/identity/index.js`; `core/protocol/index.js` | Parse/validate v1, negotiate compatibility and verify identity-bound Ed25519 signatures with the existing TRUYN canonicalization primitive. |
@@ -16,8 +16,32 @@ The current mapping is:
 | `Offer` | signed `OFFER` envelope; `POST/GET /v1/offers` | Preserve the canonical signed envelope and typed OFFER payload. |
 | `Need` | signed `NEED` envelope; `POST /v1/needs` | Preserve the canonical signed envelope and typed NEED payload. |
 | `Result` | signed `RESULT` envelope; `POST /v1/results` | Preserve the canonical signed envelope and typed RESULT payload. |
-| `ArtifactRef` | existing opaque content/context references; generic OBJECT/Artifact wire shape not stable yet | Keep the reference opaque. Do not invent a new artifact wire object in DX-1. |
+| `ArtifactRef` | existing opaque content/context references; generic OBJECT/Artifact wire shape not stable yet | Keep the reference opaque. Do not invent a new artifact wire object in DX-1/DX-2. |
 | `NormalizedError` | relay HTTP error body, protocol verification reasons, client timeout/transport failures | SDK-only stable taxonomy with optional raw source details. It never replaces the relay/protocol error on the wire. |
+
+## Unified DX-2 runner
+
+The runner checks the shared fixture-set and every required first-party SDK target from one place:
+
+```bash
+node sdk/conformance/run-conformance.mjs
+node sdk/conformance/run-conformance.mjs --json
+node sdk/conformance/run-conformance.mjs --language=go --json
+node sdk/conformance/run-conformance.mjs --language=java --json
+node sdk/conformance/run-conformance.mjs --language=dotnet --json
+```
+
+It validates:
+
+- fixture-set identity and protocol generation;
+- foundational DTOs in `v1/sdk-contract.schema.json`;
+- positive and negative DTO fixture coverage in `v1/golden-fixtures.json`;
+- the Agent Descriptor runtime fixture-set extension;
+- required first-party language coverage: TypeScript, Python, Go, Java and C#/.NET;
+- required source files and language-specific markers;
+- private/internal status before stable package publication.
+
+The runner is intentionally source/fixture based. It does not publish packages, call cloud providers, start relays or mutate runtime state.
 
 ## Canonical signed envelope
 
@@ -68,7 +92,7 @@ Expiry is validated before use. Expired descriptors fail by default; an explicit
 
 ## Golden conformance rules
 
-`v1/golden-fixtures.json` plus its `v1/agent-descriptor-runtime-fixtures.json` extension form **one logical `truyn.sdk-conformance/v1` dataset**, not language-specific test data. TypeScript and Python must consume the same cases and produce the same acceptance/normalization outcomes.
+`v1/golden-fixtures.json` plus its `v1/agent-descriptor-runtime-fixtures.json` extension form **one logical `truyn.sdk-conformance/v1` dataset**, not language-specific test data. TypeScript, Python, Go, Java and C#/.NET must consume or conform to the same cases and produce the same acceptance/normalization outcomes when their transport bindings are implemented.
 
 - Every foundational DTO has at least one positive and one negative case.
 - Behavior cases include private capability/provider non-disclosure and descriptor/protocol version mismatch.
@@ -79,11 +103,14 @@ Expiry is validated before use. Expired descriptors fail by default; an explicit
 
 ## Files
 
+- `languages.json` — DX-2 language matrix and source marker manifest for all required first-party SDK targets.
+- `run-conformance.mjs` — unified source/fixture conformance runner.
 - `v1/sdk-contract.schema.json` — language-neutral JSON Schema definitions for the shared DTOs.
 - `v1/golden-fixtures.json` — foundational shared DTO/behavior/error data.
 - `v1/agent-descriptor-runtime-fixtures.json` — cryptographic and negotiation extension of the same fixture-set ID/version.
 - `reference/agent-descriptor.js` — executable JavaScript reference semantics for parser/validator/negotiation/signature verification.
 - `../../tests/sdk-shared-contract.test.js` — foundational DTO/source-mapping gate.
 - `../../tests/sdk-agent-descriptor-runtime.test.js` — executable Agent Descriptor conformance gate.
+- `../../tests/sdk-dx2-conformance-runner.test.js` — unified DX-2 language runner gate.
 
-The fixtures are contract data, not mocked claims of network productionization. TypeScript and Python implementations must consume this same logical dataset rather than maintaining language-local copies.
+The fixtures are contract data, not mocked claims of network productionization. Language implementations must consume this same logical dataset rather than maintaining language-local copies.
