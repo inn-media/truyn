@@ -12,16 +12,6 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function runHostUntilHandled(host, { timeoutMs = 1000 } = {}) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const result = await host.runOnce();
-    if (result.handled > 0) return result;
-    await delay(2);
-  }
-  throw new Error('provider host did not receive the long-running C5 NEED');
-}
-
 test('C5 real C3→TRUYN→provider lifecycle completes through returnImmediately + GetTask without duplicate execution', async (t) => {
   const relay = createRelay({
     localDevelopmentMode: false,
@@ -81,12 +71,10 @@ test('C5 real C3→TRUYN→provider lifecycle completes through returnImmediatel
     taskTimeoutMs: 1000
   });
 
-  const providerWork = runHostUntilHandled(providerHost);
   const result = await imported.execute({
     capability: 'a2a.long-job',
     input: { job: 'c5' }
   });
-  await providerWork;
 
   assert.deepEqual(result.output, { answer: 'done:c5' });
   assert.equal(providerExecutions, 1, 'polling must track one task, never re-dispatch provider work');
