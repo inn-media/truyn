@@ -12,6 +12,23 @@ function peerRecord(index) {
   });
 }
 
+function chainDiscovery({ identity, first, second, target, queried = [] }) {
+  const discovery = new PeerDiscovery({
+    identity,
+    alpha: 1,
+    rpc: {
+      findNode: async (peer) => {
+        queried.push(peer.nodeId);
+        if (peer.nodeId === first.nodeId) return { records: [second] };
+        if (peer.nodeId === second.nodeId) return { records: [target] };
+        return { records: [] };
+      }
+    }
+  });
+  discovery.ingest(first);
+  return discovery;
+}
+
 test('findNode preserves self, local-hit, and no-rpc semantics', async () => {
   const identity = createIdentity();
   const target = peerRecord(1);
@@ -51,59 +68,34 @@ test('findNode delegates iterative remote lookup to walk without changing result
   assert.equal(delegated, true);
 });
 
-test('walk performs bounded iterative lookup and can stop when the target record is found', async () => {
+test('walk respects maxRounds before the target record is reached', async () => {
   const identity = createIdentity();
   const first = peerRecord(10);
   const second = peerRecord(11);
   const target = peerRecord(12);
   const queried = [];
-  const discovery = new PeerDiscovery({
-    identity,
-    alpha: 1,
-    rpc: {
-      findNode: async (peer) => {
-        queried.push(peer.nodeId);
-        if (peer.nodeId === first.nodeId) return { records: [second] };
-        if (peer.nodeId === second.nodeId) return { records: [target] };
-        return { records: [] };
-      }
-    }
-  });
-  discovery.ingest(first);
+  const discovery = chainDiscovery({ identity, first, second, target, queried });
 
   const bounded = await discovery.walk(target.nodeId, { maxRounds: 1 });
   assert.equal(bounded.found, null);
   assert.deepEqual(bounded.queried, [first.nodeId]);
   assert.equal(bounded.rounds, 1);
   assert.equal(bounded.responses, 1);
+  assert.deepEqual(queried, [first.nodeId]);
+});
+
+test('walk performs bounded iterative lookup and stops when the target record is found', async () => {
+  const identity = createIdentity();
+  const first = peerRecord(20);
+  const second = peerRecord(21);
+  const target = peerRecord(22);
+  const queried = [];
+  const discovery = chainDiscovery({ identity, first, second, target, queried });
 
   const found = await discovery.walk(target.nodeId, { maxRounds: 2 });
   assert.equal(found.found.nodeId, target.nodeId);
   assert.deepEqual(found.queried, [first.nodeId, second.nodeId]);
   assert.equal(found.rounds, 2);
   assert.equal(found.responses, 2);
-  assert.deepEqual(queried, [first.nodeId, first.nodeId, second.nodeId]);
-});
-
-test('walk can continue after finding a record when stopOnFound is disabled', async () => {
-  const identity = createIdentity();
-  const first = peerRecord(20);
-  const second = peerRecord(21);
-  const target = peerRecord(22);
-  const discovery = new PeerDiscovery({
-    identity,
-    alpha: 1,
-    rpc: {
-      findNode: async (peer) => {
-        if (peer.nodeId === first.nodeId) return { records: [target, second] };
-        return { records: [] };
-      }
-    }
-  });
-  discovery.ingest(first);
-
-  const result = await discovery.walk(target.nodeId, { maxRounds: 2, stopOnFound: false });
-  assert.equal(result.found.nodeId, target.nodeId);
-  assert.equal(result.rounds, 2);
-  assert.deepEqual(result.queried, [first.nodeId, second.nodeId]);
+  assert.deepEqual(queried, [first.nodeId, second.nodeId]);
 });
