@@ -16,7 +16,9 @@ export class TruynNetworkNode {
     k = 20, alpha = 3, relayFallback = null, nat = null, capabilities = [], peerRecordTtlMs = 300_000,
     maxInFlight = 64, maxQueued = 256, statePath = null, dhtReplicationFactor = 3, dhtWriteQuorum = 2,
     dhtRpcTimeoutMs = 5_000, faultController = null, workInboxPath = null, workInboxMaxCompleted = 10_000,
-    peerRecordAutoRenew = true, peerRecordRenewBeforeMs = null, peerRecordPublishFanout = null
+    peerRecordAutoRenew = true, peerRecordRenewBeforeMs = null, peerRecordPublishFanout = null,
+    discoveryPeriodicRefresh = true, discoveryRefreshIntervalMs = null, discoveryRefreshTargetCount = null,
+    discoveryRefreshMaxRounds = 4, discoveryRefreshSeed = 'truyn-periodic-refresh'
   } = {}) {
     if (!tls?.key || !tls?.cert) throw new Error('network runtime TLS key/certificate are required');
     if (!Number.isFinite(peerRecordTtlMs) || peerRecordTtlMs <= 0) throw new Error('peerRecordTtlMs must be positive');
@@ -28,6 +30,15 @@ export class TruynNetworkNode {
     }
     const publishFanout = peerRecordPublishFanout == null ? k : peerRecordPublishFanout;
     if (!Number.isInteger(publishFanout) || publishFanout < 0) throw new Error('peerRecordPublishFanout must be a non-negative integer');
+    const periodicRefreshTargetCount = discoveryRefreshTargetCount == null ? k : discoveryRefreshTargetCount;
+    if (!Number.isInteger(periodicRefreshTargetCount) || periodicRefreshTargetCount < 0) throw new Error('discoveryRefreshTargetCount must be a non-negative integer');
+    if (!Number.isInteger(discoveryRefreshMaxRounds) || discoveryRefreshMaxRounds < 0) throw new Error('discoveryRefreshMaxRounds must be a non-negative integer');
+    const periodicRefreshIntervalMs = discoveryRefreshIntervalMs == null
+      ? Math.min(60_000, Math.max(1, Math.floor(peerRecordTtlMs / 2)))
+      : discoveryRefreshIntervalMs;
+    if (discoveryPeriodicRefresh && (!Number.isFinite(periodicRefreshIntervalMs) || periodicRefreshIntervalMs <= 0 || periodicRefreshIntervalMs >= peerRecordTtlMs)) {
+      throw new Error('discoveryRefreshIntervalMs must be positive and less than peerRecordTtlMs');
+    }
 
     this.identity = identity;
     this.host = host;
@@ -43,6 +54,13 @@ export class TruynNetworkNode {
     this.peerRecordAutoRenew = Boolean(peerRecordAutoRenew);
     this.peerRecordRenewBeforeMs = renewBeforeMs;
     this.peerRecordPublishFanout = publishFanout;
+    this.discoveryPeriodicRefresh = Boolean(discoveryPeriodicRefresh);
+    this.discoveryRefreshIntervalMs = periodicRefreshIntervalMs;
+    this.discoveryRefreshTargetCount = periodicRefreshTargetCount;
+    this.discoveryRefreshMaxRounds = discoveryRefreshMaxRounds;
+    this.discoveryRefreshSeed = typeof discoveryRefreshSeed === 'string' && discoveryRefreshSeed.trim()
+      ? discoveryRefreshSeed.trim()
+      : 'truyn-periodic-refresh';
     this.peerRecordRenewTimer = null;
     this.peerRecordRenewalInFlight = null;
     this.peerRecordRecoveryRetryTimer = null;
@@ -239,6 +257,10 @@ export class TruynNetworkNode {
     return structuredClone(this.peerRecordLifecycle);
   }
 
+  discoveryPeriodicRefreshSnapshot() {
+    return this.discovery.periodicRefreshSnapshot();
+  }
+
   envelope(type, payload, { to = null, id, time, trace, deadline, priority } = {}) {
     return createEnvelope({ type, from: this.identity.nodeId, to, payload, id, time, trace, deadline, priority,
       privateKeyPem: this.identity.privateKeyPem, publicKeyPem: this.identity.publicKeyPem });
@@ -279,6 +301,14 @@ export class TruynNetworkNode {
       }
     }
 
+    if (this.discoveryPeriodicRefresh) {
+      this.discovery.startPeriodicRefresh({
+        intervalMs: this.discoveryRefreshIntervalMs,
+        targetCount: this.discoveryRefreshTargetCount,
+        maxRounds: this.discoveryRefreshMaxRounds,
+        seed: this.discoveryRefreshSeed
+      });
+    }
     this.#schedulePeerRecordRenewal();
     return structuredClone(this.localPeerRecord);
   }
@@ -408,6 +438,7 @@ export class TruynNetworkNode {
     this.closing = true;
     this.#clearPeerRecordRenewTimer();
     this.#clearPeerRecordRecoveryRetryTimer();
+    this.discovery.close();
     if (this.peerRecordRenewalInFlight) {
       try { await this.peerRecordRenewalInFlight; } catch { /* renewal failure must not prevent shutdown */ }
     }
