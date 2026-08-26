@@ -21,5 +21,14 @@ from .local_node import (
     unsigned_envelope,
     verify_envelope,
 )
+from .stable_api import (
+    TRUYN_SDK_STABLE_API_VERSION,
+    CancellationToken,
+    StreamItem,
+    TruynCancelledError,
+    artifact_payload,
+    object_payload,
+    stream_items,
+)
 
 __all__ = [name for name in globals() if not name.startswith('_')]
