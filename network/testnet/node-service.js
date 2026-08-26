@@ -91,6 +91,32 @@ function decodePem(value, label) {
   catch { throw new Error(`invalid_${label}_base64`); }
 }
 
+function endpointParts(value) {
+  const endpoint = String(value || '').trim();
+  if (!endpoint) return { endpoint, host: null, port: null };
+  try {
+    const url = new URL(endpoint.includes('://') ? endpoint : `quic://${endpoint}`);
+    return { endpoint, host: url.hostname || null, port: url.port || null };
+  } catch {
+    const ipv6 = endpoint.match(/^\[([^\]]+)\](?::(\d+))?$/);
+    if (ipv6) return { endpoint, host: ipv6[1], port: ipv6[2] || null };
+    const parts = endpoint.split(':');
+    return { endpoint, host: parts[0] || null, port: parts.length > 1 ? parts.at(-1) || null : null };
+  }
+}
+
+function routingReadinessFields(snapshot = {}) {
+  return {
+    routingSize: snapshot.routingSize ?? 0,
+    validPeers: snapshot.validPeers ?? 0,
+    populatedBuckets: snapshot.populatedBuckets ?? 0,
+    bucketCount: snapshot.bucketCount ?? 0,
+    bucketOccupancy: Array.isArray(snapshot.bucketOccupancy) ? snapshot.bucketOccupancy : [],
+    recordCount: snapshot.recordCount ?? 0,
+    staleRoutingPeers: snapshot.staleRoutingPeers ?? 0
+  };
+}
+
 export async function createTestnetNodeService({
   identityPath,
   statePath,
@@ -146,6 +172,7 @@ export async function createTestnetNodeService({
 
   const startedAt = Date.now();
   let requestCount = 0;
+  let lastDhtRefresh = null;
   const statusSnapshot = () => ({
     ok: true,
     nodeId: identity.nodeId,
@@ -161,6 +188,53 @@ export async function createTestnetNodeService({
     relayEnabled: Boolean(relay),
     requests: requestCount
   });
+
+  const remoteEndpointDiversity = () => {
+    const endpoints = new Set();
+    const hosts = new Set();
+    const ports = new Set();
+    const records = node.discovery.snapshot().filter((record) => record.nodeId !== identity.nodeId);
+    for (const record of records) {
+      for (const endpoint of record.endpoints || []) {
+        const parts = endpointParts(endpoint);
+        if (!parts.endpoint) continue;
+        endpoints.add(parts.endpoint);
+        if (parts.host) hosts.add(parts.host);
+        if (parts.port) ports.add(parts.port);
+      }
+    }
+    return {
+      remotePeerRecords: records.length,
+      endpointCount: endpoints.size,
+      hostCount: hosts.size,
+      portCount: ports.size,
+      endpoints: [...endpoints].sort(),
+      hosts: [...hosts].sort(),
+      ports: [...ports].sort()
+    };
+  };
+
+  const dhtReadiness = () => {
+    const routing = routingReadinessFields(node.discovery.routingSnapshot());
+    return {
+      ok: true,
+      nodeId: identity.nodeId,
+      validPeers: routing.validPeers,
+      populatedBuckets: routing.populatedBuckets,
+      routing,
+      buckets: {
+        bucketCount: routing.bucketCount,
+        populatedBuckets: routing.populatedBuckets,
+        occupancy: routing.bucketOccupancy
+      },
+      remoteEndpointDiversity: remoteEndpointDiversity(),
+      refresh: lastDhtRefresh || {
+        status: 'never_refreshed',
+        refreshed: false,
+        completedAt: null
+      }
+    };
+  };
 
   const requireFaultControl = () => {
     if (faultControlEnabled) return;
@@ -240,6 +314,19 @@ export async function createTestnetNodeService({
       seed: typeof body.seed === 'string' && body.seed.trim() ? body.seed.trim() : 'truyn-testnet-refresh'
     });
     await node.persistState();
+    lastDhtRefresh = {
+      status: result.refreshed ? 'refreshed' : (result.reason || 'not_refreshed'),
+      refreshed: Boolean(result.refreshed),
+      completedAt: new Date().toISOString(),
+      targets: Array.isArray(result.targets) ? result.targets.length : 0,
+      walks: Array.isArray(result.walks) ? result.walks.length : 0,
+      queriedPeers: Array.isArray(result.queriedPeers) ? result.queriedPeers.length : 0,
+      responses: result.responses || 0,
+      routingSizeDelta: result.routingSizeDelta || 0,
+      validPeersDelta: result.validPeersDelta || 0,
+      before: routingReadinessFields(result.before),
+      after: routingReadinessFields(result.after)
+    };
     return result;
   };
 
@@ -273,6 +360,7 @@ export async function createTestnetNodeService({
     if (command === 'find') return find(input);
     if (command === 'repair') return repair(input);
     if (command === 'refresh') return refreshDht(input);
+    if (command === 'readiness') return dhtReadiness();
     if (command === 'sweep') return sweep();
     if (command === 'faults') return faultStatus();
     if (command === 'partition') return partition(input);
@@ -288,6 +376,7 @@ export async function createTestnetNodeService({
     try {
       if (req.method === 'GET' && url.pathname === '/status') return json(res, 200, statusSnapshot());
       if (req.method === 'GET' && url.pathname === '/record') return json(res, 200, { record: node.localPeerRecord });
+      if (req.method === 'GET' && url.pathname === '/dht/readiness') return json(res, 200, dhtReadiness());
       if (req.method === 'POST' && url.pathname === '/bootstrap') return json(res, 200, { results: node.bootstrap((await readJson(req)).records || []) });
       if (req.method === 'POST' && url.pathname === '/ping') return json(res, 200, { pong: await node.pingPeer((await readJson(req)).nodeId) });
       if (req.method === 'POST' && url.pathname === '/need') {
