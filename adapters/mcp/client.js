@@ -7,6 +7,7 @@ export const MCP_CLIENT_CAPABILITIES_META_KEY = 'io.modelcontextprotocol/clientC
 export const MCP_SERVER_INFO_META_KEY = 'io.modelcontextprotocol/serverInfo';
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const HEADER_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 const HEADER_TYPES = new Set(['string', 'integer', 'boolean']);
 
@@ -44,11 +45,31 @@ function parseSseJsonRpc(text, expectedId) {
   throw new Error('MCP SSE response did not contain the matching JSON-RPC result');
 }
 
-async function readRpcResponse(response, expectedId, maxResponseBytes) {
-  const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
+async function readBoundedText(response, maxResponseBytes) {
+  const declared = Number(response.headers?.get?.('content-length'));
+  if (Number.isFinite(declared) && declared > maxResponseBytes) throw new Error('MCP response exceeds size limit');
+
+  if (response.body && typeof response.body[Symbol.asyncIterator] === 'function') {
+    const chunks = [];
+    let total = 0;
+    for await (const chunk of response.body) {
+      const bytes = Buffer.from(chunk);
+      total += bytes.length;
+      if (total > maxResponseBytes) throw new Error('MCP response exceeds size limit');
+      chunks.push(bytes);
+    }
+    return Buffer.concat(chunks).toString('utf8');
+  }
+
   if (typeof response.text !== 'function') throw new Error('MCP response body is unavailable');
   const text = await response.text();
   if (Buffer.byteLength(text, 'utf8') > maxResponseBytes) throw new Error('MCP response exceeds size limit');
+  return text;
+}
+
+async function readRpcResponse(response, expectedId, maxResponseBytes) {
+  const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
+  const text = await readBoundedText(response, maxResponseBytes);
 
   let body;
   if (contentType.includes('application/json')) {
@@ -203,6 +224,7 @@ export function createMcpHttpClient({
   clientVersion = '0.1.0',
   clientCapabilities = {},
   maxResponseBytes = MAX_RESPONSE_BYTES,
+  requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
   fetchImpl = fetch
 } = {}) {
   if (!endpoint) throw new Error('MCP endpoint is required');
@@ -210,6 +232,8 @@ export function createMcpHttpClient({
   if (!['none', 'bearer'].includes(authMode)) throw new Error(`Unsupported MCP auth mode: ${authMode}`);
   if (authMode === 'bearer' && !apiKey) throw new Error('MCP bearer auth requires an API key');
   if (!isObject(clientCapabilities)) throw new Error('MCP clientCapabilities must be an object');
+  if (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 1) throw new Error('MCP maxResponseBytes must be a positive safe integer');
+  if (!Number.isSafeInteger(requestTimeoutMs) || requestTimeoutMs < 1) throw new Error('MCP requestTimeoutMs must be a positive safe integer');
   let requestCounter = 0;
 
   async function request(method, params = {}, { name = null, extraHeaders = {} } = {}) {
@@ -223,20 +247,42 @@ export function createMcpHttpClient({
       ...extraHeaders
     };
     if (authMode === 'bearer') headers.authorization = `Bearer ${apiKey}`;
-    const response = await fetchImpl(normalizedEndpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id,
-        method,
-        params: {
-          ...params,
-          _meta: modernMeta({ clientName, clientVersion, clientCapabilities })
-        }
-      })
+
+    const controller = new AbortController();
+    let timeout;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeout = setTimeout(() => {
+        controller.abort();
+        const error = new Error(`MCP ${method} request timed out`);
+        error.code = 'MCP_REQUEST_TIMEOUT';
+        reject(error);
+      }, requestTimeoutMs);
+      timeout.unref?.();
     });
-    return readRpcResponse(response, id, maxResponseBytes);
+
+    try {
+      const response = await Promise.race([
+        fetchImpl(normalizedEndpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id,
+            method,
+            params: {
+              ...params,
+              _meta: modernMeta({ clientName, clientVersion, clientCapabilities })
+            }
+          }),
+          redirect: 'error',
+          signal: controller.signal
+        }),
+        timeoutPromise
+      ]);
+      return await readRpcResponse(response, id, maxResponseBytes);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   return {
