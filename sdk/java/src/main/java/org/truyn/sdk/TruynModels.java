@@ -2,9 +2,13 @@ package org.truyn.sdk;
 
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /** Language-neutral DTO names mirrored from the shared SDK conformance contract. */
 public final class TruynModels {
+  public static final String STABLE_SDK_API_VERSION = "1";
+  private static final Pattern SHA256 = Pattern.compile("^[0-9a-fA-F]{64}$");
+
   private TruynModels() {}
 
   public record Identity(String nodeId, String publicKey) {}
@@ -49,6 +53,48 @@ public final class TruynModels {
       Map<String, Object> metadata) {}
 
   public record ArtifactRef(String value) {}
+
+  public record ObjectPayload(String kind, Object value, Map<String, Object> metadata) {
+    public ObjectPayload(Object value, Map<String, Object> metadata) {
+      this("object", value, metadata);
+    }
+  }
+
+  /** Reference-only artifact payload. Binary/base64 data is intentionally absent. */
+  public record ArtifactPayload(
+      String kind,
+      String ref,
+      String mediaType,
+      Long bytes,
+      String sha256,
+      Map<String, Object> metadata) {
+    public ArtifactPayload(String ref, String mediaType, Long bytes, String sha256, Map<String, Object> metadata) {
+      this("artifact", requireText(ref, "artifact ref"), requireText(mediaType, "artifact media type"), requireBytes(bytes), requireSha256(sha256), metadata);
+    }
+  }
+
+  public record StreamItem<T>(long sequence, T item) {
+    public StreamItem {
+      if (sequence < 0) throw new IllegalArgumentException("stream sequence must be non-negative");
+    }
+  }
+
+  private static String requireText(String value, String field) {
+    if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " is required");
+    return value;
+  }
+
+  private static Long requireBytes(Long value) {
+    if (value != null && value < 0) throw new IllegalArgumentException("artifact bytes must be non-negative");
+    return value;
+  }
+
+  private static String requireSha256(String value) {
+    if (value != null && !value.isBlank() && !SHA256.matcher(value).matches()) {
+      throw new IllegalArgumentException("artifact sha256 must be 64 hexadecimal characters");
+    }
+    return value == null ? null : value.toLowerCase();
+  }
 
   public record NormalizedError(
       TruynException.Code code,
