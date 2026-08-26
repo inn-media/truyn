@@ -21,5 +21,17 @@ from .local_node import (
     unsigned_envelope,
     verify_envelope,
 )
+from .stable_api import (
+    ArtifactPayload,
+    CancellationToken,
+    NeedRequest,
+    ResultResponse,
+    StableRequestOptions,
+    StreamEvent,
+    artifact_from_text,
+    artifact_from_uri,
+    assert_not_cancelled,
+    stream_events,
+)
 
 __all__ = [name for name in globals() if not name.startswith('_')]
