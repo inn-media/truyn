@@ -9,6 +9,8 @@ const runner = new URL('../sdk/conformance/run-conformance.mjs', import.meta.url
 const manifestUrl = new URL('../sdk/conformance/languages.json', import.meta.url);
 
 const requiredLanguages = ['typescript', 'python', 'go', 'java', 'dotnet'];
+const referenceLanguages = ['typescript', 'python'];
+const portablePayloadLanguages = ['go', 'java', 'dotnet'];
 
 async function runConformance(args = []) {
   const { stdout } = await execFileAsync(process.execPath, [runner.pathname, '--json', ...args], {
@@ -17,17 +19,22 @@ async function runConformance(args = []) {
   return JSON.parse(stdout);
 }
 
-test('DX-2 conformance matrix covers all required first-party SDK languages', async () => {
+test('DX-3 conformance matrix covers all required first-party SDK languages', async () => {
   const manifest = JSON.parse(await readFile(manifestUrl, 'utf8'));
   assert.deepEqual(manifest.requiredFirstPartyLanguages, requiredLanguages);
   assert.deepEqual(manifest.languages.map((language) => language.id), requiredLanguages);
-  assert.equal(manifest.languages.find((language) => language.id === 'go').status, 'dx2-skeleton');
-  assert.equal(manifest.languages.find((language) => language.id === 'java').status, 'dx2-skeleton');
-  assert.equal(manifest.languages.find((language) => language.id === 'dotnet').status, 'dx2-skeleton');
+  assert.equal(manifest.stableSdkApiVersion, '1');
+  assert.deepEqual(manifest.dx3PortablePayloadKinds, ['object', 'artifact']);
+  for (const language of referenceLanguages) {
+    assert.equal(manifest.languages.find((entry) => entry.id === language).status, 'implemented-dx3-reference-surface');
+  }
+  for (const language of portablePayloadLanguages) {
+    assert.equal(manifest.languages.find((entry) => entry.id === language).status, 'dx3-portable-payload-surface');
+  }
   assert.equal(manifest.languages.every((language) => language.publicDistribution === false), true);
 });
 
-test('unified DX-2 conformance runner validates every SDK target', async () => {
+test('unified SDK conformance runner validates every DX-3 SDK target', async () => {
   const result = await runConformance();
   assert.equal(result.ok, true);
   assert.equal(result.fixtureSet, 'truyn.sdk-conformance/v1');
@@ -39,11 +46,11 @@ test('unified DX-2 conformance runner validates every SDK target', async () => {
   }
 });
 
-test('unified DX-2 conformance runner supports language-scoped validation', async () => {
-  for (const language of ['go', 'java', 'dotnet']) {
+test('unified SDK conformance runner supports DX-3 language-scoped validation', async () => {
+  for (const language of portablePayloadLanguages) {
     const result = await runConformance([`--language=${language}`]);
     assert.equal(result.ok, true);
     assert.deepEqual(result.languages.map((entry) => entry.id), [language]);
-    assert.equal(result.languages[0].status, 'dx2-skeleton');
+    assert.equal(result.languages[0].status, 'dx3-portable-payload-surface');
   }
 });

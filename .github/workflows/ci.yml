@@ -44,7 +44,7 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,8 +56,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
       - run: python -m pip install --disable-pip-version-check -e ./sdk/python
       - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Compile Go SDK
+        working-directory: sdk/go
+        run: go test ./...
+      - name: Compile Java SDK
+        run: mvn -q -f sdk/java/pom.xml test
+      - name: Compile .NET SDK
+        run: dotnet build sdk/dotnet/Truyn.Sdk.csproj --configuration Release --nologo
       - run: npm test
         env:
           TRUYN_LOCAL_DEVELOPMENT: '1'

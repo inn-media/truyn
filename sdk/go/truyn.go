@@ -8,6 +8,9 @@ package truyn
 import (
 	"context"
 	"errors"
+	"fmt"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -17,6 +20,9 @@ const (
 
 	// AgentDescriptorSchema is the Agent Descriptor schema expected by DX-2.
 	AgentDescriptorSchema = "truyn.agent-descriptor/v1"
+
+	// StableSDKAPIVersion versions the cross-language DX-3 SDK compatibility surface.
+	StableSDKAPIVersion = "1"
 )
 
 // ClientConfig configures a TRUYN client without embedding provider credentials.
@@ -145,8 +151,8 @@ type SignedEnvelope[T any] struct {
 }
 
 type OfferPayload struct {
-	Capability Capability         `json:"capability"`
-	Metadata   map[string]string  `json:"metadata,omitempty"`
+	Capability Capability        `json:"capability"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
 }
 
 type NeedPayload struct {
@@ -167,6 +173,58 @@ type Need = SignedEnvelope[NeedPayload]
 type Result = SignedEnvelope[ResultPayload]
 
 type ArtifactRef string
+
+// ObjectPayload carries small structured data directly inside a TRUYN message.
+type ObjectPayload struct {
+	Kind     string         `json:"kind"`
+	Value    any            `json:"value"`
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+
+// ArtifactPayload carries only an integrity-bound reference to binary/media data.
+type ArtifactPayload struct {
+	Kind      string         `json:"kind"`
+	Ref       string         `json:"ref"`
+	MediaType string         `json:"mediaType"`
+	Bytes     *int64         `json:"bytes,omitempty"`
+	SHA256    string         `json:"sha256,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+}
+
+func NewObjectPayload(value any, metadata map[string]any) ObjectPayload {
+	return ObjectPayload{Kind: "object", Value: value, Metadata: metadata}
+}
+
+var sha256Pattern = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
+
+func NewArtifactPayload(ref, mediaType string, bytes *int64, sha256 string, metadata map[string]any) (ArtifactPayload, error) {
+	if strings.TrimSpace(ref) == "" {
+		return ArtifactPayload{}, NewError(InvalidArgument, "artifact ref is required", false)
+	}
+	if strings.TrimSpace(mediaType) == "" {
+		return ArtifactPayload{}, NewError(InvalidArgument, "artifact media type is required", false)
+	}
+	if bytes != nil && *bytes < 0 {
+		return ArtifactPayload{}, NewError(InvalidArgument, "artifact bytes must be non-negative", false)
+	}
+	if sha256 != "" && !sha256Pattern.MatchString(sha256) {
+		return ArtifactPayload{}, NewError(InvalidArgument, "artifact sha256 must be 64 hexadecimal characters", false)
+	}
+	return ArtifactPayload{Kind: "artifact", Ref: ref, MediaType: mediaType, Bytes: bytes, SHA256: strings.ToLower(sha256), Metadata: metadata}, nil
+}
+
+// StreamItem provides language-neutral sequence numbering for SDK event streams.
+type StreamItem[T any] struct {
+	Sequence int64 `json:"sequence"`
+	Item     T     `json:"item"`
+}
+
+func NewStreamItem[T any](sequence int64, item T) (StreamItem[T], error) {
+	if sequence < 0 {
+		return StreamItem[T]{}, NewError(InvalidArgument, fmt.Sprintf("stream sequence must be non-negative: %d", sequence), false)
+	}
+	return StreamItem[T]{Sequence: sequence, Item: item}, nil
+}
 
 type ErrorCode string
 
