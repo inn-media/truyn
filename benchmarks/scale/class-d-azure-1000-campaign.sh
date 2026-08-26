@@ -90,6 +90,9 @@ echo "TRUYN_CLASS_D_1000 stage=readiness-barrier ready=${readiness_ready}/${read
 
 STAGE=convergence
 conv_success=0; conv_total=0; conv_p95=0; conv_p99=0
+conv_dir=$(mktemp -d)
+conv_start_ms=$(date +%s%3N)
+conv_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -119,18 +122,26 @@ print('CONV_OK='+str(success)); print('CONV_TOTAL='+str(N)); print('CONV_P95='+s
 PY
 EOS
 )
-  out=$(remote "${VMS[$i]}" "$script")
+  (remote "${VMS[$i]}" "$script" >"$conv_dir/$i") &
+  conv_pids+=("$!")
+done
+for pid in "${conv_pids[@]}"; do wait "$pid"; done
+conv_ms=$(( $(date +%s%3N) - conv_start_ms ))
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$conv_dir/$i")"
   ok=$(marker "$out" CONV_OK); total=$(marker "$out" CONV_TOTAL); p95=$(marker "$out" CONV_P95); p99=$(marker "$out" CONV_P99)
   conv_success=$((conv_success+ok)); conv_total=$((conv_total+total))
   conv_p95=$(python3 -c "print(max(float('$conv_p95'),float('$p95')))" )
   conv_p99=$(python3 -c "print(max(float('$conv_p99'),float('$p99')))" )
-  echo "TRUYN_CLASS_D_1000 stage=convergence host=$i success=${ok}/${total} p95Ms=${p95} p99Ms=${p99}"
+  echo "TRUYN_CLASS_D_1000 stage=convergence host=$i mode=parallel-hosts success=${ok}/${total} p95Ms=${p95} p99Ms=${p99}"
 done
+rm -rf "$conv_dir"
 conv_rate=$(python3 -c "print(round($conv_success/$conv_total,6))")
 python3 - <<PY
 assert float('$conv_rate') >= .99, '$conv_rate'
 assert float('$conv_p95') <= 120000, '$conv_p95'
 PY
+echo "TRUYN_CLASS_D_1000 stage=convergence mode=parallel-hosts hosts=${HOST_COUNT} success=${conv_success}/${conv_total} routingSuccess=${conv_rate} p95Ms=${conv_p95} p99Ms=${conv_p99} aggregateMs=${conv_ms} status=PASS"
 
 STAGE=baseline-routing
 base_success=0; base_total=0; base_p50=0; base_p90=0; base_p95=0; base_p99=0
@@ -387,7 +398,7 @@ cat >"$EVIDENCE" <<JSON
   "topology":{"nodeCount":${NODE_COUNT},"realProcessCount":${NODE_COUNT},"hostCount":${HOST_COUNT},"realProcessesPerHost":${NODES_PER_HOST},"uniqueIdentityCount":${NODE_COUNT},"uniqueEndpointCount":${NODE_COUNT},"syntheticNodeCount":0,"transport":"real UDP/QUIC over Azure VNet","bootstrap":"sparse Kademlia local+bridge"},
   "readiness":{"readyNodeCount":${readiness_ready},"readyNodeRatio":1,"barrierMs":${readiness_ms},"validPeers":{"min":${readiness_min_valid},"max":${readiness_max_valid}},"populatedBuckets":{"min":${readiness_min_buckets},"max":${readiness_max_buckets}},"remoteEndpointHosts":{"min":${readiness_min_hosts},"max":${readiness_max_hosts}}},
   "routing":{"baselineSuccessRatio":${base_rate},"baselineProbes":${base_total},"postRestartSuccessRatio":${post_rate},"healedSuccessRatio":${healed_rate},"healedProbes":${healed_total},"latencyMs":{"aggregation":"max-of-host-quantiles","p50":${base_p50},"p90":${base_p90},"p95":${base_p95},"p99":${base_p99}},"healedLatencyMs":{"aggregation":"max-of-host-quantiles","p50":${healed_p50},"p90":${healed_p90},"p95":${healed_p95},"p99":${healed_p99}}},
-  "convergence":{"latencyMs":{"p95":${conv_p95},"p99":${conv_p99}},"routingSuccessRatio":${conv_rate},"nodeProbeCount":${conv_total}},
+  "convergence":{"probeMode":"parallel-host-fanout","hostCount":${HOST_COUNT},"aggregation":"max-of-host-quantiles","aggregateMs":${conv_ms},"latencyMs":{"p95":${conv_p95},"p99":${conv_p99}},"routingSuccessRatio":${conv_rate},"nodeProbeCount":${conv_total}},
   "recovery":{"latencyMs":{"p95":${recovery_p95}},"restartedNodeCount":100,"identityAndStatePathsPreserved":true,"packetPartitionRecoveryMs":${partition_recovery_ms}},
   "adversarial":{"packetPartition":{"exercised":true,"realPacketPath":true,"blockedSuccesses":${partition_successes},"probeCount":${partition_probes},"recoveryMs":${partition_recovery_ms}}},
   "safety":{"acknowledgedWriteCount":${writes},"acknowledgedWriteLossCount":${ack_loss},"invalidSignedStateAcceptedCount":${invalid_signed_state_accepted},"staleRevokedReceiptAcceptedCount":${stale_receipt_accepted},"unauthorizedProviderExecutionCount":${unauthorized_provider_execution},"probes":{"invalidSignedState":{"remoteQuicControl":true,"targetRejected":true,"validRecordAcks":${dht_safety_acks},"rejectionReason":"${invalid_rejection_reason}"},"staleReceipt":{"exactCommitLocalVerifier":true,"reason":"trust_receipt_v2_lifecycle_head_stale"},"providerAuthorization":{"exactCommitAdapterHost":true,"accessDenied":true,"adapterExecutions":${unauthorized_provider_execution}}}},
