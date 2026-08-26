@@ -50,6 +50,39 @@ public final class TruynModels {
 
   public record ArtifactRef(String value) {}
 
+  public record ArtifactPayload(
+      String kind,
+      String contentType,
+      String name,
+      String uri,
+      String data,
+      Long sizeBytes,
+      String digest,
+      Map<String, Object> metadata) {}
+
+  public record NeedRequest(
+      String capability,
+      Object input,
+      List<ArtifactPayload> artifacts,
+      Map<String, Object> metadata) {}
+
+  public record ResultResponse(
+      String requestId,
+      Object output,
+      List<ArtifactPayload> artifacts,
+      String completedAt,
+      Map<String, Object> metadata) {}
+
+  public record StreamEvent(
+      String type,
+      String requestId,
+      Long sequence,
+      Object delta,
+      ArtifactPayload artifact,
+      ResultResponse result,
+      Object error,
+      Map<String, Object> metadata) {}
+
   public record NormalizedError(
       TruynException.Code code,
       String message,
