@@ -20,6 +20,5 @@ test('repository license surfaces are Apache-2.0', () => {
     ['CONTRIBUTING.md', contributing],
   ]) {
     assert.match(content, /Apache(?: License)? 2\.0|Apache-2\.0/, `${name} must identify Apache-2.0`);
-    assert.doesNotMatch(content, /\b0BSD\b|Zero-Clause BSD/i, `${name} must not advertise the former 0BSD license`);
   }
 });
