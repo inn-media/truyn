@@ -24,7 +24,7 @@ The five required first-party targets before stable v1 remain JavaScript/TypeScr
 
 Until the explicit SDK release gate is met:
 
-- TypeScript stays `private: true` and must not be published to the public npm registry;
+- TypeScript remains marked as a private package in source control and must not be published to the public npm registry;
 - Python may be installed from the repository or an internal artifact, but must not be uploaded to public PyPI;
 - Go/Java/.NET package coordinates are not public compatibility promises;
 - package names, module paths and versions are reserved implementation details until the release gate;
