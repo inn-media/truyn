@@ -49,6 +49,132 @@ p, remote_count = re.subn(remote_pattern, remote_replacement, p, count=1, flags=
 if remote_count != 1:
     raise SystemExit(f'expected exactly one D-1000 remote wrapper, replaced={remote_count}')
 
+marker_anchor = '''marker() {
+  local text="$1" key="$2"
+  printf '%s\\n' "$text" | sed -n "s/.*${key}=//p" | tail -1 | tr -d '\\r'
+}
+'''
+failure_helpers = r'''
+finalize_failure_evidence() {
+  local rc="${1:-1}" failed_stage="${2:-unknown}" failed_line="${3:-0}" now_ms
+  set +e
+  if [[ -f "$EVIDENCE" ]]; then
+    return 0
+  fi
+  now_ms=$(date +%s%3N 2>/dev/null || date +%s000)
+  TRUYN_FAIL_RC="$rc" \
+  TRUYN_FAIL_STAGE="$failed_stage" \
+  TRUYN_FAIL_LINE="$failed_line" \
+  TRUYN_FAIL_END_MS="$now_ms" \
+  TRUYN_START_MS="${START_MS:-}" \
+  TRUYN_TESTED_COMMIT="${GITHUB_SHA:-}" \
+  TRUYN_WORKFLOW_RUN_ID="${GITHUB_RUN_ID:-}" \
+  TRUYN_NODE_COUNT="${NODE_COUNT:-}" \
+  TRUYN_HOST_COUNT="${HOST_COUNT:-}" \
+  TRUYN_NODES_PER_HOST="${NODES_PER_HOST:-}" \
+  TRUYN_CONV_RATE="${conv_rate:-}" \
+  TRUYN_CONV_TOTAL="${conv_total:-}" \
+  TRUYN_CONV_P95="${conv_p95:-}" \
+  TRUYN_CONV_P99="${conv_p99:-}" \
+  TRUYN_CONV_MS="${conv_ms:-}" \
+  python3 - "$EVIDENCE" <<'PYFAIL'
+import json
+import math
+import os
+import sys
+
+path = sys.argv[1]
+
+def number(name):
+    value = os.environ.get(name, '').strip()
+    if not value:
+        return None
+    try:
+        parsed = float(value)
+    except ValueError:
+        return None
+    if not math.isfinite(parsed):
+        return None
+    return int(parsed) if parsed.is_integer() else parsed
+
+def integer(name, fallback=None):
+    parsed = number(name)
+    return fallback if parsed is None else int(parsed)
+
+start_ms = number('TRUYN_START_MS')
+end_ms = number('TRUYN_FAIL_END_MS')
+campaign_ms = None
+if start_ms is not None and end_ms is not None:
+    campaign_ms = max(0, int(end_ms - start_ms))
+
+host_count = integer('TRUYN_HOST_COUNT')
+node_count = integer('TRUYN_NODE_COUNT')
+nodes_per_host = integer('TRUYN_NODES_PER_HOST')
+
+evidence = {
+    "class": "D-1000",
+    "status": "FAIL",
+    "scope": "1000-real-process-scale+safety-contract-v2",
+    "testedCommit": os.environ.get('TRUYN_TESTED_COMMIT', ''),
+    "workflowRunId": os.environ.get('TRUYN_WORKFLOW_RUN_ID', ''),
+    "failure": {
+        "stage": os.environ.get('TRUYN_FAIL_STAGE', 'unknown'),
+        "exitCode": integer('TRUYN_FAIL_RC', 1),
+        "line": integer('TRUYN_FAIL_LINE', 0),
+        "evidenceFinalizedOnFail": True
+    },
+    "topology": {
+        "nodeCount": node_count,
+        "realProcessCount": node_count,
+        "hostCount": host_count,
+        "realProcessesPerHost": nodes_per_host,
+        "syntheticNodeCount": 0
+    },
+    "convergence": {
+        "probeMode": "parallel-host-fanout",
+        "hostCount": host_count,
+        "aggregation": "max-of-host-quantiles",
+        "aggregateMs": number('TRUYN_CONV_MS'),
+        "latencyMs": {
+            "p95": number('TRUYN_CONV_P95'),
+            "p99": number('TRUYN_CONV_P99')
+        },
+        "routingSuccessRatio": number('TRUYN_CONV_RATE'),
+        "nodeProbeCount": number('TRUYN_CONV_TOTAL')
+    },
+    "timing": {"campaignMs": campaign_ms},
+    "cleanup": {
+        "confirmed": False,
+        "remainingResources": None,
+        "finalizedByExitTrap": True
+    }
+}
+
+tmp = f'{path}.tmp'
+with open(tmp, 'w', encoding='utf-8') as handle:
+    json.dump(evidence, handle, separators=(',', ':'))
+    handle.write('\n')
+os.replace(tmp, path)
+PYFAIL
+  echo "TRUYN_CLASS_D_1000_FAIL_EVIDENCE finalized=true stage=${failed_stage} exit=${rc} path=${EVIDENCE}"
+}
+'''
+if p.count(marker_anchor) != 1:
+    raise SystemExit(f'expected exactly one D-1000 marker helper, found={p.count(marker_anchor)}')
+p = p.replace(marker_anchor, marker_anchor + failure_helpers, 1)
+
+cleanup_old = '''jq --argjson confirmed "$CLEANUP_CONFIRMED" --argjson remaining "$left" '.cleanup.confirmed=$confirmed | .cleanup.remainingResources=$remaining' "$EVIDENCE" >"$tmp" && mv "$tmp" "$EVIDENCE"'''
+cleanup_new = '''jq --argjson confirmed "$CLEANUP_CONFIRMED" --argjson remaining "$left" --argjson after_exit_trap true '.cleanup.confirmed=$confirmed | .cleanup.remainingResources=$remaining | .cleanup.finalizedAfterExitTrap=$after_exit_trap' "$EVIDENCE" >"$tmp" && mv "$tmp" "$EVIDENCE"'''
+if p.count(cleanup_old) != 1:
+    raise SystemExit(f'expected exactly one D-1000 cleanup evidence patch, found={p.count(cleanup_old)}')
+p = p.replace(cleanup_old, cleanup_new, 1)
+
+trap_old = '''trap 'rc=$?; echo "::error title=TRUYN Class D-1000 failure::stage=$STAGE exit=$rc line=$LINENO"; exit $rc' ERR'''
+trap_new = '''trap 'rc=$?; failed_stage="$STAGE"; failed_line="$LINENO"; echo "::error title=TRUYN Class D-1000 failure::stage=$failed_stage exit=$rc line=$failed_line"; finalize_failure_evidence "$rc" "$failed_stage" "$failed_line"; exit "$rc"' ERR'''
+if p.count(trap_old) != 1:
+    raise SystemExit(f'expected exactly one D-1000 ERR trap, found={p.count(trap_old)}')
+p = p.replace(trap_old, trap_new, 1)
+
 bootstrap_pattern = re.compile(
     r'export DEBIAN_FRONTEND=noninteractive\n'
     r'apt-get update -qq\n'
@@ -180,6 +306,13 @@ fi
 grep -Fq -- "--query 'value[].message'" scripts/lib/class-d-run-command.sh
 grep -Fq 'TRUYN_GUEST_EXECUTION_ADMITTED=1' scripts/lib/class-d-run-command.sh
 grep -Fq 'missing_ready expected=$NODES_PER_HOST' "$TMP/provision.sh"
+grep -Fq 'finalize_failure_evidence()' "$TMP/provision.sh"
+grep -Fq 'finalize_failure_evidence "$rc" "$failed_stage" "$failed_line"' "$TMP/provision.sh"
+grep -Fq 'TRUYN_CLASS_D_1000_FAIL_EVIDENCE finalized=true' "$TMP/provision.sh"
+grep -Fq 'TRUYN_CONV_RATE="${conv_rate:-}"' "$TMP/provision.sh"
+grep -Fq '"status": "FAIL"' "$TMP/provision.sh"
+grep -Fq '"evidenceFinalizedOnFail": True' "$TMP/provision.sh"
+grep -Fq '.cleanup.finalizedAfterExitTrap=$after_exit_trap' "$TMP/provision.sh"
 
 echo "TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical runCommandBoundary=accepted-d100 runtimeBundle=sha256-pinned"
 
