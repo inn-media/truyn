@@ -2,11 +2,15 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+const normalizePreparedTemplate = (source) => source.replaceAll('\\"', '"');
+
 // Structural guard for the prepared D-1000 runner: convergence must remain a
 // hard gate, but the ERR trap must still materialize evidence before the EXIT
 // cleanup trap mutates cleanup fields.
 test('D-1000 final acceptance prepares FAIL evidence before cleanup trap mutation', async () => {
-  const launcher = await readFile('scripts/class-d-1000-final-acceptance.sh', 'utf8');
+  const launcher = normalizePreparedTemplate(
+    await readFile('scripts/class-d-1000-final-acceptance.sh', 'utf8')
+  );
 
   assert.match(launcher, /finalize_failure_evidence\(\) \{/);
   assert.match(launcher, /"status": "FAIL"/);
@@ -28,7 +32,9 @@ test('D-1000 final acceptance prepares FAIL evidence before cleanup trap mutatio
 
 test('D-1000 convergence fail remains a hard FAIL, but evidence can still be written', async () => {
   const campaign = await readFile('benchmarks/scale/class-d-azure-1000-campaign.sh', 'utf8');
-  const launcher = await readFile('scripts/class-d-1000-final-acceptance.sh', 'utf8');
+  const launcher = normalizePreparedTemplate(
+    await readFile('scripts/class-d-1000-final-acceptance.sh', 'utf8')
+  );
 
   const convergenceIndex = campaign.indexOf('STAGE=convergence');
   const successEvidenceIndex = campaign.indexOf('STAGE=evidence');
