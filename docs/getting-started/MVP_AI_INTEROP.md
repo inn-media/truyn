@@ -1,36 +1,35 @@
 # TRUYN MVP — AI Interoperability
 
-**Implementation status:** working MVP interoperability code with implemented provider-ownership/authorization/BYOK baseline; MCP has bounded executable reference paths; A2A and the general bidirectional A2A↔TRUYN↔MCP bridge remain planned implementation work. Rich production account/organization tenancy, commercial entitlement administration, stable SDKs and stable mainnet remain broader work.
+**Snapshot:** 2026-08-27  
+**Synchronized source:** `main@63e54cbe30d363ef4609732b512fe64ab860cf9d`
 
-This document describes executable interoperability paths in the repository and the exact boundary around what is not yet implemented. It does not claim that provider adapters, cloud PoC paths or external-protocol compatibility are already stable v1 interfaces.
+TRUYN now has working bounded interoperability across native TRUYN, MCP and A2A edges. The old statement that A2A and the bidirectional A2A↔TRUYN↔MCP bridge are only planned is obsolete.
 
-## What this MVP proves
+This is still reference/MVP interoperability: it is not a stable-v1 external-protocol certification, a public mainnet claim or permission to consume another participant's provider account.
 
-The implemented conceptual path is:
+## Core execution model
 
 ```text
-agent / MCP client / HTTP client
+agent / SDK / A2A / MCP / HTTP
             ↓
         TRUYN Node
+            ↓
+authenticated identity + authorization-aware discovery
             ↓
  signed OFFER / NEED / RESULT
             ↓
- relay or direct network path
+      TRUYN network
             ↓
-        TRUYN Node
+provider adapter / remote A2A / remote MCP
             ↓
-      provider adapter
-            ↓
-      AI/provider/tool
+       result + provenance
 ```
 
-A requester does not need the provider's native API contract. TRUYN can match an authorized capability and route signed request/result envelopes while preserving provider authorization/billing policy.
+Capability compatibility and authorization are separate. A compatible provider can remain invisible and unusable to an unauthorized requester.
 
-Capability interoperability and provider authorization remain separate questions. A technically compatible provider can still be hidden/denied to a requester. Interoperability adapters do not weaken that boundary.
+## Provider-security baseline
 
-## Current provider-security baseline
-
-The reference implementation now includes a fail-closed provider boundary:
+The reference path is fail closed:
 
 ```text
 authenticate requester
@@ -43,284 +42,149 @@ billing responsibility / entitlement gate
       ↓
 dispatch
       ↓
-provider-host access/billing recheck
+provider-host recheck
       ↓
-upstream provider execution
+upstream execution
 ```
 
-Implemented reference behavior includes:
-
-- low-level/provider-runtime default `owner-only` posture;
-- private-provider discovery filtering;
-- signed/requester-bound provider access policy;
-- BYOK provider setup/runtime support for supported profiles;
-- provider-host authorization before adapter execution;
-- fail-closed billing modes;
-- security tests proving foreign requesters do not trigger private provider execution.
-
-This is not the same as a finished production commercial identity/tenant/account control plane. See `../architecture/IMPLEMENTATION_STATUS.md` for the exact maturity boundary.
+Remote A2A/MCP authentication is a transport/interface concern. It never replaces signed TRUYN requester/provider authority or assigns billing responsibility.
 
 ## BYOK rule
 
-Normal user operation is BYOK — Bring Your Own Intelligence / Bring Your Own Provider.
+Normal private provider operation is BYOK — Bring Your Own Intelligence / Provider. Provider API keys, bearer tokens and privileged remote A2A/MCP credentials remain inside the adapter/runtime secret boundary. They are not TRUYN `OFFER`, `NEED`, `RESULT`, Agent Descriptor, public Agent Card or public MCP-discovery payloads.
 
-Provider credentials used by an adapter belong to the user/provider runtime and remain local or in an appropriate secure runtime secret store. They are not TRUYN protocol payloads and must not be distributed through relay discovery, Agent Descriptors, A2A Agent Cards, MCP metadata, `OFFER`, `NEED` or `RESULT` messages.
+## MCP — implemented bounded profile
 
-The same rule applies to remote A2A/MCP credentials: bearer tokens, API keys and privileged remote-protocol credentials remain inside the adapter/runtime secret boundary.
+TRUYN exposes MCP tools including identity, discovery, offers, needs, polling and results. Current bounded implementation includes:
 
-The current CLI provides a first setup/verification flow for supported provider profiles. See `BYOK.md`.
+- TRUYN-as-MCP stdio/loopback HTTP server;
+- configured remote MCP HTTP tool provider;
+- current MCP `2026-07-28` discovery/tool path;
+- general explicitly selected remote MCP tool discovery/import;
+- authorization-aware imported OFFER publication;
+- bounded response/version/routing/correlation validation.
 
-## Verify without paid AI APIs
+General arbitrary MCP resources/prompts/subscriptions/apps are not implicitly supported merely because tools are implemented.
 
-Requirements: Node.js 20 or newer.
+## A2A — implemented bounded profile
+
+### Server facade — C3
+
+TRUYN can expose authorized capabilities as an A2A `1.0` Agent Card/task interface:
+
+```text
+Agent Card skill
+→ authorized TRUYN capability
+A2A Message
+→ TRUYN NEED
+TRUYN RESULT
+→ A2A Task / Artifact
+```
+
+Public projection fails closed for private providers.
+
+### Client/provider adapter — C4
+
+TRUYN can also import explicitly selected remote A2A skills:
+
+```text
+remote Agent Card
+→ validate/select skill
+→ local signed TRUYN OFFER
+TRUYN NEED
+→ A2A SendMessage / Task
+remote Artifact/Message
+→ TRUYN RESULT
+```
+
+PR `#340` closed this reverse edge.
+
+### Polling async lifecycle — C5
+
+Polling mode submits exactly one initial `SendMessage`, then uses bounded `GetTask` polling. Task/context substitution and invalid/interrupted states fail closed. Streaming/push and full remote cancellation equivalence are separate features.
+
+### Artifact integrity — C6
+
+Accepted A2A artifact handling includes SHA-256, byte-size validation, canonical JSON/base64, bounded size, explicit URL resolution/no implicit SSRF and authoritative TRUYN provenance. Invalid artifacts never become successful results.
+
+## Bidirectional A2A ↔ TRUYN ↔ MCP proof — C7
+
+Both required in-repository round trips are now implemented and CI-proven in `tests/interoperability-bidirectional.test.js`.
+
+### A2A → TRUYN → MCP
+
+```text
+A2A client
+→ TRUYN A2A facade
+→ NEED
+→ imported MCP provider
+→ remote tools/call
+→ RESULT
+→ A2A completed Task/Artifact
+```
+
+The test requires exactly one remote MCP tool execution.
+
+### MCP → TRUYN → A2A
+
+```text
+MCP client
+→ TRUYN MCP facade / truyn_need
+→ NEED
+→ imported A2A provider
+→ remote SendMessage/Task/Artifact
+→ RESULT
+→ MCP truyn_poll result
+```
+
+The test requires exactly one remote A2A execution.
+
+C7 was merged in PR `#357` (`f04fcd1d4d72af85a6b97686c7c875388ef6038a`).
+
+## C8 security matrix — still open
+
+The bridge implementation exists, but the complete bounded adversarial acceptance matrix is not yet accepted. Active PR `#369` owns C8.
+
+C8 must prove, in both directions, authorization/visibility, anti-spoofing, correlation attacks, protocol/transport negatives, C6 artifact tampering/SSRF/provenance cases, zero unauthorized remote execution and exactly-once valid execution. It must pass full suite, DCO, diff check, CodeQL and post-merge exact-main verification.
+
+Do not describe C8 as accepted until those gates pass.
+
+## SDK / DX
+
+The old “SDK scaffolding only” description is also obsolete. Current main contains first-party TypeScript/JavaScript and Python reference SDK work and merged DX-3 (PR `#373`). The current DX-3 bounded surface includes:
+
+- stable API-v1 primitives for TypeScript/Python;
+- authenticated relay event streaming with abortable waits;
+- reference-only object/artifact payloads;
+- conformance markers;
+- developer-site source.
+
+Remote provider-side NEED cancellation and token-delta streaming remain explicit follow-up work. Go, Java and .NET parity/publication are not yet complete.
+
+## Adoption-level proof still open
+
+After C8, the next interoperability proof should exercise the existing bridge against independent A2A and MCP SDK/reference implementations, plus an integrity-verified referenced artifact/file case. That is an adoption/certification step; it is not evidence that the C7 in-repository bridge is missing.
+
+## Verify locally
+
+Requirements follow the repository `package.json` (Node.js 22+ on current main).
 
 ```bash
+npm install --ignore-scripts --no-audit --no-fund
 npm test
-npm run demo:ai
 ```
 
-Where benchmark scripts are present, their methodology/result documents define whether token counts are provider-reported measurements, estimates or serialized-byte proxies. Do not interpret estimated tokens as provider billing counters.
+Use deterministic/local fixtures for reproducible no-credential interoperability tests. Live provider tests require credentials controlled by the operator.
 
-Deterministic/local adapters should remain the default path for reproducible no-credential tests.
+## Current boundary
 
-## MCP adapter — implemented bounded reference
+Implemented/reference-proven areas include identity, signed requests/results, provider authorization/BYOK, MCP C1/C2, A2A C3–C6, both C7 cross-protocol round trips, TypeScript/Python SDK slices and the merged DX-3 developer surface.
 
-TRUYN exposes tools for identity, discovery, offers, needs, polling and results through its MCP compatibility surface.
-
-Typical local start:
-
-```bash
-truyn init
-truyn mcp --relay http://127.0.0.1:8787
-```
-
-Current server tools:
-
-```text
-truyn_identity
-truyn_find
-truyn_offer
-truyn_need
-truyn_poll
-truyn_result
-```
-
-The repository also contains a configured remote MCP HTTP tool provider path. This means MCP is not merely a roadmap aspiration.
-
-However, the current state is still **bounded reference interoperability**, not complete ecosystem certification:
-
-- general remote MCP tool/resource discovery/import remains open;
-- current MCP conformance/version/security closure remains an explicit roadmap gate;
-- arbitrary MCP resources are not assumed to be TRUYN `OBJECT`s without explicit mutability/integrity policy.
-
-HTTP MCP/local bridge surfaces bind locally by default unless a production authentication/authorization layer is deliberately configured.
-
-**MCP authorization rule:** MCP is a connection surface, not a provider-policy bypass. Provider execution reached through MCP passes the same central provider authorization as HTTP/WebSocket/SDK paths.
-
-## A2A adapter — defined, not implemented yet
-
-A2A is now an explicit v0.5 implementation gate rather than a vague future adapter.
-
-The target has two directions:
-
-```text
-TRUYN → A2A facade
-  authorized TRUYN capabilities
-  → Agent Card skills
-  A2A Message / Task
-  → TRUYN NEED
-  TRUYN RESULT
-  → A2A Artifact / terminal task state
-```
-
-and:
-
-```text
-remote A2A agent
-  Agent Card + selected skills
-  → A2A client/provider adapter
-  → TRUYN OFFER(s)
-  authorized TRUYN NEED
-  → A2A Task
-  A2A Artifact
-  → TRUYN RESULT
-```
-
-The adapter must preserve private-provider discovery rules: a public Agent Card must never become an unauthenticated dump of owner-only/BYOK providers.
-
-See `../architecture/A2A_MCP_INTEROPERABILITY.md`.
-
-## Required A2A ↔ TRUYN ↔ MCP proof
-
-Separate adapters are not enough. The implementation gate requires real cross-protocol round trips:
-
-```text
-A2A client → TRUYN → MCP tool → TRUYN → A2A Artifact
-```
-
-and:
-
-```text
-MCP client → TRUYN → A2A agent → TRUYN → MCP result
-```
-
-The proof must preserve identity/correlation, authorization, structured/text output, referenced artifacts, errors and at least one asynchronous A2A task lifecycle.
-
-The compatibility matrix is `../compatibility/A2A_MCP_COMPATIBILITY.md`.
-
-## Universal HTTP adapter
-
-The local HTTP bridge exposes identity/discovery/request/result operations for software that does not speak MCP or A2A.
-
-It is a compatibility bridge, not a separate security domain. Execution-capable routes converge on the same provider ownership/authorization decision as every other transport.
-
-## First-party SDK path — planned implementation program
-
-The repository now defines a first-party SDK/developer-experience track for:
-
-- JavaScript / TypeScript;
-- Python;
-- Go;
-- Java;
-- C# / .NET.
-
-The SDK directories are currently **scaffolding/documentation**, not published client packages.
-
-The intended SDK onboarding flow is:
-
-```text
-install SDK
-    ↓
-connect to local/remote TRUYN node
-    ↓
-fetch/verify TRUYN Agent Descriptor
-    ↓
-discover authorized capability
-    ↓
-send NEED
-    ↓
-receive RESULT + identity/provenance/trust metadata
-```
-
-Until the packages exist, use the current CLI, MCP, HTTP bridge and direct repository integration surfaces.
+Still open includes C8 complete adversarial acceptance, independent external A2A/MCP certification, broader optional protocol features, full SDK language parity/publication, richer production tenant/accounting operations, accepted D-1000 and stable mainnet/protocol compatibility.
 
 See:
 
-- `SDK_QUICKSTART.md`;
-- `../architecture/SDK_DEVELOPER_EXPERIENCE.md`;
-- `../../sdk/README.md`;
-- `../../spec/protocol/v1/agent-descriptor.md`.
-
-## TRUYN Agent Descriptor — defined, runtime implementation open
-
-The draft **TRUYN Agent Descriptor** is the low-friction self-description/onboarding contract for a TRUYN-facing participant.
-
-For intentionally public HTTP-facing participants, the target well-known path is:
-
-```text
-https://<domain>/.well-known/truyn-agent.json
-```
-
-It can describe:
-
-- TRUYN identity;
-- supported TRUYN protocol versions;
-- supported interaction interfaces;
-- intentionally visible capability classes;
-- interaction features such as streaming/artifacts/trust receipts;
-- signature/issue/expiry metadata.
-
-It does **not** replace dynamic `OFFER` state and never grants provider authorization.
-
-A public descriptor must not reveal private capabilities/providers, credentials, private topology or privileged allowlists. Authenticated/scoped descriptor views may exist later, but must preserve the same provider-visibility rules as ordinary discovery.
-
-The TRUYN Agent Descriptor is not the A2A Agent Card. They belong to different interfaces and may only be projected across adapters with explicit identity/visibility semantics.
-
-Runtime serving/discovery/signature validation for the Descriptor is future DX implementation work; defining the spec does not claim it exists in the executable node today.
-
-## Live provider adapters
-
-The repository contains executable provider-adapter work for multiple provider/cloud paths. Live calls require credentials/identity and provider access controlled by the person or runtime making the call.
-
-A live adapter demonstration proves technical interoperability with that provider API. It does **not** publish the upstream account as a public TRUYN capability.
-
-When running a provider locally, use a separate TRUYN identity/home for independently attributable provider nodes and only credentials you control.
-
-## Public relay and external-protocol warning
-
-A public relay can coexist with private providers because provider discovery/dispatch and provider-host execution are authorization-gated.
-
-The canonical provider path remains:
-
-```text
-authenticate requester
-      ↓
-resolve authoritative requester identity/tenant where available
-      ↓
-authorize provider owner/visibility
-      ↓
-resolve billing / entitlement / quota
-      ↓
-dispatch
-      ↓
-provider-host recheck
-      ↓
-execute
-```
-
-A2A/MCP transport authentication occurs **before/around** adapter translation and does not replace this path.
-
-A public TRUYN, A2A or MCP endpoint never means "use the operator's AI account".
-
-Knowing a private provider ID, using a custom client, calling MCP/HTTP/WebSocket/SDK paths or seeing public participant metadata does not create an entitlement.
-
-## Security acceptance target for A2A/MCP
-
-The cross-protocol bridge is not complete until tests prove:
-
-- foreign requester → owner-private provider = denied before upstream call;
-- known private provider ID = still denied;
-- forged owner/tenant/billing fields = ignored/denied;
-- Agent Card/public MCP discovery cannot enumerate unauthorized private providers;
-- legacy HTTP/WebSocket/MCP/future A2A paths = same authorization decision;
-- user → own valid BYOK provider = allowed;
-- explicitly shared provider = allowed only within explicit policy/quota;
-- unsupported/mismatched A2A/MCP versions fail explicitly;
-- protocol translation errors do not become apparent success;
-- credentials never travel through TRUYN discovery/descriptor/network payloads.
-
-See `../architecture/THREAT_MODEL.md`, `../architecture/AUTHORIZATION_MODEL.md`, `../architecture/SDK_DEVELOPER_EXPERIENCE.md` and `../architecture/A2A_MCP_INTEROPERABILITY.md`.
-
-## Current completion boundary
-
-Implemented/reference-proven areas include signed identities, capability discovery/routing, real QUIC/Kademlia underlay slices, adapters, MCP/HTTP interoperability, provider execution, BYOK setup, provider authorization/billing safety baselines, semantic/trust layers and benchmark work.
-
-A2A/MCP-specific implemented bounded areas:
-
-- MCP TRUYN-server reference path;
-- configured remote MCP HTTP tool provider reference path.
-
-Still open for A2A/MCP interoperability:
-
-- generalized/current MCP interoperability and conformance closure;
-- A2A Agent Card/server task bridge;
-- A2A client/provider adapter;
-- bidirectional A2A↔TRUYN↔MCP proof;
-- cross-protocol negative security evidence;
-- stable external-adapter compatibility guarantees.
-
-Still open for developer experience:
-
-- executable TypeScript/JavaScript SDK;
-- executable Python SDK;
-- executable Go SDK;
-- executable Java SDK;
-- executable C#/.NET SDK;
-- Agent Descriptor serving/discovery and signature/expiry validation;
-- shared cross-language conformance fixtures;
-- SDK package publication and release provenance;
-- stable SDK/API/descriptor compatibility.
-
-Still open more broadly for production/mainnet includes heterogeneous WAN/NAT/relay-failure evidence, 100/1,000 simultaneously running real nodes, larger adversarial scale, production account/tenant/accounting operations, installers/updater/rollback and stable protocol compatibility.
-
-The roadmap tracks A2A/MCP work under the explicit **v0.5 A2A / MCP Interoperability Bridge Gate**.
+- `../architecture/IMPLEMENTATION_STATUS.md` — canonical factual status;
+- `../architecture/A2A_MCP_INTEROPERABILITY.md` — architecture/invariants;
+- `../compatibility/A2A_MCP_COMPATIBILITY.md` — exact compatibility matrix;
+- `../../ROADMAP.md` — next gates.
