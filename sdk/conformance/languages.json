@@ -73,7 +73,7 @@
     {
       "id": "go",
       "name": "Go",
-      "status": "dx2-skeleton",
+      "status": "dx3-portable-payload-surface",
       "root": "sdk/go",
       "sourceFiles": [
         "sdk/go/go.mod",
@@ -89,6 +89,10 @@
         "type ResultPayload struct",
         "type ArtifactRef string",
         "type NormalizedError struct",
+        "StableSDKAPIVersion",
+        "type ObjectPayload struct",
+        "type ArtifactPayload struct",
+        "type StreamItem",
         "TRUYN/1",
         "truyn.agent-descriptor/v1"
       ],
@@ -97,7 +101,7 @@
     {
       "id": "java",
       "name": "Java",
-      "status": "dx2-skeleton",
+      "status": "dx3-portable-payload-surface",
       "root": "sdk/java",
       "sourceFiles": [
         "sdk/java/pom.xml",
@@ -115,6 +119,10 @@
         "record ResultPayload",
         "record ArtifactRef",
         "record NormalizedError",
+        "STABLE_SDK_API_VERSION",
+        "record ObjectPayload",
+        "record ArtifactPayload",
+        "record StreamItem",
         "TRUYN/1",
         "truyn.agent-descriptor/v1"
       ],
@@ -123,7 +131,7 @@
     {
       "id": "dotnet",
       "name": "C# / .NET",
-      "status": "dx2-skeleton",
+      "status": "dx3-portable-payload-surface",
       "root": "sdk/dotnet",
       "sourceFiles": [
         "sdk/dotnet/Truyn.Sdk.csproj",
@@ -141,6 +149,10 @@
         "record ResultPayload",
         "record ArtifactRef",
         "record NormalizedError",
+        "class StableSdkApi",
+        "record ObjectPayload",
+        "record ArtifactPayload",
+        "record StreamItem",
         "TRUYN/1",
         "truyn.agent-descriptor/v1"
       ],
