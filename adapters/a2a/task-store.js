@@ -38,6 +38,7 @@ export class A2aTaskStore {
     this.tasks = new Map();
     this.byTruynRequestId = new Map();
     this.byMessageCorrelation = new Map();
+    this.messageCorrelationByTaskId = new Map();
   }
 
   prune() {
@@ -57,7 +58,9 @@ export class A2aTaskStore {
     const task = this.tasks.get(taskId);
     if (!task) return false;
     if (task.truynRequestId) this.byTruynRequestId.delete(task.truynRequestId);
-    if (task.messageCorrelationKey) this.byMessageCorrelation.delete(task.messageCorrelationKey);
+    const correlationKey = this.messageCorrelationByTaskId.get(taskId);
+    if (correlationKey) this.byMessageCorrelation.delete(correlationKey);
+    this.messageCorrelationByTaskId.delete(taskId);
     this.tasks.delete(taskId);
     return true;
   }
@@ -84,11 +87,13 @@ export class A2aTaskStore {
       lastModified: timestamp,
       truynRequestId: null,
       providerNodeId: null,
-      providerTrust: null,
-      messageCorrelationKey: correlationKey
+      providerTrust: null
     };
     this.tasks.set(task.id, task);
-    if (correlationKey) this.byMessageCorrelation.set(correlationKey, task.id);
+    if (correlationKey) {
+      this.byMessageCorrelation.set(correlationKey, task.id);
+      this.messageCorrelationByTaskId.set(task.id, correlationKey);
+    }
     return task;
   }
 
