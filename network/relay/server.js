@@ -797,6 +797,7 @@ export function createRelay({
         const request = requests.get(requestId);
         if (!request) return json(res, 404, { ok: false, error: 'request_not_found' });
         if (request.provider !== envelope.from) return json(res, 403, { ok: false, error: 'provider_mismatch' });
+        if (request.status !== 'matched') return json(res, 409, { ok: false, error: 'request_already_completed' });
         const trust = completeRequest(request, envelope.from);
         queue(request.requester, { kind: 'RESULT', envelope, trust });
         return json(res, 200, { ok: true, requestId, trust });
