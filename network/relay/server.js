@@ -108,6 +108,7 @@ export function createRelay({
   maxQueuedEventsPerNode = 256,
   maxSocketBufferedBytes = 1024 * 1024,
   maxRequests = 8192,
+  requestTtlMs = 15 * 60 * 1000,
   maxChains = 1024,
   allowedNodeIds = [],
   trustedRequesterNodeIds = [],
@@ -122,6 +123,7 @@ export function createRelay({
   }
   if (!Number.isInteger(maxQueuedEventsPerNode) || maxQueuedEventsPerNode < 1) throw new Error('maxQueuedEventsPerNode must be a positive integer');
   if (!Number.isFinite(maxSocketBufferedBytes) || maxSocketBufferedBytes < 1) throw new Error('maxSocketBufferedBytes must be positive');
+  if (!Number.isFinite(requestTtlMs) || requestTtlMs < 1) throw new Error('requestTtlMs must be positive');
 
   const nodes = new Map();
   const sessions = new Map();
@@ -227,6 +229,22 @@ export function createRelay({
     else fastTerminalReservations.set(request.requester, current - 1);
   }
 
+  function expireFastRequest(request, now = Date.now()) {
+    if (!request || request.mode !== 'fast' || request.status !== 'matched') return false;
+    const activityAt = Date.parse(request.lastPartialAt || request.createdAt || '');
+    if (!Number.isFinite(activityAt) || now - activityAt < requestTtlMs) return false;
+    request.status = 'failed';
+    request.failedAt = new Date(now).toISOString();
+    request.failureReason = 'request_expired';
+    releaseFastTerminal(request);
+    finishResultWaiter(request.needId, 504, { ok: false, error: 'request_expired', requestId: request.needId });
+    return true;
+  }
+
+  function expireAbandonedFastRequests(now = Date.now()) {
+    for (const request of requests.values()) expireFastRequest(request, now);
+  }
+
   function removeFastWaiter(nodeId, waiter) {
     if (fastWaiters.get(nodeId) === waiter) fastWaiters.delete(nodeId);
     if (waiter.timer) clearTimeout(waiter.timer);
@@ -260,6 +278,11 @@ export function createRelay({
     if (requireCapacity && (fastEvents.get(nodeId)?.length || 0) >= maxQueuedEventsPerNode) return 'full';
     boundedQueue(fastEvents, nodeId, event);
     return 'queued';
+  }
+
+  function queueCancellation(request, event) {
+    if (request.mode === 'fast') return queueFast(request.provider, event, { requireCapacity: true }) !== 'full';
+    return queueCritical(request.provider, event);
   }
 
   function queueFastTerminal(nodeId, event) {
@@ -519,6 +542,7 @@ export function createRelay({
     const request = requests.get(frame.i);
     if (!request) return { status: 404, body: { ok: false, error: 'request_not_found' } };
     if (request.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
+    expireFastRequest(request);
     const terminalError = terminalRequestError(request);
     if (terminalError) return { status: 409, body: { ok: false, error: terminalError } };
     if (request.mode !== 'fast') return { status: 409, body: { ok: false, error: 'partial_requires_fast_need' } };
@@ -562,6 +586,7 @@ export function createRelay({
     const request = requests.get(frame.i);
     if (!request) return { status: 404, body: { ok: false, error: 'request_not_found' } };
     if (request.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
+    expireFastRequest(request);
     const terminalError = terminalRequestError(request);
     if (terminalError) return { status: 409, body: { ok: false, error: terminalError } };
     if (request.mode === 'chain-stage') {
@@ -625,6 +650,7 @@ export function createRelay({
       const url = new URL(req.url, 'http://relay.local');
 
       if (req.method === 'GET' && url.pathname === '/health') {
+        expireAbandonedFastRequests();
         if (!exposeDiagnostics) return json(res, 200, { ok: true, protocol: 'TRUYN/1' });
         const terminal = new Set(['completed', 'cancelled', 'failed']);
         return json(res, 200, {
@@ -752,7 +778,7 @@ export function createRelay({
           const retrieved = retrieveContextBlocks(record.blocks, query, { topK });
           const selected = retrieved.blocks.map((block, index) => ({ id: block.id, cid: block.cid, text: block.text, bytes: block.bytes, score: block.score, rank: index + 1 }));
           touch(nodeId);
-          return json(res, 200, { ok: true, cid, blocks: selected, retrieval: { version: 1, algorithm: retrieved.algorithm, rootCid: cid, manifestCid: record.manifest.cid, queryHash: retrieved.queryHash, topK, corpusBlocks: retrieved.corpusBlocks, selected: selected.map(({ id, cid: blockCid, score, rank }) => ({ id, cid: blockCid, score, rank })) } });
+          return json(res, 200, { ok: true, cid, blocks: selected, retrieval: { version: 1, algorithm: retrieved.algorithm, rootCid: cid, manifestCid: cid, queryHash: retrieved.queryHash, topK, corpusBlocks: retrieved.corpusBlocks, selected: selected.map(({ id, cid: blockCid, score, rank }) => ({ id, cid: blockCid, score, rank })) } });
         }
         if (req.method === 'POST' && action === 'delta') {
           if (!requesterCanDispatch(nodeId) || !record.owners.has(nodeId)) return json(res, 403, { ok: false, error: 'context_owner_required' });
@@ -796,6 +822,7 @@ export function createRelay({
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
         const match = matchingOffers({ capability, requesterNodeId })[0];
         if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
+        expireAbandonedFastRequests();
         if (!reserveFastTerminal(requesterNodeId)) return json(res, 429, { ok: false, error: 'terminal_backpressure' });
         try {
           pruneCompleted(requests, maxRequests);
@@ -912,13 +939,14 @@ export function createRelay({
 
         if (targetsNeed) {
           if (!request) return json(res, 404, { ok: false, error: 'target_not_found' });
+          expireFastRequest(request);
           if (request.mode === 'chain-stage') return json(res, 409, { ok: false, error: 'chain_stage_cancellation_not_supported' });
           if (request.requester !== envelope.from) return json(res, 403, { ok: false, error: 'not_request_owner' });
           if (request.status === 'completed') return json(res, 409, { ok: false, error: 'request_already_completed' });
           if (request.status === 'failed') return json(res, 409, { ok: false, error: 'request_failed' });
           const cancellationEvent = { kind: 'REVOKE', targetKind: 'need', targetId, envelope, from: envelope.from };
           if (request.status === 'cancelled') {
-            const delivered = queueCritical(request.provider, cancellationEvent);
+            const delivered = queueCancellation(request, cancellationEvent);
             touch(envelope.from);
             if (!delivered) return json(res, 429, { ok: false, error: 'cancellation_backpressure', targetId, targetKind: 'need', cancelled: true, idempotent: true, provider: request.provider, cancelledAt: request.cancelledAt });
             return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: true, redelivered: true, provider: request.provider, cancelledAt: request.cancelledAt });
@@ -931,7 +959,7 @@ export function createRelay({
           request.nextPartialSequence ??= 0;
           releaseFastTerminal(request);
           finishResultWaiter(targetId, 409, { ok: false, error: 'request_cancelled', requestId: targetId });
-          const delivered = queueCritical(request.provider, cancellationEvent);
+          const delivered = queueCancellation(request, cancellationEvent);
           touch(envelope.from);
           if (!delivered) return json(res, 429, { ok: false, error: 'cancellation_backpressure', targetId, targetKind: 'need', cancelled: true, provider: request.provider, cancelledAt: request.cancelledAt });
           return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, provider: request.provider, cancelledAt: request.cancelledAt });
@@ -1059,6 +1087,7 @@ export function createRelay({
   });
 
   const heartbeat = setInterval(() => {
+    expireAbandonedFastRequests();
     for (const [nodeId, socket] of providerSockets) {
       if (socket.readyState !== WebSocket.OPEN || !nodeSessionActive(nodeId)) {
         providerSockets.delete(nodeId);
