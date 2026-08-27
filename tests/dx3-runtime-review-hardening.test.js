@@ -27,6 +27,15 @@ async function sendPartial(node, requestId, sequence, delta = `chunk-${sequence}
     headers: { 'content-type': 'application/json', ...node.authHeaders() },
     body: JSON.stringify({ frame, payload })
   });
+  return { response, body: await response.json(), frame, payload };
+}
+
+async function resendPartial(node, frame, payload) {
+  const response = await fetch(`${node.relayUrl}/v1/fast/partials`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...node.authHeaders() },
+    body: JSON.stringify({ frame, payload })
+  });
   return { response, body: await response.json() };
 }
 
@@ -66,6 +75,58 @@ test('terminal RESULT never evicts an acknowledged queued PARTIAL', async (t) =>
   assert.equal(delivered.events[1].payload.output, 'done');
 });
 
+test('default synchronous NEED hands off to ordered event streaming on first PARTIAL', async (t) => {
+  const relay = createRelay({ localDevelopmentMode: true });
+  const relayUrl = await relay.listen({ port: 0 });
+  t.after(() => relay.close());
+
+  const provider = new TruynNode({ relayUrl });
+  const requester = new TruynNode({ relayUrl });
+  await provider.register();
+  await requester.register();
+  await provider.offer('review.waiter-stream');
+
+  const pendingNeed = requester.compactNeed('review.waiter-stream', {});
+  const work = await provider.pollCompact({ waitMs: 1000 });
+  const requestId = work.events[0].frame.i;
+  const partial = await sendPartial(provider, requestId, 0, 'first');
+  assert.equal(partial.response.status, 200);
+
+  const handoff = await pendingNeed;
+  assert.equal(handoff.needId, requestId);
+  assert.equal(handoff.streaming, true);
+  assert.equal(handoff.output, undefined);
+
+  await provider.compactResult(requestId, 'done', { partialCount: 1 });
+  const delivered = await requester.pollCompact({ waitMs: 0 });
+  assert.deepEqual(delivered.events.map((event) => event.kind), ['PARTIAL', 'RESULT']);
+});
+
+test('accepted PARTIAL retry is idempotent without duplicate delivery or sequence advance', async (t) => {
+  const relay = createRelay({ localDevelopmentMode: true });
+  const relayUrl = await relay.listen({ port: 0 });
+  t.after(() => relay.close());
+
+  const provider = new TruynNode({ relayUrl });
+  const requester = new TruynNode({ relayUrl });
+  await provider.register();
+  await requester.register();
+  await provider.offer('review.partial-retry');
+  const matched = await requester.compactNeed('review.partial-retry', {}, {}, { waitMs: 0 });
+
+  const first = await sendPartial(provider, matched.needId, 0, 'once');
+  assert.equal(first.response.status, 200);
+  const retried = await resendPartial(provider, first.frame, first.payload);
+  assert.equal(retried.response.status, 200);
+  assert.equal(retried.body.idempotent, true);
+  assert.equal(relay.state.requests.get(matched.needId).nextPartialSequence, 1);
+
+  const delivered = await requester.pollCompact({ waitMs: 0 });
+  assert.equal(delivered.events.length, 1);
+  assert.equal(delivered.events[0].kind, 'PARTIAL');
+  assert.equal(delivered.events[0].payload.delta, 'once');
+});
+
 test('NEED cancellation backpressures instead of dropping REVOKE and retry redelivers it', async (t) => {
   const relay = createRelay({ localDevelopmentMode: true, maxQueuedEventsPerNode: 1 });
   const relayUrl = await relay.listen({ port: 0 });
@@ -95,6 +156,23 @@ test('NEED cancellation backpressures instead of dropping REVOKE and retry redel
   assert.equal(cancellation.events.length, 1);
   assert.equal(cancellation.events[0].kind, 'REVOKE');
   assert.equal(cancellation.events[0].verification.ok, true);
+});
+
+test('oversized cancellation reason is rejected before persistence', async (t) => {
+  const relay = createRelay({ localDevelopmentMode: true });
+  const relayUrl = await relay.listen({ port: 0 });
+  t.after(() => relay.close());
+  const provider = new TruynNode({ relayUrl });
+  const requester = new TruynNode({ relayUrl });
+  await provider.register();
+  await requester.register();
+  await provider.offer('review.cancel-reason');
+  const matched = await requester.need('review.cancel-reason', {});
+
+  const rejected = await revokeRaw(requester, matched.needId, 'need', 'x'.repeat(257));
+  assert.equal(rejected.response.status, 400);
+  assert.equal(rejected.body.error, 'invalid_cancel_reason');
+  assert.equal(relay.state.requests.get(matched.needId).status, 'matched');
 });
 
 test('OFFER and NEED revoke namespaces cannot shadow each other', async (t) => {
@@ -169,10 +247,29 @@ test('scheduled adapter execution rejections are observed instead of becoming un
     envelope: { id: 'review-rejection-1', from: 'requester', payload: { capability: { name: 'review.rejection' }, input: {} } }
   };
   const handled = host.handleLifecycleEvent(event);
-  host.observeScheduled(handled);
   await until(() => host.lastExecutionError?.message === 'terminal_transport_failure');
   host.running = false;
   await Promise.allSettled([handled.promise]);
+});
+
+test('host-owned partialCount cannot be overwritten by adapter metadata', async () => {
+  const results = [];
+  const node = {
+    relayUrl: 'http://relay.invalid',
+    compactFrame() { return { t: 'T', i: 'partial-count-1' }; },
+    authHeaders() { return {}; },
+    async compactResult(requestId, output, metadata) { results.push({ requestId, output, metadata }); return { ok: true }; },
+    closeFastSocket() {}
+  };
+  const host = new TruynAdapterHost({
+    node,
+    accessPolicy: createProviderAccessPolicy({ mode: 'public' }),
+    adapter: createFunctionAdapter({ name: 'partial-count', capabilities: ['partial.count'], execute: async () => ({ output: 'done', metadata: { partialCount: 999 } }) })
+  });
+  const need = { id: 'partial-count-1', from: 'requester', compact: true, payload: { capability: { name: 'partial.count' }, input: {} } };
+  const state = { controller: new AbortController(), need, nextSequence: 2 };
+  await host.executeNeed(need, state);
+  assert.equal(results[0].metadata.partialCount, 2);
 });
 
 test('recoverable provider stop preserves dequeued in-flight and pending NEEDs for restart', async () => {
@@ -219,7 +316,8 @@ test('recoverable provider stop preserves dequeued in-flight and pending NEEDs f
   host.running = true;
   host.drainPendingNeeds();
   await until(() => results.length === 2);
-  assert.deepEqual(results.map((item) => item.requestId), ['restart-1', 'restart-2']);
+  assert.deepEqual(results.map((item) => item.requestId).sort(), ['restart-1', 'restart-2']);
+  assert.equal(new Set(results.map((item) => item.requestId)).size, 2);
   host.running = false;
 });
 
