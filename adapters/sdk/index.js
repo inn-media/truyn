@@ -479,7 +479,10 @@ export class TruynAdapterHost {
     await this.publishCapabilities();
     this.running = true;
 
-    if (this.fastPath) this.controlLoopPromise = this.runControlLoop();
+    if (this.fastPath) {
+      this.controlLoopPromise = this.runControlLoop();
+      this.controlLoopPromise.catch(() => {});
+    }
 
     this.loopPromise = (async () => {
       while (this.running) {
@@ -497,6 +500,7 @@ export class TruynAdapterHost {
         if (this.running && !this.fastPath && this.pollIntervalMs > 0) await delay(this.pollIntervalMs);
       }
     })();
+    this.loopPromise.catch(() => {});
   }
 
   async stop() {
