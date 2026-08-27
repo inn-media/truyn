@@ -11,6 +11,7 @@ function passing() {
       nodeCount: 1000,
       realProcessCount: 1000,
       hostCount: 20,
+      realProcessesPerHost: 50,
       uniqueIdentityCount: 1000,
       uniqueEndpointCount: 1000,
       syntheticNodeCount: 0
@@ -62,6 +63,9 @@ test('real D-1000 evidence passes only with exact topology, probe-backed safety 
   const result = evaluateAzureClassD1000Evidence(passing());
   assert.equal(result.passed, true);
   assert.deepEqual(result.failed, []);
+  assert.equal(result.checks.strictNodesPerHost, true);
+  assert.equal(result.thresholds.nodesPerHost, 50);
+  assert.equal(result.derivation.nodesPerHostMetric, 'topology.realProcessesPerHost');
   assert.equal(result.derivation.healedRoutingMetric, 'routing.healedSuccessRatio after real packet partition');
   assert.equal(result.derivation.invalidSignedStateMetric, 'target-side QUIC dht.store rejection of signature-tampered record');
   assert.equal(result.derivation.invalidSignedStateProbe, true);
@@ -86,6 +90,31 @@ test('logical count cannot substitute for 1000 real processes', () => {
   const result = evaluateAzureClassD1000Evidence(raw);
   assert.equal(result.passed, false);
   assert.ok(result.failed.includes('realNodes'));
+});
+
+test('10/25 nodes-per-host diagnostics are never promotable to strict D-1000 acceptance', () => {
+  for (const nodesPerHost of [10, 25]) {
+    const diagnostic = passing();
+    const diagnosticNodeCount = 20 * nodesPerHost;
+    diagnostic.topology.nodeCount = diagnosticNodeCount;
+    diagnostic.topology.realProcessCount = diagnosticNodeCount;
+    diagnostic.topology.realProcessesPerHost = nodesPerHost;
+    diagnostic.topology.uniqueIdentityCount = diagnosticNodeCount;
+    diagnostic.topology.uniqueEndpointCount = diagnosticNodeCount;
+
+    const diagnosticResult = evaluateAzureClassD1000Evidence(diagnostic);
+    assert.equal(diagnosticResult.passed, false);
+    assert.ok(diagnosticResult.failed.includes('realNodes'));
+    assert.ok(diagnosticResult.failed.includes('distinctIdentities'));
+    assert.ok(diagnosticResult.failed.includes('distinctQuicSockets'));
+    assert.ok(diagnosticResult.failed.includes('strictNodesPerHost'));
+
+    const spoofedAggregate = passing();
+    spoofedAggregate.topology.realProcessesPerHost = nodesPerHost;
+    const spoofedResult = evaluateAzureClassD1000Evidence(spoofedAggregate);
+    assert.equal(spoofedResult.passed, false);
+    assert.deepEqual(spoofedResult.failed, ['strictNodesPerHost']);
+  }
 });
 
 test('D-1000 evidence fails closed on cleanup, write loss, synthetic nodes or insufficient host domains', () => {
@@ -164,4 +193,5 @@ test('empty evidence is never promotable to D-1000', () => {
   assert.ok(result.failed.includes('noInvalidSignedStateAccepted'));
   assert.ok(result.failed.includes('cleanup'));
   assert.ok(result.failed.includes('noRemainingResources'));
+  assert.ok(result.failed.includes('strictNodesPerHost'));
 });
