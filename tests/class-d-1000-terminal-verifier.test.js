@@ -14,6 +14,7 @@ function evidence(remainingResources = 0) {
       nodeCount: 1000,
       realProcessCount: 1000,
       hostCount: 20,
+      realProcessesPerHost: 50,
       uniqueIdentityCount: 1000,
       uniqueEndpointCount: 1000,
       syntheticNodeCount: 0
@@ -75,12 +76,26 @@ test('strict terminal verifier accepts complete D-1000 evidence with zero remain
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.ok, true);
+  assert.equal(parsed.checks.strictNodesPerHost, true);
   assert.equal(parsed.checks.zeroRemainingResources, true);
   assert.equal(parsed.checks.noUnauthorizedProviderExecution, true);
   assert.equal(parsed.checks.remoteInvalidSignatureProbe, true);
   assert.equal(parsed.checks.staleReceiptProbe, true);
   assert.equal(parsed.checks.providerAuthorizationProbe, true);
   assert.equal(parsed.checks.realPacketPartitionProbe, true);
+});
+
+test('strict terminal verifier rejects diagnostic 10/25 nodes per host even with spoofed aggregate totals', () => {
+  for (const nodesPerHost of [10, 25]) {
+    const raw = evidence(0);
+    raw.topology.realProcessesPerHost = nodesPerHost;
+    const result = run(raw);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.ok, false);
+    assert.ok(parsed.failed.includes('canonicalEvaluator'));
+    assert.ok(parsed.failed.includes('strictNodesPerHost'));
+  }
 });
 
 test('strict terminal verifier rejects nonzero remaining resources', () => {
