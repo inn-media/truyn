@@ -32,5 +32,9 @@
     "libp2p": "3.3.8",
     "multiformats": "14.0.5",
     "ws": "8.21.1"
+  },
+  "devDependencies": {
+    "@a2a-js/sdk": "1.0.1",
+    "express": "5.1.0"
   }
 }
