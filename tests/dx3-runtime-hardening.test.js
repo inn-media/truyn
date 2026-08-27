@@ -125,7 +125,7 @@ test('control polling retries after a transient failure instead of silently endi
   t.after(() => host.stop());
 
   await host.start();
-  await until(() => controlPolls >= 2);
+  await until(() => controlPolls >= 2 && host.lastControlError === null);
   assert.equal(host.running, true);
   assert.equal(host.controlLoopPromise instanceof Promise, true);
   assert.equal(host.lastControlError, null);
