@@ -64,13 +64,17 @@ test('requester-owned REVOKE cancels a dispatched NEED, is signed/idempotent, an
   assert.equal(cancelled.targetKind, 'need');
   const repeated = await requester.revoke(matched.needId, 'user_cancelled');
   assert.equal(repeated.idempotent, true);
+  assert.equal(repeated.redelivered, true);
 
   const providerEvents = await provider.poll();
-  assert.equal(providerEvents.events.length, 2);
+  assert.equal(providerEvents.events.length, 3);
   assert.equal(providerEvents.events[0].kind, 'NEED');
   assert.equal(providerEvents.events[1].kind, 'REVOKE');
   assert.equal(providerEvents.events[1].verification.ok, true);
   assert.equal(providerEvents.events[1].envelope.payload.targetId, matched.needId);
+  assert.equal(providerEvents.events[2].kind, 'REVOKE');
+  assert.equal(providerEvents.events[2].verification.ok, true);
+  assert.equal(providerEvents.events[2].envelope.payload.targetId, matched.needId);
   assert.equal(relay.state.requests.get(matched.needId).status, 'cancelled');
 
   await assert.rejects(() => provider.result(matched.needId, { late: true }), (error) => {
