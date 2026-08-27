@@ -171,12 +171,18 @@ async function runProvider() {
   const loop = (async () => {
     while (!stopping) {
       try {
-        await adapterHost.runOnce();
+        await adapterHost.start();
         ready = true;
-        if (!fastPath && adapterHost.pollIntervalMs > 0) await sleep(adapterHost.pollIntervalMs);
+        const lifecycleLoops = [adapterHost.loopPromise, adapterHost.controlLoopPromise].filter(Boolean);
+        if (lifecycleLoops.length === 0) throw new Error('adapter_host_loop_unavailable');
+        await Promise.race(lifecycleLoops);
+        if (!stopping) throw new Error('adapter_host_loop_stopped');
       } catch {
         if (stopping) break;
         ready = false;
+        await adapterHost.stop();
+        adapterHost.loopPromise = null;
+        adapterHost.controlLoopPromise = null;
         adapterHost.registered = false;
         adapterHost.offerIds = [];
         node.closeFastSocket();
@@ -190,7 +196,8 @@ async function runProvider() {
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
-    node.closeFastSocket();
+    ready = false;
+    await adapterHost.stop();
     await loop;
     await new Promise((resolve) => server.close(resolve));
     process.exit(0);

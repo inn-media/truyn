@@ -332,10 +332,26 @@ export function createRelay({
     });
   }
 
+  function finishResultWaiter(requestId, status, body) {
+    const waiter = resultWaiters.get(requestId);
+    if (!waiter || waiter.res.writableEnded) return false;
+    resultWaiters.delete(requestId);
+    clearTimeout(waiter.timer);
+    json(waiter.res, status, body);
+    return true;
+  }
+
+  function terminalRequestError(request) {
+    if (request?.status === 'cancelled') return 'request_cancelled';
+    if (request?.status === 'completed') return 'request_already_completed';
+    if (request?.status === 'failed') return 'request_failed';
+    return null;
+  }
+
   function pruneCompleted(map, maxSize) {
     if (map.size < maxSize) return;
     for (const [key, value] of map) {
-      if (value?.status === 'completed' || value?.status === 'failed') map.delete(key);
+      if (value?.status === 'completed' || value?.status === 'failed' || value?.status === 'cancelled') map.delete(key);
       if (map.size < maxSize) return;
     }
     if (map.size >= maxSize) throw httpError(503, 'relay_capacity_reached');
@@ -461,6 +477,40 @@ export function createRelay({
     return true;
   }
 
+  function processFastPartial(providerNodeId, frame, payload) {
+    const provider = nodes.get(providerNodeId);
+    if (!provider || !nodeSessionActive(providerNodeId)) return { status: 401, body: { ok: false, error: 'unauthorized' } };
+    const verification = verifyCompactFrame(frame, payload, provider.publicKey, { allowedTypes: ['PARTIAL'] });
+    if (!verification.ok) return { status: 400, body: { ok: false, error: verification.reason } };
+    const request = requests.get(frame.i);
+    if (!request) return { status: 404, body: { ok: false, error: 'request_not_found' } };
+    if (request.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
+    const terminalError = terminalRequestError(request);
+    if (terminalError) return { status: 409, body: { ok: false, error: terminalError } };
+    if (request.mode !== 'fast') return { status: 409, body: { ok: false, error: 'partial_requires_fast_need' } };
+    if (!Number.isInteger(payload?.sequence) || payload.sequence < 0) {
+      return { status: 400, body: { ok: false, error: 'invalid_partial_sequence' } };
+    }
+    const expected = request.nextPartialSequence ?? 0;
+    if (payload.sequence !== expected) {
+      return { status: 409, body: { ok: false, error: 'partial_sequence_mismatch', expected, received: payload.sequence } };
+    }
+    const event = {
+      kind: 'PARTIAL',
+      frame,
+      payload,
+      from: providerNodeId,
+      requestId: frame.i,
+      sequence: payload.sequence
+    };
+    const transport = queueFast(request.requester, event);
+    request.nextPartialSequence = expected + 1;
+    request.partialCount = request.nextPartialSequence;
+    request.lastPartialAt = new Date().toISOString();
+    touch(providerNodeId);
+    return { status: 200, body: { ok: true, requestId: frame.i, sequence: payload.sequence, transport } };
+  }
+
   function processFastResult(providerNodeId, frame, payload, receivedAtMs = performance.now()) {
     const provider = nodes.get(providerNodeId);
     if (!provider || !nodeSessionActive(providerNodeId)) return { status: 401, body: { ok: false, error: 'unauthorized' } };
@@ -469,7 +519,8 @@ export function createRelay({
     const request = requests.get(frame.i);
     if (!request) return { status: 404, body: { ok: false, error: 'request_not_found' } };
     if (request.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
-    if (request.status === 'completed') return { status: 409, body: { ok: false, error: 'request_already_completed' } };
+    const terminalError = terminalRequestError(request);
+    if (terminalError) return { status: 409, body: { ok: false, error: terminalError } };
     const trust = completeRequest(request, providerNodeId);
     const event = { kind: 'RESULT', frame, payload, from: providerNodeId, trust };
     if (request.mode === 'chain-stage') {
@@ -486,14 +537,7 @@ export function createRelay({
       }
       return { status: 200, body: { ok: true, requestId: frame.i, chainId: request.chainId } };
     }
-    const waiter = resultWaiters.get(frame.i);
-    if (waiter && !waiter.res.writableEnded) {
-      resultWaiters.delete(frame.i);
-      clearTimeout(waiter.timer);
-      json(waiter.res, 200, { ok: true, result: event });
-    } else {
-      queueFast(request.requester, event);
-    }
+    if (!finishResultWaiter(frame.i, 200, { ok: true, result: event })) queueFast(request.requester, event);
     return { status: 200, body: { ok: true, requestId: frame.i } };
   }
 
@@ -533,12 +577,14 @@ export function createRelay({
 
       if (req.method === 'GET' && url.pathname === '/health') {
         if (!exposeDiagnostics) return json(res, 200, { ok: true, protocol: 'TRUYN/1' });
+        const terminal = new Set(['completed', 'cancelled', 'failed']);
         return json(res, 200, {
           ok: true,
           protocol: 'TRUYN/1',
           nodes: nodes.size,
           offers: offers.size,
-          pendingRequests: [...requests.values()].filter((request) => request.status !== 'completed').length,
+          pendingRequests: [...requests.values()].filter((request) => !terminal.has(request.status)).length,
+          cancelledRequests: [...requests.values()].filter((request) => request.status === 'cancelled').length,
           pendingChains: [...chains.values()].filter((chain) => chain.status === 'running').length,
           contexts: contexts.size,
           providerSockets: [...providerSockets.values()].filter((socket) => socket.readyState === WebSocket.OPEN).length
@@ -727,7 +773,17 @@ export function createRelay({
         const match = matchingOffers({ capability, requesterNodeId })[0];
         if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
         pruneCompleted(requests, maxRequests);
-        const request = { needId: frame.i, requester: requesterNodeId, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'fast' };
+        const request = {
+          needId: frame.i,
+          requester: requesterNodeId,
+          provider: match.envelope.from,
+          capability,
+          createdAt: new Date().toISOString(),
+          status: 'matched',
+          mode: 'fast',
+          nextPartialSequence: 0,
+          partialCount: 0
+        };
         requests.set(frame.i, request);
         touch(requesterNodeId);
         const waitMs = boundedWaitMs(url, 120_000);
@@ -735,6 +791,14 @@ export function createRelay({
         queueFast(match.envelope.from, { kind: 'NEED', frame, payload, from: requesterNodeId });
         if (waitMs === 0) return json(res, 200, { ok: true, needId: frame.i, provider: match.envelope.from, providerTrust: trustFor(match.envelope.from) });
         return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/v1/fast/partials') {
+        const providerNodeId = authenticatedNodeId(req);
+        if (!providerNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
+        const { frame, payload } = await readJson(req, maxBodyBytes);
+        const processed = processFastPartial(providerNodeId, frame, payload);
+        return json(res, processed.status, processed.body);
       }
 
       if (req.method === 'POST' && url.pathname === '/v1/fast/results') {
@@ -797,6 +861,8 @@ export function createRelay({
         const request = requests.get(requestId);
         if (!request) return json(res, 404, { ok: false, error: 'request_not_found' });
         if (request.provider !== envelope.from) return json(res, 403, { ok: false, error: 'provider_mismatch' });
+        const terminalError = terminalRequestError(request);
+        if (terminalError) return json(res, 409, { ok: false, error: terminalError });
         const trust = completeRequest(request, envelope.from);
         queue(request.requester, { kind: 'RESULT', envelope, trust });
         return json(res, 200, { ok: true, requestId, trust });
@@ -808,6 +874,47 @@ export function createRelay({
         if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         const targetId = envelope.payload?.targetId;
+        if (!targetId || typeof targetId !== 'string') return json(res, 400, { ok: false, error: 'invalid_target_id' });
+        const targetKind = envelope.payload?.targetKind || 'auto';
+        const request = requests.get(targetId);
+        const targetsNeed = targetKind === 'need' || (targetKind === 'auto' && Boolean(request));
+
+        if (targetsNeed) {
+          if (!request) return json(res, 404, { ok: false, error: 'target_not_found' });
+          if (request.mode === 'chain-stage') return json(res, 409, { ok: false, error: 'chain_stage_cancellation_not_supported' });
+          if (request.requester !== envelope.from) return json(res, 403, { ok: false, error: 'not_request_owner' });
+          if (request.status === 'completed') return json(res, 409, { ok: false, error: 'request_already_completed' });
+          if (request.status === 'failed') return json(res, 409, { ok: false, error: 'request_failed' });
+          if (request.status === 'cancelled') {
+            return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: true });
+          }
+
+          request.status = 'cancelled';
+          request.cancelled = true;
+          request.cancelledAt = new Date().toISOString();
+          request.cancelReason = typeof envelope.payload?.reason === 'string' && envelope.payload.reason
+            ? envelope.payload.reason
+            : 'cancelled_by_requester';
+          request.nextPartialSequence ??= 0;
+          finishResultWaiter(targetId, 409, { ok: false, error: 'request_cancelled', requestId: targetId });
+          queue(request.provider, {
+            kind: 'REVOKE',
+            targetKind: 'need',
+            targetId,
+            envelope,
+            from: envelope.from
+          });
+          touch(envelope.from);
+          return json(res, 200, {
+            ok: true,
+            targetId,
+            targetKind: 'need',
+            cancelled: true,
+            provider: request.provider,
+            cancelledAt: request.cancelledAt
+          });
+        }
+
         const offer = offers.get(targetId);
         if (!offer) return json(res, 404, { ok: false, error: 'target_not_found' });
         if (offer.envelope.from !== envelope.from) return json(res, 403, { ok: false, error: 'not_target_owner' });
