@@ -17,6 +17,18 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: full-suite-default
+        continue-on-error: true
+        run: node --test tests/*.test.js
+      - name: full-suite-serial
+        continue-on-error: true
+        run: node --test --test-concurrency=1 tests/*.test.js
+      - name: full-suite-concurrency-2
+        continue-on-error: true
+        run: node --test --test-concurrency=2 tests/*.test.js
+      - name: full-suite-concurrency-4
+        continue-on-error: true
+        run: node --test --test-concurrency=4 tests/*.test.js
       - name: bash-n-provisioner
         continue-on-error: true
         run: bash -n benchmarks/scale/class-d-azure-1000-provision.sh
@@ -29,20 +41,3 @@ jobs:
       - name: shell-harness
         continue-on-error: true
         run: node --test tests/class-d-shell-harness.test.js
-      - name: accepted-entrypoint-regression
-        continue-on-error: true
-        run: node --test tests/class-d-accepted-entrypoint-regression.test.js
-      - name: suite-a-f
-        continue-on-error: true
-        run: node --test tests/[a-f]*.test.js
-      - name: suite-g-l
-        continue-on-error: true
-        run: node --test tests/[g-l]*.test.js
-      - name: suite-m-r-except-public
-        continue-on-error: true
-        run: |
-          files=$(printf '%s\n' tests/[m-r]*.test.js | grep -v 'tests/public-repository.test.js')
-          node --test $files
-      - name: suite-s-z
-        continue-on-error: true
-        run: node --test tests/[s-z]*.test.js
