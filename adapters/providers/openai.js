@@ -25,7 +25,7 @@ export function createOpenAIProvider({
     name: 'openai-responses',
     version: '1',
     capabilities,
-    async execute({ capability, input, policy }) {
+    async execute({ capability, input, policy, signal }) {
       const startedAt = Date.now();
       const prompt = [
         `You are a TRUYN provider for capability: ${capability}.`,
@@ -39,7 +39,8 @@ export function createOpenAIProvider({
       const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/v1/responses`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ model, input: prompt, store: false })
+        body: JSON.stringify({ model, input: prompt, store: false }),
+        signal
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body?.error?.message || `OpenAI HTTP ${response.status}`);
