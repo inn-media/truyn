@@ -40,6 +40,20 @@ function delay(ms) {
   return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
 }
 
+async function settleWithin(promises, timeoutMs) {
+  if (!promises.length) return true;
+  if (timeoutMs <= 0) return false;
+  let timer = null;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+    timer.unref?.();
+  });
+  const settled = Promise.allSettled(promises).then(() => true);
+  const drained = await Promise.race([settled, timeout]);
+  if (timer) clearTimeout(timer);
+  return drained;
+}
+
 function cancellationFromEvent(event) {
   if (event?.kind !== 'REVOKE' || !event.envelope) return null;
   const verification = verifyEnvelope(event.envelope, { allowedTypes: ['REVOKE'] });
@@ -74,7 +88,7 @@ export function createFunctionAdapter({ name = 'function-adapter', version = '0.
 }
 
 export class TruynAdapterHost {
-  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, cancelPollMs = 50, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, accessPolicy, billingPolicy = null } = {}) {
+  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, cancelPollMs = 50, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, executionDrainTimeoutMs = 5_000, accessPolicy, billingPolicy = null } = {}) {
     if (!node) throw new Error('node is required');
     this.node = node;
     this.adapter = validateAdapter(adapter);
@@ -87,6 +101,7 @@ export class TruynAdapterHost {
     this.maxCancellationTombstones = Number.isInteger(maxCancellationTombstones) && maxCancellationTombstones > 0 ? maxCancellationTombstones : 1024;
     this.maxConcurrentExecutions = Number.isInteger(maxConcurrentExecutions) && maxConcurrentExecutions > 0 ? maxConcurrentExecutions : 1;
     this.maxPendingExecutions = Number.isInteger(maxPendingExecutions) && maxPendingExecutions >= 0 ? maxPendingExecutions : 256;
+    this.executionDrainTimeoutMs = Number.isFinite(executionDrainTimeoutMs) ? Math.max(0, Math.min(60_000, Math.floor(executionDrainTimeoutMs))) : 5_000;
     this.accessPolicy = accessPolicy || createProviderAccessPolicy();
     this.billingPolicy = billingPolicy;
     this.running = false;
@@ -100,6 +115,7 @@ export class TruynAdapterHost {
     this.pendingNeedIds = new Set();
     this.lastControlError = null;
     this.lastExecutionError = null;
+    this.executionDrainTimedOut = false;
   }
 
   async ensureRegistered() {
@@ -413,8 +429,9 @@ export class TruynAdapterHost {
 
   async stop({ preserveDequeuedWork = false } = {}) {
     this.running = false;
-    const interruptedNeeds = [...this.inFlight.values()].map((state) => state.need);
-    for (const state of this.inFlight.values()) if (!state.controller.signal.aborted) state.controller.abort(new Error('provider_stopping'));
+    const executionStates = [...this.inFlight.values()];
+    const interruptedNeeds = executionStates.map((state) => state.need);
+    for (const state of executionStates) if (!state.controller.signal.aborted) state.controller.abort(new Error('provider_stopping'));
     if (!preserveDequeuedWork) {
       for (const queued of this.pendingNeeds.splice(0)) queued.resolve({ stopped: true });
       this.pendingNeedIds.clear();
@@ -422,8 +439,14 @@ export class TruynAdapterHost {
     this.node.closeFastSocket?.();
     const loops = [this.loopPromise, this.controlLoopPromise].filter(Boolean);
     if (loops.length) await Promise.allSettled(loops);
-    const executions = [...this.inFlight.values()].map((state) => state.promise).filter(Boolean);
-    if (executions.length) await Promise.allSettled(executions);
+    const executions = executionStates.map((state) => state.promise).filter(Boolean);
+    const drained = await settleWithin(executions, this.executionDrainTimeoutMs);
+    this.executionDrainTimedOut = !drained && executions.length > 0;
+    if (!drained) {
+      for (const state of executionStates) {
+        if (this.inFlight.get(state.need.id) === state) this.inFlight.delete(state.need.id);
+      }
+    }
     if (preserveDequeuedWork) {
       for (const need of interruptedNeeds) {
         const cancellation = this.cancelledNeedIds.get(need.id);
