@@ -17,6 +17,7 @@ const n = evaluation.normalized || {};
 const checks = {
   canonicalEvaluator: evaluation.passed === true && evaluation.failed.length === 0,
   realNodes: n.topology?.realNodeCount === 1000,
+  strictNodesPerHost: n.topology?.realProcessesPerHost === 50,
   distinctIdentities: n.topology?.distinctIdentityCount === 1000,
   distinctQuicSockets: n.topology?.distinctQuicSocketCount === 1000,
   noSyntheticNodes: n.topology?.syntheticNodeCount === 0,
