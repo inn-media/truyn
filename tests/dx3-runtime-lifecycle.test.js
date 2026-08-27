@@ -136,10 +136,15 @@ test('cancelling an already-open compact NEED wakes its waitMs waiter immediatel
   assert.equal(body.requestId, requestId);
   assert.ok(Date.now() - startedAt < 2_000, 'cancellation must resolve the waiter before its 5s timeout');
 
-  const providerEvents = await provider.poll();
-  assert.equal(providerEvents.events[0].kind, 'NEED');
-  assert.equal(providerEvents.events[1].kind, 'REVOKE');
-  assert.equal(providerEvents.events[1].verification.ok, true);
+  const providerWork = await provider.pollCompact({ waitMs: 0 });
+  assert.equal(providerWork.events.length, 1);
+  assert.equal(providerWork.events[0].kind, 'NEED');
+  assert.equal(providerWork.events[0].verification.ok, true);
+
+  const providerControl = await provider.poll();
+  assert.equal(providerControl.events.length, 1);
+  assert.equal(providerControl.events[0].kind, 'REVOKE');
+  assert.equal(providerControl.events[0].verification.ok, true);
 });
 
 test('TruynAdapterHost keeps reading control events while execute runs and aborts cooperatively', async (t) => {
