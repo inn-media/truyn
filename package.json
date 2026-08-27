@@ -35,6 +35,9 @@
   },
   "devDependencies": {
     "@a2a-js/sdk": "1.0.1",
-    "express": "5.1.0"
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "express": "5.1.0",
+    "zod": "4.2.0"
   }
 }
