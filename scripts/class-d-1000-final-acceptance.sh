@@ -4,6 +4,9 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+STRICT_D1000_NODES_PER_HOST=50
+export TRUYN_CLASS_D1000_NODES_PER_HOST="$STRICT_D1000_NODES_PER_HOST"
+
 source "$ROOT/scripts/lib/class-d-run-command.sh"
 
 TMP="$(mktemp -d)"
@@ -293,6 +296,11 @@ done
 grep -Fq 'TRUYN_CLASS_D1000_RUNTIME_URL' "$TMP/provision.sh"
 grep -Fq 'TRUYN_CLASS_D1000_RUNTIME_SHA256' "$TMP/provision.sh"
 grep -Fq 'sha256sum -c -' "$TMP/provision.sh"
+grep -Fq 'STRICT_NODES_PER_HOST=50' "$TMP/provision.sh"
+grep -Fq 'DIAGNOSTIC_NODES_PER_HOST_SIZES="10 25 50"' "$TMP/provision.sh"
+grep -Fq 'NODES_PER_HOST="${TRUYN_CLASS_D1000_NODES_PER_HOST:-$STRICT_NODES_PER_HOST}"' "$TMP/provision.sh"
+grep -Fq 'NODE_COUNT=$((HOST_COUNT * NODES_PER_HOST))' "$TMP/provision.sh"
+[[ "$TRUYN_CLASS_D1000_NODES_PER_HOST" == "50" ]]
 
 grep -Fq 'truyn_class_d_remote "$RG" "$vm" "$body"' "$TMP/provision.sh"
 if grep -Fq -- "--query 'value[0].message'" "$TMP/provision.sh"; then
@@ -314,7 +322,7 @@ grep -Fq '"status": "FAIL"' "$TMP/provision.sh"
 grep -Fq '"evidenceFinalizedOnFail": True' "$TMP/provision.sh"
 grep -Fq '.cleanup.finalizedAfterExitTrap=$after_exit_trap' "$TMP/provision.sh"
 
-echo "TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical runCommandBoundary=accepted-d100 runtimeBundle=sha256-pinned"
+echo "TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical runCommandBoundary=accepted-d100 runtimeBundle=sha256-pinned strictNodesPerHost=${TRUYN_CLASS_D1000_NODES_PER_HOST}"
 
 if [[ "${TRUYN_CLASS_D1000_PREPARE_ONLY:-0}" == 1 ]]; then
   rm -rf "$TMP"
