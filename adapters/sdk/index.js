@@ -1,6 +1,8 @@
 import { verifyEnvelope } from '../../core/protocol/index.js';
 import { createProviderAccessPolicy } from '../../core/security/provider-access.js';
 
+const MAX_CANCELLATION_REASON_CHARS = 256;
+
 function normalizeCapabilities(capabilities) {
   const values = typeof capabilities === 'function' ? capabilities() : capabilities;
   if (!Array.isArray(values) || values.length === 0) throw new Error('Adapter must expose at least one capability');
@@ -44,7 +46,10 @@ function cancellationFromEvent(event) {
   if (!verification.ok) return null;
   const payload = event.envelope.payload || {};
   if (!payload.targetId || (payload.targetKind && payload.targetKind !== 'need')) return null;
-  return { targetId: payload.targetId, reason: payload.reason || 'cancelled_by_requester', from: event.envelope.from, verification };
+  const reason = typeof payload.reason === 'string' && payload.reason
+    ? payload.reason.slice(0, MAX_CANCELLATION_REASON_CHARS)
+    : 'cancelled_by_requester';
+  return { targetId: payload.targetId, reason, from: event.envelope.from, verification };
 }
 
 async function responseJson(response) {
@@ -255,7 +260,7 @@ export class TruynAdapterHost {
       const execution = await this.adapter.execute({ capability, input, policy: need.payload?.policy || {}, need, node: this.node, signal, emitPartial: (delta, partialMetadata = {}) => this.sendPartial(need, state, delta, partialMetadata) });
       if (signal.aborted) return;
       const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
-      const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, partialCount: state.nextSequence, ...(normalized.metadata || {}) };
+      const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, ...(normalized.metadata || {}), partialCount: state.nextSequence };
       if (billing) { metadata.billingMode = billing.mode; metadata.billingResponsibility = billing.billingResponsibility; }
       if (contextResolution) metadata.contextResolution = contextResolution;
       if (need.chain) metadata.chainStage = need.stageIndex;
@@ -271,7 +276,7 @@ export class TruynAdapterHost {
 
   rememberCancellation(cancellation) {
     if (this.cancelledNeedIds.has(cancellation.targetId)) this.cancelledNeedIds.delete(cancellation.targetId);
-    this.cancelledNeedIds.set(cancellation.targetId, { from: cancellation.from, reason: cancellation.reason, receivedAt: Date.now() });
+    this.cancelledNeedIds.set(cancellation.targetId, { from: cancellation.from, reason: cancellation.reason.slice(0, MAX_CANCELLATION_REASON_CHARS), receivedAt: Date.now() });
     while (this.cancelledNeedIds.size > this.maxCancellationTombstones) {
       const oldest = this.cancelledNeedIds.keys().next().value;
       this.cancelledNeedIds.delete(oldest);

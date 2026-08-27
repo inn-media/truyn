@@ -1,11 +1,13 @@
 import http from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { WebSocket, WebSocketServer } from 'ws';
 import { compactStageRequestId, verifyCompactFrame, verifyEnvelope } from '../../core/protocol/index.js';
 import { trustabilityLite } from '../../core/trust/index.js';
 import { applyContextDelta, buildContextDocument, retrieveContextBlocks } from '../../core/context/index.js';
 import { providerPolicyAllowsRequester, providerPolicyFromOffer } from '../../core/security/relay-provider-policy.js';
+
+const MAX_CANCELLATION_REASON_CHARS = 256;
 
 function json(res, status, body) {
   if (res.writableEnded) return;
@@ -63,6 +65,7 @@ function capabilityName(stage) {
 }
 
 const roundMs = (value) => Number(value.toFixed(3));
+const partialDigest = (frame, payload) => createHash('sha256').update(JSON.stringify([frame, payload])).digest('base64url');
 
 function traceMark(chain, name, monotonicMs = performance.now(), wallTime = new Date().toISOString()) {
   if (!chain?.trace) return;
@@ -521,12 +524,31 @@ export function createRelay({
     if (request.mode !== 'fast') return { status: 409, body: { ok: false, error: 'partial_requires_fast_need' } };
     if (!Number.isInteger(payload?.sequence) || payload.sequence < 0) return { status: 400, body: { ok: false, error: 'invalid_partial_sequence' } };
     const expected = request.nextPartialSequence ?? 0;
+    const digest = partialDigest(frame, payload);
+    if (payload.sequence === expected - 1 && request.lastPartialSequence === payload.sequence) {
+      if (request.lastPartialDigest === digest) {
+        return { status: 200, body: { ok: true, requestId: frame.i, sequence: payload.sequence, transport: request.lastPartialTransport, idempotent: true } };
+      }
+      return { status: 409, body: { ok: false, error: 'partial_sequence_mismatch', expected, received: payload.sequence } };
+    }
     if (payload.sequence !== expected) return { status: 409, body: { ok: false, error: 'partial_sequence_mismatch', expected, received: payload.sequence } };
     const event = { kind: 'PARTIAL', frame, payload, from: providerNodeId, requestId: frame.i, sequence: payload.sequence };
     const transport = queueFast(request.requester, event, { requireCapacity: true });
     if (transport === 'full') return { status: 429, body: { ok: false, error: 'partial_backpressure', requestId: frame.i, sequence: payload.sequence, expected } };
+    if ((request.partialCount || 0) === 0) {
+      finishResultWaiter(frame.i, 200, {
+        ok: true,
+        needId: frame.i,
+        provider: request.provider,
+        providerTrust: trustFor(request.provider),
+        streaming: true
+      });
+    }
     request.nextPartialSequence = expected + 1;
     request.partialCount = request.nextPartialSequence;
+    request.lastPartialSequence = payload.sequence;
+    request.lastPartialDigest = digest;
+    request.lastPartialTransport = transport;
     request.lastPartialAt = new Date().toISOString();
     touch(providerNodeId);
     return { status: 200, body: { ok: true, requestId: frame.i, sequence: payload.sequence, transport } };
@@ -557,7 +579,9 @@ export function createRelay({
     const trust = completeRequest(request, providerNodeId);
     const event = { kind: 'RESULT', frame, payload, from: providerNodeId, trust };
     releaseFastTerminal(request);
-    if (!finishResultWaiter(frame.i, 200, { ok: true, result: event })) {
+    const synchronousResultDelivered = (request.partialCount || 0) === 0
+      && finishResultWaiter(frame.i, 200, { ok: true, result: event });
+    if (!synchronousResultDelivered) {
       const transport = queueFastTerminal(request.requester, event);
       if (transport === 'full') return { status: 503, body: { ok: false, error: 'terminal_capacity_invariant', requestId: frame.i } };
     }
@@ -876,6 +900,11 @@ export function createRelay({
         if (!targetId || typeof targetId !== 'string') return json(res, 400, { ok: false, error: 'invalid_target_id' });
         const targetKind = envelope.payload?.targetKind || 'auto';
         if (!['auto', 'need', 'offer'].includes(targetKind)) return json(res, 400, { ok: false, error: 'invalid_target_kind' });
+        const rawReason = envelope.payload?.reason;
+        if (rawReason != null && (typeof rawReason !== 'string' || rawReason.length > MAX_CANCELLATION_REASON_CHARS)) {
+          return json(res, 400, { ok: false, error: 'invalid_cancel_reason' });
+        }
+        const cancellationReason = rawReason || 'cancelled_by_requester';
         const request = requests.get(targetId);
         const offer = offers.get(targetId);
         if (targetKind === 'auto' && request && offer) return json(res, 409, { ok: false, error: 'ambiguous_revoke_target', targetId });
@@ -898,7 +927,7 @@ export function createRelay({
           request.status = 'cancelled';
           request.cancelled = true;
           request.cancelledAt = new Date().toISOString();
-          request.cancelReason = typeof envelope.payload?.reason === 'string' && envelope.payload.reason ? envelope.payload.reason : 'cancelled_by_requester';
+          request.cancelReason = cancellationReason;
           request.nextPartialSequence ??= 0;
           releaseFastTerminal(request);
           finishResultWaiter(targetId, 409, { ok: false, error: 'request_cancelled', requestId: targetId });
