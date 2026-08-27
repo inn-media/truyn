@@ -1,0 +1,38 @@
+name: PR388 test isolation
+
+on:
+  push:
+    branches:
+      - fix/d200-install-path
+
+permissions:
+  contents: read
+
+jobs:
+  isolate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: bash-n-provisioner
+        continue-on-error: true
+        run: bash -n benchmarks/scale/class-d-azure-1000-provision.sh
+      - name: diagnostic-sizing
+        continue-on-error: true
+        run: node --test tests/class-d-1000-diagnostic-sizing.test.js
+      - name: bootstrap-contract
+        continue-on-error: true
+        run: node --test tests/class-d-1000-bootstrap.test.js
+      - name: shell-harness
+        continue-on-error: true
+        run: node --test tests/class-d-shell-harness.test.js
+      - name: public-repository
+        continue-on-error: true
+        run: node --test tests/public-repository.test.js
+      - name: accepted-entrypoint-regression
+        continue-on-error: true
+        run: node --test tests/class-d-accepted-entrypoint-regression.test.js
