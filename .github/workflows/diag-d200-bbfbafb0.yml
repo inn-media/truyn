@@ -1,0 +1,291 @@
+name: diag-d200-bbfbafb0
+
+on:
+  push:
+    branches: ['ops/d200-bbfbafb0']
+    paths:
+      - '.github/workflows/diag-d200-bbfbafb0.yml'
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  issues: write
+
+concurrency:
+  group: truyn-d200-bbfbafb0-single-shot
+  cancel-in-progress: false
+
+env:
+  TESTED_COMMIT: bbfbafb0b164fd424d2cf3fd9209fbae2786a883
+  EXACT_MAIN_CI_RUN: '33086133301'
+  EXACT_MAIN_CODEQL_RUN: '33086132990'
+  AZURE_RESOURCE_GROUP: truyn
+  AZURE_LOCATION: eastus2
+  AZURE_VM_SIZE: Standard_E2as_v7
+  HOST_COUNT_EXPECTED: '20'
+  NODES_PER_HOST_EXPECTED: '10'
+  NODE_COUNT_EXPECTED: '200'
+  REQUIRED_VCPU: '40'
+
+jobs:
+  diagnostic-d200:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - name: Enforce one-shot diagnostic branch launch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "$GITHUB_REF" = 'refs/heads/ops/d200-bbfbafb0'
+          commit_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}")"
+          test "$(jq '.files | length' <<<"$commit_json")" = '1'
+          test "$(jq -r '.files[0].filename' <<<"$commit_json")" = '.github/workflows/diag-d200-bbfbafb0.yml'
+          test "$(jq -r '.files[0].status' <<<"$commit_json")" = 'added'
+
+      - name: Checkout exact tested main source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TESTED_COMMIT }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify exact post-merge green source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$TESTED_COMMIT"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}" --jq '.head_sha')" = "$TESTED_COMMIT"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}" --jq '.name')" = CI
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}" --jq '.conclusion')" = success
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}" --jq '.head_sha')" = "$TESTED_COMMIT"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}" --jq '.conclusion')" = success
+          git diff --check
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fail-closed Azure capacity preflight
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          usage_json="$(az vm list-usage -l "$AZURE_LOCATION" -o json --only-show-errors)"
+          regional_current="$(jq -r '[.[] | select((((.name.localizedValue // .name.value // "") | ascii_downcase) | contains("total regional vcpus")))][0].currentValue' <<<"$usage_json")"
+          regional_limit="$(jq -r '[.[] | select((((.name.localizedValue // .name.value // "") | ascii_downcase) | contains("total regional vcpus")))][0].limit' <<<"$usage_json")"
+          test "$regional_current" != null
+          test "$regional_limit" != null
+          test $((regional_limit - regional_current)) -ge "$REQUIRED_VCPU"
+          sku_json="$(az vm list-skus -l "$AZURE_LOCATION" --size "$AZURE_VM_SIZE" --all -o json --only-show-errors)"
+          test "$(jq 'length' <<<"$sku_json")" -ge 1
+          vcpu="$(jq -r '[.[].capabilities[]? | select(.name=="vCPUs") | .value][0]' <<<"$sku_json")"
+          memory="$(jq -r '[.[].capabilities[]? | select(.name=="MemoryGB") | .value][0]' <<<"$sku_json")"
+          location_blocks="$(jq '[.[].restrictions[]? | select(.type=="Location" and .reasonCode=="NotAvailableForSubscription")] | length' <<<"$sku_json")"
+          test "$vcpu" = 2
+          test "$memory" = 16
+          test "$location_blocks" = 0
+          echo "TRUYN_D200_AZURE_PREFLIGHT=PASS location=${AZURE_LOCATION} vmSize=${AZURE_VM_SIZE} regionalCurrent=${regional_current} regionalLimit=${regional_limit} requiredVcpu=${REQUIRED_VCPU}"
+
+      - name: Execute real 20-host 200-process diagnostic campaign
+        id: campaign
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          tmp="$(mktemp -d)"
+          cp benchmarks/scale/class-d-azure-1000-provision.sh "$tmp/provision.sh"
+          cp benchmarks/scale/class-d-azure-1000-campaign.sh "$tmp/campaign.sh"
+          python3 - "$tmp/campaign.sh" <<'PY'
+          from pathlib import Path
+          import sys
+          p = Path(sys.argv[1])
+          text = p.read_text()
+          if text.count('seq 10 14') != 3:
+              raise SystemExit(f'unexpected restart shell range count={text.count("seq 10 14")}')
+          if text.count('range(10,15)') != 1:
+              raise SystemExit(f'unexpected restart python range count={text.count("range(10,15)")}')
+          text = text.replace('seq 10 14', 'seq 5 9')
+          text = text.replace('range(10,15)', 'range(5,10)')
+          p.write_text(text)
+          PY
+          bash -n "$tmp/provision.sh"
+          bash -n "$tmp/campaign.sh"
+          printf 'tested_commit=%s\nlauncher_sha=%s\nrun_id=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nrestart_indices=5..9\nstrict_d1000_acceptance=false\n' "$TESTED_COMMIT" "$GITHUB_SHA" "$GITHUB_RUN_ID" > class-d-200-diagnostic-input.txt
+          set +e
+          PROVISION="$tmp/provision.sh" CAMPAIGN="$tmp/campaign.sh" \
+          GITHUB_SHA="$TESTED_COMMIT" \
+          TRUYN_AZURE_RESOURCE_GROUP="$AZURE_RESOURCE_GROUP" \
+          TRUYN_CLASS_D1000_LOCATION="$AZURE_LOCATION" \
+          TRUYN_CLASS_D1000_VM_SIZE="$AZURE_VM_SIZE" \
+          TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST_EXPECTED" \
+          bash -c 'set -Eeuo pipefail; source "$PROVISION"; source "$CAMPAIGN"' 2>&1 | tee class-d-200-diagnostic.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "campaign_rc=${rc}" >>"$GITHUB_OUTPUT"
+          rm -rf "$tmp"
+          exit "$rc"
+
+      - name: Evaluate diagnostic evidence and routing telemetry
+        id: evaluate
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          raw="${GITHUB_WORKSPACE}/class-d-1000-evidence.json"
+          evidence="${GITHUB_WORKSPACE}/class-d-200-diagnostic-evidence.json"
+          evaluation="${GITHUB_WORKSPACE}/class-d-200-diagnostic-evaluation.json"
+          telemetry="${GITHUB_WORKSPACE}/class-d-200-routing-telemetry.json"
+          strict_rejection="${GITHUB_WORKSPACE}/class-d-200-strict-d1000-rejection.json"
+          if [[ ! -f "$raw" ]]; then
+            printf '%s\n' '{"ok":false,"error":"diagnostic_evidence_missing"}' >"$evaluation"
+            printf '%s\n' '{"ok":false,"error":"routing_telemetry_missing"}' >"$telemetry"
+            evaluator_rc=99
+            cleanup_confirmed=false
+            remaining_resources=-1
+          else
+            jq '.class="D-200-DIAGNOSTIC" | .scope="200-real-process-diagnostic+safety-contract-v2" | .diagnostic={strictD1000Acceptance:false,hosts:20,nodesPerHost:10,nodeCount:200,routingThreshold:0.99,convergenceP95LimitMs:120000,recoveryP95LimitMs:120000}' "$raw" >"$evidence"
+            jq '{testedCommit,workflowRunId,topology,readiness,routing,convergence,recovery,adversarial,safety,resources,cleanup}' "$evidence" >"$telemetry"
+            python3 - "$evidence" "$evaluation" <<'PY'
+          import json, sys
+          src, out = sys.argv[1:]
+          e = json.load(open(src))
+          def num(path, default=-1):
+              cur=e
+              for part in path.split('.'):
+                  if not isinstance(cur,dict) or part not in cur: return default
+                  cur=cur[part]
+              try: return float(cur)
+              except Exception: return default
+          def val(path, default=None):
+              cur=e
+              for part in path.split('.'):
+                  if not isinstance(cur,dict) or part not in cur: return default
+                  cur=cur[part]
+              return cur
+          checks = {
+            'hosts20': num('topology.hostCount') == 20,
+            'nodes200': num('topology.nodeCount') == 200,
+            'realProcesses200': num('topology.realProcessCount') == 200,
+            'nodesPerHost10': num('topology.realProcessesPerHost') == 10,
+            'uniqueIdentities200': num('topology.uniqueIdentityCount') == 200,
+            'uniqueEndpoints200': num('topology.uniqueEndpointCount') == 200,
+            'syntheticNodesZero': num('topology.syntheticNodeCount') == 0,
+            'readinessAtLeast99': num('readiness.readyNodeRatio') >= .99,
+            'baselineRoutingAtLeast99': num('routing.baselineSuccessRatio') >= .99,
+            'postRestartRoutingAtLeast99': num('routing.postRestartSuccessRatio') >= .99,
+            'healedRoutingAtLeast99': num('routing.healedSuccessRatio') >= .99,
+            'convergenceRoutingAtLeast99': num('convergence.routingSuccessRatio') >= .99,
+            'convergenceP95AtMost120s': num('convergence.latencyMs.p95') <= 120000,
+            'recoveryP95AtMost120s': num('recovery.latencyMs.p95') <= 120000,
+            'partitionRecoveryAtMost120s': num('recovery.packetPartitionRecoveryMs') <= 120000,
+            'packetPartitionReal': val('adversarial.packetPartition.realPacketPath') is True,
+            'packetPartitionBlocksAll': num('adversarial.packetPartition.blockedSuccesses') == 0,
+            'acknowledgedWriteLossZero': num('safety.acknowledgedWriteLossCount') == 0,
+            'invalidSignedAcceptedZero': num('safety.invalidSignedStateAcceptedCount') == 0,
+            'staleReceiptAcceptedZero': num('safety.staleRevokedReceiptAcceptedCount') == 0,
+            'unauthorizedProviderExecutionZero': num('safety.unauthorizedProviderExecutionCount') == 0,
+            'cleanupConfirmed': val('cleanup.confirmed') is True,
+            'remainingResourcesZero': num('cleanup.remainingResources') == 0,
+          }
+          failed=[k for k,v in checks.items() if not v]
+          result={'ok':not failed,'result':'PASS' if not failed else 'FAIL','checks':checks,'failed':failed,'thresholds':{'routingSuccessRatio':.99,'convergenceP95Ms':120000,'recoveryP95Ms':120000},'metrics':{'baselineRouting':num('routing.baselineSuccessRatio'),'healedRouting':num('routing.healedSuccessRatio'),'convergenceRouting':num('convergence.routingSuccessRatio'),'convergenceP95Ms':num('convergence.latencyMs.p95'),'recoveryP95Ms':num('recovery.latencyMs.p95'),'partitionRecoveryMs':num('recovery.packetPartitionRecoveryMs')}}
+          json.dump(result,open(out,'w'),separators=(',',':'))
+          open(out,'a').write('\n')
+          sys.exit(0 if result['ok'] else 1)
+          PY
+            evaluator_rc=$?
+            node benchmarks/scale/evaluate-class-d-1000-evidence.js "$raw" >"$strict_rejection" 2>&1
+            strict_rc=$?
+            if [[ "$strict_rc" -eq 0 ]]; then
+              echo 'strict D-1000 evaluator unexpectedly accepted 20x10 diagnostic evidence' >&2
+              evaluator_rc=98
+            elif ! jq -e '.failed | index("strictNodesPerHost") != null' "$strict_rejection" >/dev/null 2>&1; then
+              echo 'strict D-1000 evaluator did not surface strictNodesPerHost rejection' >&2
+              evaluator_rc=97
+            fi
+            cleanup_confirmed="$(jq -r '.cleanup.confirmed // false' "$evidence")"
+            remaining_resources="$(jq -r '.cleanup.remainingResources // -1' "$evidence")"
+          fi
+          echo "evaluator_rc=${evaluator_rc}" >>"$GITHUB_OUTPUT"
+          echo "cleanup_confirmed=${cleanup_confirmed}" >>"$GITHUB_OUTPUT"
+          echo "remaining_resources=${remaining_resources}" >>"$GITHUB_OUTPUT"
+          if [[ -f "$evaluation" ]]; then
+            echo "baseline_routing=$(jq -r '.metrics.baselineRouting // -1' "$evaluation")" >>"$GITHUB_OUTPUT"
+            echo "healed_routing=$(jq -r '.metrics.healedRouting // -1' "$evaluation")" >>"$GITHUB_OUTPUT"
+            echo "convergence_routing=$(jq -r '.metrics.convergenceRouting // -1' "$evaluation")" >>"$GITHUB_OUTPUT"
+            echo "convergence_p95_ms=$(jq -r '.metrics.convergenceP95Ms // -1' "$evaluation")" >>"$GITHUB_OUTPUT"
+            echo "recovery_p95_ms=$(jq -r '.metrics.recoveryP95Ms // -1' "$evaluation")" >>"$GITHUB_OUTPUT"
+          fi
+          echo "TRUYN_D200_EVALUATION evaluator_rc=${evaluator_rc} cleanup=${cleanup_confirmed} remaining=${remaining_resources}"
+          exit 0
+
+      - name: Upload immutable diagnostic evidence bundle
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-class-d200-bbfbafb0-${{ github.run_id }}
+          path: |
+            class-d-200-*.json
+            class-d-200-*.txt
+            class-d-200-*.log
+            class-d-1000-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Record diagnostic terminal marker
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CAMPAIGN_RC: ${{ steps.campaign.outputs.campaign_rc }}
+          EVALUATOR_RC: ${{ steps.evaluate.outputs.evaluator_rc }}
+          CLEANUP_CONFIRMED: ${{ steps.evaluate.outputs.cleanup_confirmed }}
+          REMAINING_RESOURCES: ${{ steps.evaluate.outputs.remaining_resources }}
+          BASELINE_ROUTING: ${{ steps.evaluate.outputs.baseline_routing }}
+          HEALED_ROUTING: ${{ steps.evaluate.outputs.healed_routing }}
+          CONVERGENCE_ROUTING: ${{ steps.evaluate.outputs.convergence_routing }}
+          CONVERGENCE_P95_MS: ${{ steps.evaluate.outputs.convergence_p95_ms }}
+          RECOVERY_P95_MS: ${{ steps.evaluate.outputs.recovery_p95_ms }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          status=FAIL
+          if [[ "${CAMPAIGN_RC:-99}" == 0 && "${EVALUATOR_RC:-99}" == 0 && "$CLEANUP_CONFIRMED" == true && "$REMAINING_RESOURCES" == 0 && -n "$ARTIFACT_ID" && "$ARTIFACT_DIGEST" == sha256:* ]]; then status=PASS; fi
+          body="result=${status} run=${GITHUB_RUN_ID} attempt=${GITHUB_RUN_ATTEMPT} launcher_sha=${GITHUB_SHA} tested_sha=${TESTED_COMMIT} exact_main_ci_run=${EXACT_MAIN_CI_RUN} exact_main_codeql_run=${EXACT_MAIN_CODEQL_RUN} azure_location=${AZURE_LOCATION} vm_size=${AZURE_VM_SIZE} hosts=20 nodes=200 nodes_per_host=10 routing_threshold=0.99 convergence_p95_limit_ms=120000 recovery_p95_limit_ms=120000 campaign_rc=${CAMPAIGN_RC:-99} evaluator_rc=${EVALUATOR_RC:-99} cleanup_confirmed=${CLEANUP_CONFIRMED} remainingResources=${REMAINING_RESOURCES} baselineRouting=${BASELINE_ROUTING} healedRouting=${HEALED_ROUTING} convergenceRouting=${CONVERGENCE_ROUTING} convergenceP95Ms=${CONVERGENCE_P95_MS} recoveryP95Ms=${RECOVERY_P95_MS} artifact_id=${ARTIFACT_ID} artifact_name=truyn-class-d200-bbfbafb0-${GITHUB_RUN_ID} artifact_digest=${ARTIFACT_DIGEST} strict_d1000_acceptance=false"
+          gh api "repos/${GITHUB_REPOSITORY}/issues" -f "title=TRUYN CLASS D-200 DIAGNOSTIC bbfbafb0 ${status}" -f "body=${body}" >/dev/null
+
+      - name: Strict diagnostic gate
+        if: always()
+        shell: bash
+        env:
+          CAMPAIGN_RC: ${{ steps.campaign.outputs.campaign_rc }}
+          EVALUATOR_RC: ${{ steps.evaluate.outputs.evaluator_rc }}
+          CLEANUP_CONFIRMED: ${{ steps.evaluate.outputs.cleanup_confirmed }}
+          REMAINING_RESOURCES: ${{ steps.evaluate.outputs.remaining_resources }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -Eeuo pipefail
+          test "${CAMPAIGN_RC:-99}" = 0
+          test "${EVALUATOR_RC:-99}" = 0
+          test "$CLEANUP_CONFIRMED" = true
+          test "$REMAINING_RESOURCES" = 0
+          test -n "$ARTIFACT_ID"
+          [[ "$ARTIFACT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          jq -e '.result == "PASS" and .ok == true' class-d-200-diagnostic-evaluation.json >/dev/null
+          echo "TRUYN_CLASS_D200_DIAGNOSTIC=PASS run=${GITHUB_RUN_ID} artifact_id=${ARTIFACT_ID} artifact_digest=${ARTIFACT_DIGEST}"
