@@ -996,10 +996,23 @@ export function createRelay({
     touch(nodeId);
     const queued = fastEvents.get(nodeId) || [];
     const terminalQueued = fastTerminalEvents.get(nodeId) || [];
-    fastEvents.set(nodeId, []);
-    fastTerminalEvents.set(nodeId, []);
-    for (const event of queued) sendSocketEvent(nodeId, event);
-    for (const event of terminalQueued) sendSocketEvent(nodeId, event);
+    let saturated = false;
+    while (queued.length > 0 && !saturated) {
+      const delivered = sendSocketEvent(nodeId, queued[0], { requireCapacity: true });
+      if (delivered === true) queued.shift();
+      else saturated = true;
+    }
+    while (queued.length === 0 && terminalQueued.length > 0 && !saturated) {
+      const delivered = sendSocketEvent(nodeId, terminalQueued[0], { requireCapacity: true });
+      if (delivered === true) terminalQueued.shift();
+      else saturated = true;
+    }
+    fastEvents.set(nodeId, queued);
+    fastTerminalEvents.set(nodeId, terminalQueued);
+    if (saturated && connectedSocket(nodeId) === socket) {
+      providerSockets.delete(nodeId);
+      try { socket.close(1013, 'socket_backpressure'); } catch {}
+    }
     socket.on('pong', () => {
       socket.isAlive = true;
       touch(nodeId);
