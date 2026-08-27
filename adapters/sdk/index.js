@@ -79,7 +79,7 @@ export function createFunctionAdapter({ name = 'function-adapter', version = '0.
 }
 
 export class TruynAdapterHost {
-  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, cancelPollMs = 50, accessPolicy, billingPolicy = null } = {}) {
+  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, cancelPollMs = 50, maxCancellationTombstones = 1024, accessPolicy, billingPolicy = null } = {}) {
     if (!node) throw new Error('node is required');
     this.node = node;
     this.adapter = validateAdapter(adapter);
@@ -89,6 +89,7 @@ export class TruynAdapterHost {
     this.socketPath = socketPath;
     this.socketReconnectDelayMs = socketReconnectDelayMs;
     this.cancelPollMs = Number.isFinite(cancelPollMs) ? Math.max(10, Math.floor(cancelPollMs)) : 50;
+    this.maxCancellationTombstones = Number.isInteger(maxCancellationTombstones) && maxCancellationTombstones > 0 ? maxCancellationTombstones : 1024;
     this.accessPolicy = accessPolicy || createProviderAccessPolicy();
     this.billingPolicy = billingPolicy;
     this.running = false;
@@ -97,6 +98,7 @@ export class TruynAdapterHost {
     this.loopPromise = null;
     this.controlLoopPromise = null;
     this.inFlight = new Map();
+    this.cancelledNeedIds = new Map();
   }
 
   async ensureRegistered() {
@@ -412,8 +414,24 @@ export class TruynAdapterHost {
     }
   }
 
+  rememberCancellation(cancellation) {
+    if (this.cancelledNeedIds.has(cancellation.targetId)) this.cancelledNeedIds.delete(cancellation.targetId);
+    this.cancelledNeedIds.set(cancellation.targetId, {
+      from: cancellation.from,
+      reason: cancellation.reason,
+      receivedAt: Date.now()
+    });
+    while (this.cancelledNeedIds.size > this.maxCancellationTombstones) {
+      const oldest = this.cancelledNeedIds.keys().next().value;
+      this.cancelledNeedIds.delete(oldest);
+    }
+  }
+
   scheduleNeed(need) {
     if (!need?.id || this.inFlight.has(need.id)) return this.inFlight.get(need.id)?.promise || null;
+    const priorCancellation = this.cancelledNeedIds.get(need.id);
+    if (priorCancellation?.from === need.from) return null;
+
     const controller = new AbortController();
     const state = { controller, need, nextSequence: 0, promise: null };
     this.inFlight.set(need.id, state);
@@ -428,6 +446,7 @@ export class TruynAdapterHost {
   handleLifecycleEvent(event) {
     const cancellation = cancellationFromEvent(event);
     if (cancellation) {
+      this.rememberCancellation(cancellation);
       const state = this.inFlight.get(cancellation.targetId);
       if (state && !state.controller.signal.aborted && state.need.from === cancellation.from) {
         state.controller.abort(new Error(cancellation.reason));
