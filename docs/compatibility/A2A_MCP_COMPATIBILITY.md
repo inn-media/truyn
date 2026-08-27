@@ -1,7 +1,7 @@
 # A2A / MCP Compatibility Matrix
 
 **Snapshot:** 2026-08-27  
-**Production/reference source synchronized from:** `main@789fee50d6c3eacfe9f973de6d64ba7ae9df1fb8`  
+**Production/reference source synchronized from:** `main@52f44fa014becb17f2d1c3e7bf71b7ba1fa595a4`  
 **TRUYN protocol:** `TRUYN/1` draft  
 **A2A profile exercised:** `1.0`  
 **MCP profile exercised:** `2026-07-28`
@@ -21,8 +21,8 @@ This document is the factual compatibility matrix for the A2A and MCP edges. It 
 | A2A client/provider adapter + remote Agent Card/skill import | **Implemented / bounded CI-proven — C4** | `adapters/a2a/client.js`, `adapters/providers/a2a-discovery.js`; PR `#340`, merge `1735528461a04de60f9f8572b466a732a6f03c62` |
 | A2A polling async lifecycle | **Implemented / bounded CI-proven — C5** | exactly-one initial `SendMessage`, bounded `GetTask` polling, fail-closed task/context correlation; PR `#352`, merge `591d30d8f57fb7c661c847bb059cd437f437dd08` |
 | A2A artifact integrity | **Implemented / bounded CI-proven — C6** | SHA-256, byte-size, canonical JSON/base64, bounded artifacts, explicit URL resolver/no implicit SSRF, authoritative provenance; PR `#368`, merge `0e6e4119450e9de55fb9be32b993a28f98dda148` |
-| A2A→TRUYN→MCP round trip | **Implemented / bounded CI-proven — C7** | `tests/interoperability-bidirectional.test.js`; exactly one remote MCP execution; PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a` |
-| MCP→TRUYN→A2A round trip | **Implemented / bounded CI-proven — C7** | `tests/interoperability-bidirectional.test.js`; exactly one remote A2A execution; PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a` |
+| A2A→TRUYN→MCP round trip | **Implemented / bounded CI-proven — C7** | durable record: `docs/compatibility/A2A_MCP_C7_BIDIRECTIONAL_BRIDGE.md`; exact test `tests/interoperability-bidirectional.test.js`; PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a` |
+| MCP→TRUYN→A2A round trip | **Implemented / bounded CI-proven — C7** | durable record: `docs/compatibility/A2A_MCP_C7_BIDIRECTIONAL_BRIDGE.md`; exact test `tests/interoperability-bidirectional.test.js`; PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a` |
 | Cross-protocol adversarial security matrix | **OPEN — C8** | active PR `#369`; do not mark accepted until exact-head/full-suite/DCO/CodeQL and post-merge exact-main gates pass |
 | Independent external A2A reference/SDK interoperability | **Not yet proven** | current C7 remote A2A side is an in-repository TRUYN A2A facade fixture |
 | Independent external MCP reference/SDK interoperability | **Not yet proven** | current C7 remote MCP side is a bounded protocol fixture, not an ecosystem certification |
@@ -30,7 +30,7 @@ This document is the factual compatibility matrix for the A2A and MCP edges. It 
 
 ## Accepted C1–C7 profile
 
-The accepted in-repository profile now composes both protocol directions. C4 reverse A2A import/provider execution is implemented and bounded CI-proven by PR `#340` (merge `1735528461a04de60f9f8572b466a732a6f03c62`); C7 bidirectional composition is proved by `tests/interoperability-bidirectional.test.js` in PR `#357` (merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a`).
+The accepted in-repository profile now composes both protocol directions. C4 reverse A2A import/provider execution is implemented and bounded CI-proven by PR `#340` (merge `1735528461a04de60f9f8572b466a732a6f03c62`). C7 bidirectional composition is proved by `tests/interoperability-bidirectional.test.js` in PR `#357` (merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a`) and pinned independently in `docs/compatibility/A2A_MCP_C7_BIDIRECTIONAL_BRIDGE.md`.
 
 ### A2A → TRUYN → MCP
 
@@ -95,4 +95,4 @@ The next adoption-level proof should build on the already-accepted C4–C7 imple
 
 A2A, MCP and TRUYN have independent release cadence. Unsupported versions fail explicitly. Adapter version changes should not require a new TRUYN protocol generation unless TRUYN network semantics change.
 
-Historical C1/C2/C3 documents and tests remain valid evidence for the slices they originally closed, but their old “future work” wording must not be used as the current repository status after C4–C7 merged.
+Historical C1/C2/C3 documents and tests remain valid evidence for the slices they originally closed, but their old “future work” wording must not be used as the current repository status after C4–C7 merged. For C7, the durable acceptance authority is `docs/compatibility/A2A_MCP_C7_BIDIRECTIONAL_BRIDGE.md`.
