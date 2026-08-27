@@ -34,31 +34,56 @@ export function createVertexVeoProvider({ projectId = process.env.GCP_PROJECT_ID
       const createResponse = await fetchImpl(`${modelBase}:predictLongRunning`, { method: 'POST', headers, body: requestBody, signal });
       const createBody = await createResponse.json();
       if (!createResponse.ok || !createBody.name) throw new Error(createBody?.error?.message || `Vertex Veo HTTP ${createResponse.status}`);
-      let pollCount = 0;
-      let operation = null;
-      while (Date.now() - startedAt < timeoutMs) {
-        pollCount += 1;
-        const pollResponse = await fetchImpl(`${modelBase}:fetchPredictOperation`, { method: 'POST', headers, body: JSON.stringify({ operationName: createBody.name }), signal });
-        operation = await pollResponse.json();
-        if (!pollResponse.ok) throw new Error(operation?.error?.message || `Vertex Veo poll HTTP ${pollResponse.status}`);
-        if (operation.done) break;
-        await sleep(pollIntervalMs, signal);
+
+      let remoteTerminal = false;
+      let cancelPromise = null;
+      const cancelRemote = () => {
+        if (remoteTerminal) return Promise.resolve();
+        if (!cancelPromise) {
+          cancelPromise = (async () => {
+            const response = await fetchImpl(`${apiEndpoint.replace(/\/$/, '')}/v1/${createBody.name}:cancel`, { method: 'POST', headers });
+            if (!response.ok && response.status !== 400 && response.status !== 404 && response.status !== 409) throw new Error(`Vertex Veo cancel HTTP ${response.status}`);
+          })().catch(() => {});
+        }
+        return cancelPromise;
+      };
+      const onAbort = () => { void cancelRemote(); };
+      if (signal?.aborted) onAbort(); else signal?.addEventListener('abort', onAbort, { once: true });
+
+      try {
+        let pollCount = 0;
+        let operation = null;
+        while (Date.now() - startedAt < timeoutMs) {
+          pollCount += 1;
+          const pollResponse = await fetchImpl(`${modelBase}:fetchPredictOperation`, { method: 'POST', headers, body: JSON.stringify({ operationName: createBody.name }), signal });
+          operation = await pollResponse.json();
+          if (!pollResponse.ok) throw new Error(operation?.error?.message || `Vertex Veo poll HTTP ${pollResponse.status}`);
+          if (operation.done) break;
+          await sleep(pollIntervalMs, signal);
+        }
+        remoteTerminal = Boolean(operation?.done);
+        if (remoteTerminal) signal?.removeEventListener('abort', onAbort);
+        if (!operation?.done) throw new Error(`Vertex Veo timed out after ${timeoutMs}ms`);
+        if (operation.error) throw new Error(operation.error.message || 'Vertex Veo operation failed');
+        const videos = operation?.response?.videos || [];
+        if (!videos.length) throw new Error('Vertex Veo response contained no video artifact');
+        const video = videos[0];
+        let buffer;
+        let ref = video.gcsUri || null;
+        if (video.bytesBase64Encoded) {
+          buffer = Buffer.from(video.bytesBase64Encoded, 'base64');
+          const stored = await store.put(buffer, { mediaType: video.mimeType || 'video/mp4', prefix: 'video/veo', extension: 'mp4', signal });
+          ref = stored.ref;
+        } else if (video.gcsUri && typeof store.get === 'function') buffer = await store.get(video.gcsUri, { signal });
+        else throw new Error('Vertex Veo response had neither inline bytes nor a readable GCS artifact');
+        const artifact = artifactFromBuffer(buffer, { mediaType: video.mimeType || 'video/mp4', ref, provenance: { cloud: 'gcp', vendor: 'google', family: 'veo', model }, metadata: { durationSeconds, resolution, sampleCount } });
+        return artifactResult([artifact], { provider: 'vertex-veo', cloud: 'gcp', vendor: 'google', modelFamily: 'veo', model, modality: 'video', providerRequestId: createBody.name, providerLatencyMs: Date.now() - startedAt, providerRequestBodyBytes: Buffer.byteLength(requestBody), providerResponseBodyBytes: Buffer.byteLength(JSON.stringify(operation)), artifactBytes: artifact.bytes, jobPollCount: pollCount, video: { durationSeconds, resolution, sampleCount } });
+      } catch (error) {
+        if (signal?.aborted) await cancelRemote();
+        throw error;
+      } finally {
+        signal?.removeEventListener('abort', onAbort);
       }
-      if (!operation?.done) throw new Error(`Vertex Veo timed out after ${timeoutMs}ms`);
-      if (operation.error) throw new Error(operation.error.message || 'Vertex Veo operation failed');
-      const videos = operation?.response?.videos || [];
-      if (!videos.length) throw new Error('Vertex Veo response contained no video artifact');
-      const video = videos[0];
-      let buffer;
-      let ref = video.gcsUri || null;
-      if (video.bytesBase64Encoded) {
-        buffer = Buffer.from(video.bytesBase64Encoded, 'base64');
-        const stored = await store.put(buffer, { mediaType: video.mimeType || 'video/mp4', prefix: 'video/veo', extension: 'mp4', signal });
-        ref = stored.ref;
-      } else if (video.gcsUri && typeof store.get === 'function') buffer = await store.get(video.gcsUri, { signal });
-      else throw new Error('Vertex Veo response had neither inline bytes nor a readable GCS artifact');
-      const artifact = artifactFromBuffer(buffer, { mediaType: video.mimeType || 'video/mp4', ref, provenance: { cloud: 'gcp', vendor: 'google', family: 'veo', model }, metadata: { durationSeconds, resolution, sampleCount } });
-      return artifactResult([artifact], { provider: 'vertex-veo', cloud: 'gcp', vendor: 'google', modelFamily: 'veo', model, modality: 'video', providerRequestId: createBody.name, providerLatencyMs: Date.now() - startedAt, providerRequestBodyBytes: Buffer.byteLength(requestBody), providerResponseBodyBytes: Buffer.byteLength(JSON.stringify(operation)), artifactBytes: artifact.bytes, jobPollCount: pollCount, video: { durationSeconds, resolution, sampleCount } });
     }
   };
 }
