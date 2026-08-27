@@ -1,5 +1,7 @@
 import { evaluateClassD1000 } from './class-d.js';
 
+const STRICT_D1000_NODES_PER_HOST = 50;
+
 function finite(value, fallback = null) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -43,6 +45,7 @@ export function normalizeAzureClassD1000Evidence(raw = {}) {
   const normalized = {
     topology: {
       realNodeCount: finite(raw?.topology?.realProcessCount ?? raw?.topology?.nodeCount, 0),
+      realProcessesPerHost: finite(raw?.topology?.realProcessesPerHost, 0),
       distinctIdentityCount: finite(raw?.topology?.uniqueIdentityCount, 0),
       distinctQuicSocketCount: finite(raw?.topology?.uniqueEndpointCount, 0),
       syntheticNodeCount: finite(raw?.topology?.syntheticNodeCount, Infinity),
@@ -86,6 +89,7 @@ export function normalizeAzureClassD1000Evidence(raw = {}) {
       source: raw?.scope || 'unknown',
       testedCommit: raw?.testedCommit || null,
       workflowRunId: raw?.workflowRunId || null,
+      nodesPerHostMetric: 'topology.realProcessesPerHost',
       healedRoutingMetric: packetPartitionProbe ? 'routing.healedSuccessRatio after real packet partition' : 'missing/invalid packet-partition proof',
       invalidSignedStateMetric: invalidSignedStateProbe ? 'target-side QUIC dht.store rejection of signature-tampered record' : 'missing/invalid remote QUIC rejection proof',
       invalidSignedStateProbe,
@@ -101,8 +105,21 @@ export function normalizeAzureClassD1000Evidence(raw = {}) {
 
 export function evaluateAzureClassD1000Evidence(raw = {}) {
   const { normalized, derivation } = normalizeAzureClassD1000Evidence(raw);
+  const base = evaluateClassD1000(normalized);
+  const checks = {
+    ...base.checks,
+    strictNodesPerHost: normalized.topology.realProcessesPerHost === STRICT_D1000_NODES_PER_HOST
+  };
+  const failed = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
   return {
-    ...evaluateClassD1000(normalized),
+    ...base,
+    passed: failed.length === 0,
+    checks,
+    failed,
+    thresholds: {
+      ...base.thresholds,
+      nodesPerHost: STRICT_D1000_NODES_PER_HOST
+    },
     normalized,
     derivation
   };
