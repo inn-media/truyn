@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
 import express from 'express';
 import {
   A2A_PROTOCOL_VERSION,
@@ -18,6 +19,8 @@ import {
 
 const SDK_PACKAGE = '@a2a-js/sdk';
 const SDK_VERSION = '1.0.1';
+const HOST = '127.0.0.1';
+const MAX_BIND_ATTEMPTS = 3;
 
 const stats = {
   executionCount: 0,
@@ -90,95 +93,134 @@ class IndependentReasonExecutor {
 }
 
 const app = express();
-const server = app.listen(0, '127.0.0.1', () => {
-  const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('Unable to resolve independent A2A fixture port');
+const agentCard = {
+  name: 'Sprint C official A2A SDK black-box agent',
+  description: 'Independent A2A v1.0 server used to prove TRUYN client/provider interoperability.',
+  supportedInterfaces: [{
+    url: `http://${HOST}:0/a2a/jsonrpc`,
+    protocolBinding: 'JSONRPC',
+    tenant: '',
+    protocolVersion: A2A_PROTOCOL_VERSION
+  }],
+  provider: {
+    organization: 'A2A Project SDK black-box fixture',
+    url: 'https://github.com/a2aproject/a2a-js'
+  },
+  version: '1.0.0-sprint-c',
+  capabilities: {
+    streaming: false,
+    pushNotifications: false,
+    extensions: [],
+    extendedAgentCard: false
+  },
+  securitySchemes: {},
+  securityRequirements: [],
+  defaultInputModes: ['text/plain'],
+  defaultOutputModes: ['text/plain'],
+  skills: [{
+    id: 'reason',
+    name: 'Reason',
+    description: 'Return a deterministic response from the independent official A2A SDK server.',
+    tags: ['sprint-c', 'black-box', 'independent'],
+    examples: ['TRUYN'],
+    inputModes: ['text/plain'],
+    outputModes: ['text/plain'],
+    securityRequirements: []
+  }],
+  documentationUrl: 'https://github.com/a2aproject/a2a-js',
+  signatures: []
+};
 
-  const baseUrl = `http://127.0.0.1:${address.port}`;
-  const rpcUrl = `${baseUrl}/a2a/jsonrpc`;
-  const cardUrl = `${baseUrl}/${AGENT_CARD_PATH}`;
-  const statsUrl = `${baseUrl}/__truyn_black_box_stats`;
+const requestHandler = new DefaultRequestHandler(
+  agentCard,
+  new InMemoryTaskStore(),
+  new IndependentReasonExecutor()
+);
 
-  const agentCard = {
-    name: 'Sprint C official A2A SDK black-box agent',
-    description: 'Independent A2A v1.0 server used to prove TRUYN client/provider interoperability.',
-    supportedInterfaces: [{
-      url: rpcUrl,
-      protocolBinding: 'JSONRPC',
-      tenant: '',
-      protocolVersion: A2A_PROTOCOL_VERSION
-    }],
-    provider: {
-      organization: 'A2A Project SDK black-box fixture',
-      url: 'https://github.com/a2aproject/a2a-js'
-    },
-    version: '1.0.0-sprint-c',
-    capabilities: {
-      streaming: false,
-      pushNotifications: false,
-      extensions: [],
-      extendedAgentCard: false
-    },
-    securitySchemes: {},
-    securityRequirements: [],
-    defaultInputModes: ['text/plain'],
-    defaultOutputModes: ['text/plain'],
-    skills: [{
-      id: 'reason',
-      name: 'Reason',
-      description: 'Return a deterministic response from the independent official A2A SDK server.',
-      tags: ['sprint-c', 'black-box', 'independent'],
-      examples: ['TRUYN'],
-      inputModes: ['text/plain'],
-      outputModes: ['text/plain'],
-      securityRequirements: []
-    }],
-    documentationUrl: 'https://github.com/a2aproject/a2a-js',
-    signatures: []
-  };
-
-  const requestHandler = new DefaultRequestHandler(
-    agentCard,
-    new InMemoryTaskStore(),
-    new IndependentReasonExecutor()
-  );
-
-  app.get('/__truyn_black_box_stats', (_req, res) => {
-    res.json({
-      sdkPackage: SDK_PACKAGE,
-      sdkVersion: SDK_VERSION,
-      protocolVersion: A2A_PROTOCOL_VERSION,
-      ...stats
-    });
-  });
-
-  app.use((req, _res, next) => {
-    stats.requests.push({
-      method: req.method,
-      path: req.path,
-      a2aVersion: req.get('a2a-version') ?? null
-    });
-    next();
-  });
-
-  app.use(`/${AGENT_CARD_PATH}`, agentCardHandler({ agentCardProvider: requestHandler }));
-  app.use('/a2a/jsonrpc', jsonRpcHandler({
-    requestHandler,
-    userBuilder: UserBuilder.noAuthentication
-  }));
-
-  process.stdout.write(`${JSON.stringify({
-    type: 'ready',
+app.get('/__truyn_black_box_stats', (_req, res) => {
+  res.json({
     sdkPackage: SDK_PACKAGE,
     sdkVersion: SDK_VERSION,
     protocolVersion: A2A_PROTOCOL_VERSION,
-    cardUrl,
-    rpcUrl,
-    statsUrl
-  })}\n`);
+    ...stats
+  });
 });
 
+app.use((req, _res, next) => {
+  stats.requests.push({
+    method: req.method,
+    path: req.path,
+    a2aVersion: req.get('a2a-version') ?? null
+  });
+  next();
+});
+
+app.use(`/${AGENT_CARD_PATH}`, agentCardHandler({ agentCardProvider: requestHandler }));
+app.use('/a2a/jsonrpc', jsonRpcHandler({
+  requestHandler,
+  userBuilder: UserBuilder.noAuthentication
+}));
+
+function listen(candidate) {
+  return new Promise((resolve, reject) => {
+    const onError = (error) => {
+      candidate.off('listening', onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      candidate.off('error', onError);
+      resolve();
+    };
+    candidate.once('error', onError);
+    candidate.once('listening', onListening);
+    candidate.listen({ port: 0, host: HOST, exclusive: true });
+  });
+}
+
+async function bindEphemeralServer() {
+  let lastError;
+  for (let attempt = 1; attempt <= MAX_BIND_ATTEMPTS; attempt += 1) {
+    const candidate = createServer(app);
+    try {
+      await listen(candidate);
+      return candidate;
+    } catch (error) {
+      lastError = error;
+      if (error?.code !== 'EADDRINUSE' || attempt === MAX_BIND_ATTEMPTS) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 25 * attempt));
+    }
+  }
+  throw lastError ?? new Error('Unable to bind independent A2A fixture');
+}
+
+const server = await bindEphemeralServer();
+const address = server.address();
+if (!address || typeof address === 'string') throw new Error('Unable to resolve independent A2A fixture port');
+
+const baseUrl = `http://${HOST}:${address.port}`;
+const rpcUrl = `${baseUrl}/a2a/jsonrpc`;
+const cardUrl = `${baseUrl}/${AGENT_CARD_PATH}`;
+const statsUrl = `${baseUrl}/__truyn_black_box_stats`;
+agentCard.supportedInterfaces[0].url = rpcUrl;
+
+process.stdout.write(`${JSON.stringify({
+  type: 'ready',
+  sdkPackage: SDK_PACKAGE,
+  sdkVersion: SDK_VERSION,
+  protocolVersion: A2A_PROTOCOL_VERSION,
+  cardUrl,
+  rpcUrl,
+  statsUrl
+})}\n`);
+
+let shuttingDown = false;
 function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  if (!server.listening) {
+    process.exit(0);
+    return;
+  }
   server.close(() => process.exit(0));
 }
 
