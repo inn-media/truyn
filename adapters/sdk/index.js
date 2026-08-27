@@ -46,7 +46,6 @@ async function settleWithin(promises, timeoutMs) {
   let timer = null;
   const timeout = new Promise((resolve) => {
     timer = setTimeout(() => resolve(false), timeoutMs);
-    timer.unref?.();
   });
   const settled = Promise.allSettled(promises).then(() => true);
   const drained = await Promise.race([settled, timeout]);
