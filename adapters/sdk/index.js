@@ -79,7 +79,7 @@ export function createFunctionAdapter({ name = 'function-adapter', version = '0.
 }
 
 export class TruynAdapterHost {
-  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, cancelPollMs = 50, maxCancellationTombstones = 1024, accessPolicy, billingPolicy = null } = {}) {
+  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, cancelPollMs = 50, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, accessPolicy, billingPolicy = null } = {}) {
     if (!node) throw new Error('node is required');
     this.node = node;
     this.adapter = validateAdapter(adapter);
@@ -90,6 +90,8 @@ export class TruynAdapterHost {
     this.socketReconnectDelayMs = socketReconnectDelayMs;
     this.cancelPollMs = Number.isFinite(cancelPollMs) ? Math.max(10, Math.floor(cancelPollMs)) : 50;
     this.maxCancellationTombstones = Number.isInteger(maxCancellationTombstones) && maxCancellationTombstones > 0 ? maxCancellationTombstones : 1024;
+    this.maxConcurrentExecutions = Number.isInteger(maxConcurrentExecutions) && maxConcurrentExecutions > 0 ? maxConcurrentExecutions : 1;
+    this.maxPendingExecutions = Number.isInteger(maxPendingExecutions) && maxPendingExecutions >= 0 ? maxPendingExecutions : 256;
     this.accessPolicy = accessPolicy || createProviderAccessPolicy();
     this.billingPolicy = billingPolicy;
     this.running = false;
@@ -99,6 +101,9 @@ export class TruynAdapterHost {
     this.controlLoopPromise = null;
     this.inFlight = new Map();
     this.cancelledNeedIds = new Map();
+    this.pendingNeeds = [];
+    this.pendingNeedIds = new Set();
+    this.lastControlError = null;
   }
 
   async ensureRegistered() {
@@ -427,11 +432,7 @@ export class TruynAdapterHost {
     }
   }
 
-  scheduleNeed(need) {
-    if (!need?.id || this.inFlight.has(need.id)) return this.inFlight.get(need.id)?.promise || null;
-    const priorCancellation = this.cancelledNeedIds.get(need.id);
-    if (priorCancellation?.from === need.from) return null;
-
+  startNeed(need) {
     const controller = new AbortController();
     const state = { controller, need, nextSequence: 0, promise: null };
     this.inFlight.set(need.id, state);
@@ -439,14 +440,79 @@ export class TruynAdapterHost {
       .then(() => this.executeNeed(need, state))
       .finally(() => {
         if (this.inFlight.get(need.id) === state) this.inFlight.delete(need.id);
+        this.drainPendingNeeds();
       });
     return state.promise;
+  }
+
+  enqueueNeed(need) {
+    let resolveQueued;
+    let rejectQueued;
+    const promise = new Promise((resolve, reject) => {
+      resolveQueued = resolve;
+      rejectQueued = reject;
+    });
+    this.pendingNeeds.push({ need, promise, resolve: resolveQueued, reject: rejectQueued });
+    this.pendingNeedIds.add(need.id);
+    return promise;
+  }
+
+  rejectNeedOverCapacity(need) {
+    const metadata = {
+      adapter: this.adapter.name,
+      adapterVersion: this.adapter.version,
+      latencyMs: 0,
+      error: 'PROVIDER_BUSY',
+      errorClass: 'capacity',
+      providerBusy: true,
+      failed: true
+    };
+    if (need.chain) metadata.chainStage = need.stageIndex;
+    return Promise.resolve(this.sendTerminal(need, null, metadata));
+  }
+
+  drainPendingNeeds() {
+    while (this.running && this.inFlight.size < this.maxConcurrentExecutions && this.pendingNeeds.length > 0) {
+      const queued = this.pendingNeeds.shift();
+      this.pendingNeedIds.delete(queued.need.id);
+      const priorCancellation = this.cancelledNeedIds.get(queued.need.id);
+      if (priorCancellation?.from === queued.need.from) {
+        queued.resolve({ cancelled: true });
+        continue;
+      }
+      const execution = this.startNeed(queued.need);
+      execution.then(queued.resolve, queued.reject);
+    }
+  }
+
+  cancelPendingNeed(targetId, requester) {
+    const index = this.pendingNeeds.findIndex((entry) => entry.need.id === targetId && entry.need.from === requester);
+    if (index < 0) return false;
+    const [queued] = this.pendingNeeds.splice(index, 1);
+    this.pendingNeedIds.delete(targetId);
+    queued.resolve({ cancelled: true });
+    return true;
+  }
+
+  scheduleNeed(need) {
+    if (!need?.id) return null;
+    if (this.inFlight.has(need.id)) return this.inFlight.get(need.id)?.promise || null;
+    if (this.pendingNeedIds.has(need.id)) return this.pendingNeeds.find((entry) => entry.need.id === need.id)?.promise || null;
+    const priorCancellation = this.cancelledNeedIds.get(need.id);
+    if (priorCancellation?.from === need.from) return null;
+
+    if (this.inFlight.size < this.maxConcurrentExecutions) return this.startNeed(need);
+    if (this.pendingNeeds.length < this.maxPendingExecutions) return this.enqueueNeed(need);
+    return this.rejectNeedOverCapacity(need);
   }
 
   handleLifecycleEvent(event) {
     const cancellation = cancellationFromEvent(event);
     if (cancellation) {
       this.rememberCancellation(cancellation);
+      if (this.cancelPendingNeed(cancellation.targetId, cancellation.from)) {
+        return { cancelled: true, targetId: cancellation.targetId, pending: true };
+      }
       const state = this.inFlight.get(cancellation.targetId);
       if (state && !state.controller.signal.aborted && state.need.from === cancellation.from) {
         state.controller.abort(new Error(cancellation.reason));
@@ -468,8 +534,14 @@ export class TruynAdapterHost {
 
   async runControlLoop() {
     while (this.running) {
-      const polled = await this.node.poll();
-      for (const event of polled.events) this.handleLifecycleEvent(event);
+      try {
+        const polled = await this.node.poll();
+        this.lastControlError = null;
+        for (const event of polled.events) this.handleLifecycleEvent(event);
+      } catch (error) {
+        if (!this.running) break;
+        this.lastControlError = error;
+      }
       if (this.running) await delay(this.cancelPollMs);
     }
   }
@@ -508,6 +580,8 @@ export class TruynAdapterHost {
     for (const state of this.inFlight.values()) {
       if (!state.controller.signal.aborted) state.controller.abort(new Error('provider_stopping'));
     }
+    for (const queued of this.pendingNeeds.splice(0)) queued.resolve({ stopped: true });
+    this.pendingNeedIds.clear();
     this.node.closeFastSocket?.();
     const loops = [this.loopPromise, this.controlLoopPromise].filter(Boolean);
     if (loops.length) await Promise.allSettled(loops);
