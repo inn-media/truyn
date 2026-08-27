@@ -42,12 +42,27 @@ retry() {
 }
 
 remote() {
-  local vm="$1" body="$2" enc remote_script
+  local vm="$1" body="$2" enc remote_script output rc attempt
   enc="$(printf '%s' "$body" | base64 -w0)"
   remote_script="printf '%s' '$enc' | base64 -d >/tmp/truyn-d1000-run.sh; chmod 700 /tmp/truqyn-d1000-run.sh; /bin/bash /tmp/truyqn-d1000-run.sh"
   remote_script="${remote_script//truqyn/truyn}"
   remote_script="${remote_script//truyqn/truyn}"
-  retry az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors
+  for attempt in 1 2 3 4 5; do
+    set +e
+    output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1)
+    rc=$?
+    set -e
+    printf '%s\n' "$output" >&2
+    if [[ $rc -eq 0 ]]; then
+      printf '%s\n' "$output"
+      return 0
+    fi
+    echo "TRUYN_REMOTE_RETRY vm=${vm} attempt=${attempt} rc=${rc}" >&2
+    [[ $attempt -lt 5 ]] || break
+    sleep $((attempt*3))
+  done
+  echo "TRUYN_REMOTE_FAILURE vm=${vm} attempts=5 rc=${rc}" >&2
+  return "$rc"
 }
 
 marker() {
@@ -107,18 +122,40 @@ STAGE=install
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
+retry_cmd() {
+  local n=0
+  until "\$@"; do n=\$((n+1)); [[ \$n -lt 5 ]] || return 1; sleep \$((n*3)); done
+}
+install_stage=init
+trap 'rc=\$?; echo "TRUYN_REMOTE_INSTALL_FAILURE host=${i} stage=\${install_stage} line=\${LINENO} rc=\${rc} command=\${BASH_COMMAND}" >&2; exit \$rc' ERR
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y -qq git curl jq openssl ca-certificates python3 iptables >/dev/null
+install_stage=apt-update
+retry_cmd apt-get update -qq
+install_stage=apt-prereqs
+retry_cmd apt-get install -y -qq curl jq openssl ca-certificates python3 iptables build-essential pkg-config >/dev/null
 major=0; command -v node >/dev/null 2>&1 && major=\$(node -p 'parseInt(process.versions.node)' 2>/dev/null || echo 0)
-if [[ "\$major" -lt 22 ]]; then curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null; apt-get install -y -qq nodejs >/dev/null; fi
-rm -rf /opt/truyqn
-git clone -q https://github.com/inn-media/truyn.git /opt/truin
-git -C /opt/truin checkout -q '${GITHUB_SHA}'
-mv /opt/truin /opt/truyqn
-
+if [[ "\$major" -lt 22 ]]; then
+  install_stage=nodesource-download
+  retry_cmd curl -fsSL --retry 5 --retry-all-errors --connect-timeout 15 https://deb.nodesource.com/setup_22.x -o /tmp/nodesource-22.sh
+  install_stage=nodesource-setup
+  bash /tmp/nodesource-22.sh >/dev/null
+  install_stage=node-install
+  retry_cmd apt-get install -y -qq nodejs >/dev/null
+fi
+install_stage=node-version
+node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
+install_stage=source-fetch
+rm -rf /opt/truyqn /tmp/truyqn-source.tgz
+install -d /opt/truyqn
+retry_cmd curl -fsSL --retry 5 --retry-all-errors --connect-timeout 15 'https://codeload.github.com/inn-media/truyn/tar.gz/${GITHUB_SHA}' -o /tmp/truyqn-source.tgz
+tar -xzf /tmp/truyqn-source.tgz --strip-components=1 -C /opt/truyqn
+printf '%s\n' '${GITHUB_SHA}' >/opt/truyqn/.truyn-tested-sha
 cd /opt/truyqn
-npm install --no-audit --no-fund >/dev/null
+install_stage=npm-install
+retry_cmd npm install --omit=dev --no-audit --no-fund
+install_stage=quic-import
+node --input-type=module -e "await import('@chainsafe/libp2p-quic'); await import('@matrixai/quic'); console.log('QUIC_IMPORT=PASS')"
+install_stage=runtime-config
 install -d -m 0700 /var/lib/truyqn-d1000 /etc/truyqn-d1000
 openssl req -x509 -newkey rsa:2048 -nodes -keyout /etc/truyqn-d1000/key.pem -out /etc/truyqn-d1000/cert.pem -subj '/CN=${PRIV[$i]}' -days 1 -addext 'subjectAltName=IP:${PRIV[$i]}' >/dev/null 2>&1
 for j in \$(seq 0 $((NODES_PER_HOST-1))); do
@@ -153,8 +190,10 @@ LimitNOFILE=65536
 [Install]
 WantedBy=multi-user.target
 UNIT
+install_stage=systemd-start
 systemctl daemon-reload
 for j in \$(seq 0 $((NODES_PER_HOST-1))); do idx=\$(( ${i} * ${NODES_PER_HOST} + j )); systemctl enable --now truyqn-d1000@\${idx}.service >/dev/null; done
+install_stage=readiness
 ok=0
 for n in \$(seq 1 120); do
   good=0
@@ -162,7 +201,21 @@ for n in \$(seq 1 120); do
   if [[ "\$good" -eq ${NODES_PER_HOST} ]]; then ok=1; break; fi
   sleep 2
 done
-[[ "\$ok" -eq 1 ]]
+if [[ "\$ok" -ne 1 ]]; then
+  echo "TRUYN_REMOTE_INSTALL_READINESS_FAILURE host=${i} expected=${NODES_PER_HOST} ready=\${good}" >&2
+  shown=0
+  for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+    idx=\$(( ${i} * ${NODES_PER_HOST} + j ))
+    if ! systemctl is-active --quiet truyqn-d1000@\${idx}.service; then
+      systemctl --no-pager --full status truyqn-d1000@\${idx}.service >&2 || true
+      journalctl --no-pager -u truyqn-d1000@\${idx}.service -n 80 >&2 || true
+      shown=\$((shown+1))
+      [[ "\$shown" -ge 3 ]] && break
+    fi
+  done
+  exit 1
+fi
+install_stage=records
 python3 - <<'PY'
 import json, urllib.request
 records=[]
