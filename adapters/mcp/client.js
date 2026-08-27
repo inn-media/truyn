@@ -14,6 +14,10 @@ function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object, key);
+}
+
 function normalizeEndpoint(endpoint) {
   let parsed;
   try { parsed = new URL(endpoint); } catch { throw new Error('MCP endpoint must be an absolute URL'); }
@@ -66,16 +70,30 @@ async function readRpcResponse(response, expectedId, maxResponseBytes) {
   return body.result;
 }
 
-function assertCompleteResult(result, operation) {
-  if (result.resultType !== 'complete') {
-    if (result.resultType === 'input_required') throw new Error(`MCP ${operation} returned input_required, which is not supported on this path`);
-    throw new Error(`MCP ${operation} requires resultType=complete`);
+function assertOptionalCompleteResult(result, operation) {
+  if (!hasOwn(result, 'resultType')) return;
+  if (result.resultType === 'complete') return;
+  if (result.resultType === 'input_required') {
+    throw new Error(`MCP ${operation} returned input_required, which is not supported on this path`);
+  }
+  throw new Error(`MCP ${operation} resultType extension must be complete when present`);
+}
+
+function assertOptionalCacheHints(result, operation) {
+  if (hasOwn(result, 'ttlMs') && (!Number.isInteger(result.ttlMs) || result.ttlMs < 0)) {
+    throw new Error(`MCP ${operation} ttlMs extension must be a non-negative integer when present`);
+  }
+  if (hasOwn(result, 'cacheScope') && !['private', 'public'].includes(result.cacheScope)) {
+    throw new Error(`MCP ${operation} cacheScope extension must be private or public when present`);
   }
 }
 
-function assertCacheHints(result, operation) {
-  if (!Number.isInteger(result.ttlMs) || result.ttlMs < 0) throw new Error(`MCP ${operation} requires non-negative integer ttlMs`);
-  if (!['private', 'public'].includes(result.cacheScope)) throw new Error(`MCP ${operation} requires cacheScope private or public`);
+function resultExtensions(result) {
+  const extensions = {};
+  for (const key of ['resultType', 'ttlMs', 'cacheScope']) {
+    if (hasOwn(result, key)) extensions[key] = result[key];
+  }
+  return extensions;
 }
 
 function containsHeaderAnnotation(value) {
@@ -244,8 +262,8 @@ export function createMcpHttpClient({
     endpoint: normalizedEndpoint,
     async discover() {
       const result = await request('server/discover');
-      assertCompleteResult(result, 'server/discover');
-      assertCacheHints(result, 'server/discover');
+      assertOptionalCompleteResult(result, 'server/discover');
+      assertOptionalCacheHints(result, 'server/discover');
       if (!Array.isArray(result.supportedVersions) || !result.supportedVersions.includes(MCP_CURRENT_PROTOCOL_VERSION)) {
         throw new Error(`Remote MCP server does not advertise ${MCP_CURRENT_PROTOCOL_VERSION}`);
       }
@@ -254,8 +272,8 @@ export function createMcpHttpClient({
     },
     async listTools({ cursor } = {}) {
       const result = await request('tools/list', cursor === undefined ? {} : { cursor });
-      assertCompleteResult(result, 'tools/list');
-      assertCacheHints(result, 'tools/list');
+      assertOptionalCompleteResult(result, 'tools/list');
+      assertOptionalCacheHints(result, 'tools/list');
       if (!Array.isArray(result.tools)) throw new Error('MCP tools/list result requires tools array');
       if (result.nextCursor !== undefined && result.nextCursor !== null && typeof result.nextCursor !== 'string') {
         throw new Error('MCP tools/list nextCursor must be a string when present');
@@ -275,7 +293,7 @@ export function createMcpHttpClient({
         if (pages >= maxPages) throw new Error('MCP tools/list exceeded page limit');
         const result = await this.listTools({ cursor });
         pages += 1;
-        cacheHints.push({ ttlMs: result.ttlMs, cacheScope: result.cacheScope });
+        cacheHints.push(resultExtensions(result));
         for (const tool of result.tools) {
           if (!isObject(tool) || typeof tool.name !== 'string' || !tool.name.trim()) throw new Error('MCP tools/list returned an invalid tool name');
           if (seenNames.has(tool.name)) throw new Error(`MCP tools/list returned duplicate tool name: ${tool.name}`);
@@ -295,15 +313,18 @@ export function createMcpHttpClient({
         name: tool.name,
         extraHeaders: mcpParamHeaders(tool, args)
       });
-      assertCompleteResult(result, `tools/call ${tool.name}`);
+      assertOptionalCompleteResult(result, `tools/call ${tool.name}`);
+      assertOptionalCacheHints(result, `tools/call ${tool.name}`);
       if (!Array.isArray(result.content)) throw new Error('MCP modern tool response requires content array');
       if (result.isError) throw new Error(errorText(result).slice(0, 500));
+      const extensions = resultExtensions(result);
       return {
         output: outputFromToolResult(result),
         metadata: {
           provider: 'mcp-http-discovered',
           tool: tool.name,
-          usage: result._meta?.usage || null
+          usage: result._meta?.usage || null,
+          ...(Object.keys(extensions).length === 0 ? {} : { mcpExtensions: extensions })
         }
       };
     }
