@@ -29,9 +29,20 @@ jobs:
       - name: shell-harness
         continue-on-error: true
         run: node --test tests/class-d-shell-harness.test.js
-      - name: public-repository
-        continue-on-error: true
-        run: node --test tests/public-repository.test.js
       - name: accepted-entrypoint-regression
         continue-on-error: true
         run: node --test tests/class-d-accepted-entrypoint-regression.test.js
+      - name: suite-a-f
+        continue-on-error: true
+        run: node --test tests/[a-f]*.test.js
+      - name: suite-g-l
+        continue-on-error: true
+        run: node --test tests/[g-l]*.test.js
+      - name: suite-m-r-except-public
+        continue-on-error: true
+        run: |
+          files=$(printf '%s\n' tests/[m-r]*.test.js | grep -v 'tests/public-repository.test.js')
+          node --test $files
+      - name: suite-s-z
+        continue-on-error: true
+        run: node --test tests/[s-z]*.test.js
