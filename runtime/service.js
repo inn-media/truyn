@@ -180,7 +180,7 @@ async function runProvider() {
       } catch {
         if (stopping) break;
         ready = false;
-        await adapterHost.stop();
+        await adapterHost.stop({ preserveDequeuedWork: true });
         adapterHost.loopPromise = null;
         adapterHost.controlLoopPromise = null;
         adapterHost.registered = false;
