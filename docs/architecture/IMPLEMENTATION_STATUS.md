@@ -2,7 +2,8 @@
 
 **Status:** canonical factual status index.  
 **Snapshot date:** 2026-08-27  
-**Synchronized source:** `main@789fee50d6c3eacfe9f973de6d64ba7ae9df1fb8`  
+**Production/reference baseline:** `main@83738302131e08d807bc0ac00f64268a38b46309`  
+**Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
 **Protocol generation:** `TRUYN/1` draft
 
 This document answers one question: **what is actually implemented and proven now, versus only defined, attempted, or still open?** Architecture documents define contracts; tests and durable evidence prove bounded claims. Old operational issues remain historical records and are not current status merely because they once existed.
@@ -48,9 +49,10 @@ An admission/preflight PASS authorizes a campaign; it does not convert a failed 
 | A2A polling async lifecycle | **Implemented / bounded CI-proven — C5** | PR `#352`, merge `591d30d8f57fb7c661c847bb059cd437f437dd08` |
 | A2A artifact integrity | **Implemented / bounded CI-proven — C6** | PR `#368`, merge `0e6e4119450e9de55fb9be32b993a28f98dda148` |
 | A2A→TRUYN→MCP | **Implemented / bounded CI-proven — C7** | `tests/interoperability-bidirectional.test.js`; PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a`; exactly-once remote MCP execution |
-| MCP→TRUYN→A2A | **Implemented / bounded CI-proven — C7** | `tests/interoperability-bidirectional.test.js`; PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a`; exactly-once remote A2A execution |
+| MCP→TRUYN→A2A | **Implemented / bounded CI-proven — C7; independent A2A SDK black-box CI-proven — Sprint C** | C7 plus `tests/interoperability-independent-a2a.test.js`; official `@a2a-js/sdk@1.0.1`; exact core source `a435ed16e559226ed095959b7b95aa7067271302`; CI `33057289236`; CodeQL `33057286765` |
 | Complete A2A/MCP adversarial matrix | **OPEN — C8** | PR `#369`; acceptance not yet earned |
-| Independent external A2A/MCP ecosystem proof | **Not yet proven** | next adoption-level gate after bounded C7/C8 |
+| Independent external A2A reference/SDK proof | **Proven for MCP→TRUYN→A2A — Sprint C** | durable record `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`; upstream `v1.0.1` / `f5ca7d05945a69cbf3dcd357203d4ce99201494f` |
+| Independent external MCP reference/SDK proof | **Not yet proven** | symmetric `A2A→TRUYN→MCP` external implementation gate remains open |
 | First-party TypeScript/JavaScript SDK | **Implemented / CI-proven reference client** | DX-1 onward; current API below |
 | First-party Python SDK | **Implemented / CI-proven reference client** | DX-1 onward; current API below |
 | Go / Java / .NET SDK parity | **Defined / incomplete** | required parity/publication work remains |
@@ -142,10 +144,13 @@ C4 A2A client/provider adapter        ACCEPTED — PR #340 / 1735528461a04de60f9
 C5 bounded async polling              ACCEPTED
 C6 artifact integrity                 ACCEPTED
 C7 both bidirectional bridge paths    ACCEPTED / bounded CI-proven — tests/interoperability-bidirectional.test.js / PR #357 / f04fcd1d4d72af85a6b97686c7c875388ef6038a
+Sprint C independent remote A2A       ACCEPTED / official SDK black-box CI-proven — @a2a-js/sdk@1.0.1 / tests/interoperability-independent-a2a.test.js / a435ed16e559226ed095959b7b95aa7067271302
 C8 complete adversarial matrix        OPEN (#369)
 ```
 
-C7 proves in-repository composition in both directions and exactly-once remote execution assertions. It does not constitute independent external A2A/MCP ecosystem certification. The adoption follow-up is independent reference/SDK interoperability plus the accepted C8 negative matrix, not reimplementation of the bridge.
+C7 proves in-repository composition in both directions and exactly-once remote execution assertions. Sprint C adds independent ecosystem-side proof for `MCP→TRUYN→A2A`: the remote server is a separate process using official A2A Project `@a2a-js/sdk@1.0.1`, not TRUYN's `createA2aServer`; external executor/request counters independently confirm exactly one remote execution. Durable evidence is `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`.
+
+This is not symmetric external certification yet. `A2A→TRUYN→MCP` still needs an independent MCP SDK/reference server. C8 also remains independently open.
 
 Remote A2A/MCP metadata and transport authentication remain non-authoritative for TRUYN requester identity, provider ownership or billing responsibility.
 
