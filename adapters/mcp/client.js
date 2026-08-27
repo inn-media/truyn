@@ -96,6 +96,14 @@ function resultExtensions(result) {
   return extensions;
 }
 
+function cacheHintExtensions(result) {
+  const extensions = {};
+  for (const key of ['ttlMs', 'cacheScope']) {
+    if (hasOwn(result, key)) extensions[key] = result[key];
+  }
+  return extensions;
+}
+
 function containsHeaderAnnotation(value) {
   if (Array.isArray(value)) return value.some(containsHeaderAnnotation);
   if (!isObject(value)) return false;
@@ -293,7 +301,7 @@ export function createMcpHttpClient({
         if (pages >= maxPages) throw new Error('MCP tools/list exceeded page limit');
         const result = await this.listTools({ cursor });
         pages += 1;
-        cacheHints.push(resultExtensions(result));
+        cacheHints.push(cacheHintExtensions(result));
         for (const tool of result.tools) {
           if (!isObject(tool) || typeof tool.name !== 'string' || !tool.name.trim()) throw new Error('MCP tools/list returned an invalid tool name');
           if (seenNames.has(tool.name)) throw new Error(`MCP tools/list returned duplicate tool name: ${tool.name}`);
