@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { createRelay } from '../network/relay/server.js';
 import { TruynNode } from '../node/client.js';
 import { createFunctionAdapter, TruynAdapterHost } from '../adapters/sdk/index.js';
@@ -25,6 +26,18 @@ async function sendPartial(node, requestId, sequence, delta = `chunk-${sequence}
   });
   return { response, body: await response.json(), frame, payload };
 }
+
+test('DX-3 lifecycle is integrated in production modules without duplicate base implementations', () => {
+  assert.equal(existsSync(new URL('../network/relay/server-base.js', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../adapters/sdk/base.js', import.meta.url)), false);
+});
+
+test('PARTIAL compact frames use the stable T wire code', () => {
+  const node = new TruynNode({ relayUrl: 'http://127.0.0.1:1' });
+  const payload = { sequence: 0, delta: 'x', metadata: {} };
+  const frame = node.compactFrame('PARTIAL', payload, { id: 'partial-wire-code' });
+  assert.equal(frame.t, 'T');
+});
 
 test('requester-owned REVOKE cancels a dispatched NEED, is signed/idempotent, and rejects late RESULT', async (t) => {
   const relay = createRelay({ localDevelopmentMode: true });
@@ -65,6 +78,68 @@ test('requester-owned REVOKE cancels a dispatched NEED, is signed/idempotent, an
     assert.equal(error.body.error, 'request_cancelled');
     return true;
   });
+});
+
+test('REVOKE preserves OFFER ownership and visibility semantics', async (t) => {
+  const relay = createRelay({ localDevelopmentMode: true });
+  const relayUrl = await relay.listen({ port: 0 });
+  t.after(() => relay.close());
+
+  const provider = new TruynNode({ relayUrl });
+  const requester = new TruynNode({ relayUrl });
+  const attacker = new TruynNode({ relayUrl });
+  await provider.register();
+  await requester.register();
+  await attacker.register();
+  const offered = await provider.offer('revoke.offer');
+
+  await assert.rejects(() => attacker.revoke(offered.offerId, 'not_mine'), (error) => {
+    assert.equal(error.status, 403);
+    assert.equal(error.body.error, 'not_target_owner');
+    return true;
+  });
+  const revoked = await provider.revoke(offered.offerId, 'retired');
+  assert.equal(revoked.targetId, offered.offerId);
+  const discovered = await requester.find('revoke.offer');
+  assert.equal(discovered.offers.length, 0);
+});
+
+test('cancelling an already-open compact NEED wakes its waitMs waiter immediately', async (t) => {
+  const relay = createRelay({ localDevelopmentMode: true });
+  const relayUrl = await relay.listen({ port: 0 });
+  t.after(() => relay.close());
+
+  const provider = new TruynNode({ relayUrl });
+  const requester = new TruynNode({ relayUrl });
+  await provider.register();
+  await requester.register();
+  await provider.offer('cancel.waiter');
+
+  const requestId = 'dx3-cancel-waiter';
+  const payload = { capability: { name: 'cancel.waiter' }, input: { value: 1 }, policy: {} };
+  const frame = requester.compactFrame('NEED', payload, { id: requestId });
+  const startedAt = Date.now();
+  const waitingResponse = fetch(`${relayUrl}/v1/fast/needs?waitMs=5000`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...requester.authHeaders() },
+    body: JSON.stringify({ frame, payload })
+  });
+
+  await until(() => relay.state.requests.has(requestId));
+  const cancelled = await requester.revoke(requestId, 'user_cancelled');
+  assert.equal(cancelled.cancelled, true);
+
+  const response = await waitingResponse;
+  const body = await response.json();
+  assert.equal(response.status, 409);
+  assert.equal(body.error, 'request_cancelled');
+  assert.equal(body.requestId, requestId);
+  assert.ok(Date.now() - startedAt < 2_000, 'cancellation must resolve the waiter before its 5s timeout');
+
+  const providerEvents = await provider.poll();
+  assert.equal(providerEvents.events[0].kind, 'NEED');
+  assert.equal(providerEvents.events[1].kind, 'REVOKE');
+  assert.equal(providerEvents.events[1].verification.ok, true);
 });
 
 test('TruynAdapterHost keeps reading control events while execute runs and aborts cooperatively', async (t) => {
@@ -187,7 +262,7 @@ test('signed PARTIAL frames are correlated, strictly sequenced, and terminate wi
   assert.equal(foreign.body.error, 'provider_mismatch');
 });
 
-test('relay rejects out-of-order PARTIAL sequence before emitting anything to requester', async (t) => {
+test('relay rejects out-of-order PARTIAL sequence without advancing or emitting it', async (t) => {
   const relay = createRelay({ localDevelopmentMode: true });
   const relayUrl = await relay.listen({ port: 0 });
   t.after(() => relay.close());
@@ -202,6 +277,7 @@ test('relay rejects out-of-order PARTIAL sequence before emitting anything to re
   assert.equal(wrong.response.status, 409);
   assert.equal(wrong.body.error, 'partial_sequence_mismatch');
   assert.equal(wrong.body.expected, 0);
+  assert.equal(relay.state.requests.get(matched.needId).nextPartialSequence, 0);
 
   const right = await sendPartial(provider, matched.needId, 0, 'first');
   assert.equal(right.response.status, 200);
