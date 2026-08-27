@@ -778,7 +778,7 @@ export function createRelay({
           const retrieved = retrieveContextBlocks(record.blocks, query, { topK });
           const selected = retrieved.blocks.map((block, index) => ({ id: block.id, cid: block.cid, text: block.text, bytes: block.bytes, score: block.score, rank: index + 1 }));
           touch(nodeId);
-          return json(res, 200, { ok: true, cid, blocks: selected, retrieval: { version: 1, algorithm: retrieved.algorithm, rootCid: cid, manifestCid: cid, queryHash: retrieved.queryHash, topK, corpusBlocks: retrieved.corpusBlocks, selected: selected.map(({ id, cid: blockCid, score, rank }) => ({ id, cid: blockCid, score, rank })) } });
+          return json(res, 200, { ok: true, cid, blocks: selected, retrieval: { version: 1, algorithm: retrieved.algorithm, rootCid: cid, manifestCid: record.manifest.cid, queryHash: retrieved.queryHash, topK, corpusBlocks: retrieved.corpusBlocks, selected: selected.map(({ id, cid: blockCid, score, rank }) => ({ id, cid: blockCid, score, rank })) } });
         }
         if (req.method === 'POST' && action === 'delta') {
           if (!requesterCanDispatch(nodeId) || !record.owners.has(nodeId)) return json(res, 403, { ok: false, error: 'context_owner_required' });
