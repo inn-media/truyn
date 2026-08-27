@@ -15,6 +15,21 @@ test('D-1000 provisioner bounds diagnostic nodes per host to 10, 25, or 50', asy
   assert.doesNotMatch(provision, /\nNODES_PER_HOST=50\nNODE_COUNT=/);
 });
 
+test('D-1000 provisioner makes remote install failures actionable and reduces fragile source setup', async () => {
+  const provision = await readFile('benchmarks/scale/class-d-azure-1000-provision.sh', 'utf8');
+
+  assert.match(provision, /TRUYN_REMOTE_RETRY vm=/);
+  assert.match(provision, /TRUYN_REMOTE_FAILURE vm=/);
+  assert.match(provision, /TRUYN_REMOTE_INSTALL_FAILURE host=/);
+  assert.match(provision, /TRUYN_REMOTE_INSTALL_READINESS_FAILURE host=/);
+  assert.match(provision, /build-essential pkg-config/);
+  assert.match(provision, /codeload\.github\.com\/inn-media\/truyn\/tar\.gz\/\$\{GITHUB_SHA\}/);
+  assert.match(provision, /npm install --omit=dev --no-audit --no-fund/);
+  assert.match(provision, /QUIC_IMPORT=PASS/);
+  assert.match(provision, /journalctl --no-pager -u/);
+  assert.doesNotMatch(provision, /git clone -q https:\/\/github\.com\/inn-media\/truyn\.git/);
+});
+
 test('D-1000 strict final acceptance pins the accepted run to exactly 50 nodes per host', async () => {
   const launcher = await readFile('scripts/class-d-1000-final-acceptance.sh', 'utf8');
 
