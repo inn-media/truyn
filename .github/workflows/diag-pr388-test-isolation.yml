@@ -20,23 +20,34 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --ignore-scripts --no-audit --no-fund
-      - name: full-suite-without-local-development
-        run: node --test tests/*.test.js
-      - name: full-suite-with-local-development
+      - name: repeat full suite until first failure
         env:
           TRUYN_LOCAL_DEVELOPMENT: '1'
         shell: bash
         run: |
-          set +e
-          node --test tests/*.test.js > /tmp/full.tap 2>&1
-          rc=$?
-          if [[ "$rc" -ne 0 ]]; then
-            printf '%s\n' '--- concise failing TAP ---'
-            grep -n -E '^(not ok|# Subtest:)|failureType:|error:|code:|AssertionError|EADDRINUSE|ERR_' /tmp/full.tap | tail -160 || true
-            printf '%s\n' '--- tail ---'
-            tail -120 /tmp/full.tap
+          mkdir -p diagnostic
+          : > diagnostic/fingerprint.txt
+          rc=0
+          for attempt in 1 2 3 4 5; do
+            echo "TRUYN_FLAKE_ATTEMPT=$attempt"
+            set +e
+            node --test tests/*.test.js > "diagnostic/attempt-${attempt}.tap" 2>&1
+            rc=$?
+            set -e
+            if [[ "$rc" -ne 0 ]]; then
+              {
+                echo "attempt=$attempt rc=$rc"
+                grep -n -E '^(not ok|# Subtest:)|failureType:|error:|code:|AssertionError|EADDRINUSE|ERR_|SIG[A-Z]+' "diagnostic/attempt-${attempt}.tap" | tail -240 || true
+                echo '--- tail ---'
+                tail -180 "diagnostic/attempt-${attempt}.tap"
+              } | tee diagnostic/fingerprint.txt
+              break
+            fi
+            rm -f "diagnostic/attempt-${attempt}.tap"
+          done
+          if [[ "$rc" -eq 0 ]]; then
+            echo 'result=no_failure_in_5_attempts' | tee diagnostic/fingerprint.txt
           fi
-          exit "$rc"
       - name: bash-n-provisioner
         run: bash -n benchmarks/scale/class-d-azure-1000-provision.sh
       - name: diagnostic-sizing
@@ -45,3 +56,11 @@ jobs:
         run: node --test tests/class-d-1000-bootstrap.test.js
       - name: shell-harness
         run: node --test tests/class-d-shell-harness.test.js
+      - name: upload flaky fingerprint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr388-flake-fingerprint-${{ github.run_id }}
+          path: diagnostic/
+          if-no-files-found: error
+          retention-days: 1
