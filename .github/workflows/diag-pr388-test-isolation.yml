@@ -13,31 +13,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - run: npm install --ignore-scripts --no-audit --no-fund
-      - name: full-suite-default
-        continue-on-error: true
+      - name: full-suite-without-local-development
         run: node --test tests/*.test.js
-      - name: full-suite-serial
-        continue-on-error: true
-        run: node --test --test-concurrency=1 tests/*.test.js
-      - name: full-suite-concurrency-2
-        continue-on-error: true
-        run: node --test --test-concurrency=2 tests/*.test.js
-      - name: full-suite-concurrency-4
-        continue-on-error: true
-        run: node --test --test-concurrency=4 tests/*.test.js
+      - name: full-suite-with-local-development
+        env:
+          TRUYN_LOCAL_DEVELOPMENT: '1'
+        shell: bash
+        run: |
+          set +e
+          node --test tests/*.test.js > /tmp/full.tap 2>&1
+          rc=$?
+          if [[ "$rc" -ne 0 ]]; then
+            printf '%s\n' '--- concise failing TAP ---'
+            grep -n -E '^(not ok|# Subtest:)|failureType:|error:|code:|AssertionError|EADDRINUSE|ERR_' /tmp/full.tap | tail -160 || true
+            printf '%s\n' '--- tail ---'
+            tail -120 /tmp/full.tap
+          fi
+          exit "$rc"
       - name: bash-n-provisioner
-        continue-on-error: true
         run: bash -n benchmarks/scale/class-d-azure-1000-provision.sh
       - name: diagnostic-sizing
-        continue-on-error: true
         run: node --test tests/class-d-1000-diagnostic-sizing.test.js
       - name: bootstrap-contract
-        continue-on-error: true
         run: node --test tests/class-d-1000-bootstrap.test.js
       - name: shell-harness
-        continue-on-error: true
         run: node --test tests/class-d-shell-harness.test.js
