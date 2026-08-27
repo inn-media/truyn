@@ -41,6 +41,42 @@ jobs:
 
           node scripts/check-dco.mjs "$DCO_BASE_SHA" "$DCO_HEAD_SHA"
 
+  diagnostic:
+    name: DX-3 diagnostic ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check -e ./sdk/python
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run diagnostic shard
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          mapfile -t files < <(printf '%s\n' tests/*.test.js | sort)
+          selected=()
+          for index in "${!files[@]}"; do
+            if (( index % 8 == SHARD )); then
+              selected+=("${files[$index]}")
+            fi
+          done
+          printf 'Running shard %s with %s test files\n' "$SHARD" "${#selected[@]}"
+          node --test "${selected[@]}"
+
   test:
     name: test
     runs-on: ubuntu-latest
