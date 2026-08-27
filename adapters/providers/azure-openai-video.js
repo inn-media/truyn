@@ -33,24 +33,49 @@ export function createAzureOpenAIVideoProvider({ endpoint = process.env.AZURE_VI
       const createResponse = await fetchImpl(`${root}/jobs?api-version=preview`, { method: 'POST', headers, body: requestBody, signal });
       const createBody = await createResponse.json();
       if (!createResponse.ok || !createBody.id) throw new Error(createBody?.error?.message || `Azure Sora HTTP ${createResponse.status}`);
-      let pollCount = 0;
-      let job = createBody;
-      while (!['succeeded', 'failed', 'cancelled'].includes(job.status) && Date.now() - startedAt < timeoutMs) {
-        await sleep(pollIntervalMs, signal);
-        pollCount += 1;
-        const pollResponse = await fetchImpl(`${root}/jobs/${encodeURIComponent(createBody.id)}?api-version=preview`, { headers, signal });
-        job = await pollResponse.json();
-        if (!pollResponse.ok) throw new Error(job?.error?.message || `Azure Sora poll HTTP ${pollResponse.status}`);
+
+      let remoteTerminal = false;
+      let cancelPromise = null;
+      const cancelRemote = () => {
+        if (remoteTerminal) return Promise.resolve();
+        if (!cancelPromise) {
+          cancelPromise = (async () => {
+            const response = await fetchImpl(`${root}/jobs/${encodeURIComponent(createBody.id)}?api-version=preview`, { method: 'DELETE', headers });
+            if (!response.ok && response.status !== 404 && response.status !== 409) throw new Error(`Azure Sora cancel HTTP ${response.status}`);
+          })().catch(() => {});
+        }
+        return cancelPromise;
+      };
+      const onAbort = () => { void cancelRemote(); };
+      if (signal?.aborted) onAbort(); else signal?.addEventListener('abort', onAbort, { once: true });
+
+      try {
+        let pollCount = 0;
+        let job = createBody;
+        while (!['succeeded', 'failed', 'cancelled'].includes(job.status) && Date.now() - startedAt < timeoutMs) {
+          await sleep(pollIntervalMs, signal);
+          pollCount += 1;
+          const pollResponse = await fetchImpl(`${root}/jobs/${encodeURIComponent(createBody.id)}?api-version=preview`, { headers, signal });
+          job = await pollResponse.json();
+          if (!pollResponse.ok) throw new Error(job?.error?.message || `Azure Sora poll HTTP ${pollResponse.status}`);
+        }
+        remoteTerminal = ['succeeded', 'failed', 'cancelled'].includes(job.status);
+        if (remoteTerminal) signal?.removeEventListener('abort', onAbort);
+        if (job.status !== 'succeeded') throw new Error(job?.error?.message || `Azure Sora job ended with status ${job.status || 'timeout'}`);
+        const generationId = job?.generations?.[0]?.id;
+        if (!generationId) throw new Error('Azure Sora response contained no generation id');
+        const contentResponse = await fetchImpl(`${root}/${encodeURIComponent(generationId)}/content/video?api-version=preview`, { headers, signal });
+        if (!contentResponse.ok) throw new Error(`Azure Sora video download HTTP ${contentResponse.status}`);
+        const buffer = Buffer.from(await contentResponse.arrayBuffer());
+        const stored = await store.put(buffer, { mediaType: 'video/mp4', prefix: 'video/azure-sora', extension: 'mp4', signal });
+        const artifact = artifactFromBuffer(buffer, { mediaType: 'video/mp4', ref: stored.ref, provenance: { cloud: 'azure', vendor: 'openai', family: 'sora', model }, metadata: { width, height, nSeconds } });
+        return artifactResult([artifact], { provider: 'azure-openai-video', cloud: 'azure', vendor: 'openai', modelFamily: 'sora', model, modality: 'video', providerRequestId: createBody.id, providerLatencyMs: Date.now() - startedAt, providerRequestBodyBytes: Buffer.byteLength(requestBody), providerResponseBodyBytes: Buffer.byteLength(JSON.stringify(job)), artifactBytes: artifact.bytes, jobPollCount: pollCount, video: { width, height, nSeconds } });
+      } catch (error) {
+        if (signal?.aborted) await cancelRemote();
+        throw error;
+      } finally {
+        signal?.removeEventListener('abort', onAbort);
       }
-      if (job.status !== 'succeeded') throw new Error(job?.error?.message || `Azure Sora job ended with status ${job.status || 'timeout'}`);
-      const generationId = job?.generations?.[0]?.id;
-      if (!generationId) throw new Error('Azure Sora response contained no generation id');
-      const contentResponse = await fetchImpl(`${root}/${encodeURIComponent(generationId)}/content/video?api-version=preview`, { headers, signal });
-      if (!contentResponse.ok) throw new Error(`Azure Sora video download HTTP ${contentResponse.status}`);
-      const buffer = Buffer.from(await contentResponse.arrayBuffer());
-      const stored = await store.put(buffer, { mediaType: 'video/mp4', prefix: 'video/azure-sora', extension: 'mp4', signal });
-      const artifact = artifactFromBuffer(buffer, { mediaType: 'video/mp4', ref: stored.ref, provenance: { cloud: 'azure', vendor: 'openai', family: 'sora', model }, metadata: { width, height, nSeconds } });
-      return artifactResult([artifact], { provider: 'azure-openai-video', cloud: 'azure', vendor: 'openai', modelFamily: 'sora', model, modality: 'video', providerRequestId: createBody.id, providerLatencyMs: Date.now() - startedAt, providerRequestBodyBytes: Buffer.byteLength(requestBody), providerResponseBodyBytes: Buffer.byteLength(JSON.stringify(job)), artifactBytes: artifact.bytes, jobPollCount: pollCount, video: { width, height, nSeconds } });
     }
   };
 }
