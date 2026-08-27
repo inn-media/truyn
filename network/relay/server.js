@@ -212,7 +212,7 @@ export function createRelay({
     }
   }
 
-  function queueFast(nodeId, event) {
+  function queueFast(nodeId, event, { requireCapacity = false } = {}) {
     if (sendSocketEvent(nodeId, event)) return 'socket';
     const waiter = fastWaiters.get(nodeId);
     if (waiter && !waiter.res.writableEnded) {
@@ -221,6 +221,7 @@ export function createRelay({
       json(waiter.res, 200, { ok: true, events: [event] });
       return 'long-poll';
     }
+    if (requireCapacity && (fastEvents.get(nodeId)?.length || 0) >= maxQueuedEventsPerNode) return 'full';
     boundedQueue(fastEvents, nodeId, event);
     return 'queued';
   }
@@ -503,7 +504,10 @@ export function createRelay({
       requestId: frame.i,
       sequence: payload.sequence
     };
-    const transport = queueFast(request.requester, event);
+    const transport = queueFast(request.requester, event, { requireCapacity: true });
+    if (transport === 'full') {
+      return { status: 429, body: { ok: false, error: 'partial_backpressure', requestId: frame.i, sequence: payload.sequence, expected } };
+    }
     request.nextPartialSequence = expected + 1;
     request.partialCount = request.nextPartialSequence;
     request.lastPartialAt = new Date().toISOString();
@@ -886,7 +890,24 @@ export function createRelay({
           if (request.status === 'completed') return json(res, 409, { ok: false, error: 'request_already_completed' });
           if (request.status === 'failed') return json(res, 409, { ok: false, error: 'request_failed' });
           if (request.status === 'cancelled') {
-            return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: true });
+            queue(request.provider, {
+              kind: 'REVOKE',
+              targetKind: 'need',
+              targetId,
+              envelope,
+              from: envelope.from
+            });
+            touch(envelope.from);
+            return json(res, 200, {
+              ok: true,
+              targetId,
+              targetKind: 'need',
+              cancelled: true,
+              idempotent: true,
+              redelivered: true,
+              provider: request.provider,
+              cancelledAt: request.cancelledAt
+            });
           }
 
           request.status = 'cancelled';
