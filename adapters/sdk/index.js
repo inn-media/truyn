@@ -275,6 +275,7 @@ export class TruynAdapterHost {
         }
       }
     })();
+    this.loopPromise.catch(() => {});
   }
 
   async stop() {
