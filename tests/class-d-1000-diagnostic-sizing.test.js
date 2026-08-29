@@ -33,6 +33,7 @@ test('D-1000 provisioner makes remote install failures actionable and reduces fr
   assert.match(provision, /NODE_SERVICE_IMPORT=PASS/);
   assert.match(provision, /journalctl --no-pager -u/);
   assert.doesNotMatch(provision, /git clone -q https:\/\/github\.com\/inn-media\/truyn\.git/);
+  assert.doesNotMatch(provision, /git (?:clone|checkout)[^\n]*main/);
 });
 
 test('D-1000 strict final acceptance pins the accepted run to exactly 50 nodes per host', async () => {
