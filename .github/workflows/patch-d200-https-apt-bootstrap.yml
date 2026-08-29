@@ -1,0 +1,94 @@
+name: patch-d200-https-apt-bootstrap
+
+on:
+  push:
+    branches: [fix/d200-https-apt-bootstrap]
+    paths:
+      - '.github/workflows/patch-d200-https-apt-bootstrap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/d200-https-apt-bootstrap
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch Azure Ubuntu bootstrap to HTTPS
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('benchmarks/scale/class-d-azure-1000-provision.sh')
+          text = p.read_text()
+          old = '''export DEBIAN_FRONTEND=noninteractive
+          install_stage=apt-update
+          retry_cmd apt-get update -qq
+          install_stage=apt-prereqs
+          retry_cmd apt-get install -y -qq curl jq openssl ca-certificates python3 iptables build-essential pkg-config >/dev/null
+          '''
+          new = '''export DEBIAN_FRONTEND=noninteractive
+          install_stage=apt-sources-https
+          source_files=(/etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources)
+          for source_file in "\\${source_files[@]}"; do
+            [[ -f "\\$source_file" ]] || continue
+            sed -i \\
+              -e 's#http://azure.archive.ubuntu.com/ubuntu#https://archive.ubuntu.com/ubuntu#g' \\
+              -e 's#http://archive.ubuntu.com/ubuntu#https://archive.ubuntu.com/ubuntu#g' \\
+              -e 's#http://security.ubuntu.com/ubuntu#https://security.ubuntu.com/ubuntu#g' \\
+              "\\$source_file"
+          done
+          if grep -RhsE 'http://(azure\\.archive\\.ubuntu\\.com|archive\\.ubuntu\\.com|security\\.ubuntu\\.com)/ubuntu' "\\${source_files[@]}" 2>/dev/null | grep -q .; then
+            echo 'TRUYN_APT_SOURCES_HTTPS=FAIL' >&2
+            exit 1
+          fi
+          echo 'TRUYN_APT_SOURCES_HTTPS=PASS'
+          install_stage=apt-update
+          retry_cmd apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=20 update -qq
+          install_stage=apt-prereqs
+          retry_cmd apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=20 install -y -qq curl jq openssl ca-certificates python3 iptables build-essential pkg-config >/dev/null
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f'unexpected apt bootstrap shape: matches={text.count(old)}')
+          p.write_text(text.replace(old, new))
+          PY
+          cat > tests/class-d-1000-apt-bootstrap.test.js <<'EOF'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+
+          const provision = fs.readFileSync(new URL('../benchmarks/scale/class-d-azure-1000-provision.sh', import.meta.url), 'utf8');
+
+          test('D-1000 Azure bootstrap normalizes Ubuntu apt sources to HTTPS before apt traffic', () => {
+            const normalize = provision.indexOf('install_stage=apt-sources-https');
+            const update = provision.indexOf('install_stage=apt-update');
+            assert.ok(normalize >= 0, 'missing apt HTTPS normalization stage');
+            assert.ok(update > normalize, 'apt update must happen after HTTPS normalization');
+            assert.match(provision, /https:\/\/archive\.ubuntu\.com\/ubuntu/);
+            assert.match(provision, /https:\/\/security\.ubuntu\.com\/ubuntu/);
+            assert.match(provision, /Acquire::Retries=5/);
+            assert.match(provision, /Acquire::https::Timeout=20/);
+            assert.match(provision, /TRUYN_APT_SOURCES_HTTPS=PASS/);
+            assert.doesNotMatch(provision, /install_stage=apt-update\nretry_cmd apt-get update -qq/);
+          });
+          EOF
+          bash -n benchmarks/scale/class-d-azure-1000-provision.sh
+          node --test tests/class-d-1000-apt-bootstrap.test.js
+          node --test tests/class-d-1000-bootstrap.test.js tests/class-d-shell-harness.test.js tests/class-d-1000-diagnostic-sizing.test.js
+          git diff --check
+      - name: Commit signed-off fix
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add benchmarks/scale/class-d-azure-1000-provision.sh tests/class-d-1000-apt-bootstrap.test.js
+          git commit -m $'fix(d200): use HTTPS Ubuntu apt bootstrap\n\nSigned-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
+          git push origin HEAD:fix/d200-https-apt-bootstrap
