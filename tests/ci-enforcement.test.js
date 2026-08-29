@@ -14,12 +14,16 @@ function jobBlock(workflow, jobId) {
   return nextJob === -1 ? rest : rest.slice(0, nextJob);
 }
 
-test('CI enforces full-range DCO only for pull requests and keeps test on PR/main', async () => {
+test('CI enforces DCO, exact release tag, tests and bounded native publishers', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const dcoJob = jobBlock(workflow, 'dco');
   const testJob = jobBlock(workflow, 'test');
+  const npmJob = jobBlock(workflow, 'publish-npm');
+  const pypiJob = jobBlock(workflow, 'publish-pypi');
+  const nugetJob = jobBlock(workflow, 'publish-nuget');
+  const mavenJob = jobBlock(workflow, 'publish-maven');
 
-  assert.match(workflow, /^  push:\n    branches:\n      - main$/m);
+  assert.match(workflow, /^  push:\n    branches:\n      - main\n    tags:\n      - 'sdk\/go\/v0\.1\.0-alpha\.1'$/m);
   assert.match(workflow, /^  pull_request: \{\}$/m);
   assert.doesNotMatch(workflow, /^  workflow_dispatch:/m);
 
@@ -36,6 +40,31 @@ test('CI enforces full-range DCO only for pull requests and keeps test on PR/mai
   assert.doesNotMatch(dcoJob, /\$\{DCO_HEAD_SHA\}\^/);
 
   assert.match(testJob, /^    name: test$/m);
-  assert.doesNotMatch(testJob, /^    if:/m, 'test must run for both configured events');
+  assert.doesNotMatch(testJob, /^    if:/m, 'test must run for PR, main and the exact release tag');
   assert.doesNotMatch(testJob, /scripts\/check-dco\.mjs/);
+  assert.match(testJob, /if: github\.event_name == 'push' && github\.ref == 'refs\/tags\/sdk\/go\/v0\.1\.0-alpha\.1'/);
+  assert.match(testJob, /test "\$\(git rev-parse HEAD\)" = "\$\(git rev-parse origin\/main\)"/);
+  assert.match(testJob, /Five-language executable SDK conformance/);
+  assert.match(testJob, /Build and verify SDK release packages/);
+
+  for (const job of [npmJob, pypiJob, nugetJob, mavenJob]) {
+    assert.match(job, /^    needs: test$/m);
+    assert.match(job, /^    if: github\.event_name == 'push' && github\.ref == 'refs\/tags\/sdk\/go\/v0\.1\.0-alpha\.1' && github\.repository == 'inn-media\/truyn'$/m);
+    assert.doesNotMatch(job, /workflow_dispatch/);
+    assert.doesNotMatch(job, /pull_request_target/);
+    assert.doesNotMatch(job, /contents: write/);
+  }
+
+  assert.match(npmJob, /^      id-token: write$/m);
+  assert.match(pypiJob, /^      id-token: write$/m);
+  assert.match(nugetJob, /^      id-token: write$/m);
+  assert.doesNotMatch(mavenJob, /id-token: write/);
+
+  assert.match(npmJob, /npm@11\.19\.0/);
+  assert.match(npmJob, /npm publish "\$package" --access public/);
+  assert.match(pypiJob, /pypa\/gh-action-pypi-publish@release\/v1/);
+  assert.match(nugetJob, /NuGet\/login@v1/);
+  assert.match(nugetJob, /vars\.NUGET_USER/);
+  assert.match(mavenJob, /-Pcentral-release deploy/);
+  assert.match(mavenJob, /test "\$actual" = "\$expected"/);
 });
