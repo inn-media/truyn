@@ -10,7 +10,7 @@ function extractText(response) {
   return parts.join('\n');
 }
 
-async function containerAppsManagedIdentityToken({ fetchImpl = fetch } = {}) {
+async function containerAppsManagedIdentityToken({ fetchImpl = fetch, signal } = {}) {
   const endpoint = process.env.IDENTITY_ENDPOINT;
   const identityHeader = process.env.IDENTITY_HEADER;
   if (!endpoint || !identityHeader) {
@@ -23,7 +23,8 @@ async function containerAppsManagedIdentityToken({ fetchImpl = fetch } = {}) {
   if (process.env.AZURE_CLIENT_ID) url.searchParams.set('client_id', process.env.AZURE_CLIENT_ID);
 
   const response = await fetchImpl(url, {
-    headers: { 'x-identity-header': identityHeader }
+    headers: { 'x-identity-header': identityHeader },
+    signal
   });
   const body = await response.json();
   if (!response.ok || !body.access_token) {
@@ -47,7 +48,7 @@ export function createAzureOpenAIProvider({
     name: 'azure-openai-responses',
     version: '1',
     capabilities,
-    async execute({ capability, input, policy }) {
+    async execute({ capability, input, policy, signal }) {
       const startedAt = Date.now();
       const prompt = [
         `You are a TRUYN provider for capability: ${capability}.`,
@@ -58,13 +59,14 @@ export function createAzureOpenAIProvider({
 
       const headers = { 'content-type': 'application/json' };
       if (apiKey) headers['api-key'] = apiKey;
-      else headers.authorization = `Bearer ${await accessTokenProvider({ fetchImpl })}`;
+      else headers.authorization = `Bearer ${await accessTokenProvider({ fetchImpl, signal })}`;
 
       const requestBody = JSON.stringify({ model, input: prompt, store: false });
       const response = await fetchImpl(`${endpoint.replace(/\/$/, '')}/openai/v1/responses`, {
         method: 'POST',
         headers,
-        body: requestBody
+        body: requestBody,
+        signal
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body?.error?.message || `Azure OpenAI HTTP ${response.status}`);
