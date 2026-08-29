@@ -24,17 +24,6 @@ tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
   -czf "$DIST/go/truyn-sdk-go-${VERSION}.tar.gz" -C "$ROOT/sdk/go" .
 
 mvn -q -f "$ROOT/sdk/java/pom.xml" package
-LEGAL_DIR="$(mktemp -d)"
-trap 'rm -rf "$LEGAL_DIR"' EXIT
-mkdir -p "$LEGAL_DIR/META-INF"
-cp "$ROOT/sdk/LICENSE" "$LEGAL_DIR/META-INF/LICENSE"
-cp "$ROOT/sdk/NOTICE" "$LEGAL_DIR/META-INF/NOTICE"
-for archive in \
-  "$ROOT/sdk/java/target/truyn-sdk-${VERSION}.jar" \
-  "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-sources.jar" \
-  "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-javadoc.jar"; do
-  (cd "$LEGAL_DIR" && jar uf "$archive" META-INF/LICENSE META-INF/NOTICE)
-done
 cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}.jar" "$DIST/java/"
 cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-sources.jar" "$DIST/java/"
 cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-javadoc.jar" "$DIST/java/"
