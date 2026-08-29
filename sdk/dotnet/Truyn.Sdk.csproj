@@ -4,9 +4,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Truyn.Sdk</PackageId>
-    <Version>0.0.0-dx2</Version>
+    <Version>0.1.0-alpha.1</Version>
     <Authors>TRUYN maintainers</Authors>
-    <Description>DX-2 C#/.NET SDK skeleton for TRUYN/1.</Description>
+    <Description>First-party C#/.NET SDK for the TRUYN Intelligence Network.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/inn-media/truyn</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="conformance/**/*.cs" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
+  </ItemGroup>
 </Project>

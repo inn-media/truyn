@@ -1,5 +1,3 @@
-using System;
-
 namespace Truyn.Sdk;
 
 public enum TruynErrorCode
@@ -9,7 +7,10 @@ public enum TruynErrorCode
     PermissionDenied,
     DeadlineExceeded,
     InvalidArgument,
-    Unimplemented
+    Unimplemented,
+    Cancelled,
+    Transport,
+    InvalidResponse
 }
 
 public sealed class TruynException : Exception
@@ -22,6 +23,5 @@ public sealed class TruynException : Exception
     }
 
     public TruynErrorCode Code { get; }
-
     public bool Retryable { get; }
 }
