@@ -220,7 +220,7 @@ async function shutdown() {
     clearTimeout(forceExit);
     process.exit(0);
   } catch (error) {
-    process.stderr.write(`${error?.stack || error}\n`);
+    process.stderr.write(`${String(error?.message || error)}\n`);
     process.exit(1);
   }
 }
