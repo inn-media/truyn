@@ -25,6 +25,8 @@ tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
 
 mvn -q -f "$ROOT/sdk/java/pom.xml" package
 cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}.jar" "$DIST/java/"
+cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-sources.jar" "$DIST/java/"
+cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-javadoc.jar" "$DIST/java/"
 cp "$ROOT/sdk/java/pom.xml" "$DIST/java/truyn-sdk-${VERSION}.pom"
 
 dotnet pack "$ROOT/sdk/dotnet/Truyn.Sdk.csproj" --configuration Release --nologo --output "$DIST/dotnet"
