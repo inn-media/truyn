@@ -37,17 +37,29 @@ export function createVertexVeoProvider({ projectId = process.env.GCP_PROJECT_ID
 
       let remoteTerminal = false;
       let cancelPromise = null;
-      const cancelRemote = () => {
+      const cancelRemote = async () => {
+        let lastError = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            const response = await fetchImpl(`${apiEndpoint.replace(/\/$/, '')}/v1/${createBody.name}:cancel`, { method: 'POST', headers });
+            if (response.ok || response.status === 400 || response.status === 404 || response.status === 409) return;
+            const error = new Error(`Vertex Veo cancel HTTP ${response.status}`);
+            if (response.status < 500) throw error;
+            lastError = error;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        throw lastError || new Error('Vertex Veo remote cancellation failed');
+      };
+      const scheduleCancelRemote = () => {
         if (remoteTerminal) return Promise.resolve();
         if (!cancelPromise) {
-          cancelPromise = (async () => {
-            const response = await fetchImpl(`${apiEndpoint.replace(/\/$/, '')}/v1/${createBody.name}:cancel`, { method: 'POST', headers });
-            if (!response.ok && response.status !== 400 && response.status !== 404 && response.status !== 409) throw new Error(`Vertex Veo cancel HTTP ${response.status}`);
-          })().catch(() => {});
+          cancelPromise = cancelRemote().finally(() => { cancelPromise = null; });
         }
         return cancelPromise;
       };
-      const onAbort = () => { void cancelRemote(); };
+      const onAbort = () => { void scheduleCancelRemote().catch(() => {}); };
       if (signal?.aborted) onAbort(); else signal?.addEventListener('abort', onAbort, { once: true });
 
       try {
@@ -79,7 +91,9 @@ export function createVertexVeoProvider({ projectId = process.env.GCP_PROJECT_ID
         const artifact = artifactFromBuffer(buffer, { mediaType: video.mimeType || 'video/mp4', ref, provenance: { cloud: 'gcp', vendor: 'google', family: 'veo', model }, metadata: { durationSeconds, resolution, sampleCount } });
         return artifactResult([artifact], { provider: 'vertex-veo', cloud: 'gcp', vendor: 'google', modelFamily: 'veo', model, modality: 'video', providerRequestId: createBody.name, providerLatencyMs: Date.now() - startedAt, providerRequestBodyBytes: Buffer.byteLength(requestBody), providerResponseBodyBytes: Buffer.byteLength(JSON.stringify(operation)), artifactBytes: artifact.bytes, jobPollCount: pollCount, video: { durationSeconds, resolution, sampleCount } });
       } catch (error) {
-        if (signal?.aborted) await cancelRemote();
+        if (signal?.aborted) {
+          try { await scheduleCancelRemote(); } catch (cancelError) { if (error && !error.cause) error.cause = cancelError; }
+        }
         throw error;
       } finally {
         signal?.removeEventListener('abort', onAbort);
