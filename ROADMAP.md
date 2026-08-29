@@ -2,9 +2,10 @@
 
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`; governance rules live in `GOVERNANCE.md` and `docs/governance/`.
 
-**Snapshot:** 2026-08-27  
-**Production/reference baseline:** `main@83738302131e08d807bc0ac00f64268a38b46309`  
+**Snapshot:** 2026-08-29  
+**Production/reference baseline:** `main@afe77b8415bb58039da6a85b45566e1348b164c5`  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
+**Sprint D exact executable proof:** `3aa37c29b3410c08aae53df4e0037b2d1d3c564a`  
 **Protocol:** `TRUYN/1` draft
 
 The project has not evolved strictly in numerical version order. Network scale, semantic retrieval, Trustability, provider security, external interoperability and SDK/DX progress in parallel. A completed track does not promote an unrelated track.
@@ -28,7 +29,7 @@ The project has not evolved strictly in numerical version order. Network scale, 
 | Semantic / distributed retrieval | **Implemented / benchmark-proven bounded slices** | broader decentralized operating scale |
 | Trustability | **Implemented / benchmark-proven bounded slices** | production authority/revocation operations |
 | Provider security / BYOK | **Implemented fail-closed reference boundary** | richer tenant/account/entitlement operations |
-| A2A / MCP | **C1–C7 accepted; Sprint C independent A2A black-box proven** | C8 security acceptance + symmetric independent MCP proof |
+| A2A / MCP | **C1–C7 accepted; Sprint C independent A2A + Sprint D independent MCP black-box executable proofs accepted** | C8 security acceptance + external referenced-artifact proof |
 | SDK / DX | **TS/JS + Python implemented; DX-3 merged** | remote NEED cancellation/token-delta streaming + Go/Java/.NET parity/publication |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Settlement x402/AP2 | **Defined only** | later optional adapter implementation |
@@ -119,15 +120,15 @@ C8 may close only with exact-head evidence for:
 
 ### Adoption proof after C7
 
-C7 is real bounded bridge evidence. Sprint C closes the independent remote-A2A proof for one direction:
+C7 is real bounded bridge evidence. Sprints C and D close the symmetric independent external-SDK proof for the two directions:
 
 - [x] **Sprint C** — exercise `MCP→TRUYN→A2A` against an independent A2A SDK/reference implementation: official A2A Project `@a2a-js/sdk@1.0.1`, separate-process Agent Card + JSON-RPC black box, exact core source `a435ed16e559226ed095959b7b95aa7067271302`, CI `33057289236`, CodeQL `33057286765`, durable record `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`;
-- [ ] exercise `A2A→TRUYN→MCP` against an independent MCP SDK/reference implementation;
+- [x] **Sprint D** — exercise `A2A→TRUYN→MCP` against the independent official MCP SDK: `@modelcontextprotocol/server@2.0.0`, separate-process MCP 2026-07-28 black box using public `handler.fetch()` and `handler.close()`, exact core source `3aa37c29b3410c08aae53df4e0037b2d1d3c564a`, CI `33261868862`, CodeQL `33261867022`, durable record `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md`;
 - [ ] carry at least one integrity-verified referenced artifact/file through the claimed external profile;
 - [ ] publish exact-version durable interoperability evidence for each new external proof;
 - [ ] define a compatibility/stability policy before claiming stable A2A/MCP support.
 
-Sprint C does not close C8 and does not claim ecosystem-wide A2A certification. Do not reimplement C4–C7 merely because old documents once called them future work.
+Sprint C and Sprint D are bounded symmetric external SDK proofs. Neither closes C8, completes referenced-artifact adoption, claims ecosystem-wide A2A/MCP certification, or makes `TRUYN/1` Stable. Do not reimplement C4–C7 merely because old documents once called them future work.
 
 ---
 
