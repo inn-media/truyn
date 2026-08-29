@@ -127,6 +127,8 @@ test('socket AdapterHost reconnects after fast_socket_closed instead of terminat
   await host.start();
   await assert.rejects(host.loopPromise, /terminal_test_error/);
   assert.equal(nextCalls, 2);
-  assert.equal(closeCalls, 1);
+  assert.equal(closeCalls, 2);
+  assert.equal(host.running, false);
+  assert.equal(host.lastLoopError?.message, 'terminal_test_error');
   await host.stop();
 });
