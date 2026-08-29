@@ -208,16 +208,6 @@ export function createA2aServer({
     return offer?.payload?.metadata?.accessMode || null;
   }
 
-  function offerAccessibleToRequester(offer) {
-    const mode = offerAccessMode(offer);
-    if (mode === 'public') return true;
-    if (mode !== 'owner-only') return false;
-    const requesterId = node?.identity?.nodeId;
-    const allowedRequesterIds = offer?.payload?.metadata?.allowedRequesterIds;
-    if (typeof requesterId !== 'string' || requesterId.length === 0 || !Array.isArray(allowedRequesterIds)) return false;
-    return allowedRequesterIds.includes(requesterId);
-  }
-
   async function skillOperationallyVisible(skill, principal, req, operation) {
     if (!(await skillAuthorized(skill, principal, req, operation))) return false;
     const offers = await discoverSkillOffers(skill);
@@ -225,7 +215,10 @@ export function createA2aServer({
     if (skill.visibility === 'public') {
       return offers.every((offer) => offerAccessMode(offer) === 'public');
     }
-    return offers.some(offerAccessibleToRequester);
+    // node.find() is already requester-scoped by the relay using the authenticated
+    // TRUYN node session, including provider policy and relay-level trusted grants.
+    // Do not reinterpret descriptive OFFER metadata here.
+    return true;
   }
 
   async function visibleSkills(principal, req, { extended = false, operation = 'discover' } = {}) {
