@@ -29,7 +29,7 @@ cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-sources.jar" "$DIST/java/"
 cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-javadoc.jar" "$DIST/java/"
 cp "$ROOT/sdk/java/pom.xml" "$DIST/java/truyn-sdk-${VERSION}.pom"
 
-dotnet pack "$ROOT/sdk/dotnet/Truyn.Sdk.csproj" --configuration Release --nologo --output "$DIST/dotnet"
+dotnet pack "$ROOT/sdk/dotnet/Truyn.Sdk.csproj" --configuration Release --output "$DIST/dotnet"
 
 node "$ROOT/sdk/release/write-manifest.mjs" "$DIST"
 node "$ROOT/sdk/release/verify-release.mjs" "$DIST"
