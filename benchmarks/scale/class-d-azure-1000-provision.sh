@@ -188,7 +188,7 @@ test -x /opt/truyqn/runtime/bin/openssl
 /opt/truyqn/runtime/bin/curl --version >/dev/null
 /opt/truyqn/runtime/bin/openssl version >/dev/null
 install_stage=runtime-manifest
-/opt/truyqn/runtime/bin/jq -e --arg sha '${GITHUB_SHA}' '.schema == "truyn.class-d1000.runtime-bundle.v1" and .sourceSha == $sha' /opt/truyqn/manifest.json >/dev/null
+/opt/truyqn/runtime/bin/jq -e --arg sha '${GITHUB_SHA}' '.schema == "truyn.class-d1000.runtime-bundle.v1" and .sourceSha == \$sha' /opt/truyqn/manifest.json >/dev/null
 ln -sfn /opt/truyqn/runtime/bin/node /usr/local/bin/node
 ln -sfn /opt/truyqn/runtime/bin/jq /usr/local/bin/jq
 ln -sfn /opt/truyqn/runtime/bin/curl /usr/local/bin/curl
