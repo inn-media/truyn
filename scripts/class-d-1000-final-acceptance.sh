@@ -240,7 +240,7 @@ else:
     if missing:
         raise SystemExit(f'canonical D-1000 runtime bootstrap incomplete: {missing}')
 
-p = p.replace('WorkingDirectory=/opt/truyn', 'WorkingDirectory=/opt/truyn/app')
+p = p.replace('WorkingDirectory=/opt/truyn\n', 'WorkingDirectory=/opt/truyn/app\n')
 p = p.replace('ExecStart=/usr/bin/node /opt/truyn/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js')
 p = p.replace('ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truin/app/network/testnet/node-service.js')
 p = p.replace('ExecStart=/usr/bin/node /opt/truy n/network/testnet/node-service.js', 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js')
@@ -297,6 +297,7 @@ grep -q '/bin/bash /tmp/truyqn-d1000-run.sh' "$TMP/provision.sh" && exit 1 || tr
 grep -q '/bin/bash /tmp/truin-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
 grep -q '/bin/bash /tmp/truy n-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
 grep -q 'WorkingDirectory=/opt/truyn/app' "$TMP/provision.sh"
+! grep -q 'WorkingDirectory=/opt/truyn/app/app' "$TMP/provision.sh"
 grep -q 'EnvironmentFile=/etc/truqyn-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
 grep -q 'EnvironmentFile=/etc/truyqn-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
 grep -q 'EnvironmentFile=/etc/truin-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true

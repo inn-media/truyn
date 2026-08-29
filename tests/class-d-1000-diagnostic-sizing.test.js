@@ -69,4 +69,5 @@ test('D-1000 strict final acceptance pins the accepted run to exactly 50 nodes p
   assert.match(run.stdout, /TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS/);
   assert.match(run.stdout, /strictNodesPerHost=50/);
   assert.doesNotMatch(run.stdout, /strictNodesPerHost=10/);
+  assert.doesNotMatch(run.stdout, /WorkingDirectory=\/opt\/truyn\/app\/app/);
 });
