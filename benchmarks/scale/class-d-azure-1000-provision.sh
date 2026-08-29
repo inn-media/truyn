@@ -26,6 +26,9 @@ QUIC_BASE=4400
 CONTROL_BASE=8700
 EVIDENCE="${GITHUB_WORKSPACE:-$PWD}/class-d-1000-evidence.json"
 START_MS=$(date +%s%3N)
+: "${TRUYN_CLASS_D1000_RUNTIME_URL:?TRUYN_CLASS_D1000_RUNTIME_URL is required}"
+: "${TRUYN_CLASS_D1000_RUNTIME_SHA256:?TRUYN_CLASS_D1000_RUNTIME_SHA256 is required}"
+RUNTIME_URL_B64="$(printf '%s' "$TRUYN_CLASS_D1000_RUNTIME_URL" | base64 -w0)"
 CLEANUP_CONFIRMED=false
 STAGE=init
 
@@ -118,7 +121,7 @@ echo "TRUYN_CLASS_D_1000 stage=preflight status=PASS commit=${GITHUB_SHA}"
 STAGE=network
 az network nsg create -g "$RG" -n "$NSG" -l "$LOCATION" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
 az network vnet create -g "$RG" -n "$VNET" -l "$LOCATION" --address-prefixes 10.252.0.0/16 --subnet-name "$SUBNET" --subnet-prefixes 10.252.1.0/24 --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
-az network vnet subnet update -g "$RG" --vnet-name "$VNET" -n "$SUBNET" --network-security-group "$NSG" --only-show-errors >/dev/null
+az network vnet subnet update -g "$RG" --vnet-name "$VNET" -n "$SUBNET" --network-security-group "$NSG" --service-endpoints Microsoft.Storage --only-show-errors >/dev/null
 
 STAGE=provision
 for i in $(seq 0 $((HOST_COUNT-1))); do
@@ -159,35 +162,42 @@ retry_cmd() {
 }
 install_stage=init
 trap 'rc=\$?; echo "TRUYN_REMOTE_INSTALL_FAILURE host=${i} stage=\${install_stage} line=\${LINENO} rc=\${rc} command=\${BASH_COMMAND}" >&2; exit \$rc' ERR
-export DEBIAN_FRONTEND=noninteractive
-install_stage=apt-update
-retry_cmd apt-get update -qq
-install_stage=apt-prereqs
-retry_cmd apt-get install -y -qq curl jq openssl ca-certificates python3 iptables build-essential pkg-config >/dev/null
-major=0; command -v node >/dev/null 2>&1 && major=\$(node -p 'parseInt(process.versions.node)' 2>/dev/null || echo 0)
-if [[ "\$major" -lt 22 ]]; then
-  install_stage=nodesource-download
-  retry_cmd curl -fsSL --retry 5 --retry-all-errors --connect-timeout 15 https://deb.nodesource.com/setup_22.x -o /tmp/nodesource-22.sh
-  install_stage=nodesource-setup
-  bash /tmp/nodesource-22.sh >/dev/null
-  install_stage=node-install
-  retry_cmd apt-get install -y -qq nodejs >/dev/null
-fi
-install_stage=node-version
-node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
-install_stage=source-fetch
-rm -rf /opt/truyqn /tmp/truyqn-source.tgz
-install -d /opt/truyqn
-retry_cmd curl -fsSL --retry 5 --retry-all-errors --connect-timeout 15 'https://codeload.github.com/inn-media/truyn/tar.gz/${GITHUB_SHA}' -o /tmp/truyqn-source.tgz
-tar -xzf /tmp/truyqn-source.tgz --strip-components=1 -C /opt/truyqn
-printf '%s\n' '${GITHUB_SHA}' >/opt/truyqn/.truyn-tested-sha
-cd /opt/truyqn
-install_stage=npm-install
-retry_cmd npm install --omit=dev --no-audit --no-fund
+install_stage=runtime-prereqs
+for required in python3 tar sha256sum systemctl iptables iptables-save readlink; do command -v "\$required" >/dev/null; done
+install_stage=runtime-download
+bundle=/tmp/truyn-d1000-runtime.tgz
+rm -f "\$bundle"
+python3 - '${RUNTIME_URL_B64}' "\$bundle" <<'PYRUNTIME'
+import base64, sys, urllib.request
+url = base64.b64decode(sys.argv[1]).decode('utf-8')
+urllib.request.urlretrieve(url, sys.argv[2])
+PYRUNTIME
+install_stage=runtime-digest
+printf '%s  %s
+' '${TRUYN_CLASS_D1000_RUNTIME_SHA256}' "\$bundle" | sha256sum -c -
+install_stage=runtime-extract
+rm -rf /opt/truyqn
+mkdir -p /opt/truyqn
+tar -xzf "\$bundle" -C /opt/truyqn
+test -x /opt/truyqn/runtime/bin/node
+test -x /opt/truyqn/runtime/bin/jq
+test -x /opt/truyqn/runtime/bin/curl
+test -x /opt/truyqn/runtime/bin/openssl
+/opt/truyqn/runtime/bin/node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
+/opt/truyqn/runtime/bin/jq --version >/dev/null
+/opt/truyqn/runtime/bin/curl --version >/dev/null
+/opt/truyqn/runtime/bin/openssl version >/dev/null
+install_stage=runtime-manifest
+/opt/truyqn/runtime/bin/jq -e --arg sha '${GITHUB_SHA}' '.schema == "truyn.class-d1000.runtime-bundle.v1" and .sourceSha == $sha' /opt/truyqn/manifest.json >/dev/null
+ln -sfn /opt/truyqn/runtime/bin/node /usr/local/bin/node
+ln -sfn /opt/truyqn/runtime/bin/jq /usr/local/bin/jq
+ln -sfn /opt/truyqn/runtime/bin/curl /usr/local/bin/curl
+ln -sfn /opt/truyqn/runtime/bin/openssl /usr/local/bin/openssl
+cd /opt/truyqn/app
 install_stage=quic-import
-node --input-type=module -e "await import('@chainsafe/libp2p-quic'); await import('@matrixai/quic'); console.log('QUIC_IMPORT=PASS')"
+/opt/truyqn/runtime/bin/node --input-type=module -e "await import('@chainsafe/libp2p-quic'); await import('@matrixai/quic'); console.log('QUIC_IMPORT=PASS')"
 install_stage=node-service-import
-node --input-type=module -e "await import('./network/testnet/node-service.js'); console.log('NODE_SERVICE_IMPORT=PASS')"
+/opt/truyqn/runtime/bin/node --input-type=module -e "await import('./network/testnet/node-service.js'); console.log('NODE_SERVICE_IMPORT=PASS')"
 install_stage=runtime-config
 install -d -m 0700 /var/lib/truyqn-d1000 /etc/truyqn-d1000
 openssl req -x509 -newkey rsa:2048 -nodes -keyout /etc/truyqn-d1000/key.pem -out /etc/truyqn-d1000/cert.pem -subj '/CN=${PRIV[$i]}' -days 1 -addext 'subjectAltName=IP:${PRIV[$i]}' >/dev/null 2>&1
@@ -214,9 +224,9 @@ cat >/etc/systemd/system/truyqn-d1000@.service <<'UNIT'
 [Unit]
 After=network-online.target
 [Service]
-WorkingDirectory=/opt/truyqn
+WorkingDirectory=/opt/truyqn/app
 EnvironmentFile=/etc/truyqn-d1000/node-%i.env
-ExecStart=/usr/bin/node /opt/truyqn/network/testnet/node-service.js
+ExecStart=/opt/truyqn/runtime/bin/node /opt/truyqn/app/network/testnet/node-service.js
 Restart=on-failure
 RestartSec=1
 LimitNOFILE=65536
