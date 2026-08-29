@@ -213,7 +213,7 @@ test -x /opt/truy n/runtime/bin/openssl
 /opt/truy n/runtime/bin/curl --version >/dev/null
 /opt/truy n/runtime/bin/openssl version >/dev/null
 install_stage=runtime-manifest
-/opt/truy n/runtime/bin/jq -e --arg sha '${GITHUB_SHA}' '.schema == "truyn.class-d1000.runtime-bundle.v1" and .sourceSha == $sha' /opt/truy n/manifest.json >/dev/null
+/opt/truy n/runtime/bin/jq -e --arg sha '${GITHUB_SHA}' '.schema == "truyn.class-d1000.runtime-bundle.v1" and .sourceSha == \$sha' /opt/truy n/manifest.json >/dev/null
 ln -sfn /opt/truy n/runtime/bin/node /usr/local/bin/node
 ln -sfn /opt/truy n/runtime/bin/jq /usr/local/bin/jq
 ln -sfn /opt/truy n/runtime/bin/curl /usr/local/bin/curl
@@ -234,7 +234,7 @@ else:
         'install_stage=runtime-digest',
         'install_stage=runtime-manifest',
         'TRUYN_CLASS_D1000_RUNTIME_SHA256',
-        'sourceSha == $sha',
+        r'sourceSha == \$sha',
     )
     missing = [marker for marker in required_runtime if marker not in p]
     if missing:
