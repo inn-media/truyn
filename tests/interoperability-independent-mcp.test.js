@@ -24,16 +24,20 @@ function delay(ms) {
   return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
 }
 
+function childExited(child) {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+
 async function stopChild(child) {
-  if (child.exitCode !== null) return;
+  if (childExited(child)) return;
   child.kill('SIGTERM');
   const exited = await Promise.race([
     once(child, 'exit').then(() => true),
     delay(2_000).then(() => false)
   ]);
-  if (!exited && child.exitCode === null) {
+  if (!exited && !childExited(child)) {
     child.kill('SIGKILL');
-    await once(child, 'exit');
+    if (!childExited(child)) await once(child, 'exit');
   }
 }
 
