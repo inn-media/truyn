@@ -96,7 +96,7 @@ async function serveMcp(req, res, body) {
     headers: toHeaders(req.headers),
     body: body.length > 0 ? body : undefined
   });
-  const response = await handler(request);
+  const response = await handler.fetch(request);
   const responseBody = Buffer.from(await response.arrayBuffer());
   const responseHeaders = {};
   response.headers.forEach((value, name) => {
@@ -203,15 +203,27 @@ process.stdout.write(`${JSON.stringify({
 })}\n`);
 
 let shuttingDown = false;
-function shutdown() {
+async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
-  if (!httpServer.listening) {
+  const forceExit = setTimeout(() => process.exit(1), 1_500);
+  forceExit.unref();
+  try {
+    const httpClosed = httpServer.listening
+      ? new Promise((resolve) => {
+          httpServer.close(resolve);
+          httpServer.closeIdleConnections?.();
+        })
+      : Promise.resolve();
+    await handler.close();
+    await httpClosed;
+    clearTimeout(forceExit);
     process.exit(0);
-    return;
+  } catch (error) {
+    process.stderr.write(`${error?.stack || error}\n`);
+    process.exit(1);
   }
-  httpServer.close(() => process.exit(0));
 }
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', () => void shutdown());
+process.on('SIGINT', () => void shutdown());
