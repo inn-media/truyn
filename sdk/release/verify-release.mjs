@@ -12,7 +12,7 @@ const required = {
   typescript: /\.tgz$/,
   python: /\.whl$/,
   go: /\.tar\.gz$/,
-  java: /\.jar$/,
+  java: /\/truyn-sdk-0\.1\.0-alpha\.1\.jar$/,
   dotnet: /\.nupkg$/
 };
 for (const [language, pattern] of Object.entries(required)) {
@@ -36,10 +36,23 @@ const packageArtifacts = manifest.artifacts.filter((artifact) => /\.(tgz|tar\.gz
 for (const artifact of packageArtifacts) {
   const entries = entriesFor(artifact.path);
   const normalized = entries.map((entry) => entry.replace(/^\.\//, ''));
-  if (!normalized.some((entry) => /(^|\/)LICENSE$/i.test(entry))) throw new Error(`LICENSE missing from ${artifact.path}`);
-  if (!normalized.some((entry) => /(^|\/)NOTICE$/i.test(entry))) throw new Error(`NOTICE missing from ${artifact.path}`);
+  const isMavenCompanion = /java\/truyn-sdk-0\.1\.0-alpha\.1-(sources|javadoc)\.jar$/.test(artifact.path);
+  if (!isMavenCompanion) {
+    if (!normalized.some((entry) => /(^|\/)LICENSE$/i.test(entry))) throw new Error(`LICENSE missing from ${artifact.path}`);
+    if (!normalized.some((entry) => /(^|\/)NOTICE$/i.test(entry))) throw new Error(`NOTICE missing from ${artifact.path}`);
+  }
   const forbidden = normalized.find((entry) => /(^|\/)(\.git|\.github|node_modules|\.env)(\/|$)|private[_-]?key/i.test(entry));
   if (forbidden) throw new Error(`forbidden package entry ${forbidden} in ${artifact.path}`);
+}
+
+const javaPaths = new Set(manifest.artifacts.filter((artifact) => artifact.path.startsWith('java/')).map((artifact) => artifact.path));
+for (const expected of [
+  'java/truyn-sdk-0.1.0-alpha.1.jar',
+  'java/truyn-sdk-0.1.0-alpha.1-sources.jar',
+  'java/truyn-sdk-0.1.0-alpha.1-javadoc.jar',
+  'java/truyn-sdk-0.1.0-alpha.1.pom'
+]) {
+  if (!javaPaths.has(expected)) throw new Error(`missing Maven publication companion: ${expected}`);
 }
 
 process.stdout.write(`PASS release package verification: ${manifest.artifacts.length} artifacts\n`);
