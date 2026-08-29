@@ -280,7 +280,7 @@ export class TruynAdapterHost {
       if (need.chain) metadata.chainStage = need.stageIndex;
       if (!signal.aborted) await this.sendTerminal(need, normalized.output, metadata);
     } catch (error) {
-      if (signal.aborted || error?.name === 'AbortError' || error?.message === 'request_cancelled') return;
+      if (signal.aborted) return;
       const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, error: error.message, failed: true };
       if (billing) { metadata.billingMode = billing.mode; metadata.billingResponsibility = billing.billingResponsibility; }
       if (need.chain) metadata.chainStage = need.stageIndex;
