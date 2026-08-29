@@ -299,8 +299,8 @@ test('Sprint D spoofed A2A owner cannot unlock an owner-only imported MCP provid
         billingMode: 'owner-funded'
       }
     }, { returnImmediately: false }),
-    /No authorized A2A skill is available/,
-    'spoofed A2A owner metadata must fail closed against the real TRUYN requester identity'
+    /Invalid parameters/,
+    'spoofed A2A owner metadata must fail closed without revealing whether the requested skill exists'
   );
 
   assert.equal(relay.state.requests.size, 0, 'failed authority spoof must create zero TRUYN NEEDs');
