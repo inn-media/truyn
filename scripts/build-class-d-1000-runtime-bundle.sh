@@ -19,6 +19,9 @@ mkdir -p "$STAGE/app" "$STAGE/runtime/bin" "$STAGE/runtime/tool-bin" "$STAGE/run
 # are the already-resolved CI node_modules tree; VMs never contact npm.
 git archive "$SOURCE_SHA" | tar -xf - -C "$STAGE/app"
 cp -a node_modules "$STAGE/app/node_modules"
+# The remote bootstrap phase imports benchmark helpers from /opt/truyqn/benchmarks.
+# Keep that stable absolute contract without duplicating tracked source in the bundle.
+ln -s app/benchmarks "$STAGE/benchmarks"
 
 RUNTIME_LOADER=''
 copy_tool() {
@@ -96,7 +99,7 @@ PY
 
 mkdir -p "$(dirname "$OUT")"
 tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
-  -czf "$OUT" -C "$STAGE" app runtime manifest.json dependency-tree.json
+  -czf "$OUT" -C "$STAGE" app benchmarks runtime manifest.json dependency-tree.json
 sha256sum "$OUT" >"$OUT.sha256"
 
 tar -xzf "$OUT" -C "$VERIFY"
@@ -122,6 +125,7 @@ test -s "$VERIFY/symlink-key.pem"
 test -s "$VERIFY/symlink-cert.pem"
 
 test -f "$VERIFY/app/network/testnet/node-service.js"
+test -f "$VERIFY/benchmarks/scale/class-d-1000-bootstrap.js"
 test -d "$VERIFY/app/node_modules"
 test -s "$VERIFY/dependency-tree.json"
 python3 - "$VERIFY/manifest.json" "$SOURCE_SHA" <<'PY'
