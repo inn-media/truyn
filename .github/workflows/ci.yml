@@ -33,18 +33,16 @@ jobs:
             printf 'DCO base SHA is unavailable for pull_request\n' >&2
             exit 1
           fi
-
           if [[ -z "$DCO_HEAD_SHA" || "$DCO_HEAD_SHA" =~ ^0+$ ]]; then
             printf 'DCO head SHA is unavailable for pull_request\n' >&2
             exit 1
           fi
-
           node scripts/check-dco.mjs "$DCO_BASE_SHA" "$DCO_HEAD_SHA"
 
   test:
     name: test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,6 +73,8 @@ jobs:
         run: mvn -q -f sdk/java/pom.xml test
       - name: Compile .NET SDK
         run: dotnet build sdk/dotnet/Truyn.Sdk.csproj --configuration Release --nologo
+      - name: Five-language executable SDK conformance
+        run: node sdk/conformance/run-five-language-e2e.mjs
       - run: npm test
         env:
           TRUYN_LOCAL_DEVELOPMENT: '1'
