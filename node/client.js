@@ -350,6 +350,11 @@ export class TruynNode {
   }
 
   async verifyCompactEvent(event) {
+    if (event?.envelope) {
+      const allowedType = event.kind || event.envelope.type;
+      const verification = verifyEnvelope(event.envelope, { allowedTypes: [allowedType] });
+      return { ...event, verification, priorVerification: null };
+    }
     const publicKey = await this.resolveIdentity(event.from);
     const signedType = event.signedType || event.kind;
     const verification = verifyCompactFrame(event.frame, event.payload, publicKey, { allowedTypes: [signedType] });
@@ -459,7 +464,7 @@ export class TruynNode {
       method: 'POST', headers: this.authHeaders(), body: JSON.stringify(requestBody)
     });
     const verification = verifyContextSelection(manifestResult.manifest, result.blocks, cid);
-    if (!verification.ok) throw new Error(`Context retrieval verification failed: ${verification.reason}`);
+    if (!verification.ok) throw new Error(`Context retrieval provenance selection mismatch`);
     const retrieval = result.retrieval || {};
     if (retrieval.rootCid !== cid || retrieval.manifestCid !== cid) throw new Error('Context retrieval provenance root mismatch');
     if (retrieval.queryHash !== contextQueryHash(query)) throw new Error('Context retrieval query hash mismatch');
@@ -511,9 +516,10 @@ export class TruynNode {
     return walk(value);
   }
 
-  async revoke(targetId, reason = 'revoked_by_owner') {
+  async revoke(targetId, reason = 'revoked_by_owner', { targetKind = 'offer' } = {}) {
+    if (!['need', 'offer'].includes(targetKind)) throw new Error('targetKind must be need or offer');
     this.requireSession('revoking an object');
-    const envelope = this.envelope('REVOKE', { targetId, reason });
+    const envelope = this.envelope('REVOKE', { targetId, targetKind, reason });
     return requestJson(`${this.relayUrl}/v1/revoke`, {
       method: 'POST', headers: this.authHeaders(), body: JSON.stringify({ envelope })
     });
