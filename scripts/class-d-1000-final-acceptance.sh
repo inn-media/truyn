@@ -222,6 +222,7 @@ if bootstrap_count != 1:
     raise SystemExit(f'expected exactly one exact-SHA D-1000 network bootstrap, replaced={bootstrap_count}')
 
 p = p.replace('WorkingDirectory=/opt/truyn', 'WorkingDirectory=/opt/truyn/app')
+p = p.replace('ExecStart=/usr/bin/node /opt/truyn/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js')
 p = p.replace('ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truin/app/network/testnet/node-service.js')
 p = p.replace('ExecStart=/usr/bin/node /opt/truy n/network/testnet/node-service.js', 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js')
 p = p.replace('truin', 'truyn').replace('truy n', 'truyn')
