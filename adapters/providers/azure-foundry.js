@@ -24,7 +24,7 @@ export function createAzureFoundryProvider({
     name: `azure-foundry-${family}`,
     version: '1',
     capabilities,
-    async execute({ capability, input, policy = {} }) {
+    async execute({ capability, input, policy = {}, signal }) {
       const startedAt = Date.now();
       const providerOptions = policy?.providerOptions && typeof policy.providerOptions === 'object' ? policy.providerOptions : {};
       const prompt = typeof input === 'string' ? input : JSON.stringify(input);
@@ -42,12 +42,14 @@ export function createAzureFoundryProvider({
         apiKey,
         accessTokenProvider,
         fetchImpl,
-        resource: process.env.AZURE_FOUNDRY_TOKEN_RESOURCE || 'https://cognitiveservices.azure.com/'
+        resource: process.env.AZURE_FOUNDRY_TOKEN_RESOURCE || 'https://cognitiveservices.azure.com/',
+        signal
       });
       const response = await fetchImpl(`${endpoint.replace(/\/$/, '')}/openai/v1/chat/completions`, {
         method: 'POST',
         headers,
-        body: requestBody
+        body: requestBody,
+        signal
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body?.error?.message || body?.message || `Azure Foundry HTTP ${response.status}`);

@@ -1,11 +1,13 @@
 import http from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { WebSocket, WebSocketServer } from 'ws';
 import { compactStageRequestId, verifyCompactFrame, verifyEnvelope } from '../../core/protocol/index.js';
 import { trustabilityLite } from '../../core/trust/index.js';
 import { applyContextDelta, buildContextDocument, retrieveContextBlocks } from '../../core/context/index.js';
 import { providerPolicyAllowsRequester, providerPolicyFromOffer } from '../../core/security/relay-provider-policy.js';
+
+const MAX_CANCELLATION_REASON_CHARS = 256;
 
 function json(res, status, body) {
   if (res.writableEnded) return;
@@ -63,6 +65,7 @@ function capabilityName(stage) {
 }
 
 const roundMs = (value) => Number(value.toFixed(3));
+const partialDigest = (frame, payload) => createHash('sha256').update(JSON.stringify([frame, payload])).digest('base64url');
 
 function traceMark(chain, name, monotonicMs = performance.now(), wallTime = new Date().toISOString()) {
   if (!chain?.trace) return;
@@ -103,7 +106,9 @@ export function createRelay({
   maxOffers = 16384,
   maxContexts = 256,
   maxQueuedEventsPerNode = 256,
+  maxSocketBufferedBytes = 1024 * 1024,
   maxRequests = 8192,
+  requestTtlMs = 15 * 60 * 1000,
   maxChains = 1024,
   allowedNodeIds = [],
   trustedRequesterNodeIds = [],
@@ -116,12 +121,17 @@ export function createRelay({
   if (localDevelopmentMode && (productionMode || allowPublicRegistration || allowPublicDispatch)) {
     throw new Error('localDevelopmentMode cannot be combined with production or public relay access');
   }
+  if (!Number.isInteger(maxQueuedEventsPerNode) || maxQueuedEventsPerNode < 1) throw new Error('maxQueuedEventsPerNode must be a positive integer');
+  if (!Number.isFinite(maxSocketBufferedBytes) || maxSocketBufferedBytes < 1) throw new Error('maxSocketBufferedBytes must be positive');
+  if (!Number.isFinite(requestTtlMs) || requestTtlMs < 1) throw new Error('requestTtlMs must be positive');
 
   const nodes = new Map();
   const sessions = new Map();
   const offers = new Map();
   const events = new Map();
   const fastEvents = new Map();
+  const fastTerminalEvents = new Map();
+  const fastTerminalReservations = new Map();
   const fastWaiters = new Map();
   const providerSockets = new Map();
   const resultWaiters = new Map();
@@ -195,16 +205,58 @@ export function createRelay({
     boundedQueue(events, nodeId, event);
   }
 
+  function queueCritical(nodeId, event) {
+    const queueForNode = events.get(nodeId) || [];
+    if (queueForNode.length >= maxQueuedEventsPerNode) return false;
+    queueForNode.push(event);
+    events.set(nodeId, queueForNode);
+    return true;
+  }
+
+  function reserveFastTerminal(nodeId) {
+    const queued = fastTerminalEvents.get(nodeId)?.length || 0;
+    const reserved = fastTerminalReservations.get(nodeId) || 0;
+    if (queued + reserved >= maxQueuedEventsPerNode) return false;
+    fastTerminalReservations.set(nodeId, reserved + 1);
+    return true;
+  }
+
+  function releaseFastTerminal(request) {
+    if (!request?.terminalReserved) return;
+    request.terminalReserved = false;
+    const current = fastTerminalReservations.get(request.requester) || 0;
+    if (current <= 1) fastTerminalReservations.delete(request.requester);
+    else fastTerminalReservations.set(request.requester, current - 1);
+  }
+
+  function expireFastRequest(request, now = Date.now()) {
+    if (!request || request.mode !== 'fast' || request.status !== 'matched') return false;
+    const activityAt = Date.parse(request.lastPartialAt || request.createdAt || '');
+    if (!Number.isFinite(activityAt) || now - activityAt < requestTtlMs) return false;
+    request.status = 'failed';
+    request.failedAt = new Date(now).toISOString();
+    request.failureReason = 'request_expired';
+    releaseFastTerminal(request);
+    finishResultWaiter(request.needId, 504, { ok: false, error: 'request_expired', requestId: request.needId });
+    return true;
+  }
+
+  function expireAbandonedFastRequests(now = Date.now()) {
+    for (const request of requests.values()) expireFastRequest(request, now);
+  }
+
   function removeFastWaiter(nodeId, waiter) {
     if (fastWaiters.get(nodeId) === waiter) fastWaiters.delete(nodeId);
     if (waiter.timer) clearTimeout(waiter.timer);
   }
 
-  function sendSocketEvent(nodeId, event) {
+  function sendSocketEvent(nodeId, event, { requireCapacity = false } = {}) {
     const socket = connectedSocket(nodeId);
     if (!socket) return false;
     try {
-      socket.send(JSON.stringify(event));
+      const serialized = JSON.stringify(event);
+      if (requireCapacity && socket.bufferedAmount + Buffer.byteLength(serialized) > maxSocketBufferedBytes) return 'full';
+      socket.send(serialized);
       touch(nodeId);
       return true;
     } catch {
@@ -212,8 +264,10 @@ export function createRelay({
     }
   }
 
-  function queueFast(nodeId, event) {
-    if (sendSocketEvent(nodeId, event)) return 'socket';
+  function queueFast(nodeId, event, { requireCapacity = false } = {}) {
+    const socketDelivery = sendSocketEvent(nodeId, event, { requireCapacity });
+    if (socketDelivery === true) return 'socket';
+    if (socketDelivery === 'full') return 'full';
     const waiter = fastWaiters.get(nodeId);
     if (waiter && !waiter.res.writableEnded) {
       removeFastWaiter(nodeId, waiter);
@@ -221,7 +275,37 @@ export function createRelay({
       json(waiter.res, 200, { ok: true, events: [event] });
       return 'long-poll';
     }
+    if (requireCapacity && (fastEvents.get(nodeId)?.length || 0) >= maxQueuedEventsPerNode) return 'full';
     boundedQueue(fastEvents, nodeId, event);
+    return 'queued';
+  }
+
+  function queueCancellation(request, event) {
+    if (request.mode === 'fast') return queueFast(request.provider, event, { requireCapacity: true }) !== 'full';
+    return queueCritical(request.provider, event);
+  }
+
+  function queueFastTerminal(nodeId, event) {
+    const socketDelivery = sendSocketEvent(nodeId, event, { requireCapacity: true });
+    if (socketDelivery === true) return 'socket';
+    if (socketDelivery === 'full') {
+      const socket = connectedSocket(nodeId);
+      if (socket) {
+        providerSockets.delete(nodeId);
+        try { socket.close(1013, 'terminal_backpressure'); } catch {}
+      }
+    }
+    const waiter = fastWaiters.get(nodeId);
+    if (waiter && !waiter.res.writableEnded) {
+      removeFastWaiter(nodeId, waiter);
+      touch(nodeId);
+      json(waiter.res, 200, { ok: true, events: [event] });
+      return 'long-poll';
+    }
+    const terminalQueue = fastTerminalEvents.get(nodeId) || [];
+    if (terminalQueue.length >= maxQueuedEventsPerNode) return 'full';
+    terminalQueue.push(event);
+    fastTerminalEvents.set(nodeId, terminalQueue);
     return 'queued';
   }
 
@@ -265,9 +349,7 @@ export function createRelay({
 
   function contextReaders(value) {
     if (value == null) return [];
-    if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !item.length)) {
-      throw httpError(400, 'invalid_context_readers');
-    }
+    if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !item.length)) throw httpError(400, 'invalid_context_readers');
     return [...new Set(value)];
   }
 
@@ -332,10 +414,26 @@ export function createRelay({
     });
   }
 
+  function finishResultWaiter(requestId, status, body) {
+    const waiter = resultWaiters.get(requestId);
+    if (!waiter || waiter.res.writableEnded) return false;
+    resultWaiters.delete(requestId);
+    clearTimeout(waiter.timer);
+    json(waiter.res, status, body);
+    return true;
+  }
+
+  function terminalRequestError(request) {
+    if (request?.status === 'cancelled') return 'request_cancelled';
+    if (request?.status === 'completed') return 'request_already_completed';
+    if (request?.status === 'failed') return 'request_failed';
+    return null;
+  }
+
   function pruneCompleted(map, maxSize) {
     if (map.size < maxSize) return;
     for (const [key, value] of map) {
-      if (value?.status === 'completed' || value?.status === 'failed') map.delete(key);
+      if (value?.status === 'completed' || value?.status === 'failed' || value?.status === 'cancelled') map.delete(key);
       if (map.size < maxSize) return;
     }
     if (map.size >= maxSize) throw httpError(503, 'relay_capacity_reached');
@@ -370,17 +468,11 @@ export function createRelay({
   function startChain({ requesterNodeId, frame, payload, waitMs, res = null, socket = null, requestReceivedAtMs = performance.now(), requestReceivedWallTime = new Date().toISOString(), requesterTransport = 'http' }) {
     if (!requesterCanDispatch(requesterNodeId)) return { status: 403, body: { ok: false, error: 'provider_access_denied' } };
     if (chains.has(frame.i)) return { status: 409, body: { ok: false, error: 'duplicate_chain' } };
-    if (!Array.isArray(payload?.stages) || payload.stages.length < 2 || payload.stages.length > 8) {
-      return { status: 400, body: { ok: false, error: 'invalid_chain_stages' } };
-    }
+    if (!Array.isArray(payload?.stages) || payload.stages.length < 2 || payload.stages.length > 8) return { status: 400, body: { ok: false, error: 'invalid_chain_stages' } };
     for (let index = 0; index < payload.stages.length; index += 1) {
       const capability = capabilityName(payload.stages[index]);
-      if (!capability || typeof capability !== 'string') {
-        return { status: 400, body: { ok: false, error: 'invalid_chain_capability', stageIndex: index } };
-      }
-      if (!matchingOffers({ capability, requesterNodeId })[0]) {
-        return { status: 404, body: { ok: false, error: 'no_matching_provider', capability, stageIndex: index } };
-      }
+      if (!capability || typeof capability !== 'string') return { status: 400, body: { ok: false, error: 'invalid_chain_capability', stageIndex: index } };
+      if (!matchingOffers({ capability, requesterNodeId })[0]) return { status: 404, body: { ok: false, error: 'no_matching_provider', capability, stageIndex: index } };
     }
     pruneCompleted(chains, maxChains);
     const chain = {
@@ -431,34 +523,59 @@ export function createRelay({
     }
     pruneCompleted(requests, maxRequests);
     const requestId = compactStageRequestId(chain.frame.i, stageIndex);
-    const request = {
-      needId: requestId,
-      requester: chain.requester,
-      provider: match.envelope.from,
-      capability,
-      createdAt: new Date().toISOString(),
-      status: 'matched',
-      mode: 'chain-stage',
-      chainId: chain.frame.i,
-      stageIndex
-    };
+    const request = { needId: requestId, requester: chain.requester, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'chain-stage', chainId: chain.frame.i, stageIndex };
     requests.set(requestId, request);
     chain.providers[stageIndex] = match.envelope.from;
     chain.providerTrust[stageIndex] = trustFor(match.envelope.from);
     chain.currentStage = stageIndex;
-    const transport = queueFast(match.envelope.from, {
-      kind: 'CHAIN_STAGE',
-      signedType: 'CHAIN',
-      frame: chain.frame,
-      payload: chain.payload,
-      from: chain.requester,
-      stageIndex,
-      requestId,
-      priorResult: stageIndex > 0 ? chain.results[stageIndex - 1] : null
-    });
+    const transport = queueFast(match.envelope.from, { kind: 'CHAIN_STAGE', signedType: 'CHAIN', frame: chain.frame, payload: chain.payload, from: chain.requester, stageIndex, requestId, priorResult: stageIndex > 0 ? chain.results[stageIndex - 1] : null });
     chain.trace.stageTransport[stageIndex] = transport;
     traceMark(chain, `stage${stageIndex + 1}SocketDispatch`);
     return true;
+  }
+
+  function processFastPartial(providerNodeId, frame, payload) {
+    const provider = nodes.get(providerNodeId);
+    if (!provider || !nodeSessionActive(providerNodeId)) return { status: 401, body: { ok: false, error: 'unauthorized' } };
+    const verification = verifyCompactFrame(frame, payload, provider.publicKey, { allowedTypes: ['PARTIAL'] });
+    if (!verification.ok) return { status: 400, body: { ok: false, error: verification.reason } };
+    const request = requests.get(frame.i);
+    if (!request) return { status: 404, body: { ok: false, error: 'request_not_found' } };
+    if (request.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
+    expireFastRequest(request);
+    const terminalError = terminalRequestError(request);
+    if (terminalError) return { status: 409, body: { ok: false, error: terminalError } };
+    if (request.mode !== 'fast') return { status: 409, body: { ok: false, error: 'partial_requires_fast_need' } };
+    if (!Number.isInteger(payload?.sequence) || payload.sequence < 0) return { status: 400, body: { ok: false, error: 'invalid_partial_sequence' } };
+    const expected = request.nextPartialSequence ?? 0;
+    const digest = partialDigest(frame, payload);
+    if (payload.sequence === expected - 1 && request.lastPartialSequence === payload.sequence) {
+      if (request.lastPartialDigest === digest) {
+        return { status: 200, body: { ok: true, requestId: frame.i, sequence: payload.sequence, transport: request.lastPartialTransport, idempotent: true } };
+      }
+      return { status: 409, body: { ok: false, error: 'partial_sequence_mismatch', expected, received: payload.sequence } };
+    }
+    if (payload.sequence !== expected) return { status: 409, body: { ok: false, error: 'partial_sequence_mismatch', expected, received: payload.sequence } };
+    const event = { kind: 'PARTIAL', frame, payload, from: providerNodeId, requestId: frame.i, sequence: payload.sequence };
+    const transport = queueFast(request.requester, event, { requireCapacity: true });
+    if (transport === 'full') return { status: 429, body: { ok: false, error: 'partial_backpressure', requestId: frame.i, sequence: payload.sequence, expected } };
+    if ((request.partialCount || 0) === 0) {
+      finishResultWaiter(frame.i, 200, {
+        ok: true,
+        needId: frame.i,
+        provider: request.provider,
+        providerTrust: trustFor(request.provider),
+        streaming: true
+      });
+    }
+    request.nextPartialSequence = expected + 1;
+    request.partialCount = request.nextPartialSequence;
+    request.lastPartialSequence = payload.sequence;
+    request.lastPartialDigest = digest;
+    request.lastPartialTransport = transport;
+    request.lastPartialAt = new Date().toISOString();
+    touch(providerNodeId);
+    return { status: 200, body: { ok: true, requestId: frame.i, sequence: payload.sequence, transport } };
   }
 
   function processFastResult(providerNodeId, frame, payload, receivedAtMs = performance.now()) {
@@ -469,30 +586,29 @@ export function createRelay({
     const request = requests.get(frame.i);
     if (!request) return { status: 404, body: { ok: false, error: 'request_not_found' } };
     if (request.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
-    if (request.status === 'completed') return { status: 409, body: { ok: false, error: 'request_already_completed' } };
-    const trust = completeRequest(request, providerNodeId);
-    const event = { kind: 'RESULT', frame, payload, from: providerNodeId, trust };
+    expireFastRequest(request);
+    const terminalError = terminalRequestError(request);
+    if (terminalError) return { status: 409, body: { ok: false, error: terminalError } };
     if (request.mode === 'chain-stage') {
       const chain = chains.get(request.chainId);
       if (!chain || chain.status !== 'running') return { status: 409, body: { ok: false, error: 'chain_not_running' } };
+      const trust = completeRequest(request, providerNodeId);
+      const event = { kind: 'RESULT', frame, payload, from: providerNodeId, trust };
       traceMark(chain, `stage${request.stageIndex + 1}ResultReceived`, receivedAtMs);
       chain.results[request.stageIndex] = event;
-      if (payload?.metadata?.failed) {
-        closeChain(chain, 200, { ok: true, chainId: chain.chainId, results: chain.results, providers: chain.providers, providerTrust: chain.providerTrust, failedStage: request.stageIndex });
-      } else if (request.stageIndex + 1 < chain.payload.stages.length) {
-        dispatchChainStage(chain, request.stageIndex + 1);
-      } else {
-        closeChain(chain, 200, { ok: true, chainId: chain.chainId, results: chain.results, providers: chain.providers, providerTrust: chain.providerTrust });
-      }
+      if (payload?.metadata?.failed) closeChain(chain, 200, { ok: true, chainId: chain.chainId, results: chain.results, providers: chain.providers, providerTrust: chain.providerTrust, failedStage: request.stageIndex });
+      else if (request.stageIndex + 1 < chain.payload.stages.length) dispatchChainStage(chain, request.stageIndex + 1);
+      else closeChain(chain, 200, { ok: true, chainId: chain.chainId, results: chain.results, providers: chain.providers, providerTrust: chain.providerTrust });
       return { status: 200, body: { ok: true, requestId: frame.i, chainId: request.chainId } };
     }
-    const waiter = resultWaiters.get(frame.i);
-    if (waiter && !waiter.res.writableEnded) {
-      resultWaiters.delete(frame.i);
-      clearTimeout(waiter.timer);
-      json(waiter.res, 200, { ok: true, result: event });
-    } else {
-      queueFast(request.requester, event);
+    const trust = completeRequest(request, providerNodeId);
+    const event = { kind: 'RESULT', frame, payload, from: providerNodeId, trust };
+    releaseFastTerminal(request);
+    const synchronousResultDelivered = (request.partialCount || 0) === 0
+      && finishResultWaiter(frame.i, 200, { ok: true, result: event });
+    if (!synchronousResultDelivered) {
+      const transport = queueFastTerminal(request.requester, event);
+      if (transport === 'full') return { status: 503, body: { ok: false, error: 'terminal_capacity_invariant', requestId: frame.i } };
     }
     return { status: 200, body: { ok: true, requestId: frame.i } };
   }
@@ -520,6 +636,8 @@ export function createRelay({
     nodes.delete(candidate.nodeId);
     events.delete(candidate.nodeId);
     fastEvents.delete(candidate.nodeId);
+    fastTerminalEvents.delete(candidate.nodeId);
+    fastTerminalReservations.delete(candidate.nodeId);
     stats.delete(candidate.nodeId);
     for (const [offerId, offer] of offers) if (offer.envelope.from === candidate.nodeId) offers.delete(offerId);
     return true;
@@ -532,13 +650,16 @@ export function createRelay({
       const url = new URL(req.url, 'http://relay.local');
 
       if (req.method === 'GET' && url.pathname === '/health') {
+        expireAbandonedFastRequests();
         if (!exposeDiagnostics) return json(res, 200, { ok: true, protocol: 'TRUYN/1' });
+        const terminal = new Set(['completed', 'cancelled', 'failed']);
         return json(res, 200, {
           ok: true,
           protocol: 'TRUYN/1',
           nodes: nodes.size,
           offers: offers.size,
-          pendingRequests: [...requests.values()].filter((request) => request.status !== 'completed').length,
+          pendingRequests: [...requests.values()].filter((request) => !terminal.has(request.status)).length,
+          cancelledRequests: [...requests.values()].filter((request) => request.status === 'cancelled').length,
           pendingChains: [...chains.values()].filter((chain) => chain.status === 'running').length,
           contexts: contexts.size,
           providerSockets: [...providerSockets.values()].filter((socket) => socket.readyState === WebSocket.OPEN).length
@@ -555,9 +676,7 @@ export function createRelay({
         if (!registrationIsFresh(envelope, now)) return json(res, 400, { ok: false, error: 'stale_registration' });
         if (usedRegistrationIds.has(envelope.id)) return json(res, 409, { ok: false, error: 'registration_replay' });
         usedRegistrationIds.set(envelope.id, now + registrationFreshnessMs + 30_000);
-        if (!nodes.has(envelope.from) && nodes.size >= maxNodes && !evictOneStaleNode(now)) {
-          return json(res, 503, { ok: false, error: 'node_capacity_reached' });
-        }
+        if (!nodes.has(envelope.from) && nodes.size >= maxNodes && !evictOneStaleNode(now)) return json(res, 503, { ok: false, error: 'node_capacity_reached' });
         const previousToken = nodes.get(envelope.from)?.sessionToken;
         if (previousToken) sessions.delete(previousToken);
         const oldSocket = providerSockets.get(envelope.from);
@@ -566,15 +685,11 @@ export function createRelay({
           try { oldSocket.close(4001, 'session_replaced'); } catch {}
         }
         const sessionToken = randomBytes(32).toString('base64url');
-        nodes.set(envelope.from, {
-          nodeId: envelope.from,
-          publicKey: envelope.publicKey,
-          sessionToken,
-          lastSeenAt: new Date(now).toISOString()
-        });
+        nodes.set(envelope.from, { nodeId: envelope.from, publicKey: envelope.publicKey, sessionToken, lastSeenAt: new Date(now).toISOString() });
         sessions.set(sessionToken, { nodeId: envelope.from, expiresAt: now + sessionTtlMs });
         events.set(envelope.from, events.get(envelope.from) || []);
         fastEvents.set(envelope.from, fastEvents.get(envelope.from) || []);
+        fastTerminalEvents.set(envelope.from, fastTerminalEvents.get(envelope.from) || []);
         stats.set(envelope.from, stats.get(envelope.from) || { successfulTasks: 0, failedTasks: 0 });
         return json(res, 200, { ok: true, nodeId: envelope.from, sessionToken, expiresInMs: sessionTtlMs });
       }
@@ -607,13 +722,10 @@ export function createRelay({
         if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
         const capability = url.searchParams.get('capability');
         if (!requesterCanDispatch(requesterNodeId)) {
-          const own = [...offers.values()]
-            .filter((offer) => !offer.revoked && offer.envelope.from === requesterNodeId && (!capability || offer.capability === capability))
-            .map((offer) => offer.envelope);
+          const own = [...offers.values()].filter((offer) => !offer.revoked && offer.envelope.from === requesterNodeId && (!capability || offer.capability === capability)).map((offer) => offer.envelope);
           return json(res, 200, { ok: true, offers: own });
         }
-        const matches = matchingOffers({ capability, requesterNodeId })
-          .map((offer) => ({ ...offer.envelope, trust: trustFor(offer.envelope.from) }));
+        const matches = matchingOffers({ capability, requesterNodeId }).map((offer) => ({ ...offer.envelope, trust: trustFor(offer.envelope.from) }));
         return json(res, 200, { ok: true, offers: matches });
       }
 
@@ -647,9 +759,7 @@ export function createRelay({
         if (req.method === 'POST' && action === 'select') {
           if (!canReadContext(record, nodeId)) return json(res, 403, { ok: false, error: 'context_forbidden' });
           const { ids } = await readJson(req, maxBodyBytes);
-          if (!Array.isArray(ids) || ids.length === 0 || ids.length > 32 || ids.some((id) => typeof id !== 'string')) {
-            return json(res, 400, { ok: false, error: 'invalid_context_selection' });
-          }
+          if (!Array.isArray(ids) || ids.length === 0 || ids.length > 32 || ids.some((id) => typeof id !== 'string')) return json(res, 400, { ok: false, error: 'invalid_context_selection' });
           const byId = new Map(record.blocks.map((block) => [block.id, block]));
           const selected = [];
           for (const id of ids) {
@@ -668,21 +778,7 @@ export function createRelay({
           const retrieved = retrieveContextBlocks(record.blocks, query, { topK });
           const selected = retrieved.blocks.map((block, index) => ({ id: block.id, cid: block.cid, text: block.text, bytes: block.bytes, score: block.score, rank: index + 1 }));
           touch(nodeId);
-          return json(res, 200, {
-            ok: true,
-            cid,
-            blocks: selected,
-            retrieval: {
-              version: 1,
-              algorithm: retrieved.algorithm,
-              rootCid: cid,
-              manifestCid: record.manifest.cid,
-              queryHash: retrieved.queryHash,
-              topK,
-              corpusBlocks: retrieved.corpusBlocks,
-              selected: selected.map(({ id, cid: blockCid, score, rank }) => ({ id, cid: blockCid, score, rank }))
-            }
-          });
+          return json(res, 200, { ok: true, cid, blocks: selected, retrieval: { version: 1, algorithm: retrieved.algorithm, rootCid: cid, manifestCid: record.manifest.cid, queryHash: retrieved.queryHash, topK, corpusBlocks: retrieved.corpusBlocks, selected: selected.map(({ id, cid: blockCid, score, rank }) => ({ id, cid: blockCid, score, rank })) } });
         }
         if (req.method === 'POST' && action === 'delta') {
           if (!requesterCanDispatch(nodeId) || !record.owners.has(nodeId)) return json(res, 403, { ok: false, error: 'context_owner_required' });
@@ -726,8 +822,16 @@ export function createRelay({
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
         const match = matchingOffers({ capability, requesterNodeId })[0];
         if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
-        pruneCompleted(requests, maxRequests);
-        const request = { needId: frame.i, requester: requesterNodeId, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'fast' };
+        expireAbandonedFastRequests();
+        if (!reserveFastTerminal(requesterNodeId)) return json(res, 429, { ok: false, error: 'terminal_backpressure' });
+        try {
+          pruneCompleted(requests, maxRequests);
+        } catch (error) {
+          const rollback = { requester: requesterNodeId, terminalReserved: true };
+          releaseFastTerminal(rollback);
+          throw error;
+        }
+        const request = { needId: frame.i, requester: requesterNodeId, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'fast', nextPartialSequence: 0, partialCount: 0, terminalReserved: true };
         requests.set(frame.i, request);
         touch(requesterNodeId);
         const waitMs = boundedWaitMs(url, 120_000);
@@ -737,12 +841,45 @@ export function createRelay({
         return;
       }
 
+      if (req.method === 'POST' && url.pathname === '/v1/fast/partials') {
+        const providerNodeId = authenticatedNodeId(req);
+        if (!providerNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
+        const { frame, payload } = await readJson(req, maxBodyBytes);
+        const processed = processFastPartial(providerNodeId, frame, payload);
+        return json(res, processed.status, processed.body);
+      }
+
       if (req.method === 'POST' && url.pathname === '/v1/fast/results') {
         const providerNodeId = authenticatedNodeId(req);
         if (!providerNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
         const { frame, payload } = await readJson(req, maxBodyBytes);
         const processed = processFastResult(providerNodeId, frame, payload, requestReceivedAtMs);
         return json(res, processed.status, processed.body);
+      }
+
+      const requestStatusRoute = url.pathname.match(/^\/v1\/fast\/requests\/([^/]+)$/);
+      if (req.method === 'GET' && requestStatusRoute) {
+        const requesterNodeId = authenticatedNodeId(req);
+        if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
+        const requestId = decodeURIComponent(requestStatusRoute[1]);
+        const request = requests.get(requestId);
+        if (!request) return json(res, 404, { ok: false, error: 'request_not_found' });
+        if (request.requester !== requesterNodeId) return json(res, 403, { ok: false, error: 'not_request_owner' });
+        if (request.mode !== 'fast') return json(res, 409, { ok: false, error: 'request_status_requires_fast_need' });
+        expireFastRequest(request);
+        touch(requesterNodeId);
+        return json(res, 200, {
+          ok: true,
+          requestId,
+          status: request.status,
+          error: request.failureReason || (request.status === 'cancelled' ? 'request_cancelled' : null),
+          provider: request.provider,
+          partialCount: request.partialCount || 0,
+          createdAt: request.createdAt,
+          completedAt: request.completedAt || null,
+          cancelledAt: request.cancelledAt || null,
+          failedAt: request.failedAt || null
+        });
       }
 
       if (req.method === 'GET' && url.pathname.startsWith('/v1/fast/chains/') && url.pathname.endsWith('/trace')) {
@@ -761,9 +898,11 @@ export function createRelay({
         if (!nodeId || !authenticatePoll(req, nodeId)) return json(res, 401, { ok: false, error: 'unauthorized' });
         touch(nodeId);
         const queued = fastEvents.get(nodeId) || [];
-        if (queued.length > 0) {
+        const terminalQueued = fastTerminalEvents.get(nodeId) || [];
+        if (queued.length > 0 || terminalQueued.length > 0) {
           fastEvents.set(nodeId, []);
-          return json(res, 200, { ok: true, events: queued });
+          fastTerminalEvents.set(nodeId, []);
+          return json(res, 200, { ok: true, events: [...queued, ...terminalQueued] });
         }
         const waitMs = boundedWaitMs(url, 25_000, 30_000);
         if (waitMs <= 0) return json(res, 200, { ok: true, events: [] });
@@ -797,6 +936,8 @@ export function createRelay({
         const request = requests.get(requestId);
         if (!request) return json(res, 404, { ok: false, error: 'request_not_found' });
         if (request.provider !== envelope.from) return json(res, 403, { ok: false, error: 'provider_mismatch' });
+        const terminalError = terminalRequestError(request);
+        if (terminalError) return json(res, 409, { ok: false, error: terminalError });
         const trust = completeRequest(request, envelope.from);
         queue(request.requester, { kind: 'RESULT', envelope, trust });
         return json(res, 200, { ok: true, requestId, trust });
@@ -808,12 +949,52 @@ export function createRelay({
         if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         const targetId = envelope.payload?.targetId;
+        if (!targetId || typeof targetId !== 'string') return json(res, 400, { ok: false, error: 'invalid_target_id' });
+        const targetKind = envelope.payload?.targetKind || 'auto';
+        if (!['auto', 'need', 'offer'].includes(targetKind)) return json(res, 400, { ok: false, error: 'invalid_target_kind' });
+        const rawReason = envelope.payload?.reason;
+        if (rawReason != null && (typeof rawReason !== 'string' || rawReason.length > MAX_CANCELLATION_REASON_CHARS)) {
+          return json(res, 400, { ok: false, error: 'invalid_cancel_reason' });
+        }
+        const cancellationReason = rawReason || 'cancelled_by_requester';
+        const request = requests.get(targetId);
         const offer = offers.get(targetId);
+        if (targetKind === 'auto' && request && offer) return json(res, 409, { ok: false, error: 'ambiguous_revoke_target', targetId });
+        const targetsNeed = targetKind === 'need' || (targetKind === 'auto' && Boolean(request));
+
+        if (targetsNeed) {
+          if (!request) return json(res, 404, { ok: false, error: 'target_not_found' });
+          expireFastRequest(request);
+          if (request.mode === 'chain-stage') return json(res, 409, { ok: false, error: 'chain_stage_cancellation_not_supported' });
+          if (request.requester !== envelope.from) return json(res, 403, { ok: false, error: 'not_request_owner' });
+          if (request.status === 'completed') return json(res, 409, { ok: false, error: 'request_already_completed' });
+          if (request.status === 'failed') return json(res, 409, { ok: false, error: 'request_failed' });
+          const cancellationEvent = { kind: 'REVOKE', targetKind: 'need', targetId, envelope, from: envelope.from };
+          if (request.status === 'cancelled') {
+            const delivered = queueCancellation(request, cancellationEvent);
+            touch(envelope.from);
+            if (!delivered) return json(res, 429, { ok: false, error: 'cancellation_backpressure', targetId, targetKind: 'need', cancelled: true, idempotent: true, provider: request.provider, cancelledAt: request.cancelledAt });
+            return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: true, redelivered: true, provider: request.provider, cancelledAt: request.cancelledAt });
+          }
+
+          request.status = 'cancelled';
+          request.cancelled = true;
+          request.cancelledAt = new Date().toISOString();
+          request.cancelReason = cancellationReason;
+          request.nextPartialSequence ??= 0;
+          releaseFastTerminal(request);
+          finishResultWaiter(targetId, 409, { ok: false, error: 'request_cancelled', requestId: targetId });
+          const delivered = queueCancellation(request, cancellationEvent);
+          touch(envelope.from);
+          if (!delivered) return json(res, 429, { ok: false, error: 'cancellation_backpressure', targetId, targetKind: 'need', cancelled: true, provider: request.provider, cancelledAt: request.cancelledAt });
+          return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, provider: request.provider, cancelledAt: request.cancelledAt });
+        }
+
         if (!offer) return json(res, 404, { ok: false, error: 'target_not_found' });
         if (offer.envelope.from !== envelope.from) return json(res, 403, { ok: false, error: 'not_target_owner' });
         offer.revoked = true;
         touch(envelope.from);
-        return json(res, 200, { ok: true, targetId });
+        return json(res, 200, { ok: true, targetId, targetKind: 'offer' });
       }
 
       if (req.method === 'GET' && url.pathname === '/v1/events') {
@@ -867,8 +1048,24 @@ export function createRelay({
     socket.isAlive = true;
     touch(nodeId);
     const queued = fastEvents.get(nodeId) || [];
-    fastEvents.set(nodeId, []);
-    for (const event of queued) sendSocketEvent(nodeId, event);
+    const terminalQueued = fastTerminalEvents.get(nodeId) || [];
+    let saturated = false;
+    while (queued.length > 0 && !saturated) {
+      const delivered = sendSocketEvent(nodeId, queued[0], { requireCapacity: true });
+      if (delivered === true) queued.shift();
+      else saturated = true;
+    }
+    while (queued.length === 0 && terminalQueued.length > 0 && !saturated) {
+      const delivered = sendSocketEvent(nodeId, terminalQueued[0], { requireCapacity: true });
+      if (delivered === true) terminalQueued.shift();
+      else saturated = true;
+    }
+    fastEvents.set(nodeId, queued);
+    fastTerminalEvents.set(nodeId, terminalQueued);
+    if (saturated && connectedSocket(nodeId) === socket) {
+      providerSockets.delete(nodeId);
+      try { socket.close(1013, 'socket_backpressure'); } catch {}
+    }
     socket.on('pong', () => {
       socket.isAlive = true;
       touch(nodeId);
@@ -915,6 +1112,7 @@ export function createRelay({
   });
 
   const heartbeat = setInterval(() => {
+    expireAbandonedFastRequests();
     for (const [nodeId, socket] of providerSockets) {
       if (socket.readyState !== WebSocket.OPEN || !nodeSessionActive(nodeId)) {
         providerSockets.delete(nodeId);
@@ -934,11 +1132,9 @@ export function createRelay({
 
   return {
     server,
-    state: { nodes, sessions, offers, events, fastEvents, providerSockets, requests, chains, contexts, stats },
+    state: { nodes, sessions, offers, events, fastEvents, fastTerminalEvents, fastTerminalReservations, providerSockets, requests, chains, contexts, stats },
     async listen({ port = 8787, host = '127.0.0.1' } = {}) {
-      if (localDevelopmentMode && host !== '127.0.0.1' && host !== '::1' && host !== 'localhost') {
-        throw new Error('localDevelopmentMode may only bind to a loopback host');
-      }
+      if (localDevelopmentMode && host !== '127.0.0.1' && host !== '::1' && host !== 'localhost') throw new Error('localDevelopmentMode may only bind to a loopback host');
       await new Promise((resolve) => server.listen(port, host, resolve));
       const address = server.address();
       return `http://${host}:${address.port}`;
