@@ -1,10 +1,10 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot date:** 2026-08-29  
-**Production/reference baseline:** `main@afe77b8415bb58039da6a85b45566e1348b164c5`  
+**Snapshot date:** 2026-08-27  
+**Production/reference baseline:** `main@83738302131e08d807bc0ac00f64268a38b46309`  
+**SDK/DX synchronized through:** `main@ef61e4876617aa4099b5ddbdbbf3f24b1e6e7fcd` / PR `#378`  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
-**Sprint D exact executable proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
 **Protocol generation:** `TRUYN/1` draft
 
 This document answers one question: **what is actually implemented and proven now, versus only defined, attempted, or still open?** Architecture documents define contracts; tests and durable evidence prove bounded claims. Old operational issues remain historical records and are not current status merely because they once existed.
@@ -49,17 +49,20 @@ An admission/preflight PASS authorizes a campaign; it does not convert a failed 
 | A2A client/provider adapter | **Implemented / bounded CI-proven — C4** | PR `#340`, merge `1735528461a04de60f9f8572b466a732a6f03c62` |
 | A2A polling async lifecycle | **Implemented / bounded CI-proven — C5** | PR `#352`, merge `591d30d8f57fb7c661c847bb059cd437f437dd08` |
 | A2A artifact integrity | **Implemented / bounded CI-proven — C6** | PR `#368`, merge `0e6e4119450e9de55fb9be32b993a28f98dda148` |
-| A2A→TRUYN→MCP | **Implemented / bounded CI-proven — C7; independent official MCP SDK black-box CI-proven — Sprint D** | C7 plus `tests/interoperability-independent-mcp.test.js`; official `@modelcontextprotocol/server@2.0.0`; exact source `0a40e635533f6a9623b19057b3320ba2a888f1f1`; CI `33262306180`; CodeQL `33262304786` |
+| A2A→TRUYN→MCP | **Implemented / bounded CI-proven — C7** | `tests/interoperability-bidirectional.test.js`; PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a`; exactly-once remote MCP execution |
 | MCP→TRUYN→A2A | **Implemented / bounded CI-proven — C7; independent A2A SDK black-box CI-proven — Sprint C** | C7 plus `tests/interoperability-independent-a2a.test.js`; official `@a2a-js/sdk@1.0.1`; exact core source `a435ed16e559226ed095959b7b95aa7067271302`; CI `33057289236`; CodeQL `33057286765` |
 | Complete A2A/MCP adversarial matrix | **OPEN — C8** | PR `#369`; acceptance not yet earned |
 | Independent external A2A reference/SDK proof | **Proven for MCP→TRUYN→A2A — Sprint C** | durable record `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`; upstream `v1.0.1` / `f5ca7d05945a69cbf3dcd357203d4ce99201494f` |
-| Independent external MCP reference/SDK proof | **Proven for A2A→TRUYN→MCP — Sprint D executable acceptance** | durable record `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md`; exact source `0a40e635533f6a9623b19057b3320ba2a888f1f1`; public MCP SDK handler lifecycle; relay-authority regression + spoof negatives |
-| First-party TypeScript/JavaScript SDK | **Implemented / CI-proven reference client** | DX-1 onward; current API below |
-| First-party Python SDK | **Implemented / CI-proven reference client** | DX-1 onward; current API below |
-| Go / Java / .NET SDK parity | **Defined / incomplete** | required parity/publication work remains |
-| DX-3 runtime developer surface | **Merged / bounded implemented on current main** | PR `#373`, merge source `63e54cbe...`; stable API-v1 primitives for TS/Python, authenticated relay event streaming with abortable waits, reference-only object/artifact payloads, conformance markers and developer-site source |
-| Remote provider-side NEED cancellation | **Not implemented** | explicit DX-3 follow-up; do not infer from local abortable waits |
-| Token-delta streaming | **Not implemented** | explicit DX-3 follow-up |
+| Independent external MCP reference/SDK proof | **Not yet proven** | symmetric `A2A→TRUYN→MCP` external implementation gate remains open |
+| First-party TypeScript/JavaScript SDK | **Implemented / CI-proven reference client** | DX-1 onward; stable API-v1 / DX-3 surface below |
+| First-party Python SDK | **Implemented / CI-proven reference client** | DX-1 onward; stable API-v1 surface below |
+| Go / Java / .NET SDK portable payload parity | **Implemented / compiler-gate proven bounded slice** | object/artifact payload API aligned; broader client parity/publication remains open |
+| DX-3 SDK API/event/artifact slice | **Implemented / bounded CI-proven** | PR `#373`, merge `63e54cbe30d363ef4609732b512fe64ab860cf9d`; stable API-v1 primitives for TS/Python, authenticated relay event streaming, abortable waits, portable object/artifact payloads and developer-site source |
+| DX-3 direct NEED cancellation | **Implemented / bounded CI-proven** | PR `#378`, merge `ef61e4876617aa4099b5ddbdbbf3f24b1e6e7fcd`; owner-authorized explicit NEED REVOKE, provider abort, bounded lifecycle, late output fail closed |
+| DX-3 signed PARTIAL streaming | **Implemented / bounded CI-proven** | compact `T`, strict ordering/correlation, idempotent retry, bounded queue/socket backpressure, terminal ordering, host-authoritative `partialCount` |
+| Async fast NEED lifecycle status | **Implemented / bounded CI-proven** | requester-owned `GET /v1/fast/requests/:id` / `TruynNode.compactRequestStatus()`; abandoned request expiry releases terminal reservation |
+| Chain-stage cancellation | **Not supported** | direct NEED cancellation must not be generalized to chain stages |
+| Standardized cross-provider tokenizer/token wire format | **Not defined** | generic PARTIAL may carry token deltas; tokenizer semantics remain provider/application-specific |
 | TRUYN Agent Descriptor | **Draft + parser/verifier conformance implemented; full serving/discovery contract incomplete** | well-known/native runtime discovery remains open |
 | Settlement adapters x402/AP2 | **Defined, not implemented** | settlement-neutral core; deferred extension work |
 | Governance | **G1 / bootstrap Founding Stewardship** | public governance/RFC/extension process exists; external maintainers/TSC/neutral foundation are not facts |
@@ -146,29 +149,36 @@ C5 bounded async polling              ACCEPTED
 C6 artifact integrity                 ACCEPTED
 C7 both bidirectional bridge paths    ACCEPTED / bounded CI-proven — tests/interoperability-bidirectional.test.js / PR #357 / f04fcd1d4d72af85a6b97686c7c875388ef6038a
 Sprint C independent remote A2A       ACCEPTED / official SDK black-box CI-proven — @a2a-js/sdk@1.0.1 / tests/interoperability-independent-a2a.test.js / a435ed16e559226ed095959b7b95aa7067271302
-Sprint D independent remote MCP       EXECUTABLE ACCEPTED / official SDK black-box CI-proven — @modelcontextprotocol/server@2.0.0 / tests/interoperability-independent-mcp.test.js / 0a40e635533f6a9623b19057b3320ba2a888f1f1
 C8 complete adversarial matrix        OPEN (#369)
 ```
 
 C7 proves in-repository composition in both directions and exactly-once remote execution assertions. Sprint C adds independent ecosystem-side proof for `MCP→TRUYN→A2A`: the remote server is a separate process using official A2A Project `@a2a-js/sdk@1.0.1`, not TRUYN's `createA2aServer`; external executor/request counters independently confirm exactly one remote execution. Durable evidence is `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`.
 
-Sprint D adds the symmetric independent ecosystem-side proof for `A2A→TRUYN→MCP`: the remote server is a separate process using official `@modelcontextprotocol/server@2.0.0`, public `handler.fetch()` dispatch and public `handler.close()` lifecycle. The positive route independently observes exactly one external tool execution. Owner/requester spoofing is rejected against the authoritative session-bound relay requester before any NEED or external execution; billing spoofing cannot replace the provider's `prepaid` policy and is denied before `tools/call`. Requester-scoped `node.find()` remains the source of truth for provider visibility, preserving relay-level `trustedRequesterNodeIds` grants while public Agent Cards still hide owner-only providers. The regression `tests/a2a-relay-authorized-visibility.test.js` locks that behavior.
-
-The two external SDK proofs are symmetric bounded adoption evidence, not ecosystem-wide certification. C8 remains independently open.
+This is not symmetric external certification yet. `A2A→TRUYN→MCP` still needs an independent MCP SDK/reference server. C8 also remains independently open.
 
 Remote A2A/MCP metadata and transport authentication remain non-authoritative for TRUYN requester identity, provider ownership or billing responsibility.
 
 ## SDK / developer experience boundary
 
-The old “SDK scaffolding only” description is obsolete.
+The old “SDK scaffolding only”, “remote NEED cancellation not implemented” and “partial streaming not implemented” descriptions are obsolete.
 
-Current main includes first-party TypeScript/JavaScript and Python client implementations and the merged DX-3 runtime developer surface. DX-3 adds stable API-v1 primitives for those two clients, authenticated relay event streaming with abortable waits, reference-only object/artifact payloads, conformance markers and developer-site source.
+Current accepted SDK/DX state is cumulative:
 
-This is still a bounded developer surface, not a universal stable-v1 ecosystem promise. In particular:
+- TypeScript/JavaScript and Python have bounded reference clients and stable API-v1 primitives;
+- the portable object/artifact payload API slice is aligned across TypeScript, Python, Go, Java and C#/.NET, with Go/Java/.NET compiler gates;
+- authenticated relay/event streaming with abortable SDK-local waits is implemented;
+- requester-owned **direct NEED cancellation** is implemented through explicit NEED REVOKE authority, event-driven fast delivery, provider AbortSignal propagation and terminal fail-closed behavior;
+- built-in providers propagate cancellation to upstream requests; persistent Azure Sora and Vertex Veo remote jobs use explicit bounded-retry cancellation;
+- signed compact **PARTIAL** streaming is implemented with stable wire type `T`, strict correlation/ordering, identical-retry idempotency, bounded queue/WebSocket backpressure, terminal ordering and host-authoritative `partialCount`;
+- async `waitMs=0` requesters can observe owner-only compact lifecycle state; abandoned matched requests expire, surface `request_expired` and release terminal reservation;
+- provider work, pending work, cancellation tombstones, queues and shutdown drain are bounded; fatal fast-loop failure is visible to the runtime supervisor.
 
-- Go/Java/.NET parity/publication remains open;
-- remote provider-side NEED cancellation is not implemented;
-- token-delta streaming is not implemented;
+This remains a bounded developer/runtime surface, not a universal stable-v1 ecosystem promise. Important boundaries remain:
+
+- broader Go/Java/.NET client parity/publication is open despite portable payload parity;
+- custom adapter cancellation is cooperative: code that ignores its `AbortSignal` may keep computing, while relay output is still rejected after terminal cancellation;
+- chain-stage cancellation is unsupported;
+- `PARTIAL` is a generic signed ordered delta/chunk and may carry model token deltas, but TRUYN does not standardize tokenizer/token identifier semantics;
 - Agent Descriptor full runtime serving/discovery remains incomplete;
 - package/release provenance and long-term compatibility policy remain later gates.
 
