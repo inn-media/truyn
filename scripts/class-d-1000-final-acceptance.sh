@@ -180,19 +180,14 @@ p = p.replace(trap_old, trap_new, 1)
 
 bootstrap_pattern = re.compile(
     r'export DEBIAN_FRONTEND=noninteractive\n'
-    r'apt-get update -qq\n'
-    r'apt-get install -y -qq git curl jq openssl ca-certificates python3 iptables >/dev/null\n'
-    r'major=0;.*?\n'
-    r'if \[\[.*?\n'
-    r'rm -rf /opt/truyn\n'
-    r'git clone .*?\n'
-    r'git -C .*?\n'
-    r'mv .*?\n\n'
-    r'cd /opt/truyn\n'
-    r'npm install --no-audit --no-fund >/dev/null',
+    r'install_stage=apt-update\n'
+    r'.*?'
+    r'install_stage=runtime-config\n',
     re.S,
 )
-new_bootstrap = r'''for required in python3 tar sha256sum systemctl iptables iptables-save; do command -v "\$required" >/dev/null; done
+new_bootstrap = r'''install_stage=runtime-prereqs
+for required in python3 tar sha256sum systemctl iptables iptables-save; do command -v "\$required" >/dev/null; done
+install_stage=runtime-download
 bundle=/tmp/truyn-d1000-runtime.tgz
 rm -f "\$bundle"
 python3 - '${RUNTIME_URL_B64}' "\$bundle" <<'PYRUNTIME'
@@ -200,30 +195,37 @@ import base64, sys, urllib.request
 url = base64.b64decode(sys.argv[1]).decode('utf-8')
 urllib.request.urlretrieve(url, sys.argv[2])
 PYRUNTIME
+install_stage=runtime-digest
 printf '%s  %s\n' '${TRUYN_CLASS_D1000_RUNTIME_SHA256}' "\$bundle" | sha256sum -c -
+install_stage=runtime-extract
 rm -rf /opt/truyn
 mkdir -p /opt/truyn
 tar -xzf "\$bundle" -C /opt/truin
 test -x /opt/truyn/runtime/bin/node
-test -x /opt/truyn/runtime/bin/jq
+test -x /opt/truin/runtime/bin/jq
 test -x /opt/truin/runtime/bin/curl
 test -x /opt/truin/runtime/bin/openssl
 /opt/truyn/runtime/bin/node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
-/opt/truyn/runtime/bin/jq --version >/dev/null
+/opt/truin/runtime/bin/jq --version >/dev/null
 /opt/truy n/runtime/bin/curl --version >/dev/null
 /opt/truy n/runtime/bin/openssl version >/dev/null
 ln -sfn /opt/truy n/runtime/bin/node /usr/local/bin/node
 ln -sfn /opt/truy n/runtime/bin/jq /usr/local/bin/jq
 ln -sfn /opt/truy n/runtime/bin/curl /usr/local/bin/curl
 ln -sfn /opt/truy n/runtime/bin/openssl /usr/local/bin/openssl
-cd /opt/truy n/app'''.replace('truin', 'truyn').replace('truy n', 'truyn')
+cd /opt/truy n/app
+install_stage=quic-import
+/opt/truy n/runtime/bin/node --input-type=module -e "await import('@chainsafe/libp2p-quic'); await import('@matrixai/quic'); console.log('QUIC_IMPORT=PASS')"
+install_stage=runtime-config'''.replace('truin', 'truyn').replace('truy n', 'truyn')
 p, bootstrap_count = bootstrap_pattern.subn(new_bootstrap, p, count=1)
 if bootstrap_count != 1:
-    raise SystemExit(f'expected exactly one legacy D-1000 network bootstrap, replaced={bootstrap_count}')
+    raise SystemExit(f'expected exactly one exact-SHA D-1000 network bootstrap, replaced={bootstrap_count}')
 
 p = p.replace('WorkingDirectory=/opt/truyn', 'WorkingDirectory=/opt/truyn/app')
-p = p.replace('ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js')
 p = p.replace('ExecStart=/usr/bin/node /opt/truyn/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js')
+p = p.replace('ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truin/app/network/testnet/node-service.js')
+p = p.replace('ExecStart=/usr/bin/node /opt/truy n/network/testnet/node-service.js', 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js')
+p = p.replace('truin', 'truyn').replace('truy n', 'truyn')
 
 ready_old = '''  out=$(remote "${VMS[$i]}" "$script")
   [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]'''
@@ -285,6 +287,10 @@ grep -q 'ExecStart=/usr/bin/node /opt/truyqn/network/testnet/node-service.js' "$
 grep -q 'ExecStart=/usr/bin/node /opt/truqyn/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/usr/bin/node /opt/truy n/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
+grep -q 'ExecStart=/opt/truyn/runtime/bin/node /opt/truin/app/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
+grep -q 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
+grep -q 'ExecStart=/opt/truqyn/runtime/bin/node /opt/truqyn/app/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
+grep -q 'ExecStart=/opt/truyqn/runtime/bin/node /opt/truyqn/app/network/testnet/node-service.js' "$TMP/provision.sh" && exit 1 || true
 grep -q 'ExecStart=/opt/truyn/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js' "$TMP/provision.sh"
 
 for forbidden in 'apt-get update' 'apt-get install' 'deb.nodesource.com' 'git clone' 'npm install'; do
