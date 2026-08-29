@@ -116,7 +116,11 @@ export class TruynLocalNodeClient {
         retryable: false
       });
     }
-    const runtime = new TruynNode({
+    // `TruynNode` is a repository-internal JavaScript runtime that is bundled into the
+    // published package. Keep its inferred JS-only constructor/register types from
+    // leaking into the public .d.ts surface; the wrapper below is the SDK contract.
+    const RuntimeTruynNode: any = TruynNode;
+    const runtime: any = new RuntimeTruynNode({
       relayUrl: options.relayUrl,
       ...(options.identity ? { identity: options.identity } : {})
     });
