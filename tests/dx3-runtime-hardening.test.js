@@ -76,13 +76,13 @@ test('idempotent NEED cancellation redelivers REVOKE after provider consumed the
   assert.equal(work.events.length, 1);
   assert.equal(work.events[0].kind, 'NEED');
 
-  await requester.revoke(matched.needId, 'stop');
+  await requester.revoke(matched.needId, 'stop', { targetKind: 'need' });
   const firstCancellation = await provider.poll();
   assert.equal(firstCancellation.events.length, 1);
   assert.equal(firstCancellation.events[0].kind, 'REVOKE');
   assert.equal(firstCancellation.events[0].verification.ok, true);
 
-  const retried = await requester.revoke(matched.needId, 'stop_again');
+  const retried = await requester.revoke(matched.needId, 'stop_again', { targetKind: 'need' });
   assert.equal(retried.idempotent, true);
   assert.equal(retried.redelivered, true);
   const secondCancellation = await provider.poll();
@@ -92,24 +92,24 @@ test('idempotent NEED cancellation redelivers REVOKE after provider consumed the
   assert.equal(secondCancellation.events[0].envelope.payload.targetId, matched.needId);
 });
 
-test('control polling retries after a transient failure instead of silently ending', async (t) => {
-  let controlPolls = 0;
+test('fast lifecycle never starts legacy control polling and surfaces fatal fast-poll failure', async () => {
+  let legacyPolls = 0;
+  let fastPolls = 0;
   const node = {
     sessionToken: null,
     async register() {
       this.sessionToken = 'session';
       return { sessionToken: this.sessionToken };
     },
-    async offer() { return { offerId: 'offer-control-retry' }; },
+    async offer() { return { offerId: 'offer-fast-control' }; },
     async poll() {
-      controlPolls += 1;
-      if (controlPolls === 1) throw Object.assign(new Error('temporary relay failure'), { code: 'ECONNRESET' });
-      await delay(2);
+      legacyPolls += 1;
       return { events: [] };
     },
     async pollCompact() {
-      await delay(2);
-      return { events: [] };
+      fastPolls += 1;
+      if (fastPolls === 1) return { events: [] };
+      throw new Error('terminal_fast_poll_error');
     },
     closeFastSocket() {}
   };
@@ -118,17 +118,17 @@ test('control polling retries after a transient failure instead of silently endi
     fastPath: true,
     socketPath: false,
     longPollMs: 1,
-    cancelPollMs: 10,
     accessPolicy: createProviderAccessPolicy({ mode: 'public' }),
-    adapter: createFunctionAdapter({ name: 'control-retry', capabilities: ['control.retry'], execute: async () => ({ output: 'ok' }) })
+    adapter: createFunctionAdapter({ name: 'fast-control', capabilities: ['control.fast'], execute: async () => ({ output: 'ok' }) })
   });
-  t.after(() => host.stop());
 
   await host.start();
-  await until(() => controlPolls >= 2 && host.lastControlError === null);
-  assert.equal(host.running, true);
-  assert.equal(host.controlLoopPromise instanceof Promise, true);
-  assert.equal(host.lastControlError, null);
+  await assert.rejects(host.loopPromise, /terminal_fast_poll_error/);
+  assert.equal(fastPolls, 2);
+  assert.equal(legacyPolls, 0);
+  assert.equal(host.controlLoopPromise, null);
+  assert.equal(host.running, false);
+  assert.equal(host.lastLoopError?.message, 'terminal_fast_poll_error');
 });
 
 test('lifecycle host bounds concurrent adapter execution and pending work', async () => {
