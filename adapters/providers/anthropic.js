@@ -9,7 +9,8 @@ export function createAnthropicProvider({
   apiKey = process.env.ANTHROPIC_API_KEY,
   model = process.env.ANTHROPIC_MODEL,
   baseUrl = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com',
-  capabilities = ['review']
+  capabilities = ['review'],
+  fetchImpl = fetch
 } = {}) {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is required');
   if (!model) throw new Error('ANTHROPIC_MODEL is required');
@@ -18,7 +19,7 @@ export function createAnthropicProvider({
     name: 'anthropic-messages',
     version: '1',
     capabilities,
-    async execute({ capability, input, policy }) {
+    async execute({ capability, input, policy, signal }) {
       const startedAt = Date.now();
       const prompt = [
         `You are a TRUYN provider for capability: ${capability}.`,
@@ -27,7 +28,7 @@ export function createAnthropicProvider({
         Object.keys(policy || {}).length ? `Request policy: ${JSON.stringify(policy)}` : null
       ].filter(Boolean).join('\n\n');
 
-      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/messages`, {
+      const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/v1/messages`, {
         method: 'POST',
         headers: {
           'x-api-key': apiKey,
@@ -38,7 +39,8 @@ export function createAnthropicProvider({
           model,
           max_tokens: Number(process.env.ANTHROPIC_MAX_TOKENS || 2048),
           messages: [{ role: 'user', content: prompt }]
-        })
+        }),
+        signal
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body?.error?.message || `Anthropic HTTP ${response.status}`);

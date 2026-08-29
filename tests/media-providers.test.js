@@ -110,3 +110,56 @@ test('Azure Sora provider defaults to 480x480 one-second smoke parameters', asyn
   assert.equal(bodies[0].n_seconds, 1);
   assert.equal(result.output.artifacts[0].ref, 'azblob://a/c/video.mp4');
 });
+
+test('Azure Sora abort cancels an already-created remote job without reusing the aborted signal', async () => {
+  const controller = new AbortController();
+  const calls = [];
+  const provider = createAzureOpenAIVideoProvider({
+    endpoint: 'https://example.openai.azure.com', model: 'sora-test', pollIntervalMs: 10_000,
+    accessTokenProvider: async () => 'token',
+    artifactStore: { put: async () => { throw new Error('artifact_store_should_not_run'); } },
+    fetchImpl: async (url, options = {}) => {
+      calls.push({ url: String(url), method: options.method || 'GET', signal: options.signal });
+      if (String(url).endsWith('/jobs?api-version=preview')) {
+        queueMicrotask(() => controller.abort(new Error('request_cancelled')));
+        return jsonResponse({ id: 'job-cancel', status: 'queued' });
+      }
+      if (options.method === 'DELETE') return jsonResponse({});
+      if (options.signal?.aborted) throw options.signal.reason;
+      throw new Error('unexpected_azure_video_call');
+    }
+  });
+
+  await assert.rejects(provider.execute({ input: 'cancel me', policy: {}, signal: controller.signal }), /request_cancelled/);
+  const cancellation = calls.find((call) => call.method === 'DELETE');
+  assert.ok(cancellation);
+  assert.match(cancellation.url, /\/jobs\/job-cancel\?api-version=preview$/);
+  assert.equal(cancellation.signal, undefined);
+});
+
+test('Vertex Veo abort cancels an already-created long-running operation without reusing the aborted signal', async () => {
+  const controller = new AbortController();
+  const calls = [];
+  const operationName = 'projects/p/locations/us-central1/publishers/google/models/veo-test/operations/cancel-1';
+  const provider = createVertexVeoProvider({
+    projectId: 'p', location: 'us-central1', model: 'veo-test', pollIntervalMs: 10_000,
+    accessTokenProvider: async () => 'token',
+    artifactStore: { put: async () => { throw new Error('artifact_store_should_not_run'); } },
+    fetchImpl: async (url, options = {}) => {
+      calls.push({ url: String(url), method: options.method || 'GET', signal: options.signal });
+      if (String(url).endsWith(':predictLongRunning')) {
+        queueMicrotask(() => controller.abort(new Error('request_cancelled')));
+        return jsonResponse({ name: operationName });
+      }
+      if (String(url).endsWith(`${operationName}:cancel`)) return jsonResponse({});
+      if (options.signal?.aborted) throw options.signal.reason;
+      throw new Error('unexpected_vertex_video_call');
+    }
+  });
+
+  await assert.rejects(provider.execute({ input: 'cancel me', policy: {}, signal: controller.signal }), /request_cancelled/);
+  const cancellation = calls.find((call) => call.url.endsWith(`${operationName}:cancel`));
+  assert.ok(cancellation);
+  assert.equal(cancellation.method, 'POST');
+  assert.equal(cancellation.signal, undefined);
+});

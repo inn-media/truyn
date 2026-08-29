@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>TRUYN Developers</title>
-  <meta name="description" content="TRUYN SDK quickstart, stable API, artifacts, streaming and compatibility notes.">
+  <meta name="description" content="TRUYN SDK quickstart, stable API, direct NEED cancellation, partial streaming, artifacts and compatibility notes.">
   <style>
     :root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color-scheme:light dark}body{max-width:980px;margin:0 auto;padding:48px 24px;line-height:1.55}header{display:flex;justify-content:space-between;gap:24px;align-items:center;margin-bottom:64px}nav a{margin-left:16px}h1{font-size:clamp(2.6rem,7vw,5.6rem);line-height:.95;letter-spacing:-.055em;max-width:820px}h2{margin-top:56px}code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}pre{padding:18px;border:1px solid currentColor;overflow:auto;border-radius:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.card{border:1px solid currentColor;border-radius:14px;padding:18px}.muted{opacity:.72}.badge{display:inline-block;border:1px solid currentColor;border-radius:999px;padding:5px 10px;font-size:.82rem}footer{margin-top:72px;padding-top:24px;border-top:1px solid currentColor;opacity:.72}a{color:inherit}</style>
 </head>
@@ -16,7 +16,7 @@
   <main>
     <span class="badge">SDK stable API contract v1</span>
     <h1>Connect intelligence to intelligence.</h1>
-    <p class="muted">First-party SDK surface for identity, authorized discovery, NEED/RESULT, event streams and reference-only artifacts. TRUYN/1 remains draft.</p>
+    <p class="muted">First-party SDK/runtime surface for identity, authorized discovery, NEED/RESULT, signed partial results, direct NEED cancellation and reference-only artifacts. TRUYN/1 remains draft.</p>
 
     <h2>Start with TypeScript</h2>
     <pre><code>import {
@@ -37,17 +37,20 @@ const result = await client.waitForResult(receipt.needId);</code></pre>
 
     <h2>DX-3 runtime surface</h2>
     <div class="grid">
-      <section class="card"><strong>Streaming</strong><p>Abortable async relay event streams. Token-delta streaming is not claimed until the wire contract exists.</p></section>
-      <section class="card"><strong>Cancellation</strong><p>Deterministic SDK-operation cancellation with normalized cancelled behavior.</p></section>
+      <section class="card"><strong>Streaming</strong><p>Abortable relay event streams plus signed ordered <code>PARTIAL</code> deltas with correlation, idempotency and bounded backpressure. Deltas may carry tokens, but TRUYN does not prescribe tokenization.</p></section>
+      <section class="card"><strong>Cancellation</strong><p>Requester-owned direct NEED cancellation is enforced end to end. Provider work receives an <code>AbortSignal</code>; built-in persistent video jobs are cancelled remotely with bounded retry. Custom adapters remain cooperative.</p></section>
       <section class="card"><strong>Artifacts</strong><p>Reference-only media/object payloads with MIME, byte count and SHA-256 integrity metadata.</p></section>
-      <section class="card"><strong>Stable API</strong><p>A separately versioned SDK contract. It does not imply that TRUYN/1 is already stable.</p></section>
+      <section class="card"><strong>Stable API</strong><p>A separately versioned SDK contract. It does not imply that TRUYN/1 or all package releases are already stable.</p></section>
     </div>
 
+    <h2>Lifecycle boundary</h2>
+    <p>Fast NEED and signed REVOKE share the same bounded fast lifecycle channel. Async requesters can inspect owner-only compact request status. Late RESULT/PARTIAL output after cancellation, completion or expiry fails closed. Chain-stage cancellation is not supported.</p>
+
     <h2>Security boundary</h2>
-    <p>SDK calls use the same TRUYN authorization path as every other interface: authenticate → authorize → billing/entitlement → dispatch → provider recheck. A public SDK never grants access to another party's private or owner-funded provider.</p>
+    <p>SDK calls use the same TRUYN authorization path as every other interface: authenticate → authorize → billing/entitlement → dispatch → provider recheck. Transport authentication is never TRUYN authorization, and cancellation metadata cannot assign provider ownership or billing responsibility.</p>
 
     <h2>Languages</h2>
-    <p>JavaScript/TypeScript · Python · Go · Java · C#/.NET. Rust remains an additional track.</p>
+    <p>JavaScript/TypeScript and Python have bounded reference clients. Go, Java and C#/.NET have the portable object/artifact payload parity slice and compiler gates; broader client parity/publication remains open. Rust remains an additional track.</p>
   </main>
   <footer>Apache-2.0 · TRUYN — The Intelligence Network</footer>
 </body>

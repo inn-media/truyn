@@ -1,11 +1,10 @@
 # TRUYN SDK and Developer Experience Architecture
 
-**Status:** architecture + partially implemented first-party SDK program.  
-**Snapshot:** 2026-08-27  
-**Synchronized source:** `main@63e54cbe30d363ef4609732b512fe64ab860cf9d`  
+**Status:** implemented bounded first-party SDK/runtime program with remaining parity/publication gates.  
+**DX-3 synchronized through:** `main@ef61e4876617aa4099b5ddbdbbf3f24b1e6e7fcd` / PR `#378`.  
 **Protocol:** `TRUYN/1` draft
 
-The old “SDK scaffolding only” status is obsolete. TypeScript/JavaScript and Python reference clients are implemented in bounded form, and DX-3 is merged. The five-language stable/publication target is not complete.
+The old “SDK scaffolding only” and “local cancellation only” descriptions are obsolete. TypeScript/JavaScript and Python reference clients are implemented in bounded form; the portable object/artifact payload slice is aligned across TypeScript, Python, Go, Java and C#/.NET; and the direct-NEED cancellation/PARTIAL runtime lifecycle is merged. Full five-language client parity, publication and stable ecosystem compatibility remain open.
 
 ## Target developer experience
 
@@ -18,22 +17,22 @@ load/verify supported identity/descriptor information
     ↓
 discover authorized capabilities
     ↓
-publish OFFER / submit NEED / receive RESULT
+publish OFFER / submit NEED / receive PARTIAL* / RESULT
     ↓
 consume references/events/provenance safely
 ```
 
-SDKs are clients of TRUYN; they do not redefine TRUYN and are never authorization bypasses.
+`PARTIAL*` is available for direct fast NEED runtime streaming where supported. SDKs are clients of TRUYN; they do not redefine TRUYN and are never authorization bypasses.
 
 ## Required first-party SDK matrix
 
 | Language | Repository target | Publication target | Current state |
 |---|---|---|---|
-| TypeScript / JavaScript | `sdk/typescript/` | npm | **Implemented bounded reference client; DX-3 API-v1 primitives merged** |
-| Python | `sdk/python/` | PyPI | **Implemented bounded reference client; DX-3 API-v1 primitives merged** |
-| Go | `sdk/go/` | Go module | **Incomplete / parity target** |
-| Java | `sdk/java/` | Maven-compatible | **Incomplete / parity target** |
-| C# / .NET | `sdk/dotnet/` | NuGet | **Incomplete / parity target** |
+| TypeScript / JavaScript | `sdk/typescript/` | npm | **Implemented bounded reference client; stable API-v1 primitives and DX-3 runtime surface** |
+| Python | `sdk/python/` | PyPI | **Implemented bounded reference client; stable API-v1 primitives** |
+| Go | `sdk/go/` | Go module | **Portable object/artifact payload parity slice + compiler gate implemented; broader client parity/publication open** |
+| Java | `sdk/java/` | Maven-compatible | **Portable object/artifact payload parity slice + compiler gate implemented; broader client parity/publication open** |
+| C# / .NET | `sdk/dotnet/` | NuGet | **Portable object/artifact payload parity slice + compiler gate implemented; broader client parity/publication open** |
 | Rust | `sdk/rust/` | optional | optional secondary track |
 
 All first-party SDK code is Apache-2.0 and subject to repository NOTICE/DCO/conformance requirements.
@@ -49,7 +48,7 @@ AgentDescriptor
 Capability
 Offer
 Need
-Result
+Partial / Result
 ObjectRef / ArtifactRef
 Event / stream
 Claim / Attest / TrustReceipt where supported
@@ -59,41 +58,89 @@ Compatibility metadata
 
 An SDK must preserve provider authorization, billing, correlation and integrity semantics; it cannot manufacture authority from application-supplied fields.
 
-## Current TypeScript/Python bounded surface
+## Accepted DX-3 slices
 
-Current main includes the accepted earlier client/conformance slices plus merged DX-3 (PR `#373`). DX-3 adds:
+The accepted DX-3 program is cumulative:
 
-- stable API-v1 primitives for TypeScript/Python within the current pre-stable repository contract;
-- authenticated relay event streaming;
-- abortable local waits/event consumption;
-- reference-only object/artifact payload representation;
-- conformance markers;
-- developer-site source for the exposed developer workflow.
+- PR `#373` — stable API-v1 primitives for TypeScript/Python, authenticated relay event streaming, abortable SDK-local waits/event consumption, portable object/artifact payloads and developer-site source;
+- PR `#374` — portable object/artifact payload API alignment and compiler gates across Go/Java/.NET in addition to TypeScript/Python;
+- PR `#378` — direct NEED cancellation, signed ordered PARTIAL runtime streaming, provider AbortSignal propagation, bounded provider work/backpressure/shutdown and explicit terminal lifecycle semantics.
 
-“API-v1” here identifies the bounded SDK surface implemented by DX-3. It does **not** mean TRUYN/1, all SDK packages or the public ecosystem have reached stable-v1 compatibility.
+“API-v1” identifies the bounded SDK surface. It does **not** mean TRUYN/1, all SDK packages or the public ecosystem have reached stable-v1 compatibility.
 
 ## Cancellation boundary
 
-Abortable local waits/event streams and remote provider execution cancellation are different semantics.
-
-Current factual state:
+Local SDK cancellation and remote execution cancellation remain distinct, but both now exist in bounded form.
 
 ```text
 cancel local SDK wait / stop consuming event stream    implemented bounded behavior
-cancel a remote provider-side NEED/execution           NOT implemented
+cancel requester-owned direct NEED                     implemented / CI-proven bounded lifecycle
+cancel arbitrary chain stage                           NOT supported
 ```
 
-A client cancel signal must not be documented as remote side-effect cancellation until the network/provider protocol and runtime can prove that behavior exactly once/fail closed.
+For a direct NEED:
+
+- requester authority is checked at the relay;
+- OFFER and NEED revocation namespaces are explicit;
+- signed fast REVOKE uses the same bounded fast long-poll/WebSocket lifecycle channel as fast NEED work;
+- provider pending work can be removed before execution and in-flight work receives an `AbortSignal`;
+- built-in providers propagate the signal into upstream operations;
+- persistent Azure Sora / Vertex Veo jobs receive explicit bounded-retry remote cancellation;
+- a custom adapter that ignores its signal may continue computing, but late RESULT/PARTIAL output is rejected fail closed;
+- cancellation never grants provider authorization or changes billing responsibility.
+
+An independent upstream `AbortError` is a provider failure unless the lifecycle signal itself is actually aborted.
 
 ## Streaming boundary
 
-Current DX-3 event streaming is authenticated relay/event delivery. **Token-delta/model-output streaming is not implemented.** A future token/partial-result stream must define correlation, ordering, integrity, backpressure, terminal/error semantics and cancellation behavior before it can be claimed.
+There are two implemented streaming concepts:
+
+1. authenticated relay/event streaming for SDK consumers;
+2. signed compact `PARTIAL` delivery for provider partial results.
+
+The accepted PARTIAL contract provides:
+
+- stable compact wire type `T`;
+- provider/request correlation and signature verification;
+- strict zero-based monotonic sequence;
+- idempotent identical retry of the last acknowledged PARTIAL;
+- bounded relay/WebSocket backpressure without sequence advancement on rejected delivery;
+- ordered terminal RESULT behind accepted partials;
+- host-authoritative `partialCount`;
+- fail-closed post-terminal/cross-provider/cross-request delivery.
+
+`PARTIAL` is intentionally a **generic ordered delta/chunk** contract. It can transport model token deltas, but TRUYN does not prescribe a tokenizer, token identifier format or cross-provider tokenization convention. A future compatibility layer may standardize such conventions without changing the current factual claim that generic partial-result streaming is implemented.
+
+## Asynchronous fast request lifecycle
+
+A compact NEED submitted with `waitMs=0` can be observed through the requester-owned status path:
+
+```text
+GET /v1/fast/requests/:id
+TruynNode.compactRequestStatus(requestId)
+```
+
+The relay authorizes the requester against request ownership before returning bounded lifecycle metadata. Abandoned matched fast NEEDs expire to terminal `failed / request_expired`, release their reserved terminal capacity and reject late output.
+
+## Runtime bounds and supervision
+
+`TruynAdapterHost.start()` is the production lifecycle path. The accepted runtime includes:
+
+- bounded adapter concurrency and pending work, with `PROVIDER_BUSY` overflow;
+- bounded cancellation tombstones;
+- bounded relay event queues and WebSocket buffering;
+- bounded shutdown drain for non-cooperative adapters;
+- recoverable preservation/requeue of already-dequeued work;
+- fatal fast-loop visibility through `running=false`, `lastLoopError` and transport close;
+- terminal reservation/backpressure and bounded request expiry.
+
+These are reference/runtime guarantees, not a claim that every external provider SDK itself is cancellable or implements the same internal scheduler.
 
 ## Object/artifact references
 
 SDK payloads should prefer references for large/immutable data rather than forcing large binary content into request envelopes.
 
-The accepted reference boundary must preserve:
+The accepted reference boundary preserves:
 
 - content identity/integrity metadata where required;
 - no implicit remote URL fetch;
@@ -132,41 +179,44 @@ First-party SDKs must converge on shared semantic fixtures rather than language-
 
 - identity and capability representation;
 - NEED submission / RESULT correlation;
+- direct NEED cancellation authority and terminal behavior where supported;
+- PARTIAL ordering/idempotency/backpressure/terminal behavior where supported;
 - authorization/error semantics;
 - deadline/timeout behavior;
 - object/artifact references;
-- event ordering/terminal behavior where supported;
 - protocol/software/SDK compatibility metadata;
-- explicit failure for unsupported semantics.
+- explicit failure for unsupported semantics such as chain-stage cancellation.
 
-The TypeScript/Python bounded conformance evidence does not satisfy Go/Java/.NET parity.
+Portable payload parity across five languages does not yet prove full five-language client/runtime parity.
 
 ## Security invariants
 
 SDKs MUST NOT:
 
 - bypass provider visibility/access/billing gates;
-- treat remote A2A/MCP metadata as TRUYN authority;
+- treat remote A2A/MCP metadata or transport authentication as TRUYN authority;
 - serialize provider credentials into TRUYN network payloads;
 - automatically fetch arbitrary artifact URLs;
 - silently retry/fallback in a way that duplicates provider-side execution;
-- claim remote cancellation when only the local wait was aborted;
+- confuse local wait cancellation with remote direct-NEED cancellation;
+- generalize direct NEED cancellation to unsupported chain-stage cancellation;
+- accept cross-request/cross-provider RESULT or PARTIAL injection;
 - guess unknown required protocol semantics.
 
 ## Developer documentation/site
 
-DX-3 introduces developer-site source for the current bounded API. External documentation must match the same factual status as repository docs: implemented TypeScript/Python surface, no remote provider cancellation/token-delta claim, no universal stable-v1 statement.
+External developer documentation must match this factual boundary: direct NEED cancellation and generic PARTIAL streaming are implemented bounded semantics; custom provider cancellation is cooperative; chain-stage cancellation is unsupported; tokenization format is not standardized; and no universal stable-v1/package-publication claim is made.
 
 ## Remaining SDK/DX gates
 
-- [ ] remote provider-side NEED cancellation semantics;
-- [ ] token-delta / partial-result streaming contract and implementation;
 - [ ] complete native Agent Descriptor serving/discovery lifecycle;
-- [ ] Go parity;
-- [ ] Java parity;
-- [ ] C#/.NET parity;
+- [ ] broader Go first-party client parity;
+- [ ] broader Java first-party client parity;
+- [ ] broader C#/.NET first-party client parity;
 - [ ] required package publication and release provenance;
-- [ ] shared five-language conformance gate;
-- [ ] stable compatibility/migration policy.
+- [ ] shared five-language client/runtime conformance gate;
+- [ ] stable compatibility/migration policy;
+- [ ] optional standardized cross-provider token-delta/tokenizer conventions beyond generic `PARTIAL`;
+- [ ] chain-stage cancellation only if/when a separate bounded protocol contract is defined and proven.
 
 See `IMPLEMENTATION_STATUS.md` for repository-wide current status and `../../ROADMAP.md` for sequencing.

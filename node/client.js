@@ -171,6 +171,14 @@ export class TruynNode {
     };
   }
 
+  async compactRequestStatus(requestId) {
+    this.requireSession('reading compact request status');
+    if (!requestId || typeof requestId !== 'string') throw new Error('requestId is required');
+    return requestJson(`${this.relayUrl}/v1/fast/requests/${encodeURIComponent(requestId)}`, {
+      headers: this.authHeaders()
+    });
+  }
+
   async compactChain(stages, { waitMs = 120_000 } = {}) {
     this.requireSession('sending a compact CHAIN');
     if (!Array.isArray(stages) || stages.length < 2) throw new Error('compactChain requires at least two stages');
@@ -350,6 +358,11 @@ export class TruynNode {
   }
 
   async verifyCompactEvent(event) {
+    if (event?.envelope) {
+      const allowedType = event.kind || event.envelope.type;
+      const verification = verifyEnvelope(event.envelope, { allowedTypes: [allowedType] });
+      return { ...event, verification, priorVerification: null };
+    }
     const publicKey = await this.resolveIdentity(event.from);
     const signedType = event.signedType || event.kind;
     const verification = verifyCompactFrame(event.frame, event.payload, publicKey, { allowedTypes: [signedType] });
@@ -511,9 +524,10 @@ export class TruynNode {
     return walk(value);
   }
 
-  async revoke(targetId, reason = 'revoked_by_owner') {
+  async revoke(targetId, reason = 'revoked_by_owner', { targetKind = 'offer' } = {}) {
+    if (!['need', 'offer'].includes(targetKind)) throw new Error('targetKind must be need or offer');
     this.requireSession('revoking an object');
-    const envelope = this.envelope('REVOKE', { targetId, reason });
+    const envelope = this.envelope('REVOKE', { targetId, targetKind, reason });
     return requestJson(`${this.relayUrl}/v1/revoke`, {
       method: 'POST', headers: this.authHeaders(), body: JSON.stringify({ envelope })
     });
