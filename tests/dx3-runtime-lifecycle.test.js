@@ -53,16 +53,16 @@ test('requester-owned REVOKE cancels a dispatched NEED, is signed/idempotent, an
   await provider.offer('cancel.legacy');
 
   const matched = await requester.need('cancel.legacy', { value: 1 });
-  await assert.rejects(() => attacker.revoke(matched.needId, 'not_mine'), (error) => {
+  await assert.rejects(() => attacker.revoke(matched.needId, 'not_mine', { targetKind: 'need' }), (error) => {
     assert.equal(error.status, 403);
     assert.equal(error.body.error, 'not_request_owner');
     return true;
   });
 
-  const cancelled = await requester.revoke(matched.needId, 'user_cancelled');
+  const cancelled = await requester.revoke(matched.needId, 'user_cancelled', { targetKind: 'need' });
   assert.equal(cancelled.cancelled, true);
   assert.equal(cancelled.targetKind, 'need');
-  const repeated = await requester.revoke(matched.needId, 'user_cancelled');
+  const repeated = await requester.revoke(matched.needId, 'user_cancelled', { targetKind: 'need' });
   assert.equal(repeated.idempotent, true);
   assert.equal(repeated.redelivered, true);
 
@@ -130,7 +130,7 @@ test('cancelling an already-open compact NEED wakes its waitMs waiter immediatel
   });
 
   await until(() => relay.state.requests.has(requestId));
-  const cancelled = await requester.revoke(requestId, 'user_cancelled');
+  const cancelled = await requester.revoke(requestId, 'user_cancelled', { targetKind: 'need' });
   assert.equal(cancelled.cancelled, true);
 
   const response = await waitingResponse;
@@ -141,14 +141,11 @@ test('cancelling an already-open compact NEED wakes its waitMs waiter immediatel
   assert.ok(Date.now() - startedAt < 2_000, 'cancellation must resolve the waiter before its 5s timeout');
 
   const providerWork = await provider.pollCompact({ waitMs: 0 });
-  assert.equal(providerWork.events.length, 1);
+  assert.equal(providerWork.events.length, 2);
   assert.equal(providerWork.events[0].kind, 'NEED');
   assert.equal(providerWork.events[0].verification.ok, true);
-
-  const providerControl = await provider.poll();
-  assert.equal(providerControl.events.length, 1);
-  assert.equal(providerControl.events[0].kind, 'REVOKE');
-  assert.equal(providerControl.events[0].verification.ok, true);
+  assert.equal(providerWork.events[1].kind, 'REVOKE');
+  assert.equal(providerWork.events[1].verification.ok, true);
 });
 
 test('TruynAdapterHost keeps reading control events while execute runs and aborts cooperatively', async (t) => {
@@ -168,7 +165,6 @@ test('TruynAdapterHost keeps reading control events while execute runs and abort
     fastPath: true,
     socketPath: false,
     longPollMs: 50,
-    cancelPollMs: 10,
     accessPolicy: createProviderAccessPolicy({ mode: 'public' }),
     adapter: createFunctionAdapter({
       name: 'cancel-host',
@@ -196,7 +192,7 @@ test('TruynAdapterHost keeps reading control events while execute runs and abort
   assert.ok(observedSignal instanceof AbortSignal);
   assert.equal(observedSignal.aborted, false);
 
-  await requester.revoke(matched.needId, 'stop_inference');
+  await requester.revoke(matched.needId, 'stop_inference', { targetKind: 'need' });
   await until(() => abortObserved && observedSignal.aborted);
   await until(() => !host.inFlight.has(matched.needId));
   assert.equal(relay.state.requests.get(matched.needId).status, 'cancelled');
@@ -223,7 +219,6 @@ test('signed PARTIAL frames are correlated, strictly sequenced, and terminate wi
     fastPath: true,
     socketPath: false,
     longPollMs: 50,
-    cancelPollMs: 10,
     accessPolicy: createProviderAccessPolicy({ mode: 'public' }),
     adapter: createFunctionAdapter({
       name: 'stream-host',
