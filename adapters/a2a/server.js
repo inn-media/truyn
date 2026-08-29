@@ -208,14 +208,24 @@ export function createA2aServer({
     return offer?.payload?.metadata?.accessMode || null;
   }
 
+  function offerAccessibleToRequester(offer) {
+    const mode = offerAccessMode(offer);
+    if (mode === 'public') return true;
+    if (mode !== 'owner-only') return false;
+    const requesterId = node?.identity?.nodeId;
+    const allowedRequesterIds = offer?.payload?.metadata?.allowedRequesterIds;
+    if (typeof requesterId !== 'string' || requesterId.length === 0 || !Array.isArray(allowedRequesterIds)) return false;
+    return allowedRequesterIds.includes(requesterId);
+  }
+
   async function skillOperationallyVisible(skill, principal, req, operation) {
     if (!(await skillAuthorized(skill, principal, req, operation))) return false;
     const offers = await discoverSkillOffers(skill);
     if (offers.length === 0) return false;
-    if (skill.visibility === 'public' && offers.some((offer) => offerAccessMode(offer) !== 'public')) {
-      return false;
+    if (skill.visibility === 'public') {
+      return offers.every((offer) => offerAccessMode(offer) === 'public');
     }
-    return true;
+    return offers.some(offerAccessibleToRequester);
   }
 
   async function visibleSkills(principal, req, { extended = false, operation = 'discover' } = {}) {
