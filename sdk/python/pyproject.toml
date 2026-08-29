@@ -1,16 +1,23 @@
 [build-system]
-requires = ["setuptools>=70"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "truyn-sdk"
-version = "0.0.0"
-description = "TRUYN Python DX-1 reference SDK core"
+version = "0.1.0a1"
+description = "First-party Python SDK for the TRUYN Intelligence Network"
+readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 dependencies = [
   "cryptography>=43,<47"
 ]
+
+[project.urls]
+Homepage = "https://truyn.org"
+Repository = "https://github.com/inn-media/truyn"
+Issues = "https://github.com/inn-media/truyn/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
