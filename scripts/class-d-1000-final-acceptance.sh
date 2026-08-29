@@ -36,9 +36,12 @@ p = canonical(provision.read_text())
 
 runtime_anchor = 'START_MS=$(date +%s%3N)\n'
 runtime_init = ''': "${TRUYN_CLASS_D1000_RUNTIME_URL:?TRUYN_CLASS_D1000_RUNTIME_URL is required}"\n: "${TRUYN_CLASS_D1000_RUNTIME_SHA256:?TRUYN_CLASS_D1000_RUNTIME_SHA256 is required}"\nRUNTIME_URL_B64="$(printf '%s' "$TRUYN_CLASS_D1000_RUNTIME_URL" | base64 -w0)"\n'''
-if p.count(runtime_anchor) != 1:
-    raise SystemExit(f'expected one D-1000 runtime anchor, found={p.count(runtime_anchor)}')
-p = p.replace(runtime_anchor, runtime_anchor + runtime_init, 1)
+if runtime_init not in p:
+    if p.count(runtime_anchor) != 1:
+        raise SystemExit(f'expected one D-1000 runtime anchor, found={p.count(runtime_anchor)}')
+    p = p.replace(runtime_anchor, runtime_anchor + runtime_init, 1)
+elif p.count(runtime_init) != 1:
+    raise SystemExit(f'expected one D-1000 runtime init, found={p.count(runtime_init)}')
 
 remote_pattern = r'\nremote\(\) \{\n.*?\n\}\n\nmarker\(\)'
 remote_replacement = '''
@@ -186,9 +189,9 @@ bootstrap_pattern = re.compile(
     re.S,
 )
 new_bootstrap = r'''install_stage=runtime-prereqs
-for required in python3 tar sha256sum systemctl iptables iptables-save; do command -v "\$required" >/dev/null; done
+for required in python3 tar sha256sum systemctl iptables iptables-save readlink; do command -v "\$required" >/dev/null; done
 install_stage=runtime-download
-bundle=/tmp/truyn-d1000-runtime.tgz
+bundle=/tmp/truy n-d1000-runtime.tgz
 rm -f "\$bundle"
 python3 - '${RUNTIME_URL_B64}' "\$bundle" <<'PYRUNTIME'
 import base64, sys, urllib.request
@@ -198,17 +201,19 @@ PYRUNTIME
 install_stage=runtime-digest
 printf '%s  %s\n' '${TRUYN_CLASS_D1000_RUNTIME_SHA256}' "\$bundle" | sha256sum -c -
 install_stage=runtime-extract
-rm -rf /opt/truyn
-mkdir -p /opt/truyn
-tar -xzf "\$bundle" -C /opt/truin
-test -x /opt/truyn/runtime/bin/node
-test -x /opt/truin/runtime/bin/jq
-test -x /opt/truin/runtime/bin/curl
-test -x /opt/truin/runtime/bin/openssl
-/opt/truyn/runtime/bin/node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
-/opt/truin/runtime/bin/jq --version >/dev/null
+rm -rf /opt/truy n
+mkdir -p /opt/truy n
+tar -xzf "\$bundle" -C /opt/truy n
+test -x /opt/truy n/runtime/bin/node
+test -x /opt/truy n/runtime/bin/jq
+test -x /opt/truy n/runtime/bin/curl
+test -x /opt/truy n/runtime/bin/openssl
+/opt/truy n/runtime/bin/node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
+/opt/truy n/runtime/bin/jq --version >/dev/null
 /opt/truy n/runtime/bin/curl --version >/dev/null
 /opt/truy n/runtime/bin/openssl version >/dev/null
+install_stage=runtime-manifest
+/opt/truy n/runtime/bin/jq -e --arg sha '${GITHUB_SHA}' '.schema == "truyn.class-d1000.runtime-bundle.v1" and .sourceSha == $sha' /opt/truy n/manifest.json >/dev/null
 ln -sfn /opt/truy n/runtime/bin/node /usr/local/bin/node
 ln -sfn /opt/truy n/runtime/bin/jq /usr/local/bin/jq
 ln -sfn /opt/truy n/runtime/bin/curl /usr/local/bin/curl
@@ -216,12 +221,26 @@ ln -sfn /opt/truy n/runtime/bin/openssl /usr/local/bin/openssl
 cd /opt/truy n/app
 install_stage=quic-import
 /opt/truy n/runtime/bin/node --input-type=module -e "await import('@chainsafe/libp2p-quic'); await import('@matrixai/quic'); console.log('QUIC_IMPORT=PASS')"
-install_stage=runtime-config'''.replace('truin', 'truyn').replace('truy n', 'truyn')
-p, bootstrap_count = bootstrap_pattern.subn(new_bootstrap, p, count=1)
-if bootstrap_count != 1:
-    raise SystemExit(f'expected exactly one exact-SHA D-1000 network bootstrap, replaced={bootstrap_count}')
+install_stage=node-service-import
+/opt/truy n/runtime/bin/node --input-type=module -e "await import('./network/testnet/node-service.js'); console.log('NODE_SERVICE_IMPORT=PASS')"
+install_stage=runtime-config'''.replace('truy n', 'truyn')
+if 'export DEBIAN_FRONTEND=noninteractive\n' in p:
+    p, bootstrap_count = bootstrap_pattern.subn(new_bootstrap, p, count=1)
+    if bootstrap_count != 1:
+        raise SystemExit(f'expected exactly one legacy D-1000 network bootstrap, replaced={bootstrap_count}')
+else:
+    required_runtime = (
+        'install_stage=runtime-download',
+        'install_stage=runtime-digest',
+        'install_stage=runtime-manifest',
+        'TRUYN_CLASS_D1000_RUNTIME_SHA256',
+        'sourceSha == $sha',
+    )
+    missing = [marker for marker in required_runtime if marker not in p]
+    if missing:
+        raise SystemExit(f'canonical D-1000 runtime bootstrap incomplete: {missing}')
 
-p = p.replace('WorkingDirectory=/opt/truyn', 'WorkingDirectory=/opt/truyn/app')
+p = p.replace('WorkingDirectory=/opt/truyn\n', 'WorkingDirectory=/opt/truyn/app\n')
 p = p.replace('ExecStart=/usr/bin/node /opt/truyn/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truyn/app/network/testnet/node-service.js')
 p = p.replace('ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.js', 'ExecStart=/opt/truyn/runtime/bin/node /opt/truin/app/network/testnet/node-service.js')
 p = p.replace('ExecStart=/usr/bin/node /opt/truy n/network/testnet/node-service.js', 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js')
@@ -278,6 +297,7 @@ grep -q '/bin/bash /tmp/truyqn-d1000-run.sh' "$TMP/provision.sh" && exit 1 || tr
 grep -q '/bin/bash /tmp/truin-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
 grep -q '/bin/bash /tmp/truy n-d1000-run.sh' "$TMP/provision.sh" && exit 1 || true
 grep -q 'WorkingDirectory=/opt/truyn/app' "$TMP/provision.sh"
+! grep -q 'WorkingDirectory=/opt/truyn/app/app' "$TMP/provision.sh"
 grep -q 'EnvironmentFile=/etc/truqyn-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
 grep -q 'EnvironmentFile=/etc/truyqn-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
 grep -q 'EnvironmentFile=/etc/truin-d1000/node-%i.env' "$TMP/provision.sh" && exit 1 || true
