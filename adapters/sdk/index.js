@@ -87,7 +87,7 @@ export function createFunctionAdapter({ name = 'function-adapter', version = '0.
 }
 
 export class TruynAdapterHost {
-  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, cancelPollMs = 50, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, executionDrainTimeoutMs = 5_000, accessPolicy, billingPolicy = null } = {}) {
+  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, executionDrainTimeoutMs = 5_000, accessPolicy, billingPolicy = null } = {}) {
     if (!node) throw new Error('node is required');
     this.node = node;
     this.adapter = validateAdapter(adapter);
@@ -96,7 +96,6 @@ export class TruynAdapterHost {
     this.longPollMs = longPollMs;
     this.socketPath = socketPath;
     this.socketReconnectDelayMs = socketReconnectDelayMs;
-    this.cancelPollMs = Number.isFinite(cancelPollMs) ? Math.max(10, Math.floor(cancelPollMs)) : 50;
     this.maxCancellationTombstones = Number.isInteger(maxCancellationTombstones) && maxCancellationTombstones > 0 ? maxCancellationTombstones : 1024;
     this.maxConcurrentExecutions = Number.isInteger(maxConcurrentExecutions) && maxConcurrentExecutions > 0 ? maxConcurrentExecutions : 1;
     this.maxPendingExecutions = Number.isInteger(maxPendingExecutions) && maxPendingExecutions >= 0 ? maxPendingExecutions : 256;
@@ -112,7 +111,7 @@ export class TruynAdapterHost {
     this.cancelledNeedIds = new Map();
     this.pendingNeeds = [];
     this.pendingNeedIds = new Set();
-    this.lastControlError = null;
+    this.lastLoopError = null;
     this.lastExecutionError = null;
     this.executionDrainTimedOut = false;
   }
@@ -384,29 +383,13 @@ export class TruynAdapterHost {
     return this.node.pollCompact({ waitMs: this.longPollMs });
   }
 
-  async runControlLoop() {
-    while (this.running) {
-      try {
-        const polled = await this.node.poll();
-        this.lastControlError = null;
-        for (const event of polled.events) this.handleLifecycleEvent(event);
-      } catch (error) {
-        if (!this.running) break;
-        this.lastControlError = error;
-      }
-      if (this.running) await delay(this.cancelPollMs);
-    }
-  }
-
   async start() {
     if (this.running) return;
     await this.publishCapabilities();
     this.running = true;
+    this.lastLoopError = null;
+    this.controlLoopPromise = null;
     this.drainPendingNeeds();
-    if (this.fastPath) {
-      this.controlLoopPromise = this.runControlLoop();
-      this.controlLoopPromise.catch(() => {});
-    }
     this.loopPromise = (async () => {
       while (this.running) {
         try {
@@ -418,7 +401,12 @@ export class TruynAdapterHost {
             await delay(this.socketReconnectDelayMs);
             continue;
           }
-          if (this.running) throw error;
+          if (this.running) {
+            this.lastLoopError = error;
+            this.running = false;
+            this.node.closeFastSocket?.();
+            throw error;
+          }
         }
         if (this.running && !this.fastPath && this.pollIntervalMs > 0) await delay(this.pollIntervalMs);
       }
@@ -436,7 +424,7 @@ export class TruynAdapterHost {
       this.pendingNeedIds.clear();
     }
     this.node.closeFastSocket?.();
-    const loops = [this.loopPromise, this.controlLoopPromise].filter(Boolean);
+    const loops = [this.loopPromise].filter(Boolean);
     if (loops.length) await Promise.allSettled(loops);
     const executions = executionStates.map((state) => state.promise).filter(Boolean);
     const drained = await settleWithin(executions, this.executionDrainTimeoutMs);
