@@ -464,7 +464,7 @@ export class TruynNode {
       method: 'POST', headers: this.authHeaders(), body: JSON.stringify(requestBody)
     });
     const verification = verifyContextSelection(manifestResult.manifest, result.blocks, cid);
-    if (!verification.ok) throw new Error(`Context retrieval provenance selection mismatch`);
+    if (!verification.ok) throw new Error(`Context retrieval verification failed: ${verification.reason}`);
     const retrieval = result.retrieval || {};
     if (retrieval.rootCid !== cid || retrieval.manifestCid !== cid) throw new Error('Context retrieval provenance root mismatch');
     if (retrieval.queryHash !== contextQueryHash(query)) throw new Error('Context retrieval query hash mismatch');
