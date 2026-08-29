@@ -144,8 +144,8 @@ const httpServer = createServer(async (req, res) => {
       jsonRpcMethod: parsed?.method ?? null
     });
     await serveMcp(req, res, body);
-  } catch (error) {
-    const payload = Buffer.from(JSON.stringify({ error: String(error?.message || error) }));
+  } catch {
+    const payload = Buffer.from(JSON.stringify({ error: 'mcp_fixture_error' }));
     res.writeHead(500, {
       'content-type': 'application/json',
       'content-length': payload.length
