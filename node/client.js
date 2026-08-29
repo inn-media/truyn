@@ -171,6 +171,14 @@ export class TruynNode {
     };
   }
 
+  async compactRequestStatus(requestId) {
+    this.requireSession('reading compact request status');
+    if (!requestId || typeof requestId !== 'string') throw new Error('requestId is required');
+    return requestJson(`${this.relayUrl}/v1/fast/requests/${encodeURIComponent(requestId)}`, {
+      headers: this.authHeaders()
+    });
+  }
+
   async compactChain(stages, { waitMs = 120_000 } = {}) {
     this.requireSession('sending a compact CHAIN');
     if (!Array.isArray(stages) || stages.length < 2) throw new Error('compactChain requires at least two stages');
