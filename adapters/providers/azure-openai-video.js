@@ -36,17 +36,29 @@ export function createAzureOpenAIVideoProvider({ endpoint = process.env.AZURE_VI
 
       let remoteTerminal = false;
       let cancelPromise = null;
-      const cancelRemote = () => {
+      const cancelRemote = async () => {
+        let lastError = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            const response = await fetchImpl(`${root}/jobs/${encodeURIComponent(createBody.id)}?api-version=preview`, { method: 'DELETE', headers });
+            if (response.ok || response.status === 404 || response.status === 409) return;
+            const error = new Error(`Azure Sora cancel HTTP ${response.status}`);
+            if (response.status < 500) throw error;
+            lastError = error;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        throw lastError || new Error('Azure Sora remote cancellation failed');
+      };
+      const scheduleCancelRemote = () => {
         if (remoteTerminal) return Promise.resolve();
         if (!cancelPromise) {
-          cancelPromise = (async () => {
-            const response = await fetchImpl(`${root}/jobs/${encodeURIComponent(createBody.id)}?api-version=preview`, { method: 'DELETE', headers });
-            if (!response.ok && response.status !== 404 && response.status !== 409) throw new Error(`Azure Sora cancel HTTP ${response.status}`);
-          })().catch(() => {});
+          cancelPromise = cancelRemote().finally(() => { cancelPromise = null; });
         }
         return cancelPromise;
       };
-      const onAbort = () => { void cancelRemote(); };
+      const onAbort = () => { void scheduleCancelRemote().catch(() => {}); };
       if (signal?.aborted) onAbort(); else signal?.addEventListener('abort', onAbort, { once: true });
 
       try {
@@ -71,7 +83,9 @@ export function createAzureOpenAIVideoProvider({ endpoint = process.env.AZURE_VI
         const artifact = artifactFromBuffer(buffer, { mediaType: 'video/mp4', ref: stored.ref, provenance: { cloud: 'azure', vendor: 'openai', family: 'sora', model }, metadata: { width, height, nSeconds } });
         return artifactResult([artifact], { provider: 'azure-openai-video', cloud: 'azure', vendor: 'openai', modelFamily: 'sora', model, modality: 'video', providerRequestId: createBody.id, providerLatencyMs: Date.now() - startedAt, providerRequestBodyBytes: Buffer.byteLength(requestBody), providerResponseBodyBytes: Buffer.byteLength(JSON.stringify(job)), artifactBytes: artifact.bytes, jobPollCount: pollCount, video: { width, height, nSeconds } });
       } catch (error) {
-        if (signal?.aborted) await cancelRemote();
+        if (signal?.aborted) {
+          try { await scheduleCancelRemote(); } catch (cancelError) { if (error && !error.cause) error.cause = cancelError; }
+        }
         throw error;
       } finally {
         signal?.removeEventListener('abort', onAbort);
