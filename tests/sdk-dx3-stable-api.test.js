@@ -27,13 +27,23 @@ test('DX-3 Python stable payload helpers are importable and enforce artifact int
   ].join('; ')]);
 });
 
-test('DX-3 developer page is public-safe source and does not claim remote NEED cancellation', async () => {
+test('DX-3 developer docs expose the bounded remote lifecycle without broadening its claims', async () => {
   const html = await readFile('docs/developer-site/index.html', 'utf8');
   const guide = await readFile('docs/getting-started/DX3_SDK.md', 'utf8');
+
   assert.match(html, /TRUYN \/ Developers/);
   assert.match(html, /SDK stable API contract v1/);
   assert.doesNotMatch(html, /api[_-]?key\s*=/i);
   assert.doesNotMatch(html, /bearer\s+[A-Za-z0-9._-]{12,}/i);
-  assert.match(guide, /does \*\*not yet revoke an in-flight NEED at the provider\*\*/);
-  assert.match(guide, /event streaming.*not token-delta generation streaming/is);
+
+  assert.match(html, /Requester-owned direct NEED cancellation is enforced end to end/);
+  assert.match(html, /signed ordered <code>PARTIAL<\/code> deltas/);
+  assert.match(html, /Custom adapters remain cooperative/);
+  assert.match(html, /Chain-stage cancellation is not supported/);
+
+  assert.match(guide, /Protocol\/runtime cancellation is implemented for \*\*direct NEEDs\*\*/);
+  assert.match(guide, /signed compact `PARTIAL` frames with stable wire type `T`/);
+  assert.match(guide, /TRUYN does \*\*not\*\* prescribe a tokenizer or provider-specific token wire format/);
+  assert.match(guide, /Chain-stage cancellation remains explicitly unsupported/);
+  assert.match(guide, /custom adapters are cooperative/);
 });
