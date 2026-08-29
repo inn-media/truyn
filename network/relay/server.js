@@ -857,6 +857,31 @@ export function createRelay({
         return json(res, processed.status, processed.body);
       }
 
+      const requestStatusRoute = url.pathname.match(/^\/v1\/fast\/requests\/([^/]+)$/);
+      if (req.method === 'GET' && requestStatusRoute) {
+        const requesterNodeId = authenticatedNodeId(req);
+        if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
+        const requestId = decodeURIComponent(requestStatusRoute[1]);
+        const request = requests.get(requestId);
+        if (!request) return json(res, 404, { ok: false, error: 'request_not_found' });
+        if (request.requester !== requesterNodeId) return json(res, 403, { ok: false, error: 'not_request_owner' });
+        if (request.mode !== 'fast') return json(res, 409, { ok: false, error: 'request_status_requires_fast_need' });
+        expireFastRequest(request);
+        touch(requesterNodeId);
+        return json(res, 200, {
+          ok: true,
+          requestId,
+          status: request.status,
+          error: request.failureReason || (request.status === 'cancelled' ? 'request_cancelled' : null),
+          provider: request.provider,
+          partialCount: request.partialCount || 0,
+          createdAt: request.createdAt,
+          completedAt: request.completedAt || null,
+          cancelledAt: request.cancelledAt || null,
+          failedAt: request.failedAt || null
+        });
+      }
+
       if (req.method === 'GET' && url.pathname.startsWith('/v1/fast/chains/') && url.pathname.endsWith('/trace')) {
         const requesterNodeId = authenticatedNodeId(req);
         if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
