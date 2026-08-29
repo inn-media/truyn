@@ -49,15 +49,15 @@ An admission/preflight PASS authorizes a campaign; it does not convert a failed 
 | A2A client/provider adapter | **Implemented / bounded CI-proven — C4** | PR `#340`, merge `1735528461a04de60f9f8572b466a732a6f03c62` |
 | A2A polling async lifecycle | **Implemented / bounded CI-proven — C5** | PR `#352`, merge `591d30d8f57fb7c661c847bb059cd437f437dd08` |
 | A2A artifact integrity | **Implemented / bounded CI-proven — C6** | PR `#368`, merge `0e6e4119450e9de55fb9be32b993a28f98dda148` |
-| A2A→TRUYN→MCP | **Implemented / bounded CI-proven — C7; independent official MCP SDK black-box CI-proven — Sprint D** | official `@modelcontextprotocol/server@2.0.0`; exact source `0a40e635533f6a9623b19057b3320ba2a888f1f1`; CI `33262306180`; CodeQL `33262304786`; durable record `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md` |
-| MCP→TRUYN→A2A | **Implemented / bounded CI-proven — C7; independent A2A SDK black-box CI-proven — Sprint C** | official `@a2a-js/sdk@1.0.1`; exact core source `a435ed16e559226ed095959b7b95aa7067271302` |
+| A2A→TRUYN→MCP | **Implemented / bounded CI-proven — C7; independent official MCP SDK black-box CI-proven — Sprint D** | C7 plus `tests/interoperability-independent-mcp.test.js`; official `@modelcontextprotocol/server@2.0.0`; exact source `0a40e635533f6a9623b19057b3320ba2a888f1f1`; CI `33262306180`; CodeQL `33262304786` |
+| MCP→TRUYN→A2A | **Implemented / bounded CI-proven — C7; independent A2A SDK black-box CI-proven — Sprint C** | C7 plus `tests/interoperability-independent-a2a.test.js`; official `@a2a-js/sdk@1.0.1`; exact core source `a435ed16e559226ed095959b7b95aa7067271302`; CI `33057289236`; CodeQL `33057286765` |
 | Complete A2A/MCP adversarial matrix | **OPEN — C8** | PR `#369`; acceptance not yet earned |
-| Independent external A2A reference/SDK proof | **Proven for MCP→TRUYN→A2A — Sprint C** | durable record `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md` |
-| Independent external MCP reference/SDK proof | **Proven for A2A→TRUYN→MCP — Sprint D executable acceptance** | exact source `0a40e635533f6a9623b19057b3320ba2a888f1f1`; public MCP SDK handler lifecycle; relay-authority regression + spoof negatives |
+| Independent external A2A reference/SDK proof | **Proven for MCP→TRUYN→A2A — Sprint C** | durable record `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`; upstream `v1.0.1` / `f5ca7d05945a69cbf3dcd357203d4ce99201494f` |
+| Independent external MCP reference/SDK proof | **Proven for A2A→TRUYN→MCP — Sprint D executable acceptance** | durable record `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md`; exact source `0a40e635533f6a9623b19057b3320ba2a888f1f1`; public MCP SDK handler lifecycle; relay-authority regression + spoof negatives |
 | First-party TypeScript/JavaScript SDK | **Implemented / CI-proven reference client** | DX-1 onward; current API below |
 | First-party Python SDK | **Implemented / CI-proven reference client** | DX-1 onward; current API below |
 | Go / Java / .NET SDK parity | **Defined / incomplete** | required parity/publication work remains |
-| DX-3 runtime developer surface | **Merged / bounded implemented on current main** | PR `#373`; stable API-v1 primitives for TS/Python, authenticated relay event streaming with abortable waits, reference-only object/artifact payloads, conformance markers and developer-site source |
+| DX-3 runtime developer surface | **Merged / bounded implemented on current main** | PR `#373`, merge source `63e54cbe...`; stable API-v1 primitives for TS/Python, authenticated relay event streaming with abortable waits, reference-only object/artifact payloads, conformance markers and developer-site source |
 | Remote provider-side NEED cancellation | **Not implemented** | explicit DX-3 follow-up; do not infer from local abortable waits |
 | Token-delta streaming | **Not implemented** | explicit DX-3 follow-up |
 | TRUYN Agent Descriptor | **Draft + parser/verifier conformance implemented; full serving/discovery contract incomplete** | well-known/native runtime discovery remains open |
@@ -116,36 +116,61 @@ artifact digest: sha256:daf0a43ca254629a49250c00a7dc22eed7835157e11b7cfb875083a1
 
 This campaign is **not accepted**. Issue `#344` remains the current negative acceptance record until a newer full campaign proves all canonical PASS conditions.
 
-Current main contains later D-1000 remediation work, including bootstrap/readiness checkpoint repair and PR `#367` fail-evidence finalization before cleanup. PR `#372` is bounded diagnostic sizing work and explicitly does not change accepted D-1000 topology, thresholds, evaluator, terminal verifier, safety predicates or the strict `50` nodes/host acceptance boundary.
+Current main already contains later D-1000 remediation work, including the bootstrap/readiness checkpoint repair and PR `#367` fail-evidence finalization before cleanup. PR `#372` is active diagnostic sizing work and explicitly does not change accepted D-1000 topology, thresholds, evaluator, terminal verifier, safety predicates or the strict `50` nodes/host acceptance boundary.
 
-D-1000 promotion still requires one new pinned run proving all canonical 20×50 routing, recovery, adversarial, safety, evaluator, terminal, cleanup and immutable-artifact predicates. No preflight or cleanup success substitutes for those predicates.
+D-1000 promotion still requires one new pinned run proving all of:
+
+- 20 hosts × 50 = 1,000 real processes/identities/QUIC endpoints;
+- baseline and healed routing `>=99%`;
+- recovery/convergence p95 `<=120 s`;
+- all required adversarial predicates;
+- zero safety violations;
+- canonical evaluator `PASS`;
+- strict terminal `PASS`;
+- canonical `cleanup=true` and `remainingResources=0`;
+- immutable accepted artifact and digest;
+- durable sanitized accepted benchmark evidence.
+
+No preflight or cleanup success substitutes for those predicates.
 
 ## A2A / MCP interoperability boundary
+
+The repository has progressed past the old C3-only snapshot.
 
 ```text
 C1 MCP current contract                ACCEPTED
 C2 MCP discovery/import               ACCEPTED
 C3 A2A server facade                  ACCEPTED
-C4 A2A client/provider adapter        ACCEPTED
+C4 A2A client/provider adapter        ACCEPTED — PR #340 / 1735528461a04de60f9f8572b466a732a6f03c62
 C5 bounded async polling              ACCEPTED
 C6 artifact integrity                 ACCEPTED
-C7 both bidirectional bridge paths    ACCEPTED / bounded CI-proven
-Sprint C independent remote A2A       ACCEPTED / official SDK black-box CI-proven
-Sprint D independent remote MCP       EXECUTABLE ACCEPTED / official SDK black-box CI-proven — 0a40e635533f6a9623b19057b3320ba2a888f1f1
+C7 both bidirectional bridge paths    ACCEPTED / bounded CI-proven — tests/interoperability-bidirectional.test.js / PR #357 / f04fcd1d4d72af85a6b97686c7c875388ef6038a
+Sprint C independent remote A2A       ACCEPTED / official SDK black-box CI-proven — @a2a-js/sdk@1.0.1 / tests/interoperability-independent-a2a.test.js / a435ed16e559226ed095959b7b95aa7067271302
+Sprint D independent remote MCP       EXECUTABLE ACCEPTED / official SDK black-box CI-proven — @modelcontextprotocol/server@2.0.0 / tests/interoperability-independent-mcp.test.js / 0a40e635533f6a9623b19057b3320ba2a888f1f1
 C8 complete adversarial matrix        OPEN (#369)
 ```
 
-Sprint C proves `MCP→TRUYN→A2A` against the official A2A SDK in a separate process. Sprint D adds the symmetric `A2A→TRUYN→MCP` proof against official `@modelcontextprotocol/server@2.0.0`: public `handler.fetch()` dispatch, public `handler.close()` lifecycle, exactly one positive external execution, exact request correlation, zero-NEED/zero-execution owner spoof, and provider-authoritative prepaid billing denial before `tools/call`.
+C7 proves in-repository composition in both directions and exactly-once remote execution assertions. Sprint C adds independent ecosystem-side proof for `MCP→TRUYN→A2A`: the remote server is a separate process using official A2A Project `@a2a-js/sdk@1.0.1`, not TRUYN's `createA2aServer`; external executor/request counters independently confirm exactly one remote execution. Durable evidence is `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`.
 
-Sprint D also keeps requester-scoped relay discovery authoritative: authenticated skill visibility relies on the already filtered `node.find()` result, preserving relay `trustedRequesterNodeIds` grants while public Agent Cards still hide owner-only providers. A dedicated regression locks this behavior. Remote A2A metadata and transport authentication remain non-authoritative for TRUYN requester identity, provider ownership or billing responsibility.
+Sprint D adds the symmetric independent ecosystem-side proof for `A2A→TRUYN→MCP`: the remote server is a separate process using official `@modelcontextprotocol/server@2.0.0`, public `handler.fetch()` dispatch and public `handler.close()` lifecycle. The positive route independently observes exactly one external tool execution. Owner/requester spoofing is rejected against the authoritative session-bound relay requester before any NEED or external execution; billing spoofing cannot replace the provider's `prepaid` policy and is denied before `tools/call`. Requester-scoped `node.find()` remains the source of truth for provider visibility, preserving relay-level `trustedRequesterNodeIds` grants while public Agent Cards still hide owner-only providers. The regression `tests/a2a-relay-authorized-visibility.test.js` locks that behavior.
 
 The two external SDK proofs are symmetric bounded adoption evidence, not ecosystem-wide certification. C8 remains independently open.
 
+Remote A2A/MCP metadata and transport authentication remain non-authoritative for TRUYN requester identity, provider ownership or billing responsibility.
+
 ## SDK / developer experience boundary
 
-The old “SDK scaffolding only” description is obsolete. Current main includes first-party TypeScript/JavaScript and Python client implementations and the merged DX-3 runtime developer surface. DX-3 adds stable API-v1 primitives for those two clients, authenticated relay event streaming with abortable waits, reference-only object/artifact payloads, conformance markers and developer-site source.
+The old “SDK scaffolding only” description is obsolete.
 
-This is still a bounded developer surface, not a universal stable-v1 ecosystem promise. Go/Java/.NET parity/publication, remote provider-side NEED cancellation, token-delta streaming, Agent Descriptor full runtime serving/discovery, package/release provenance and long-term compatibility policy remain later gates.
+Current main includes first-party TypeScript/JavaScript and Python client implementations and the merged DX-3 runtime developer surface. DX-3 adds stable API-v1 primitives for those two clients, authenticated relay event streaming with abortable waits, reference-only object/artifact payloads, conformance markers and developer-site source.
+
+This is still a bounded developer surface, not a universal stable-v1 ecosystem promise. In particular:
+
+- Go/Java/.NET parity/publication remains open;
+- remote provider-side NEED cancellation is not implemented;
+- token-delta streaming is not implemented;
+- Agent Descriptor full runtime serving/discovery remains incomplete;
+- package/release provenance and long-term compatibility policy remain later gates.
 
 ## Governance boundary
 
