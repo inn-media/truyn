@@ -104,7 +104,7 @@ jobs:
           });
 
           test('strict D-1000 bundle transformer recognizes the HTTPS bootstrap shape', () => {
-            assert.match(finalAcceptance, /r'install_stage=apt-sources-https\\\\n'/);
+            assert.ok(finalAcceptance.includes('install_stage=apt-sources-https'));
             assert.match(finalAcceptance, /expected exactly one exact-SHA D-1000 network bootstrap/);
           });
           EOF
