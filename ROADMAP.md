@@ -5,7 +5,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 **Snapshot:** 2026-08-29  
 **Production/reference baseline:** `main@afe77b8415bb58039da6a85b45566e1348b164c5`  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
-**Sprint D exact executable proof:** `3aa37c29b3410c08aae53df4e0037b2d1d3c564a`  
+**Sprint D exact executable proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
 **Protocol:** `TRUYN/1` draft
 
 The project has not evolved strictly in numerical version order. Network scale, semantic retrieval, Trustability, provider security, external interoperability and SDK/DX progress in parallel. A completed track does not promote an unrelated track.
@@ -123,7 +123,7 @@ C8 may close only with exact-head evidence for:
 C7 is real bounded bridge evidence. Sprints C and D close the symmetric independent external-SDK proof for the two directions:
 
 - [x] **Sprint C** — exercise `MCP→TRUYN→A2A` against an independent A2A SDK/reference implementation: official A2A Project `@a2a-js/sdk@1.0.1`, separate-process Agent Card + JSON-RPC black box, exact core source `a435ed16e559226ed095959b7b95aa7067271302`, CI `33057289236`, CodeQL `33057286765`, durable record `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`;
-- [x] **Sprint D** — exercise `A2A→TRUYN→MCP` against the independent official MCP SDK: `@modelcontextprotocol/server@2.0.0`, separate-process MCP 2026-07-28 black box using public `handler.fetch()` and `handler.close()`, exact core source `3aa37c29b3410c08aae53df4e0037b2d1d3c564a`, CI `33261868862`, CodeQL `33261867022`, durable record `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md`;
+- [x] **Sprint D** — exercise `A2A→TRUYN→MCP` against the independent official MCP SDK: `@modelcontextprotocol/server@2.0.0`, separate-process MCP 2026-07-28 black box using public `handler.fetch()` and `handler.close()`, exact core source `0a40e635533f6a9623b19057b3320ba2a888f1f1`, CI `33262306180`, CodeQL `33262304786`, durable record `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md`;
 - [ ] carry at least one integrity-verified referenced artifact/file through the claimed external profile;
 - [ ] publish exact-version durable interoperability evidence for each new external proof;
 - [ ] define a compatibility/stability policy before claiming stable A2A/MCP support.
