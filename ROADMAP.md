@@ -4,6 +4,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 
 **Snapshot:** 2026-08-27  
 **Production/reference baseline:** `main@83738302131e08d807bc0ac00f64268a38b46309`  
+**SDK/DX synchronized through:** `main@ef61e4876617aa4099b5ddbdbbf3f24b1e6e7fcd` / PR `#378`  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
 **Protocol:** `TRUYN/1` draft
 
@@ -29,7 +30,7 @@ The project has not evolved strictly in numerical version order. Network scale, 
 | Trustability | **Implemented / benchmark-proven bounded slices** | production authority/revocation operations |
 | Provider security / BYOK | **Implemented fail-closed reference boundary** | richer tenant/account/entitlement operations |
 | A2A / MCP | **C1–C7 accepted; Sprint C independent A2A black-box proven** | C8 security acceptance + symmetric independent MCP proof |
-| SDK / DX | **TS/JS + Python implemented; DX-3 merged** | remote NEED cancellation/token-delta streaming + Go/Java/.NET parity/publication |
+| SDK / DX | **TS/JS + Python reference clients; five-language portable payload slice; direct NEED cancellation + signed PARTIAL runtime lifecycle implemented / CI-proven through #378** | broader Go/Java/.NET client parity + publication, Agent Descriptor lifecycle, optional cross-provider tokenization conventions |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Settlement x402/AP2 | **Defined only** | later optional adapter implementation |
 | Mainnet | **Not productionized** | D-1000 + stabilization/operations/compatibility gates |
@@ -140,25 +141,36 @@ Sprint C does not close C8 and does not claim ecosystem-wide A2A certification. 
 - [x] Python reference client;
 - [x] shared conformance fixtures and real local-node NEED→RESULT evidence for accepted slices;
 - [x] Agent Descriptor parser/verifier conformance slice;
-- [x] **DX-3 merged in PR #373** on current main:
+- [x] **DX-3 API/payload/developer slice, PR #373**:
   - stable API-v1 primitives for TypeScript/Python;
   - authenticated relay event streaming with abortable waits;
   - reference-only object/artifact payload support;
   - conformance markers;
-  - external developer-site source.
+  - external developer-site source;
+- [x] **Portable payload parity slice, PR #374**:
+  - object/artifact payload API alignment for Go/Java/.NET in addition to TypeScript/Python;
+  - compiler gates for Go/Java/.NET;
+- [x] **DX-3 runtime lifecycle, PR #378**, merged as `ef61e4876617aa4099b5ddbdbbf3f24b1e6e7fcd`:
+  - requester-owned direct NEED cancellation with explicit OFFER/NEED revoke namespaces;
+  - event-driven signed fast REVOKE on the same bounded fast lifecycle channel as NEED work;
+  - provider `AbortSignal` propagation, including bounded-retry remote cancellation for persistent Azure Sora / Vertex Veo jobs;
+  - signed compact `PARTIAL` (`T`) with correlation, strict ordering, idempotent retry, bounded queue/socket backpressure and terminal ordering;
+  - host-authoritative `partialCount` and fail-closed late/cross-request/cross-provider output;
+  - bounded provider concurrency/pending work/shutdown and visible fatal-loop semantics;
+  - owner-only async compact request status plus expiry/release of abandoned terminal reservations.
 
 ### Open
 
-- [ ] remote provider-side NEED cancellation semantics;
-- [ ] token-delta streaming;
 - [ ] complete Agent Descriptor serving/discovery lifecycle;
-- [ ] Go first-party parity;
-- [ ] Java first-party parity;
-- [ ] C#/.NET first-party parity;
+- [ ] broader Go first-party client parity;
+- [ ] broader Java first-party client parity;
+- [ ] broader C#/.NET first-party client parity;
 - [ ] package publication/release provenance for required languages;
-- [ ] stable cross-language compatibility policy and migration contract.
+- [ ] stable cross-language compatibility policy and migration contract;
+- [ ] optional standardized cross-provider token-delta/tokenizer conventions beyond generic `PARTIAL`;
+- [ ] chain-stage cancellation only if a separate bounded protocol contract is defined and proven.
 
-Abortable local waits/event streams must not be described as remote execution cancellation until the remote protocol/runtime semantics exist.
+Direct NEED cancellation is implemented, but custom adapter cancellation remains cooperative: an adapter that ignores its `AbortSignal` may keep computing while the relay still rejects its late output. `PARTIAL` is a generic ordered delta/chunk contract and may carry token deltas; TRUYN does not prescribe provider tokenizer semantics.
 
 ---
 
