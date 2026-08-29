@@ -367,7 +367,7 @@ for j in \$(seq 0 $((NODES_PER_HOST-1))); do
   total_bytes=\$((total_bytes + bytes))
   control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
   curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" "\${control_url}/bootstrap" >/dev/null
-  refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,seed:$seed}')
+  refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,seed:\$seed}')
   refresh_result=\$(curl -fsS --max-time 120 -H 'content-type: application/json' --data-binary "\$refresh_payload" "\${control_url}/dht/refresh")
   [[ "\$(printf '%s' "\$refresh_result" | jq -r '.refreshed')" == true ]]
   readiness=\$(curl -fsS --max-time 20 "\${control_url}/dht/readiness")
