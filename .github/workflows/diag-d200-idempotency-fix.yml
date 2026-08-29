@@ -1,0 +1,64 @@
+name: D200 strict runtime idempotency fix
+
+on:
+  push:
+    branches: [fix/d200-canonical-runtime-bundle]
+    paths: ['.github/workflows/diag-d200-idempotency-fix.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Make strict transformer idempotent
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/class-d-1000-final-acceptance.sh')
+          text = path.read_text()
+          old = "p = p.replace('WorkingDirectory=/opt/truy n', 'WorkingDirectory=/opt/truy n/app')".replace('truy n','truyn')
+          new = "p = p.replace('WorkingDirectory=/opt/truy n\\n', 'WorkingDirectory=/opt/truy n/app\\n')".replace('truy n','truyn')
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one broad WorkingDirectory replacement, found={text.count(old)}')
+          text = text.replace(old, new, 1)
+          guard_anchor = "grep -q 'WorkingDirectory=/opt/truy n/app' \"$TMP/provision.sh\"".replace('truy n','truyn')
+          guard = guard_anchor + "\n! grep -q 'WorkingDirectory=/opt/truy n/app/app' \"$TMP/provision.sh\"".replace('truy n','truyn')
+          if guard_anchor not in text:
+              raise SystemExit('prepared WorkingDirectory guard missing')
+          text = text.replace(guard_anchor, guard, 1)
+          path.write_text(text)
+
+          test_path = Path('tests/class-d-1000-diagnostic-sizing.test.js')
+          test = test_path.read_text()
+          anchor = "  assert.doesNotMatch(run.stdout, /strictNodesPerHost=10/);"
+          extra = anchor + "\n  assert.doesNotMatch(run.stdout, /WorkingDirectory=\\/opt\\/truyn\\/app\\/app/);"
+          if anchor not in test:
+              raise SystemExit('strict test anchor missing')
+          test = test.replace(anchor, extra, 1)
+          test_path.write_text(test)
+          PY
+
+          bash -n scripts/class-d-1000-final-acceptance.sh
+          node --test --test-name-pattern='strict final acceptance' tests/class-d-1000-diagnostic-sizing.test.js
+          node --test tests/class-d-1000-bootstrap.test.js
+          node --test tests/class-d-shell-harness.test.js
+          node --test tests/class-d-1000-diagnostic-sizing.test.js
+          git diff --check
+
+          git rm .github/workflows/diag-d200-idempotency-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/class-d-1000-final-acceptance.sh tests/class-d-1000-diagnostic-sizing.test.js
+          git commit -s -m 'fix(d1000): keep bundled working directory idempotent'
+          git push origin HEAD:fix/d200-canonical-runtime-bundle
