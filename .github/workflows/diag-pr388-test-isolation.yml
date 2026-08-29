@@ -37,14 +37,14 @@ jobs:
           console.log('RUNTIME_DEPENDENCY_CLOSURE=PASS');
           NODE
 
-      - name: Direct prepare-only diagnosis
+      - name: Direct prepare-only trace
         env:
           TRUYN_CLASS_D1000_PREPARE_ONLY: '1'
           TRUYN_CLASS_D1000_NODES_PER_HOST: '10'
         shell: bash
         run: |
           set -o pipefail
-          bash scripts/class-d-1000-final-acceptance.sh 2>&1 | tee /tmp/prepare-only.log
+          bash -x scripts/class-d-1000-final-acceptance.sh 2>&1 | tee /tmp/prepare-only.trace
 
       - name: Failing contract first
         run: node --test --test-name-pattern='strict final acceptance' tests/class-d-1000-diagnostic-sizing.test.js
