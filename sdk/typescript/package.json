@@ -32,7 +32,11 @@
     "url": "https://github.com/inn-media/truyn/issues"
   },
   "scripts": {
-    "build": "npx --yes --package tsup@8.5.1 --package typescript@5.9.3 tsup src/index.ts --format esm --dts --clean --out-dir dist --target node22 --platform node",
+    "build": "tsup src/index.ts --format esm --dts --clean --out-dir dist --target node22 --platform node",
     "test": "node --experimental-strip-types --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
   }
 }
