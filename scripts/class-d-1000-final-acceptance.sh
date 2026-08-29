@@ -180,6 +180,8 @@ p = p.replace(trap_old, trap_new, 1)
 
 bootstrap_pattern = re.compile(
     r'export DEBIAN_FRONTEND=noninteractive\n'
+    r'install_stage=apt-sources-https\n'
+    r'.*?'
     r'install_stage=apt-update\n'
     r'.*?'
     r'install_stage=runtime-config\n',

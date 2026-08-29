@@ -160,10 +160,25 @@ retry_cmd() {
 install_stage=init
 trap 'rc=\$?; echo "TRUYN_REMOTE_INSTALL_FAILURE host=${i} stage=\${install_stage} line=\${LINENO} rc=\${rc} command=\${BASH_COMMAND}" >&2; exit \$rc' ERR
 export DEBIAN_FRONTEND=noninteractive
+install_stage=apt-sources-https
+source_files=(/etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources)
+for source_file in "\${source_files[@]}"; do
+  [[ -f "\$source_file" ]] || continue
+  sed -i \
+    -e 's#http://azure.archive.ubuntu.com/ubuntu#https://archive.ubuntu.com/ubuntu#g' \
+    -e 's#http://archive.ubuntu.com/ubuntu#https://archive.ubuntu.com/ubuntu#g' \
+    -e 's#http://security.ubuntu.com/ubuntu#https://security.ubuntu.com/ubuntu#g' \
+    "\$source_file"
+done
+if grep -RhsE 'http://(azure\.archive\.ubuntu\.com|archive\.ubuntu\.com|security\.ubuntu\.com)/ubuntu' "\${source_files[@]}" 2>/dev/null | grep -q .; then
+  echo 'TRUYN_APT_SOURCES_HTTPS=FAIL' >&2
+  exit 1
+fi
+echo 'TRUYN_APT_SOURCES_HTTPS=PASS'
 install_stage=apt-update
-retry_cmd apt-get update -qq
+retry_cmd apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=20 update -qq
 install_stage=apt-prereqs
-retry_cmd apt-get install -y -qq curl jq openssl ca-certificates python3 iptables build-essential pkg-config >/dev/null
+retry_cmd apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=20 install -y -qq curl jq openssl ca-certificates python3 iptables build-essential pkg-config >/dev/null
 major=0; command -v node >/dev/null 2>&1 && major=\$(node -p 'parseInt(process.versions.node)' 2>/dev/null || echo 0)
 if [[ "\$major" -lt 22 ]]; then
   install_stage=nodesource-download
