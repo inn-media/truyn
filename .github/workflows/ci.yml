@@ -75,6 +75,17 @@ jobs:
         run: dotnet build sdk/dotnet/Truyn.Sdk.csproj --configuration Release --nologo
       - name: Five-language executable SDK conformance
         run: node sdk/conformance/run-five-language-e2e.mjs
+      - name: Build and verify SDK release packages
+        env:
+          TRUYN_RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: sdk/release/build-release.sh
+      - name: Upload SDK release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-sdk-release-${{ github.run_id }}
+          path: sdk/release/dist
+          if-no-files-found: error
+          retention-days: 30
       - run: npm test
         env:
           TRUYN_LOCAL_DEVELOPMENT: '1'
