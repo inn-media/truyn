@@ -22,10 +22,15 @@ test('D-1000 provisioner makes remote install failures actionable and reduces fr
   assert.match(provision, /TRUYN_REMOTE_FAILURE vm=/);
   assert.match(provision, /TRUYN_REMOTE_INSTALL_FAILURE host=/);
   assert.match(provision, /TRUYN_REMOTE_INSTALL_READINESS_FAILURE host=/);
+  assert.match(provision, /TRUYN_REMOTE_COMMAND_FAILURE stage=/);
+  assert.match(provision, /return "\\\$rc"/);
+  assert.match(provision, /TRUYN_CLASS_D_1000_CLEANUP_QUERY_FAILURE/);
+  assert.match(provision, /left=-1/);
   assert.match(provision, /build-essential pkg-config/);
   assert.match(provision, /codeload\.github\.com\/inn-media\/truyn\/tar\.gz\/\$\{GITHUB_SHA\}/);
   assert.match(provision, /npm install --omit=dev --no-audit --no-fund/);
   assert.match(provision, /QUIC_IMPORT=PASS/);
+  assert.match(provision, /NODE_SERVICE_IMPORT=PASS/);
   assert.match(provision, /journalctl --no-pager -u/);
   assert.doesNotMatch(provision, /git clone -q https:\/\/github\.com\/inn-media\/truyn\.git/);
 });

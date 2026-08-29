@@ -71,20 +71,38 @@ marker() {
 }
 
 cleanup() {
+  local prior_rc=$? list_output list_rc left tmp
   set +e
   STAGE=cleanup
-  for vm in "${VMS[@]}"; do az vm delete -g "$RG" -n "$vm" --yes --force-deletion --only-show-errors >/dev/null 2>&1 || true; done
-  for nic in "${NICS[@]}"; do az network nic delete -g "$RG" -n "$nic" --only-show-errors >/dev/null 2>&1 || true; done
-  for disk in "${DISKS[@]}"; do az disk delete -g "$RG" -n "$disk" --yes --only-show-errors >/dev/null 2>&1 || true; done
-  az network vnet delete -g "$RG" -n "$VNET" --only-show-errors >/dev/null 2>&1 || true
-  az network nsg delete -g "$RG" -n "$NSG" --only-show-errors >/dev/null 2>&1 || true
-  left=$(az resource list -g "$RG" --query "[?starts_with(name, '${PREFIX}')].name" -o tsv --only-show-errors 2>/dev/null | wc -l | tr -d ' ')
-  [[ "$left" == 0 ]] && CLEANUP_CONFIRMED=true
+  CLEANUP_CONFIRMED=false
+  for vm in "${VMS[@]}"; do az vm delete -g "$RG" -n "$vm" --yes --force-deletion --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vm name=${vm}" >&2; done
+  for nic in "${NICS[@]}"; do az network nic delete -g "$RG" -n "$nic" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nic name=${nic}" >&2; done
+  for disk in "${DISKS[@]}"; do az disk delete -g "$RG" -n "$disk" --yes --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=disk name=${disk}" >&2; done
+  az network vnet delete -g "$RG" -n "$VNET" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vnet name=${VNET}" >&2
+  az network nsg delete -g "$RG" -n "$NSG" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nsg name=${NSG}" >&2
+  list_output=$(az resource list -g "$RG" --query "[?starts_with(name, '${PREFIX}')].name" -o tsv --only-show-errors 2>&1)
+  list_rc=$?
+  if [[ $list_rc -ne 0 ]]; then
+    left=-1
+    echo "TRUYN_CLASS_D_1000_CLEANUP_QUERY_FAILURE rc=${list_rc} output=${list_output}" >&2
+  elif [[ -z "${list_output//[[:space:]]/}" ]]; then
+    left=0
+  else
+    left=$(printf '%s
+' "$list_output" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')
+  fi
+  if [[ $list_rc -eq 0 && "$left" == 0 ]]; then CLEANUP_CONFIRMED=true; fi
   if [[ -f "$EVIDENCE" ]]; then
     tmp="${EVIDENCE}.tmp"
     jq --argjson confirmed "$CLEANUP_CONFIRMED" --argjson remaining "$left" '.cleanup.confirmed=$confirmed | .cleanup.remainingResources=$remaining' "$EVIDENCE" >"$tmp" && mv "$tmp" "$EVIDENCE"
   fi
   echo "TRUYN_CLASS_D_1000_CLEANUP confirmed=${CLEANUP_CONFIRMED} remaining=${left}"
+  if [[ "$CLEANUP_CONFIRMED" != true ]]; then
+    trap - EXIT
+    if [[ $prior_rc -ne 0 ]]; then exit "$prior_rc"; fi
+    exit 1
+  fi
+  return 0
 }
 trap cleanup EXIT
 trap 'rc=$?; echo "::error title=TRUYN Class D-1000 failure::stage=$STAGE exit=$rc line=$LINENO"; exit $rc' ERR
@@ -123,8 +141,21 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
 retry_cmd() {
-  local n=0
-  until "\$@"; do n=\$((n+1)); [[ \$n -lt 5 ]] || return 1; sleep \$((n*3)); done
+  local attempt rc output command_text
+  printf -v command_text '%q ' "\$@"
+  for attempt in 1 2 3 4 5; do
+    set +e
+    output=\$("\$@" 2>&1)
+    rc=\$?
+    set -e
+    printf '%s\n' "\$output" >&2
+    if [[ \$rc -eq 0 ]]; then return 0; fi
+    echo "TRUYN_REMOTE_COMMAND_RETRY stage=\${install_stage} attempt=\${attempt} rc=\${rc} command=\${command_text}" >&2
+    [[ \$attempt -lt 5 ]] || break
+    sleep \$((attempt*3))
+  done
+  echo "TRUYN_REMOTE_COMMAND_FAILURE stage=\${install_stage} attempts=5 rc=\${rc} command=\${command_text}" >&2
+  return "\$rc"
 }
 install_stage=init
 trap 'rc=\$?; echo "TRUYN_REMOTE_INSTALL_FAILURE host=${i} stage=\${install_stage} line=\${LINENO} rc=\${rc} command=\${BASH_COMMAND}" >&2; exit \$rc' ERR
@@ -155,6 +186,8 @@ install_stage=npm-install
 retry_cmd npm install --omit=dev --no-audit --no-fund
 install_stage=quic-import
 node --input-type=module -e "await import('@chainsafe/libp2p-quic'); await import('@matrixai/quic'); console.log('QUIC_IMPORT=PASS')"
+install_stage=node-service-import
+node --input-type=module -e "await import('./network/testnet/node-service.js'); console.log('NODE_SERVICE_IMPORT=PASS')"
 install_stage=runtime-config
 install -d -m 0700 /var/lib/truyqn-d1000 /etc/truyqn-d1000
 openssl req -x509 -newkey rsa:2048 -nodes -keyout /etc/truyqn-d1000/key.pem -out /etc/truyqn-d1000/cert.pem -subj '/CN=${PRIV[$i]}' -days 1 -addext 'subjectAltName=IP:${PRIV[$i]}' >/dev/null 2>&1
