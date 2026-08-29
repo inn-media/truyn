@@ -13,7 +13,7 @@ test('production provider runtime enters the lifecycle-aware adapter host loop',
   assert.doesNotMatch(runtimeServiceSource, /await adapterHost\.runOnce\(\)/);
 });
 
-test('verified REVOKE received before fast NEED creates a tombstone and suppresses later execution', async (t) => {
+test('fast NEED and its REVOKE share one ordered lifecycle channel and cancellation wins before execution', async (t) => {
   const relay = createRelay({ localDevelopmentMode: true });
   const relayUrl = await relay.listen({ port: 0 });
   t.after(() => relay.close());
@@ -41,25 +41,22 @@ test('verified REVOKE received before fast NEED creates a tombstone and suppress
   });
 
   const matched = await requester.compactNeed('cancel.before.schedule', { value: 1 }, {}, { waitMs: 0 });
-  await requester.revoke(matched.needId, 'cancel_before_schedule');
+  await requester.revoke(matched.needId, 'cancel_before_schedule', { targetKind: 'need' });
 
-  const control = await provider.poll();
-  assert.equal(control.events.length, 1);
-  assert.equal(control.events[0].kind, 'REVOKE');
-  assert.equal(control.events[0].verification.ok, true);
-  const cancellation = host.handleLifecycleEvent(control.events[0]);
-  assert.deepEqual(cancellation, { cancelled: false, targetId: matched.needId });
-  assert.equal(host.cancelledNeedIds.get(matched.needId)?.from, requester.identity.nodeId);
+  const lifecycle = await provider.pollCompact({ waitMs: 0 });
+  assert.deepEqual(lifecycle.events.map((event) => event.kind), ['NEED', 'REVOKE']);
+  assert.equal(lifecycle.events[0].verification.ok, true);
+  assert.equal(lifecycle.events[1].verification.ok, true);
 
-  const work = await provider.pollCompact({ waitMs: 0 });
-  assert.equal(work.events.length, 1);
-  assert.equal(work.events[0].kind, 'NEED');
-  assert.equal(work.events[0].verification.ok, true);
-  const scheduled = host.handleLifecycleEvent(work.events[0]);
-  assert.equal(scheduled.scheduled, false);
+  const scheduled = host.handleLifecycleEvent(lifecycle.events[0]);
+  assert.equal(scheduled.scheduled, true);
+  const cancellation = host.handleLifecycleEvent(lifecycle.events[1]);
+  assert.deepEqual(cancellation, { cancelled: true, targetId: matched.needId });
 
   await Promise.resolve();
+  await Promise.allSettled([scheduled.promise]);
   assert.equal(executeCalls, 0);
   assert.equal(host.inFlight.has(matched.needId), false);
+  assert.equal(host.cancelledNeedIds.get(matched.needId)?.from, requester.identity.nodeId);
   assert.equal(relay.state.requests.get(matched.needId).status, 'cancelled');
 });
