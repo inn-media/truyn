@@ -208,16 +208,22 @@ export function createA2aServer({
     return offer?.payload?.metadata?.accessMode || null;
   }
 
+  function isOwnOffer(offer) {
+    return offer?.from === node.identity?.nodeId;
+  }
+
   async function skillOperationallyVisible(skill, principal, req, operation) {
     if (!(await skillAuthorized(skill, principal, req, operation))) return false;
     const offers = await discoverSkillOffers(skill);
-    if (offers.length === 0) return false;
+    const dispatchableOffers = offers.filter((offer) => !isOwnOffer(offer));
+    if (dispatchableOffers.length === 0) return false;
     if (skill.visibility === 'public') {
-      return offers.every((offer) => offerAccessMode(offer) === 'public');
+      return dispatchableOffers.every((offer) => offerAccessMode(offer) === 'public');
     }
     // node.find() is already requester-scoped by the relay using the authenticated
     // TRUYN node session, including provider policy and relay-level trusted grants.
-    // Do not reinterpret descriptive OFFER metadata here.
+    // Do not reinterpret descriptive OFFER metadata here. Also do not treat the
+    // relay /v1/offers own-offer fallback as dispatchable provider evidence.
     return true;
   }
 
