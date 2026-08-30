@@ -8,7 +8,12 @@ const SELF = 'tests/public-repository.test.js';
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
 const TEXT_EXTENSIONS = new Set(['.md', '.js', '.mjs', '.cjs', '.json', '.yml', '.yaml', '.toml', '.txt', '.proto', '.sh', '.ps1', '.cmd', '.html', '.css']);
 const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.cmd']);
-const ALLOWED_WORKFLOWS = new Set(['.github/workflows/.gitkeep', '.github/workflows/ci.yml']);
+const ALLOWED_WORKFLOWS = new Set([
+  '.github/workflows/.gitkeep',
+  '.github/workflows/ci.yml',
+  '.github/workflows/deploy-developer-site.yml',
+  '.github/workflows/publish-sdk-alpha.yml'
+]);
 const BENCHMARK_EVIDENCE_DIR = 'docs/benchmarks/';
 
 const protectedBenchmarkEvidence = [
