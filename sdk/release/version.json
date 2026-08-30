@@ -1,0 +1,8 @@
+{
+  "release": "0.1.0-alpha.1",
+  "python": "0.1.0a1",
+  "goTag": "sdk/go/v0.1.0-alpha.1",
+  "protocol": "TRUYN/1",
+  "stableSdkApiVersion": "1",
+  "channel": "public-pre-release"
+}

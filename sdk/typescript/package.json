@@ -1,17 +1,42 @@
 {
   "name": "@truyn/sdk",
-  "version": "0.0.0-dx1.0",
-  "private": true,
-  "description": "TRUYN first-party JavaScript/TypeScript SDK (DX-1 reference implementation)",
+  "version": "0.1.0-alpha.1",
+  "description": "First-party JavaScript/TypeScript SDK for the TRUYN Intelligence Network",
   "license": "Apache-2.0",
   "type": "module",
+  "sideEffects": false,
   "engines": {
     "node": ">=22"
   },
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inn-media/truyn.git",
+    "directory": "sdk/typescript"
+  },
+  "homepage": "https://truyn.org",
+  "bugs": {
+    "url": "https://github.com/inn-media/truyn/issues"
   },
   "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean --out-dir dist --target node22 --platform node",
     "test": "node --experimental-strip-types --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
   }
 }
