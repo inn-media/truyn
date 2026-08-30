@@ -1,24 +1,17 @@
 # TRUYN Go SDK
 
-**Status:** DX-2 skeleton client surface. Internal only; not a public stable Go module.
+First-party Go client for the TRUYN Intelligence Network.
 
-This directory now contains the first Go shape for the required first-party SDK matrix:
-
-- `go.mod` reserves the in-repository module path;
-- `truyn.go` defines the client, config, foundational DTOs, signed envelope aliases and normalized error taxonomy;
-- all network-facing operations fail closed with `unimplemented` until the Go transport binding is implemented.
-
-The skeleton is pinned to:
+Target pre-release tag for this Developer Release Layer is:
 
 ```text
-protocol: TRUYN/1
-agent descriptor schema: truyn.agent-descriptor/v1
+sdk/go/v0.1.0-alpha.1
 ```
 
-Run the shared source/fixture conformance gate from the repository root:
+After that tag is published, consumers can install with:
 
 ```bash
-node sdk/conformance/run-conformance.mjs --language=go --json
+go get github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1
 ```
 
-DX-2 does not publish a Go module, does not call cloud providers, does not start a relay, and does not change `network/**`, relay runtime, QUIC/Kademlia or D-1000 behavior.
+`TRUYN/1` remains draft; this is a pre-stable SDK release.

@@ -4,17 +4,103 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.truyn</groupId>
   <artifactId>truyn-sdk</artifactId>
-  <version>0.0.0-dx2-SNAPSHOT</version>
+  <version>0.1.0-alpha.1</version>
   <name>TRUYN Java SDK</name>
-  <description>DX-2 Java SDK skeleton for TRUYN/1.</description>
+  <description>First-party Java SDK for the TRUYN Intelligence Network.</description>
+  <url>https://truyn.org</url>
   <licenses>
     <license>
       <name>Apache License, Version 2.0</name>
       <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+      <distribution>repo</distribution>
     </license>
   </licenses>
+  <scm>
+    <connection>scm:git:https://github.com/inn-media/truyn.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/inn-media/truyn.git</developerConnection>
+    <url>https://github.com/inn-media/truyn</url>
+  </scm>
+  <developers>
+    <developer>
+      <name>TRUYN maintainers</name>
+      <organization>TRUYN</organization>
+      <organizationUrl>https://truyn.org</organizationUrl>
+    </developer>
+  </developers>
   <properties>
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.build.outputTimestamp>2026-08-29T00:00:00Z</project.build.outputTimestamp>
   </properties>
+  <build>
+    <resources>
+      <resource>
+        <directory>${project.basedir}/..</directory>
+        <includes>
+          <include>LICENSE</include>
+          <include>NOTICE</include>
+        </includes>
+        <targetPath>META-INF</targetPath>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.3.1</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals><goal>jar-no-fork</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.11.2</version>
+        <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals><goal>jar</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+  <profiles>
+    <profile>
+      <id>central-release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.8</version>
+            <configuration>
+              <bestPractices>true</bestPractices>
+            </configuration>
+            <executions>
+              <execution>
+                <id>sign-release-artifacts</id>
+                <phase>verify</phase>
+                <goals><goal>sign</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.11.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>true</autoPublish>
+              <waitUntil>published</waitUntil>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

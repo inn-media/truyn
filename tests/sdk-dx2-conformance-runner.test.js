@@ -9,8 +9,7 @@ const runner = new URL('../sdk/conformance/run-conformance.mjs', import.meta.url
 const manifestUrl = new URL('../sdk/conformance/languages.json', import.meta.url);
 
 const requiredLanguages = ['typescript', 'python', 'go', 'java', 'dotnet'];
-const referenceLanguages = ['typescript', 'python'];
-const portablePayloadLanguages = ['go', 'java', 'dotnet'];
+const developerReleaseLanguages = requiredLanguages;
 
 async function runConformance(args = []) {
   const { stdout } = await execFileAsync(process.execPath, [runner.pathname, '--json', ...args], {
@@ -19,38 +18,38 @@ async function runConformance(args = []) {
   return JSON.parse(stdout);
 }
 
-test('DX-3 conformance matrix covers all required first-party SDK languages', async () => {
+test('Developer Release conformance matrix covers all required first-party SDK languages', async () => {
   const manifest = JSON.parse(await readFile(manifestUrl, 'utf8'));
   assert.deepEqual(manifest.requiredFirstPartyLanguages, requiredLanguages);
   assert.deepEqual(manifest.languages.map((language) => language.id), requiredLanguages);
   assert.equal(manifest.stableSdkApiVersion, '1');
   assert.deepEqual(manifest.dx3PortablePayloadKinds, ['object', 'artifact']);
-  for (const language of referenceLanguages) {
-    assert.equal(manifest.languages.find((entry) => entry.id === language).status, 'implemented-dx3-reference-surface');
+  assert.equal(manifest.developerReleaseExecutableConformance, 'sdk/conformance/run-five-language-e2e.mjs');
+  for (const language of developerReleaseLanguages) {
+    const entry = manifest.languages.find((candidate) => candidate.id === language);
+    assert.equal(entry.status, 'implemented-developer-release-client');
+    assert.equal(entry.publicDistribution, false, `${language} must remain non-public until registry bootstrap completes`);
   }
-  for (const language of portablePayloadLanguages) {
-    assert.equal(manifest.languages.find((entry) => entry.id === language).status, 'dx3-portable-payload-surface');
-  }
-  assert.equal(manifest.languages.every((language) => language.publicDistribution === false), true);
 });
 
-test('unified SDK conformance runner validates every DX-3 SDK target', async () => {
+test('unified SDK conformance runner validates every Developer Release SDK target', async () => {
   const result = await runConformance();
   assert.equal(result.ok, true);
   assert.equal(result.fixtureSet, 'truyn.sdk-conformance/v1');
   assert.equal(result.protocol, 'TRUYN/1');
   assert.deepEqual(result.languages.map((language) => language.id), requiredLanguages);
   for (const language of result.languages) {
+    assert.equal(language.status, 'implemented-developer-release-client');
     assert.ok(language.files > 0, `${language.id} must declare source files`);
     assert.ok(language.markers > 0, `${language.id} must declare conformance markers`);
   }
 });
 
-test('unified SDK conformance runner supports DX-3 language-scoped validation', async () => {
-  for (const language of portablePayloadLanguages) {
+test('unified SDK conformance runner supports Developer Release language-scoped validation', async () => {
+  for (const language of developerReleaseLanguages) {
     const result = await runConformance([`--language=${language}`]);
     assert.equal(result.ok, true);
     assert.deepEqual(result.languages.map((entry) => entry.id), [language]);
-    assert.equal(result.languages[0].status, 'dx3-portable-payload-surface');
+    assert.equal(result.languages[0].status, 'implemented-developer-release-client');
   }
 });
