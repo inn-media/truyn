@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"net/http"
 	"net/url"
@@ -20,9 +21,9 @@ type DescriptorSelection struct {
 }
 
 type VerifiedAgentDescriptor struct {
-	Descriptor AgentDescriptor      `json:"descriptor"`
+	Descriptor AgentDescriptor     `json:"descriptor"`
 	Selection  DescriptorSelection `json:"selection"`
-	Signer     map[string]string    `json:"signer"`
+	Signer     map[string]string   `json:"signer"`
 }
 
 func descriptorSignatures(raw map[string]any) []string {
@@ -62,8 +63,8 @@ func validateDescriptor(raw map[string]any, now time.Time) error {
 func verifyDescriptor(raw map[string]any, publicKeyPEM string) error {
 	identity := raw["identity"].(string)
 	resolved, err := nodeIDFromPublicKeyPEM(publicKeyPEM); if err != nil || resolved != identity { return NewError(Unauthenticated, "Agent Descriptor identity key mismatch", false) }
-	block, _ := pemDecode([]byte(publicKeyPEM)); if block == nil { return NewError(Unauthenticated, "invalid Agent Descriptor public key", false) }
-	parsed, err := x509.ParsePKIXPublicKey(block); if err != nil { return NewError(Unauthenticated, "invalid Agent Descriptor public key", false) }
+	block, _ := pem.Decode([]byte(publicKeyPEM)); if block == nil { return NewError(Unauthenticated, "invalid Agent Descriptor public key", false) }
+	parsed, err := x509.ParsePKIXPublicKey(block.Bytes); if err != nil { return NewError(Unauthenticated, "invalid Agent Descriptor public key", false) }
 	key, ok := parsed.(ed25519.PublicKey); if !ok { return NewError(Unauthenticated, "Agent Descriptor public key must be Ed25519", false) }
 	unsigned := make(map[string]any, len(raw)); for keyName, value := range raw { if keyName != "signature" && keyName != "signatures" { unsigned[keyName] = value } }
 	payload, err := canonicalJSON(unsigned); if err != nil { return err }
@@ -72,9 +73,6 @@ func verifyDescriptor(raw map[string]any, publicKeyPEM string) error {
 	}
 	return NewError(Unauthenticated, "Agent Descriptor signature verification failed", false)
 }
-
-// pemDecode is isolated so descriptor verification reuses the SDK's existing X.509 identity rules.
-func pemDecode(data []byte) (*pem.Block, []byte) { return pem.Decode(data) }
 
 func (c *Client) FetchAgentDescriptor(ctx context.Context, descriptorURL string, publicKeyPEM string, supportedInterfaces []string) (*VerifiedAgentDescriptor, error) {
 	parsedURL, err := url.Parse(descriptorURL); if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") { return nil, NewError(InvalidArgument, "Agent Descriptor URL must be absolute HTTP(S)", false) }
