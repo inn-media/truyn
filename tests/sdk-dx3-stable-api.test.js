@@ -27,19 +27,21 @@ test('DX-3 Python stable payload helpers are importable and enforce artifact int
   ].join('; ')]);
 });
 
-test('DX-3 developer docs expose the bounded remote lifecycle without broadening its claims', async () => {
+test('Developer Release docs preserve the accepted DX-3 lifecycle while exposing five-language release status', async () => {
   const html = await readFile('docs/developer-site/index.html', 'utf8');
   const guide = await readFile('docs/getting-started/DX3_SDK.md', 'utf8');
 
   assert.match(html, /TRUYN \/ Developers/);
-  assert.match(html, /SDK stable API contract v1/);
+  assert.match(html, /Developer Release · 0\.1\.0-alpha\.1/);
+  assert.match(html, /Five first-party clients share one executable TRUYN conformance path/);
+  assert.match(html, /SDK API contract v1/);
   assert.doesNotMatch(html, /api[_-]?key\s*=/i);
   assert.doesNotMatch(html, /bearer\s+[A-Za-z0-9._-]{12,}/i);
 
-  assert.match(html, /Requester-owned direct NEED cancellation is enforced end to end/);
-  assert.match(html, /signed ordered <code>PARTIAL<\/code> deltas/);
-  assert.match(html, /Custom adapters remain cooperative/);
-  assert.match(html, /Chain-stage cancellation is not supported/);
+  assert.match(html, /Requester-owned direct NEED cancellation is a signed REVOKE/);
+  assert.match(html, /signed ordered PARTIAL deltas/);
+  assert.match(html, /Chain-stage cancellation is not generalized/);
+  assert.match(html, /registry availability is verified separately from source\/build conformance/);
 
   assert.match(guide, /Protocol\/runtime cancellation is implemented for \*\*direct NEEDs\*\*/);
   assert.match(guide, /signed compact `PARTIAL` frames with stable wire type `T`/);
