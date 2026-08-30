@@ -150,7 +150,7 @@ func (i *LocalIdentity) envelope(kind string, payload map[string]any, to *string
 		return nil, err
 	}
 	signature := ed25519.Sign(i.privateKey, canonical)
-	envelope := make(map[string]any, len(unsigned)+1)
+	envelope := make(map[string]any)
 	for k, v := range unsigned {
 		envelope[k] = v
 	}
@@ -188,7 +188,7 @@ func VerifyEnvelope(envelope map[string]any) (bool, string) {
 	if err != nil {
 		return false, "invalid_signature"
 	}
-	unsigned := make(map[string]any, len(envelope)-1)
+	unsigned := make(map[string]any)
 	for k, v := range envelope {
 		if k != "signature" {
 			unsigned[k] = v
