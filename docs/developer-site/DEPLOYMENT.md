@@ -1,44 +1,45 @@
 # Developer site deployment
 
-The checked-in developer portal is a static GitHub Pages-compatible site.
+The checked-in developer portal is deployed as a static GitHub Pages site from the accepted `main` branch.
 
-## Source
+## Source and public origin
 
 - repository: `inn-media/truyn`
-- branch: `main`
-- Pages source directory: `/docs`
+- accepted branch: `main`
+- site artifact source: `/docs`
 - root entrypoint: `docs/index.html`
 - portal: `docs/developer-site/index.html`
 - static processing: `docs/.nojekyll`
+- deployment workflow: `.github/workflows/deploy-developer-site.yml`
+- default expected public origin: `https://inn-media.github.io/truyn/`
 
-No separate deployment workflow is required. This deliberately preserves the repository's single permanent CI workflow and avoids granting Pages write/OIDC permissions to ordinary test jobs.
+The workflow is intentionally separate from ordinary CI. It runs only for accepted `main` pushes that change `/docs` or the deployment workflow, requests only `contents: read`, `pages: write` and `id-token: write`, uploads only `/docs`, and deploys through the GitHub `github-pages` environment.
 
-## One-time GitHub Pages enablement
+## GitHub Pages repository setting
 
-Repository administration must select:
+GitHub Pages must use **GitHub Actions** as its publishing source. This is a one-time repository administration setting:
 
 ```text
 Settings → Pages
-Build and deployment → Source: Deploy from a branch
-Branch: main
-Folder: /docs
-Save
+Build and deployment → Source: GitHub Actions
 ```
 
-After GitHub reports the deployment complete, the default public origin is expected at the repository's GitHub Pages URL and `/` redirects to the developer portal.
+The deployment workflow itself does not carry an administrator token and therefore cannot silently enable Pages or change repository administration settings. That boundary is deliberate.
 
-Do not claim the site is live until an external GET of the Pages URL returns the checked-in TRUYN Developers page.
+After enablement, merging a `/docs` change to `main` causes `.github/workflows/deploy-developer-site.yml` to upload and deploy the exact accepted source. The workflow exposes the deployment URL through the `github-pages` environment.
+
+Do not mark the live-site acceptance gate complete until an external HTTPS GET of `https://inn-media.github.io/truyn/` returns the checked-in TRUYN Developers portal and the deployment run is green.
 
 ## Optional TRUYN custom domain
 
-A custom developer hostname such as `developers.truyn.org` can be added only after the default Pages deployment is healthy. The DNS change is an external Cloudflare account boundary and must not replace or alter TRUYN runtime/relay DNS unintentionally.
+A dedicated hostname such as `developers.truyn.org` may be added only after the default Pages origin is healthy. The DNS change is an external Cloudflare account boundary and must not replace or alter TRUYN runtime/relay DNS unintentionally.
 
 If a custom domain is adopted:
 
-1. Add the custom domain in GitHub Pages settings.
-2. Add the corresponding Cloudflare DNS record following GitHub Pages custom-domain guidance.
-3. Verify DNS ownership/HTTPS issuance.
-4. Re-check both the custom URL and the default Pages deployment.
-5. Only then add/retain a `CNAME` file in `/docs` if required by the selected Pages configuration.
+1. add the custom domain in GitHub Pages settings;
+2. add the corresponding Cloudflare DNS record following GitHub Pages custom-domain guidance;
+3. verify DNS ownership and HTTPS issuance;
+4. re-check both the custom URL and the default Pages deployment;
+5. only then add/retain a `CNAME` file in `/docs` if required by the selected Pages configuration.
 
-The first Developer Release Layer acceptance does not require moving the existing `truyn.org` production origin; a dedicated developer hostname or the default GitHub Pages origin is safer.
+The Developer Release Layer does not require moving the existing `truyn.org` production origin. The default GitHub Pages origin is sufficient for the first public developer-site liveness proof.
