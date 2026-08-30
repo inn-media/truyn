@@ -13,12 +13,19 @@ func TestDeveloperReleaseConformance(t *testing.T) {
 	if relay == "" {
 		t.Skip("TRUYN_CONFORMANCE_RELAY is not set")
 	}
+	descriptorURL := os.Getenv("TRUYN_CONFORMANCE_DESCRIPTOR_URL")
+	descriptorPublicKey := os.Getenv("TRUYN_CONFORMANCE_DESCRIPTOR_PUBLIC_KEY")
+	descriptorIdentity := os.Getenv("TRUYN_CONFORMANCE_DESCRIPTOR_IDENTITY")
+	if descriptorURL == "" || descriptorPublicKey == "" || descriptorIdentity == "" { t.Fatal("descriptor conformance fixture is required") }
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	provider, err := Connect(ctx, ClientConfig{BaseURL: relay}, "go-provider")
 	if err != nil { t.Fatal(err) }
 	requester, err := Connect(ctx, ClientConfig{BaseURL: relay}, "go-requester")
 	if err != nil { t.Fatal(err) }
+	verified, err := requester.FetchAgentDescriptor(ctx, descriptorURL, descriptorPublicKey, nil)
+	if err != nil { t.Fatal(err) }
+	if verified.Descriptor.Identity != descriptorIdentity || verified.Selection.Protocol != Protocol || verified.Selection.Interface["type"] != "https" || verified.Signer["keyBinding"] != "identity" { t.Fatalf("unexpected descriptor verification: %#v", verified) }
 	capability := fmt.Sprintf("sdk.release.go.%d", time.Now().UnixNano())
 	if _, err := provider.Offer(ctx, capability, map[string]any{"language":"go"}); err != nil { t.Fatal(err) }
 	receipt, err := requester.Need(ctx, capability, map[string]any{"question":"hello"}, nil)
