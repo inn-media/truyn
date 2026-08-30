@@ -11,6 +11,7 @@ import { createRuntimeBackchannelConfig } from './backchannel-config.js';
 import { createProviderBackchannelGuard } from './provider-backchannel-guard.js';
 import { ProviderTruynNode } from './provider-node.js';
 import { enforceOwnerProviderRuntimeLock } from './owner-provider-lock.js';
+import { createPublicAgentDescriptor, maybeServePublicAgentDescriptor } from './agent-descriptor.js';
 
 const role = process.env.TRUYN_ROLE || 'provider';
 const host = process.env.HOST || '0.0.0.0';
@@ -128,6 +129,7 @@ async function runProvider() {
     .map((value) => value.trim())
     .filter(Boolean);
   const identity = loadRuntimeIdentity();
+  const publicDescriptor = createPublicAgentDescriptor({ identity, capabilities, env: process.env });
   const backchannelConfig = createRuntimeBackchannelConfig(process.env);
   const node = new ProviderTruynNode({
     relayUrl,
@@ -156,6 +158,7 @@ async function runProvider() {
   let ready = false;
 
   const server = http.createServer((req, res) => {
+    if (maybeServePublicAgentDescriptor(req, res, publicDescriptor)) return;
     if (req.method === 'GET' && (req.url === '/health' || req.url === '/')) {
       return writeJson(res, 200, { ok: true, role: 'provider', ready });
     }
@@ -166,7 +169,7 @@ async function runProvider() {
   });
 
   await new Promise((resolve) => server.listen(port, host, resolve));
-  process.stdout.write(`${JSON.stringify({ ok: true, role: 'provider', ready: false })}\n`);
+  process.stdout.write(`${JSON.stringify({ ok: true, role: 'provider', ready: false, publicAgentDescriptor: Boolean(publicDescriptor) })}\n`);
 
   const loop = (async () => {
     while (!stopping) {
