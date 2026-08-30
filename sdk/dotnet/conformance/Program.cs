@@ -2,6 +2,13 @@ using Truyn.Sdk;
 
 if (args.Length != 1) throw new ArgumentException("relay URL is required");
 var relay = new Uri(args[0]);
+var descriptorUrl = Environment.GetEnvironmentVariable("TRUYN_CONFORMANCE_DESCRIPTOR_URL");
+var descriptorPublicKey = Environment.GetEnvironmentVariable("TRUYN_CONFORMANCE_DESCRIPTOR_PUBLIC_KEY");
+var descriptorIdentity = Environment.GetEnvironmentVariable("TRUYN_CONFORMANCE_DESCRIPTOR_IDENTITY");
+if (string.IsNullOrWhiteSpace(descriptorUrl) || string.IsNullOrWhiteSpace(descriptorPublicKey) || string.IsNullOrWhiteSpace(descriptorIdentity)) throw new ArgumentException("descriptor conformance fixture is required");
+var descriptor = await AgentDescriptors.FetchAsync(new Uri(descriptorUrl), descriptorPublicKey);
+if (descriptor.Descriptor.Identity != descriptorIdentity || descriptor.Selection.Protocol != "TRUYN/1" || descriptor.Selection.Interface.GetProperty("type").GetString() != "https" || descriptor.Signer.KeyBinding != "identity") throw new InvalidOperationException("invalid Agent Descriptor verification");
+
 await using var provider = await TruynClient.ConnectAsync(new TruynClientOptions(relay), "dotnet-provider");
 await using var requester = await TruynClient.ConnectAsync(new TruynClientOptions(relay), "dotnet-requester");
 var capability = "sdk.release.dotnet." + Guid.NewGuid().ToString("N");
