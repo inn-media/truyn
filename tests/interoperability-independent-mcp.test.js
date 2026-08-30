@@ -28,17 +28,34 @@ function childExited(child) {
   return child.exitCode !== null || child.signalCode !== null;
 }
 
+function childExitStatus(child) {
+  return { code: child.exitCode, signal: child.signalCode };
+}
+
+function assertCleanChildExit(status) {
+  assert.deepEqual(
+    status,
+    { code: 0, signal: null },
+    `Official MCP SDK fixture shutdown must exit cleanly, got code=${status.code} signal=${status.signal}`
+  );
+}
+
 async function stopChild(child) {
-  if (childExited(child)) return;
+  if (childExited(child)) {
+    assertCleanChildExit(childExitStatus(child));
+    return;
+  }
   child.kill('SIGTERM');
-  const exited = await Promise.race([
-    once(child, 'exit').then(() => true),
-    delay(2_000).then(() => false)
+  const exitStatus = await Promise.race([
+    once(child, 'exit').then(([code, signal]) => ({ code, signal })),
+    delay(2_000).then(() => null)
   ]);
-  if (!exited && !childExited(child)) {
+  if (!exitStatus) {
     child.kill('SIGKILL');
     if (!childExited(child)) await once(child, 'exit');
+    assert.fail('Official MCP SDK fixture did not exit after SIGTERM; forced SIGKILL');
   }
+  assertCleanChildExit(exitStatus);
 }
 
 async function startIndependentMcpSdkServer(t) {
