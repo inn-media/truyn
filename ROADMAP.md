@@ -2,10 +2,11 @@
 
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`; governance rules live in `GOVERNANCE.md` and `docs/governance/`.
 
-**Snapshot:** 2026-08-27  
-**Production/reference baseline:** `main@83738302131e08d807bc0ac00f64268a38b46309`  
+**Snapshot:** 2026-08-29  
+**Production/reference baseline:** `main@05120db7435ab00807484aa9b7c3ecf80211f8b0`  
 **SDK/DX synchronized through:** `main@ef61e4876617aa4099b5ddbdbbf3f24b1e6e7fcd` / PR `#378`  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
+**Sprint D exact executable proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
 **Protocol:** `TRUYN/1` draft
 
 The project has not evolved strictly in numerical version order. Network scale, semantic retrieval, Trustability, provider security, external interoperability and SDK/DX progress in parallel. A completed track does not promote an unrelated track.
@@ -29,7 +30,7 @@ The project has not evolved strictly in numerical version order. Network scale, 
 | Semantic / distributed retrieval | **Implemented / benchmark-proven bounded slices** | broader decentralized operating scale |
 | Trustability | **Implemented / benchmark-proven bounded slices** | production authority/revocation operations |
 | Provider security / BYOK | **Implemented fail-closed reference boundary** | richer tenant/account/entitlement operations |
-| A2A / MCP | **C1–C7 accepted; Sprint C independent A2A black-box proven** | C8 security acceptance + symmetric independent MCP proof |
+| A2A / MCP | **C1–C7 accepted; Sprint C independent A2A + Sprint D independent MCP black-box proven** | C8 security acceptance + integrity-verified external artifact/file profile + compatibility/stability policy |
 | SDK / DX | **TS/JS + Python reference clients; five-language portable payload slice; direct NEED cancellation + signed PARTIAL runtime lifecycle implemented / CI-proven through #378** | broader Go/Java/.NET client parity + publication, Agent Descriptor lifecycle, optional cross-provider tokenization conventions |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Settlement x402/AP2 | **Defined only** | later optional adapter implementation |
@@ -120,15 +121,15 @@ C8 may close only with exact-head evidence for:
 
 ### Adoption proof after C7
 
-C7 is real bounded bridge evidence. Sprint C closes the independent remote-A2A proof for one direction:
+C7 is real bounded bridge evidence. The independent SDK adoption proofs are now symmetric:
 
 - [x] **Sprint C** — exercise `MCP→TRUYN→A2A` against an independent A2A SDK/reference implementation: official A2A Project `@a2a-js/sdk@1.0.1`, separate-process Agent Card + JSON-RPC black box, exact core source `a435ed16e559226ed095959b7b95aa7067271302`, CI `33057289236`, CodeQL `33057286765`, durable record `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`;
-- [ ] exercise `A2A→TRUYN→MCP` against an independent MCP SDK/reference implementation;
+- [x] **Sprint D** — exercise `A2A→TRUYN→MCP` against official `@modelcontextprotocol/server@2.0.0` / MCP `2026-07-28` in a separate process using public `handler.fetch()` dispatch and `handler.close()` lifecycle. Positive execution is independently counted exactly once; TRUYN request correlation is exact; spoofed A2A requester/owner authority produces zero NEED and zero external execution; spoofed billing cannot override provider `prepaid` authority and is denied before `tools/call`; relay-level `trustedRequesterNodeIds` visibility remains authoritative. Exact executable source `0a40e635533f6a9623b19057b3320ba2a888f1f1`, CI `33262306180`, CodeQL `33262304786`, durable record `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md`;
 - [ ] carry at least one integrity-verified referenced artifact/file through the claimed external profile;
-- [ ] publish exact-version durable interoperability evidence for each new external proof;
+- [x] publish exact-version durable interoperability evidence for Sprint C and Sprint D external proofs;
 - [ ] define a compatibility/stability policy before claiming stable A2A/MCP support.
 
-Sprint C does not close C8 and does not claim ecosystem-wide A2A certification. Do not reimplement C4–C7 merely because old documents once called them future work.
+Sprint C + Sprint D are symmetric bounded external SDK adoption evidence. They do not close C8, do not prove ecosystem-wide certification, and do not make `TRUYN/1` Stable.
 
 ---
 
