@@ -1,13 +1,13 @@
 # Sprint D — Independent MCP Black-Box Acceptance Record
 
 **Executable proof:** ACCEPTED / independent official MCP SDK black-box CI-proven  
-**Sprint D repository closure:** pending PR `#389` merge and post-merge exact-`main` verification  
+**Sprint D repository closure:** D-4 exact-head closure accepted; pending PR `#389` merge and post-merge exact-`main` verification  
 **Direction:** `A2A → TRUYN → MCP`  
 **Sprint D pull request:** `#389`  
-**TRUYN baseline:** `main@afe77b8415bb58039da6a85b45566e1348b164c5`  
-**Exact executable proof source:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
-**Exact executable CI:** `33262306180`  
-**Exact executable CodeQL:** `33262304786`  
+**TRUYN baseline:** `main@05120db7435ab00807484aa9b7c3ecf80211f8b0`  
+**Final exact closure source:** `8e72ae54d029572539d3aa857c0e48385084e5db`  
+**Final exact CI:** `33308824923`  
+**Final CodeQL check:** `99250115376`  
 **Independent implementation:** `@modelcontextprotocol/server@2.0.0`  
 **MCP profile exercised:** `2026-07-28`  
 **A2A profile exercised:** `1.0` JSON-RPC  
@@ -21,7 +21,7 @@ This is the durable executable acceptance record for Sprint D. It upgrades the `
 
 The remote MCP server runs as a separate Node process and is not built with TRUYN's MCP server or discovery implementations. It imports exact-pinned official `@modelcontextprotocol/server@2.0.0`, registers `bridge_lookup` with public `McpServer.registerTool()`, dispatches HTTP requests only through public `createMcpHandler(...).fetch(request)`, and deterministically tears down through public `handler.close()` plus HTTP-server close.
 
-The proof fails if the fixture reaches into SDK-private `_registeredTools` or imports TRUYN's MCP server/discovery implementation.
+The proof fails if the fixture reaches into SDK-private `_registeredTools` or imports TRUYN's MCP server/discovery implementation. Test teardown now also fails if the child process acknowledges `SIGTERM` with a nonzero exit or a signal, so dirty fixture shutdown cannot silently pass the acceptance lifecycle.
 
 ## Accepted route
 
@@ -42,11 +42,12 @@ The independent MCP tool is discovered over HTTP and imported as `mcp.bridge_loo
 
 ## Positive acceptance predicates
 
-Exact executable source `0a40e635533f6a9623b19057b3320ba2a888f1f1` proves:
+Final exact closure source `8e72ae54d029572539d3aa857c0e48385084e5db` proves:
 
 - external SDK identity `@modelcontextprotocol/server@2.0.0`;
 - MCP negotiation exactly `2026-07-28` and A2A exactly `1.0`;
 - public `handler.fetch(request)` dispatch and public `handler.close()` lifecycle;
+- fixture teardown fails on dirty/nonzero external process shutdown;
 - no `_registeredTools` access;
 - discovery selects `bridge_lookup` → `mcp.bridge_lookup`;
 - exactly one backing TRUYN NEED;
@@ -74,7 +75,12 @@ external MCP execution = 0
 MCP tools/call          = 0
 ```
 
-The companion regression `tests/a2a-relay-authorized-visibility.test.js` prevents an overcorrection: when the relay itself authorizes the actual facade node through `trustedRequesterNodeIds`, an authenticated extended Agent Card preserves that relay-authorized owner-only OFFER even if raw `allowedRequesterIds` does not list the facade. The public Agent Card still hides the owner-only provider. Thus relay authority is preserved while spoofed transport metadata remains non-authoritative.
+The companion regression `tests/a2a-relay-authorized-visibility.test.js` prevents two opposite regressions:
+
+1. over-restricting legitimate relay-level `trustedRequesterNodeIds` grants for authenticated skills;
+2. advertising a non-dispatchable own-offer fallback as an operational authenticated skill when the relay would reject `/v1/needs` with `provider_access_denied`.
+
+Public Agent Cards still hide owner-only providers. Thus relay authority is preserved while spoofed transport metadata remains non-authoritative and own-offer discovery fallback cannot become execution evidence.
 
 ## Billing negative proof
 
@@ -93,22 +99,16 @@ MCP tools/call          = 0
 
 A2A metadata therefore cannot assign billing responsibility or downgrade provider billing policy.
 
-## Deterministic external lifecycle
-
-The independent process binds loopback on an ephemeral port, emits one structured ready record, serves MCP only through the public handler, counts executions independently, and on `SIGTERM`/`SIGINT` stops HTTP work, closes idle connections, awaits `handler.close()`, awaits HTTP close, then exits. Test teardown treats either exit code or terminating signal as a completed child lifecycle and escalates only after a bounded graceful deadline.
-
-External HTTP 500 responses are deliberately opaque (`mcp_fixture_error`); fixture exception details are not reflected to the remote caller.
-
-## Exact executable CI evidence
+## D-4 exact-head closure evidence
 
 ```text
-source/head: 0a40e635533f6a9623b19057b3320ba2a888f1f1
+source/head: 8e72ae54d029572539d3aa857c0e48385084e5db
 PR:          #389
-CI run:      33262306180
-CodeQL run:  33262304786
+CI run:      33308824923
+CodeQL:      check-run 99250115376
 ```
 
-CI `33262306180`:
+CI `33308824923`:
 
 ```text
 DCO                         PASS
@@ -122,9 +122,16 @@ git diff --check            PASS
 
 GitHub Advanced Security CodeQL on the same exact source concluded `success` with **No new alerts in code changed by this pull request**.
 
-The repository's Cloudflare Workers GitHub App build is not an interoperability acceptance gate. It is also red on the already accepted Sprint C executable proof source `a435ed16e559226ed095959b7b95aa7067271302`; Sprint C's bounded acceptance uses DCO/core CI/CodeQL. Sprint D applies the same scope and does not reinterpret that unrelated deployment integration as protocol evidence.
+All PR review threads are resolved. The final two D-3 blockers were closed only after code changes landed and CI passed:
 
-Documentation commits after `0a40e635533f6a9623b19057b3320ba2a888f1f1` do not replace it as the exact executable proof. PR `#389` must still pass normal exact-head DCO/core-CI/CodeQL after this final record is synchronized, then merge, then pass post-merge exact-`main` verification before Sprint D itself is called closed.
+- `adapters/a2a/server.js` excludes non-dispatchable own-offer fallback from authenticated operational visibility;
+- `tests/interoperability-independent-mcp.test.js` fails teardown on dirty/nonzero external MCP fixture shutdown.
+
+## Cloudflare Workers GitHub App scope
+
+The repository ruleset `Protect main` requires only GitHub Actions contexts `DCO` and `test` for merge. The external `Workers Builds: truyn` check is produced by the installed Cloudflare GitHub App and is not a Sprint D acceptance, security or merge gate.
+
+The Cloudflare check currently fails before producing repository-visible logs because this repository is not a Worker deployment package: it has no `wrangler.toml` or Cloudflare Worker entrypoint. Adding a placeholder Worker only to make the external app green would risk changing/deploying the `truyn` Worker service without proving Sprint D protocol behavior. Therefore Sprint D closure removes Cloudflare from the release gate and leaves Cloudflare remediation to Cloudflare-side configuration: disconnect the `truyn` Worker Git integration, limit the integration to the actual Worker source repository/path, or add a real Worker deployment config in a separate deployment PR.
 
 ## Relationship to C7 and Sprint C
 
