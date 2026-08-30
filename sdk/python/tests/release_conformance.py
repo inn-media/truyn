@@ -1,13 +1,26 @@
 from __future__ import annotations
 
+import os
 import sys
 import time
 
+from truyn.client import TruynClient
 from truyn.local_node import TruynLocalNodeClient, _request_json, create_envelope
 
 if len(sys.argv) != 2:
     raise SystemExit('relay URL is required')
 relay_url = sys.argv[1]
+descriptor_url = os.environ.get('TRUYN_CONFORMANCE_DESCRIPTOR_URL')
+descriptor_public_key = os.environ.get('TRUYN_CONFORMANCE_DESCRIPTOR_PUBLIC_KEY')
+descriptor_identity = os.environ.get('TRUYN_CONFORMANCE_DESCRIPTOR_IDENTITY')
+if not descriptor_url or not descriptor_public_key or not descriptor_identity:
+    raise SystemExit('descriptor conformance fixture is required')
+verified_descriptor = TruynClient(relay_url).fetch_agent_descriptor(descriptor_url, public_key_pem=descriptor_public_key)
+assert verified_descriptor['descriptor']['identity'] == descriptor_identity
+assert verified_descriptor['selection']['protocol'] == 'TRUYN/1'
+assert verified_descriptor['selection']['interface']['type'] == 'https'
+assert verified_descriptor['signer']['keyBinding'] == 'identity'
+
 provider = TruynLocalNodeClient.connect(relay_url, name='python-provider')
 requester = TruynLocalNodeClient.connect(relay_url, name='python-requester')
 capability = f'sdk.release.python.{time.time_ns()}'
