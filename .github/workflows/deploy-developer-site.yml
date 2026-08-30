@@ -1,0 +1,54 @@
+name: Deploy developer site
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-developer-site.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: truyn-developer-site
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy GitHub Pages
+    if: github.repository == 'inn-media/truyn'
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout accepted main
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Verify developer-site source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f docs/index.html
+          test -f docs/developer-site/index.html
+          test -f docs/.nojekyll
+          grep -F 'TRUYN / Developers' docs/developer-site/index.html >/dev/null
+          ! grep -Eqi 'api[_-]?key[[:space:]]*=|bearer[[:space:]]+[A-Za-z0-9._-]{12,}' docs/developer-site/index.html
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload developer site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs
+
+      - name: Deploy developer site
+        id: deployment
+        uses: actions/deploy-pages@v4
