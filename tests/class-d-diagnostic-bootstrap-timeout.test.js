@@ -15,13 +15,16 @@ test('diagnostic bootstrap patch changes only refresh transport execution policy
   assert.equal(run.status, 0, run.stderr || run.stdout);
 
   const after = await readFile(target, 'utf8');
-  const original = before.match(/refresh_result=\\\$\(curl -fsS --max-time 120 .*\/dht\/refresh\)/)?.[0];
+  const original = before
+    .split('\n')
+    .find((line) => line.includes('refresh_result=\\$(curl -fsS --max-time 120 ') && line.includes('/dht/refresh'))
+    ?.trimStart();
   assert.ok(original, 'strict provisioner refresh transport line must exist');
 
   assert.match(after, /for refresh_attempt in 1 2 3; do/);
-  assert.match(after, /refresh_result=\\\$\(curl -fsS --max-time 300 .*\/dht\/refresh\)/);
+  assert.ok(after.includes('refresh_result=\\$(curl -fsS --max-time 300 '), 'diagnostic refresh attempt must retain the bounded 300s transport timeout');
   assert.match(after, /TRUYN_D200_BOOTSTRAP_REFRESH_RETRY/);
-  assert.doesNotMatch(after, /refresh_result=\\\$\(curl -fsS --max-time 120 .*\/dht\/refresh\)/);
+  assert.equal(after.includes('refresh_result=\\$(curl -fsS --max-time 120 '), false, 'diagnostic copy must replace the strict 120s transport line');
 
   const start = after.indexOf("refresh_result=''");
   const endMarker = '  [[ "\\$refresh_rc" -eq 0 ]]';
