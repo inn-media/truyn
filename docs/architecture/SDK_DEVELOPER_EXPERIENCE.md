@@ -1,10 +1,11 @@
 # TRUYN SDK and Developer Experience Architecture
 
-**Status:** implemented bounded first-party SDK/runtime program with remaining parity/publication gates.  
-**DX-3 synchronized through:** `main@ef61e4876617aa4099b5ddbdbbf3f24b1e6e7fcd` / PR `#378`.  
-**Protocol:** `TRUYN/1` draft
+**Status:** Developer Release Layer implementation complete in source/build form; native registry publication and public-site activation remain external release gates.  
+**Developer Release PR:** `#399`  
+**Protocol:** `TRUYN/1` draft  
+**Stable SDK API contract:** `1` (separate from protocol stability)
 
-The old “SDK scaffolding only” and “local cancellation only” descriptions are obsolete. TypeScript/JavaScript and Python reference clients are implemented in bounded form; the portable object/artifact payload slice is aligned across TypeScript, Python, Go, Java and C#/.NET; and the direct-NEED cancellation/PARTIAL runtime lifecycle is merged. Full five-language client parity, publication and stable ecosystem compatibility remain open.
+The old “SDK scaffolding only” and “portable payload slice only” descriptions are obsolete. TypeScript/JavaScript, Python, Go, Java and C#/.NET now have implemented first-party Developer Release clients and share one executable conformance path. Package artifacts and provenance are built in ordinary CI. Public registry publication is intentionally not claimed until registry ownership/trusted-publishing bootstrap is complete.
 
 ## Target developer experience
 
@@ -13,7 +14,7 @@ install SDK
     ↓
 configure/connect to a TRUYN node/gateway
     ↓
-load/verify supported identity/descriptor information
+fetch + verify Agent Descriptor / identity information
     ↓
 discover authorized capabilities
     ↓
@@ -22,55 +23,82 @@ publish OFFER / submit NEED / receive PARTIAL* / RESULT
 consume references/events/provenance safely
 ```
 
-`PARTIAL*` is available for direct fast NEED runtime streaming where supported. SDKs are clients of TRUYN; they do not redefine TRUYN and are never authorization bypasses.
+`PARTIAL*` is available for direct fast NEED runtime streaming where supported. SDKs are clients of TRUYN; they do not redefine authorization, provider ownership or billing authority.
 
 ## Required first-party SDK matrix
 
-| Language | Repository target | Publication target | Current state |
+| Language | Repository target | Distribution coordinate | Developer Release state |
 |---|---|---|---|
-| TypeScript / JavaScript | `sdk/typescript/` | npm | **Implemented bounded reference client; stable API-v1 primitives and DX-3 runtime surface** |
-| Python | `sdk/python/` | PyPI | **Implemented bounded reference client; stable API-v1 primitives** |
-| Go | `sdk/go/` | Go module | **Portable object/artifact payload parity slice + compiler gate implemented; broader client parity/publication open** |
-| Java | `sdk/java/` | Maven-compatible | **Portable object/artifact payload parity slice + compiler gate implemented; broader client parity/publication open** |
-| C# / .NET | `sdk/dotnet/` | NuGet | **Portable object/artifact payload parity slice + compiler gate implemented; broader client parity/publication open** |
+| TypeScript / JavaScript | `sdk/typescript/` | npm `@truyn/sdk@0.1.0-alpha.1` | **Implemented client + Descriptor verification + executable conformance** |
+| Python | `sdk/python/` | PyPI `truyn-sdk==0.1.0a1` | **Implemented client + Descriptor verification + executable conformance** |
+| Go | `sdk/go/` | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance** |
+| Java | `sdk/java/` | Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance** |
+| C# / .NET | `sdk/dotnet/` | NuGet `Truyn.Sdk 0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance** |
 | Rust | `sdk/rust/` | optional | optional secondary track |
 
-All first-party SDK code is Apache-2.0 and subject to repository NOTICE/DCO/conformance requirements.
+The coordinates above identify the intended immutable alpha release line. `publicDistribution=false` remains correct until each native public registry location is actually observed and bound to release evidence.
 
-## Common logical SDK surface
+## Common Developer Release contract
 
-The long-term common contract is:
+All five required first-party SDKs cover the same bounded semantics:
+
+- local Ed25519 identity creation;
+- TRUYN envelope signing and received-event signature verification;
+- relay registration and authenticated session use;
+- authorized capability discovery;
+- `OFFER` publication;
+- `NEED` submission and provider-side verified NEED consumption;
+- correlated signed `RESULT` return and requester verification;
+- requester-owned direct NEED cancellation through signed `REVOKE`;
+- stable API-v1 object/artifact reference shapes;
+- normalized fail-closed errors;
+- Agent Descriptor HTTP retrieval, validation, identity-key signature verification and protocol/interface negotiation.
+
+Language syntax may differ. Semantic and security behavior may not.
+
+## Five-language executable conformance
+
+`sdk/conformance/run-five-language-e2e.mjs` is the Developer Release acceptance gate.
+
+It starts:
+
+1. one real local TRUYN relay;
+2. one HTTP Agent Descriptor fixture signed by a real ephemeral TRUYN Ed25519 identity;
+3. an independent provider/requester pair in each of TypeScript, Python, Go, Java and .NET.
+
+Every language must first retrieve the same signed Descriptor and prove:
+
+- `schema = truyn.agent-descriptor/v1`;
+- supported descriptor version;
+- unexpired validity window;
+- Descriptor identity matches the Ed25519 public key-derived TRUYN node identity;
+- signature verifies over the canonical unsigned Descriptor;
+- `TRUYN/1` protocol overlap exists;
+- an advertised interface can be negotiated.
+
+Then each language independently executes:
 
 ```text
-Client / NodeConnection
-Identity
-AgentDescriptor
-Capability
-Offer
-Need
-Partial / Result
-ObjectRef / ArtifactRef
-Event / stream
-Claim / Attest / TrustReceipt where supported
-Error / status taxonomy
-Compatibility metadata
+register provider + requester
+        ↓
+authorized OFFER
+        ↓
+NEED
+        ↓
+verified provider NEED event
+        ↓
+RESULT
+        ↓
+verified requester RESULT
+        ↓
+second direct NEED → requester-owned signed cancellation
 ```
 
-An SDK must preserve provider authorization, billing, correlation and integrity semantics; it cannot manufacture authority from application-supplied fields.
-
-## Accepted DX-3 slices
-
-The accepted DX-3 program is cumulative:
-
-- PR `#373` — stable API-v1 primitives for TypeScript/Python, authenticated relay event streaming, abortable SDK-local waits/event consumption, portable object/artifact payloads and developer-site source;
-- PR `#374` — portable object/artifact payload API alignment and compiler gates across Go/Java/.NET in addition to TypeScript/Python;
-- PR `#378` — direct NEED cancellation, signed ordered PARTIAL runtime streaming, provider AbortSignal propagation, bounded provider work/backpressure/shutdown and explicit terminal lifecycle semantics.
-
-“API-v1” identifies the bounded SDK surface. It does **not** mean TRUYN/1, all SDK packages or the public ecosystem have reached stable-v1 compatibility.
+This is executable network behavior, not DTO/marker parity.
 
 ## Cancellation boundary
 
-Local SDK cancellation and remote execution cancellation remain distinct, but both now exist in bounded form.
+Local SDK cancellation and remote execution cancellation remain distinct.
 
 ```text
 cancel local SDK wait / stop consuming event stream    implemented bounded behavior
@@ -82,86 +110,60 @@ For a direct NEED:
 
 - requester authority is checked at the relay;
 - OFFER and NEED revocation namespaces are explicit;
-- signed fast REVOKE uses the same bounded fast long-poll/WebSocket lifecycle channel as fast NEED work;
-- provider pending work can be removed before execution and in-flight work receives an `AbortSignal`;
-- built-in providers propagate the signal into upstream operations;
-- persistent Azure Sora / Vertex Veo jobs receive explicit bounded-retry remote cancellation;
-- a custom adapter that ignores its signal may continue computing, but late RESULT/PARTIAL output is rejected fail closed;
+- signed fast REVOKE uses the same bounded lifecycle channel as fast NEED work;
+- provider pending work can be removed before execution and in-flight work receives an `AbortSignal` where the language/runtime exposes it;
+- built-in providers propagate cancellation into upstream operations where supported;
+- late RESULT/PARTIAL output after terminal cancellation is rejected fail closed;
 - cancellation never grants provider authorization or changes billing responsibility.
-
-An independent upstream `AbortError` is a provider failure unless the lifecycle signal itself is actually aborted.
 
 ## Streaming boundary
 
-There are two implemented streaming concepts:
+Two streaming concepts are implemented:
 
 1. authenticated relay/event streaming for SDK consumers;
 2. signed compact `PARTIAL` delivery for provider partial results.
 
-The accepted PARTIAL contract provides:
+The PARTIAL contract provides correlation, strict zero-based monotonic sequence, idempotent identical retry, bounded backpressure, ordered terminal RESULT and fail-closed late/cross-request/cross-provider delivery.
 
-- stable compact wire type `T`;
-- provider/request correlation and signature verification;
-- strict zero-based monotonic sequence;
-- idempotent identical retry of the last acknowledged PARTIAL;
-- bounded relay/WebSocket backpressure without sequence advancement on rejected delivery;
-- ordered terminal RESULT behind accepted partials;
-- host-authoritative `partialCount`;
-- fail-closed post-terminal/cross-provider/cross-request delivery.
-
-`PARTIAL` is intentionally a **generic ordered delta/chunk** contract. It can transport model token deltas, but TRUYN does not prescribe a tokenizer, token identifier format or cross-provider tokenization convention. A future compatibility layer may standardize such conventions without changing the current factual claim that generic partial-result streaming is implemented.
-
-## Asynchronous fast request lifecycle
-
-A compact NEED submitted with `waitMs=0` can be observed through the requester-owned status path:
-
-```text
-GET /v1/fast/requests/:id
-TruynNode.compactRequestStatus(requestId)
-```
-
-The relay authorizes the requester against request ownership before returning bounded lifecycle metadata. Abandoned matched fast NEEDs expire to terminal `failed / request_expired`, release their reserved terminal capacity and reject late output.
-
-## Runtime bounds and supervision
-
-`TruynAdapterHost.start()` is the production lifecycle path. The accepted runtime includes:
-
-- bounded adapter concurrency and pending work, with `PROVIDER_BUSY` overflow;
-- bounded cancellation tombstones;
-- bounded relay event queues and WebSocket buffering;
-- bounded shutdown drain for non-cooperative adapters;
-- recoverable preservation/requeue of already-dequeued work;
-- fatal fast-loop visibility through `running=false`, `lastLoopError` and transport close;
-- terminal reservation/backpressure and bounded request expiry.
-
-These are reference/runtime guarantees, not a claim that every external provider SDK itself is cancellable or implements the same internal scheduler.
+`PARTIAL` remains a **generic ordered delta/chunk** contract. TRUYN does not prescribe a tokenizer, provider token ID format or universal token-delta vocabulary. A standardized cross-provider tokenizer/token-delta convention is optional future compatibility work and is not required for the Developer Release Layer.
 
 ## Object/artifact references
 
-SDK payloads should prefer references for large/immutable data rather than forcing large binary content into request envelopes.
+All five SDKs expose portable object/artifact payload semantics. Artifact payloads remain reference-oriented and preserve media type, byte count and digest fields without embedding arbitrary binary/base64 data or implicitly fetching remote URLs.
 
-The accepted reference boundary preserves:
+Provider authorization remains independent from artifact/reference visibility.
 
-- content identity/integrity metadata where required;
-- no implicit remote URL fetch;
-- no secret-bearing URL leakage;
-- provider authorization independent from reference visibility;
-- bounded materialization behavior;
-- provenance preserved through results.
+## TRUYN Agent Descriptor lifecycle
 
-This aligns with the accepted C6 A2A artifact-integrity rules without making A2A objects native TRUYN wire primitives.
+The bounded Descriptor lifecycle is now implemented end to end for the Developer Release profile.
 
-## TRUYN Agent Descriptor
+### Serving
 
-The TRUYN Agent Descriptor remains a draft native self-description/bootstrap contract. Parser/verifier conformance exists for accepted slices, but a complete production serving/discovery/signature/expiry lifecycle is not yet implemented end to end.
-
-Target public location remains:
+Provider runtime may expose:
 
 ```text
-https://<domain>/.well-known/truyn-agent.json
+GET /.well-known/truyn-agent.json
 ```
 
-A public Descriptor may contain only intentionally public interfaces/capability classes. It never grants access to a provider and must not expose credentials, private providers, privileged allowlists or secret-bearing URLs.
+Serving is **disabled by default** and requires explicit opt-in:
+
+```text
+TRUYN_PUBLIC_AGENT_DESCRIPTOR=1
+TRUYN_PUBLIC_AGENT_DESCRIPTOR_URL=https://agent.example/.well-known/truyn-agent.json
+TRUYN_PUBLIC_CAPABILITIES=reasoning.general,...
+```
+
+The runtime:
+
+- signs the Descriptor with the current TRUYN identity key;
+- sets issued/expiry timestamps with bounded TTL;
+- advertises only the intersection of actual runtime capabilities and the explicit public capability allowlist;
+- never derives authorization from the Descriptor;
+- does not expose private provider/backchannel/allowlist/quota/billing topology.
+
+### Discovery and verification
+
+First-party clients retrieve the Descriptor over explicit HTTP(S), validate schema/version/expiry, verify identity-key binding and Ed25519 signature, then negotiate protocol and interface. TypeScript/Python may resolve the identity key through the authenticated relay when appropriate; Go also supports authenticated relay key resolution when an explicit key is not supplied. Java/.NET helpers require an explicit trusted identity public key in the current alpha surface.
 
 Descriptor and dynamic `OFFER` remain separate:
 
@@ -173,50 +175,87 @@ Descriptor and dynamic `OFFER` remain separate:
 | grants provider authorization | never | never by itself; policy still decides |
 | stable protocol/interface hints | yes | secondary |
 
-## Conformance
+Delegated Descriptor-signing keys are not supported in the alpha contract; current verification binds directly to the TRUYN identity key.
 
-First-party SDKs must converge on shared semantic fixtures rather than language-specific interpretations. Conformance should cover at minimum:
+## Package build and release provenance
 
-- identity and capability representation;
-- NEED submission / RESULT correlation;
-- direct NEED cancellation authority and terminal behavior where supported;
-- PARTIAL ordering/idempotency/backpressure/terminal behavior where supported;
-- authorization/error semantics;
-- deadline/timeout behavior;
-- object/artifact references;
-- protocol/software/SDK compatibility metadata;
-- explicit failure for unsupported semantics such as chain-stage cancellation.
+Ordinary CI builds and verifies consumer distributions for all required ecosystems:
 
-Portable payload parity across five languages does not yet prove full five-language client/runtime parity.
+- npm tarball;
+- Python wheel + sdist;
+- Go module source bundle;
+- Maven binary/source/Javadoc/POM artifacts;
+- NuGet package.
+
+`sdk/release/dist/manifest.json` binds each artifact to:
+
+- exact source commit SHA;
+- package coordinate/version;
+- byte size;
+- SHA-256 digest.
+
+Release verification also checks LICENSE/NOTICE and forbidden-content boundaries. CI uploads the exact release bundle as immutable workflow evidence for the run.
+
+### Publication boundary
+
+Native public registry publication is **not performed by ordinary CI** and is not claimed by this PR. Registry ownership/trusted-publishing bootstrap must be complete first. The later release-infrastructure PR is defined in `sdk/release/PUBLISHING.md` and must use a protected `sdk-release` environment, immutable tag-only release flow, least privilege and exact-bundle verification.
+
+Do not add a permissive publication workflow or weaken the public-workflow allowlist to simulate completion.
+
+## Stable compatibility and migration policy
+
+`docs/compatibility/SDK_COMPATIBILITY.md` is the canonical migration policy. It defines:
+
+- independent package / SDK API / protocol / Descriptor version dimensions;
+- pre-v1 breaking-change rules;
+- stable-v1 semver target;
+- deprecation/removal rules;
+- explicit protocol/Descriptor negotiation failures;
+- migration checklist;
+- immutable package/source provenance requirement;
+- stable ecosystem gate.
+
+Stable SDK API contract v1 does not mean `TRUYN/1` itself is final or that the five packages are publicly stable.
 
 ## Security invariants
 
 SDKs MUST NOT:
 
 - bypass provider visibility/access/billing gates;
-- treat remote A2A/MCP metadata or transport authentication as TRUYN authority;
+- treat remote A2A/MCP metadata, Descriptor metadata or transport authentication as TRUYN authority;
 - serialize provider credentials into TRUYN network payloads;
 - automatically fetch arbitrary artifact URLs;
 - silently retry/fallback in a way that duplicates provider-side execution;
-- confuse local wait cancellation with remote direct-NEED cancellation;
 - generalize direct NEED cancellation to unsupported chain-stage cancellation;
 - accept cross-request/cross-provider RESULT or PARTIAL injection;
-- guess unknown required protocol semantics.
+- guess unknown required protocol or Descriptor semantics.
 
 ## Developer documentation/site
 
-External developer documentation must match this factual boundary: direct NEED cancellation and generic PARTIAL streaming are implemented bounded semantics; custom provider cancellation is cooperative; chain-stage cancellation is unsupported; tokenization format is not standardized; and no universal stable-v1/package-publication claim is made.
+`docs/developer-site/index.html` and `/docs` are the public developer-site source for the Developer Release profile. They describe the five-language alpha line, runtime surface, package coordinates, conformance, release provenance and compatibility boundary.
+
+A source tree being Pages-ready is not the same as a live deployment. Public site activation/liveness must be verified separately after the accepted PR is merged and repository/domain Pages settings are enabled.
 
 ## Remaining SDK/DX gates
 
-- [ ] complete native Agent Descriptor serving/discovery lifecycle;
-- [ ] broader Go first-party client parity;
-- [ ] broader Java first-party client parity;
-- [ ] broader C#/.NET first-party client parity;
-- [ ] required package publication and release provenance;
-- [ ] shared five-language client/runtime conformance gate;
-- [ ] stable compatibility/migration policy;
-- [ ] optional standardized cross-provider token-delta/tokenizer conventions beyond generic `PARTIAL`;
-- [ ] chain-stage cancellation only if/when a separate bounded protocol contract is defined and proven.
+### Developer Release Layer
 
-See `IMPLEMENTATION_STATUS.md` for repository-wide current status and `../../ROADMAP.md` for sequencing.
+- [x] full bounded Go relay client parity;
+- [x] full bounded Java relay client parity;
+- [x] full bounded C#/.NET relay client parity;
+- [x] shared five-language executable client/runtime conformance gate;
+- [x] package builds + exact source/digest release provenance;
+- [x] stable compatibility/deprecation/migration policy;
+- [x] bounded Agent Descriptor serving + five-language fetch/verify/negotiation lifecycle;
+- [ ] public native registry publication after external ownership/trusted-publishing bootstrap;
+- [ ] live public developer-site activation/liveness proof after merge/settings activation.
+
+### Optional / post-Developer-Release
+
+- [ ] standardized cross-provider token-delta/tokenizer convention beyond generic `PARTIAL`, only if ecosystem interoperability requires it;
+- [ ] chain-stage cancellation only if/when a separate bounded protocol contract is defined and proven;
+- [ ] delegated Descriptor-signing key/revocation profile only after portable proof and conformance exists.
+
+Therefore: **DX-3 runtime/API core is closed; the Developer Release implementation is source/build complete, while public distribution and live-site activation remain evidence-gated release operations rather than code-completeness claims.**
+
+See `IMPLEMENTATION_STATUS.md`, `../../ROADMAP.md`, `../compatibility/SDK_COMPATIBILITY.md` and `../../sdk/release/PUBLISHING.md`.
