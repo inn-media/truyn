@@ -2,9 +2,9 @@
 
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`; governance rules live in `GOVERNANCE.md` and `docs/governance/`.
 
-**Snapshot:** 2026-08-29  
-**Production/reference baseline:** `main@05120db7435ab00807484aa9b7c3ecf80211f8b0`  
-**SDK/DX synchronized through:** `main@ef61e4876617aa4099b5ddbdbbf3f24b1e6e7fcd` / PR `#378`  
+**Snapshot:** 2026-08-30  
+**Production/reference baseline:** `main@94c8253c8ce133919c6531805f16ef07ec7362ad` before active Developer Release PR `#399`  
+**SDK/DX active head:** PR `#399` (`feat/developer-release-layer`)  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
 **Sprint D exact executable proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
 **Protocol:** `TRUYN/1` draft
@@ -31,7 +31,7 @@ The project has not evolved strictly in numerical version order. Network scale, 
 | Trustability | **Implemented / benchmark-proven bounded slices** | production authority/revocation operations |
 | Provider security / BYOK | **Implemented fail-closed reference boundary** | richer tenant/account/entitlement operations |
 | A2A / MCP | **C1–C7 accepted; Sprint C independent A2A + Sprint D independent MCP black-box proven** | C8 security acceptance + integrity-verified external artifact/file profile + compatibility/stability policy |
-| SDK / DX | **TS/JS + Python reference clients; five-language portable payload slice; direct NEED cancellation + signed PARTIAL runtime lifecycle implemented / CI-proven through #378** | broader Go/Java/.NET client parity + publication, Agent Descriptor lifecycle, optional cross-provider tokenization conventions |
+| SDK / DX | **Developer Release source/build layer implemented in active PR #399: five required clients, signed Descriptor lifecycle, five-language executable conformance, package builds/provenance, compatibility policy** | native registry publication + live developer-site activation/evidence |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Settlement x402/AP2 | **Defined only** | later optional adapter implementation |
 | Mainnet | **Not productionized** | D-1000 + stabilization/operations/compatibility gates |
@@ -52,28 +52,7 @@ The project has not evolved strictly in numerical version order. Network scale, 
 
 ### Class D-1000 — OPEN
 
-The latest full pinned campaign is not accepted:
-
-```text
-tested source: 0e7f16c1ff74d85e9d4dbbc0fec9a35a0840f094
-exact CI: 32867819485
-exact CodeQL: 32867819162
-immutable preflight: 32868395311 = PASS
-preflight artifact digest: sha256:0beb64fd39ed59242113f66a1998a94ba406b5c055bbe6318a86e6bf61273795
-runtime bundle sha256: 6bbb128ba568f6a7dca033dd3e0b3373809577249c28dd4c6c2a6d180ae67ee4
-full run: 32869078719
-negative terminal record: #344
-result: FAIL
-campaign_rc: 1
-evaluator_rc: 99
-terminal_rc: 99
-recorded cleanup_confirmed: false
-recorded remainingResources: -1
-```
-
-The old `ee0732b5` host0-install issue is historical and no longer the current blocker. Remediation after `0e7f16c1` includes bootstrap/readiness checkpoint repair and merged PR `#367`, which finalizes FAIL evidence before cleanup. PR `#372` is active bounded diagnostic sizing work and may not weaken the strict accepted 20×50 topology or any acceptance predicate.
-
-A D-1000 PASS requires all of:
+The latest full pinned campaign is not accepted. A D-1000 PASS still requires all of:
 
 - [ ] 20 hosts × 50 = 1,000 real processes, identities and QUIC endpoints;
 - [ ] baseline routing `>=99%`;
@@ -94,84 +73,67 @@ No threshold, topology, evaluator, adversarial or safety weakening is allowed to
 
 ## A2A / MCP interoperability — v0.5 gate
 
-The old roadmap wording stopped at C3. Actual accepted state is now:
+Current accepted state:
 
 - [x] **C1** — MCP current-contract baseline;
 - [x] **C2** — general MCP discovery/import;
 - [x] **C3** — A2A Agent Card/server task facade;
-- [x] **C4** — A2A client/provider adapter + remote skill import, PR `#340`, merge `1735528461a04de60f9f8572b466a732a6f03c62`;
+- [x] **C4** — A2A client/provider adapter + remote skill import, PR `#340`;
 - [x] **C5** — bounded polling async lifecycle with exactly-one initial `SendMessage`, PR `#352`;
 - [x] **C6** — artifact integrity/no-implicit-SSRF/provenance hardening, PR `#368`;
-- [x] **C7** — both `A2A→TRUYN→MCP` and `MCP→TRUYN→A2A` are **Implemented / bounded CI-proven** by `tests/interoperability-bidirectional.test.js`, PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a`, with exactly-once remote execution assertions;
-- [ ] **C8** — complete adversarial cross-protocol security matrix, active PR `#369`.
+- [x] **C7** — both `A2A→TRUYN→MCP` and `MCP→TRUYN→A2A` bounded CI-proven by `tests/interoperability-bidirectional.test.js`, PR `#357`;
+- [ ] **C8** — complete adversarial cross-protocol security matrix.
 
 ### C8 acceptance
 
-C8 may close only with exact-head evidence for:
-
-- authorization/visibility in both directions;
-- requester/provider-owner/billing anti-spoofing;
-- request/message/task/context/result correlation attacks;
-- wrong versions, malformed JSON-RPC, response-id/cross-origin/redirect/header/timeout/size negatives;
-- C6 artifact tampering/size/base64/URL/SSRF/provenance negatives;
-- zero unauthorized remote executions for negative cases;
-- exactly one remote execution for valid cases;
-- full `npm test`, `git diff --check`, DCO and CodeQL PASS;
-- post-merge exact-main ordinary CI + CodeQL PASS.
+C8 may close only with exact-head evidence for authorization/visibility, authority anti-spoofing, correlation attacks, protocol/transport negatives, artifact integrity/SSRF/provenance negatives, zero unauthorized remote executions, exactly-one valid remote execution, full tests/DCO/CodeQL, and post-merge exact-main security evidence.
 
 ### Adoption proof after C7
 
-C7 is real bounded bridge evidence. The independent SDK adoption proofs are now symmetric:
-
-- [x] **Sprint C** — exercise `MCP→TRUYN→A2A` against an independent A2A SDK/reference implementation: official A2A Project `@a2a-js/sdk@1.0.1`, separate-process Agent Card + JSON-RPC black box, exact core source `a435ed16e559226ed095959b7b95aa7067271302`, CI `33057289236`, CodeQL `33057286765`, durable record `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`;
-- [x] **Sprint D** — exercise `A2A→TRUYN→MCP` against official `@modelcontextprotocol/server@2.0.0` / MCP `2026-07-28` in a separate process using public `handler.fetch()` dispatch and `handler.close()` lifecycle. Positive execution is independently counted exactly once; TRUYN request correlation is exact; spoofed A2A requester/owner authority produces zero NEED and zero external execution; spoofed billing cannot override provider `prepaid` authority and is denied before `tools/call`; relay-level `trustedRequesterNodeIds` visibility remains authoritative. Exact executable source `0a40e635533f6a9623b19057b3320ba2a888f1f1`, CI `33262306180`, CodeQL `33262304786`, durable record `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md`;
+- [x] **Sprint C** — independent official A2A SDK/reference black-box proof;
+- [x] **Sprint D** — independent official MCP SDK/server black-box proof, durable record `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md`;
 - [ ] carry at least one integrity-verified referenced artifact/file through the claimed external profile;
-- [x] publish exact-version durable interoperability evidence for Sprint C and Sprint D external proofs;
+- [x] publish exact-version durable external interoperability evidence;
 - [ ] define a compatibility/stability policy before claiming stable A2A/MCP support.
 
-Sprint C + Sprint D are symmetric bounded external SDK adoption evidence. They do not close C8, do not prove ecosystem-wide certification, and do not make `TRUYN/1` Stable.
+Sprint C + Sprint D do not close C8, prove ecosystem-wide certification or make `TRUYN/1` Stable.
 
 ---
 
 ## SDK / developer experience
 
-### Closed/current
+### Closed / CI-proven implementation
 
-- [x] SDK/DX architecture and first-party language program;
-- [x] TypeScript/JavaScript reference client;
-- [x] Python reference client;
-- [x] shared conformance fixtures and real local-node NEED→RESULT evidence for accepted slices;
-- [x] Agent Descriptor parser/verifier conformance slice;
-- [x] **DX-3 API/payload/developer slice, PR #373**:
-  - stable API-v1 primitives for TypeScript/Python;
-  - authenticated relay event streaming with abortable waits;
-  - reference-only object/artifact payload support;
-  - conformance markers;
-  - external developer-site source;
-- [x] **Portable payload parity slice, PR #374**:
-  - object/artifact payload API alignment for Go/Java/.NET in addition to TypeScript/Python;
-  - compiler gates for Go/Java/.NET;
-- [x] **DX-3 runtime lifecycle, PR #378**, merged as `ef61e4876617aa4099b5ddbdbbf3f24b1e6e7fcd`:
-  - requester-owned direct NEED cancellation with explicit OFFER/NEED revoke namespaces;
-  - event-driven signed fast REVOKE on the same bounded fast lifecycle channel as NEED work;
-  - provider `AbortSignal` propagation, including bounded-retry remote cancellation for persistent Azure Sora / Vertex Veo jobs;
-  - signed compact `PARTIAL` (`T`) with correlation, strict ordering, idempotent retry, bounded queue/socket backpressure and terminal ordering;
-  - host-authoritative `partialCount` and fail-closed late/cross-request/cross-provider output;
-  - bounded provider concurrency/pending work/shutdown and visible fatal-loop semantics;
-  - owner-only async compact request status plus expiry/release of abandoned terminal reservations.
+- [x] SDK/DX architecture and five-language first-party program;
+- [x] TypeScript/JavaScript Developer Release client;
+- [x] Python Developer Release client;
+- [x] Go Developer Release relay client parity;
+- [x] Java Developer Release relay client parity;
+- [x] C#/.NET Developer Release relay client parity;
+- [x] stable SDK API-v1 bounded primitives;
+- [x] authenticated relay event streaming and direct NEED cancellation;
+- [x] signed compact generic `PARTIAL` runtime lifecycle;
+- [x] portable reference-only object/artifact payload parity;
+- [x] signed Agent Descriptor serving primitive at `/.well-known/truyn-agent.json`, default-off with explicit public capability allowlist;
+- [x] Agent Descriptor HTTP fetch, schema/version/expiry validation, identity-key Ed25519 verification and protocol/interface negotiation across all five required SDK languages;
+- [x] shared executable five-language conformance against one real local relay and one cryptographically identical signed Descriptor fixture;
+- [x] package builds for npm, PyPI, Go, Maven and NuGet;
+- [x] exact source SHA + byte size + SHA-256 release provenance manifest;
+- [x] compatibility, semver, deprecation and migration policy;
+- [x] Developer Pages source under `/docs`.
 
-### Open
+### External release/evidence gates still open
 
-- [ ] complete Agent Descriptor serving/discovery lifecycle;
-- [ ] broader Go first-party client parity;
-- [ ] broader Java first-party client parity;
-- [ ] broader C#/.NET first-party client parity;
-- [ ] package publication/release provenance for required languages;
-- [ ] stable cross-language compatibility policy and migration contract;
-- [ ] optional standardized cross-provider token-delta/tokenizer conventions beyond generic `PARTIAL`;
-- [ ] chain-stage cancellation only if a separate bounded protocol contract is defined and proven.
+- [ ] native public registry publication for npm/PyPI/Go/Maven/NuGet after namespace ownership/trusted-publishing bootstrap and separate security-reviewed release-infrastructure PR;
+- [ ] live public developer-site activation/liveness proof after accepted merge and Pages/domain settings activation.
 
-Direct NEED cancellation is implemented, but custom adapter cancellation remains cooperative: an adapter that ignores its `AbortSignal` may keep computing while the relay still rejects its late output. `PARTIAL` is a generic ordered delta/chunk contract and may carry token deltas; TRUYN does not prescribe provider tokenizer semantics.
+### Optional / separate future contracts
+
+- [ ] standardized cross-provider token-delta/tokenizer convention beyond generic `PARTIAL` only if ecosystem interoperability requires it;
+- [ ] chain-stage cancellation only if a separate bounded protocol contract is defined and proven;
+- [ ] delegated Agent Descriptor signing/revocation only after portable proof/conformance exists.
+
+`PARTIAL` is intentionally generic; TRUYN does not prescribe provider tokenizer semantics. A public Agent Descriptor never grants provider authorization.
 
 ---
 
@@ -227,7 +189,7 @@ Before a stable mainnet claim, the project still needs at minimum:
 - [ ] accepted D-1000;
 - [ ] production lifecycle/restart/update/rollback and operational SLO closure;
 - [ ] external interoperability profile and compatibility policy;
-- [ ] required SDK parity/publication and migration policy;
+- [ ] **public** five-language package publication and released-version ecosystem evidence;
 - [ ] production identity/tenant/entitlement/accounting operations appropriate to the deployment model;
 - [ ] explicit stable TRUYN protocol/node compatibility contract.
 
