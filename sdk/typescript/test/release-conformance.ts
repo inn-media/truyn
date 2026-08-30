@@ -1,8 +1,20 @@
 import assert from 'node:assert/strict';
+import { TruynClient } from '../src/client.ts';
 import { TruynLocalNodeClient } from '../src/local-node.ts';
 
 const relayUrl = process.argv[2];
 if (!relayUrl) throw new Error('relay URL is required');
+const descriptorUrl = process.env.TRUYN_CONFORMANCE_DESCRIPTOR_URL;
+const descriptorPublicKey = process.env.TRUYN_CONFORMANCE_DESCRIPTOR_PUBLIC_KEY;
+const descriptorIdentity = process.env.TRUYN_CONFORMANCE_DESCRIPTOR_IDENTITY;
+if (!descriptorUrl || !descriptorPublicKey || !descriptorIdentity) throw new Error('descriptor conformance fixture is required');
+
+const descriptorClient = new TruynClient({ relayUrl });
+const verifiedDescriptor = await descriptorClient.fetchAgentDescriptor(descriptorUrl, { publicKeyPem: descriptorPublicKey });
+assert.equal(verifiedDescriptor.descriptor.identity, descriptorIdentity);
+assert.equal(verifiedDescriptor.selection.protocol, 'TRUYN/1');
+assert.equal(verifiedDescriptor.selection.interface.type, 'https');
+assert.equal(verifiedDescriptor.signer.keyBinding, 'identity');
 
 const provider = await TruynLocalNodeClient.connect({ relayUrl, name: 'typescript-provider' });
 const requester = await TruynLocalNodeClient.connect({ relayUrl, name: 'typescript-requester' });
