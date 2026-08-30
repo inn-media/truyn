@@ -9,6 +9,13 @@ public final class ConformanceMain {
   public static void main(String[] args) {
     if (args.length != 1) throw new IllegalArgumentException("relay URL is required");
     URI relay = URI.create(args[0]);
+    String descriptorUrl = System.getenv("TRUYN_CONFORMANCE_DESCRIPTOR_URL");
+    String descriptorPublicKey = System.getenv("TRUYN_CONFORMANCE_DESCRIPTOR_PUBLIC_KEY");
+    String descriptorIdentity = System.getenv("TRUYN_CONFORMANCE_DESCRIPTOR_IDENTITY");
+    if (descriptorUrl == null || descriptorPublicKey == null || descriptorIdentity == null) throw new IllegalArgumentException("descriptor conformance fixture is required");
+    AgentDescriptors.Verified descriptor = AgentDescriptors.fetch(URI.create(descriptorUrl), descriptorPublicKey);
+    if (!descriptorIdentity.equals(descriptor.descriptor().identity()) || !"TRUYN/1".equals(descriptor.selection().protocol()) || !"https".equals(descriptor.selection().interfaceValue().get("type")) || !"identity".equals(descriptor.signer().keyBinding())) throw new AssertionError("invalid Agent Descriptor verification");
+
     TruynClient provider = TruynClient.connect(relay, "java-provider");
     TruynClient requester = TruynClient.connect(relay, "java-requester");
     String capability = "sdk.release.java." + UUID.randomUUID();
