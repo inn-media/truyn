@@ -2,56 +2,61 @@
 
 **Release line:** `0.1.0-alpha.1` (`0.1.0a1` on PyPI)  
 **Canonical repository:** `inn-media/truyn`  
-**Planned publication workflow identity:** `.github/workflows/publish-sdk-alpha.yml` / workflow filename `publish-sdk-alpha.yml`  
-**Planned protected GitHub Environment:** `sdk-release`  
+**Publication workflow:** `.github/workflows/publish-sdk-alpha.yml` / workflow filename `publish-sdk-alpha.yml`  
+**Protected publication environment:** `sdk-release`  
+**Canonical release tag:** `sdk/go/v0.1.0-alpha.1`  
 **Protocol status:** `TRUYN/1` draft
 
-A release is publishable only from an exact merged commit for which ordinary CI, DCO, CodeQL/security, five-language executable conformance and `sdk/release/build-release.sh` are green. GitHub Actions artifacts are evidence/build outputs, not substitutes for native package registries.
+The repository-side release pipeline is implemented. Native registry publication remains accepted only when the external registry identities/ownership described below are configured and the immutable tag-triggered workflow completes successfully.
 
-The publication workflow is intentionally **not present in this developer-release PR**. Registry ownership and trusted-publishing identities MUST be bootstrapped first. After that bootstrap, a separate security-reviewed release-infrastructure PR may add exactly one public workflow named `publish-sdk-alpha.yml`, explicitly permit only that filename in the public-workflow guard, and bind publication to the protected `sdk-release` environment and an immutable release tag. Ordinary `ci.yml` MUST remain non-publishing.
+A release is publishable only from an exact accepted commit for which ordinary CI, DCO, CodeQL/security, five-language executable conformance and `sdk/release/build-release.sh` are green. GitHub Actions artifacts are evidence/build outputs, not substitutes for native package registries.
+
+The publication workflow is intentionally isolated from ordinary `ci.yml` and has no `workflow_dispatch`, `pull_request` or `pull_request_target` entrypoint. It is triggered only by the exact immutable tag `sdk/go/v0.1.0-alpha.1`. The build job re-runs five-language executable conformance, rebuilds the consumer distributions, verifies `sdk/release/dist/manifest.json` against the exact Git SHA and uploads the exact release bundle. Native publisher jobs consume that accepted source/bundle and are bound to the `sdk-release` GitHub Environment.
 
 ## Package identities
 
-| Ecosystem | Package/module | Version |
-|---|---|---|
-| npm | `@truyn/sdk` | `0.1.0-alpha.1` |
-| PyPI | `truyn-sdk` | `0.1.0a1` |
-| Go modules | `github.com/inn-media/truyn/sdk/go` | `v0.1.0-alpha.1` |
-| Maven | `org.truyn:truyn-sdk` | `0.1.0-alpha.1` |
-| NuGet | `Truyn.Sdk` | `0.1.0-alpha.1` |
+| Ecosystem | Package/module | Version | Publication mechanism |
+|---|---|---|---|
+| npm | `@truyn/sdk` | `0.1.0-alpha.1` | GitHub OIDC trusted publishing |
+| PyPI | `truyn-sdk` | `0.1.0a1` | PyPI Trusted Publisher / GitHub OIDC |
+| Go modules | `github.com/inn-media/truyn/sdk/go` | `v0.1.0-alpha.1` | immutable VCS subdirectory tag |
+| Maven Central | `org.truyn:truyn-sdk` | `0.1.0-alpha.1` | Central Publisher Portal token + PGP signatures |
+| NuGet | `Truyn.Sdk` | `0.1.0-alpha.1` | nuget.org Trusted Publishing / GitHub OIDC |
 
 ## Canonical source/tag rule
 
-The Go module lives in the `sdk/go` subdirectory, so its VCS release tag is:
+The Go module lives in the `sdk/go` subdirectory, therefore the one release tag for this alpha is:
 
 ```text
 sdk/go/v0.1.0-alpha.1
 ```
 
-The tag MUST point to the exact accepted release commit after the release-infrastructure gate is green. Never move or reuse a release tag and never overwrite a native registry version.
+The tag MUST point to the exact release commit after the release-infrastructure PR has passed DCO, ordinary CI and CodeQL/security. Never move or reuse the tag. Never overwrite or rebuild a native registry version from a different source SHA.
+
+`publish-sdk-alpha.yml` verifies both `GITHUB_REF` and `git rev-parse HEAD` before any release package is built. Go publication is represented by the same immutable subdirectory tag, while the other four ecosystems publish from that exact tagged source.
 
 ## npm trusted publishing
 
 Target: public package `@truyn/sdk` on npm.
 
-One-time account/ownership bootstrap outside this repository:
+External ownership bootstrap required once:
 
-1. The npm organization/scope `truyn` must exist and the release owner must have publish permission.
-2. If `@truyn/sdk` does not yet exist, create the first public package version through an npm owner-authorized bootstrap publication (`--access public`); npm trusted-publisher configuration is package-scoped and cannot establish ownership of a namespace by itself.
-3. After the package exists, configure GitHub Actions trusted publishing for:
+1. The npm `@truyn` scope must be owned by the TRUYN release owner.
+2. If `@truyn/sdk` does not yet exist, establish package ownership using npm's supported first-publication/bootstrap path.
+3. Configure the package trusted publisher for:
    - repository owner: `inn-media`
    - repository: `truyn`
    - workflow filename: `publish-sdk-alpha.yml`
    - environment: `sdk-release`
-4. After the trusted publisher is proven, disallow long-lived publishing tokens for the package.
+4. After trusted publishing is proven, do not retain a long-lived npm publishing token for this workflow.
 
-GitHub publication MUST use a hosted runner, a currently supported Node/npm pair that satisfies npm trusted-publishing requirements, request only the permissions required by the publishing mechanism (including `id-token: write` where OIDC is used), and run `npm publish --access public` from the verified package tree. The package `repository.url` must continue to identify `https://github.com/inn-media/truyn.git`.
+The workflow uses Node 24, requires npm >= 11.5, requests `id-token: write`, and publishes the verified tarball with `--access public --provenance`. The package repository URL must continue to resolve to `https://github.com/inn-media/truyn.git`.
 
 ## PyPI trusted publishing
 
 Target: `truyn-sdk` on PyPI.
 
-PyPI supports a pending trusted publisher before the project exists. Configure once on PyPI with:
+PyPI can use a pending Trusted Publisher before the project exists. Configure once with:
 
 - PyPI project: `truyn-sdk`
 - GitHub owner: `inn-media`
@@ -59,7 +64,7 @@ PyPI supports a pending trusted publisher before the project exists. Configure o
 - workflow filename: `publish-sdk-alpha.yml`
 - environment: `sdk-release`
 
-Publication then uses GitHub OIDC (`id-token: write`) and `pypa/gh-action-pypi-publish` against the exact wheel/sdist produced by the release build.
+The workflow publishes the exact verified wheel/sdist through `pypa/gh-action-pypi-publish@release/v1` with GitHub OIDC and attestations. No PyPI API token is stored in the repository workflow.
 
 ## NuGet trusted publishing
 
@@ -71,53 +76,83 @@ Configure a nuget.org Trusted Publishing policy once with:
 - repository: `truyn`
 - workflow file: `publish-sdk-alpha.yml`
 - environment: `sdk-release`
+- nuget.org user/profile name available to the workflow as `NUGET_USER`
 
-The publishing job requests the OIDC permission required by NuGet Trusted Publishing, exchanges the GitHub identity through the supported NuGet login action, and pushes the exact `.nupkg` from the verified release bundle using the returned short-lived credential. No long-lived NuGet API key belongs in repository secrets.
+The workflow requests GitHub OIDC, exchanges it using `NuGet/login@v1` for a temporary API key, and pushes the exact `.nupkg`. It intentionally does not use `--skip-duplicate`: an immutable-version conflict is a release failure, not a successful retry.
 
-## Maven-compatible publication
+## Maven Central publication
 
 Target coordinates: `org.truyn:truyn-sdk:0.1.0-alpha.1`.
 
-The release bundle contains the binary JAR, sources JAR, Javadoc JAR and POM. A public Maven Central publication additionally requires the external Central account boundary: ownership/verification of the `org.truyn` namespace, publisher credentials/token and signing material required by Central. Those credentials/signing materials are intentionally not committed to the repository and must be scoped to the protected `sdk-release` environment or the narrowest supported external publisher boundary.
+Maven Central currently requires its external Central Publisher Portal account boundary. Before the tag is created:
 
-A Maven publish is accepted only when the registry resolves the exact coordinates and the published artifacts match the release manifest digests/signatures.
+1. verify/own the `org.truyn` namespace in Central;
+2. generate a Central Publisher Portal user token;
+3. configure the protected `sdk-release` environment with:
+   - `MAVEN_CENTRAL_USERNAME`
+   - `MAVEN_CENTRAL_TOKEN`
+   - `MAVEN_GPG_PRIVATE_KEY`
+   - `MAVEN_GPG_PASSPHRASE`
+4. ensure the public signing key is distributed so consumers can verify PGP signatures.
+
+The Java POM includes sources, Javadoc, PGP signing and the Central publishing plugin. The workflow imports the release key only inside the isolated publication job and executes the `central-release` Maven profile. Credentials/signing material are never committed to source or release bundles.
+
+A Maven release is accepted only after Central resolves the exact coordinates and the published binary/source/Javadoc/POM artifacts correspond to the accepted source/version.
 
 ## Go module publication
 
-Go requires no registry write credential. Once the exact release commit is accepted, create the immutable tag:
+Go requires no registry write credential. Public publication is the immutable Git tag:
 
 ```text
 sdk/go/v0.1.0-alpha.1
 ```
 
-The module path in `sdk/go/go.mod` is `github.com/inn-media/truyn/sdk/go`; the subdirectory tag is therefore the native release coordinate used by Go tooling/proxies.
+The module path in `sdk/go/go.mod` is `github.com/inn-media/truyn/sdk/go`. The publication workflow rechecks that coordinate and runs Go tests on the tagged source. Normal Go tooling/proxies can then resolve the module from the public repository/tag.
+
+## GitHub Environment gate
+
+All registry-write jobs use the `sdk-release` GitHub Environment. Repository administrators should configure environment protection before creating the release tag, including required reviewers where appropriate. External trusted-publisher policies should include the same environment name wherever supported.
+
+The environment boundary does not turn transport authentication into TRUYN authority and does not affect runtime/provider authorization. It exists only to protect software release publication.
 
 ## Release-infrastructure acceptance gate
 
-The later release-infrastructure PR is accepted only when all of the following are true:
+The release-infrastructure PR is accepted only when all repository-side predicates are true:
 
-- registry namespace/package ownership is verified for npm, PyPI, NuGet and Maven Central;
-- trusted-publishing/publisher identities are bound to `inn-media/truyn`, `publish-sdk-alpha.yml` and `sdk-release` where the registry supports that binding;
-- exactly one new public workflow, `publish-sdk-alpha.yml`, is added and exactly that filename is explicitly allowed by the public-workflow guard (no wildcard);
+- `.github/workflows/publish-sdk-alpha.yml` is the only native registry publication workflow;
 - ordinary `ci.yml` contains no registry publication path;
-- the publication workflow is tag-only and cannot be invoked through `workflow_dispatch` or `pull_request_target`;
-- permissions are least-privileged, with `contents: read` and `id-token: write` only for jobs that actually need OIDC;
-- the workflow consumes or rebuilds a release bundle bound to the exact accepted source SHA and verifies its manifest before registry writes;
-- the protected `sdk-release` environment gates registry publication;
-- DCO, ordinary CI and CodeQL/security are green on the exact release-infrastructure PR head.
+- publication is exact-tag-only and cannot be invoked through `workflow_dispatch`, `pull_request` or `pull_request_target`;
+- the build is bound to exact `GITHUB_SHA` and verifies the release manifest before registry writes;
+- npm/PyPI/NuGet use OIDC rather than long-lived publish tokens;
+- Maven Central secrets are referenced only inside the protected publication job;
+- `sdk-release` gates all registry-write jobs;
+- DCO, ordinary CI and CodeQL/security are green on the exact release-infrastructure PR head;
+- developer-site deployment remains a separate Pages workflow and cannot gain registry publication authority.
+
+The external publication acceptance predicates are separate and cannot be faked by repository source:
+
+- npm scope/package ownership and trusted publisher configured;
+- PyPI pending/existing Trusted Publisher configured;
+- NuGet trusted publishing policy and `NUGET_USER` configured;
+- Maven Central `org.truyn` namespace, token and PGP signing identity configured;
+- `sdk-release` environment protections configured;
+- immutable `sdk/go/v0.1.0-alpha.1` tag created on the exact accepted release commit;
+- tag-triggered workflow succeeds;
+- all five native coordinates resolve publicly and match the accepted release evidence.
 
 ## Release evidence
 
-For every language, keep or record:
+For every language record:
 
-- exact merged source SHA;
+- exact merged/tagged source SHA;
 - native package name/version;
 - package byte size;
 - SHA-256 from `sdk/release/dist/manifest.json`;
 - registry/version URL or Go VCS tag;
 - CI run proving five-language conformance and package verification;
-- CodeQL/security result for the same PR/release source;
-- publication workflow run and protected environment identity once publication is enabled;
-- no credentials/private keys/`.env`/repository internals inside distributions.
+- CodeQL/security result for the same release source;
+- tag-triggered publication workflow run;
+- protected environment identity for registry jobs;
+- confirmation that credentials/private keys/`.env`/private topology are absent from distributions.
 
-`publicDistribution` may become true only for a package whose native public location has been observed and whose bytes/version are bound back to the accepted release evidence.
+`publicDistribution` may become `true` only after the native public location has been observed and the published version has been bound back to this accepted release evidence.
