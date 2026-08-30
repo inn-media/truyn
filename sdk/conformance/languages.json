@@ -6,6 +6,7 @@
   "foundationalDtos": ["Identity", "AgentDescriptor", "Capability", "Offer", "Need", "Result", "ArtifactRef", "NormalizedError"],
   "dx3PortablePayloadKinds": ["object", "artifact"],
   "developerReleaseExecutableConformance": "sdk/conformance/run-five-language-e2e.mjs",
+  "agentDescriptorLifecycle": "signed-http-fetch-verify-negotiate",
   "languages": [
     {
       "id": "typescript",
@@ -13,7 +14,7 @@
       "status": "implemented-developer-release-client",
       "root": "sdk/typescript",
       "sourceFiles": ["sdk/typescript/src/types.ts", "sdk/typescript/src/client.ts", "sdk/typescript/src/local-node.ts", "sdk/typescript/src/descriptor.ts", "sdk/typescript/src/errors.ts", "sdk/typescript/src/stable-api.ts"],
-      "requiredMarkers": ["export interface Identity", "export interface AgentDescriptor", "export interface Offer", "export type ArtifactRef", "export interface NormalizedError", "TRUYN_SDK_STABLE_API_VERSION", "createObjectPayload", "createArtifactPayload", "streamTruynItems", "streamEvents", "TRUYN/1", "truyn.agent-descriptor/v1"],
+      "requiredMarkers": ["export interface Identity", "export interface AgentDescriptor", "export interface Offer", "export type ArtifactRef", "export interface NormalizedError", "TRUYN_SDK_STABLE_API_VERSION", "createObjectPayload", "createArtifactPayload", "streamTruynItems", "streamEvents", "fetchAgentDescriptor", "verifyAgentDescriptorSignature", "TRUYN/1", "truyn.agent-descriptor/v1"],
       "publicDistribution": false
     },
     {
@@ -22,7 +23,7 @@
       "status": "implemented-developer-release-client",
       "root": "sdk/python",
       "sourceFiles": ["sdk/python/src/truyn/client.py", "sdk/python/src/truyn/descriptor.py", "sdk/python/src/truyn/errors.py", "sdk/python/src/truyn/local_node.py", "sdk/python/src/truyn/stable_api.py"],
-      "requiredMarkers": ["class TruynClient", "fetch_agent_descriptor", "normalize_error", "TRUYN_SDK_STABLE_API_VERSION", "CancellationToken", "object_payload", "artifact_payload", "stream_items", "TRUYN/1", "truyn.agent-descriptor/v1"],
+      "requiredMarkers": ["class TruynClient", "fetch_agent_descriptor", "verify_agent_descriptor_signature", "normalize_error", "TRUYN_SDK_STABLE_API_VERSION", "CancellationToken", "object_payload", "artifact_payload", "stream_items", "TRUYN/1", "truyn.agent-descriptor/v1"],
       "publicDistribution": false
     },
     {
@@ -30,8 +31,8 @@
       "name": "Go",
       "status": "implemented-developer-release-client",
       "root": "sdk/go",
-      "sourceFiles": ["sdk/go/go.mod", "sdk/go/truyn.go", "sdk/go/truyn_test.go"],
-      "requiredMarkers": ["module github.com/inn-media/truyn/sdk/go", "type Client struct", "CreateLocalIdentity", "func Connect", "func (c *Client) Need", "func (c *Client) CancelNeed", "type Identity struct", "type AgentDescriptor struct", "type OfferPayload struct", "type NeedPayload struct", "type ResultPayload struct", "type ArtifactRef string", "type NormalizedError struct", "StableSDKAPIVersion", "type ObjectPayload struct", "type ArtifactPayload struct", "type StreamItem", "TRUYN/1", "truyn.agent-descriptor/v1"],
+      "sourceFiles": ["sdk/go/go.mod", "sdk/go/truyn.go", "sdk/go/descriptor.go", "sdk/go/truyn_test.go"],
+      "requiredMarkers": ["module github.com/inn-media/truyn/sdk/go", "type Client struct", "CreateLocalIdentity", "func Connect", "func (c *Client) Need", "func (c *Client) CancelNeed", "FetchAgentDescriptor", "VerifiedAgentDescriptor", "type Identity struct", "type AgentDescriptor struct", "type OfferPayload struct", "type NeedPayload struct", "type ResultPayload struct", "type ArtifactRef string", "type NormalizedError struct", "StableSDKAPIVersion", "type ObjectPayload struct", "type ArtifactPayload struct", "type StreamItem", "TRUYN/1", "truyn.agent-descriptor/v1"],
       "publicDistribution": false
     },
     {
@@ -39,8 +40,8 @@
       "name": "Java",
       "status": "implemented-developer-release-client",
       "root": "sdk/java",
-      "sourceFiles": ["sdk/java/pom.xml", "sdk/java/src/main/java/org/truyn/sdk/TruynClient.java", "sdk/java/src/main/java/org/truyn/sdk/TruynModels.java", "sdk/java/src/main/java/org/truyn/sdk/TruynException.java", "sdk/java/src/main/java/org/truyn/sdk/Json.java", "sdk/java/src/test/java/org/truyn/sdk/ConformanceMain.java"],
-      "requiredMarkers": ["artifactId>truyn-sdk</artifactId", "public final class TruynClient", "TruynClient connect", "cancelNeed", "record Identity", "record AgentDescriptor", "record OfferPayload", "record NeedPayload", "record ResultPayload", "record ArtifactRef", "record NormalizedError", "STABLE_SDK_API_VERSION", "record ObjectPayload", "record ArtifactPayload", "record StreamItem", "TRUYN/1", "truyn.agent-descriptor/v1"],
+      "sourceFiles": ["sdk/java/pom.xml", "sdk/java/src/main/java/org/truyn/sdk/TruynClient.java", "sdk/java/src/main/java/org/truyn/sdk/TruynModels.java", "sdk/java/src/main/java/org/truyn/sdk/TruynException.java", "sdk/java/src/main/java/org/truyn/sdk/Json.java", "sdk/java/src/main/java/org/truyn/sdk/AgentDescriptors.java", "sdk/java/src/test/java/org/truyn/sdk/ConformanceMain.java"],
+      "requiredMarkers": ["artifactId>truyn-sdk</artifactId", "public final class TruynClient", "TruynClient connect", "cancelNeed", "AgentDescriptors", "Agent Descriptor retrieval", "record Identity", "record AgentDescriptor", "record OfferPayload", "record NeedPayload", "record ResultPayload", "record ArtifactRef", "record NormalizedError", "STABLE_SDK_API_VERSION", "record ObjectPayload", "record ArtifactPayload", "record StreamItem", "TRUYN/1", "truyn.agent-descriptor/v1"],
       "publicDistribution": false
     },
     {
@@ -48,8 +49,8 @@
       "name": "C# / .NET",
       "status": "implemented-developer-release-client",
       "root": "sdk/dotnet",
-      "sourceFiles": ["sdk/dotnet/Truyn.Sdk.csproj", "sdk/dotnet/Client.cs", "sdk/dotnet/Crypto.cs", "sdk/dotnet/Models.cs", "sdk/dotnet/TruynException.cs", "sdk/dotnet/conformance/Program.cs"],
-      "requiredMarkers": ["<PackageId>Truyn.Sdk</PackageId>", "public sealed class TruynClient", "ConnectAsync", "CancelNeedAsync", "record Identity", "record AgentDescriptor", "record OfferPayload", "record NeedPayload", "record ResultPayload", "record ArtifactRef", "record NormalizedError", "class StableSdkApi", "record ObjectPayload", "record ArtifactPayload", "record StreamItem", "TRUYN/1", "truyn.agent-descriptor/v1"],
+      "sourceFiles": ["sdk/dotnet/Truyn.Sdk.csproj", "sdk/dotnet/Client.cs", "sdk/dotnet/Crypto.cs", "sdk/dotnet/Models.cs", "sdk/dotnet/AgentDescriptors.cs", "sdk/dotnet/TruynException.cs", "sdk/dotnet/conformance/Program.cs"],
+      "requiredMarkers": ["<PackageId>Truyn.Sdk</PackageId>", "public sealed class TruynClient", "ConnectAsync", "CancelNeedAsync", "AgentDescriptors", "Native Agent Descriptor retrieval", "record Identity", "record AgentDescriptor", "record OfferPayload", "record NeedPayload", "record ResultPayload", "record ArtifactRef", "record NormalizedError", "class StableSdkApi", "record ObjectPayload", "record ArtifactPayload", "record StreamItem", "TRUYN/1", "truyn.agent-descriptor/v1"],
       "publicDistribution": false
     }
   ]
