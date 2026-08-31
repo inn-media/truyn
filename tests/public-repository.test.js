@@ -199,7 +199,7 @@ test('public repository contains no known operational/cloud leakage or credentia
       // GitHub Actions run URLs are reproducibility evidence in sanitized benchmark reports.
       // They remain forbidden elsewhere because arbitrary run links can expose operational context.
       if (isBenchmarkEvidence && marker === 'github.com/inn-media/truyn/actions/runs/') continue;
-      if (content.includes(marker)) violations.push(`${file.relative}: forbidden operational marker category`);
+      if (content.includes(marker)) violations.push(`${file.relative}: forbidden operational marker category (${marker})`);
     }
     for (const pattern of forbiddenCredentialPatterns) {
       if (pattern.test(content)) violations.push(`${file.relative}: credential/private-key pattern detected`);
