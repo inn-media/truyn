@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { runClassD1000LocalSafetyProbes } from '../benchmarks/scale/class-d-1000-safety-probes.js';
 import {
   INVALID_SIGNATURE_REJECTION,
@@ -33,4 +37,20 @@ test('remote DHT probe mutates only the signature and recognizes only target sig
   assert.equal(isExpectedInvalidSignatureRejection(INVALID_SIGNATURE_REJECTION), true);
   assert.equal(isExpectedInvalidSignatureRejection('TRUYN_DHT_RPC_TIMEOUT'), false);
   assert.equal(isExpectedInvalidSignatureRejection('invalid_dht_record:dht_value_digest_mismatch'), false);
+});
+
+test('remote DHT probe executes main when invoked through the runtime benchmarks symlink', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'truyn-dht-probe-symlink-'));
+  try {
+    symlinkSync(resolve('benchmarks'), resolve(root, 'benchmarks'), 'dir');
+    const probe = resolve(root, 'benchmarks/scale/class-d-1000-remote-dht-probe.js');
+    const run = spawnSync(process.execPath, [probe], { encoding: 'utf8' });
+    assert.equal(run.status, 2, `stdout=${run.stdout}\nstderr=${run.stderr}`);
+    assert.equal(run.stdout, '');
+    const error = JSON.parse(run.stderr.trim());
+    assert.equal(error.ok, false);
+    assert.match(error.error, /^usage: class-d-1000-remote-dht-probe\.js /);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
