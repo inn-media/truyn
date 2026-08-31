@@ -40,7 +40,16 @@ tail = '''  out=$(remote "${VMS[$i]}" "$script")
 done
 readiness_ms=$(( $(date +%s%3N) - readiness_start_ms ))
 '''
-replacement = '''  (remote "${VMS[$i]}" "$script" >"$readiness_dir/$i") &
+replacement = r'''  readiness_result_file=/tmp/truyn-d200-readiness-result
+  wrapped_script="set -Eeuo pipefail
+result_file='$readiness_result_file'
+result_tmp=\"\${result_file}.tmp\"
+rm -f \"\$result_file\" \"\$result_tmp\"
+{
+${script}
+} | tee \"\$result_tmp\"
+mv \"\$result_tmp\" \"\$result_file\""
+  (remote "${VMS[$i]}" "$wrapped_script" >"$readiness_dir/$i") &
   readiness_pids+=("$!")
 done
 readiness_failed=0
@@ -51,8 +60,27 @@ if [[ "$readiness_failed" != 0 ]]; then
   rm -rf "$readiness_dir"
   false
 fi
+readiness_markers_present() {
+  local text="$1" key
+  for key in READINESS_READY READINESS_TOTAL READINESS_MIN_VALID READINESS_MAX_VALID READINESS_MIN_BUCKETS READINESS_MAX_BUCKETS READINESS_MIN_HOSTS READINESS_MAX_HOSTS; do
+    [[ -n "$(marker "$text" "$key")" ]] || return 1
+  done
+}
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$readiness_dir/$i")"
+  if ! readiness_markers_present "$out"; then
+    recovered=''
+    if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; cat /tmp/truyn-d200-readiness-result")"; then
+      :
+    fi
+    if ! readiness_markers_present "$recovered"; then
+      echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_observation_missing host=$i" >&2
+      rm -rf "$readiness_dir"
+      false
+    fi
+    out="$recovered"
+    echo "TRUYN_CLASS_D_1000 stage=readiness-observation-recovery host=$i mode=read-only status=PASS"
+  fi
   ready=$(marker "$out" READINESS_READY); total=$(marker "$out" READINESS_TOTAL)
   [[ "$ready" == "$NODES_PER_HOST" ]]
   [[ "$total" == "$NODES_PER_HOST" ]]
