@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +19,15 @@ export function mutateSignature(record = {}) {
 
 export function isExpectedInvalidSignatureRejection(reason) {
   return String(reason || '') === INVALID_SIGNATURE_REJECTION;
+}
+
+export function isExecutedEntry(argvPath, moduleUrl = import.meta.url) {
+  if (!argvPath) return false;
+  try {
+    return realpathSync(resolve(argvPath)) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
 }
 
 function parseQuicEndpoint(value) {
@@ -89,7 +99,7 @@ async function main() {
   process.exit(result.ok && result.acceptedCount === 0 ? 0 : 1);
 }
 
-const executed = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const executed = isExecutedEntry(process.argv[1]);
 if (executed) {
   main().catch((error) => {
     process.stderr.write(`${JSON.stringify({ ok: false, error: error?.message || String(error) })}\n`);
