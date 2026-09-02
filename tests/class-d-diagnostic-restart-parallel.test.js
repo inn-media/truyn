@@ -53,9 +53,23 @@ test('D-200 diagnostic restart patch disrupts five nodes per host in parallel wi
   for (const marker of ['stopP95Ms=', 'startP95Ms=', 'readyP95Ms=', 'recoveryP95Ms=']) {
     assert.ok(block.includes(marker), `expected aggregate diagnostic marker ${marker}`);
   }
+  for (const marker of ['STOP_MS', 'START_MS', 'READY_MS', 'RESTART_MS']) {
+    assert.ok(block.includes(`sed -n 's/^${marker}=//p'`), `expected exact-line parser for ${marker}`);
+  }
+  assert.equal(block.includes('marker "$out" START_MS'), false, 'START_MS must not use the suffix-matching shared marker helper');
   assert.ok(block.includes('mode=parallel-node-restart'), 'restart evidence must identify parallel node disruption');
   assert.equal(block.includes('TimeoutStopSec'), false, 'patch must not alter systemd/QUIC shutdown policy');
   assert.equal(block.includes('maxIdleTimeout'), false, 'patch must not alter core QUIC timing');
+
+  const markerCollision = spawnSync('bash', ['-c', `
+    set -Eeuo pipefail
+    out=$'STOP_MS=31\\nSTART_MS=7\\nREADY_MS=2\\nRESTART_MS=42'
+    start_ms=$(printf '%s\\n' "$out" | sed -n 's/^START_MS=//p' | tail -1)
+    restart_ms=$(printf '%s\\n' "$out" | sed -n 's/^RESTART_MS=//p' | tail -1)
+    printf '%s %s\\n' "$start_ms" "$restart_ms"
+  `], { encoding: 'utf8' });
+  assert.equal(markerCollision.status, 0, markerCollision.stderr || markerCollision.stdout);
+  assert.equal(markerCollision.stdout.trim(), '7 42', 'START_MS must remain distinct from RESTART_MS');
 
   // Reproduce the exact D-200 node-range normalization used by one-shot launchers.
   assert.equal((after.match(/seq 10 14/g) || []).length, 3, 'D-200 range patch precondition must remain exact');

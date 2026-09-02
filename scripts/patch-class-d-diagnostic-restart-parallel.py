@@ -95,10 +95,10 @@ ready_values=()
 recovery_values=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$restart_dir/$i")"
-  stop_ms=$(marker "$out" STOP_MS); [[ -n "$stop_ms" ]]; stop_values+=("$stop_ms")
-  start_ms=$(marker "$out" START_MS); [[ -n "$start_ms" ]]; start_values+=("$start_ms")
-  ready_ms=$(marker "$out" READY_MS); [[ -n "$ready_ms" ]]; ready_values+=("$ready_ms")
-  restart_ms=$(marker "$out" RESTART_MS); [[ -n "$restart_ms" ]]; recovery_values+=("$restart_ms")
+  stop_ms=$(printf '%s\n' "$out" | sed -n 's/^STOP_MS=//p' | tail -1); [[ -n "$stop_ms" ]]; stop_values+=("$stop_ms")
+  start_ms=$(printf '%s\n' "$out" | sed -n 's/^START_MS=//p' | tail -1); [[ -n "$start_ms" ]]; start_values+=("$start_ms")
+  ready_ms=$(printf '%s\n' "$out" | sed -n 's/^READY_MS=//p' | tail -1); [[ -n "$ready_ms" ]]; ready_values+=("$ready_ms")
+  restart_ms=$(printf '%s\n' "$out" | sed -n 's/^RESTART_MS=//p' | tail -1); [[ -n "$restart_ms" ]]; recovery_values+=("$restart_ms")
   echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i mode=parallel-node-restart stopMs=${stop_ms} startMs=${start_ms} readyMs=${ready_ms} restartMs=${restart_ms}"
 done
 rm -rf "$restart_dir"
