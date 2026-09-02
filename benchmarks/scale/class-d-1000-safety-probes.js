@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import { realpathSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createIdentity } from '../../core/identity/index.js';
 import { createAttestation, createClaim } from '../../core/claims/index.js';
 import { createDelegationCertificate, createSourceOwnerCertificate } from '../../core/trust/source-owner-pki.js';
@@ -162,7 +164,16 @@ export async function runClassD1000LocalSafetyProbes() {
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export function isExecutedEntry(argvPath, moduleUrl = import.meta.url) {
+  if (!argvPath) return false;
+  try {
+    return realpathSync(path.resolve(argvPath)) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
+}
+
+if (isExecutedEntry(process.argv[1])) {
   try {
     const result = await runClassD1000LocalSafetyProbes();
     process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
