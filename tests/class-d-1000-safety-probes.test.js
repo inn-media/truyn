@@ -22,6 +22,25 @@ test('D-1000 exact-commit safety probes reject stale receipts and foreign provid
   assert.equal(result.probes.providerAuthorization.handled, 1);
 });
 
+test('local safety probes execute main when invoked through the runtime benchmarks symlink', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'truyn-safety-probe-symlink-'));
+  try {
+    symlinkSync(resolve('benchmarks'), resolve(root, 'benchmarks'), 'dir');
+    const probe = resolve(root, 'benchmarks/scale/class-d-1000-safety-probes.js');
+    const run = spawnSync(process.execPath, [probe], { encoding: 'utf8' });
+    assert.equal(run.status, 0, `stdout=${run.stdout}\nstderr=${run.stderr}`);
+    const result = JSON.parse(run.stdout.trim());
+    assert.equal(result.ok, true);
+    assert.equal(result.staleRevokedReceiptAcceptedCount, 0);
+    assert.equal(result.unauthorizedProviderExecutionCount, 0);
+    assert.equal(result.probes.staleReceipt.reason, 'trust_receipt_v2_lifecycle_head_stale');
+    assert.equal(result.probes.providerAuthorization.accessDenied, true);
+    assert.equal(result.probes.providerAuthorization.handled, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('remote DHT probe mutates only the signature and recognizes only target signature rejection', () => {
   const record = {
     recordId: 'truyn:dht:test',
