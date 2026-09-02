@@ -16,13 +16,17 @@ function jobBlock(workflow, jobId) {
 
 test('CI enforces full-range DCO and release-package verification without registry publication', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
+  const permissionsMarker = '\npermissions:\n';
+  const permissionsStart = workflow.indexOf(permissionsMarker);
+  assert.notEqual(permissionsStart, -1, 'CI workflow is missing the top-level permissions block');
+  const triggerBlock = workflow.slice(0, permissionsStart);
   const dcoJob = jobBlock(workflow, 'dco');
   const testJob = jobBlock(workflow, 'test');
 
-  assert.match(workflow, /^  push:\n    branches:\n      - main$/m);
-  assert.match(workflow, /^  pull_request: \{\}$/m);
-  assert.doesNotMatch(workflow, /^  workflow_dispatch:/m);
-  assert.doesNotMatch(workflow, /^    tags:/m, 'ordinary CI must not become the SDK publication trigger');
+  assert.match(triggerBlock, /^  push:\n    branches:\n      - main$/m);
+  assert.match(triggerBlock, /^  pull_request: \{\}$/m);
+  assert.doesNotMatch(triggerBlock, /^  workflow_dispatch:/m);
+  assert.doesNotMatch(triggerBlock, /^    tags:/m, 'ordinary CI must not become the SDK publication trigger');
 
   assert.match(dcoJob, /^    name: DCO$/m);
   assert.match(dcoJob, /^    if: github\.event_name == 'pull_request'$/m);
