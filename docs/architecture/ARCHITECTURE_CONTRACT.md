@@ -2,8 +2,9 @@
 
 This document prevents architecture, implementation status, public documentation, governance and benchmark evidence from silently diverging.
 
-**Snapshot:** 2026-08-27  
-**Synchronized source:** `main@63e54cbe30d363ef4609732b512fe64ab860cf9d`
+**Snapshot:** 2026-09-03  
+**Synchronized source:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`
 
 ## Document authority
 
@@ -44,9 +45,11 @@ A2A and MCP are adapters, not TRUYN/1 wire dependencies. Current accepted bounde
 - A2A client/provider discovery/import (C4);
 - bounded polling lifecycle (C5);
 - A2A artifact integrity (C6);
-- both in-repository A2A↔TRUYN↔MCP round trips (C7).
+- both in-repository A2A↔TRUYN↔MCP round trips (C7);
+- independent official A2A SDK black-box proof for `MCP→TRUYN→A2A` (Sprint C);
+- independent official MCP SDK black-box proof for `A2A→TRUYN→MCP` (Sprint D).
 
-C8 complete adversarial acceptance remains open in PR `#369`. Independent external A2A/MCP reference-SDK interoperability and stable compatibility remain later adoption/stability gates.
+C8 complete adversarial acceptance remains open in PR `#369`. The independent external SDK proofs are bounded adoption evidence, not ecosystem-wide certification. An integrity-verified external referenced file/artifact round trip and a stable compatibility declaration remain later adoption/stability gates.
 
 ### Artifact integrity
 
@@ -54,11 +57,11 @@ Content/reference translation cannot silently weaken integrity. C6 requires boun
 
 ### Exactly-once side effects
 
-Polling, fallback, retries and protocol translation must not duplicate provider-side execution where an accepted profile claims exactly-once behavior. C5/C7 provide bounded positive proof; C8 owns the complete negative matrix.
+Polling, fallback, retries and protocol translation must not duplicate provider-side execution where an accepted profile claims exactly-once behavior. C5/C7 and the independent black-box proofs provide bounded positive evidence; C8 owns the complete cross-protocol negative matrix.
 
 ### Network scale
 
-Class C and Class D-100 are accepted bounded network gates. D-1000 is not accepted until one exact pinned 20×50 campaign satisfies all evaluator/terminal/safety/routing/recovery/cleanup predicates. A preflight PASS or successful cleanup cannot substitute for campaign acceptance.
+Class C and Class D-100 are accepted bounded network gates. D-1000 is not accepted until one exact pinned 20×50 campaign satisfies all evaluator/terminal/safety/routing/recovery/cleanup predicates. Current main includes bounded D-200 diagnostic/remediation work from PRs `#417` and `#418` plus the bounded packet-partition diagnostic patcher from PR `#419`; later one-shot launcher cleanup does not change those diagnostic sources. A preflight PASS, diagnostic success or successful cleanup cannot substitute for D-1000 campaign acceptance.
 
 ### Trustability
 
@@ -78,7 +81,7 @@ runtime/               executable provider/relay composition
 adapters/mcp/          MCP server/client protocol edge
 adapters/a2a/          A2A server/client/task/artifact protocol edge
 adapters/providers/    concrete/imported provider adapters
-sdk/                   first-party developer clients
+sdk/                   five-language first-party developer clients
 trust/                 Trustability runtime components
 storage/               persistent state/objects/index/cache
 spec/ + proto/         normative semantics + machine wire schema
@@ -88,7 +91,24 @@ A2A directories are implemented owners now; they are not future placeholders.
 
 ## SDK / DX ownership
 
-First-party SDKs consume TRUYN contracts; they do not bypass provider security or redefine the protocol. Current main includes TypeScript/JavaScript and Python reference clients and the merged DX-3 bounded runtime developer surface. Remote provider-side NEED cancellation, token-delta streaming, Go/Java/.NET parity and stable package/release compatibility remain incomplete.
+First-party SDKs consume TRUYN contracts; they do not bypass provider security or redefine the protocol. The Developer Release Layer is source/build complete on current main across TypeScript/JavaScript, Python, Go, Java and C#/.NET.
+
+The accepted bounded SDK/DX contract includes:
+
+- local Ed25519 identity creation and TRUYN envelope signing/verification;
+- authenticated relay registration/session use;
+- authorization-aware discovery;
+- `OFFER`, `NEED` and correlated `RESULT` flows;
+- requester-owned **direct NEED cancellation** through signed `REVOKE`, with ownership/late-output guarantees established by dedicated runtime negatives rather than the five-language E2E alone;
+- authenticated relay/event streaming;
+- signed generic ordered `PARTIAL` streaming with strict correlation/order/backpressure/terminal semantics;
+- portable reference-oriented object/artifact payloads;
+- default-off Agent Descriptor startup serving plus five-language canonical valid-profile HTTP fetch/schema/expiry/identity-signature/protocol-interface verification;
+- one executable five-language E2E conformance gate using a canonical valid signed Descriptor fixture;
+- per-commit npm/PyPI/Go/Maven/NuGet package builds with exact source SHA, byte size and SHA-256 provenance;
+- explicit compatibility/deprecation/migration policy.
+
+These implementation facts do **not** imply that `TRUYN/1` is stable, that packages are publicly published, or that the public developer site is live. The current provider runtime does not yet refresh/re-sign a served Descriptor before expiry; complete malformed/missing `interfaces[].endpoint` rejection parity across all clients remains open; generated-package verification does not content-scan every archived member; and ordinary CI artifacts under fixed alpha coordinates are per-commit verification artifacts rather than immutable tagged releases. Native registry publication and live-site activation/liveness remain separate release/evidence gates. Chain-stage cancellation, a standardized universal tokenizer/token-ID convention and delegated Descriptor-signing keys remain outside the accepted alpha contract.
 
 ## Public/private operations boundary
 
@@ -101,7 +121,7 @@ A change that materially advances an accepted subsystem should update the releva
 1. `IMPLEMENTATION_STATUS.md` must reflect the new factual state;
 2. `ROADMAP.md` must close/open the corresponding gate;
 3. compatibility documents must stop calling merged behavior “planned”;
-4. public README/index wording must not contradict canonical status;
-5. historical benchmark/changelog records remain immutable unless correcting factual errors in those records.
+4. public README/index/quickstart/security wording must not contradict canonical status;
+5. historical benchmark/changelog/acceptance records remain immutable unless correcting factual errors in those records.
 
-This synchronization rule is specifically intended to prevent the C3→C7 and D-1000 documentation drift that existed before the 2026-08-27 sanitation pass.
+This synchronization rule is specifically intended to prevent the C3→C7, Developer Release and D-1000 documentation drift seen in earlier snapshots.

@@ -1,11 +1,11 @@
 # TRUYN MVP — AI Interoperability
 
-**Snapshot:** 2026-08-27  
-**Synchronized source:** `main@63e54cbe30d363ef4609732b512fe64ab860cf9d`
+**Snapshot:** 2026-09-03  
+**Synchronized source:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`
 
-TRUYN now has working bounded interoperability across native TRUYN, MCP and A2A edges. The old statement that A2A and the bidirectional A2A↔TRUYN↔MCP bridge are only planned is obsolete.
+TRUYN has working bounded interoperability across native TRUYN, MCP and A2A edges. The old statements that A2A, the bidirectional A2A↔TRUYN↔MCP bridge or independent external SDK/reference-server interoperability are only planned are obsolete.
 
-This is still reference/MVP interoperability: it is not a stable-v1 external-protocol certification, a public mainnet claim or permission to consume another participant's provider account.
+This remains reference/bounded interoperability: it is not a stable-v1 ecosystem certification, a public mainnet claim or permission to consume another participant's provider account.
 
 ## Core execution model
 
@@ -97,11 +97,9 @@ remote Artifact/Message
 → TRUYN RESULT
 ```
 
-PR `#340` closed this reverse edge.
-
 ### Polling async lifecycle — C5
 
-Polling mode submits exactly one initial `SendMessage`, then uses bounded `GetTask` polling. Task/context substitution and invalid/interrupted states fail closed. Streaming/push and full remote cancellation equivalence are separate features.
+Polling mode submits exactly one initial `SendMessage`, then uses bounded `GetTask` polling. Task/context substitution and invalid/interrupted states fail closed. Full semantic equivalence to every external A2A push/stream/cancellation feature is not implied.
 
 ### Artifact integrity — C6
 
@@ -109,7 +107,7 @@ Accepted A2A artifact handling includes SHA-256, byte-size validation, canonical
 
 ## Bidirectional A2A ↔ TRUYN ↔ MCP proof — C7
 
-Both required in-repository round trips are now implemented and CI-proven in `tests/interoperability-bidirectional.test.js`.
+Both required in-repository round trips are implemented and CI-proven in `tests/interoperability-bidirectional.test.js`.
 
 ### A2A → TRUYN → MCP
 
@@ -139,31 +137,58 @@ MCP client
 
 The test requires exactly one remote A2A execution.
 
-C7 was merged in PR `#357` (`f04fcd1d4d72af85a6b97686c7c875388ef6038a`).
+## Independent external SDK black-box proofs — Sprint C/D
+
+The repository has also proved the claimed bridge against independent official SDK implementations running in separate processes.
+
+### Sprint C — independent A2A
+
+`MCP→TRUYN→A2A` is exercised against official A2A Project `@a2a-js/sdk@1.0.1`. The external process owns its own Agent Card/JSON-RPC request handler/task store; TRUYN does not substitute its own A2A server implementation.
+
+### Sprint D — independent MCP
+
+`A2A→TRUYN→MCP` is exercised against official `@modelcontextprotocol/server@2.0.0` through the SDK's public handler lifecycle. Targeted owner/requester/billing spoof negatives cause zero unauthorized external execution.
+
+These are bounded external interoperability proofs. They are not ecosystem-wide certification across all versions/transports/implementations.
 
 ## C8 security matrix — still open
 
-The bridge implementation exists, but the complete bounded adversarial acceptance matrix is not yet accepted. Active PR `#369` owns C8.
+The bridge implementation and independent positive proofs exist, but the complete bounded adversarial acceptance matrix is not yet accepted. PR `#369` owns C8.
 
 C8 must prove, in both directions, authorization/visibility, anti-spoofing, correlation attacks, protocol/transport negatives, C6 artifact tampering/SSRF/provenance cases, zero unauthorized remote execution and exactly-once valid execution. It must pass full suite, DCO, diff check, CodeQL and post-merge exact-main verification.
 
 Do not describe C8 as accepted until those gates pass.
 
-## SDK / DX
+## SDK / Developer Release
 
-The old “SDK scaffolding only” description is also obsolete. Current main contains first-party TypeScript/JavaScript and Python reference SDK work and merged DX-3 (PR `#373`). The current DX-3 bounded surface includes:
+The old “SDK scaffolding only”, “TypeScript/Python only”, “direct cancellation is future work” and “Go/Java/.NET parity is incomplete” descriptions are obsolete.
 
-- stable API-v1 primitives for TypeScript/Python;
-- authenticated relay event streaming with abortable waits;
-- reference-only object/artifact payloads;
-- conformance markers;
-- developer-site source.
+Current main contains implemented Developer Release clients for TypeScript/JavaScript, Python, Go, Java and C#/.NET. The bounded Developer Release surface includes:
 
-Remote provider-side NEED cancellation and token-delta streaming remain explicit follow-up work. Go, Java and .NET parity/publication are not yet complete.
+- stable SDK API-v1 primitives;
+- signed identity/envelope handling;
+- authenticated relay registration/session use;
+- authorization-aware discovery and OFFER/NEED/RESULT flows;
+- requester-owned direct NEED cancellation through signed `REVOKE`;
+- authenticated relay event streaming;
+- signed generic ordered `PARTIAL` streaming;
+- portable reference-oriented object/artifact payloads;
+- default-off Agent Descriptor startup serving plus five-language canonical valid-profile HTTP fetch/schema/expiry/signature verification and protocol/interface negotiation;
+- shared five-language executable conformance against the canonical valid signed Descriptor fixture;
+- npm/PyPI/Go/Maven/NuGet per-commit verification builds with exact source/digest provenance.
+
+The five-language E2E exercises a cancellation call from the owning requester; dedicated runtime negatives establish non-owner rejection and late-output behavior. The current provider runtime does not automatically refresh/re-sign its served Descriptor before expiry, and complete malformed/missing `interfaces[].endpoint` parity across all five clients is still open. Ordinary CI package artifacts are per-commit verification artifacts under the fixed alpha coordinates, not immutable tagged/native public releases.
+
+Native public registry publication and live public developer-site activation remain separate release/evidence gates. Chain-stage cancellation and a standardized universal tokenizer/token-ID convention are not part of the accepted alpha profile.
 
 ## Adoption-level proof still open
 
-After C8, the next interoperability proof should exercise the existing bridge against independent A2A and MCP SDK/reference implementations, plus an integrity-verified referenced artifact/file case. That is an adoption/certification step; it is not evidence that the C7 in-repository bridge is missing.
+Independent A2A and MCP SDK/reference-server interoperability is already proven for the claimed bounded directions. The remaining adoption work is:
+
+- finish C8;
+- carry at least one integrity-verified referenced file/artifact through the external profile;
+- preserve exact-version durable evidence for future external proofs;
+- define/accept stable compatibility policy before claiming stable A2A/MCP support.
 
 ## Verify locally
 
@@ -174,17 +199,24 @@ npm install --ignore-scripts --no-audit --no-fund
 npm test
 ```
 
+Five-language Developer Release E2E:
+
+```bash
+node sdk/conformance/run-five-language-e2e.mjs
+```
+
 Use deterministic/local fixtures for reproducible no-credential interoperability tests. Live provider tests require credentials controlled by the operator.
 
 ## Current boundary
 
-Implemented/reference-proven areas include identity, signed requests/results, provider authorization/BYOK, MCP C1/C2, A2A C3–C6, both C7 cross-protocol round trips, TypeScript/Python SDK slices and the merged DX-3 developer surface.
+Implemented/reference-proven areas include identity, signed requests/results, provider authorization/BYOK, MCP C1/C2, A2A C3–C6, both C7 cross-protocol round trips, independent official A2A/MCP SDK black-box proofs, and the source/build-complete five-language Developer Release client layer.
 
-Still open includes C8 complete adversarial acceptance, independent external A2A/MCP certification, broader optional protocol features, full SDK language parity/publication, richer production tenant/accounting operations, accepted D-1000 and stable mainnet/protocol compatibility.
+Still open includes C8 complete adversarial acceptance, external referenced file/artifact proof, Descriptor refresh and malformed-endpoint parity closure, immutable public package publication, live developer-site evidence, richer production tenant/accounting operations, accepted D-1000 and stable mainnet/protocol compatibility.
 
 See:
 
 - `../architecture/IMPLEMENTATION_STATUS.md` — canonical factual status;
 - `../architecture/A2A_MCP_INTEROPERABILITY.md` — architecture/invariants;
 - `../compatibility/A2A_MCP_COMPATIBILITY.md` — exact compatibility matrix;
+- `../architecture/SDK_DEVELOPER_EXPERIENCE.md` — Developer Release boundary;
 - `../../ROADMAP.md` — next gates.

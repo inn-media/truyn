@@ -1,169 +1,149 @@
 # TRUYN SDK Packaging and Versioning Policy
 
-**Status:** packaging plan / release policy.  
-**Current package state:** private/internal only. No public npm, PyPI, Go, Maven or NuGet package is authorized by this document.
+**Status:** Developer Release package/build verification is implemented for the `0.1.0-alpha.1` line; native public registry publication and immutable release binding remain external release gates.  
+**Protocol:** `TRUYN/1` draft.  
+**Stable SDK API contract:** `1` (separate from protocol stability).
 
-This document defines how first-party SDKs move from the current DX-1 in-repository reference code to auditable package distributions.
+This document defines the packaging and publication boundary for the five required first-party SDKs. The old DX-1/DX-2 scaffold-only description is obsolete: all five required clients are implemented and ordinary CI builds/verifies package artifacts. The release manifest records a configured source-SHA provenance field plus artifact digests, but pull-request CI currently checks out GitHub's synthetic merge ref while `TRUYN_RELEASE_SOURCE_SHA` identifies the PR head. Therefore ordinary PR CI does **not** yet prove an exact checked-out build-tree-to-recorded-SHA binding. Ordinary CI also rebuilds the same nominal alpha version from different PR/main inputs, so those outputs are **verification artifacts**, not one immutable released version. None of this proves that a native public registry currently serves the packages.
 
-It is a packaging policy, not a protocol change. It does not change `TRUYN/1`, Agent Descriptor semantics, relay behavior, authorization, routing, QUIC/Kademlia behavior, D-1000 evaluator logic or any runtime threshold.
+This is a packaging policy, not a protocol change. It does not alter `TRUYN/1`, Agent Descriptor semantics, relay behavior, authorization, routing, QUIC/Kademlia behavior, D-1000 evaluator logic or runtime thresholds.
 
-## 1. Current package inventory
+## 1. Developer Release inventory
 
-| Language | Repository path | Public distribution target | Current package identity | Current status |
+| Language | Repository path | Public distribution target | Developer Release coordinate | Current state |
 |---|---|---|---|---|
-| JavaScript / TypeScript | `sdk/typescript/` | npm | `@truyn/sdk` | private/internal DX-1 reference package; not publishable |
-| Python | `sdk/python/` | PyPI | distribution `truyn-sdk`, import package `truyn` | internal/editable DX-1 reference package; not publishable |
-| Go | `sdk/go/` | Go module | not finalized | scaffold only |
-| Java | `sdk/java/` | Maven-compatible publication | not finalized | scaffold only |
-| C# / .NET | `sdk/dotnet/` | NuGet | not finalized | scaffold only |
-| Rust | `sdk/rust/` | crates.io-compatible if maintained | not finalized | optional secondary track |
+| JavaScript / TypeScript | `sdk/typescript/` | npm | `@truyn/sdk@0.1.0-alpha.1` | implemented client; package verification build CI-proven; public registry publication not yet evidenced |
+| Python | `sdk/python/` | PyPI | `truyn-sdk==0.1.0a1` / import `truyn` | implemented client; wheel/sdist verification build CI-proven; public registry publication not yet evidenced |
+| Go | `sdk/go/` | Go module | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | implemented client; module source/build checks CI-proven; public tag/module availability not yet evidenced |
+| Java | `sdk/java/` | Maven Central target | `org.truyn:truyn-sdk:0.1.0-alpha.1` | implemented client; Maven verification build CI-proven; public registry publication not yet evidenced |
+| C# / .NET | `sdk/dotnet/` | NuGet | `Truyn.Sdk 0.1.0-alpha.1` | implemented client; NuGet verification build CI-proven; public registry publication not yet evidenced |
+| Rust | `sdk/rust/` | crates.io-compatible if maintained | optional | secondary track; does not replace any required first-party language |
 
-The five required first-party targets before stable v1 remain JavaScript/TypeScript, Python, Go, Java and C#/.NET. Rust may be maintained as an additional SDK but does not replace any required language.
+The five required first-party targets are JavaScript/TypeScript, Python, Go, Java and C#/.NET.
 
-## 2. Private/internal status before stable
+## 2. CI verification versus publication
 
-Until the explicit SDK release gate is met:
+The repository-side Developer Release gate includes:
 
-- TypeScript remains marked as a private package in source control and must not be published to the public npm registry;
-- Python may be installed from the repository or an internal artifact, but must not be uploaded to public PyPI;
-- Go/Java/.NET package coordinates are not public compatibility promises;
-- package names, module paths and versions are reserved implementation details until the release gate;
-- package artifacts may be used internally for CI, examples, integration testing and preview programs only;
-- any internal package or tarball must identify the exact source commit it was built from;
-- no package may include credentials, private topology, cloud identities, private provider IDs, live allowlists, quota/cost ceilings or secret-bearing URLs.
+- executable five-language conformance against a real local relay;
+- package compilation/build for all five required ecosystems;
+- package archive-entry/licensing verification;
+- `LICENSE` / `NOTICE` coverage checks;
+- a manifest source-SHA marker plus artifact byte size and SHA-256 digests in `sdk/release/dist/manifest.json`;
+- pre-stable semantic-versioning, compatibility, migration and deprecation policy.
 
-Internal package availability is not a stable SDK claim. Public documentation must continue to distinguish `implemented`, `CI-proven`, `internal package`, `public pre-release` and `stable`.
+For pushes where the checked-out commit and reported source SHA are the same, that marker can identify the build commit directly. For pull requests, current CI builds the synthetic merge checkout while the manifest override identifies `github.event.pull_request.head.sha`; the manifest therefore does not by itself identify the exact checked-out merge tree. Exact build-tree provenance remains a release-infrastructure gate.
 
-## 3. npm package plan
+`verify-release.mjs` verifies expected artifacts/digests and inspects archive **entry names** for forbidden paths/names. It does not recursively scan all archived bytes with the source-tree credential/private-topology patterns. Full generated-package byte-content leakage review therefore remains a publication/release-security requirement.
 
-The JavaScript/TypeScript package target is:
+These facts authorize a **source/build-complete client layer with per-CI package verification, reported-source metadata and digest provenance** claim. They do not authorize a claim that npm, PyPI, the Go module proxy, Maven Central or NuGet currently serves the package, nor that every CI artifact under the nominal alpha version is an immutable release, nor that every PR manifest source SHA is the exact checkout tree that produced the bytes.
 
-```text
-name: @truyn/sdk
-runtime: Node.js >= 22
-license: Apache-2.0
-source: sdk/typescript/
-```
+Public publication is a separate operational event and requires observable registry/tag evidence tied to one immutable release source/version binding.
 
-Before public npm publication, the package must have:
+## 3. Current alpha line and immutability boundary
 
-1. a release build that does not require `--experimental-strip-types` for consumers;
-2. generated JavaScript and TypeScript declarations or an equivalent consumer-safe export surface;
-3. package contents reviewed so only SDK files, examples, license and notice material are included;
-4. `LICENSE` and `NOTICE` coverage preserved;
-5. exact package version tied to a signed or otherwise auditable repository tag;
-6. release notes naming supported TRUYN protocol, Agent Descriptor and node/server versions;
-7. conformance green for the package build, not only raw source tests;
-8. negative security tests proving SDK publication does not expose private providers or bypass authorization.
-
-The current `@truyn/sdk` package remains an in-repository DX-1 reference implementation. It is not a public npm release.
-
-## 4. PyPI package plan
-
-The Python package target is:
+The current nominal Developer Release package line is:
 
 ```text
-distribution: truyn-sdk
-import package: truyn
-runtime: Python >= 3.10
-license: Apache-2.0
-source: sdk/python/
+release: 0.1.0-alpha.1
+python: 0.1.0a1
+go tag target: sdk/go/v0.1.0-alpha.1
+protocol: TRUYN/1
+stable SDK API: 1
+channel: pre-release
 ```
 
-Before public PyPI publication, the package must have:
+Current `.github/workflows/ci.yml` invokes `sdk/release/build-release.sh` for pull requests and pushes to `main`, while package metadata remains on the nominal `0.1.0-alpha.1`/`0.1.0a1` line. `write-manifest.mjs` records `TRUYN_RELEASE_SOURCE_SHA` when supplied. In pull-request CI that value is the PR head SHA even though the checkout is the synthetic merge ref; on normal `main` push CI the reported SHA corresponds to the pushed commit. Thus different CI runs carry useful provenance metadata and artifact digests, but **ordinary PR CI does not yet enforce exact checked-out-build-tree binding, and ordinary CI does not enforce immutable version-to-source binding**.
 
-1. wheel and sdist builds from a tagged source commit;
-2. package metadata declaring supported Python versions and runtime dependencies;
-3. `LICENSE` and `NOTICE` coverage preserved in the source distribution and wheel;
-4. release notes naming supported TRUYN protocol, Agent Descriptor and node/server versions;
-5. conformance green for the built wheel, not only editable install;
-6. no embedded credentials, private topology, live provider IDs, quota/cost ceilings or secret-bearing URLs;
-7. a rollback/yank policy for broken pre-release packages;
-8. the same authorization/privacy negative tests as the TypeScript package.
+For an accepted/public release, rebuilding the same published package version from different source is forbidden. Before publication, the release path must either:
 
-The current `truyn-sdk` metadata is an internal DX-1 reference. It is not a public PyPI release.
+- build the release only from the frozen/tagged source selected for that version; or
+- assign a distinct prerelease version to materially different source.
+
+The publication path must also record the actual checked-out release commit/tree that produced the package bytes rather than relying on a PR-head override that can differ from the checkout. Until those gates are implemented and observed, CI outputs must be described as verification artifacts rather than immutable release artifacts.
+
+## 4. Publication requirements
+
+Before a native public registry/tag publication is claimed, the release operation must preserve:
+
+1. immutable tagged/exact source bound to the published version;
+2. the five-language executable conformance gate;
+3. package build/install verification;
+4. exact checked-out release source/tree binding plus package digests/provenance;
+5. `LICENSE` and `NOTICE` inclusion;
+6. compatibility declaration and release notes;
+7. package-content security review excluding credentials, private topology, provider secrets/IDs, live allowlists, quota/cost ceilings and secret-bearing URLs, including byte-content inspection beyond archive entry names;
+8. fail-closed authorization/privacy behavior equivalent to the source/runtime contract;
+9. registry namespace/ownership and trusted-publishing credentials configured outside the public source tree;
+10. observable successful publication for the intended package coordinate/tag.
+
+A source workflow describing how publication should happen is not itself registry publication evidence.
 
 ## 5. Versioning policy
 
-TRUYN has separate compatibility dimensions. SDK versioning must not pretend that one number controls all of them.
+SDK package versions, the stable SDK API contract, TRUYN protocol generation, wire schema and Agent Descriptor schema are independent dimensions.
 
-Every SDK release must declare:
+Every release must declare:
 
 - SDK semantic version;
-- supported TRUYN protocol generation, such as draft `TRUYN/1`;
-- supported Agent Descriptor schema version;
-- supported wire/schema generation where applicable;
-- tested node/server version or commit range;
+- stable SDK API contract version;
+- supported TRUYN protocol generation(s);
+- supported wire/schema generation(s) where applicable;
+- supported Agent Descriptor version;
+- tested node/server range;
 - minimum language/runtime version;
-- feature matrix and known gaps;
-- deprecated, experimental and removed APIs.
+- feature matrix and explicit unsupported semantics;
+- deprecations/migration guidance;
+- publication state;
+- exact release source/tree and package provenance.
 
-### Internal DX versions
+### Pre-stable `0.x`
 
-`0.0.0`, `0.0.0-dxN.*` and similar development versions mean internal implementation state only. They are not public compatibility promises.
+Breaking changes may occur only through an explicit version change with release notes and migration guidance. Once an alpha/beta version is selected for public publication, its meaning and source binding must not silently change.
 
-### Public pre-stable versions
+### Stable `1.x` target
 
-Public pre-stable packages, once approved, should use `0.x.y` with explicit pre-release identifiers where needed, for example:
+Stable first-party SDK v1 requires at minimum:
 
-```text
-0.1.0-alpha.1
-0.1.0-dx3.1
-0.2.0-rc.1
-```
+1. a declared stable TRUYN protocol/node compatibility range;
+2. a stable Agent Descriptor version/lifecycle policy;
+3. all five required SDKs passing common executable conformance against that range;
+4. native public package/tag publication with auditable immutable provenance;
+5. compatibility/deprecation policy in force;
+6. examples and quickstarts verified against released package versions.
 
-Breaking changes are allowed before stable only when release notes call them out and compatibility/conformance fixtures are updated in the same change set.
+After stable v1, normal semantic-versioning rules apply: major for breaking API/compatibility changes, minor for additive compatible features and patch for compatible fixes.
 
-### Stable versions
+## 6. Package maturity vocabulary
 
-`1.0.0` SDK stability requires:
-
-1. stable `TRUYN/1` protocol generation;
-2. stable Agent Descriptor schema/version policy;
-3. all five required SDKs passing the common conformance suite;
-4. public package provenance for npm, PyPI, Go, Maven-compatible publication and NuGet;
-5. compatibility/deprecation policy documented and linked from release notes;
-6. examples and quickstarts verified against the exact released package versions.
-
-After `1.0.0`, SDK semantic versioning follows normal compatibility rules:
-
-- `MAJOR` for breaking public API or compatibility changes;
-- `MINOR` for backward-compatible features;
-- `PATCH` for backward-compatible fixes;
-- pre-release identifiers for unstable release candidates.
-
-## 6. Release gates
-
-A package may move through these states only in order:
+Documentation must distinguish these states rather than collapsing them:
 
 ```text
-repository source only
-  -> internal artifact / editable install
-  -> private preview package
-  -> public pre-release package
+implemented source
+  -> CI-proven executable conformance
+  -> per-CI verification package + reported-source metadata + digest provenance
+  -> exact build-tree-bound immutable public pre-release publication
   -> stable public package
 ```
 
-Promotion requires:
+Current required SDKs are at the **per-CI verification package + reported-source metadata + digest provenance** stage. Exact PR build-tree binding, immutable native public publication and stable ecosystem compatibility remain open.
 
-- source commit identified;
-- conformance suite green;
-- package build/install smoke test green;
-- `LICENSE`/`NOTICE` included;
-- release notes written;
-- compatibility declaration written;
-- security/privacy package-content review complete;
-- maintainer approval under the current governance process.
+## 7. Non-goals
 
-## 7. Non-goals for the current DX-1/DX-2 work
+This policy does not:
 
-The current packaging plan does not:
+- make `TRUYN/1` stable;
+- make an SDK client an authorization or billing authority;
+- change provider visibility/access semantics;
+- change network/D-1000 acceptance thresholds;
+- claim registry availability before it is externally observed;
+- claim exact PR checkout-tree provenance from the current head-SHA manifest override;
+- claim complete generated-package byte-content leakage scanning from the current entry-name verifier;
+- make Rust a required stable-v1 language.
 
-- publish npm or PyPI packages;
-- reserve final Go/Java/.NET coordinates;
-- claim stable SDK compatibility;
-- change runtime APIs or relay/network behavior;
-- add provider credentials or cloud configuration to packages;
-- authorize production/mainnet package support.
+See also:
 
-The next implementation step after this policy is package-build automation and package-content tests, still without public publication.
+- `SDK_COMPATIBILITY.md`;
+- `../architecture/SDK_DEVELOPER_EXPERIENCE.md`;
+- `../../sdk/release/PUBLISHING.md`;
+- `../../sdk/release/version.json`.

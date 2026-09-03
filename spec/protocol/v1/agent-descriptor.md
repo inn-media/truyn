@@ -1,6 +1,6 @@
 # TRUYN/1 Agent Descriptor
 
-**Status:** draft discovery metadata specification with executable DX-1 v1 validation/signature semantics.  
+**Status:** draft discovery metadata specification with implemented bounded Developer Release v1 serving, validation, signature-verification and negotiation semantics.  
 **Wire status:** not a new top-level TRUYN envelope kind.
 
 The **TRUYN Agent Descriptor** is a signed, cacheable self-description document used to bootstrap interoperability with a TRUYN-facing agent, service or node.
@@ -27,6 +27,8 @@ A participant MAY additionally provide:
 
 A participant that is not intended for public discovery is not required to publish a public HTTP descriptor.
 
+The current bounded Developer Release runtime implements the intentionally public HTTP form. Serving is disabled by default and requires explicit opt-in plus an explicit public capability allowlist. This implementation fact does not make every optional discovery form above mandatory or stable.
+
 ## 2. Descriptor visibility
 
 A descriptor is always a **view**, not an unconditional dump of every provider/capability known to the node.
@@ -36,6 +38,8 @@ A public descriptor MUST contain only information intentionally public to unauth
 An authenticated implementation MAY return a richer requester-scoped descriptor after authentication/authorization. Such a view MUST NOT reveal a private capability/provider that the same requester would be unable to discover under provider policy.
 
 Descriptor discovery MUST NOT become an authorization bypass.
+
+The current Developer Release serving path implements the public view only; it does not create a requester-scoped authorization channel merely by serving metadata.
 
 ## 3. Required logical fields
 
@@ -93,7 +97,7 @@ Security metadata is descriptive. Actual authorization remains server/node polic
 
 ## 7. Signature semantics
 
-A descriptor SHOULD be signed. The current executable DX-1 v1 path verifies the participant's **current TRUYN identity key** using the same Ed25519 and canonical-JSON primitives already used for signed TRUYN values.
+A descriptor SHOULD be signed. The current executable Developer Release v1 path signs/verifies the participant's **current TRUYN identity key** using the same Ed25519 and canonical-JSON primitives already used for signed TRUYN values.
 
 ### 7.1 v1 identity-key signing input
 
@@ -189,7 +193,7 @@ Clients MUST inspect `descriptorVersion` and `protocols` rather than assuming th
 
 Unknown optional fields/extensions SHOULD be ignored unless the extension declares different handling. Unknown required semantics MUST fail explicitly rather than being guessed.
 
-The shared DX-1 negotiation semantics are:
+The shared Developer Release v1 negotiation semantics are:
 
 - descriptor schema/version validation happens first;
 - protocol selection follows the client's declared supported-protocol preference order and selects the first protocol also advertised by the descriptor;
@@ -199,22 +203,25 @@ The shared DX-1 negotiation semantics are:
 
 ## 11. Relation to SDKs
 
-First-party SDKs provide or target:
+All five required first-party Developer Release SDKs — TypeScript/JavaScript, Python, Go, Java and C#/.NET — implement the bounded common Descriptor lifecycle:
 
-- descriptor retrieval;
-- schema parsing;
+- HTTP descriptor retrieval;
+- schema/version parsing;
 - expiry validation;
-- identity-bound signature validation;
+- identity-bound Ed25519 signature validation;
 - protocol/interface selection;
 - visibility-safe capability enumeration;
-- clear errors for unsupported descriptor/protocol versions.
+- clear errors for unsupported descriptor/protocol/interface semantics.
 
 The executable reference semantics and shared cryptographic/negotiation vectors are in:
 
 - `sdk/conformance/reference/agent-descriptor.js`;
 - `sdk/conformance/v1/golden-fixtures.json`;
-- `sdk/conformance/v1/agent-descriptor-runtime-fixtures.json`.
+- `sdk/conformance/v1/agent-descriptor-runtime-fixtures.json`;
+- `sdk/conformance/run-five-language-e2e.mjs`.
 
-TypeScript and Python implementations MUST pass the same logical `truyn.sdk-conformance/v1` fixture set rather than maintaining divergent language-local expectations.
+The five required languages share the same logical `truyn.sdk-conformance/v1` contract and one executable five-language network conformance path. Language-local implementations must not silently redefine Descriptor semantics.
+
+This implementation maturity does not make `truyn.agent-descriptor/v1` stable. The schema remains part of draft `TRUYN/1`, and delegated signing/revocation remains outside the current alpha contract.
 
 See `docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`.
