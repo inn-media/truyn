@@ -1,0 +1,406 @@
+name: diag-d200-779b2293-eperm2-main
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diag-d200-779b2293-eperm2-main.yml'
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: truyn-d200-779b2293-eperm2-main-single-shot
+  cancel-in-progress: false
+
+env:
+  TESTED_COMMIT: 779b22934fe5b9c005289d8e6fd442008d348eec
+  EXACT_MAIN_CI_RUN: '33733048200'
+  EXACT_MAIN_CODEQL_RUN: '33733047212'
+  AZURE_RESOURCE_GROUP: truyn
+  NODES_PER_HOST: '10'
+
+jobs:
+  diagnostic-d200:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - name: Enforce one-shot launcher commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          commit_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}")"
+          test "$(jq '.files | length' <<<"$commit_json")" = '1'
+          test "$(jq -r '.files[0].filename' <<<"$commit_json")" = '.github/workflows/diag-d200-779b2293-eperm2-main.yml'
+          test "$(jq -r '.files[0].status' <<<"$commit_json")" = 'added'
+
+      - name: Checkout exact tested source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TESTED_COMMIT }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify exact green source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$TESTED_COMMIT"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}" --jq '.head_sha')" = "$TESTED_COMMIT"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}" --jq '.conclusion')" = success
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}" --jq '.head_sha')" = "$TESTED_COMMIT"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}" --jq '.conclusion')" = success
+          git diff --check
+          printf 'tested_commit=%s\nlauncher_sha=%s\nrun_id=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\npacket_partition_process_restart_delta=0\nstrict_d1000_acceptance=false\nbootstrap=canonical-runtime-bundle+diagnostic-refresh-bounded-retry+parallel-host-bootstrap+parallel-host-bandwidth-meter+parallel-host-readiness-observation-recovery+parallel-host-baseline+parallel-node-restart+packet-partition-fail-diagnostics+packet-partition-process-survival\n' \
+            "$TESTED_COMMIT" "$GITHUB_SHA" "$GITHUB_RUN_ID" > class-d-200-diagnostic-input.txt
+
+      - name: Resolve dependencies and build immutable runtime bundle
+        id: runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          bundle="$RUNNER_TEMP/truyn-d200-runtime.tgz"
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh "$bundle"
+          sha="$(awk '{print $1}' "${bundle}.sha256")"
+          [[ "$sha" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s  %s\n' "$sha" "$bundle" | sha256sum -c -
+          inspect="$(mktemp -d)"
+          tar -xzf "$bundle" -C "$inspect"
+          jq -e --arg sha "$TESTED_COMMIT" '.schema == "truyn.class-d1000.runtime-bundle.v1" and .sourceSha == $sha' "$inspect/manifest.json" >/dev/null
+          cp "$inspect/manifest.json" class-d-200-runtime-manifest.json
+          printf 'sha256:%s\n' "$sha" > class-d-200-runtime-bundle-digest.txt
+          printf 'runtime_bundle_sha256=sha256:%s\n' "$sha" >> class-d-200-diagnostic-input.txt
+          echo "path=$bundle" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          rm -rf "$inspect"
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Select fail-closed 20-VM Azure placement
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          selected=false
+          for location in eastus2 eastus westus2 centralus northcentralus southcentralus westeurope northeurope; do
+            usage_json="$(az vm list-usage -l "$location" -o json --only-show-errors)" || continue
+            regional_current="$(jq -r '[.[] | select((((.name.localizedValue // .name.value // "") | ascii_downcase) | contains("total regional vcpus")))][0].currentValue // -1' <<<"$usage_json")"
+            regional_limit="$(jq -r '[.[] | select((((.name.localizedValue // .name.value // "") | ascii_downcase) | contains("total regional vcpus")))][0].limit // -1' <<<"$usage_json")"
+            for size in Standard_E2as_v7 Standard_D4as_v5 Standard_D4s_v5; do
+              sku_json="$(az vm list-skus -l "$location" --size "$size" --all -o json --only-show-errors)" || continue
+              [[ "$(jq 'length' <<<"$sku_json")" -ge 1 ]] || continue
+              vcpu="$(jq -r '[.[].capabilities[]? | select(.name=="vCPUs") | .value][0] // empty' <<<"$sku_json")"
+              memory="$(jq -r '[.[].capabilities[]? | select(.name=="MemoryGB") | .value][0] // empty' <<<"$sku_json")"
+              family="$(jq -r '.[0].family // empty' <<<"$sku_json")"
+              blocks="$(jq '[.[].restrictions[]? | select(.type=="Location" and .reasonCode=="NotAvailableForSubscription")] | length' <<<"$sku_json")"
+              [[ -n "$vcpu" && -n "$memory" && -n "$family" ]] || continue
+              required=$((vcpu * 20))
+              family_current="$(jq -r --arg family "$family" '[.[] | select(.name.value==$family)][0].currentValue // -1' <<<"$usage_json")"
+              family_limit="$(jq -r --arg family "$family" '[.[] | select(.name.value==$family)][0].limit // -1' <<<"$usage_json")"
+              regional_remaining=$((regional_limit-regional_current))
+              family_remaining=$((family_limit-family_current))
+              echo "TRUYN_D200_CAPACITY_PROBE location=$location size=$size vcpu=$vcpu memoryGB=$memory family=$family regionalRemaining=$regional_remaining familyRemaining=$family_remaining required=$required blocks=$blocks"
+              if [[ "$blocks" -eq 0 && "$regional_current" -ge 0 && "$family_current" -ge 0 && "$regional_remaining" -ge "$required" && "$family_remaining" -ge "$required" ]]; then
+                echo "TRUYN_D200_LOCATION=$location" >> "$GITHUB_ENV"
+                echo "TRUYN_D200_VM_SIZE=$size" >> "$GITHUB_ENV"
+                printf 'azure_location=%s\nvm_size=%s\nrequired_vcpu=%s\n' "$location" "$size" "$required" >> class-d-200-diagnostic-input.txt
+                echo "TRUYN_D200_CAPACITY=PASS location=$location size=$size regionalRemaining=$regional_remaining familyRemaining=$family_remaining required=$required"
+                selected=true
+                break 2
+              fi
+            done
+          done
+          [[ "$selected" == true ]]
+
+      - name: Stage immutable runtime bundle in Azure Storage
+        id: staging
+        shell: bash
+        env:
+          RUNTIME_BUNDLE: ${{ steps.runtime.outputs.path }}
+          RUNTIME_SHA: ${{ steps.runtime.outputs.sha }}
+        run: |
+          set -Eeuo pipefail
+          account="td2d200${GITHUB_RUN_ID}"
+          container=runtime
+          blob=truyn-d200-runtime.tgz
+          [[ ${#account} -le 24 ]]
+          state="$(az provider show --namespace Microsoft.Storage --query registrationState -o tsv --only-show-errors)"
+          [[ "$state" == Registered ]]
+          az storage account create -g "$AZURE_RESOURCE_GROUP" -n "$account" -l "$TRUYN_D200_LOCATION" --sku Standard_LRS --kind StorageV2 --https-only true --min-tls-version TLS1_2 --allow-blob-public-access false -o none --only-show-errors
+          key="$(az storage account keys list -g "$AZURE_RESOURCE_GROUP" -n "$account" --query '[0].value' -o tsv --only-show-errors)"
+          [[ -n "$key" ]]
+          echo "::add-mask::$key"
+          az storage container create --name "$container" --account-name "$account" --account-key "$key" -o none --only-show-errors
+          az storage blob upload --container-name "$container" --name "$blob" --file "$RUNTIME_BUNDLE" --account-name "$account" --account-key "$key" --overwrite true -o none --only-show-errors
+          expiry="$(date -u -d '+6 hours' '+%Y-%m-%dT%H:%MZ')"
+          sas="$(az storage blob generate-sas --container-name "$container" --name "$blob" --account-name "$account" --account-key "$key" --permissions r --https-only --expiry "$expiry" -o tsv --only-show-errors)"
+          [[ -n "$sas" ]]
+          echo "::add-mask::$sas"
+          url="https://${account}.blob.core.windows.net/${container}/${blob}?${sas}"
+          echo "::add-mask::$url"
+          echo "TRUYN_D200_STAGING_ACCOUNT=$account" >> "$GITHUB_ENV"
+          echo "TRUYN_D200_RUNTIME_URL=$url" >> "$GITHUB_ENV"
+          echo "TRUYN_D200_RUNTIME_SHA256=$RUNTIME_SHA" >> "$GITHUB_ENV"
+          printf 'runtime_staging_account=%s\nruntime_blob=%s/%s\n' "$account" "$container" "$blob" >> class-d-200-diagnostic-input.txt
+          echo "TRUYN_D200_RUNTIME_STAGING=PASS account=$account sha256=$RUNTIME_SHA"
+
+      - name: Execute real 20-host 200-process diagnostic campaign
+        id: campaign
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          tmp="$(mktemp -d)"
+          cp benchmarks/scale/class-d-azure-1000-provision.sh "$tmp/provision.sh"
+          cp benchmarks/scale/class-d-azure-1000-campaign.sh "$tmp/campaign.sh"
+          python3 scripts/patch-class-d-diagnostic-bootstrap-timeout.py "$tmp/provision.sh"
+          python3 scripts/patch-class-d-diagnostic-bootstrap-parallel.py "$tmp/provision.sh"
+          python3 scripts/patch-class-d-diagnostic-bandwidth-meter-parallel.py "$tmp/provision.sh"
+          python3 scripts/patch-class-d-diagnostic-readiness-parallel.py "$tmp/campaign.sh"
+          python3 scripts/patch-class-d-diagnostic-baseline-parallel.py "$tmp/campaign.sh"
+          python3 scripts/patch-class-d-diagnostic-restart-parallel.py "$tmp/campaign.sh"
+          python3 - "$tmp/campaign.sh" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); text=p.read_text()
+          if text.count('seq 10 14') != 3: raise SystemExit('unexpected restart shell range count')
+          if text.count('range(10,15)') != 1: raise SystemExit('unexpected restart python range count')
+          p.write_text(text.replace('seq 10 14','seq 5 9').replace('range(10,15)','range(5,10)'))
+          PY
+          python3 scripts/patch-class-d-diagnostic-packet-partition.py "$tmp/campaign.sh"
+          python3 - "$tmp/campaign.sh" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); text=p.read_text()
+          start='STAGE=packet-partition\n'; end='STAGE=healed-routing\n'
+          if text.count(start) != 1 or text.count(end) != 1: raise SystemExit('unexpected packet partition stage markers')
+          a=text.index(start); b=text.index(end); block=text[a:b]
+          before='block_ip="${PRIV[1]}"\n'
+          after='partition_probes=$(marker "$out" PARTITION_PROBES)\n'
+          if block.count(before) != 1 or block.count(after) != 1: raise SystemExit('unexpected process-survival insertion points')
+          observe_before=r'''partition_process_before=$(remote "${VMS[0]}" "set -Eeuo pipefail; proc=\$(pgrep -fc 'network/testnet/node-service.js'); active=0; restarts=0; for j in \$(seq 0 $((NODES_PER_HOST-1))); do unit=truyn-d1000@\${j}.service; systemctl is-active --quiet \"\$unit\" && active=\$((active+1)); r=\$(systemctl show \"\$unit\" -p NRestarts --value); restarts=\$((restarts+r)); done; echo PPS_PROC=\$proc; echo PPS_ACTIVE=\$active; echo PPS_RESTARTS=\$restarts")
+          partition_proc_before=$(marker "$partition_process_before" PPS_PROC)
+          partition_active_before=$(marker "$partition_process_before" PPS_ACTIVE)
+          partition_restarts_before=$(marker "$partition_process_before" PPS_RESTARTS)
+          '''
+          observe_after=r'''sleep 2
+          partition_process_after=$(remote "${VMS[0]}" "set -Eeuo pipefail; proc=\$(pgrep -fc 'network/testnet/node-service.js'); active=0; restarts=0; for j in \$(seq 0 $((NODES_PER_HOST-1))); do unit=truyn-d1000@\${j}.service; systemctl is-active --quiet \"\$unit\" && active=\$((active+1)); r=\$(systemctl show \"\$unit\" -p NRestarts --value); restarts=\$((restarts+r)); done; echo PPS_PROC=\$proc; echo PPS_ACTIVE=\$active; echo PPS_RESTARTS=\$restarts")
+          partition_proc_after=$(marker "$partition_process_after" PPS_PROC)
+          partition_active_after=$(marker "$partition_process_after" PPS_ACTIVE)
+          partition_restarts_after=$(marker "$partition_process_after" PPS_RESTARTS)
+          partition_restart_delta=$((partition_restarts_after-partition_restarts_before))
+          echo "TRUYN_D200_PACKET_PROCESS_SURVIVAL procBefore=${partition_proc_before} procAfter=${partition_proc_after} activeBefore=${partition_active_before} activeAfter=${partition_active_after} restartsBefore=${partition_restarts_before} restartsAfter=${partition_restarts_after} restartDelta=${partition_restart_delta}"
+          '''
+          block=block.replace(before,before+observe_before).replace(after,after+observe_after)
+          p.write_text(text[:a]+block+text[b:])
+          PY
+          bash -n "$tmp/provision.sh"
+          bash -n "$tmp/campaign.sh"
+          set +e
+          PROVISION="$tmp/provision.sh" CAMPAIGN="$tmp/campaign.sh" GITHUB_SHA="$TESTED_COMMIT" \
+          TRUYN_AZURE_RESOURCE_GROUP="$AZURE_RESOURCE_GROUP" TRUYN_CLASS_D1000_LOCATION="$TRUYN_D200_LOCATION" \
+          TRUYN_CLASS_D1000_VM_SIZE="$TRUYN_D200_VM_SIZE" TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" \
+          TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" \
+          bash -c 'set -Eeuo pipefail; source "$PROVISION"; source "$CAMPAIGN"' 2>&1 | tee class-d-200-diagnostic.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "campaign_rc=$rc" >> "$GITHUB_OUTPUT"
+          rm -rf "$tmp"
+          exit "$rc"
+
+      - name: Record packet-partition process survival evidence
+        id: survival
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          line="$(grep 'TRUYN_D200_PACKET_PROCESS_SURVIVAL' class-d-200-diagnostic.log 2>/dev/null | tail -1)"
+          field() { printf '%s\n' "$line" | sed -n "s/.*$1=\([^ ]*\).*/\1/p"; }
+          numeric() { local x="$1"; [[ "$x" =~ ^-?[0-9]+$ ]] && printf '%s' "$x" || printf '%s' -1; }
+          proc_before=$(numeric "$(field procBefore)")
+          proc_after=$(numeric "$(field procAfter)")
+          active_before=$(numeric "$(field activeBefore)")
+          active_after=$(numeric "$(field activeAfter)")
+          restarts_before=$(numeric "$(field restartsBefore)")
+          restarts_after=$(numeric "$(field restartsAfter)")
+          restart_delta=$(numeric "$(field restartDelta)")
+          ok=false
+          if [[ "$proc_before" -ge 10 && "$proc_after" -ge 10 && "$active_before" -eq 10 && "$active_after" -eq 10 && "$restart_delta" -eq 0 ]]; then ok=true; fi
+          jq -nc --argjson ok "$ok" --argjson procBefore "$proc_before" --argjson procAfter "$proc_after" --argjson activeBefore "$active_before" --argjson activeAfter "$active_after" --argjson restartsBefore "$restarts_before" --argjson restartsAfter "$restarts_after" --argjson restartDelta "$restart_delta" '{ok:$ok,processCountBefore:$procBefore,processCountDuringPartition:$procAfter,activeUnitsBefore:$activeBefore,activeUnitsDuringPartition:$activeAfter,restartsBefore:$restartsBefore,restartsDuringPartition:$restartsAfter,restartDelta:$restartDelta,required:{processCountAtLeast:10,activeUnits:10,restartDelta:0}}' > class-d-200-packet-process-survival.json
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          echo "proc_before=$proc_before" >> "$GITHUB_OUTPUT"
+          echo "proc_after=$proc_after" >> "$GITHUB_OUTPUT"
+          echo "active_after=$active_after" >> "$GITHUB_OUTPUT"
+          echo "restart_delta=$restart_delta" >> "$GITHUB_OUTPUT"
+          echo "TRUYN_D200_PACKET_PROCESS_SURVIVAL_EVIDENCE ok=$ok proc_before=$proc_before proc_during=$proc_after active_during=$active_after restart_delta=$restart_delta"
+          exit 0
+
+      - name: Evaluate diagnostic evidence and routing telemetry
+        id: evaluate
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          raw=class-d-1000-evidence.json
+          evidence=class-d-200-diagnostic-evidence.json
+          evaluation=class-d-200-diagnostic-evaluation.json
+          telemetry=class-d-200-routing-telemetry.json
+          if [[ ! -f "$raw" ]]; then
+            printf '%s\n' '{"ok":false,"result":"FAIL","error":"diagnostic_evidence_missing"}' > "$evaluation"
+            printf '%s\n' '{"ok":false,"error":"routing_telemetry_missing"}' > "$telemetry"
+            evaluator_rc=99; cleanup=false; remaining=-1
+          else
+            jq '.class="D-200-DIAGNOSTIC" | .scope="200-real-process-diagnostic+safety-contract-v2" | .diagnostic={strictD1000Acceptance:false,hosts:20,nodesPerHost:10,nodeCount:200,routingThreshold:0.99,convergenceP95LimitMs:120000,recoveryP95LimitMs:120000}' "$raw" > "$evidence"
+            jq '{testedCommit,workflowRunId,topology,readiness,routing,convergence,recovery,adversarial,safety,resources,cleanup}' "$evidence" > "$telemetry"
+            python3 - "$evidence" "$evaluation" <<'PY'
+          import json,sys
+          e=json.load(open(sys.argv[1]))
+          def v(path,default=None):
+              x=e
+              for p in path.split('.'):
+                  if not isinstance(x,dict) or p not in x:return default
+                  x=x[p]
+              return x
+          def n(path,default=-1):
+              try:return float(v(path,default))
+              except:return default
+          checks={
+            'hosts20':n('topology.hostCount')==20,
+            'nodes200':n('topology.nodeCount')==200,
+            'realProcesses200':n('topology.realProcessCount')==200,
+            'nodesPerHost10':n('topology.realProcessesPerHost')==10,
+            'uniqueIdentities200':n('topology.uniqueIdentityCount')==200,
+            'uniqueEndpoints200':n('topology.uniqueEndpointCount')==200,
+            'syntheticNodesZero':n('topology.syntheticNodeCount')==0,
+            'readinessAtLeast99':n('readiness.readyNodeRatio')>=.99,
+            'baselineRoutingAtLeast99':n('routing.baselineSuccessRatio')>=.99,
+            'postRestartRoutingAtLeast99':n('routing.postRestartSuccessRatio')>=.99,
+            'healedRoutingAtLeast99':n('routing.healedSuccessRatio')>=.99,
+            'convergenceRoutingAtLeast99':n('convergence.routingSuccessRatio')>=.99,
+            'convergenceP95AtMost120s':n('convergence.latencyMs.p95')<=120000,
+            'recoveryP95AtMost120s':n('recovery.latencyMs.p95')<=120000,
+            'partitionRecoveryAtMost120s':n('recovery.packetPartitionRecoveryMs')<=120000,
+            'packetPartitionReal':v('adversarial.packetPartition.realPacketPath') is True,
+            'packetPartitionBlocksAll':n('adversarial.packetPartition.blockedSuccesses')==0,
+            'acknowledgedWriteLossZero':n('safety.acknowledgedWriteLossCount')==0,
+            'invalidSignedAcceptedZero':n('safety.invalidSignedStateAcceptedCount')==0,
+            'staleReceiptAcceptedZero':n('safety.staleRevokedReceiptAcceptedCount')==0,
+            'unauthorizedProviderExecutionZero':n('safety.unauthorizedProviderExecutionCount')==0,
+            'cleanupConfirmed':v('cleanup.confirmed') is True,
+            'remainingResourcesZero':n('cleanup.remainingResources')==0,
+          }
+          failed=[k for k,x in checks.items() if not x]
+          r={'ok':not failed,'result':'PASS' if not failed else 'FAIL','checks':checks,'failed':failed,'thresholds':{'routingSuccessRatio':.99,'convergenceP95Ms':120000,'recoveryP95Ms':120000},'metrics':{'baselineRouting':n('routing.baselineSuccessRatio'),'postRestartRouting':n('routing.postRestartSuccessRatio'),'healedRouting':n('routing.healedSuccessRatio'),'convergenceRouting':n('convergence.routingSuccessRatio'),'convergenceP95Ms':n('convergence.latencyMs.p95'),'recoveryP95Ms':n('recovery.latencyMs.p95'),'partitionRecoveryMs':n('recovery.packetPartitionRecoveryMs')}}
+          json.dump(r,open(sys.argv[2],'w'),separators=(',',':'));open(sys.argv[2],'a').write('\n')
+          sys.exit(0 if r['ok'] else 1)
+          PY
+            evaluator_rc=$?
+            cleanup="$(jq -r '.cleanup.confirmed // false' "$evidence")"
+            remaining="$(jq -r '.cleanup.remainingResources // -1' "$evidence")"
+          fi
+          echo "evaluator_rc=$evaluator_rc" >> "$GITHUB_OUTPUT"
+          echo "cleanup=$cleanup" >> "$GITHUB_OUTPUT"
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          for key in baselineRouting postRestartRouting healedRouting convergenceRouting convergenceP95Ms recoveryP95Ms partitionRecoveryMs; do
+            echo "$key=$(jq -r ".metrics.${key} // -1" "$evaluation")" >> "$GITHUB_OUTPUT"
+          done
+          exit 0
+
+      - name: Cleanup runtime staging storage fail-closed
+        id: staging_cleanup
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          account="${TRUYN_D200_STAGING_ACCOUNT:-td2d200${GITHUB_RUN_ID}}"
+          az storage account delete -g "$AZURE_RESOURCE_GROUP" -n "$account" --yes --only-show-errors >/dev/null 2>&1
+          delete_rc=$?
+          confirmed=false
+          remaining=-1
+          query_rc=1
+          for _ in $(seq 1 30); do
+            out="$(az resource list -g "$AZURE_RESOURCE_GROUP" --query "[?name=='${account}'].name" -o tsv --only-show-errors 2>&1)"
+            query_rc=$?
+            if [[ $query_rc -eq 0 && -z "${out//[[:space:]]/}" ]]; then confirmed=true; remaining=0; break; fi
+            if [[ $query_rc -eq 0 ]]; then remaining="$(printf '%s\n' "$out" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')"; else remaining=-1; fi
+            sleep 5
+          done
+          printf 'confirmed=%s\nremaining=%s\ndelete_rc=%s\nquery_rc=%s\naccount=%s\n' "$confirmed" "$remaining" "$delete_rc" "$query_rc" "$account" > class-d-200-runtime-staging-cleanup.txt
+          echo "confirmed=$confirmed" >> "$GITHUB_OUTPUT"
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          echo "TRUYN_D200_RUNTIME_STAGING_CLEANUP confirmed=$confirmed remaining=$remaining delete_rc=$delete_rc query_rc=$query_rc"
+          exit 0
+
+      - name: Upload immutable diagnostic artifact
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-class-d200-779b2293-${{ github.run_id }}
+          path: |
+            class-d-200-*.json
+            class-d-200-*.txt
+            class-d-200-*.log
+            class-d-1000-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Normalize artifact digest
+        id: digest
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          raw='${{ steps.upload.outputs.artifact-digest }}'
+          [[ "$raw" =~ ^[0-9a-f]{64}$ ]]
+          echo "value=sha256:${raw}" >> "$GITHUB_OUTPUT"
+
+      - name: Record strict diagnostic terminal marker
+        if: always()
+        env:
+          CAMPAIGN_RC: ${{ steps.campaign.outputs.campaign_rc }}
+          EVALUATOR_RC: ${{ steps.evaluate.outputs.evaluator_rc }}
+          CLEANUP: ${{ steps.evaluate.outputs.cleanup }}
+          REMAINING: ${{ steps.evaluate.outputs.remaining }}
+          STAGING_CLEANUP: ${{ steps.staging_cleanup.outputs.confirmed }}
+          STAGING_REMAINING: ${{ steps.staging_cleanup.outputs.remaining }}
+          BASELINE: ${{ steps.evaluate.outputs.baselineRouting }}
+          POST_RESTART: ${{ steps.evaluate.outputs.postRestartRouting }}
+          HEALED: ${{ steps.evaluate.outputs.healedRouting }}
+          CONV_ROUTING: ${{ steps.evaluate.outputs.convergenceRouting }}
+          CONV_P95: ${{ steps.evaluate.outputs.convergenceP95Ms }}
+          RECOVERY_P95: ${{ steps.evaluate.outputs.recoveryP95Ms }}
+          PARTITION_RECOVERY: ${{ steps.evaluate.outputs.partitionRecoveryMs }}
+          SURVIVAL_OK: ${{ steps.survival.outputs.ok }}
+          SURVIVAL_PROC_BEFORE: ${{ steps.survival.outputs.proc_before }}
+          SURVIVAL_PROC_DURING: ${{ steps.survival.outputs.proc_after }}
+          SURVIVAL_ACTIVE_DURING: ${{ steps.survival.outputs.active_after }}
+          SURVIVAL_RESTART_DELTA: ${{ steps.survival.outputs.restart_delta }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          DIGEST: ${{ steps.digest.outputs.value }}
+          RUNTIME_SHA: ${{ steps.runtime.outputs.sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          status=FAIL
+          if [[ "${CAMPAIGN_RC:-99}" == 0 && "${EVALUATOR_RC:-99}" == 0 && "$CLEANUP" == true && "$REMAINING" == 0 && "$STAGING_CLEANUP" == true && "$STAGING_REMAINING" == 0 && "$SURVIVAL_OK" == true && -n "$ARTIFACT_ID" && "$DIGEST" == sha256:* && "$RUNTIME_SHA" =~ ^[0-9a-f]{64}$ ]]; then status=PASS; fi
+          echo "TRUYN_D200_TERMINAL result=${status} run=${GITHUB_RUN_ID} launcher_sha=${GITHUB_SHA} tested_sha=${TESTED_COMMIT} exact_main_ci_run=${EXACT_MAIN_CI_RUN} exact_main_codeql_run=${EXACT_MAIN_CODEQL_RUN} runtime_sha256=sha256:${RUNTIME_SHA:-none} azure_location=${TRUYN_D200_LOCATION:-unknown} vm_size=${TRUYN_D200_VM_SIZE:-unknown} hosts=20 nodes=200 nodes_per_host=10 campaign_rc=${CAMPAIGN_RC:-99} evaluator_rc=${EVALUATOR_RC:-99} baseline=${BASELINE:--1} post_restart=${POST_RESTART:--1} healed=${HEALED:--1} convergence_routing=${CONV_ROUTING:--1} convergence_p95_ms=${CONV_P95:--1} recovery_p95_ms=${RECOVERY_P95:--1} partition_recovery_ms=${PARTITION_RECOVERY:--1} packet_process_survival=${SURVIVAL_OK:-false} packet_proc_before=${SURVIVAL_PROC_BEFORE:--1} packet_proc_during=${SURVIVAL_PROC_DURING:--1} packet_active_during=${SURVIVAL_ACTIVE_DURING:--1} packet_restart_delta=${SURVIVAL_RESTART_DELTA:--1} cleanup=${CLEANUP:-false} remaining=${REMAINING:--1} staging_cleanup=${STAGING_CLEANUP:-false} staging_remaining=${STAGING_REMAINING:--1} artifact_id=${ARTIFACT_ID:-none} digest=${DIGEST:-none}"
+          [[ "$status" == PASS ]]
