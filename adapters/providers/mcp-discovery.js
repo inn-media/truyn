@@ -31,6 +31,7 @@ export async function createMcpDiscoveryProvider({
   mapCapability,
   maxPages = 16,
   maxTools = 512,
+  requestTimeoutMs,
   fetchImpl = fetch
 } = {}) {
   const allowed = normalizeAllowTools(allowTools);
@@ -41,7 +42,7 @@ export async function createMcpDiscoveryProvider({
   if (typeof capabilityPrefix !== 'string') throw new Error('capabilityPrefix must be a string');
   if (mapCapability !== undefined && typeof mapCapability !== 'function') throw new Error('mapCapability must be a function');
 
-  const client = createMcpHttpClient({ endpoint, apiKey, authMode, fetchImpl });
+  const client = createMcpHttpClient({ endpoint, apiKey, authMode, requestTimeoutMs, fetchImpl });
   const discovery = await client.discover();
   const catalog = await client.listAllTools({ maxPages, maxTools });
   const selected = [];
