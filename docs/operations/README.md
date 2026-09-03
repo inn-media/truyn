@@ -1,11 +1,12 @@
 # TRUYN Operations
 
-**Status:** current reference operations baseline for `0.1.0-dev`; not a mainnet SRE/SLO claim. The current production relay origin perimeter is deployment-proven, but broader network/mainnet operations remain pre-stable.
+**Status:** current reference operations baseline for `0.1.0-dev`; not a mainnet SRE/SLO acceptance claim. The current production relay origin perimeter is deployment-proven, and the numerical production SLI/SLO contract is defined, but broader network/mainnet operations and SLO observability/alerting/on-call acceptance remain pre-stable.
 
 Operations documentation describes how the implemented reference system is expected to be run safely and what remains unproven. It deliberately excludes private cloud topology, credentials, live allowlists, resource IDs and cost ceilings.
 
 ## Current operational surfaces
 
+- [Production SLI / SLO Contract](PRODUCTION_SLO.md) — numerical production targets, measurement window, exclusions, error budgets and burn-rate policy; defined target contract, not yet accepted production compliance evidence.
 - [Node Operations](NODE_OPERATIONS.md) — identity/state/startup/restart/profile boundaries.
 - [Testnet Operations](TESTNET_OPERATIONS.md) — signed bootstrap, QUIC/Kademlia, churn/repair and evidence discipline.
 - [Billing Operations](BILLING_OPERATIONS.md) — BYOK, owner-funded and entitlement safety rules.
@@ -32,12 +33,14 @@ inner relay
 
 The accepted gate preserves public Cloudflare HTTP/WebSocket behavior and denies direct Azure Front Door HTTP/WebSocket, forged-proof direct Front Door HTTP/WebSocket and direct Container App HTTP/WebSocket with 403. This is a bounded production relay perimeter claim, not a claim that TRUYN mainnet operations are complete.
 
+The production service-level target contract is now defined in `PRODUCTION_SLO.md`. It specifies rolling 28-day SLIs for relay HTTP/WebSocket availability, authenticated request success, NEED dispatch, RESULT delivery, first-party provider availability, DHT/routing health, stale-selection rate, end-to-end and connection latency, instance/routing recovery, plus non-budgetable security invariants. It also defines exclusions, error budgets and multi-window burn-rate actions. These are targets until real production telemetry, alerting, on-call ownership and durable acceptance evidence satisfy the contract.
+
 What is **not** yet operationally complete:
 
 - stable public mainnet bootstrap;
 - universal NAT/reachability support;
 - remaining large real-node / Internet-scale evidence required by the current network roadmap;
-- production SLOs/alerting/on-call commitments;
+- production SLO measurement/dashboards, burn-rate alerting, on-call ownership and accepted compliance evidence against the defined contract;
 - signed release/updater/rollback lifecycle for all supported OSes;
 - production account/tenant commercial control plane;
 - deployed durable sponsored/prepaid/subscription accounting;
@@ -52,6 +55,8 @@ Changes to Cloudflare, Front Door routes/rules, Cloudflare CIDRs, Container Apps
 ## General operational rule
 
 A temporary cloud workflow, successful one-shot deployment or local test is not by itself a production claim. Promote operational maturity only when the result is reproducible and recorded in the durable evidence ledger or a stable release contract.
+
+A defined SLO target is also not proof of SLO compliance. Productionized status requires real serving-path measurements, auditable exclusions, error-budget accounting, burn-rate alerting, responsible on-call ownership and durable acceptance evidence.
 
 Completed one-shot privileged origin-lock executors are removed after acceptance; durable evidence, stable architecture and generic runbook invariants remain in the public repository.
 
