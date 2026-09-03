@@ -29,6 +29,7 @@ jobs:
       PACKAGE_VERSION: 0.1.0a1
       RELEASE_MARKER: sdk/release/pypi-alpha-bootstrap.json
       SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+      SOURCE_DATE_EPOCH: '1788457969'
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout exact green main SHA
@@ -50,19 +51,35 @@ jobs:
             echo "Ignoring successful main CI for $SOURCE_SHA because it is not the bounded PyPI release-marker commit."
             exit 0
           fi
+          marker_revision="$(python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          marker = json.loads(Path(os.environ['RELEASE_MARKER']).read_text())
+          revision = marker.get('workflowRevision', 0)
+          print(revision if isinstance(revision, int) else 0)
+          PY
+          )"
+          if [[ "$marker_revision" -lt 2 ]]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "Ignoring historical PyPI release marker revision $marker_revision on $SOURCE_SHA."
+            exit 0
+          fi
           python - <<'PY'
           import json
           import os
           from pathlib import Path
           marker = json.loads(Path(os.environ['RELEASE_MARKER']).read_text())
           pyproject = Path('sdk/python/pyproject.toml').read_text()
-          if marker != {
+          expected = {
               'package': os.environ['PACKAGE_NAME'],
               'version': os.environ['PACKAGE_VERSION'],
               'channel': 'alpha',
               'bootstrap': True,
-              'workflowRevision': 1,
-          }:
+              'workflowRevision': 2,
+              'sourceDateEpoch': int(os.environ['SOURCE_DATE_EPOCH']),
+          }
+          if marker != expected:
               raise SystemExit(f'unexpected PyPI release marker: {marker!r}')
           if 'name = "truyn-sdk"' not in pyproject or 'version = "0.1.0a1"' not in pyproject:
               raise SystemExit('pyproject.toml does not match the bounded PyPI release coordinate')
@@ -106,14 +123,15 @@ jobs:
           set -euo pipefail
           python -m pip install --disable-pip-version-check --upgrade pip
           python -m pip install --disable-pip-version-check 'build>=1.2,<2' 'twine>=6,<7' 'pypi-attestations==0.0.30'
-          rm -rf sdk/release/pypi-local sdk/release/pypi-registry sdk/release/pypi-cleanroom
+          rm -rf sdk/release/pypi-local sdk/release/pypi-registry sdk/release/pypi-cleanroom sdk/release/pypi-SHA256SUMS
           mkdir -p sdk/release/pypi-local sdk/release/pypi-registry
           python -m build sdk/python --outdir sdk/release/pypi-local
           python -m twine check sdk/release/pypi-local/*
           test "$(find sdk/release/pypi-local -maxdepth 1 -type f | wc -l)" -eq 2
-          sha256sum sdk/release/pypi-local/* | sort | tee sdk/release/pypi-local/SHA256SUMS
+          sha256sum sdk/release/pypi-local/* | sort | tee sdk/release/pypi-SHA256SUMS
           python -m venv /tmp/truyn-pypi-local
-          /tmp/truyn-pypi-local/bin/python -m pip install --disable-pip-version-check --no-index --find-links sdk/release/pypi-local "${PACKAGE_NAME}==${PACKAGE_VERSION}"
+          /tmp/truyn-pypi-local/bin/python -m pip install --disable-pip-version-check 'cryptography>=43,<47'
+          /tmp/truyn-pypi-local/bin/python -m pip install --disable-pip-version-check --no-index --no-deps --find-links sdk/release/pypi-local "${PACKAGE_NAME}==${PACKAGE_VERSION}"
           /tmp/truyn-pypi-local/bin/python - <<'PY'
           from importlib.metadata import version
           from truyn import TRUYN_SDK_STABLE_API_VERSION, TruynClient, TruynLocalNodeClient
@@ -151,7 +169,7 @@ jobs:
                   raise SystemExit(0)
               raise
 
-          local_files = sorted(p for p in Path('sdk/release/pypi-local').iterdir() if p.is_file() and p.name != 'SHA256SUMS')
+          local_files = sorted(p for p in Path('sdk/release/pypi-local').iterdir() if p.is_file())
           remote = {entry['filename']: entry for entry in payload.get('urls', [])}
           if {p.name for p in local_files} != set(remote):
               raise SystemExit(f'PyPI release file set differs from local immutable build: local={[p.name for p in local_files]} remote={sorted(remote)}')
@@ -207,7 +225,7 @@ jobs:
           if payload is None:
               raise SystemExit(f'{package}=={version} did not become visible on PyPI')
 
-          local_files = sorted(p for p in local_dir.iterdir() if p.is_file() and p.name != 'SHA256SUMS')
+          local_files = sorted(p for p in local_dir.iterdir() if p.is_file())
           remote = {entry['filename']: entry for entry in payload.get('urls', [])}
           if {p.name for p in local_files} != set(remote):
               raise SystemExit('public PyPI file set does not exactly match local immutable build')
@@ -235,6 +253,7 @@ jobs:
               'package': package,
               'version': version,
               'sourceSha': os.environ['SOURCE_SHA'],
+              'sourceDateEpoch': int(os.environ['SOURCE_DATE_EPOCH']),
               'workflowRun': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
               'registry': 'https://pypi.org',
               'files': evidence_files,
@@ -294,6 +313,7 @@ jobs:
           path: |
             sdk/release/pypi-local/*
             sdk/release/pypi-registry/*
+            sdk/release/pypi-SHA256SUMS
             sdk/release/pypi-release-evidence.json
           if-no-files-found: error
           retention-days: 90
