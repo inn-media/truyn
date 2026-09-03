@@ -2,7 +2,7 @@
 
 **Snapshot:** 2026-09-03  
 **Protocol generation:** `TRUYN/1` draft  
-**Synchronized source:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Synchronized source:** `main@b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`  
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`
 
 TRUYN separates compatibility dimensions instead of pretending one version controls everything:
@@ -23,13 +23,14 @@ A new adapter/SDK build does not automatically create a new TRUYN protocol gener
 - [Protocol and Node Compatibility](PROTOCOL_AND_NODE_COMPATIBILITY.md)
 - [Adapter Compatibility](ADAPTER_COMPATIBILITY.md)
 - [A2A / MCP Compatibility Matrix](A2A_MCP_COMPATIBILITY.md)
+- [C8 Security Closure Evidence](A2A_MCP_C8_SECURITY_EVIDENCE.md)
 - [SDK Compatibility](SDK_COMPATIBILITY.md)
 - [SDK Packaging and Versioning](SDK_PACKAGING.md)
 - [A2A / MCP Architecture](../architecture/A2A_MCP_INTEROPERABILITY.md)
 
 ## Current A2A / MCP boundary
 
-The old “A2A is architecture-only” and “independent SDK/reference-server interoperability is future work” statements are obsolete.
+The old “A2A is architecture-only”, “independent SDK/reference-server interoperability is future work” and “C8 is still open” statements are obsolete.
 
 Current accepted bounded profile:
 
@@ -43,10 +44,12 @@ C6  A2A artifact integrity                    accepted / CI-proven
 C7  both A2A↔TRUYN↔MCP round trips           accepted / CI-proven
 Sprint C official A2A SDK black box           accepted / bounded external proof
 Sprint D official MCP SDK black box           accepted / bounded external proof
-C8  complete cross-protocol security matrix   OPEN (#369)
+C8  complete cross-protocol security matrix   accepted / exact-head + exact-main CI/CodeQL
 ```
 
-Independent SDK/reference-server interoperability has therefore been proven in both claimed directions, but this is not ecosystem-wide certification. The external referenced file/artifact profile and a stable compatibility declaration remain open.
+C8 was accepted in PR `#423` on exact head `14757e0f1d182e8fdf15e2f9e7ffe67749efc4ee` and exact main `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`. Durable closure evidence is `A2A_MCP_C8_SECURITY_EVIDENCE.md`.
+
+Independent SDK/reference-server interoperability and bounded C8 security acceptance have therefore been proven in the claimed profiles, but this is not ecosystem-wide certification. The external referenced file/artifact profile and a stable compatibility declaration remain open.
 
 ## SDK compatibility boundary
 

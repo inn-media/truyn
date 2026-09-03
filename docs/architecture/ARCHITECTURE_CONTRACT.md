@@ -3,7 +3,7 @@
 This document prevents architecture, implementation status, public documentation, governance and benchmark evidence from silently diverging.
 
 **Snapshot:** 2026-09-03  
-**Synchronized source:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Synchronized source:** `main@b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`  
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`
 
 ## Document authority
@@ -47,9 +47,10 @@ A2A and MCP are adapters, not TRUYN/1 wire dependencies. Current accepted bounde
 - A2A artifact integrity (C6);
 - both in-repository A2A↔TRUYN↔MCP round trips (C7);
 - independent official A2A SDK black-box proof for `MCP→TRUYN→A2A` (Sprint C);
-- independent official MCP SDK black-box proof for `A2A→TRUYN→MCP` (Sprint D).
+- independent official MCP SDK black-box proof for `A2A→TRUYN→MCP` (Sprint D);
+- complete bounded cross-protocol adversarial security matrix (C8), accepted in PR `#423` on exact main `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`.
 
-C8 complete adversarial acceptance remains open in PR `#369`. The independent external SDK proofs are bounded adoption evidence, not ecosystem-wide certification. An integrity-verified external referenced file/artifact round trip and a stable compatibility declaration remain later adoption/stability gates.
+C8 durable closure evidence is `../compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md`. The independent external SDK and C8 proofs are bounded evidence, not ecosystem-wide certification. An integrity-verified external referenced file/artifact round trip and a stable compatibility declaration remain later adoption/stability gates.
 
 ### Artifact integrity
 
@@ -57,7 +58,7 @@ Content/reference translation cannot silently weaken integrity. C6 requires boun
 
 ### Exactly-once side effects
 
-Polling, fallback, retries and protocol translation must not duplicate provider-side execution where an accepted profile claims exactly-once behavior. C5/C7 and the independent black-box proofs provide bounded positive evidence; C8 owns the complete cross-protocol negative matrix.
+Polling, fallback, retries and protocol translation must not duplicate provider-side execution where an accepted profile claims exactly-once behavior. C5/C7 and the independent black-box proofs provide bounded positive evidence; C8 provides the accepted bounded cross-protocol negative matrix with zero unauthorized remote execution and exactly-one valid execution assertions.
 
 ### Network scale
 
@@ -124,4 +125,4 @@ A change that materially advances an accepted subsystem should update the releva
 4. public README/index/quickstart/security wording must not contradict canonical status;
 5. historical benchmark/changelog/acceptance records remain immutable unless correcting factual errors in those records.
 
-This synchronization rule is specifically intended to prevent the C3→C7, Developer Release and D-1000 documentation drift seen in earlier snapshots.
+This synchronization rule is specifically intended to prevent the C3→C8, Developer Release and D-1000 documentation drift seen in earlier snapshots.

@@ -1,7 +1,7 @@
 # TRUYN Adapter Compatibility
 
 **Snapshot:** 2026-09-03  
-**Status:** reference adapter compatibility map synchronized with `main@dd7c3574490e18cc002372d5eb9af704daf03bda`.
+**Status:** reference adapter compatibility map synchronized with `main@b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`.
 
 An adapter being present does not imply cloud entitlement, public provider access, stable compatibility or ecosystem-wide external-protocol certification. External protocol objects remain adapter metadata, not TRUYN/1 wire vocabulary.
 
@@ -55,11 +55,11 @@ Provider/model deployment availability is independent of adapter implementation.
 | A2A artifact integrity | **Implemented / bounded CI-proven — C6** |
 | A2A→TRUYN→MCP | **C7 + independent official MCP SDK black-box proven — Sprint D** |
 | MCP→TRUYN→A2A | **C7 + independent official A2A SDK black-box proven — Sprint C** |
-| Complete cross-protocol adversarial matrix | **OPEN — C8 / PR #369** |
+| Complete cross-protocol adversarial matrix | **ACCEPTED / bounded CI+CodeQL-proven — C8** |
 | Independent external referenced file/artifact profile | **Not yet accepted** |
 | Stable A2A/MCP compatibility guarantee | **Not available** |
 
-The key correction is that the project has the reverse A2A adapter, both in-repository cross-protocol round trips, and bounded independent official SDK black-box evidence in both claimed directions. What remains open is C8, the external referenced artifact/file profile, broader optional surfaces and stable compatibility — not C4/C7 or independent basic interoperability.
+The key correction is that the project has the reverse A2A adapter, both in-repository cross-protocol round trips, bounded independent official SDK black-box evidence in both claimed directions, and accepted bounded C8 adversarial security evidence. C8 closed in PR `#423` on exact main `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`; see `A2A_MCP_C8_SECURITY_EVIDENCE.md`. What remains open is the external referenced artifact/file profile, broader optional surfaces and stable compatibility — not C4/C7/C8 or independent basic interoperability.
 
 See `A2A_MCP_COMPATIBILITY.md` for the detailed matrix.
 
@@ -67,7 +67,7 @@ See `A2A_MCP_COMPATIBILITY.md` for the detailed matrix.
 
 Large media/reference payloads must preserve integrity and credential locality. C6 requires bounded content, SHA-256/size checks, canonical encodings where applicable, authoritative provenance and no implicit remote URL fetch. A referenced artifact is not trusted merely because an adapter can parse its URL.
 
-The current external black-box proofs exercise text/structured JSON boundaries; at least one integrity-verified referenced file/artifact round trip remains a separate adoption gate.
+C8 proves the bounded artifact-security negatives for the claimed bridge profile, but the current external black-box proofs still exercise text/structured JSON boundaries; at least one integrity-verified referenced file/artifact round trip remains a separate adoption gate.
 
 ## SDKs versus adapters
 
