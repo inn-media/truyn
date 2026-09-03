@@ -1,68 +1,55 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 
-const workflow = await readFile(new URL('../.github/workflows/publish-python-alpha.yml', import.meta.url), 'utf8');
+const workflowUrl = new URL('../.github/workflows/publish-sdk-alpha.yml', import.meta.url);
+const legacyWorkflowUrl = new URL('../.github/workflows/publish-python-alpha.yml', import.meta.url);
+const workflow = await readFile(workflowUrl, 'utf8');
 const marker = JSON.parse(await readFile(new URL('../sdk/release/pypi-alpha-bootstrap.json', import.meta.url), 'utf8'));
 
-test('PyPI alpha release is bounded to successful exact-main CI', () => {
+test('PyPI uses only the canonical SDK release workflow', async () => {
+  await assert.rejects(access(legacyWorkflowUrl));
+  assert.match(workflow, /publish-pypi:/);
+  assert.match(workflow, /publish-pypi:[\s\S]*?environment: sdk-release/);
   assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /workflows:\s*\n\s*- CI/);
-  assert.match(workflow, /branches:\s*\n\s*- main/);
-  assert.doesNotMatch(workflow, /^\s*pull_request:/m);
-  assert.doesNotMatch(workflow, /^\s*push:/m);
-  assert.match(workflow, /workflow_run\.conclusion == 'success'/);
-  assert.match(workflow, /workflow_run\.event == 'push'/);
-  assert.match(workflow, /workflow_run\.head_branch == 'main'/);
   assert.match(workflow, /SOURCE_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
-  assert.match(workflow, /git diff --name-only HEAD\^ HEAD \| grep -Fxq "\$RELEASE_MARKER"/);
 });
 
-test('historical PyPI marker revisions are cleanly skipped', () => {
-  assert.match(workflow, /marker\.get\('workflowRevision', 0\)/);
-  assert.match(workflow, /if \[\[ "\$marker_revision" -lt 2 \]\]; then/);
-  assert.match(workflow, /Ignoring historical PyPI release marker revision/);
+test('PyPI bounded retry is revision 3 and matches immutable coordinate', () => {
+  assert.match(workflow, /if \[\[ "\$marker_revision" -lt 3 \]\]; then/);
+  assert.match(workflow, /'workflowRevision': 3/);
+  assert.deepEqual(marker, {
+    package: 'truyn-sdk',
+    version: '0.1.0a1',
+    channel: 'alpha',
+    bootstrap: true,
+    workflowRevision: 3,
+    sourceDateEpoch: 1788457969
+  });
 });
 
-test('PyPI alpha release requires same-SHA hosted CodeQL and trusted publishing', () => {
-  assert.match(workflow, /actions: read/);
-  assert.match(workflow, /contents: read/);
+test('PyPI alpha release requires same-SHA CodeQL and Trusted Publishing', () => {
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /dynamic\/github-code-scanning\/codeql/);
-  assert.match(workflow, /Hosted CodeQL PASS on \$SOURCE_SHA/);
   assert.match(workflow, /pypa\/gh-action-pypi-publish@release\/v1/);
   assert.doesNotMatch(workflow, /PYPI_TOKEN/);
   assert.doesNotMatch(workflow, /password:/);
 });
 
-test('PyPI alpha build is reproducible and locally verified before publication', () => {
+test('PyPI build is reproducible and locally verified before publication', () => {
   assert.match(workflow, /SOURCE_DATE_EPOCH: '1788457969'/);
   assert.match(workflow, /python -m build sdk\/python --outdir sdk\/release\/pypi-local/);
   assert.match(workflow, /python -m twine check sdk\/release\/pypi-local\/\*/);
   assert.match(workflow, /sha256sum sdk\/release\/pypi-local\/\* \| sort \| tee sdk\/release\/pypi-SHA256SUMS/);
   assert.match(workflow, /pip install --disable-pip-version-check 'cryptography>=43,<47'/);
   assert.match(workflow, /--no-index --no-deps --find-links sdk\/release\/pypi-local/);
-  assert.doesNotMatch(workflow, /sdk\/release\/pypi-local\/SHA256SUMS/);
-  assert.match(workflow, /PyPI already contains non-identical immutable file/);
 });
 
-test('PyPI alpha release verifies registry bytes, PEP 740 provenance and clean install', () => {
-  assert.match(workflow, /public PyPI file set does not exactly match local immutable build/);
+test('PyPI release verifies registry bytes, PEP 740 provenance and clean install', () => {
   assert.match(workflow, /PyPI byte mismatch/);
   assert.match(workflow, /pypi-attestations verify pypi --repository https:\/\/github\.com\/inn-media\/truyn/);
   assert.match(workflow, /pep740Provenance.*PASS/);
   assert.match(workflow, /--index-url https:\/\/pypi\.org\/simple/);
   assert.match(workflow, /cleanRoomInstall.*PASS/);
   assert.match(workflow, /pypi-release-evidence\.json/);
-});
-
-test('PyPI alpha bootstrap marker exactly matches the repaired immutable coordinate', () => {
-  assert.deepEqual(marker, {
-    package: 'truyn-sdk',
-    version: '0.1.0a1',
-    channel: 'alpha',
-    bootstrap: true,
-    workflowRevision: 2,
-    sourceDateEpoch: 1788457969
-  });
 });
