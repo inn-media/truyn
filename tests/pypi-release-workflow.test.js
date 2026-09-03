@@ -18,6 +18,12 @@ test('PyPI alpha release is bounded to successful exact-main CI', () => {
   assert.match(workflow, /git diff --name-only HEAD\^ HEAD \| grep -Fxq "\$RELEASE_MARKER"/);
 });
 
+test('historical PyPI marker revisions are cleanly skipped', () => {
+  assert.match(workflow, /marker\.get\('workflowRevision', 0\)/);
+  assert.match(workflow, /if \[\[ "\$marker_revision" -lt 2 \]\]; then/);
+  assert.match(workflow, /Ignoring historical PyPI release marker revision/);
+});
+
 test('PyPI alpha release requires same-SHA hosted CodeQL and trusted publishing', () => {
   assert.match(workflow, /actions: read/);
   assert.match(workflow, /contents: read/);
@@ -29,11 +35,14 @@ test('PyPI alpha release requires same-SHA hosted CodeQL and trusted publishing'
   assert.doesNotMatch(workflow, /password:/);
 });
 
-test('PyPI alpha build is immutable and locally verified before publication', () => {
+test('PyPI alpha build is reproducible and locally verified before publication', () => {
+  assert.match(workflow, /SOURCE_DATE_EPOCH: '1788457969'/);
   assert.match(workflow, /python -m build sdk\/python --outdir sdk\/release\/pypi-local/);
   assert.match(workflow, /python -m twine check sdk\/release\/pypi-local\/\*/);
-  assert.match(workflow, /sha256sum sdk\/release\/pypi-local\/\*/);
-  assert.match(workflow, /--no-index --find-links sdk\/release\/pypi-local/);
+  assert.match(workflow, /sha256sum sdk\/release\/pypi-local\/\* \| sort \| tee sdk\/release\/pypi-SHA256SUMS/);
+  assert.match(workflow, /pip install --disable-pip-version-check 'cryptography>=43,<47'/);
+  assert.match(workflow, /--no-index --no-deps --find-links sdk\/release\/pypi-local/);
+  assert.doesNotMatch(workflow, /sdk\/release\/pypi-local\/SHA256SUMS/);
   assert.match(workflow, /PyPI already contains non-identical immutable file/);
 });
 
@@ -47,12 +56,13 @@ test('PyPI alpha release verifies registry bytes, PEP 740 provenance and clean i
   assert.match(workflow, /pypi-release-evidence\.json/);
 });
 
-test('PyPI alpha bootstrap marker exactly matches the Python package coordinate', () => {
+test('PyPI alpha bootstrap marker exactly matches the repaired immutable coordinate', () => {
   assert.deepEqual(marker, {
     package: 'truyn-sdk',
     version: '0.1.0a1',
     channel: 'alpha',
     bootstrap: true,
-    workflowRevision: 1
+    workflowRevision: 2,
+    sourceDateEpoch: 1788457969
   });
 });
