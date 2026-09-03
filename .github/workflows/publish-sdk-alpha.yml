@@ -50,6 +50,17 @@ jobs:
             echo "Ignoring successful main CI for $SOURCE_SHA because it is not the bounded npm release-marker commit."
             exit 0
           fi
+          marker_revision="$(node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const marker = JSON.parse(readFileSync(process.env.RELEASE_MARKER, 'utf8'));
+          console.log(Number.isInteger(marker.workflowRevision) ? marker.workflowRevision : 0);
+          NODE
+          )"
+          if [[ "$marker_revision" -lt 2 ]]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "Ignoring historical npm release marker revision $marker_revision on $SOURCE_SHA."
+            exit 0
+          fi
           node --input-type=module <<'NODE'
           import { readFileSync } from 'node:fs';
           const marker = JSON.parse(readFileSync(process.env.RELEASE_MARKER, 'utf8'));
@@ -57,7 +68,7 @@ jobs:
           if (marker.package !== process.env.PACKAGE_NAME) throw new Error(`marker package mismatch: ${marker.package}`);
           if (marker.version !== process.env.PACKAGE_VERSION) throw new Error(`marker version mismatch: ${marker.version}`);
           if (marker.channel !== 'alpha' || marker.bootstrap !== true) throw new Error('release marker is not the bounded alpha bootstrap marker');
-          if (!Number.isInteger(marker.workflowRevision) || marker.workflowRevision < 2) throw new Error('release marker workflowRevision must be >= 2');
+          if (marker.workflowRevision !== 2) throw new Error(`unexpected release marker workflowRevision: ${marker.workflowRevision}`);
           if (pkg.name !== marker.package || pkg.version !== marker.version) throw new Error('package.json does not match release marker');
           NODE
           echo "eligible=true" >> "$GITHUB_OUTPUT"
