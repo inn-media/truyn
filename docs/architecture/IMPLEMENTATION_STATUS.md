@@ -74,6 +74,7 @@ An admission/preflight/diagnostic PASS authorizes or informs later work; it does
 | Settlement adapters x402/AP2 | **Defined, not implemented** | settlement-neutral core; deferred extension work |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers/TSC/neutral stewardship are not facts |
 | Production relay origin perimeter | **Deployment-proven current reference perimeter** | Cloudflare → Azure Front Door → Container Apps direct-bypass denial evidence |
+| Production SLI / SLO contract | **Defined numerical target contract** | rolling 28-day SLIs, exclusions, error budgets and burn-rate policy are defined in `docs/operations/PRODUCTION_SLO.md`; real production telemetry/dashboards/alerting/on-call compliance evidence remains OPEN |
 | Mainnet | **Not productionized** | D-1000 + operations + compatibility/stability + governance maturity |
 
 ## Network productionization
@@ -123,6 +124,14 @@ D-1000 promotion still requires one new pinned run proving all of:
 - durable sanitized accepted benchmark evidence.
 
 No preflight, diagnostic or cleanup success substitutes for those predicates.
+
+## Production SLI / SLO boundary
+
+The numerical service-level target contract is now defined in `docs/operations/PRODUCTION_SLO.md`. It distinguishes rolling production SLIs from bounded benchmark gates and defines targets for relay HTTP/WebSocket availability, authenticated request success, NEED dispatch, RESULT delivery, first-party provider-runtime availability, DHT/routing health, stale-selection rate, synchronous end-to-end latency, connection latency and instance/routing recovery.
+
+The canonical compliance window is 28 days with explicit machine-attributable exclusions, independent error budgets and multi-window burn-rate actions. Security/correctness invariants such as unauthorized owner-funded execution or cross-request RESULT injection have zero spendable error budget.
+
+This is currently **Defined**, not Productionized. The next gate is real serving-path telemetry plus external probes, dashboards/reporting, burn-rate alerts, on-call ownership, controlled recovery measurement and durable sanitized compliance evidence. D-1000 remains independent: neither accepted D-1000 nor an SLO dashboard substitutes for the other.
 
 ## A2A / MCP interoperability boundary
 
