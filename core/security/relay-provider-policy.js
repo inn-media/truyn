@@ -67,9 +67,10 @@ function authoritativeContexts(policy, requesterNodeId) {
 export function providerPolicyAllowsRequester(policy, requesterNodeId, { trustedRequesterNodeIds = [] } = {}) {
   if (!policy || typeof requesterNodeId !== 'string' || requesterNodeId.length === 0) return false;
 
+  // Account/tenant authority proves current identity, membership, role and provider binding.
+  // It never grants provider entitlement merely because two nodes share a tenant.
   const authority = authoritativeContexts(policy, requesterNodeId);
   if (authority && !authority.ok) return false;
-  if (authority?.ok && authority.requester.tenantId === authority.provider.tenantId) return true;
 
   if (policy.accessMode === 'public') return true;
   if (policy.accessMode !== 'owner-only') return false;
