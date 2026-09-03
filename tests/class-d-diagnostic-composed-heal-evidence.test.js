@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-test('D-200 composed heal diagnostics apply universal evidence before packet/healed origin patches and preserve strict gates', async () => {
+test('D-200 composed heal diagnostics apply bounded local controls and preserve strict gates', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'truyn-d200-composed-heal-'));
   const provisionTarget = join(dir, 'provision.sh');
   const campaignTarget = join(dir, 'campaign.sh');
@@ -16,10 +16,13 @@ test('D-200 composed heal diagnostics apply universal evidence before packet/hea
 
   const run = spawnSync('python3', ['scripts/patch-class-d-diagnostic-composed-heal-evidence.py', provisionTarget, campaignTarget], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr || run.stdout);
-  assert.match(run.stdout, /TRUYN_D200_COMPOSED_PATCH=PASS order=failure-evidence,packet-partition,healed-reconvergence,healed-origin/);
+  assert.match(run.stdout, /TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,packet-partition,healed-reconvergence,healed-origin/);
 
   const provisionAfter = await readFile(provisionTarget, 'utf8');
   const campaignAfter = await readFile(campaignTarget, 'utf8');
+  assert.equal(provisionBefore.includes('TRUYN_TESTNET_FAULT_CONTROL=1'), false, 'canonical provision fixture must not enable diagnostic fault control');
+  assert.equal(provisionAfter.match(/TRUYN_TESTNET_FAULT_CONTROL=1/g)?.length, 1, 'diagnostic fault control must be enabled exactly once');
+  assert.ok(provisionAfter.includes('TRUYN_CONTROL_HOST=127.0.0.1'), 'diagnostic fault control must remain on the localhost control plane');
   assert.equal(provisionAfter.match(/d200_failure_evidence_checkpoint\(\) \{/g)?.length, 1, 'universal failure helper must be installed exactly once on provisioner');
   assert.equal(provisionAfter.match(/d200_err_trap\(\) \{/g)?.length, 1, 'universal ERR helper must be installed exactly once on provisioner');
   assert.ok(campaignAfter.includes('PACKET_DIAG_PHASE=heal-timeout'), 'packet heal diagnostics must remain installed');
@@ -48,7 +51,7 @@ test('D-200 composed heal diagnostics apply universal evidence before packet/hea
     'DIAGNOSTIC_NODES_PER_HOST_SIZES="10 25 50"',
     'NODE_COUNT=$((HOST_COUNT * NODES_PER_HOST))',
   ]) {
-    assert.equal(provisionBefore.includes(invariant), true, `provision fixture must contain sizing invariant before composition: ${invariant}`);
+    assert.equal(provisionBefore.includes(invariant), true, `provision fixture must contain invariant before composition: ${invariant}`);
     assert.equal(provisionAfter.includes(invariant), true, `composition must preserve sizing invariant: ${invariant}`);
   }
 
