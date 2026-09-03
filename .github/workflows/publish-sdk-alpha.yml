@@ -1,0 +1,243 @@
+name: Publish SDK alpha
+
+on:
+  push:
+    tags:
+      - 'sdk/go/v0.1.0-alpha.1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build exact release bundle
+    if: github.repository == 'inn-media/truyn'
+    runs-on: ubuntu-24.04
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Checkout immutable release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Enforce exact immutable alpha tag
+        id: source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_REF" = 'refs/tags/sdk/go/v0.1.0-alpha.1'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git tag --points-at HEAD | grep -Fx 'sdk/go/v0.1.0-alpha.1' | wc -l)" = '1'
+          echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+          cache: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install repository dependencies
+        run: |
+          python -m pip install --disable-pip-version-check -e ./sdk/python
+          npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Five-language executable conformance
+        run: node sdk/conformance/run-five-language-e2e.mjs
+
+      - name: Build and verify release packages
+        run: sdk/release/build-release.sh
+
+      - name: Verify source binding
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('sdk/release/dist/manifest.json','utf8'));if(m.sourceSha!==process.env.GITHUB_SHA)throw new Error('release manifest source SHA mismatch')"
+
+      - name: Upload exact release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-sdk-0.1.0-alpha.1-${{ github.sha }}
+          path: sdk/release/dist/
+          if-no-files-found: error
+          retention-days: 90
+
+  npm:
+    name: Publish npm
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: sdk-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: truyn-sdk-0.1.0-alpha.1-${{ github.sha }}
+          path: dist
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+      - name: Require trusted-publishing capable npm
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          version="$(npm --version)"
+          echo "npm=$version"
+          node -e "const [major,minor]=process.argv[1].split('.').map(Number);if(major<11||(major===11&&minor<5))process.exit(1)" "$version"
+      - name: Publish @truyn/sdk
+        run: npm publish dist/typescript/truyn-sdk-0.1.0-alpha.1.tgz --access public --provenance
+
+  pypi:
+    name: Publish PyPI
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: sdk-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: truyn-sdk-0.1.0-alpha.1-${{ github.sha }}
+          path: dist
+      - name: Publish truyn-sdk
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/python/
+          attestations: true
+
+  nuget:
+    name: Publish NuGet
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: sdk-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: truyn-sdk-0.1.0-alpha.1-${{ github.sha }}
+          path: dist
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '9.0.x'
+      - name: Exchange GitHub OIDC for temporary NuGet API key
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - name: Publish Truyn.Sdk
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          package="$(find dist/dotnet -maxdepth 1 -type f -name 'Truyn.Sdk.0.1.0-alpha.1.nupkg' -print -quit)"
+          test -n "$package"
+          dotnet nuget push "$package" \
+            --api-key '${{ steps.nuget-login.outputs.NUGET_API_KEY }}' \
+            --source https://api.nuget.org/v3/index.json
+
+  maven-central:
+    name: Publish Maven Central
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: sdk-release
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout immutable release source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Import release signing key
+        env:
+          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -n "$MAVEN_GPG_PRIVATE_KEY"
+          printf '%s' "$MAVEN_GPG_PRIVATE_KEY" | gpg --batch --import
+      - name: Configure Central Publisher Portal credentials
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -n "$MAVEN_CENTRAL_USERNAME"
+          test -n "$MAVEN_CENTRAL_TOKEN"
+          mkdir -p "$HOME/.m2"
+          cat > "$HOME/.m2/settings.xml" <<EOF
+          <settings>
+            <servers>
+              <server>
+                <id>central</id>
+                <username>${MAVEN_CENTRAL_USERNAME}</username>
+                <password>${MAVEN_CENTRAL_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+      - name: Publish org.truyn:truyn-sdk
+        env:
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mvn -B -f sdk/java/pom.xml -Pcentral-release \
+            -Dgpg.passphrase="$MAVEN_GPG_PASSPHRASE" \
+            deploy
+
+  go-module:
+    name: Confirm Go module release tag
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+          cache: false
+      - name: Verify native Go coordinate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(sed -n 's/^module //p' sdk/go/go.mod)" = 'github.com/inn-media/truyn/sdk/go'
+          test "$(git tag --points-at HEAD | grep -Fx 'sdk/go/v0.1.0-alpha.1' | wc -l)" = '1'
+          (cd sdk/go && go test ./...)

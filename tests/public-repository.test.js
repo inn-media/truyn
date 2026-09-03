@@ -8,7 +8,12 @@ const SELF = 'tests/public-repository.test.js';
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
 const TEXT_EXTENSIONS = new Set(['.md', '.js', '.mjs', '.cjs', '.json', '.yml', '.yaml', '.toml', '.txt', '.proto', '.sh', '.ps1', '.cmd', '.html', '.css']);
 const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.cmd']);
-const ALLOWED_WORKFLOWS = new Set(['.github/workflows/.gitkeep', '.github/workflows/ci.yml']);
+const ALLOWED_WORKFLOWS = new Set([
+  '.github/workflows/.gitkeep',
+  '.github/workflows/ci.yml',
+  '.github/workflows/deploy-developer-site.yml',
+  '.github/workflows/publish-sdk-alpha.yml'
+]);
 const BENCHMARK_EVIDENCE_DIR = 'docs/benchmarks/';
 
 const protectedBenchmarkEvidence = [
@@ -194,7 +199,7 @@ test('public repository contains no known operational/cloud leakage or credentia
       // GitHub Actions run URLs are reproducibility evidence in sanitized benchmark reports.
       // They remain forbidden elsewhere because arbitrary run links can expose operational context.
       if (isBenchmarkEvidence && marker === 'github.com/inn-media/truyn/actions/runs/') continue;
-      if (content.includes(marker)) violations.push(`${file.relative}: forbidden operational marker category`);
+      if (content.includes(marker)) violations.push(`${file.relative}: forbidden operational marker category (${marker})`);
     }
     for (const pattern of forbiddenCredentialPatterns) {
       if (pattern.test(content)) violations.push(`${file.relative}: credential/private-key pattern detected`);
