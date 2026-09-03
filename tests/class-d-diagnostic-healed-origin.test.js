@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-test('D-200 healed origin diagnostics distinguish peer-record freshness from cached transport without weakening acceptance', async () => {
+test('D-200 healed origin diagnostics distinguish peer-record freshness from drained cached transport without weakening acceptance', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'truyn-d200-healed-origin-'));
   const target = join(dir, 'campaign.sh');
   await copyFile('benchmarks/scale/class-d-azure-1000-campaign.sh', target);
@@ -33,10 +33,19 @@ test('D-200 healed origin diagnostics distinguish peer-record freshness from cac
   assert.ok(block.includes("'peerRecordAfterFirstAttempt':peer_after_timeout"), 'post-first-attempt record transition must be captured');
   assert.ok(block.includes("if peer_before.get('validNow') is True:"), 'classifier must branch on pre-first-attempt record freshness');
 
-  assert.ok(block.includes("control+'/faults/partition'"), 'valid-record failures must use the existing bounded fault control to discard cached target clients');
-  assert.ok(block.includes("control+'/faults/heal'"), 'forced target transport reset must always heal the temporary diagnostic fault');
+  assert.ok(block.includes('D200_HEALED_DRAIN_SECONDS=105'), 'timed-out server-side need must get a bounded drain window');
+  const resetStart = block.indexOf('def reset_target_transport_after_drain');
+  const firstPartition = block.indexOf("partition=post_json(control+'/faults/partition'", resetStart);
+  const drain = block.indexOf('time.sleep(D200_HEALED_DRAIN_SECONDS)', resetStart);
+  const rediscard = block.indexOf("rediscard=post_json(control+'/faults/partition'", resetStart);
+  const heal = block.indexOf("heal=post_json(control+'/faults/heal'", resetStart);
+  assert.ok(resetStart >= 0 && firstPartition > resetStart && drain > firstPartition && rediscard > drain && heal > rediscard,
+    'transport reset must partition, drain, rediscard while partitioned, then heal');
+  assert.ok(block.includes("'rediscardBeforeHeal':rediscard"), 'evidence must retain the second pre-heal cache discard');
+  assert.ok(block.includes("if reset.get('ok') and reset_retry['ok']:"), 'session-reset recovery attribution requires the reset itself to succeed');
+  assert.ok(block.includes("classification='transport-reset-unverified-retry-recovered'"), 'a recovered retry after failed reset must not be mislabeled as session-reset recovery');
   assert.ok(block.includes("d1000-healed-session-reset-retry"), 'valid-record transport recovery must be measured separately');
-  assert.ok(block.includes("classification='valid-record-session-reset-recovered'"), 'transport/session recovery must have an explicit class');
+  assert.ok(block.includes("classification='valid-record-session-reset-recovered'"), 'verified transport/session recovery must have an explicit class');
 
   assert.ok(block.includes("refresh=targeted_refresh(j,node_id,k)"), 'stale/missing target records must use bounded targeted refresh');
   assert.ok(block.includes("classification='stale-record-target-refresh-recovered'"), 'stale record recovery must have an explicit class');
