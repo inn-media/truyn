@@ -10,6 +10,7 @@ test('D-200 composed heal diagnostics apply universal evidence before packet/hea
   const target = join(dir, 'campaign.sh');
   await copyFile('benchmarks/scale/class-d-azure-1000-campaign.sh', target);
   const before = await readFile(target, 'utf8');
+  const provision = await readFile('benchmarks/scale/class-d-azure-1000-provision.sh', 'utf8');
 
   const run = spawnSync('python3', ['scripts/patch-class-d-diagnostic-composed-heal-evidence.py', target], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr || run.stdout);
@@ -26,13 +27,21 @@ test('D-200 composed heal diagnostics apply universal evidence before packet/hea
   assert.ok(after.includes('[[ "$partition_recovery_ms" -le 120000 ]]'), 'packet recovery must remain <=120s');
 
   for (const invariant of [
+    ': "${HOST_COUNT:?source class-d-azure-1000-provision.sh first}"',
+    ': "${NODES_PER_HOST:?source class-d-azure-1000-provision.sh first}"',
+    ': "${NODE_COUNT:?source class-d-azure-1000-provision.sh first}"',
+  ]) {
+    assert.equal(before.includes(invariant), true, `campaign fixture must contain invariant before composition: ${invariant}`);
+    assert.equal(after.includes(invariant), true, `composition must preserve campaign invariant: ${invariant}`);
+  }
+
+  for (const invariant of [
     'HOST_COUNT=20',
     'STRICT_NODES_PER_HOST=50',
     'DIAGNOSTIC_NODES_PER_HOST_SIZES="10 25 50"',
     'NODE_COUNT=$((HOST_COUNT * NODES_PER_HOST))',
   ]) {
-    assert.equal(before.includes(invariant), true, `fixture must contain invariant before composition: ${invariant}`);
-    assert.equal(after.includes(invariant), true, `composition must preserve invariant: ${invariant}`);
+    assert.equal(provision.includes(invariant), true, `canonical provisioner must preserve sizing invariant: ${invariant}`);
   }
 
   const shell = spawnSync('bash', ['-n', target], { encoding: 'utf8' });
