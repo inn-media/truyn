@@ -11,6 +11,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - [Implementation Status](architecture/IMPLEMENTATION_STATUS.md) — **canonical factual maturity/status**.
 - [Architecture Contract](architecture/ARCHITECTURE_CONTRACT.md) — source ownership and cross-subsystem invariants.
 - [Roadmap](../ROADMAP.md) — accepted gates and next bounded work.
+- [Production SLI / SLO Contract](operations/PRODUCTION_SLO.md) — numerical production service targets, measurement windows, exclusions, error budgets and burn-rate policy.
 - [A2A / MCP Architecture](architecture/A2A_MCP_INTEROPERABILITY.md) — external protocol bridge architecture and authority boundary.
 - [A2A / MCP Compatibility](compatibility/A2A_MCP_COMPATIBILITY.md) — exact current compatibility matrix.
 - [SDK & Developer Experience](architecture/SDK_DEVELOPER_EXPERIENCE.md) — five-language first-party developer surface and release boundary.
@@ -26,6 +27,7 @@ The repository has moved beyond several older documentation snapshots:
 - Class D-100 — **accepted**;
 - Class D-1000 — **OPEN**; the latest full pinned accepted-status record remains a failed 20×50 campaign, and later diagnostic/remediation work does not itself promote D-1000;
 - current main includes bounded D-200 diagnostic/remediation work from PRs `#417` and `#418` plus the bounded packet-partition diagnostic patcher from PR `#419`; later one-shot launcher cleanup does not change those diagnostic sources, and none is D-1000 acceptance;
+- production SLI/SLO numerical target contract — **defined** with a rolling 28-day window, explicit exclusions/error budgets and burn-rate policy; real production telemetry/dashboards/alerting/on-call compliance evidence remains **OPEN**;
 - MCP current contract + general discovery/import — **implemented / bounded CI-proven**;
 - A2A server facade, reverse client/provider adapter, bounded polling lifecycle and artifact integrity — **implemented / bounded CI-proven (C3–C6)**;
 - both A2A→TRUYN→MCP and MCP→TRUYN→A2A in-repository round trips — **implemented / bounded CI-proven (C7)**;
@@ -90,6 +92,7 @@ Cryptographic identity/integrity and contextual truth/trust remain distinct conc
 ## Operations and security
 
 - [Operations](operations/README.md)
+- [Production SLI / SLO Contract](operations/PRODUCTION_SLO.md)
 - [Node Operations](operations/NODE_OPERATIONS.md)
 - [Testnet Operations](operations/TESTNET_OPERATIONS.md)
 - [Billing Operations](operations/BILLING_OPERATIONS.md)
