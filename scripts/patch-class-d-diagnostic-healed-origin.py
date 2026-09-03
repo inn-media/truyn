@@ -99,6 +99,17 @@ def reset_target_transport(j,node_id):
 '''
 block = block.replace(need_anchor, helpers + need_anchor)
 
+first_anchor = r'''    node_id=records[target_host][target_local]['nodeId']
+    first=need(j,node_id,'d1000-healed',k,'first')
+'''
+first_replacement = r'''    node_id=records[target_host][target_local]['nodeId']
+    peer_before=persisted_peer_state(j,node_id)
+    first=need(j,node_id,'d1000-healed',k,'first')
+'''
+if block.count(first_anchor) != 1:
+    raise SystemExit(f'unexpected first-attempt target anchor count: {block.count(first_anchor)}')
+block = block.replace(first_anchor, first_replacement)
+
 old = r'''    before=state(j)
     fresh=need(j,node_id,'d1000-healed-fresh-session-retry',k,'fresh')
     refresh=None
@@ -118,7 +129,6 @@ old = r'''    before=state(j)
     }
 '''
 new = r'''    before=state(j)
-    peer_before=persisted_peer_state(j,node_id)
     time.sleep(.25)
     peer_after_timeout=persisted_peer_state(j,node_id)
     reset=None
@@ -144,16 +154,21 @@ new = r'''    before=state(j)
         peer_after_refresh=persisted_peer_state(j,node_id)
         post_refresh=need(j,node_id,'d1000-healed-target-refresh-retry',k,'refresh')
         if post_refresh['ok']:
-            classification='stale-record-target-refresh-recovered' if peer_before.get('readOk') else 'peer-state-unavailable-target-refresh-recovered'
+            if not peer_before.get('readOk'):
+                classification='peer-state-unavailable-target-refresh-recovered'
+            elif peer_before.get('present'):
+                classification='stale-record-target-refresh-recovered'
+            else:
+                classification='missing-record-target-refresh-recovered'
         else:
             classification='persistent-after-refresh'
     record_transition='valid-before-first-attempt'
     if peer_before.get('validNow') is not True:
-        record_transition='became-valid-after-timeout' if peer_after_timeout.get('validNow') is True else 'stale-or-missing-after-timeout'
+        record_transition='became-valid-during-first-attempt' if peer_after_timeout.get('validNow') is True else 'stale-or-missing-after-first-attempt'
     diag={
       'sourceHost':host,'sourceLocalNode':j,'targetHost':target_host,'targetLocalNode':target_local,'targetNodeId':node_id,
       'classification':classification,'recordTransition':record_transition,'firstAttempt':first,'stateBeforeRecovery':before,
-      'peerRecordBeforeFirstAttempt':peer_before,'peerRecordAfterTimeout':peer_after_timeout,
+      'peerRecordBeforeFirstAttempt':peer_before,'peerRecordAfterFirstAttempt':peer_after_timeout,
       'forcedTargetTransportReset':reset,'sessionResetRetry':reset_retry,
       'targetedRefresh':refresh,'stateAfterTargetedRefresh':after_refresh,'peerRecordAfterTargetedRefresh':peer_after_refresh,'postRefreshRetry':post_refresh,
     }
@@ -170,12 +185,16 @@ for forbidden in [
     if forbidden in block:
         raise SystemExit(f'ambiguous legacy classifier remained after patch: {forbidden}')
 for marker in [
-    'persisted_peer_state(j,node_id)',
+    'peer_before=persisted_peer_state(j,node_id)',
+    "'peerRecordBeforeFirstAttempt':peer_before",
+    "'peerRecordAfterFirstAttempt':peer_after_timeout",
+    "record_transition='became-valid-during-first-attempt'",
     "control+'/faults/partition'",
     "control+'/faults/heal'",
     "d1000-healed-session-reset-retry",
     "classification='valid-record-session-reset-recovered'",
     "classification='stale-record-target-refresh-recovered'",
+    "classification='missing-record-target-refresh-recovered'",
     "'schema':'truyn.d200.healed-reconvergence.v2'",
     "assert float('$healed_rate') >= .99, '$healed_rate'",
 ]:
