@@ -1,0 +1,273 @@
+name: Release Go SDK alpha
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  release-go:
+    name: Tag and verify Go SDK
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: sdk-release
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: write
+    env:
+      MODULE_PATH: github.com/inn-media/truyn/sdk/go
+      GO_VERSION: v0.1.0-alpha.1
+      GO_TAG: sdk/go/v0.1.0-alpha.1
+      RELEASE_MARKER: sdk/release/go-alpha-release.json
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact green main SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Determine bounded Go release eligibility
+        id: eligibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git rev-parse HEAD^ >/dev/null
+          if ! git diff --name-only HEAD^ HEAD | grep -Fxq "$RELEASE_MARKER"; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "Ignoring successful main CI for $SOURCE_SHA because it is not the bounded Go release-marker commit."
+            exit 0
+          fi
+          jq -e \
+            --arg module "$MODULE_PATH" \
+            --arg version "$GO_VERSION" \
+            --arg tag "$GO_TAG" \
+            '. == {module:$module,version:$version,tag:$tag,channel:"alpha",workflowRevision:1}' \
+            "$RELEASE_MARKER" >/dev/null
+          actual_module="$(awk '$1 == "module" { print $2; exit }' sdk/go/go.mod)"
+          test "$actual_module" = "$MODULE_PATH"
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+
+      - name: Require hosted CodeQL success on the same SHA
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100")"
+            count="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql")] | length' <<<"$runs")"
+            failed="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status == "completed" and .conclusion != "success")] | length' <<<"$runs")"
+            pending="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status != "completed")] | length' <<<"$runs")"
+            succeeded="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status == "completed" and .conclusion == "success")] | length' <<<"$runs")"
+            if [[ "$failed" -gt 0 ]]; then
+              echo "Hosted CodeQL failed on $SOURCE_SHA" >&2
+              exit 1
+            fi
+            if [[ "$count" -gt 0 && "$pending" -eq 0 && "$succeeded" -eq "$count" ]]; then
+              echo "Hosted CodeQL PASS on $SOURCE_SHA"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Hosted CodeQL did not reach a successful terminal state on $SOURCE_SHA" >&2
+          exit 1
+
+      - name: Set up Go
+        if: steps.eligibility.outputs.eligible == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+          cache: false
+
+      - name: Test exact Go module before tagging
+        if: steps.eligibility.outputs.eligible == 'true'
+        working-directory: sdk/go
+        run: |
+          set -euo pipefail
+          go test ./...
+          go vet ./...
+
+      - name: Detect immutable Go tag state
+        id: tag
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          resolve_tag() {
+            local lines direct peeled
+            lines="$(git ls-remote --tags "https://github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${GO_TAG}" "refs/tags/${GO_TAG}^{}")"
+            direct="$(awk '$2 !~ /\^\{\}$/ {print $1; exit}' <<<"$lines")"
+            peeled="$(awk '$2 ~ /\^\{\}$/ {print $1; exit}' <<<"$lines")"
+            printf '%s' "${peeled:-$direct}"
+          }
+          existing="$(resolve_tag)"
+          if [[ -z "$existing" ]]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$existing" != "$SOURCE_SHA" ]]; then
+            echo "Immutable Go release tag $GO_TAG already resolves to $existing, expected $SOURCE_SHA" >&2
+            exit 1
+          fi
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create immutable Go SemVer tag
+        if: steps.eligibility.outputs.eligible == 'true' && steps.tag.outputs.exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/${GO_TAG}" \
+            -f sha="$SOURCE_SHA" >/tmp/go-tag-create.json
+          test "$(jq -r '.ref' /tmp/go-tag-create.json)" = "refs/tags/${GO_TAG}"
+          test "$(jq -r '.object.sha' /tmp/go-tag-create.json)" = "$SOURCE_SHA"
+
+      - name: Verify tag resolves to exact accepted source
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          resolved=''
+          for attempt in $(seq 1 20); do
+            lines="$(git ls-remote --tags "https://github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${GO_TAG}" "refs/tags/${GO_TAG}^{}")"
+            direct="$(awk '$2 !~ /\^\{\}$/ {print $1; exit}' <<<"$lines")"
+            peeled="$(awk '$2 ~ /\^\{\}$/ {print $1; exit}' <<<"$lines")"
+            resolved="${peeled:-$direct}"
+            [[ "$resolved" == "$SOURCE_SHA" ]] && break
+            sleep 2
+          done
+          test "$resolved" = "$SOURCE_SHA"
+
+      - name: Discover module through public Go proxy and checksum database
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$GITHUB_WORKSPACE"
+          probe="$(mktemp -d)"
+          cd "$probe"
+          go mod init example.com/truyn-go-proxy-proof >/dev/null
+          export GOPROXY=https://proxy.golang.org
+          export GOSUMDB=sum.golang.org
+          discovered=false
+          for attempt in $(seq 1 40); do
+            if go list -m -json "${MODULE_PATH}@${GO_VERSION}" > "$workspace/sdk/release/go-proxy-module.json" 2>/tmp/go-proxy.err; then
+              discovered=true
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$discovered" != true ]]; then
+            cat /tmp/go-proxy.err >&2 || true
+            exit 1
+          fi
+          jq -e --arg module "$MODULE_PATH" --arg version "$GO_VERSION" '.Path == $module and .Version == $version' "$workspace/sdk/release/go-proxy-module.json" >/dev/null
+          go mod download -json "${MODULE_PATH}@${GO_VERSION}" > "$workspace/sdk/release/go-module-download.json"
+          jq -e --arg module "$MODULE_PATH" --arg version "$GO_VERSION" '.Path == $module and .Version == $version and (.Sum | length > 0) and (.GoModSum | length > 0)' "$workspace/sdk/release/go-module-download.json" >/dev/null
+          curl --fail --silent --show-error --location \
+            "https://proxy.golang.org/${MODULE_PATH}/@v/${GO_VERSION}.info" \
+            --output "$workspace/sdk/release/go-proxy-info.json"
+          jq -e --arg version "$GO_VERSION" '.Version == $version and (.Time | length > 0)' "$workspace/sdk/release/go-proxy-info.json" >/dev/null
+
+      - name: Clean-room install and public import proof
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanroom="$(mktemp -d)"
+          cd "$cleanroom"
+          go mod init example.com/truyn-go-install-proof >/dev/null
+          GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org go get "${MODULE_PATH}@${GO_VERSION}"
+          cat > main.go <<'GO'
+          package main
+
+          import (
+              "fmt"
+              truyn "github.com/inn-media/truyn/sdk/go"
+          )
+
+          func main() {
+              if truyn.Protocol != "TRUYN/1" {
+                  panic("unexpected protocol export")
+              }
+              if truyn.StableSDKAPIVersion != "1" {
+                  panic("unexpected stable SDK API version")
+              }
+              fmt.Printf("%s %s\n", truyn.Protocol, truyn.StableSDKAPIVersion)
+          }
+          GO
+          GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org go run . | grep -Fx 'TRUYN/1 1'
+
+      - name: Require pkg.go.dev discovery for exact version
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://pkg.go.dev/v1/module/${MODULE_PATH}?version=${GO_VERSION}"
+          discovered=false
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error --location "$api" --output sdk/release/pkg-go-dev.json 2>/tmp/pkg-go-dev.err; then
+              if jq -e --arg module "$MODULE_PATH" --arg version "$GO_VERSION" '.path == $module and .version == $version and .hasGoMod == true and .isRedistributable == true' sdk/release/pkg-go-dev.json >/dev/null; then
+                discovered=true
+                break
+              fi
+            fi
+            sleep 5
+          done
+          if [[ "$discovered" != true ]]; then
+            cat /tmp/pkg-go-dev.err >&2 || true
+            test -f sdk/release/pkg-go-dev.json && cat sdk/release/pkg-go-dev.json >&2 || true
+            exit 1
+          fi
+
+      - name: Record immutable Go release evidence
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          module_sum="$(jq -r '.Sum' sdk/release/go-module-download.json)"
+          go_mod_sum="$(jq -r '.GoModSum' sdk/release/go-module-download.json)"
+          proxy_time="$(jq -r '.Time' sdk/release/go-proxy-info.json)"
+          jq -n \
+            --arg module "$MODULE_PATH" \
+            --arg version "$GO_VERSION" \
+            --arg tag "$GO_TAG" \
+            --arg sourceSha "$SOURCE_SHA" \
+            --arg workflowRun "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg moduleSum "$module_sum" \
+            --arg goModSum "$go_mod_sum" \
+            --arg proxyTime "$proxy_time" \
+            --arg pkgGoDevUrl "https://pkg.go.dev/${MODULE_PATH}@${GO_VERSION}" \
+            '{module:$module,version:$version,tag:$tag,sourceSha:$sourceSha,workflowRun:$workflowRun,environment:"sdk-release",proxy:"https://proxy.golang.org",checksumDatabase:"sum.golang.org",moduleSum:$moduleSum,goModSum:$goModSum,proxyTime:$proxyTime,tagIdentity:"PASS",proxyDiscovery:"PASS",checksumVerification:"PASS",cleanRoomInstall:"PASS",pkgGoDevDiscovery:"PASS",pkgGoDevUrl:$pkgGoDevUrl}' \
+            > sdk/release/go-release-evidence.json
+          cat sdk/release/go-release-evidence.json
+
+      - name: Upload immutable Go release evidence
+        if: steps.eligibility.outputs.eligible == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-go-${{ env.GO_VERSION }}-${{ env.SOURCE_SHA }}
+          path: |
+            sdk/release/go-proxy-module.json
+            sdk/release/go-module-download.json
+            sdk/release/go-proxy-info.json
+            sdk/release/pkg-go-dev.json
+            sdk/release/go-release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
