@@ -45,7 +45,7 @@ The bounded role vocabulary is:
 
 Account- and organization-scoped membership roles inherit down to descendant tenants. Effective roles are resolved from active memberships only.
 
-Requester execution is permitted only for an active principal holding at least one of:
+Requester execution context is valid only for an active principal holding at least one of:
 
 ```text
 account-owner
@@ -55,7 +55,7 @@ member
 provider-operator
 ```
 
-Provider operation is permitted only for:
+Provider operation context is valid only for:
 
 ```text
 account-owner
@@ -66,7 +66,7 @@ provider-operator
 
 `auditor` alone does not grant provider execution.
 
-These roles establish identity/control authority, not capability-specific commercial grants. Cross-tenant paid/shared grants remain a separate P1 layer.
+These roles establish identity/control authority. **Tenant membership is not provider entitlement.** A private provider still requires its existing explicit requester allowlist/trusted grant; later P1 grant/entitlement layers may replace that bounded mechanism with durable policy administration.
 
 ## Lifecycle
 
@@ -105,12 +105,14 @@ requester authoritative node binding
        ↓
 active membership + execution role
        ↓
-same tenant → eligible
+explicit provider access/grant check
+       ↓
+eligible provider
 ```
 
-Requester/provider wire fields such as `tenantId` and `ownerId` are ignored for the authoritative binding.
+Requester/provider wire fields such as `tenantId` and `ownerId` are ignored for the authoritative binding. Sharing a tenant never broadens an `owner-only` provider by itself.
 
-A lifecycle change is therefore reflected on the next discovery/dispatch decision. A previously authenticated session is not itself tenant entitlement.
+A lifecycle change is reflected on the next discovery/dispatch decision. A previously authenticated session, or a valid same-tenant membership, is not itself provider entitlement.
 
 ## Compatibility boundary
 
@@ -120,7 +122,7 @@ When no account/tenant authority is configured, the existing node-level provider
 - private `allowedRequesterIds` and trusted requester behavior continue to work;
 - public-provider opt-in remains explicit.
 
-This keeps current bounded deployments compatible while allowing production deployments to opt into the stronger resolver.
+This keeps current bounded deployments compatible while allowing deployments to opt into the stronger resolver.
 
 ## Security invariants
 
@@ -132,20 +134,24 @@ This keeps current bounded deployments compatible while allowing production depl
 - inactive provider binding fails closed;
 - auditor-only principals cannot execute provider work;
 - provider bindings cannot cross their node's authoritative principal/tenant;
-- same-tenant eligibility is computed from trusted authority state, not from payload claims;
+- same-tenant membership alone does not grant private-provider access;
+- explicit provider access is still required after authority resolution;
 - cross-tenant sharing still requires an explicit policy/grant path and never arises from forged tenant metadata.
 
 ## Bounded evidence
 
-`tests/account-tenant-authority.test.js` covers:
+`tests/account-tenant-authority.test.js` and `tests/account-tenant-cascade.test.js` cover:
 
 - inherited scoped roles;
 - requester/provider role separation;
 - membership/tenant/provider suspend/resume;
+- account/organization cascade suspension and terminal removal;
 - terminal node removal;
+- membership role replacement;
 - provider binding anti-spoofing;
 - forged wire tenant/owner metadata;
-- real relay same-tenant private discovery/dispatch;
+- same-tenant-but-ungranted denial;
+- real relay private discovery/dispatch for an explicitly allowed active requester;
 - foreign-tenant discovery denial;
 - immediate denial after membership suspension.
 
@@ -153,9 +159,10 @@ This keeps current bounded deployments compatible while allowing production depl
 
 P1.1 does not claim completion of the remaining production provider-control program. Still separate:
 
+- durable/replicated authority persistence and administration API;
 - durable cross-tenant grant/policy administration;
 - production entitlement issuance/revocation and prepaid/subscription resolution;
 - durable distributed usage reservation/accounting/reconciliation;
 - commercial control-plane API/UI and settlement integrations.
 
-The account/tenant authority snapshot is intentionally exportable and revisioned so a later durable control-plane implementation can persist/replicate this state without changing the relay authorization invariant.
+The account/tenant authority snapshot is exportable and revisioned so a later durable control-plane implementation can persist/replicate this state without changing the relay authorization invariant.
