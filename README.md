@@ -53,7 +53,7 @@ BYOK — Bring Your Own Intelligence / Provider — is the normal private-provid
 ## Current factual status
 
 **Snapshot:** 2026-09-03  
-**Synchronized source:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Synchronized source:** `main@b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`  
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`  
 **Protocol:** `TRUYN/1` draft
 
@@ -73,7 +73,7 @@ BYOK — Bring Your Own Intelligence / Provider — is the normal private-provid
 | A2A artifact integrity | **Implemented / bounded CI-proven — C6** |
 | A2A→TRUYN→MCP | **C7 + independent official MCP SDK black-box proven** |
 | MCP→TRUYN→A2A | **C7 + independent official A2A SDK black-box proven** |
-| Complete A2A/MCP adversarial matrix | **OPEN — C8 / PR #369** |
+| Complete A2A/MCP adversarial matrix | **ACCEPTED — C8 / PR #423 / exact-head + exact-main CI/CodeQL** |
 | Five first-party SDK clients | **Implemented / executable conformance proven** |
 | Direct NEED cancellation | **Implemented / bounded CI-proven** |
 | Signed generic PARTIAL streaming | **Implemented / bounded CI-proven** |
@@ -135,11 +135,13 @@ Independent ecosystem-side black-box proofs also exist in both directions:
 - **Sprint C:** `MCP→TRUYN→A2A` against official A2A Project `@a2a-js/sdk@1.0.1` in a separate process;
 - **Sprint D:** `A2A→TRUYN→MCP` against official `@modelcontextprotocol/server@2.0.0` in a separate process.
 
-These proofs establish bounded external interoperability; they do not imply ecosystem-wide certification.
+C8 is also accepted as the bounded adversarial cross-protocol security matrix. It closed in PR `#423` on exact head `14757e0f1d182e8fdf15e2f9e7ffe67749efc4ee` and exact merged main `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`; see [C8 Security Closure Evidence](docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md).
+
+These proofs establish bounded interoperability/security; they do not imply ecosystem-wide certification.
 
 ### What is still open
 
-C8 (PR `#369`) is the complete bounded adversarial acceptance matrix. An independent integrity-verified referenced file/artifact round trip, broader optional protocol surfaces and a stable compatibility promise remain adoption/stability work.
+An independent integrity-verified referenced file/artifact round trip, broader optional protocol surfaces and a stable compatibility promise remain adoption/stability work. C8 itself is closed.
 
 ---
 
