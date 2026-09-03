@@ -1,0 +1,7 @@
+{
+  "module": "github.com/inn-media/truyn/sdk/go",
+  "version": "v0.1.0-alpha.1",
+  "tag": "sdk/go/v0.1.0-alpha.1",
+  "channel": "alpha",
+  "workflowRevision": 1
+}
