@@ -16,6 +16,7 @@ steps = [
     ('scripts/patch-class-d-diagnostic-failure-evidence.py', provision),
     ('scripts/patch-class-d-diagnostic-packet-partition.py', campaign),
     ('scripts/patch-class-d-diagnostic-healed-reconvergence.py', campaign),
+    ('scripts/patch-class-d-diagnostic-healed-origin.py', campaign),
 ]
 
 for script, target in steps:
@@ -38,6 +39,9 @@ campaign_required = {
     'packet durable checkpoint': 'TRUYN_D200_FAILURE_EVIDENCE=CHECKPOINT stage=packet-partition',
     'healed reconvergence classifier': 'HEALED_DIAG_B64=',
     'healed diagnostic artifact': 'class-d-200-healed-reconvergence.json',
+    'peer-record origin capture': 'persisted_peer_state(j,node_id)',
+    'forced target transport reset': "control+'/faults/partition'",
+    'healed diagnostic schema v2': "'schema':'truyn.d200.healed-reconvergence.v2'",
     'strict healed acceptance': "assert float('$healed_rate') >= .99, '$healed_rate'",
 }
 for label, marker in provision_required.items():
@@ -51,5 +55,7 @@ if provision_text.count('d200_failure_evidence_checkpoint() {') != 1:
     raise SystemExit('unexpected universal failure checkpoint helper count after composition')
 if provision_text.count('d200_err_trap() {') != 1:
     raise SystemExit('unexpected universal ERR helper count after composition')
+if 'd1000-healed-fresh-session-retry' in campaign_text:
+    raise SystemExit('ambiguous healed fresh-session classifier remained after composition')
 
-print('TRUYN_D200_COMPOSED_PATCH=PASS order=failure-evidence,packet-partition,healed-reconvergence')
+print('TRUYN_D200_COMPOSED_PATCH=PASS order=failure-evidence,packet-partition,healed-reconvergence,healed-origin')
