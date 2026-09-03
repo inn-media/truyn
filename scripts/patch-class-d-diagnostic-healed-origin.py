@@ -42,7 +42,7 @@ D200_HEALED_ORIGIN_DIAG=1
 
 def persisted_peer_state(j,node_id):
     global_index=host*N+j
-    path=f'/var/lib/truyn-d1000/node-{global_index}-state.json'
+    path=f'/var/lib/truyqn-d1000/node-{global_index}-state.json'
     result={'path':path,'present':False,'validNow':False,'expired':None,'readOk':False}
     try:
         value=json.load(open(path))
