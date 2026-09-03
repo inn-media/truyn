@@ -42,7 +42,8 @@ test('D-200 packet-partition diagnostics preserve strict heal semantics and only
   for (const field of ['ActiveState', 'SubState', 'Result', 'MainPID', 'NRestarts', 'ExecMainCode', 'ExecMainStatus', 'StateChangeTimestamp']) {
     assert.ok(block.includes(`-p ${field}`), `expected systemd diagnostic ${field}`);
   }
-  assert.ok(block.includes("journalctl -u \\\"\\$unit\\\" -n 40"), 'terminal failure must capture bounded journal tail');
+  assert.ok(block.includes('journalctl -u ') && block.includes('-n 40 --no-pager -o short-iso'), 'terminal failure must capture bounded journal tail');
+  assert.ok(block.includes('systemctl show ') && block.includes('--no-pager -p ActiveState'), 'terminal failure must capture bounded systemd unit state');
   assert.ok(block.includes('PACKET_DIAG_PROCESS_COUNT='), 'terminal failure must capture node-service process count');
   assert.ok(block.includes('PACKET_DIAG_CONTROL_LISTENERS_BEGIN'), 'terminal failure must capture control listeners');
   assert.ok(block.includes('PACKET_DIAG_QUIC_LISTENERS_BEGIN'), 'terminal failure must capture QUIC listeners');
