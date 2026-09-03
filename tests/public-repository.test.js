@@ -11,7 +11,8 @@ const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.c
 const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/.gitkeep',
   '.github/workflows/ci.yml',
-  '.github/workflows/publish-sdk-alpha.yml'
+  '.github/workflows/publish-sdk-alpha.yml',
+  '.github/workflows/publish-python-alpha.yml'
 ]);
 const BENCHMARK_EVIDENCE_DIR = 'docs/benchmarks/';
 
