@@ -29,7 +29,6 @@ jobs:
       PACKAGE_VERSION: '0.1.0-alpha.1'
       RELEASE_MARKER: sdk/release/npm-alpha-bootstrap.json
       SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN || secrets.NPM_TOKEN }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout exact green main SHA
@@ -39,13 +38,18 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Validate exact release marker and source
+      - name: Determine bounded release eligibility
+        id: eligibility
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           git rev-parse HEAD^ >/dev/null
-          git diff --name-only HEAD^ HEAD | grep -Fxq "$RELEASE_MARKER"
+          if ! git diff --name-only HEAD^ HEAD | grep -Fxq "$RELEASE_MARKER"; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "Ignoring successful main CI for $SOURCE_SHA because it is not the bounded npm release-marker commit."
+            exit 0
+          fi
           node --input-type=module <<'NODE'
           import { readFileSync } from 'node:fs';
           const marker = JSON.parse(readFileSync(process.env.RELEASE_MARKER, 'utf8'));
@@ -53,10 +57,13 @@ jobs:
           if (marker.package !== process.env.PACKAGE_NAME) throw new Error(`marker package mismatch: ${marker.package}`);
           if (marker.version !== process.env.PACKAGE_VERSION) throw new Error(`marker version mismatch: ${marker.version}`);
           if (marker.channel !== 'alpha' || marker.bootstrap !== true) throw new Error('release marker is not the bounded alpha bootstrap marker');
+          if (!Number.isInteger(marker.workflowRevision) || marker.workflowRevision < 2) throw new Error('release marker workflowRevision must be >= 2');
           if (pkg.name !== marker.package || pkg.version !== marker.version) throw new Error('package.json does not match release marker');
           NODE
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
 
       - name: Require hosted CodeQL success on the same SHA
+        if: steps.eligibility.outputs.eligible == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -80,18 +87,22 @@ jobs:
           exit 1
 
       - name: Set up Node.js for npm registry
+        if: steps.eligibility.outputs.eligible == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           registry-url: https://registry.npmjs.org
 
       - name: Pin npm release client
+        if: steps.eligibility.outputs.eligible == 'true'
         run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
 
       - name: Build and test exact TypeScript package
+        if: steps.eligibility.outputs.eligible == 'true'
         shell: bash
         run: |
           set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
           npm install --prefix sdk/typescript --ignore-scripts --no-audit --no-fund
           npm test --prefix sdk/typescript
           npm run build --prefix sdk/typescript
@@ -103,6 +114,7 @@ jobs:
 
       - name: Detect immutable registry state
         id: registry
+        if: steps.eligibility.outputs.eligible == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -120,7 +132,7 @@ jobs:
           exit 1
 
       - name: Verify pre-existing version is byte-identical
-        if: steps.registry.outputs.exists == 'true'
+        if: steps.eligibility.outputs.eligible == 'true' && steps.registry.outputs.exists == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -128,7 +140,9 @@ jobs:
           cmp "sdk/release/npm-local/truyn-sdk-${PACKAGE_VERSION}.tgz" "sdk/release/npm-registry/$registry_file"
 
       - name: Bootstrap publish immutable npm version
-        if: steps.registry.outputs.exists == 'false'
+        if: steps.eligibility.outputs.eligible == 'true' && steps.registry.outputs.exists == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN || secrets.NPM_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -136,9 +150,11 @@ jobs:
             echo 'NPM_BOOTSTRAP_TOKEN or NPM_TOKEN is required for the first publication of a new npm package.' >&2
             exit 1
           fi
+          npm whoami
           npm publish "sdk/release/npm-local/truyn-sdk-${PACKAGE_VERSION}.tgz" --access public --provenance
 
       - name: Verify public registry tarball, provenance and clean install
+        if: steps.eligibility.outputs.eligible == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -192,6 +208,7 @@ jobs:
           cat sdk/release/npm-release-evidence.json
 
       - name: Upload immutable npm release evidence
+        if: steps.eligibility.outputs.eligible == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: truyn-npm-${{ env.PACKAGE_VERSION }}-${{ env.SOURCE_SHA }}
