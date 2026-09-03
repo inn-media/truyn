@@ -1,6 +1,6 @@
 # TRUYN Operations
 
-**Status:** current reference operations baseline for `0.1.0-dev`; not a mainnet SRE/SLO acceptance claim. The current production relay origin perimeter is deployment-proven, the numerical production SLI/SLO contract is defined, and standard production observability plus service-alert/error-budget policy are implemented. Production security-credential rotation and human on-call contracts are now also implemented; deployed backends/probes/pager delivery, live private roster evidence and durable SLO compliance evidence remain pre-stable.
+**Status:** current reference operations baseline for `0.1.0-dev`; not a mainnet SRE/SLO acceptance claim. The current production relay origin perimeter is deployment-proven, the numerical production SLI/SLO contract is defined, and standard production observability plus service-alert/error-budget policy are implemented. Production security-credential rotation, human on-call and recovery/DR contracts are now also implemented; deployed backends/probes/pager delivery, live private roster/rotation/restore evidence and durable SLO compliance evidence remain pre-stable.
 
 Operations documentation describes how the implemented reference system is expected to be run safely and what remains unproven. It deliberately excludes private cloud topology, credentials, live allowlists, resource IDs and cost ceilings.
 
@@ -11,6 +11,7 @@ Operations documentation describes how the implemented reference system is expec
 - [Production Alerting and Error Budgets](ALERTING.md) — 28-day budget recording, multi-window SLO burn paging and service/security anomaly alerts; implementation exists, real pager delivery evidence remains open.
 - [Production Security Rotation Lifecycle](ROTATION_LIFECYCLE.md) — executable create -> overlap -> cutover -> verify -> revoke-old -> audit policy for origin/M2M proofs, entitlement keys, cloud/deploy identities, node identity and bootstrap trust records.
 - [Production On-Call Rotation](ON_CALL.md) — primary/secondary coverage, escalation, ownership and acknowledged handoff contract; actual people/contact routes remain private operational data.
+- [Production Recovery / DR](RECOVERY_DR.md) — numerical RTO/RPO, backup/restore policy, nine production failure classes and executable restore-drill acceptance.
 - [Node Operations](NODE_OPERATIONS.md) — identity/state/startup/restart/profile boundaries.
 - [Testnet Operations](TESTNET_OPERATIONS.md) — signed bootstrap, QUIC/Kademlia, churn/repair and evidence discipline.
 - [Billing Operations](BILLING_OPERATIONS.md) — BYOK, owner-funded and entitlement safety rules.
@@ -26,9 +27,9 @@ The production service-level target contract is defined in `PRODUCTION_SLO.md`. 
 
 The alerting layer records rolling 28-day error-budget consumption and implements multi-window service pages for availability, 5xx, dispatch, RESULT delivery/timeouts, provider failures and DHT degradation, plus anomaly/zero-budget signals for WebSocket disconnect storms, authorization denies, billing ambiguity, artifact-store failures and origin-bypass probes.
 
-The rotation layer now defines and machine-enforces one six-phase lifecycle across all P1 credential/identity/trust classes. The on-call layer now defines primary/secondary continuous coverage, escalation deadlines, ownership and acknowledged handoff. Live secrets and personal/pager data intentionally remain outside the public repository.
+The rotation layer defines and machine-enforces one six-phase lifecycle across all P1 credential/identity/trust classes. The on-call layer defines primary/secondary continuous coverage, escalation deadlines, ownership and acknowledged handoff. The recovery/DR layer now defines numerical RTO/RPO and machine-enforced restore drills across instance, region, durable state, identity/key, semantic index, provider, relay, artifact-store and entitlement/accounting failure classes. Live secrets and personal/pager data intentionally remain outside the public repository.
 
-These are still implementation surfaces until real deployment telemetry, independent probes, alert delivery, a populated private on-call roster/test-fire and durable acceptance evidence satisfy the production operations contract.
+These are still implementation surfaces until real deployment telemetry, independent probes, alert delivery, a populated private on-call roster/test-fire, exercised live rotations/restores and durable acceptance evidence satisfy the production operations contract.
 
 What is **not** yet operationally complete:
 
@@ -40,6 +41,7 @@ What is **not** yet operationally complete:
 - production DHT and every deployed external A2A/MCP facade wired into the standard hooks and evidenced;
 - test-fired burn-rate/zero-budget alert delivery with a populated private primary/secondary roster and escalation evidence;
 - sanitized live rotation drills for each deployed credential/identity/trust authority being claimed;
+- configured production backup/replication paths plus sanitized accepted live restore drills for every production dependency/failure class being claimed;
 - accepted durable 28-day SLO compliance evidence;
 - signed release/updater/rollback lifecycle for all supported OSes;
 - production account/tenant commercial control plane;
@@ -50,10 +52,10 @@ What is **not** yet operationally complete:
 
 A temporary cloud workflow, successful one-shot deployment or local test is not by itself a production claim. Promote operational maturity only when the result is reproducible and recorded in durable evidence or a stable release contract.
 
-A defined SLO target, instrumented dashboard, checked-in alert rule, rotation state machine or on-call role contract is also not proof of production compliance. Productionized status requires real serving-path measurements, auditable exclusions, error-budget accounting, test-fired alert delivery, populated human coverage, exercised rotations and durable acceptance evidence.
+A defined SLO target, instrumented dashboard, checked-in alert rule, rotation state machine, on-call role contract or recovery validator is also not proof of production compliance. Productionized status requires real serving-path measurements, auditable exclusions, error-budget accounting, test-fired alert delivery, populated human coverage, exercised rotations/restores and durable acceptance evidence.
 
 ## Public/private boundary
 
-Public runbooks may document generic configuration names, metric names, failure modes, rotation phases, role names and acceptance invariants. Exact live origins, provider/node IDs, cloud identities, privileged bootstrap sets, secret values, collector credentials, billing accounts, pager destinations, personal contact data and incident-sensitive data remain outside the public repository.
+Public runbooks may document generic configuration names, metric names, failure modes, rotation/recovery phases, role names and acceptance invariants. Exact live origins, provider/node IDs, cloud identities, privileged bootstrap sets, secret values, collector credentials, billing accounts, pager destinations, personal contact data, backup locations and incident-sensitive data remain outside the public repository.
 
 Public `/health` remains minimal. Metrics, traces and internal runtime state use the private observability plane and are never added to unauthenticated health output.
