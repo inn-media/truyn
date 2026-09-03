@@ -2,8 +2,9 @@
 
 Human-facing documentation for TRUYN architecture, implementation status, governance, setup, operations, security, Trustability, compatibility, SDK/DX and benchmark evidence.
 
-**Snapshot:** 2026-08-27  
-**Current synchronized source:** `main@63e54cbe30d363ef4609732b512fe64ab860cf9d`
+**Snapshot:** 2026-09-03  
+**Current synchronized source:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`
 
 ## Start here
 
@@ -12,7 +13,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - [Roadmap](../ROADMAP.md) — accepted gates and next bounded work.
 - [A2A / MCP Architecture](architecture/A2A_MCP_INTEROPERABILITY.md) — external protocol bridge architecture and authority boundary.
 - [A2A / MCP Compatibility](compatibility/A2A_MCP_COMPATIBILITY.md) — exact current compatibility matrix.
-- [SDK & Developer Experience](architecture/SDK_DEVELOPER_EXPERIENCE.md) — first-party developer surface.
+- [SDK & Developer Experience](architecture/SDK_DEVELOPER_EXPERIENCE.md) — five-language first-party developer surface and release boundary.
 - [Governance](../GOVERNANCE.md) — governance roles/process/maturity.
 - [Security Policy](../SECURITY.md) — public reporting/security baseline.
 - [Benchmark Evidence](benchmarks/README.md) — durable sanitized evidence ledger.
@@ -23,20 +24,24 @@ The repository has moved beyond several older documentation snapshots:
 
 - Class C heterogeneous WAN — **accepted**;
 - Class D-100 — **accepted**;
-- Class D-1000 — **OPEN**, latest full pinned `0e7f16c1` campaign failed; issue `#344` is the current negative record;
+- Class D-1000 — **OPEN**; the latest full pinned accepted-status record remains a failed 20×50 campaign, and later diagnostic/remediation work does not itself promote D-1000;
+- current main includes bounded D-200 diagnostic/remediation work from PRs `#417` and `#418` plus the bounded packet-partition diagnostic patcher from PR `#419`; later one-shot launcher cleanup does not change those diagnostic sources, and none is D-1000 acceptance;
 - MCP current contract + general discovery/import — **implemented / bounded CI-proven**;
-- A2A server facade — **implemented / bounded CI-proven**;
-- A2A client/provider adapter — **implemented / bounded CI-proven**;
-- bounded A2A polling lifecycle and artifact integrity — **implemented / bounded CI-proven**;
+- A2A server facade, reverse client/provider adapter, bounded polling lifecycle and artifact integrity — **implemented / bounded CI-proven (C3–C6)**;
 - both A2A→TRUYN→MCP and MCP→TRUYN→A2A in-repository round trips — **implemented / bounded CI-proven (C7)**;
+- independent official A2A SDK black-box proof for MCP→TRUYN→A2A — **accepted bounded Sprint C evidence**;
+- independent official MCP SDK black-box proof for A2A→TRUYN→MCP — **accepted bounded Sprint D evidence**;
 - complete cross-protocol adversarial matrix — **OPEN (C8 / PR #369)**;
-- TypeScript/JavaScript + Python SDK reference work — **implemented bounded slices**;
-- DX-3 — **merged in PR #373**: stable API-v1 primitives for TS/Python, authenticated relay event streaming with abortable waits, reference-only object/artifact payloads, conformance markers and developer-site source;
-- remote provider-side NEED cancellation and token-delta streaming — **not implemented**;
+- TypeScript/JavaScript, Python, Go, Java and C#/.NET first-party clients — **implemented Developer Release clients with shared executable conformance**;
+- direct requester-owned NEED cancellation runtime contract — **implemented / bounded CI-proven**, with five-language E2E exercising owner cancellation and dedicated runtime negatives proving ownership/late-output behavior;
+- signed generic ordered `PARTIAL` streaming — **implemented / bounded CI-proven**;
+- Agent Descriptor default-off serving plus five-language canonical valid-profile fetch/verify/negotiation — **implemented bounded profile**; automatic refresh/re-sign before expiry and complete malformed/missing-endpoint parity remain open;
+- per-commit package builds + exact source/digest provenance — **implemented / CI-proven verification artifacts**; ordinary CI does not make the fixed alpha coordinates immutable published releases;
+- native public registry publication and live developer-site activation — **still open external release/evidence gates**;
 - governance — **G1 / bootstrap Founding Stewardship**, not neutral/foundation governance;
 - mainnet/stable TRUYN/1 — **not productionized/stable**.
 
-When older docs or issue bodies say C4/C7 are future work, treat those statements as historical context, not current status.
+When older docs or issue bodies say C4/C7, independent SDK interoperability, direct NEED cancellation, PARTIAL streaming or Go/Java/.NET parity are future work, treat those statements as historical context, not current status. Descriptor and package claims must still preserve the bounded limitations above.
 
 ## Architecture
 
@@ -60,17 +65,19 @@ When older docs or issue bodies say C4/C7 are future work, treat those statement
 - [MVP Quickstart](getting-started/MVP_QUICKSTART.md)
 - [MVP AI Interoperability](getting-started/MVP_AI_INTEROP.md)
 - [SDK Quickstart](getting-started/SDK_QUICKSTART.md)
+- [DX-3 SDK Runtime Surface](getting-started/DX3_SDK.md)
 
-`MVP_AI_INTEROP.md` reflects the accepted C1–C7 implementation rather than the obsolete pre-A2A snapshot.
+`MVP_AI_INTEROP.md` reflects C1–C7 plus the independent Sprint C/D proof boundary rather than the obsolete pre-A2A snapshot.
 
 ## Compatibility
 
 - [Protocol / Node Compatibility](compatibility/PROTOCOL_AND_NODE_COMPATIBILITY.md)
 - [Adapter Compatibility](compatibility/ADAPTER_COMPATIBILITY.md)
-- [A2A / MCP Compatibility](compatibility/A2A_MCP_COMPATIBILITY.md)
+- [A2A / MCP Compatibility Matrix](compatibility/A2A_MCP_COMPATIBILITY.md)
 - [SDK Compatibility](compatibility/SDK_COMPATIBILITY.md)
+- [SDK Packaging](compatibility/SDK_PACKAGING.md)
 
-TRUYN/1 remains draft. No stable mainnet, A2A/MCP ecosystem certification or universal SDK compatibility promise is implied by bounded CI evidence.
+TRUYN/1 remains draft. Bounded external A2A/MCP SDK proofs and a source/build-complete five-language Developer Release do not imply ecosystem-wide certification, immutable public package publication or a stable-v1 protocol/mainnet promise.
 
 ## Trustability
 
@@ -108,4 +115,4 @@ A current status document should point to the latest relevant acceptance/negativ
 
 ## Documentation rule
 
-Current-status docs must be synchronized after material accepted implementation changes. Historical changelog/benchmark records remain historical; they should not be rewritten merely to make old wording sound current.
+Current-status docs must be synchronized after material accepted implementation changes. Historical changelog/benchmark/acceptance records remain historical; they should not be rewritten merely to make old wording sound current.
