@@ -156,7 +156,7 @@ jobs:
       - name: Publish npm prerelease with explicit alpha dist-tag
         if: steps.eligibility.outputs.eligible == 'true' && steps.npm_registry.outputs.exists == 'false'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN || secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
