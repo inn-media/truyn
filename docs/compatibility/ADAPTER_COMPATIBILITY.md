@@ -1,9 +1,9 @@
 # TRUYN Adapter Compatibility
 
-**Snapshot:** 2026-08-27  
-**Status:** reference adapter compatibility map synchronized with `main@63e54cbe30d363ef4609732b512fe64ab860cf9d`.
+**Snapshot:** 2026-09-03  
+**Status:** reference adapter compatibility map synchronized with `main@dd7c3574490e18cc002372d5eb9af704daf03bda`.
 
-An adapter being present does not imply cloud entitlement, public provider access, stable compatibility or complete external-protocol certification. External protocol objects remain adapter metadata, not TRUYN/1 wire vocabulary.
+An adapter being present does not imply cloud entitlement, public provider access, stable compatibility or ecosystem-wide external-protocol certification. External protocol objects remain adapter metadata, not TRUYN/1 wire vocabulary.
 
 ## Adapter security rule
 
@@ -53,19 +53,21 @@ Provider/model deployment availability is independent of adapter implementation.
 | A2A client/provider adapter | **Implemented / bounded CI-proven — C4** |
 | A2A polling task lifecycle | **Implemented / bounded CI-proven — C5** |
 | A2A artifact integrity | **Implemented / bounded CI-proven — C6** |
-| A2A→TRUYN→MCP | **Implemented / bounded CI-proven — C7** |
-| MCP→TRUYN→A2A | **Implemented / bounded CI-proven — C7** |
+| A2A→TRUYN→MCP | **C7 + independent official MCP SDK black-box proven — Sprint D** |
+| MCP→TRUYN→A2A | **C7 + independent official A2A SDK black-box proven — Sprint C** |
 | Complete cross-protocol adversarial matrix | **OPEN — C8 / PR #369** |
-| Independent external A2A/MCP reference-SDK certification | **Not yet proven** |
+| Independent external referenced file/artifact profile | **Not yet accepted** |
 | Stable A2A/MCP compatibility guarantee | **Not available** |
 
-The key correction is that the project **does have** the reverse A2A adapter and both in-repository cross-protocol round trips. What remains open is C8 and broader independent external certification, not C4/C7 implementation.
+The key correction is that the project has the reverse A2A adapter, both in-repository cross-protocol round trips, and bounded independent official SDK black-box evidence in both claimed directions. What remains open is C8, the external referenced artifact/file profile, broader optional surfaces and stable compatibility — not C4/C7 or independent basic interoperability.
 
 See `A2A_MCP_COMPATIBILITY.md` for the detailed matrix.
 
 ## Artifact/reference handling
 
 Large media/reference payloads must preserve integrity and credential locality. C6 requires bounded content, SHA-256/size checks, canonical encodings where applicable, authoritative provenance and no implicit remote URL fetch. A referenced artifact is not trusted merely because an adapter can parse its URL.
+
+The current external black-box proofs exercise text/structured JSON boundaries; at least one integrity-verified referenced file/artifact round trip remains a separate adoption gate.
 
 ## SDKs versus adapters
 
@@ -83,7 +85,7 @@ application / agent code
 
 Adapters bridge external ecosystems into TRUYN. SDKs let developers consume TRUYN directly. They are separate compatibility surfaces.
 
-Current main contains TypeScript/JavaScript and Python reference SDK work plus merged DX-3 developer-surface primitives. Go/Java/.NET parity/publication remains incomplete.
+Current main contains implemented Developer Release clients for TypeScript/JavaScript, Python, Go, Java and C#/.NET, with shared five-language executable conformance, direct NEED cancellation and signed generic PARTIAL streaming. The Agent Descriptor profile is bounded: canonical valid-profile startup serving/fetch/verification is implemented, while automatic refresh before expiry and complete malformed/missing endpoint parity remain open. Ordinary package builds are per-commit verification artifacts with exact source/digest provenance; immutable tagged/native publication remains a separate SDK release gate.
 
 ## Compatibility requirements
 

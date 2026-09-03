@@ -2,14 +2,14 @@
 
 This document describes the **smallest local executable TRUYN vertical slice**, not the full current repository maturity. The minimal path uses a dependency-free Node.js HTTP relay to make identity → capability → signed request/result behavior easy to inspect locally.
 
-Since that original MVP slice, the repository has added real QUIC/Kademlia networking slices, authorization-aware provider discovery/dispatch, provider-host security, BYOK setup, semantic retrieval, Trustability work and multi-cloud provider adapters. See `../architecture/IMPLEMENTATION_STATUS.md` for the canonical current status.
+Since that original MVP slice, the repository has added real QUIC/Kademlia networking, authorization-aware provider discovery/dispatch, provider-host security, BYOK, semantic retrieval, Trustability, multi-cloud provider adapters, bidirectional A2A/MCP interoperability and a five-language Developer Release SDK layer. See `../architecture/IMPLEMENTATION_STATUS.md` for canonical current status.
 
 ## What the minimal local path provides
 
 - `TRUYN/1` signed JSON envelopes for `IDENTITY`, `OFFER`, `NEED`, `RESULT`, and `REVOKE`;
 - Ed25519 node identities whose Node ID is derived from the public key rather than an IP address;
 - signature verification and tamper rejection;
-- an in-memory HTTP relay for registration, capability discovery, request routing, result routing, and offer revocation;
+- an in-memory HTTP relay for registration, capability discovery, request routing, result routing and offer revocation;
 - authenticated event polling with per-registration session tokens;
 - a `TruynNode` client;
 - a minimal CLI;
@@ -20,7 +20,7 @@ The minimal relay and Trustability Lite formula remain MVP/demo implementation c
 
 ## Provider-security rule
 
-The broader reference implementation now has an implemented fail-closed provider-ownership/authorization/BYOK baseline. The simple local demo must not be read as permission to bypass it.
+The broader reference implementation has an implemented fail-closed provider-ownership/authorization/BYOK baseline. The simple local demo must not be read as permission to bypass it.
 
 The security invariant is:
 
@@ -40,14 +40,14 @@ provider-host recheck
 upstream execution
 ```
 
-Public reachability, a capability match, a future Agent Descriptor entry or an SDK call never creates provider authorization.
+Public reachability, a capability match, an Agent Descriptor entry or an SDK call never creates provider authorization.
 
 See `../architecture/AUTHORIZATION_MODEL.md`, `../architecture/IMPLEMENTATION_STATUS.md` and `../../SECURITY.md`.
 
 ## Requirements
 
-- Node.js 20 or newer
-- no external npm dependencies for the core MVP path
+- Node.js 22 or newer for current repository tooling;
+- no external npm dependencies for the original core MVP path.
 
 ## Fastest proof
 
@@ -58,7 +58,7 @@ npm test
 npm run demo
 ```
 
-The demo starts an ephemeral relay, creates two independent Ed25519 node identities, publishes a `research` capability, discovers it from the second node, routes a signed `NEED`, returns a signed `RESULT`, verifies the result signature, and prints the current Trustability Lite score.
+The demo starts an ephemeral relay, creates two independent Ed25519 node identities, publishes a `research` capability, discovers it from the second node, routes a signed `NEED`, returns a signed `RESULT`, verifies the result signature and prints the current Trustability Lite score.
 
 A successful run ends with output similar to:
 
@@ -135,7 +135,7 @@ Execution-capable compatibility paths must converge on the same provider authori
 
 ## Developer SDK path
 
-The next developer-experience layer is now explicitly defined for:
+The first-party Developer Release layer is implemented for:
 
 - JavaScript / TypeScript;
 - Python;
@@ -143,33 +143,41 @@ The next developer-experience layer is now explicitly defined for:
 - Java;
 - C# / .NET.
 
-Those first-party SDKs are currently architecture/scaffolding, **not published packages**.
+These are no longer architecture/scaffolding-only targets. All five have implemented bounded relay clients and participate in the shared executable conformance gate. Their alpha distributions are built with exact source/digest provenance, but **native public registry publication is still a separate release gate**.
 
-The target onboarding flow is:
+The bounded onboarding flow is now implemented:
 
 ```text
-install SDK
+install/use SDK source or built alpha artifact
    ↓
-connect to TRUYN node
+connect/register with TRUYN relay
    ↓
 fetch/verify TRUYN Agent Descriptor
    ↓
 discover authorized capability
    ↓
-send NEED
+publish OFFER / send NEED
    ↓
-receive RESULT
+receive verified RESULT / PARTIAL where supported
+   ↓
+requester may cancel owned direct NEED
 ```
 
-For intentionally public HTTP-facing participants, the draft Agent Descriptor target is:
+For intentionally public HTTP-facing participants, the Agent Descriptor path is:
 
 ```text
 https://<domain>/.well-known/truyn-agent.json
 ```
 
-The Descriptor is bootstrap/self-description metadata and does not replace dynamic `OFFER` or provider-policy authorization.
+Serving is disabled by default and requires explicit opt-in. The Descriptor is signed bootstrap/self-description metadata, exposes only intentionally public capability classes and does not replace dynamic `OFFER` or provider-policy authorization.
 
-See `SDK_QUICKSTART.md`, `../architecture/SDK_DEVELOPER_EXPERIENCE.md` and `../../spec/protocol/v1/agent-descriptor.md`.
+Run the five-language Developer Release E2E from the repository root with:
+
+```bash
+node sdk/conformance/run-five-language-e2e.mjs
+```
+
+See `SDK_QUICKSTART.md`, `DX3_SDK.md`, `../architecture/SDK_DEVELOPER_EXPERIENCE.md` and `../../spec/protocol/v1/agent-descriptor.md`.
 
 ## What this minimal demo proves
 
@@ -189,6 +197,6 @@ signed RESULT
 verification + demo Trustability metadata
 ```
 
-It should not be used as proof of the broader system's production readiness, Internet-scale behavior or stable compatibility.
+It should not be used as proof of the broader system's production readiness, Internet-scale behavior, package publication or stable compatibility.
 
 For the actual implemented/proven/open matrix, use `../architecture/IMPLEMENTATION_STATUS.md`. For the current primary engineering sequence, use `../../ROADMAP.md`.

@@ -2,9 +2,9 @@
 
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`; governance rules live in `GOVERNANCE.md` and `docs/governance/`.
 
-**Snapshot:** 2026-08-30  
-**Production/reference baseline:** `main@94c8253c8ce133919c6531805f16ef07ec7362ad` before active Developer Release PR `#399`  
-**SDK/DX active head:** PR `#399` (`feat/developer-release-layer`)  
+**Snapshot:** 2026-09-03  
+**Production/reference baseline:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73` / merged PR `#399`  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
 **Sprint D exact executable proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
 **Protocol:** `TRUYN/1` draft
@@ -26,12 +26,12 @@ The project has not evolved strictly in numerical version order. Network scale, 
 | Track | Current state | Immediate next gate |
 |---|---|---|
 | Network underlay | **Implemented / CI-proven; Class C and D-100 accepted** | accepted D-1000 |
-| D-1000 | **OPEN; latest full pinned run FAIL** | repair + fresh exact-SHA immutable preflight + one new 20×50 accepted campaign |
+| D-1000 | **OPEN; latest full pinned run FAIL** | diagnostic/remediation closure + fresh exact-SHA immutable preflight + one new 20×50 accepted campaign |
 | Semantic / distributed retrieval | **Implemented / benchmark-proven bounded slices** | broader decentralized operating scale |
 | Trustability | **Implemented / benchmark-proven bounded slices** | production authority/revocation operations |
 | Provider security / BYOK | **Implemented fail-closed reference boundary** | richer tenant/account/entitlement operations |
 | A2A / MCP | **C1–C7 accepted; Sprint C independent A2A + Sprint D independent MCP black-box proven** | C8 security acceptance + integrity-verified external artifact/file profile + compatibility/stability policy |
-| SDK / DX | **Developer Release source/build layer implemented in active PR #399: five required clients, signed Descriptor lifecycle, five-language executable conformance, package builds/provenance, compatibility policy** | native registry publication + live developer-site activation/evidence |
+| SDK / DX | **Developer Release source/build layer merged: five clients, direct NEED cancellation, signed PARTIAL, bounded valid-profile Descriptor serving/fetch/verify, five-language executable conformance, per-commit package build/provenance verification** | Descriptor refresh + malformed-endpoint parity + immutable tagged/native registry publication + live developer-site evidence |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Settlement x402/AP2 | **Defined only** | later optional adapter implementation |
 | Mainnet | **Not productionized** | D-1000 + stabilization/operations/compatibility gates |
@@ -52,7 +52,7 @@ The project has not evolved strictly in numerical version order. Network scale, 
 
 ### Class D-1000 — OPEN
 
-The latest full pinned campaign is not accepted. A D-1000 PASS still requires all of:
+The latest full pinned campaign is not accepted. Current main includes bounded D-200 diagnostic/remediation work from PRs `#417` and `#418` plus the bounded packet-partition diagnostic patcher from PR `#419`; later one-shot launcher cleanup does not change those diagnostic sources. None of that work changes the strict D-1000 acceptance boundary. A D-1000 PASS still requires all of:
 
 - [ ] 20 hosts × 50 = 1,000 real processes, identities and QUIC endpoints;
 - [ ] baseline routing `>=99%`;
@@ -111,21 +111,25 @@ Sprint C + Sprint D do not close C8, prove ecosystem-wide certification or make 
 - [x] Java Developer Release relay client parity;
 - [x] C#/.NET Developer Release relay client parity;
 - [x] stable SDK API-v1 bounded primitives;
-- [x] authenticated relay event streaming and direct NEED cancellation;
+- [x] authenticated relay event streaming and direct NEED cancellation runtime contract;
 - [x] signed compact generic `PARTIAL` runtime lifecycle;
 - [x] portable reference-only object/artifact payload parity;
 - [x] signed Agent Descriptor serving primitive at `/.well-known/truyn-agent.json`, default-off with explicit public capability allowlist;
-- [x] Agent Descriptor HTTP fetch, schema/version/expiry validation, identity-key Ed25519 verification and protocol/interface negotiation across all five required SDK languages;
-- [x] shared executable five-language conformance against one real local relay and one cryptographically identical signed Descriptor fixture;
-- [x] package builds for npm, PyPI, Go, Maven and NuGet;
-- [x] exact source SHA + byte size + SHA-256 release provenance manifest;
+- [x] canonical valid-profile Agent Descriptor HTTP fetch, schema/version/expiry validation, identity-key Ed25519 verification and protocol/interface negotiation across all five required SDK languages;
+- [x] shared executable five-language conformance against one real local relay and one cryptographically identical signed canonical Descriptor fixture;
+- [x] per-commit package builds for npm, PyPI, Go, Maven and NuGet;
+- [x] exact source SHA + byte size + SHA-256 provenance manifest for each CI-built verification bundle;
 - [x] compatibility, semver, deprecation and migration policy;
-- [x] Developer Pages source under `/docs`.
+- [x] Developer Pages source under `/docs`;
+- [x] Developer Release Layer merged; canonical release-source freeze recorded.
 
-### External release/evidence gates still open
+### External/release and bounded-completeness gates still open
 
-- [ ] native public registry publication for npm/PyPI/Go/Maven/NuGet after namespace ownership/trusted-publishing bootstrap and separate security-reviewed release-infrastructure PR;
-- [ ] live public developer-site activation/liveness proof after accepted merge and Pages/domain settings activation.
+- [ ] provider-runtime Agent Descriptor refresh/re-signing before `expiresAt` for long-lived serving;
+- [ ] complete malformed/missing `interfaces[].endpoint` rejection parity across all five first-party clients and conformance negatives;
+- [ ] archive-member content scanning beyond current package structure/licensing/digest/forbidden-entry-name checks;
+- [ ] immutable tagged/native public registry publication for npm/PyPI/Go/Maven/NuGet after namespace ownership/trusted-publishing bootstrap and accepted security-reviewed release infrastructure;
+- [ ] live public developer-site activation/liveness proof after accepted deployment infrastructure and repository/domain settings activation.
 
 ### Optional / separate future contracts
 
@@ -133,7 +137,7 @@ Sprint C + Sprint D do not close C8, prove ecosystem-wide certification or make 
 - [ ] chain-stage cancellation only if a separate bounded protocol contract is defined and proven;
 - [ ] delegated Agent Descriptor signing/revocation only after portable proof/conformance exists.
 
-`PARTIAL` is intentionally generic; TRUYN does not prescribe provider tokenizer semantics. A public Agent Descriptor never grants provider authorization.
+`PARTIAL` is intentionally generic; TRUYN does not prescribe provider tokenizer semantics. A public Agent Descriptor never grants provider authorization. The five-language E2E exercises an owner cancellation call; dedicated runtime negatives, not that E2E alone, establish requester ownership and late-output rejection.
 
 ---
 
@@ -188,8 +192,10 @@ Before a stable mainnet claim, the project still needs at minimum:
 
 - [ ] accepted D-1000;
 - [ ] production lifecycle/restart/update/rollback and operational SLO closure;
-- [ ] external interoperability profile and compatibility policy;
-- [ ] **public** five-language package publication and released-version ecosystem evidence;
+- [ ] C8 plus an externally evidenced artifact profile and compatibility/stability declaration;
+- [ ] Descriptor refresh and full required endpoint-validation parity for the stable claimed profile;
+- [ ] **public immutable tagged/native** five-language package publication and released-version ecosystem evidence;
+- [ ] live public developer-site evidence;
 - [ ] production identity/tenant/entitlement/accounting operations appropriate to the deployment model;
 - [ ] explicit stable TRUYN protocol/node compatibility contract.
 

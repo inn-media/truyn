@@ -1,8 +1,10 @@
 # TRUYN SDK Quickstart
 
-**Status:** DX-1 in-repository developer onboarding. The TypeScript and Python reference SDK cores are executable and CI-proven, but packages are still private/unpublished and not stable-v1 compatibility contracts.
+**Status:** Developer Release relay-client/package implementation is source/build complete across TypeScript/JavaScript, Python, Go, Java and C#/.NET. This guide intentionally shows the smallest copy-paste TypeScript/Python local path; the full five-language executable gate is documented below. Native registry publication remains open, and Agent Descriptor refresh/interface-validation parity still has explicit gaps described below, so repository-source onboarding remains the reproducible default.
 
-This guide is intentionally small: it shows one local provider, one local requester and one verified `NEED -> RESULT` round trip through the existing TRUYN relay/runtime contract.
+**Protocol:** `TRUYN/1` draft  
+**Stable SDK API contract:** `1`  
+**Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`
 
 ## What you will run
 
@@ -13,14 +15,14 @@ provider registers and publishes OFFER
    ↓
 requester sends signed NEED
    ↓
-provider polls and verifies NEED
+provider receives and verifies NEED
    ↓
 provider sends signed RESULT
    ↓
-requester polls and verifies RESULT
+requester receives and verifies RESULT
 ```
 
-No cloud provider, billing account, private key, production relay, DHT, QUIC/Kademlia or D-1000 machinery is involved in this quickstart.
+No cloud provider, billing account, production relay, DHT, QUIC/Kademlia or D-1000 machinery is involved in this quickstart.
 
 ## Prerequisites
 
@@ -31,12 +33,15 @@ npm install --ignore-scripts --no-audit --no-fund
 python -m pip install --disable-pip-version-check -e ./sdk/python
 ```
 
-Runtime assumptions:
+For the two copy-paste examples above, Node.js `>=22` and Python `>=3.10` are sufficient. The **five-language conformance runner** additionally spawns the Go, Java/Maven and .NET toolchains directly. The exact CI-proven reference toolchain is:
 
-- Node.js `>=22`;
-- Python `>=3.10`;
-- local loopback relay only;
-- repository source checkout, because the SDK packages are not published yet.
+- Node.js `22`;
+- Python `3.12`;
+- Go `1.22.x`;
+- Temurin JDK `17` with `java` and `mvn` available on `PATH`;
+- .NET SDK `8.0.x` with `dotnet` on `PATH`.
+
+`.github/workflows/ci.yml` is the canonical executable setup for this toolchain. The quickstart otherwise assumes a local loopback relay and repository source checkout until the public registry publication gate is accepted and observed.
 
 ## Fastest path: TypeScript all-in-one
 
@@ -46,7 +51,7 @@ This starts an ephemeral local relay inside the example, creates a provider/requ
 node --experimental-strip-types examples/sdk/hello-need-result.ts
 ```
 
-The example uses the same public DX-1 local-node API proven by `sdk/typescript/test/local-node-e2e.test.ts`:
+The example uses the same local-node contract proven by the TypeScript SDK tests:
 
 ```ts
 import { createRelay } from '../../network/relay/server.js';
@@ -91,7 +96,7 @@ Terminal 1:
 npm run relay -- --host 127.0.0.1 --port 8787
 ```
 
-The CLI starts `createRelay({ localDevelopmentMode: true })` and prints a loopback URL such as:
+The CLI starts a loopback local-development relay and prints a URL such as:
 
 ```text
 TRUYN local-development relay listening on http://127.0.0.1:8787
@@ -107,7 +112,7 @@ Terminal 2, after the relay is running:
 PYTHONPATH=sdk/python/src TRUYN_RELAY_URL=http://127.0.0.1:8787 python examples/sdk/hello_need_result.py
 ```
 
-The example uses the Python DX-1 parity API proven by `sdk/python/tests/local_node_e2e.py`:
+The example uses the Python local-node API:
 
 ```python
 import json
@@ -156,35 +161,64 @@ Both examples should print a verified result similar to:
 }
 ```
 
-## What this proves
+## Full five-language Developer Release proof
 
-DX-1 quickstart proves the same bounded local contract as the CI E2E tests:
+The Developer Release client/build layer is broader than the two copy-paste examples above. Run:
 
-- two distinct node identities are created;
-- the provider publishes an `OFFER`;
-- the requester sends a signed `NEED`;
-- the provider receives and verifies that `NEED`;
-- the provider sends a signed `RESULT`;
-- the requester receives and verifies the matching `RESULT`;
-- the existing relay/runtime paths are used; no mock relay transport is used.
+```bash
+node sdk/conformance/run-five-language-e2e.mjs
+```
 
-## What this does not claim
+This starts one real local relay and one signed HTTP Agent Descriptor fixture, then independently exercises TypeScript, Python, Go, Java and .NET.
 
-This quickstart does **not** prove or change:
+Each language must:
 
-- production package publication;
-- stable-v1 API compatibility;
+- fetch the same valid signed `truyn.agent-descriptor/v1` fixture;
+- validate expiry and identity-key binding/signature;
+- select `TRUYN/1` plus a supported interface from that valid fixture;
+- register an independent provider/requester pair;
+- publish an authorized OFFER;
+- execute NEED → verified provider event → signed RESULT → verified requester RESULT;
+- issue a second direct NEED and exercise cancellation from the owning requester.
+
+This is executable network behavior, not skeleton/DTO parity. The runner does **not** by itself prove every Descriptor-negative or cancellation-authorization invariant in every language: it does not attempt a non-owner revoke, and its valid Descriptor fixture does not catch all malformed/missing-interface-endpoint cases. Those security/lifecycle properties must be backed by dedicated runtime/SDK regressions, and the current Descriptor gaps are documented below.
+
+## Developer Release features beyond this minimal example
+
+The bounded SDK/runtime surface also includes:
+
+- authenticated relay event streaming;
+- signed generic ordered `PARTIAL` streaming;
+- direct NEED cancellation through signed `REVOKE` for the compact direct-NEED lifecycle;
+- reference-oriented object/artifact payloads;
+- default-off Agent Descriptor serving plus five-language fetch/signature/expiry handling against the accepted happy-path fixture;
+- built npm/PyPI/Go/Maven/NuGet verification artifacts with exact source SHA, byte size and SHA-256 provenance.
+
+Current Descriptor limitations are explicit: the runtime signs the public Descriptor once at provider startup and does not automatically refresh/re-sign it before `expiresAt`, and Go/Java/.NET do not yet all enforce a non-empty `interfaces[].endpoint` during negotiation (with Go/.NET typed endpoint mapping also not fully aligned to the schema). Therefore a long-running provider can serve an expired Descriptor until restart, and usable endpoint-negotiation parity is not yet complete.
+
+`PARTIAL` is a generic ordered delta/chunk contract; it does not define a universal tokenizer/token-ID vocabulary. Chain-stage cancellation is not supported.
+
+## What this guide proves — and does not prove
+
+The TypeScript/Python copy-paste path proves a bounded local signed OFFER/NEED/RESULT transaction through a real local relay. The five-language E2E command proves that all five client implementations can execute the common happy-path relay flow and exercise the accepted Descriptor/cancellation calls described above; it is not a substitute for every negative/lifecycle regression.
+
+Neither proves:
+
+- public registry publication;
+- stable `TRUYN/1` protocol compatibility;
+- complete Agent Descriptor refresh/endpoint-negotiation parity;
 - remote production relay onboarding;
 - account/tenant control-plane behavior;
 - QUIC/Kademlia/DHT behavior;
-- D-1000 evaluator, thresholds, bootstrap, runtime or evidence;
+- D-1000 acceptance;
 - mainnet readiness.
 
 ## Next developer paths
 
-- TypeScript reference SDK: `../../sdk/typescript/README.md`
-- Python reference SDK: `../../sdk/python/README.md`
-- Shared conformance data: `../../sdk/conformance/README.md`
+- SDK program status: `../../sdk/README.md`
+- Shared conformance: `../../sdk/conformance/README.md`
 - SDK architecture: `../architecture/SDK_DEVELOPER_EXPERIENCE.md`
+- DX-3 runtime surface: `DX3_SDK.md`
 - SDK compatibility: `../compatibility/SDK_COMPATIBILITY.md`
+- SDK release/publication boundary: `../../sdk/release/PUBLISHING.md`
 - MVP CLI quickstart: `MVP_QUICKSTART.md`

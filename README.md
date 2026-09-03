@@ -52,8 +52,9 @@ BYOK — Bring Your Own Intelligence / Provider — is the normal private-provid
 
 ## Current factual status
 
-**Snapshot:** 2026-08-27  
-**Synchronized source:** `main@63e54cbe30d363ef4609732b512fe64ab860cf9d`  
+**Snapshot:** 2026-09-03  
+**Synchronized source:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`  
 **Protocol:** `TRUYN/1` draft
 
 | Area | Current state |
@@ -70,12 +71,16 @@ BYOK — Bring Your Own Intelligence / Provider — is the normal private-provid
 | A2A client/provider adapter | **Implemented / bounded CI-proven — C4** |
 | A2A polling lifecycle | **Implemented / bounded CI-proven — C5** |
 | A2A artifact integrity | **Implemented / bounded CI-proven — C6** |
-| A2A→TRUYN→MCP | **Implemented / bounded CI-proven — C7** |
-| MCP→TRUYN→A2A | **Implemented / bounded CI-proven — C7** |
+| A2A→TRUYN→MCP | **C7 + independent official MCP SDK black-box proven** |
+| MCP→TRUYN→A2A | **C7 + independent official A2A SDK black-box proven** |
 | Complete A2A/MCP adversarial matrix | **OPEN — C8 / PR #369** |
-| TypeScript/JavaScript + Python SDK | **Implemented bounded reference clients** |
-| DX-3 developer surface | **Merged / bounded implemented — PR #373** |
-| Go / Java / .NET SDK parity | **Incomplete** |
+| Five first-party SDK clients | **Implemented / executable conformance proven** |
+| Direct NEED cancellation | **Implemented / bounded CI-proven** |
+| Signed generic PARTIAL streaming | **Implemented / bounded CI-proven** |
+| Agent Descriptor | **Implemented bounded valid-profile serving/fetch/verify; refresh + malformed-endpoint parity OPEN** |
+| Per-commit package builds + provenance | **Implemented / CI-proven verification artifacts** |
+| Native public package publication | **OPEN — external release gate** |
+| Live public developer site | **OPEN — activation/liveness gate** |
 | Governance | **G1 / bootstrap Founding Stewardship** |
 | x402/AP2 settlement adapters | **Defined, not implemented** |
 | Stable mainnet / stable TRUYN/1 | **Not yet** |
@@ -99,7 +104,7 @@ They are complementary.
 
 ### Implemented bidirectional bridge
 
-TRUYN now has both bounded in-repository compositions.
+TRUYN has both bounded in-repository compositions.
 
 ```text
 A2A client
@@ -125,13 +130,16 @@ MCP client
 
 `tests/interoperability-bidirectional.test.js` is the C7 evidence and asserts exactly one remote MCP execution in the first direction and exactly one remote A2A execution in the second.
 
-This corrects older README/documentation snapshots that said the reverse A2A adapter and both round trips were not implemented.
+Independent ecosystem-side black-box proofs also exist in both directions:
+
+- **Sprint C:** `MCP→TRUYN→A2A` against official A2A Project `@a2a-js/sdk@1.0.1` in a separate process;
+- **Sprint D:** `A2A→TRUYN→MCP` against official `@modelcontextprotocol/server@2.0.0` in a separate process.
+
+These proofs establish bounded external interoperability; they do not imply ecosystem-wide certification.
 
 ### What is still open
 
-C8 (PR `#369`) is the complete bounded adversarial acceptance matrix. Independent external A2A and MCP SDK/reference-server interoperability, broader optional protocol surfaces and a stable compatibility promise remain later adoption/stability work.
-
-C7 proves the bridge exists; it does not claim ecosystem-wide certification.
+C8 (PR `#369`) is the complete bounded adversarial acceptance matrix. An independent integrity-verified referenced file/artifact round trip, broader optional protocol surfaces and a stable compatibility promise remain adoption/stability work.
 
 ---
 
@@ -152,17 +160,22 @@ Invalid/corrupt remote artifacts must fail closed instead of becoming successful
 
 ## SDK / developer experience
 
-Current main contains first-party TypeScript/JavaScript and Python reference SDK work.
+The Developer Release implementation is source/build complete in current main. TypeScript/JavaScript, Python, Go, Java and C#/.NET are real first-party relay clients and share one executable five-language conformance path.
 
-Merged DX-3 (PR `#373`) adds a bounded runtime developer surface with:
+The accepted Developer Release surface includes:
 
-- stable API-v1 primitives for TypeScript/Python;
-- authenticated relay event streaming with abortable waits;
-- reference-only object/artifact payloads;
-- conformance markers;
-- developer-site source.
+- stable SDK API-v1 bounded primitives;
+- local Ed25519 identity/signing and received-event verification;
+- authenticated relay registration/session use;
+- authorization-aware discovery and OFFER/NEED/RESULT flows;
+- requester-owned **direct NEED cancellation** through signed `REVOKE`;
+- authenticated relay event streaming;
+- signed generic ordered `PARTIAL` delivery with correlation/backpressure/terminal ordering;
+- portable reference-oriented object/artifact payloads;
+- signed Agent Descriptor startup serving plus five-language HTTP fetch, expiry/schema validation, identity-key verification and valid-profile protocol/interface negotiation;
+- npm/PyPI/Go/Maven/NuGet per-commit package builds with exact source SHA, byte size and SHA-256 provenance.
 
-Important boundary: abortable local waits/event streams do **not** yet mean remote provider-side NEED cancellation. Remote execution cancellation and token-delta streaming remain follow-up work. Go, Java and .NET parity/publication are also incomplete.
+Important boundaries remain: chain-stage cancellation is not supported; `PARTIAL` does not standardize a universal tokenizer/token-ID vocabulary; delegated Descriptor-signing keys are not part of the alpha contract; the provider runtime does not yet refresh/re-sign a served Descriptor before expiry; complete malformed/missing-interface-endpoint rejection parity across all five clients is not yet accepted; ordinary CI artifacts under the fixed alpha coordinates are verification artifacts rather than immutable published releases; native registry publication and live public developer-site activation remain separate release/evidence gates.
 
 See [SDK/DX Architecture](docs/architecture/SDK_DEVELOPER_EXPERIENCE.md).
 
@@ -178,9 +191,9 @@ Class D-100 proves 100 real processes, identities and QUIC endpoints under the a
 
 ### D-1000 is still open
 
-The latest pinned candidate before current remediation was `0e7f16c1ff74d85e9d4dbbc0fec9a35a0840f094`.
+The latest accepted-status negative record remains the pinned candidate `0e7f16c1ff74d85e9d4dbbc0fec9a35a0840f094` and full 20×50 campaign `32869078719`, which failed. Issue `#344` is retained as the current negative D-1000 acceptance record until a later full pinned campaign proves all canonical routing/recovery/adversarial/evaluator/terminal/cleanup predicates and produces immutable accepted evidence.
 
-Its immutable preflight passed, but the full 20×50 campaign `32869078719` failed. Issue `#344` is intentionally retained as the current negative acceptance record. No documentation should describe D-1000 as accepted until one full pinned run proves all routing/recovery/adversarial/evaluator/terminal/cleanup predicates and produces immutable accepted evidence.
+Current main contains later bounded D-200 diagnostic/remediation work from PRs `#417` and `#418`, plus the bounded packet-partition diagnostic patcher from PR `#419`. Later one-shot launcher cleanup does not change those diagnostic sources. None of this diagnostic progress promotes D-1000 or changes its strict acceptance boundary.
 
 See [Roadmap](ROADMAP.md) and [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md) for exact gates.
 
