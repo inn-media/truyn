@@ -1,0 +1,530 @@
+groups:
+  - name: truyn-production-slo-burn
+    interval: 30s
+    rules:
+      - alert: TruynRelayHttpFastBurn
+        expr: |
+          (
+            sum(rate(truyn_http_requests_total{surface="relay",outcome="failure"}[1h]))
+            / clamp_min(sum(rate(truyn_http_requests_total{surface="relay",outcome=~"success|failure"}[1h])), 1e-9)
+            / 0.0005
+          ) >= 14.4
+          and
+          (
+            sum(rate(truyn_http_requests_total{surface="relay",outcome="failure"}[5m]))
+            / clamp_min(sum(rate(truyn_http_requests_total{surface="relay",outcome=~"success|failure"}[5m])), 1e-9)
+            / 0.0005
+          ) >= 14.4
+        for: 2m
+        labels:
+          severity: page
+          slo: SLO-HTTP-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN relay HTTP error budget is burning at the fast-page threshold
+
+      - alert: TruynRelayHttpSustainedBurn
+        expr: |
+          (
+            sum(rate(truyn_http_requests_total{surface="relay",outcome="failure"}[6h]))
+            / clamp_min(sum(rate(truyn_http_requests_total{surface="relay",outcome=~"success|failure"}[6h])), 1e-9)
+            / 0.0005
+          ) >= 6
+          and
+          (
+            sum(rate(truyn_http_requests_total{surface="relay",outcome="failure"}[30m]))
+            / clamp_min(sum(rate(truyn_http_requests_total{surface="relay",outcome=~"success|failure"}[30m])), 1e-9)
+            / 0.0005
+          ) >= 6
+        for: 5m
+        labels:
+          severity: page
+          slo: SLO-HTTP-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN relay HTTP error budget is burning at the sustained-page threshold
+
+      - alert: TruynRelayHttpSlowBurn
+        expr: |
+          (
+            sum(rate(truyn_http_requests_total{surface="relay",outcome="failure"}[24h]))
+            / clamp_min(sum(rate(truyn_http_requests_total{surface="relay",outcome=~"success|failure"}[24h])), 1e-9)
+            / 0.0005
+          ) >= 3
+          and
+          (
+            sum(rate(truyn_http_requests_total{surface="relay",outcome="failure"}[2h]))
+            / clamp_min(sum(rate(truyn_http_requests_total{surface="relay",outcome=~"success|failure"}[2h])), 1e-9)
+            / 0.0005
+          ) >= 3
+        for: 10m
+        labels:
+          severity: ticket
+          slo: SLO-HTTP-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN relay HTTP error budget is on a slow-burn breach trajectory
+
+      - alert: TruynDispatchFastBurn
+        expr: |
+          (
+            sum(rate(truyn_dispatch_attempts_total{outcome="failure"}[1h]))
+            / clamp_min(sum(rate(truyn_dispatch_attempts_total{outcome=~"success|failure"}[1h])), 1e-9)
+            / 0.001
+          ) >= 14.4
+          and
+          (
+            sum(rate(truyn_dispatch_attempts_total{outcome="failure"}[5m]))
+            / clamp_min(sum(rate(truyn_dispatch_attempts_total{outcome=~"success|failure"}[5m])), 1e-9)
+            / 0.001
+          ) >= 14.4
+        for: 2m
+        labels:
+          severity: page
+          slo: SLO-DISPATCH-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN dispatch error budget is burning at the fast-page threshold
+
+      - alert: TruynDispatchSustainedBurn
+        expr: |
+          (
+            sum(rate(truyn_dispatch_attempts_total{outcome="failure"}[6h]))
+            / clamp_min(sum(rate(truyn_dispatch_attempts_total{outcome=~"success|failure"}[6h])), 1e-9)
+            / 0.001
+          ) >= 6
+          and
+          (
+            sum(rate(truyn_dispatch_attempts_total{outcome="failure"}[30m]))
+            / clamp_min(sum(rate(truyn_dispatch_attempts_total{outcome=~"success|failure"}[30m])), 1e-9)
+            / 0.001
+          ) >= 6
+        for: 5m
+        labels:
+          severity: page
+          slo: SLO-DISPATCH-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN dispatch error budget is burning at the sustained-page threshold
+
+      - alert: TruynDispatchSlowBurn
+        expr: |
+          (
+            sum(rate(truyn_dispatch_attempts_total{outcome="failure"}[24h]))
+            / clamp_min(sum(rate(truyn_dispatch_attempts_total{outcome=~"success|failure"}[24h])), 1e-9)
+            / 0.001
+          ) >= 3
+          and
+          (
+            sum(rate(truyn_dispatch_attempts_total{outcome="failure"}[2h]))
+            / clamp_min(sum(rate(truyn_dispatch_attempts_total{outcome=~"success|failure"}[2h])), 1e-9)
+            / 0.001
+          ) >= 3
+        for: 10m
+        labels:
+          severity: ticket
+          slo: SLO-DISPATCH-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN dispatch error budget is on a slow-burn breach trajectory
+
+      - alert: TruynResultDeliveryFastBurn
+        expr: |
+          (
+            (
+              (sum(rate(truyn_result_delivery_total{outcome="failure"}[1h])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[1h])) or vector(0))
+            )
+            / clamp_min(
+              (sum(rate(truyn_result_delivery_total{outcome=~"success|failure"}[1h])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[1h])) or vector(0)),
+              1e-9
+            )
+            / 0.001
+          ) >= 14.4
+          and
+          (
+            (
+              (sum(rate(truyn_result_delivery_total{outcome="failure"}[5m])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[5m])) or vector(0))
+            )
+            / clamp_min(
+              (sum(rate(truyn_result_delivery_total{outcome=~"success|failure"}[5m])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[5m])) or vector(0)),
+              1e-9
+            )
+            / 0.001
+          ) >= 14.4
+        for: 2m
+        labels:
+          severity: page
+          slo: SLO-RESULT-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN RESULT delivery error budget is burning at the fast-page threshold
+
+      - alert: TruynResultDeliverySustainedBurn
+        expr: |
+          (
+            (
+              (sum(rate(truyn_result_delivery_total{outcome="failure"}[6h])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[6h])) or vector(0))
+            )
+            / clamp_min(
+              (sum(rate(truyn_result_delivery_total{outcome=~"success|failure"}[6h])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[6h])) or vector(0)),
+              1e-9
+            )
+            / 0.001
+          ) >= 6
+          and
+          (
+            (
+              (sum(rate(truyn_result_delivery_total{outcome="failure"}[30m])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[30m])) or vector(0))
+            )
+            / clamp_min(
+              (sum(rate(truyn_result_delivery_total{outcome=~"success|failure"}[30m])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[30m])) or vector(0)),
+              1e-9
+            )
+            / 0.001
+          ) >= 6
+        for: 5m
+        labels:
+          severity: page
+          slo: SLO-RESULT-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN RESULT delivery error budget is burning at the sustained-page threshold
+
+      - alert: TruynResultDeliverySlowBurn
+        expr: |
+          (
+            (
+              (sum(rate(truyn_result_delivery_total{outcome="failure"}[24h])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[24h])) or vector(0))
+            )
+            / clamp_min(
+              (sum(rate(truyn_result_delivery_total{outcome=~"success|failure"}[24h])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[24h])) or vector(0)),
+              1e-9
+            )
+            / 0.001
+          ) >= 3
+          and
+          (
+            (
+              (sum(rate(truyn_result_delivery_total{outcome="failure"}[2h])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[2h])) or vector(0))
+            )
+            / clamp_min(
+              (sum(rate(truyn_result_delivery_total{outcome=~"success|failure"}[2h])) or vector(0))
+              + (sum(rate(truyn_result_timeouts_total[2h])) or vector(0)),
+              1e-9
+            )
+            / 0.001
+          ) >= 3
+        for: 10m
+        labels:
+          severity: ticket
+          slo: SLO-RESULT-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN RESULT delivery error budget is on a slow-burn breach trajectory
+
+      - alert: TruynProviderExecutionFastBurn
+        expr: |
+          (
+            sum(rate(truyn_provider_service_events_total{lane="first_party",outcome="failure"}[1h]))
+            / clamp_min(sum(rate(truyn_provider_service_events_total{lane="first_party",outcome=~"success|failure"}[1h])), 1e-9)
+            / 0.001
+          ) >= 14.4
+          and
+          (
+            sum(rate(truyn_provider_service_events_total{lane="first_party",outcome="failure"}[5m]))
+            / clamp_min(sum(rate(truyn_provider_service_events_total{lane="first_party",outcome=~"success|failure"}[5m])), 1e-9)
+            / 0.001
+          ) >= 14.4
+        for: 2m
+        labels:
+          severity: page
+          slo: SLO-PROVIDER-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN first-party provider runtime is burning its error budget rapidly
+
+      - alert: TruynProviderExecutionSustainedBurn
+        expr: |
+          (
+            sum(rate(truyn_provider_service_events_total{lane="first_party",outcome="failure"}[6h]))
+            / clamp_min(sum(rate(truyn_provider_service_events_total{lane="first_party",outcome=~"success|failure"}[6h])), 1e-9)
+            / 0.001
+          ) >= 6
+          and
+          (
+            sum(rate(truyn_provider_service_events_total{lane="first_party",outcome="failure"}[30m]))
+            / clamp_min(sum(rate(truyn_provider_service_events_total{lane="first_party",outcome=~"success|failure"}[30m])), 1e-9)
+            / 0.001
+          ) >= 6
+        for: 5m
+        labels:
+          severity: page
+          slo: SLO-PROVIDER-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN first-party provider runtime has sustained error-budget burn
+
+      - alert: TruynDhtRoutingSustainedBurn
+        expr: |
+          (
+            sum(rate(truyn_network_routing_operations_total{operation!="provider-dispatch",outcome="failure"}[6h]))
+            / clamp_min(sum(rate(truyn_network_routing_operations_total{operation!="provider-dispatch",outcome=~"success|failure"}[6h])), 1e-9)
+            / 0.001
+          ) >= 6
+          and
+          (
+            sum(rate(truyn_network_routing_operations_total{operation!="provider-dispatch",outcome="failure"}[30m]))
+            / clamp_min(sum(rate(truyn_network_routing_operations_total{operation!="provider-dispatch",outcome=~"success|failure"}[30m])), 1e-9)
+            / 0.001
+          ) >= 6
+        for: 5m
+        labels:
+          severity: page
+          slo: SLO-DHT-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN production DHT routing is degrading on sustained windows
+
+      - alert: TruynDhtRecoverySustainedBurn
+        expr: |
+          (
+            sum(rate(truyn_network_recovery_events_total{outcome="failure"}[6h]))
+            / clamp_min(sum(rate(truyn_network_recovery_events_total{outcome=~"success|failure"}[6h])), 1e-9)
+            / 0.01
+          ) >= 6
+          and
+          (
+            sum(rate(truyn_network_recovery_events_total{outcome="failure"}[30m]))
+            / clamp_min(sum(rate(truyn_network_recovery_events_total{outcome=~"success|failure"}[30m])), 1e-9)
+            / 0.01
+          ) >= 6
+        for: 5m
+        labels:
+          severity: page
+          slo: SLO-DHT-RECOVERY-1
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN DHT recovery events are repeatedly exceeding the 120 second recovery objective
+
+      - alert: TruynErrorBudgetHalfConsumed
+        expr: truyn:slo_error_budget_consumed:ratio >= 0.5 and truyn:slo_error_budget_consumed:ratio < 1
+        for: 15m
+        labels:
+          severity: ticket
+          policy: change_freeze_review
+        annotations:
+          summary: TRUYN SLO has consumed at least half of its rolling 28-day error budget
+
+      - alert: TruynErrorBudgetBreached
+        expr: truyn:slo_error_budget_consumed:ratio >= 1
+        for: 5m
+        labels:
+          severity: page
+          policy: production_promotion_block
+        annotations:
+          summary: TRUYN SLO exhausted its rolling 28-day error budget
+
+  - name: truyn-production-service-alerts
+    interval: 30s
+    rules:
+      - alert: TruynPublicAvailabilityProbeFastBurn
+        expr: |
+          (
+            (1 - avg(avg_over_time(probe_success{job="truyn-relay-public"}[1h]))) / 0.0005
+          ) >= 14.4
+          and
+          (
+            (1 - avg(avg_over_time(probe_success{job="truyn-relay-public"}[5m]))) / 0.0005
+          ) >= 14.4
+        for: 2m
+        labels:
+          severity: page
+          slo: SLO-HTTP-1
+          policy: multi_window_burn
+        annotations:
+          summary: Independent public relay probes show fast availability-budget burn
+
+      - alert: TruynRelay5xxFastBurn
+        expr: |
+          (
+            sum(rate(truyn_http_requests_total{surface="relay",status_class="5xx"}[1h]))
+            / clamp_min(sum(rate(truyn_http_requests_total{surface="relay",outcome=~"success|failure"}[1h])), 1e-9)
+            / 0.0005
+          ) >= 14.4
+          and
+          (
+            sum(rate(truyn_http_requests_total{surface="relay",status_class="5xx"}[5m]))
+            / clamp_min(sum(rate(truyn_http_requests_total{surface="relay",outcome=~"success|failure"}[5m])), 1e-9)
+            / 0.0005
+          ) >= 14.4
+        for: 2m
+        labels:
+          severity: page
+          service_signal: relay_5xx
+          policy: multi_window_burn
+        annotations:
+          summary: TRUYN relay 5xx rate is consuming the HTTP availability budget rapidly
+
+      - alert: TruynWebSocketDisconnectStorm
+        expr: |
+          (
+            sum(rate(truyn_websocket_disconnects_total{surface="relay",lifetime_class="short_lived"}[15m]))
+            / clamp_min(sum(rate(truyn_websocket_connections_total{surface="relay",outcome="attempt"}[15m])), 1e-9)
+          ) >= 0.20
+          and
+          (
+            sum(rate(truyn_websocket_disconnects_total{surface="relay",lifetime_class="short_lived"}[5m]))
+            / clamp_min(sum(rate(truyn_websocket_connections_total{surface="relay",outcome="attempt"}[5m])), 1e-9)
+          ) >= 0.20
+          and sum(increase(truyn_websocket_disconnects_total{surface="relay",lifetime_class="short_lived"}[15m])) >= 10
+          and sum(increase(truyn_websocket_disconnects_total{surface="relay",lifetime_class="short_lived"}[5m])) >= 3
+        for: 2m
+        labels:
+          severity: page
+          service_signal: websocket_disconnect_storm
+          policy: multi_window_anomaly
+        annotations:
+          summary: TRUYN relay is experiencing a short-lived WebSocket disconnect storm
+
+      - alert: TruynResultTimeoutFastBurn
+        expr: |
+          (
+            sum(rate(truyn_result_timeouts_total[1h]))
+            / clamp_min(sum(rate(truyn_dispatch_attempts_total{outcome=~"success|failure"}[1h])), 1e-9)
+            / 0.001
+          ) >= 14.4
+          and
+          (
+            sum(rate(truyn_result_timeouts_total[5m]))
+            / clamp_min(sum(rate(truyn_dispatch_attempts_total{outcome=~"success|failure"}[5m])), 1e-9)
+            / 0.001
+          ) >= 14.4
+        for: 2m
+        labels:
+          severity: page
+          slo: SLO-RESULT-1
+          service_signal: result_timeout
+          policy: multi_window_burn
+        annotations:
+          summary: RESULT timeouts are rapidly consuming the RESULT-delivery error budget
+
+      - alert: TruynDhtStaleSelectionDegradation
+        expr: |
+          (
+            sum(rate(truyn_network_stale_selections_total[6h]))
+            / clamp_min(sum(rate(truyn_network_routing_operations_total{operation!="provider-dispatch"}[6h])), 1e-9)
+          ) >= 0.005
+          and
+          (
+            sum(rate(truyn_network_stale_selections_total[30m]))
+            / clamp_min(sum(rate(truyn_network_routing_operations_total{operation!="provider-dispatch"}[30m])), 1e-9)
+          ) >= 0.005
+        for: 5m
+        labels:
+          severity: page
+          slo: SLO-STALE-1
+          service_signal: dht_convergence_degradation
+          policy: multi_window_burn
+        annotations:
+          summary: Production DHT stale-selection rate exceeds the 0.50 percent objective on both windows
+
+      - alert: TruynAuthorizationDenyAnomaly
+        expr: |
+          (
+            sum(rate(truyn_authorization_decisions_total{decision="deny"}[15m]))
+            / clamp_min(sum(rate(truyn_authorization_decisions_total{decision=~"allow|deny"}[15m])), 1e-9)
+          ) >= 0.50
+          and
+          (
+            sum(rate(truyn_authorization_decisions_total{decision="deny"}[5m]))
+            / clamp_min(sum(rate(truyn_authorization_decisions_total{decision=~"allow|deny"}[5m])), 1e-9)
+          ) >= 0.50
+          and sum(increase(truyn_authorization_decisions_total{decision="deny"}[15m])) >= 50
+          and sum(increase(truyn_authorization_decisions_total{decision="deny"}[5m])) >= 10
+        for: 2m
+        labels:
+          severity: ticket
+          team: security
+          service_signal: authorization_deny_anomaly
+          policy: multi_window_anomaly
+        annotations:
+          summary: Authorization deny volume and ratio are anomalously high on both windows
+
+      - alert: TruynBillingAmbiguity
+        expr: |
+          sum(increase(truyn_billing_ambiguity_events_total[15m])) >= 3
+          and sum(increase(truyn_billing_ambiguity_events_total[5m])) >= 2
+        for: 2m
+        labels:
+          severity: page
+          service_signal: billing_ambiguity
+          zero_budget: "true"
+          policy: multi_window_zero_budget
+        annotations:
+          summary: Billing or entitlement authority is repeatedly unavailable or ambiguous; execution remains fail closed
+
+      - alert: TruynArtifactStoreFailures
+        expr: |
+          (
+            sum(rate(truyn_artifact_store_failures_total[15m]))
+            / clamp_min(sum(rate(truyn_provider_service_events_total{outcome=~"success|failure"}[15m])), 1e-9)
+          ) >= 0.05
+          and
+          (
+            sum(rate(truyn_artifact_store_failures_total[5m]))
+            / clamp_min(sum(rate(truyn_provider_service_events_total{outcome=~"success|failure"}[5m])), 1e-9)
+          ) >= 0.05
+          and sum(increase(truyn_artifact_store_failures_total[15m])) >= 5
+          and sum(increase(truyn_artifact_store_failures_total[5m])) >= 2
+        for: 2m
+        labels:
+          severity: page
+          service_signal: artifact_store_failure
+          policy: multi_window_anomaly
+        annotations:
+          summary: Artifact/object storage failures are materially affecting provider executions
+
+      - alert: TruynOriginBypassProbeFailure
+        expr: |
+          min(avg_over_time(probe_success{job="truyn-origin-bypass"}[15m])) < 0.90
+          and min(avg_over_time(probe_success{job="truyn-origin-bypass"}[5m])) < 0.50
+        for: 2m
+        labels:
+          severity: page
+          team: security
+          service_signal: origin_bypass_probe
+          zero_budget: "true"
+          policy: multi_window_zero_budget
+        annotations:
+          summary: Repeated origin-bypass probes are failing the expected perimeter result
+
+      - alert: TruynOriginBypassProbeMissing
+        expr: absent_over_time(probe_success{job="truyn-origin-bypass"}[10m])
+        for: 10m
+        labels:
+          severity: ticket
+          team: security
+          service_signal: origin_bypass_probe_missing
+          zero_budget: "true"
+        annotations:
+          summary: No origin-bypass security probe telemetry has been received for ten minutes
+
+      - alert: TruynPublicAvailabilityProbeMissing
+        expr: absent_over_time(probe_success{job="truyn-relay-public"}[10m])
+        for: 10m
+        labels:
+          severity: ticket
+          service_signal: public_probe_missing
+        annotations:
+          summary: No independent public relay availability probe telemetry has been received for ten minutes
