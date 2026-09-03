@@ -93,16 +93,18 @@ test('provider binding cannot escape its authoritative node principal or tenant'
   }), /must match its node principal and tenant/);
 });
 
-test('relay provider policy uses authoritative tenant state and ignores forged tenant metadata', (t) => {
+test('relay provider policy validates authoritative tenant state without turning tenant membership into entitlement', (t) => {
   const authority = baseAuthority({
     memberships: [
       { membershipId: 'm-provider', principalId: 'provider-user', scopeType: 'tenant', scopeId: 'tenant-a', roles: ['provider-operator'] },
       { membershipId: 'm-same', principalId: 'same-user', scopeType: 'tenant', scopeId: 'tenant-a', roles: ['member'] },
+      { membershipId: 'm-same-ungranted', principalId: 'same-ungranted-user', scopeType: 'tenant', scopeId: 'tenant-a', roles: ['member'] },
       { membershipId: 'm-foreign', principalId: 'foreign-user', scopeType: 'tenant', scopeId: 'tenant-b', roles: ['member'] }
     ],
     nodeBindings: [
       { nodeId: 'provider-node', principalId: 'provider-user', tenantId: 'tenant-a' },
       { nodeId: 'same-node', principalId: 'same-user', tenantId: 'tenant-a' },
+      { nodeId: 'same-ungranted-node', principalId: 'same-ungranted-user', tenantId: 'tenant-a' },
       { nodeId: 'foreign-node', principalId: 'foreign-user', tenantId: 'tenant-b' }
     ],
     providerBindings: [{ providerNodeId: 'provider-node', providerId: 'provider-a' }]
@@ -112,28 +114,37 @@ test('relay provider policy uses authoritative tenant state and ignores forged t
 
   const policy = providerPolicyFromOffer({
     from: 'provider-node',
-    payload: { metadata: { accessMode: 'owner-only', tenantId: 'tenant-b', ownerId: 'mallory' } }
+    payload: { metadata: {
+      accessMode: 'owner-only',
+      tenantId: 'tenant-b',
+      ownerId: 'mallory',
+      allowedRequesterIds: ['same-node']
+    } }
   });
 
   assert.equal(providerPolicyAllowsRequester(policy, 'same-node'), true);
+  assert.equal(providerPolicyAllowsRequester(policy, 'same-ungranted-node'), false);
   assert.equal(providerPolicyAllowsRequester(policy, 'foreign-node'), false);
   authority.suspend('membership', 'm-same');
   assert.equal(providerPolicyAllowsRequester(policy, 'same-node'), false);
 });
 
-test('real relay discovery and dispatch follow tenant membership lifecycle without trusting wire tenant claims', async (t) => {
+test('real relay discovery and dispatch combine authoritative membership lifecycle with explicit provider access', async (t) => {
   const providerIdentity = createIdentity();
   const sameTenantIdentity = createIdentity();
+  const sameTenantUngrantedIdentity = createIdentity();
   const foreignIdentity = createIdentity();
   const authority = baseAuthority({
     memberships: [
       { membershipId: 'm-provider', principalId: 'provider-user', scopeType: 'tenant', scopeId: 'tenant-a', roles: ['provider-operator'] },
       { membershipId: 'm-same', principalId: 'same-user', scopeType: 'tenant', scopeId: 'tenant-a', roles: ['member'] },
+      { membershipId: 'm-same-ungranted', principalId: 'same-ungranted-user', scopeType: 'tenant', scopeId: 'tenant-a', roles: ['member'] },
       { membershipId: 'm-foreign', principalId: 'foreign-user', scopeType: 'tenant', scopeId: 'tenant-b', roles: ['member'] }
     ],
     nodeBindings: [
       { nodeId: providerIdentity.nodeId, principalId: 'provider-user', tenantId: 'tenant-a' },
       { nodeId: sameTenantIdentity.nodeId, principalId: 'same-user', tenantId: 'tenant-a' },
+      { nodeId: sameTenantUngrantedIdentity.nodeId, principalId: 'same-ungranted-user', tenantId: 'tenant-a' },
       { nodeId: foreignIdentity.nodeId, principalId: 'foreign-user', tenantId: 'tenant-b' }
     ],
     providerBindings: [{ providerNodeId: providerIdentity.nodeId, providerId: 'provider-a' }]
@@ -147,27 +158,31 @@ test('real relay discovery and dispatch follow tenant membership lifecycle witho
 
   const provider = new TruynNode({ relayUrl, identity: providerIdentity });
   const sameTenant = new TruynNode({ relayUrl, identity: sameTenantIdentity });
+  const sameTenantUngranted = new TruynNode({ relayUrl, identity: sameTenantUngrantedIdentity });
   const foreign = new TruynNode({ relayUrl, identity: foreignIdentity });
   await provider.register();
   await sameTenant.register();
+  await sameTenantUngranted.register();
   await foreign.register();
 
   await provider.offer('tenant.private', {
     accessMode: 'owner-only',
     tenantId: 'tenant-b',
-    ownerId: 'forged-owner'
+    ownerId: 'forged-owner',
+    allowedRequesterIds: [sameTenantIdentity.nodeId]
   });
 
   assert.equal((await sameTenant.find('tenant.private')).offers.length, 1);
+  assert.equal((await sameTenantUngranted.find('tenant.private')).offers.length, 0);
   assert.equal((await foreign.find('tenant.private')).offers.length, 0);
 
-  const matched = await sameTenant.need('tenant.private', { prompt: 'authorized same tenant' });
+  const matched = await sameTenant.need('tenant.private', { prompt: 'authorized explicit requester' });
   assert.equal(matched.provider, providerIdentity.nodeId);
 
   authority.suspend('membership', 'm-same');
   assert.equal((await sameTenant.find('tenant.private')).offers.length, 0);
   await assert.rejects(
     sameTenant.need('tenant.private', { prompt: 'must fail after suspension' }),
-    /no_matching_provider/
+    (error) => error.status === 404 && error.body?.error === 'no_matching_provider'
   );
 });
