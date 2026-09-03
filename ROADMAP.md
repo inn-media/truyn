@@ -27,6 +27,7 @@ The project has not evolved strictly in numerical version order. Network scale, 
 |---|---|---|
 | Network underlay | **Implemented / CI-proven; Class C and D-100 accepted** | accepted D-1000 |
 | D-1000 | **OPEN; latest full pinned run FAIL** | diagnostic/remediation closure + fresh exact-SHA immutable preflight + one new 20×50 accepted campaign |
+| Production operations | **Numerical SLI/SLO target contract defined; operational acceptance OPEN** | real serving-path telemetry + dashboards + burn-rate alerts + on-call + controlled recovery evidence |
 | Semantic / distributed retrieval | **Implemented / benchmark-proven bounded slices** | broader decentralized operating scale |
 | Trustability | **Implemented / benchmark-proven bounded slices** | production authority/revocation operations |
 | Provider security / BYOK | **Implemented fail-closed reference boundary** | richer tenant/account/entitlement operations |
@@ -68,6 +69,45 @@ The latest full pinned campaign is not accepted. Current main includes bounded D
 - [ ] durable sanitized accepted evidence under `docs/benchmarks/`.
 
 No threshold, topology, evaluator, adversarial or safety weakening is allowed to manufacture PASS.
+
+---
+
+## Production operations — P1
+
+### Defined
+
+- [x] canonical numerical production SLI/SLO target contract in `docs/operations/PRODUCTION_SLO.md`;
+- [x] rolling `28 day` compliance window plus `5m / 30m / 1h / 6h / 24h` operational windows;
+- [x] relay HTTP availability target `>=99.95%`;
+- [x] relay WebSocket availability target `>=99.90%`;
+- [x] authenticated request success target `>=99.90%`;
+- [x] NEED→provider dispatch success target `>=99.90%`;
+- [x] RESULT delivery success target `>=99.90%`;
+- [x] first-party provider-runtime availability target `>=99.90%`;
+- [x] DHT/routing healthy-state lookup target `>=99.90%` once a productionized DHT profile is active;
+- [x] stale route/provider selection target `<=0.50%`;
+- [x] synchronous end-to-end latency target `p50<=5s / p95<=15s / p99<=30s`;
+- [x] connection establishment latency target `p50<=750ms / p95<=2s / p99<=5s`;
+- [x] single-instance recovery target `p95<=120s / p99<=300s`;
+- [x] routing recovery target `>=99%` within `120s` after a qualifying heal event;
+- [x] explicit exclusions, independent error budgets and multi-window burn-rate policy;
+- [x] zero spendable error budget for unauthorized owner-funded execution, accepted forged authority, cross-request RESULT injection and equivalent security/correctness invariants.
+
+### Operational acceptance — OPEN
+
+The SLO document defines targets; it is not evidence that current production already satisfies them. P1 service-level closure still requires:
+
+- [ ] real serving-path SLI instrumentation for every applicable objective;
+- [ ] external HTTP and WebSocket synthetic probes from more than one independent vantage point;
+- [ ] durable metrics/logs/traces sufficient to compute the contract without leaking private topology;
+- [ ] dashboards/reporting with denominator, exclusions, remaining budget and data-completeness state;
+- [ ] burn-rate alerts at the defined `14.4x`, `6x` and `3x` multi-window thresholds;
+- [ ] on-call owner/escalation path for pages and zero-budget security events;
+- [ ] controlled relay/provider failure proving recovery measurement;
+- [ ] DHT/routing/stale-state SLI measurement when the productionized DHT profile becomes applicable;
+- [ ] durable sanitized production-operations evidence tied to an identified deployment/source.
+
+A benchmark PASS does not satisfy this section. Conversely, an SLO dashboard does not satisfy D-1000. Both tracks must close independently before a stable/mainnet production claim.
 
 ---
 
@@ -191,7 +231,7 @@ Current factual state remains bootstrap Founding Stewardship. Do not describe th
 Before a stable mainnet claim, the project still needs at minimum:
 
 - [ ] accepted D-1000;
-- [ ] production lifecycle/restart/update/rollback and operational SLO closure;
+- [ ] production lifecycle/restart/update/rollback plus accepted observability/alerting/on-call compliance against the defined production SLI/SLO contract;
 - [ ] C8 plus an externally evidenced artifact profile and compatibility/stability declaration;
 - [ ] Descriptor refresh and full required endpoint-validation parity for the stable claimed profile;
 - [ ] **public immutable tagged/native** five-language package publication and released-version ecosystem evidence;

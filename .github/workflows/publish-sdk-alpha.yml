@@ -1,0 +1,203 @@
+name: Publish @truyn/sdk alpha
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  publish-npm:
+    name: Publish and verify @truyn/sdk
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PACKAGE_NAME: '@truyn/sdk'
+      PACKAGE_VERSION: '0.1.0-alpha.1'
+      RELEASE_MARKER: sdk/release/npm-alpha-bootstrap.json
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN || secrets.NPM_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact green main SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Validate exact release marker and source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git rev-parse HEAD^ >/dev/null
+          git diff --name-only HEAD^ HEAD | grep -Fxq "$RELEASE_MARKER"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const marker = JSON.parse(readFileSync(process.env.RELEASE_MARKER, 'utf8'));
+          const pkg = JSON.parse(readFileSync('sdk/typescript/package.json', 'utf8'));
+          if (marker.package !== process.env.PACKAGE_NAME) throw new Error(`marker package mismatch: ${marker.package}`);
+          if (marker.version !== process.env.PACKAGE_VERSION) throw new Error(`marker version mismatch: ${marker.version}`);
+          if (marker.channel !== 'alpha' || marker.bootstrap !== true) throw new Error('release marker is not the bounded alpha bootstrap marker');
+          if (pkg.name !== marker.package || pkg.version !== marker.version) throw new Error('package.json does not match release marker');
+          NODE
+
+      - name: Require hosted CodeQL success on the same SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100")"
+            count="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql")] | length' <<<"$runs")"
+            failed="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status == "completed" and .conclusion != "success")] | length' <<<"$runs")"
+            pending="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status != "completed")] | length' <<<"$runs")"
+            succeeded="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status == "completed" and .conclusion == "success")] | length' <<<"$runs")"
+            if [[ "$failed" -gt 0 ]]; then
+              echo "Hosted CodeQL failed on $SOURCE_SHA" >&2
+              exit 1
+            fi
+            if [[ "$count" -gt 0 && "$pending" -eq 0 && "$succeeded" -eq "$count" ]]; then
+              echo "Hosted CodeQL PASS on $SOURCE_SHA"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Hosted CodeQL did not reach a successful terminal state on $SOURCE_SHA" >&2
+          exit 1
+
+      - name: Set up Node.js for npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+
+      - name: Pin npm release client
+        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+
+      - name: Build and test exact TypeScript package
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix sdk/typescript --ignore-scripts --no-audit --no-fund
+          npm test --prefix sdk/typescript
+          npm run build --prefix sdk/typescript
+          rm -rf sdk/release/npm-local sdk/release/npm-registry sdk/release/npm-cleanroom
+          mkdir -p sdk/release/npm-local sdk/release/npm-registry
+          npm pack ./sdk/typescript --pack-destination sdk/release/npm-local
+          test -f "sdk/release/npm-local/truyn-sdk-${PACKAGE_VERSION}.tgz"
+          sha256sum "sdk/release/npm-local/truyn-sdk-${PACKAGE_VERSION}.tgz" | tee sdk/release/npm-local/SHA256SUMS
+
+      - name: Detect immutable registry state
+        id: registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --json > /tmp/npm-version.json 2> /tmp/npm-view.err; then
+            actual="$(jq -r '.' /tmp/npm-version.json)"
+            test "$actual" = "$PACKAGE_VERSION"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -Eq 'E404|404 Not Found|is not in this registry' /tmp/npm-view.err; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          cat /tmp/npm-view.err >&2
+          exit 1
+
+      - name: Verify pre-existing version is byte-identical
+        if: steps.registry.outputs.exists == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry_file="$(npm pack "${PACKAGE_NAME}@${PACKAGE_VERSION}" --pack-destination sdk/release/npm-registry | tail -n 1)"
+          cmp "sdk/release/npm-local/truyn-sdk-${PACKAGE_VERSION}.tgz" "sdk/release/npm-registry/$registry_file"
+
+      - name: Bootstrap publish immutable npm version
+        if: steps.registry.outputs.exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${NODE_AUTH_TOKEN:-}" ]]; then
+            echo 'NPM_BOOTSTRAP_TOKEN or NPM_TOKEN is required for the first publication of a new npm package.' >&2
+            exit 1
+          fi
+          npm publish "sdk/release/npm-local/truyn-sdk-${PACKAGE_VERSION}.tgz" --access public --provenance
+
+      - name: Verify public registry tarball, provenance and clean install
+        shell: bash
+        run: |
+          set -euo pipefail
+          visible=false
+          for attempt in $(seq 1 30); do
+            if [[ "$(npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version 2>/dev/null || true)" == "$PACKAGE_VERSION" ]]; then
+              visible=true
+              break
+            fi
+            sleep 5
+          done
+          test "$visible" = true
+
+          rm -rf sdk/release/npm-registry
+          mkdir -p sdk/release/npm-registry
+          registry_file="$(npm pack "${PACKAGE_NAME}@${PACKAGE_VERSION}" --pack-destination sdk/release/npm-registry | tail -n 1)"
+          local_file="sdk/release/npm-local/truyn-sdk-${PACKAGE_VERSION}.tgz"
+          downloaded_file="sdk/release/npm-registry/$registry_file"
+          cmp "$local_file" "$downloaded_file"
+          local_sha256="$(sha256sum "$local_file" | awk '{print $1}')"
+          registry_sha256="$(sha256sum "$downloaded_file" | awk '{print $1}')"
+          test "$local_sha256" = "$registry_sha256"
+
+          dist_json="$(npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" dist --json)"
+          integrity="$(jq -r '.integrity // empty' <<<"$dist_json")"
+          shasum="$(jq -r '.shasum // empty' <<<"$dist_json")"
+          attestation_url="$(jq -r '.attestations.url // empty' <<<"$dist_json")"
+          test -n "$integrity"
+          test -n "$shasum"
+          test -n "$attestation_url"
+
+          mkdir -p sdk/release/npm-cleanroom
+          cd sdk/release/npm-cleanroom
+          npm init --yes >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund "${PACKAGE_NAME}@${PACKAGE_VERSION}"
+          node --input-type=module -e "import('${PACKAGE_NAME}').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.createHttpClient !== 'function') throw new Error('createHttpClient export missing'); })"
+          npm audit signatures
+          cd ../../..
+
+          jq -n \
+            --arg package "$PACKAGE_NAME" \
+            --arg version "$PACKAGE_VERSION" \
+            --arg sourceSha "$SOURCE_SHA" \
+            --arg workflowRun "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg sha256 "$registry_sha256" \
+            --arg integrity "$integrity" \
+            --arg shasum "$shasum" \
+            --arg attestationUrl "$attestation_url" \
+            '{package:$package,version:$version,sourceSha:$sourceSha,workflowRun:$workflowRun,sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,cleanRoomInstall:"PASS",signatureAudit:"PASS"}' \
+            > sdk/release/npm-release-evidence.json
+          cat sdk/release/npm-release-evidence.json
+
+      - name: Upload immutable npm release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-npm-${{ env.PACKAGE_VERSION }}-${{ env.SOURCE_SHA }}
+          path: |
+            sdk/release/npm-local/truyn-sdk-${{ env.PACKAGE_VERSION }}.tgz
+            sdk/release/npm-local/SHA256SUMS
+            sdk/release/npm-release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
