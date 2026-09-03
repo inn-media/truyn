@@ -1,3 +1,5 @@
+let configuredAccountTenantAuthority = null;
+
 function normalizeIds(value) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((item) => typeof item === 'string').map((item) => item.trim()).filter(Boolean))];
@@ -5,6 +7,18 @@ function normalizeIds(value) {
 
 function normalizedAccessMode(value) {
   return String(value || 'owner-only').trim().toLowerCase() === 'public' ? 'public' : 'owner-only';
+}
+
+export function configureRelayAccountTenantAuthority(authority = null) {
+  if (authority != null && (
+    typeof authority.resolveRequester !== 'function' ||
+    typeof authority.resolveProvider !== 'function'
+  )) {
+    throw new Error('account tenant authority must expose resolveRequester() and resolveProvider()');
+  }
+  const previous = configuredAccountTenantAuthority;
+  configuredAccountTenantAuthority = authority;
+  return previous;
 }
 
 export function providerPolicyFromOffer(envelope) {
@@ -17,18 +31,47 @@ export function providerPolicyFromOffer(envelope) {
     ? envelope.payload.metadata
     : {};
   const accessMode = normalizedAccessMode(metadata.accessMode);
-
-  return Object.freeze({
+  const policy = {
     providerNodeId,
     ownerNodeId: providerNodeId,
     accessMode,
     visibility: accessMode === 'public' ? 'network' : 'private',
     allowedRequesterIds: accessMode === 'owner-only' ? normalizeIds(metadata.allowedRequesterIds) : []
-  });
+  };
+  if (configuredAccountTenantAuthority) {
+    Object.defineProperty(policy, 'accountTenantAuthority', {
+      value: configuredAccountTenantAuthority,
+      enumerable: false,
+      writable: false,
+      configurable: false
+    });
+  }
+  return Object.freeze(policy);
+}
+
+function authoritativeContexts(policy, requesterNodeId) {
+  const authority = policy?.accountTenantAuthority;
+  if (!authority) return null;
+  let requester;
+  let provider;
+  try {
+    requester = authority.resolveRequester(requesterNodeId);
+    provider = authority.resolveProvider(policy.providerNodeId);
+  } catch {
+    return { ok: false };
+  }
+  if (!requester?.ok || !provider?.ok) return { ok: false };
+  return { ok: true, requester, provider };
 }
 
 export function providerPolicyAllowsRequester(policy, requesterNodeId, { trustedRequesterNodeIds = [] } = {}) {
   if (!policy || typeof requesterNodeId !== 'string' || requesterNodeId.length === 0) return false;
+
+  // Account/tenant authority proves current identity, membership, role and provider binding.
+  // It never grants provider entitlement merely because two nodes share a tenant.
+  const authority = authoritativeContexts(policy, requesterNodeId);
+  if (authority && !authority.ok) return false;
+
   if (policy.accessMode === 'public') return true;
   if (policy.accessMode !== 'owner-only') return false;
 

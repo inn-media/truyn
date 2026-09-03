@@ -30,7 +30,7 @@ The project has not evolved strictly in numerical version order. Network scale, 
 | Production operations | **Numerical SLI/SLO target contract defined; operational acceptance OPEN** | real serving-path telemetry + dashboards + burn-rate alerts + on-call + controlled recovery evidence |
 | Semantic / distributed retrieval | **Implemented / benchmark-proven bounded slices** | broader decentralized operating scale |
 | Trustability | **Implemented / benchmark-proven bounded slices** | production authority/revocation operations |
-| Provider security / BYOK | **Implemented fail-closed reference boundary** | richer tenant/account/entitlement operations |
+| Provider security / BYOK | **Fail-closed reference boundary + bounded account/org/tenant authority implemented** | durable authority/grant persistence + entitlement/accounting operations |
 | A2A / MCP | **C1–C7 accepted; Sprint C independent A2A + Sprint D independent MCP black-box proven** | C8 security acceptance + integrity-verified external artifact/file profile + compatibility/stability policy |
 | SDK / DX | **Developer Release source/build layer merged: five clients, direct NEED cancellation, signed PARTIAL, bounded valid-profile Descriptor serving/fetch/verify, five-language executable conformance, per-commit package build/provenance verification** | Descriptor refresh + malformed-endpoint parity + immutable tagged/native registry publication + live developer-site evidence |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
@@ -191,11 +191,17 @@ Sprint C + Sprint D do not close C8, prove ecosystem-wide certification or make 
 - [x] private/BYOK fail-closed behavior;
 - [x] billing responsibility cannot be assigned by requester metadata;
 - [x] sponsored mode requires explicit entitlement/accounting contract;
-- [x] prepaid/subscription fail closed without resolver.
+- [x] prepaid/subscription fail closed without resolver;
+- [x] bounded `Account → Organization → Tenant` authoritative resolver;
+- [x] scoped account/org/tenant memberships with explicit role vocabulary and inherited scope resolution;
+- [x] authoritative node→principal/tenant and provider→principal/tenant bindings;
+- [x] account/org/tenant/membership/node/provider `active | suspended | removed` lifecycle with fail-closed cascade behavior;
+- [x] tenant authority does not create implicit provider entitlement: private provider access still requires an explicit grant/allowlist.
 
 ### Open
 
-- [ ] rich account/organization tenant membership;
+- [ ] durable/replicated account/organization/tenant authority persistence and administration API;
+- [ ] durable grant/policy administration beyond the current bounded provider allowlist;
 - [ ] production entitlement issuance/revocation;
 - [ ] durable distributed accounting/usage operations;
 - [ ] stable commercial control-plane integrations.
@@ -236,7 +242,7 @@ Before a stable mainnet claim, the project still needs at minimum:
 - [ ] Descriptor refresh and full required endpoint-validation parity for the stable claimed profile;
 - [ ] **public immutable tagged/native** five-language package publication and released-version ecosystem evidence;
 - [ ] live public developer-site evidence;
-- [ ] production identity/tenant/entitlement/accounting operations appropriate to the deployment model;
+- [ ] durable production identity/tenant/grant/entitlement/accounting operations appropriate to the deployment model;
 - [ ] explicit stable TRUYN protocol/node compatibility contract.
 
 Historical closed issues/PRs and failed benchmark records remain audit history. The current roadmap is determined by accepted code/evidence on main, not by stale issue titles or superseded snapshots.
