@@ -2,10 +2,11 @@
 
 **Status:** canonical factual status index.  
 **Snapshot date:** 2026-09-03  
-**Production/reference baseline:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Production/reference baseline:** `main@476cc1333b2db7d85599c7e7f32c7b954b79611f`  
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73` / merged PR `#399`  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
 **Sprint D exact executable proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
+**Sprint E exact executable proof:** `14984e4a1409dafe0e3a056128292d83895cc6f4`  
 **Protocol generation:** `TRUYN/1` draft
 
 This document answers one question: **what is actually implemented and proven now, versus only defined, attempted, or still open?** Architecture documents define contracts; tests and durable evidence prove bounded claims. Old operational issues and historical acceptance reports remain audit records and do not become current status merely because they still exist.
@@ -55,7 +56,7 @@ An admission/preflight/diagnostic PASS authorizes or informs later work; it does
 | A2A→TRUYN→MCP | **C7 + independent official MCP SDK black-box proven — Sprint D** | `@modelcontextprotocol/server@2.0.0`, separate process |
 | MCP→TRUYN→A2A | **C7 + independent official A2A SDK black-box proven — Sprint C** | `@a2a-js/sdk@1.0.1`, separate process |
 | Complete A2A/MCP adversarial matrix | **OPEN — C8** | PR `#369`; full exact-head + post-merge acceptance still required |
-| External referenced file/artifact profile | **OPEN** | integrity-verified external round trip still required |
+| External referenced file/artifact profile | **ACCEPTED / independent bidirectional black-box CI-proven — Sprint E** | official A2A/MCP SDK processes, explicit resolution, SHA-256/size/MIME/filename/provenance, exactly-once and fail-closed negatives; `docs/compatibility/A2A_MCP_EXTERNAL_ARTIFACT_BLACK_BOX.md` |
 | TypeScript/JavaScript SDK | **Implemented Developer Release client / executable conformance** | public registry publication still open |
 | Python SDK | **Implemented Developer Release client / executable conformance** | public registry publication still open |
 | Go SDK | **Implemented Developer Release relay client / executable conformance** | public module/tag release evidence still open |
@@ -147,8 +148,8 @@ C6 artifact integrity                 ACCEPTED
 C7 both bidirectional bridge paths    ACCEPTED / bounded CI-proven
 Sprint C independent remote A2A       ACCEPTED / official SDK black-box CI-proven
 Sprint D independent remote MCP       ACCEPTED / official SDK black-box CI-proven
+Sprint E referenced artifacts         ACCEPTED / bidirectional official SDK black-box CI-proven
 C8 complete adversarial matrix        OPEN (#369)
-external referenced file/artifact     OPEN
 stable compatibility declaration      OPEN
 ```
 
@@ -158,7 +159,9 @@ Sprint C adds independent ecosystem-side proof for `MCP→TRUYN→A2A`: the remo
 
 Sprint D adds the symmetric proof for `A2A→TRUYN→MCP`: the remote server is a separate process using official `@modelcontextprotocol/server@2.0.0` and its public handler lifecycle. Targeted owner/requester/billing spoof negatives fail before unauthorized external execution.
 
-These independent proofs are bounded adoption evidence, not ecosystem-wide certification. C8 remains independently open, and an integrity-verified referenced external artifact/file proof is still required before claiming the broader external artifact profile.
+Sprint E carries the same deterministic referenced binary through both independent protocol boundaries. The A2A direction uses a real URL part and an explicit resolver; the MCP direction uses standard `resource_link` plus `resources/read`. Both preserve filename, MIME type, exact byte size, SHA-256 integrity and authoritative TRUYN provenance. Valid execution is exactly once; missing resolvers and corrupt digest/size fail closed. No implicit arbitrary URL fetch is allowed. This bounded MCP resolver profile does not promote arbitrary optional MCP resources into general TRUYN OBJECT/STATE support.
+
+These independent proofs are bounded adoption evidence, not ecosystem-wide certification. C8 remains independently open, and stable A2A/MCP compatibility remains undeclared while `TRUYN/1` is draft.
 
 Remote A2A/MCP metadata and transport authentication remain non-authoritative for TRUYN requester identity, provider ownership or billing responsibility.
 
