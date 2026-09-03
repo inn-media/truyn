@@ -1,0 +1,12 @@
+{
+  "npmPackage": "@truyn/sdk",
+  "npmVersion": "0.1.0-alpha.1",
+  "npmDistTag": "alpha",
+  "npmExpectedSha256": "06c782226ae6cc72b7f9c457b15c8bc188b4efc0e7d28ff3da4819382ef22119",
+  "pypiPackage": "truyn-sdk",
+  "pypiVersion": "0.1.0a1",
+  "pypiWheelSha256": "dec464064dec577aa56d33780c6222ac674accf07fe09ae59af18a191afcd958",
+  "pypiSdistSha256": "a2e1e2baa6248cab18bdee08b10e832a39453836a64ad0b55c000f48c890ddaf",
+  "pypiPublicationSourceSha": "fda6b75fda5331dd9cdc7e642f7a0a5556749a64",
+  "repairRevision": 1
+}
