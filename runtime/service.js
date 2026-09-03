@@ -12,10 +12,16 @@ import { createProviderBackchannelGuard } from './provider-backchannel-guard.js'
 import { ProviderTruynNode } from './provider-node.js';
 import { enforceOwnerProviderRuntimeLock } from './owner-provider-lock.js';
 import { createPublicAgentDescriptor, maybeServePublicAgentDescriptor } from './agent-descriptor.js';
+import { getObservabilityPlane } from '../observability/plane.js';
 
 const role = process.env.TRUYN_ROLE || 'provider';
 const host = process.env.HOST || '0.0.0.0';
 const port = Number(process.env.PORT || 8080);
+const observability = getObservabilityPlane({
+  enabled: process.env.TRUYN_OBSERVABILITY === '1',
+  service: process.env.OTEL_SERVICE_NAME || `truyn-${role}`,
+  role
+});
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -44,6 +50,13 @@ function writeJson(res, status, body) {
   res.end(data);
 }
 
+function runtimeLog(level, event, fields = {}) {
+  if (observability.enabled) return observability.log(level, event, fields);
+  const target = level === 'error' || level === 'warn' ? process.stderr : process.stdout;
+  target.write(`${JSON.stringify(fields)}\n`);
+  return fields;
+}
+
 async function runRelay() {
   const relaySecurity = createRuntimeRelaySecurityConfig(process.env);
   const originGuardConfig = createRuntimeOriginGuardConfig(process.env);
@@ -58,6 +71,8 @@ async function runRelay() {
     productionMode: relaySecurity.productionMode,
     exposeDiagnostics: process.env.TRUYN_PRIVATE_DIAGNOSTICS === '1'
   });
+  observability.observeHttpServer(relay.server, { surface: 'relay' });
+  observability.bindRelayState(relay.state);
 
   let originGuard = null;
   let backchannelGuard = null;
@@ -94,21 +109,25 @@ async function runRelay() {
       await relay.listen({ host, port });
     }
   } catch (error) {
+    observability.recordInfrastructure('relay-startup', error);
     await originGuard?.close().catch(() => {});
     await backchannelGuard?.close().catch(() => {});
     await relay.close().catch(() => {});
     throw error;
   }
 
-  process.stdout.write(`${JSON.stringify({
+  observability.setRuntimeReady('relay', true);
+  runtimeLog('info', 'runtime.ready', {
     ok: true,
     role: 'relay',
     ready: true,
     originGuard: originGuardConfig.enabled,
     providerBackchannelGuard: backchannelEnabled
-  })}\n`);
+  });
 
   const shutdown = async () => {
+    observability.setRuntimeReady('relay', false);
+    runtimeLog('info', 'runtime.shutdown', { ok: true, role: 'relay', ready: false });
     await originGuard?.close();
     await backchannelGuard?.close();
     await relay.close();
@@ -138,8 +157,13 @@ async function runProvider() {
   });
   const accessPolicy = createRuntimeProviderAccessPolicy(process.env);
   const billingPolicy = createRuntimeProviderBillingPolicy(process.env);
+  observability.instrumentAccessPolicy(accessPolicy, { providerId: identity.nodeId });
+  observability.instrumentBillingPolicy(billingPolicy, { providerId: identity.nodeId });
   enforceOwnerProviderRuntimeLock(process.env, { accessPolicy, billingPolicy });
-  const adapter = createProviderAdapter(providerName, { capabilities });
+  const adapter = observability.wrapProviderAdapter(
+    createProviderAdapter(providerName, { capabilities }),
+    { providerId: identity.nodeId }
+  );
   const fastPath = process.env.TRUYN_FAST_PATH !== '0';
   const socketPath = fastPath && process.env.TRUYN_SOCKET_PATH !== '0';
   const longPollMs = Number(process.env.TRUYN_LONG_POLL_MS || 10_000);
@@ -159,7 +183,10 @@ async function runProvider() {
 
   const server = http.createServer((req, res) => {
     if (maybeServePublicAgentDescriptor(req, res, publicDescriptor)) return;
-    if (req.method === 'GET' && (req.url === '/health' || req.url === '/')) {
+    if (req.method === 'GET' && req.url === '/health') {
+      return writeJson(res, 200, { ok: true, protocol: 'TRUYN/1' });
+    }
+    if (req.method === 'GET' && req.url === '/') {
       return writeJson(res, 200, { ok: true, role: 'provider', ready });
     }
     if (req.method === 'GET' && req.url === '/ready') {
@@ -167,22 +194,34 @@ async function runProvider() {
     }
     return writeJson(res, 404, { ok: false, error: 'not_found' });
   });
+  observability.observeHttpServer(server, { surface: 'provider-runtime' });
 
   await new Promise((resolve) => server.listen(port, host, resolve));
-  process.stdout.write(`${JSON.stringify({ ok: true, role: 'provider', ready: false, publicAgentDescriptor: Boolean(publicDescriptor) })}\n`);
+  observability.setRuntimeReady('provider', false);
+  runtimeLog('info', 'runtime.started', {
+    ok: true,
+    role: 'provider',
+    ready: false,
+    nodeId: identity.nodeId,
+    publicAgentDescriptor: Boolean(publicDescriptor)
+  });
 
   const loop = (async () => {
     while (!stopping) {
       try {
         await adapterHost.start();
         ready = true;
+        observability.setRuntimeReady('provider', true);
+        runtimeLog('info', 'runtime.ready', { ok: true, role: 'provider', ready: true, nodeId: identity.nodeId });
         const lifecycleLoops = [adapterHost.loopPromise, adapterHost.controlLoopPromise].filter(Boolean);
         if (lifecycleLoops.length === 0) throw new Error('adapter_host_loop_unavailable');
         await Promise.race(lifecycleLoops);
         if (!stopping) throw new Error('adapter_host_loop_stopped');
-      } catch {
+      } catch (error) {
         if (stopping) break;
         ready = false;
+        observability.setRuntimeReady('provider', false);
+        observability.recordInfrastructure('provider-loop', error);
         await adapterHost.stop({ preserveDequeuedWork: true });
         adapterHost.loopPromise = null;
         adapterHost.controlLoopPromise = null;
@@ -190,7 +229,8 @@ async function runProvider() {
         adapterHost.offerIds = [];
         node.closeFastSocket();
         node.sessionToken = null;
-        process.stderr.write('TRUYN provider retry\n');
+        if (observability.enabled) observability.log('warn', 'provider.retry', { nodeId: identity.nodeId, errorClass: 'internal' });
+        else process.stderr.write('TRUYN provider retry\n');
         await sleep(Number(process.env.TRUYN_RETRY_MS || 1000));
       }
     }
@@ -200,6 +240,8 @@ async function runProvider() {
     if (stopping) return;
     stopping = true;
     ready = false;
+    observability.setRuntimeReady('provider', false);
+    runtimeLog('info', 'runtime.shutdown', { ok: true, role: 'provider', ready: false, nodeId: identity.nodeId });
     await adapterHost.stop();
     await loop;
     await new Promise((resolve) => server.close(resolve));
