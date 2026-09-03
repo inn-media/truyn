@@ -3,5 +3,5 @@
   "version": "0.1.0-alpha.1",
   "channel": "alpha",
   "bootstrap": true,
-  "workflowRevision": 2
+  "workflowRevision": 3
 }
