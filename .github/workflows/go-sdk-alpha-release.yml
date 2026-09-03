@@ -1,4 +1,4 @@
-name: Release Go SDK alpha
+name: SDK Registry Closure
 
 on:
   workflow_run:
@@ -12,10 +12,11 @@ on:
 permissions:
   actions: read
   contents: read
+  id-token: write
 
 jobs:
-  release-go:
-    name: Tag and verify Go SDK
+  registry-closure:
+    name: Publish npm and verify npm/PyPI
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -23,17 +24,23 @@ jobs:
       github.event.workflow_run.repository.full_name == github.repository
     runs-on: ubuntu-latest
     environment: sdk-release
-    timeout-minutes: 20
-    permissions:
-      actions: read
-      contents: write
+    timeout-minutes: 30
     env:
-      MODULE_PATH: github.com/inn-media/truyn/sdk/go
-      GO_VERSION: v0.1.0-alpha.1
-      GO_TAG: sdk/go/v0.1.0-alpha.1
-      RELEASE_MARKER: sdk/release/go-alpha-release.json
       SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+      RELEASE_MARKER: sdk/release/registry-closure.json
+      NPM_PACKAGE: '@truyn/sdk'
+      NPM_VERSION: '0.1.0-alpha.1'
+      NPM_DIST_TAG: alpha
+      NPM_EXPECTED_SHA256: 06c782226ae6cc72b7f9c457b15c8bc188b4efc0e7d28ff3da4819382ef22119
+      PYPI_PACKAGE: truyn-sdk
+      PYPI_VERSION: 0.1.0a1
+      PYPI_WHEEL_FILENAME: truyn_sdk-0.1.0a1-py3-none-any.whl
+      PYPI_WHEEL_SHA256: dec464064dec577aa56d33780c6222ac674accf07fe09ae59af18a191afcd958
+      PYPI_SDIST_FILENAME: truyn_sdk-0.1.0a1.tar.gz
+      PYPI_SDIST_SHA256: a2e1e2baa6248cab18bdee08b10e832a39453836a64ad0b55c000f48c890ddaf
+      PYPI_PUBLICATION_SOURCE_SHA: fda6b75fda5331dd9cdc7e642f7a0a5556749a64
       GH_TOKEN: ${{ github.token }}
+
     steps:
       - name: Checkout exact green main SHA
         uses: actions/checkout@v4
@@ -42,7 +49,7 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Determine bounded Go release eligibility
+      - name: Determine bounded registry closure eligibility
         id: eligibility
         shell: bash
         run: |
@@ -51,17 +58,35 @@ jobs:
           git rev-parse HEAD^ >/dev/null
           if ! git diff --name-only HEAD^ HEAD | grep -Fxq "$RELEASE_MARKER"; then
             echo "eligible=false" >> "$GITHUB_OUTPUT"
-            echo "Ignoring successful main CI for $SOURCE_SHA because it is not the bounded Go release-marker commit."
+            echo "Ignoring ordinary main CI for $SOURCE_SHA because the bounded registry-closure marker did not change."
             exit 0
           fi
           jq -e \
-            --arg module "$MODULE_PATH" \
-            --arg version "$GO_VERSION" \
-            --arg tag "$GO_TAG" \
-            '. == {module:$module,version:$version,tag:$tag,channel:"alpha",workflowRevision:1}' \
-            "$RELEASE_MARKER" >/dev/null
-          actual_module="$(awk '$1 == "module" { print $2; exit }' sdk/go/go.mod)"
-          test "$actual_module" = "$MODULE_PATH"
+            --arg npmPackage "$NPM_PACKAGE" \
+            --arg npmVersion "$NPM_VERSION" \
+            --arg npmDistTag "$NPM_DIST_TAG" \
+            --arg npmSha "$NPM_EXPECTED_SHA256" \
+            --arg pypiPackage "$PYPI_PACKAGE" \
+            --arg pypiVersion "$PYPI_VERSION" \
+            --arg wheelFilename "$PYPI_WHEEL_FILENAME" \
+            --arg wheelSha "$PYPI_WHEEL_SHA256" \
+            --arg sdistFilename "$PYPI_SDIST_FILENAME" \
+            --arg sdistSha "$PYPI_SDIST_SHA256" \
+            --arg publicationSha "$PYPI_PUBLICATION_SOURCE_SHA" \
+            '. == {
+              npmPackage:$npmPackage,
+              npmVersion:$npmVersion,
+              npmDistTag:$npmDistTag,
+              npmExpectedSha256:$npmSha,
+              pypiPackage:$pypiPackage,
+              pypiVersion:$pypiVersion,
+              pypiWheelFilename:$wheelFilename,
+              pypiWheelSha256:$wheelSha,
+              pypiSdistFilename:$sdistFilename,
+              pypiSdistSha256:$sdistSha,
+              pypiPublicationSourceSha:$publicationSha,
+              repairRevision:2
+            }' "$RELEASE_MARKER" >/dev/null
           echo "eligible=true" >> "$GITHUB_OUTPUT"
 
       - name: Require hosted CodeQL success on the same SHA
@@ -69,7 +94,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 40); do
+          for attempt in $(seq 1 60); do
             runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100")"
             count="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql")] | length' <<<"$runs")"
             failed="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status == "completed" and .conclusion != "success")] | length' <<<"$runs")"
@@ -88,186 +113,303 @@ jobs:
           echo "Hosted CodeQL did not reach a successful terminal state on $SOURCE_SHA" >&2
           exit 1
 
-      - name: Set up Go
+      - name: Set up Node.js for npm registry
         if: steps.eligibility.outputs.eligible == 'true'
-        uses: actions/setup-go@v5
+        uses: actions/setup-node@v4
         with:
-          go-version: '1.22.x'
-          cache: false
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
 
-      - name: Test exact Go module before tagging
+      - name: Pin npm release client
         if: steps.eligibility.outputs.eligible == 'true'
-        working-directory: sdk/go
-        run: |
-          set -euo pipefail
-          go test ./...
-          go vet ./...
+        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
 
-      - name: Detect immutable Go tag state
-        id: tag
+      - name: Build exact npm artifact and require immutable bytes
         if: steps.eligibility.outputs.eligible == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          resolve_tag() {
-            local lines direct peeled
-            lines="$(git ls-remote --tags "https://github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${GO_TAG}" "refs/tags/${GO_TAG}^{}")"
-            direct="$(awk '$2 !~ /\^\{\}$/ {print $1; exit}' <<<"$lines")"
-            peeled="$(awk '$2 ~ /\^\{\}$/ {print $1; exit}' <<<"$lines")"
-            printf '%s' "${peeled:-$direct}"
-          }
-          existing="$(resolve_tag)"
-          if [[ -z "$existing" ]]; then
+          npm install --ignore-scripts --no-audit --no-fund
+          npm install --prefix sdk/typescript --ignore-scripts --no-audit --no-fund
+          npm test --prefix sdk/typescript
+          npm run build --prefix sdk/typescript
+          rm -rf sdk/release/registry-closure
+          mkdir -p sdk/release/registry-closure/npm-local sdk/release/registry-closure/npm-registry
+          npm pack ./sdk/typescript --pack-destination sdk/release/registry-closure/npm-local
+          local_file="sdk/release/registry-closure/npm-local/truyn-sdk-${NPM_VERSION}.tgz"
+          test -f "$local_file"
+          actual_sha="$(sha256sum "$local_file" | awk '{print $1}')"
+          test "$actual_sha" = "$NPM_EXPECTED_SHA256"
+          printf '%s  %s\n' "$actual_sha" "$local_file" > sdk/release/registry-closure/npm-SHA256SUMS
+
+      - name: Detect immutable npm version
+        if: steps.eligibility.outputs.eligible == 'true'
+        id: npm_registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npm view "${NPM_PACKAGE}@${NPM_VERSION}" version --json >/tmp/npm-version.json 2>/tmp/npm-view.err; then
+            test "$(jq -r '.' /tmp/npm-version.json)" = "$NPM_VERSION"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -Eq 'E404|404 Not Found|is not in this registry' /tmp/npm-view.err; then
             echo "exists=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [[ "$existing" != "$SOURCE_SHA" ]]; then
-            echo "Immutable Go release tag $GO_TAG already resolves to $existing, expected $SOURCE_SHA" >&2
-            exit 1
+          cat /tmp/npm-view.err >&2
+          exit 1
+
+      - name: Verify pre-existing npm version is byte-identical
+        if: steps.eligibility.outputs.eligible == 'true' && steps.npm_registry.outputs.exists == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry_file="$(npm pack "${NPM_PACKAGE}@${NPM_VERSION}" --pack-destination sdk/release/registry-closure/npm-registry | tail -n 1)"
+          local_file="sdk/release/registry-closure/npm-local/truyn-sdk-${NPM_VERSION}.tgz"
+          remote_file="sdk/release/registry-closure/npm-registry/$registry_file"
+          cmp "$local_file" "$remote_file"
+          test "$(sha256sum "$remote_file" | awk '{print $1}')" = "$NPM_EXPECTED_SHA256"
+
+      - name: Publish npm prerelease with explicit alpha dist-tag
+        if: steps.eligibility.outputs.eligible == 'true' && steps.npm_registry.outputs.exists == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NODE_AUTH_TOKEN:-}"
+          test "$(npm whoami)" = "truyn"
+          npm publish "sdk/release/registry-closure/npm-local/truyn-sdk-${NPM_VERSION}.tgz" \
+            --access public \
+            --tag "$NPM_DIST_TAG" \
+            --provenance
+
+      - name: Repair npm alpha dist-tag if required
+        if: steps.eligibility.outputs.eligible == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(npm view "$NPM_PACKAGE" dist-tags --json 2>/dev/null | jq -r --arg tag "$NPM_DIST_TAG" '.[$tag] // empty')"
+          if [[ "$current" != "$NPM_VERSION" ]]; then
+            test -n "${NODE_AUTH_TOKEN:-}"
+            test "$(npm whoami)" = "truyn"
+            npm dist-tag add "${NPM_PACKAGE}@${NPM_VERSION}" "$NPM_DIST_TAG"
           fi
-          echo "exists=true" >> "$GITHUB_OUTPUT"
 
-      - name: Create immutable Go SemVer tag
-        if: steps.eligibility.outputs.eligible == 'true' && steps.tag.outputs.exists == 'false'
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
-            -f ref="refs/tags/${GO_TAG}" \
-            -f sha="$SOURCE_SHA" >/tmp/go-tag-create.json
-          test "$(jq -r '.ref' /tmp/go-tag-create.json)" = "refs/tags/${GO_TAG}"
-          test "$(jq -r '.object.sha' /tmp/go-tag-create.json)" = "$SOURCE_SHA"
-
-      - name: Verify tag resolves to exact accepted source
+      - name: Verify public npm bytes, provenance, alpha tag and clean install
         if: steps.eligibility.outputs.eligible == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          resolved=''
-          for attempt in $(seq 1 20); do
-            lines="$(git ls-remote --tags "https://github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${GO_TAG}" "refs/tags/${GO_TAG}^{}")"
-            direct="$(awk '$2 !~ /\^\{\}$/ {print $1; exit}' <<<"$lines")"
-            peeled="$(awk '$2 ~ /\^\{\}$/ {print $1; exit}' <<<"$lines")"
-            resolved="${peeled:-$direct}"
-            [[ "$resolved" == "$SOURCE_SHA" ]] && break
-            sleep 2
-          done
-          test "$resolved" = "$SOURCE_SHA"
-
-      - name: Discover module through public Go proxy and checksum database
-        if: steps.eligibility.outputs.eligible == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          workspace="$GITHUB_WORKSPACE"
-          probe="$(mktemp -d)"
-          cd "$probe"
-          go mod init example.com/truyn-go-proxy-proof >/dev/null
-          export GOPROXY=https://proxy.golang.org
-          export GOSUMDB=sum.golang.org
-          discovered=false
+          visible=false
           for attempt in $(seq 1 40); do
-            if go list -m -json "${MODULE_PATH}@${GO_VERSION}" > "$workspace/sdk/release/go-proxy-module.json" 2>/tmp/go-proxy.err; then
-              discovered=true
+            if [[ "$(npm view "${NPM_PACKAGE}@${NPM_VERSION}" version 2>/dev/null || true)" == "$NPM_VERSION" ]]; then
+              visible=true
               break
             fi
             sleep 5
           done
-          if [[ "$discovered" != true ]]; then
-            cat /tmp/go-proxy.err >&2 || true
-            exit 1
-          fi
-          jq -e --arg module "$MODULE_PATH" --arg version "$GO_VERSION" '.Path == $module and .Version == $version' "$workspace/sdk/release/go-proxy-module.json" >/dev/null
-          go mod download -json "${MODULE_PATH}@${GO_VERSION}" > "$workspace/sdk/release/go-module-download.json"
-          jq -e --arg module "$MODULE_PATH" --arg version "$GO_VERSION" '.Path == $module and .Version == $version and (.Sum | length > 0) and (.GoModSum | length > 0)' "$workspace/sdk/release/go-module-download.json" >/dev/null
-          curl --fail --silent --show-error --location \
-            "https://proxy.golang.org/${MODULE_PATH}/@v/${GO_VERSION}.info" \
-            --output "$workspace/sdk/release/go-proxy-info.json"
-          jq -e --arg version "$GO_VERSION" '.Version == $version and (.Time | length > 0)' "$workspace/sdk/release/go-proxy-info.json" >/dev/null
-
-      - name: Clean-room install and public import proof
-        if: steps.eligibility.outputs.eligible == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cleanroom="$(mktemp -d)"
-          cd "$cleanroom"
-          go mod init example.com/truyn-go-install-proof >/dev/null
-          GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org go get "${MODULE_PATH}@${GO_VERSION}"
-          cat > main.go <<'GO'
-          package main
-
-          import (
-              "fmt"
-              truyn "github.com/inn-media/truyn/sdk/go"
-          )
-
-          func main() {
-              if truyn.Protocol != "TRUYN/1" {
-                  panic("unexpected protocol export")
-              }
-              if truyn.StableSDKAPIVersion != "1" {
-                  panic("unexpected stable SDK API version")
-              }
-              fmt.Printf("%s %s\n", truyn.Protocol, truyn.StableSDKAPIVersion)
-          }
-          GO
-          GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org go run . | grep -Fx 'TRUYN/1 1'
-
-      - name: Require pkg.go.dev discovery for exact version
-        if: steps.eligibility.outputs.eligible == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          api="https://pkg.go.dev/v1/module/${MODULE_PATH}?version=${GO_VERSION}"
-          discovered=false
-          for attempt in $(seq 1 60); do
-            if curl --fail --silent --show-error --location "$api" --output sdk/release/pkg-go-dev.json 2>/tmp/pkg-go-dev.err; then
-              if jq -e --arg module "$MODULE_PATH" --arg version "$GO_VERSION" '.path == $module and .version == $version and .hasGoMod == true and .isRedistributable == true' sdk/release/pkg-go-dev.json >/dev/null; then
-                discovered=true
-                break
-              fi
-            fi
-            sleep 5
-          done
-          if [[ "$discovered" != true ]]; then
-            cat /tmp/pkg-go-dev.err >&2 || true
-            test -f sdk/release/pkg-go-dev.json && cat sdk/release/pkg-go-dev.json >&2 || true
-            exit 1
-          fi
-
-      - name: Record immutable Go release evidence
-        if: steps.eligibility.outputs.eligible == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          module_sum="$(jq -r '.Sum' sdk/release/go-module-download.json)"
-          go_mod_sum="$(jq -r '.GoModSum' sdk/release/go-module-download.json)"
-          proxy_time="$(jq -r '.Time' sdk/release/go-proxy-info.json)"
+          test "$visible" = true
+          rm -rf sdk/release/registry-closure/npm-registry
+          mkdir -p sdk/release/registry-closure/npm-registry
+          registry_file="$(npm pack "${NPM_PACKAGE}@${NPM_VERSION}" --pack-destination sdk/release/registry-closure/npm-registry | tail -n 1)"
+          local_file="sdk/release/registry-closure/npm-local/truyn-sdk-${NPM_VERSION}.tgz"
+          remote_file="sdk/release/registry-closure/npm-registry/$registry_file"
+          cmp "$local_file" "$remote_file"
+          remote_sha="$(sha256sum "$remote_file" | awk '{print $1}')"
+          test "$remote_sha" = "$NPM_EXPECTED_SHA256"
+          dist_json="$(npm view "${NPM_PACKAGE}@${NPM_VERSION}" dist --json)"
+          integrity="$(jq -r '.integrity // empty' <<<"$dist_json")"
+          shasum="$(jq -r '.shasum // empty' <<<"$dist_json")"
+          attestation_url="$(jq -r '.attestations.url // empty' <<<"$dist_json")"
+          test -n "$integrity"
+          test -n "$shasum"
+          test -n "$attestation_url"
+          tags="$(npm view "$NPM_PACKAGE" dist-tags --json)"
+          test "$(jq -r --arg tag "$NPM_DIST_TAG" '.[$tag] // empty' <<<"$tags")" = "$NPM_VERSION"
+          mkdir -p sdk/release/registry-closure/npm-cleanroom
+          cd sdk/release/registry-closure/npm-cleanroom
+          npm init --yes >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund "${NPM_PACKAGE}@${NPM_VERSION}"
+          node --input-type=module -e "import('${NPM_PACKAGE}').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.createHttpClient !== 'function') throw new Error('createHttpClient export missing'); })"
+          npm audit signatures
+          cd ../../../..
           jq -n \
-            --arg module "$MODULE_PATH" \
-            --arg version "$GO_VERSION" \
-            --arg tag "$GO_TAG" \
+            --arg package "$NPM_PACKAGE" \
+            --arg version "$NPM_VERSION" \
+            --arg distTag "$NPM_DIST_TAG" \
             --arg sourceSha "$SOURCE_SHA" \
             --arg workflowRun "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            --arg moduleSum "$module_sum" \
-            --arg goModSum "$go_mod_sum" \
-            --arg proxyTime "$proxy_time" \
-            --arg pkgGoDevUrl "https://pkg.go.dev/${MODULE_PATH}@${GO_VERSION}" \
-            '{module:$module,version:$version,tag:$tag,sourceSha:$sourceSha,workflowRun:$workflowRun,environment:"sdk-release",proxy:"https://proxy.golang.org",checksumDatabase:"sum.golang.org",moduleSum:$moduleSum,goModSum:$goModSum,proxyTime:$proxyTime,tagIdentity:"PASS",proxyDiscovery:"PASS",checksumVerification:"PASS",cleanRoomInstall:"PASS",pkgGoDevDiscovery:"PASS",pkgGoDevUrl:$pkgGoDevUrl}' \
-            > sdk/release/go-release-evidence.json
-          cat sdk/release/go-release-evidence.json
+            --arg sha256 "$remote_sha" \
+            --arg integrity "$integrity" \
+            --arg shasum "$shasum" \
+            --arg attestationUrl "$attestation_url" \
+            '{package:$package,version:$version,distTag:$distTag,sourceSha:$sourceSha,workflowRun:$workflowRun,sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,byteIdentity:"PASS",cleanRoomInstall:"PASS",signatureAudit:"PASS"}' \
+            > sdk/release/registry-closure/npm-release-evidence.json
 
-      - name: Upload immutable Go release evidence
+      - name: Set up Python for public PyPI verification
+        if: steps.eligibility.outputs.eligible == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify immutable public PyPI files and exact publisher SHA
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p sdk/release/registry-closure/pypi
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          package = os.environ['PYPI_PACKAGE']
+          version = os.environ['PYPI_VERSION']
+          publication_sha = os.environ['PYPI_PUBLICATION_SOURCE_SHA']
+          expected = {
+              os.environ['PYPI_WHEEL_FILENAME']: os.environ['PYPI_WHEEL_SHA256'],
+              os.environ['PYPI_SDIST_FILENAME']: os.environ['PYPI_SDIST_SHA256'],
+          }
+          api_url = f'https://pypi.org/pypi/{package}/{version}/json'
+          payload = None
+          for _ in range(20):
+              try:
+                  with urllib.request.urlopen(api_url, timeout=20) as response:
+                      payload = json.load(response)
+                  break
+              except urllib.error.HTTPError as exc:
+                  if exc.code != 404:
+                      raise
+              time.sleep(5)
+          if payload is None:
+              raise SystemExit(f'{package}=={version} is not public on PyPI')
+
+          remote = {entry['filename']: entry for entry in payload.get('urls', [])}
+          if set(remote) != set(expected):
+              raise SystemExit(f'unexpected public PyPI file set: {sorted(remote)}')
+
+          out = Path('sdk/release/registry-closure/pypi')
+          evidence_files = []
+          urls = []
+          for filename, expected_sha in expected.items():
+              entry = remote[filename]
+              if entry['digests']['sha256'] != expected_sha:
+                  raise SystemExit(f'PyPI metadata SHA mismatch for {filename}')
+              with urllib.request.urlopen(entry['url'], timeout=30) as response:
+                  data = response.read()
+              actual_sha = hashlib.sha256(data).hexdigest()
+              if actual_sha != expected_sha:
+                  raise SystemExit(f'PyPI byte SHA mismatch for {filename}')
+              (out / filename).write_bytes(data)
+              urls.append(entry['url'])
+
+              provenance_url = (
+                  f'https://pypi.org/integrity/{package}/{version}/'
+                  f'{urllib.parse.quote(filename, safe="")}/provenance'
+              )
+              with urllib.request.urlopen(provenance_url, timeout=30) as response:
+                  provenance = json.load(response)
+              (out / f'{filename}.provenance.json').write_text(
+                  json.dumps(provenance, indent=2) + '\n'
+              )
+
+              matched = False
+              for bundle in provenance.get('attestation_bundles', []):
+                  publisher = bundle.get('publisher') or {}
+                  claims = publisher.get('claims') or {}
+                  if (
+                      publisher.get('kind') == 'GitHub'
+                      and publisher.get('repository_owner') == 'inn-media'
+                      and publisher.get('repository_name') == 'truyn'
+                      and publisher.get('workflow_filename') == 'publish-sdk-alpha.yml'
+                      and publisher.get('environment') == 'sdk-release'
+                      and claims.get('sha') == publication_sha
+                  ):
+                      matched = True
+                      break
+              if not matched:
+                  raise SystemExit(
+                      f'PyPI provenance for {filename} is not bound to '
+                      f'inn-media/truyn publish-sdk-alpha.yml sdk-release at {publication_sha}'
+                  )
+
+              evidence_files.append({
+                  'filename': filename,
+                  'sha256': actual_sha,
+                  'size': len(data),
+                  'url': entry['url'],
+                  'provenanceUrl': provenance_url,
+                  'publisherSourceSha': publication_sha,
+              })
+
+          (out / 'urls.txt').write_text('\n'.join(urls) + '\n')
+          evidence = {
+              'package': package,
+              'version': version,
+              'publicationSourceSha': publication_sha,
+              'verificationSourceSha': os.environ['SOURCE_SHA'],
+              'files': evidence_files,
+              'byteIdentity': 'PASS',
+              'publisherIdentity': 'PASS',
+              'publisherSourceSha': 'PASS',
+          }
+          (out / 'pypi-release-evidence.json').write_text(
+              json.dumps(evidence, indent=2) + '\n'
+          )
+          PY
+
+      - name: Verify PyPI PEP 740 attestations and clean-room install
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check 'pypi-attestations==0.0.30'
+          while IFS= read -r url; do
+            pypi-attestations verify pypi --repository https://github.com/inn-media/truyn "$url"
+          done < sdk/release/registry-closure/pypi/urls.txt
+          python -m venv sdk/release/registry-closure/pypi-cleanroom
+          sdk/release/registry-closure/pypi-cleanroom/bin/python -m pip install \
+            --disable-pip-version-check \
+            --no-cache-dir \
+            --index-url https://pypi.org/simple \
+            "${PYPI_PACKAGE}==${PYPI_VERSION}"
+          sdk/release/registry-closure/pypi-cleanroom/bin/python - <<'PY'
+          from importlib.metadata import version
+          from truyn import TRUYN_SDK_STABLE_API_VERSION, TruynClient, TruynLocalNodeClient
+          assert version('truyn-sdk') == '0.1.0a1'
+          assert isinstance(TRUYN_SDK_STABLE_API_VERSION, str)
+          assert TruynClient is not None
+          assert TruynLocalNodeClient is not None
+          PY
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('sdk/release/registry-closure/pypi/pypi-release-evidence.json')
+          evidence = json.loads(path.read_text())
+          evidence['pep740Verification'] = 'PASS'
+          evidence['cleanRoomInstall'] = 'PASS'
+          path.write_text(json.dumps(evidence, indent=2) + '\n')
+          PY
+
+      - name: Upload immutable registry closure evidence
         if: steps.eligibility.outputs.eligible == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: truyn-go-${{ env.GO_VERSION }}-${{ env.SOURCE_SHA }}
+          name: truyn-registry-closure-${{ env.SOURCE_SHA }}
           path: |
-            sdk/release/go-proxy-module.json
-            sdk/release/go-module-download.json
-            sdk/release/go-proxy-info.json
-            sdk/release/pkg-go-dev.json
-            sdk/release/go-release-evidence.json
+            sdk/release/registry-closure/npm-local/*
+            sdk/release/registry-closure/npm-registry/*
+            sdk/release/registry-closure/npm-SHA256SUMS
+            sdk/release/registry-closure/npm-release-evidence.json
+            sdk/release/registry-closure/pypi/*
           if-no-files-found: error
           retention-days: 90
