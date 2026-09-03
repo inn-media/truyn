@@ -64,6 +64,10 @@ Public health output must remain minimal and must not expose node IDs, private p
 
 Graceful shutdown should stop accepting new work, drain/close transports where supported and flush durable state that requires explicit persistence. Recovery procedures must distinguish corrupt local state from expected peer churn; signed/digested data must be revalidated rather than trusted because it came from disk.
 
+Production recovery is governed by [Production Recovery / DR](RECOVERY_DR.md). Node restart/rejoin alone is not a DR PASS. A qualifying restore must meet the scenario RTO/RPO, restore only from an integrity-verified source, revalidate identity/trust/durable signed state, reject corrupt/stale/revoked generations, rebuild transient routing and record sanitized restore-drill evidence before the production claim is accepted.
+
+Identity/key loss must use protected authority recovery or the signed succession/rotation lifecycle. A revoked or compromised identity may not be restored merely to preserve availability.
+
 ## Current non-claims
 
-There is no current promise of stable mainnet service management, cross-version rolling upgrade compatibility, universal OS service packaging or production SLOs. Those remain v0.8/v1.0 gates.
+There is no current promise of stable mainnet service management, cross-version rolling upgrade compatibility, universal OS service packaging or accepted live production DR evidence. Those remain production/stable gates.
