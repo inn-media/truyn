@@ -39,6 +39,7 @@ if block.count(need_anchor) != 1:
     raise SystemExit(f'unexpected need helper anchor count: {block.count(need_anchor)}')
 helpers = r'''
 D200_HEALED_ORIGIN_DIAG=1
+D200_HEALED_DRAIN_SECONDS=105
 
 def persisted_peer_state(j,node_id):
     global_index=host*N+j
@@ -86,16 +87,31 @@ def post_json(url,body,timeout='8'):
         except Exception:value=None
     return {'ok':bool(p.returncode==0 and isinstance(value,dict) and value.get('enabled') is True),'curlRc':p.returncode,'value':value,'stderr':p.stderr[-512:]}
 
-def reset_target_transport(j,node_id):
+def reset_target_transport_after_drain(j,node_id):
     control=f'http://127.0.0.1:{base+j}'
     partition=post_json(control+'/faults/partition',{'nodeIds':[node_id]})
+    drain_started=time.monotonic()
+    time.sleep(D200_HEALED_DRAIN_SECONDS)
+    drain_ms=round((time.monotonic()-drain_started)*1000,3)
+    # A timed-out HTTP client does not cancel the server-side /need. Re-apply
+    # partition while it is still active so any client created by that old
+    # operation during the drain window is discarded immediately before heal.
+    rediscard=post_json(control+'/faults/partition',{'nodeIds':[node_id]})
     heal=post_json(control+'/faults/heal',{'nodeIds':[node_id]})
     if not heal['ok']:
         heal_retry=post_json(control+'/faults/heal',{'nodeIds':[node_id]})
     else:
         heal_retry=None
     healed=bool(heal['ok'] or (heal_retry and heal_retry['ok']))
-    return {'ok':bool(partition['ok'] and healed),'partition':partition,'heal':heal,'healRetry':heal_retry}
+    return {
+      'ok':bool(partition['ok'] and rediscard['ok'] and healed),
+      'drainMs':drain_ms,
+      'drainTargetMs':D200_HEALED_DRAIN_SECONDS*1000,
+      'partition':partition,
+      'rediscardBeforeHeal':rediscard,
+      'heal':heal,
+      'healRetry':heal_retry,
+    }
 '''
 block = block.replace(need_anchor, helpers + need_anchor)
 
@@ -138,10 +154,12 @@ new = r'''    before=state(j)
     peer_after_refresh=None
     post_refresh=None
     if peer_before.get('validNow') is True:
-        reset=reset_target_transport(j,node_id)
+        reset=reset_target_transport_after_drain(j,node_id)
         reset_retry=need(j,node_id,'d1000-healed-session-reset-retry',k,'session-reset')
-        if reset_retry['ok']:
+        if reset.get('ok') and reset_retry['ok']:
             classification='valid-record-session-reset-recovered'
+        elif reset_retry['ok']:
+            classification='transport-reset-unverified-retry-recovered'
         else:
             refresh=targeted_refresh(j,node_id,k)
             after_refresh=state(j)
@@ -185,14 +203,16 @@ for forbidden in [
     if forbidden in block:
         raise SystemExit(f'ambiguous legacy classifier remained after patch: {forbidden}')
 for marker in [
+    'D200_HEALED_DRAIN_SECONDS=105',
     'peer_before=persisted_peer_state(j,node_id)',
     "'peerRecordBeforeFirstAttempt':peer_before",
     "'peerRecordAfterFirstAttempt':peer_after_timeout",
     "record_transition='became-valid-during-first-attempt'",
-    "control+'/faults/partition'",
-    "control+'/faults/heal'",
-    "d1000-healed-session-reset-retry",
+    'reset_target_transport_after_drain(j,node_id)',
+    "'rediscardBeforeHeal':rediscard",
+    "if reset.get('ok') and reset_retry['ok']:",
     "classification='valid-record-session-reset-recovered'",
+    "classification='transport-reset-unverified-retry-recovered'",
     "classification='stale-record-target-refresh-recovered'",
     "classification='missing-record-target-refresh-recovered'",
     "'schema':'truyn.d200.healed-reconvergence.v2'",
