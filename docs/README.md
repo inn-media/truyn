@@ -3,7 +3,7 @@
 Human-facing documentation for TRUYN architecture, implementation status, governance, setup, operations, security, Trustability, compatibility, SDK/DX and benchmark evidence.
 
 **Snapshot:** 2026-09-03  
-**Current synchronized source:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Current synchronized source:** `main@b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`  
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`
 
 ## Start here
@@ -14,6 +14,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - [Production SLI / SLO Contract](operations/PRODUCTION_SLO.md) — numerical production service targets, measurement windows, exclusions, error budgets and burn-rate policy.
 - [A2A / MCP Architecture](architecture/A2A_MCP_INTEROPERABILITY.md) — external protocol bridge architecture and authority boundary.
 - [A2A / MCP Compatibility](compatibility/A2A_MCP_COMPATIBILITY.md) — exact current compatibility matrix.
+- [C8 Security Closure Evidence](compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md) — exact-head/exact-main adversarial security acceptance and digest.
 - [SDK & Developer Experience](architecture/SDK_DEVELOPER_EXPERIENCE.md) — five-language first-party developer surface and release boundary.
 - [Governance](../GOVERNANCE.md) — governance roles/process/maturity.
 - [Security Policy](../SECURITY.md) — public reporting/security baseline.
@@ -33,7 +34,7 @@ The repository has moved beyond several older documentation snapshots:
 - both A2A→TRUYN→MCP and MCP→TRUYN→A2A in-repository round trips — **implemented / bounded CI-proven (C7)**;
 - independent official A2A SDK black-box proof for MCP→TRUYN→A2A — **accepted bounded Sprint C evidence**;
 - independent official MCP SDK black-box proof for A2A→TRUYN→MCP — **accepted bounded Sprint D evidence**;
-- complete cross-protocol adversarial matrix — **OPEN (C8 / PR #369)**;
+- complete cross-protocol adversarial matrix — **ACCEPTED (C8 / PR #423)** with exact-head and exact-main CI/CodeQL evidence;
 - TypeScript/JavaScript, Python, Go, Java and C#/.NET first-party clients — **implemented Developer Release clients with shared executable conformance**;
 - direct requester-owned NEED cancellation runtime contract — **implemented / bounded CI-proven**, with five-language E2E exercising owner cancellation and dedicated runtime negatives proving ownership/late-output behavior;
 - signed generic ordered `PARTIAL` streaming — **implemented / bounded CI-proven**;
@@ -43,7 +44,7 @@ The repository has moved beyond several older documentation snapshots:
 - governance — **G1 / bootstrap Founding Stewardship**, not neutral/foundation governance;
 - mainnet/stable TRUYN/1 — **not productionized/stable**.
 
-When older docs or issue bodies say C4/C7, independent SDK interoperability, direct NEED cancellation, PARTIAL streaming or Go/Java/.NET parity are future work, treat those statements as historical context, not current status. Descriptor and package claims must still preserve the bounded limitations above.
+When older docs or issue bodies say C4/C7/C8, independent SDK interoperability, direct NEED cancellation, PARTIAL streaming or Go/Java/.NET parity are future work, treat those statements as historical context, not current status. Descriptor and package claims must still preserve the bounded limitations above.
 
 ## Architecture
 
@@ -69,17 +70,18 @@ When older docs or issue bodies say C4/C7, independent SDK interoperability, dir
 - [SDK Quickstart](getting-started/SDK_QUICKSTART.md)
 - [DX-3 SDK Runtime Surface](getting-started/DX3_SDK.md)
 
-`MVP_AI_INTEROP.md` reflects C1–C7 plus the independent Sprint C/D proof boundary rather than the obsolete pre-A2A snapshot.
+`MVP_AI_INTEROP.md` reflects C1–C8 plus the independent Sprint C/D proof boundary rather than the obsolete pre-A2A snapshot.
 
 ## Compatibility
 
 - [Protocol / Node Compatibility](compatibility/PROTOCOL_AND_NODE_COMPATIBILITY.md)
 - [Adapter Compatibility](compatibility/ADAPTER_COMPATIBILITY.md)
 - [A2A / MCP Compatibility Matrix](compatibility/A2A_MCP_COMPATIBILITY.md)
+- [C8 Security Closure Evidence](compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md)
 - [SDK Compatibility](compatibility/SDK_COMPATIBILITY.md)
 - [SDK Packaging](compatibility/SDK_PACKAGING.md)
 
-TRUYN/1 remains draft. Bounded external A2A/MCP SDK proofs and a source/build-complete five-language Developer Release do not imply ecosystem-wide certification, immutable public package publication or a stable-v1 protocol/mainnet promise.
+TRUYN/1 remains draft. Bounded external A2A/MCP SDK proofs and accepted bounded C8 adversarial security do not imply ecosystem-wide certification, independent external referenced-file interoperability, or a stable-v1 protocol/mainnet promise.
 
 ## Trustability
 

@@ -1,9 +1,9 @@
 # TRUYN MVP — AI Interoperability
 
 **Snapshot:** 2026-09-03  
-**Synchronized source:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`
+**Synchronized source:** `main@b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`
 
-TRUYN has working bounded interoperability across native TRUYN, MCP and A2A edges. The old statements that A2A, the bidirectional A2A↔TRUYN↔MCP bridge or independent external SDK/reference-server interoperability are only planned are obsolete.
+TRUYN has working bounded interoperability across native TRUYN, MCP and A2A edges. The old statements that A2A, the bidirectional A2A↔TRUYN↔MCP bridge, independent external SDK/reference-server interoperability or the bounded C8 adversarial matrix are only planned are obsolete.
 
 This remains reference/bounded interoperability: it is not a stable-v1 ecosystem certification, a public mainnet claim or permission to consume another participant's provider account.
 
@@ -151,13 +151,13 @@ The repository has also proved the claimed bridge against independent official S
 
 These are bounded external interoperability proofs. They are not ecosystem-wide certification across all versions/transports/implementations.
 
-## C8 security matrix — still open
+## C8 security matrix — accepted
 
-The bridge implementation and independent positive proofs exist, but the complete bounded adversarial acceptance matrix is not yet accepted. PR `#369` owns C8.
+The complete bounded adversarial matrix is accepted in PR `#423`. Exact green head: `14757e0f1d182e8fdf15e2f9e7ffe67749efc4ee`; exact merged main: `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`.
 
-C8 must prove, in both directions, authorization/visibility, anti-spoofing, correlation attacks, protocol/transport negatives, C6 artifact tampering/SSRF/provenance cases, zero unauthorized remote execution and exactly-once valid execution. It must pass full suite, DCO, diff check, CodeQL and post-merge exact-main verification.
+C8 proves both directions across authorization/visibility, current account/tenant and provider authority anti-spoofing, correlation/replay attacks, protocol/transport negatives, C6 artifact tampering/SSRF/provenance cases, zero unauthorized remote execution and exactly-one valid execution. Exact-head full suite/DCO/diff/CodeQL and post-merge exact-main CI/CodeQL are recorded in `../compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md`.
 
-Do not describe C8 as accepted until those gates pass.
+C8 is bounded security acceptance; it does not by itself establish ecosystem-wide certification, the external referenced-file profile or stable A2A/MCP compatibility.
 
 ## SDK / Developer Release
 
@@ -183,9 +183,8 @@ Native public registry publication and live public developer-site activation rem
 
 ## Adoption-level proof still open
 
-Independent A2A and MCP SDK/reference-server interoperability is already proven for the claimed bounded directions. The remaining adoption work is:
+Independent A2A and MCP SDK/reference-server interoperability and the bounded C8 adversarial matrix are accepted. The remaining adoption work is:
 
-- finish C8;
 - carry at least one integrity-verified referenced file/artifact through the external profile;
 - preserve exact-version durable evidence for future external proofs;
 - define/accept stable compatibility policy before claiming stable A2A/MCP support.
@@ -209,9 +208,9 @@ Use deterministic/local fixtures for reproducible no-credential interoperability
 
 ## Current boundary
 
-Implemented/reference-proven areas include identity, signed requests/results, provider authorization/BYOK, MCP C1/C2, A2A C3–C6, both C7 cross-protocol round trips, independent official A2A/MCP SDK black-box proofs, and the source/build-complete five-language Developer Release client layer.
+Implemented/reference-proven areas include identity, signed requests/results, provider authorization/BYOK, MCP C1/C2, A2A C3–C6, both C7 cross-protocol round trips, independent official A2A/MCP SDK black-box proofs, accepted C8 bounded adversarial security, and the source/build-complete five-language Developer Release client layer.
 
-Still open includes C8 complete adversarial acceptance, external referenced file/artifact proof, Descriptor refresh and malformed-endpoint parity closure, immutable public package publication, live developer-site evidence, richer production tenant/accounting operations, accepted D-1000 and stable mainnet/protocol compatibility.
+Still open includes external referenced file/artifact proof, Descriptor refresh and malformed-endpoint parity closure, immutable public package publication, live developer-site evidence, richer production tenant/accounting operations, accepted D-1000 and stable mainnet/protocol compatibility.
 
 See:
 

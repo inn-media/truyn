@@ -6,6 +6,7 @@
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73` / merged PR `#399`  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
 **Sprint D exact executable proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
+**C8 exact accepted main:** `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38` / merged PR `#423`  
 **Protocol generation:** `TRUYN/1` draft
 
 This document answers one question: **what is actually implemented and proven now, versus only defined, attempted, or still open?** Architecture documents define contracts; tests and durable evidence prove bounded claims. Old operational issues and historical acceptance reports remain audit records and do not become current status merely because they still exist.
@@ -54,7 +55,7 @@ An admission/preflight/diagnostic PASS authorizes or informs later work; it does
 | A2A artifact integrity | **Implemented / bounded CI-proven — C6** | digest/size/canonicalization/no implicit SSRF/provenance |
 | A2A→TRUYN→MCP | **C7 + independent official MCP SDK black-box proven — Sprint D** | `@modelcontextprotocol/server@2.0.0`, separate process |
 | MCP→TRUYN→A2A | **C7 + independent official A2A SDK black-box proven — Sprint C** | `@a2a-js/sdk@1.0.1`, separate process |
-| Complete A2A/MCP adversarial matrix | **OPEN — C8** | PR `#369`; full exact-head + post-merge acceptance still required |
+| Complete A2A/MCP adversarial matrix | **ACCEPTED / bounded CI+CodeQL-proven — C8** | PR `#423`; exact main `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`; durable evidence `docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md` |
 | External referenced file/artifact profile | **OPEN** | integrity-verified external round trip still required |
 | TypeScript/JavaScript SDK | **Implemented Developer Release client / executable conformance** | public registry publication still open |
 | Python SDK | **Implemented Developer Release client / executable conformance** | public registry publication still open |
@@ -147,7 +148,7 @@ C6 artifact integrity                 ACCEPTED
 C7 both bidirectional bridge paths    ACCEPTED / bounded CI-proven
 Sprint C independent remote A2A       ACCEPTED / official SDK black-box CI-proven
 Sprint D independent remote MCP       ACCEPTED / official SDK black-box CI-proven
-C8 complete adversarial matrix        OPEN (#369)
+C8 complete adversarial matrix        ACCEPTED / exact-head + exact-main CI/CodeQL
 external referenced file/artifact     OPEN
 stable compatibility declaration      OPEN
 ```
@@ -158,7 +159,9 @@ Sprint C adds independent ecosystem-side proof for `MCP→TRUYN→A2A`: the remo
 
 Sprint D adds the symmetric proof for `A2A→TRUYN→MCP`: the remote server is a separate process using official `@modelcontextprotocol/server@2.0.0` and its public handler lifecycle. Targeted owner/requester/billing spoof negatives fail before unauthorized external execution.
 
-These independent proofs are bounded adoption evidence, not ecosystem-wide certification. C8 remains independently open, and an integrity-verified referenced external artifact/file proof is still required before claiming the broader external artifact profile.
+C8 adds the bounded adversarial closure on PR `#423`: authorization/visibility, current account/tenant and provider authority anti-spoofing, correlation/replay, protocol/transport negatives, artifact integrity/SSRF/provenance, bounded MCP response handling, zero unauthorized remote executions and exactly-one valid execution. Exact accepted head is `14757e0f1d182e8fdf15e2f9e7ffe67749efc4ee`; exact accepted main is `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`. Pre-merge CI/CodeQL runs are `33788446130` / `33788430642`; post-merge main CI/CodeQL runs are `33788764754` / `33788764035`. Durable closure evidence and digest are in `docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md`.
+
+These independent and adversarial proofs are bounded evidence, not ecosystem-wide certification. An integrity-verified referenced external artifact/file proof is still required before claiming the broader external artifact profile, and stable compatibility remains a separate declaration.
 
 Remote A2A/MCP metadata and transport authentication remain non-authoritative for TRUYN requester identity, provider ownership or billing responsibility.
 

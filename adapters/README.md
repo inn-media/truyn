@@ -2,8 +2,8 @@
 
 Adapters connect existing agents, models, runtimes and protocols to a TRUYN Node. **Adapters are edges; they are not the TRUYN network itself.**
 
-**Snapshot:** 2026-09-02  
-**Synchronized source:** `main@44c8aee6789b98a29bca385586387e0c435d071c`
+**Snapshot:** 2026-09-03  
+**Synchronized source:** `main@b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`
 
 ## Implemented bounded surfaces
 
@@ -74,7 +74,7 @@ C6  artifact integrity                          accepted / bounded CI-proven
 C7  bidirectional A2A↔TRUYN↔MCP composition     accepted / bounded CI-proven
 Sprint C independent A2A black box              accepted / official SDK CI-proven
 Sprint D independent MCP black box              accepted / official SDK CI-proven
-C8  complete cross-protocol adversarial matrix  OPEN (#369)
+C8  complete cross-protocol adversarial matrix  accepted / exact-head + exact-main CI/CodeQL
 ```
 
 `tests/interoperability-bidirectional.test.js` proves the two C7 in-repository compositions and exactly-one remote MCP/A2A execution assertions.
@@ -84,7 +84,9 @@ Independent ecosystem-side evidence is also implemented in both directions:
 - `tests/interoperability-independent-a2a.test.js` runs a separate-process official A2A Project `@a2a-js/sdk@1.0.1` server for `MCP→TRUYN→A2A`;
 - `tests/interoperability-independent-mcp.test.js` runs a separate-process official `@modelcontextprotocol/server@2.0.0` server for `A2A→TRUYN→MCP`.
 
-These are bounded external interoperability proofs, not ecosystem-wide certification.
+C8 was accepted in PR `#423` on exact head `14757e0f1d182e8fdf15e2f9e7ffe67749efc4ee` and exact merged main `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`; durable evidence is `../docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md`.
+
+These are bounded interoperability/security proofs, not ecosystem-wide certification.
 
 ## Security rules
 
@@ -104,9 +106,8 @@ A public adapter endpoint does not imply public provider access.
 
 ## External adoption boundary
 
-The bridge now has both bounded in-repository C7 proof and bounded independent official A2A/MCP SDK black-box proof. What remains open is:
+The bridge now has bounded in-repository C7 proof, bounded independent official A2A/MCP SDK black-box proof, and accepted bounded C8 adversarial security evidence. What remains open is:
 
-- C8 complete adversarial acceptance;
 - at least one integrity-verified referenced file/artifact through the external profile;
 - broader optional protocol surfaces only when separately implemented/evidenced;
 - a stable A2A/MCP compatibility declaration while `TRUYN/1` remains draft.

@@ -45,7 +45,7 @@ When current-status documents disagree with accepted code/evidence, the document
 - `core/security/` — implemented provider access/billing/relay security reference boundaries.
 - `network/` — QUIC transport, authenticated sessions, Kademlia/DHT, routing, relay, NAT traversal and testnet mechanics.
 - `node/` — long-running TRUYN node composition.
-- `runtime/` — executable relay/provider runtime composition.
+- `runtime/` — executable relay/provider/runtime composition.
 - `cli/` — user-facing commands and BYOK setup/runtime entry points.
 - `adapters/` — external AI/model/agent/protocol bridges.
 - `adapters/mcp/` — implemented bounded MCP server/client/current-contract surfaces.
@@ -89,9 +89,11 @@ Current repository ownership is factual, not aspirational:
 - `adapters/providers/mcp-discovery.js` — explicit MCP tool discovery/import;
 - `tests/interoperability-bidirectional.test.js` — accepted C7 in-repository proof of both cross-protocol directions;
 - `tests/interoperability-independent-a2a.test.js` — Sprint C independent official A2A SDK black-box proof;
-- `tests/interoperability-independent-mcp.test.js` — Sprint D independent official MCP SDK black-box proof.
+- `tests/interoperability-independent-mcp.test.js` — Sprint D independent official MCP SDK black-box proof;
+- `tests/interoperability-security-matrix.test.js` plus focused C8 regressions — accepted bounded adversarial cross-protocol security proof;
+- `docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md` — immutable C8 exact-head/exact-main closure evidence.
 
-The old wording that A2A is “architecture-only”, that the reverse bridge is missing, or that independent SDK/reference-server interoperability is entirely future work is obsolete. Current interoperability tests are ordinary `tests/*.test.js` files and run through the repository test command.
+The old wording that A2A is “architecture-only”, that the reverse bridge is missing, that independent SDK/reference-server interoperability is entirely future work, or that C8 remains open is obsolete. Current interoperability tests are ordinary `tests/*.test.js` files and run through the repository test command.
 
 ## SDK / developer surface
 
@@ -156,6 +158,6 @@ A2A Agent Cards/Tasks/Artifacts and MCP Tools/Resources are adapter objects, not
 
 ## Current maturity boundary
 
-Class C and D-100 are accepted; D-1000 remains open. C1–C7 A2A/MCP bounded interoperability is accepted and independent official A2A/MCP SDK black-box proofs exist; C8 remains open. The five-language Developer Release implementation is source/build complete, while public package publication and developer-site liveness remain open release operations. Governance is G1 bootstrap Founding Stewardship. Mainnet and stable TRUYN/1 compatibility are not yet claimed.
+Class C and D-100 are accepted; D-1000 remains open. C1–C8 A2A/MCP bounded interoperability/security is accepted and independent official A2A/MCP SDK black-box proofs exist. The external referenced file/artifact profile and stable A2A/MCP compatibility declaration remain open. The five-language Developer Release implementation is source/build complete, while public package publication and developer-site liveness remain open release operations. Governance is G1 bootstrap Founding Stewardship. Mainnet and stable TRUYN/1 compatibility are not yet claimed.
 
 Canonical current facts belong in `docs/architecture/IMPLEMENTATION_STATUS.md`.
