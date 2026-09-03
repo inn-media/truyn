@@ -7,6 +7,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73` / merged PR `#399`  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
 **Sprint D exact executable proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
+**C8 exact accepted main:** `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38` / merged PR `#423`  
 **Protocol:** `TRUYN/1` draft
 
 The project has not evolved strictly in numerical version order. Network scale, semantic retrieval, Trustability, provider security, external interoperability and SDK/DX progress in parallel. A completed track does not promote an unrelated track.
@@ -31,7 +32,7 @@ The project has not evolved strictly in numerical version order. Network scale, 
 | Semantic / distributed retrieval | **Implemented / benchmark-proven bounded slices** | broader decentralized operating scale |
 | Trustability | **Implemented / benchmark-proven bounded slices** | production authority/revocation operations |
 | Provider security / BYOK | **Fail-closed reference boundary + bounded account/org/tenant authority implemented** | durable authority/grant persistence + entitlement/accounting operations |
-| A2A / MCP | **C1–C7 accepted; Sprint C independent A2A + Sprint D independent MCP black-box proven** | C8 security acceptance + integrity-verified external artifact/file profile + compatibility/stability policy |
+| A2A / MCP | **C1–C8 accepted; Sprint C independent A2A + Sprint D independent MCP black-box proven** | integrity-verified external artifact/file profile + compatibility/stability policy |
 | SDK / DX | **Developer Release source/build layer merged: five clients, direct NEED cancellation, signed PARTIAL, bounded valid-profile Descriptor serving/fetch/verify, five-language executable conformance, per-commit package build/provenance verification** | Descriptor refresh + malformed-endpoint parity + immutable tagged/native registry publication + live developer-site evidence |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Settlement x402/AP2 | **Defined only** | later optional adapter implementation |
@@ -122,11 +123,11 @@ Current accepted state:
 - [x] **C5** — bounded polling async lifecycle with exactly-one initial `SendMessage`, PR `#352`;
 - [x] **C6** — artifact integrity/no-implicit-SSRF/provenance hardening, PR `#368`;
 - [x] **C7** — both `A2A→TRUYN→MCP` and `MCP→TRUYN→A2A` bounded CI-proven by `tests/interoperability-bidirectional.test.js`, PR `#357`;
-- [ ] **C8** — complete adversarial cross-protocol security matrix.
+- [x] **C8** — complete adversarial cross-protocol security matrix, PR `#423`, immutable closure evidence `docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md`.
 
-### C8 acceptance
+### C8 acceptance — ACCEPTED
 
-C8 may close only with exact-head evidence for authorization/visibility, authority anti-spoofing, correlation attacks, protocol/transport negatives, artifact integrity/SSRF/provenance negatives, zero unauthorized remote executions, exactly-one valid remote execution, full tests/DCO/CodeQL, and post-merge exact-main security evidence.
+C8 closed on exact green head `14757e0f1d182e8fdf15e2f9e7ffe67749efc4ee` and exact merged main `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`. The accepted evidence covers authorization/visibility, account/tenant and provider authority anti-spoofing, correlation attacks and replay, protocol/transport negatives, artifact integrity/SSRF/provenance negatives, zero unauthorized remote executions, exactly-one valid remote execution, full tests/DCO/CodeQL, zero unresolved review threads, and post-merge exact-main CI/CodeQL. Durable evidence and its SHA-256 payload digest are recorded in `docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md`.
 
 ### Adoption proof after C7
 
@@ -136,7 +137,7 @@ C8 may close only with exact-head evidence for authorization/visibility, authori
 - [x] publish exact-version durable external interoperability evidence;
 - [ ] define a compatibility/stability policy before claiming stable A2A/MCP support.
 
-Sprint C + Sprint D do not close C8, prove ecosystem-wide certification or make `TRUYN/1` Stable.
+Sprint C + Sprint D + C8 remain bounded evidence; they do not prove ecosystem-wide certification, close the external referenced artifact/file gate, or make `TRUYN/1` Stable.
 
 ---
 
@@ -238,7 +239,7 @@ Before a stable mainnet claim, the project still needs at minimum:
 
 - [ ] accepted D-1000;
 - [ ] production lifecycle/restart/update/rollback plus accepted observability/alerting/on-call compliance against the defined production SLI/SLO contract;
-- [ ] C8 plus an externally evidenced artifact profile and compatibility/stability declaration;
+- [ ] externally evidenced artifact profile and compatibility/stability declaration;
 - [ ] Descriptor refresh and full required endpoint-validation parity for the stable claimed profile;
 - [ ] **public immutable tagged/native** five-language package publication and released-version ecosystem evidence;
 - [ ] live public developer-site evidence;

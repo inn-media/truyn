@@ -2,9 +2,11 @@
 
 **Status:** canonical interoperability architecture synchronized with current `main`.  
 **Snapshot:** 2026-09-03  
-**Source baseline:** `dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Source baseline:** `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`  
 **Sprint C exact proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
 **Sprint D exact proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
+**C8 exact accepted head:** `14757e0f1d182e8fdf15e2f9e7ffe67749efc4ee`  
+**C8 exact accepted main:** `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`  
 **Protocol state:** TRUYN/1 draft; A2A/MCP compatibility is bounded, not stable.
 
 ## Purpose
@@ -42,7 +44,7 @@ The accepted implementation/adoption profile is:
 | C7 — bidirectional A2A↔MCP bridge composition | **Accepted / CI-proven** | PR `#357`, `tests/interoperability-bidirectional.test.js` |
 | Sprint C — independent remote A2A | **Accepted / official SDK black-box CI-proven** | `@a2a-js/sdk@1.0.1`, separate process, `tests/interoperability-independent-a2a.test.js` |
 | Sprint D — independent remote MCP | **Accepted / official SDK black-box CI-proven** | `@modelcontextprotocol/server@2.0.0`, separate process, `tests/interoperability-independent-mcp.test.js` |
-| C8 — complete cross-protocol adversarial matrix | **OPEN** | PR `#369`; exact-head/full-suite/DCO/CodeQL + post-merge acceptance still required |
+| C8 — complete cross-protocol adversarial matrix | **Accepted / exact-head + exact-main CI/CodeQL** | PR `#423`; `docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md` |
 | External referenced file/artifact profile | **OPEN** | integrity-verified external round trip still required |
 | Stable A2A/MCP compatibility guarantee | **OPEN** | TRUYN/1 remains draft |
 
@@ -107,7 +109,7 @@ C6 owns cross-A2A artifact normalization and integrity requirements:
 - authoritative TRUYN provenance replaces spoofable remote provider provenance;
 - corrupt or unverifiable artifacts do not become successful results.
 
-This integrity layer is reusable by C7/C8. The remaining external-artifact gate is not C6 implementation; it is a black-box adoption proof carrying a referenced file/artifact through the claimed external profile.
+This integrity layer is reusable by C7/C8. The remaining external-artifact gate is not C6 or C8 implementation; it is a black-box adoption proof carrying a referenced file/artifact through the claimed external profile.
 
 ## Bidirectional bridge composition
 
@@ -157,7 +159,7 @@ Every bridge implementation MUST preserve these invariants:
 6. retry/poll/fallback logic cannot duplicate remote side effects;
 7. invalid artifacts and malformed external-protocol responses cannot be converted into success.
 
-C8 is the bounded acceptance matrix intended to exercise these invariants systematically across both directions. Sprint C/D targeted negatives strengthen the evidence but do not substitute for C8. Until C8 is merged and exact-main verification is green, the **complete negative matrix remains open**.
+C8 is the accepted bounded adversarial matrix exercising these invariants systematically across both directions, including the current account/tenant authority layer, replay/correlation attacks, bounded MCP response reads/timeouts, artifact integrity/SSRF/provenance negatives, zero unauthorized remote execution and exactly-one valid execution. Exact-head CI/DCO/CodeQL and exact-main CI/CodeQL evidence is durable in `../compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md`.
 
 ## MCP boundary
 
@@ -165,10 +167,11 @@ The implemented MCP profile covers the surfaces TRUYN currently claims: server d
 
 ## Adoption boundary
 
-TRUYN has now crossed two distinct evidence levels:
+TRUYN has now crossed three distinct evidence levels:
 
 1. **C7:** bounded in-repository bidirectional composition;
-2. **Sprint C/D:** bounded independent official SDK/reference-server black-box interoperability in both directions.
+2. **Sprint C/D:** bounded independent official SDK/reference-server black-box interoperability in both directions;
+3. **C8:** bounded adversarial cross-protocol security acceptance on exact head and exact merged main.
 
 This still does **not** mean:
 
@@ -177,7 +180,7 @@ This still does **not** mean:
 - independent referenced file/artifact interoperability has been accepted;
 - the adapters have a stable-v1 compatibility guarantee.
 
-The next adoption work is therefore C8 security closure plus an integrity-verified external referenced artifact/file profile and later stability/version policy—not re-proving that independent A2A/MCP implementations can interoperate at all.
+The next adoption work is an integrity-verified external referenced artifact/file profile and later stability/version policy—not re-proving the already accepted C8 security matrix or that independent A2A/MCP implementations can interoperate at all.
 
 ## Versioning
 
