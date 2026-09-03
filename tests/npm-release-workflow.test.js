@@ -20,6 +20,13 @@ test('npm alpha release is bounded to successful exact-main CI', () => {
   assert.match(workflow, /eligible=true/);
 });
 
+test('historical npm marker revisions are cleanly ineligible before strict validation', () => {
+  assert.match(workflow, /Number\.isInteger\(marker\.workflowRevision\) \? marker\.workflowRevision : 0/);
+  assert.match(workflow, /if \[\[ "\$marker_revision" -lt 2 \]\]; then/);
+  assert.match(workflow, /Ignoring historical npm release marker revision/);
+  assert.match(workflow, /marker\.workflowRevision !== 2/);
+});
+
 test('npm alpha release requires same-SHA hosted CodeQL before publication', () => {
   assert.match(workflow, /actions: read/);
   assert.match(workflow, /contents: read/);
