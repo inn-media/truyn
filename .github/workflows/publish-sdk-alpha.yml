@@ -1,4 +1,4 @@
-name: Publish @truyn/sdk alpha
+name: Publish TRUYN SDK alpha
 
 on:
   workflow_run:
@@ -23,6 +23,7 @@ jobs:
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.repository.full_name == github.repository
     runs-on: ubuntu-latest
+    environment: sdk-release
     timeout-minutes: 20
     env:
       PACKAGE_NAME: '@truyn/sdk'
@@ -38,7 +39,7 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Determine bounded release eligibility
+      - name: Determine bounded npm release eligibility
         id: eligibility
         shell: bash
         run: |
@@ -56,7 +57,7 @@ jobs:
           console.log(Number.isInteger(marker.workflowRevision) ? marker.workflowRevision : 0);
           NODE
           )"
-          if [[ "$marker_revision" -lt 2 ]]; then
+          if [[ "$marker_revision" -lt 3 ]]; then
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             echo "Ignoring historical npm release marker revision $marker_revision on $SOURCE_SHA."
             exit 0
@@ -68,7 +69,7 @@ jobs:
           if (marker.package !== process.env.PACKAGE_NAME) throw new Error(`marker package mismatch: ${marker.package}`);
           if (marker.version !== process.env.PACKAGE_VERSION) throw new Error(`marker version mismatch: ${marker.version}`);
           if (marker.channel !== 'alpha' || marker.bootstrap !== true) throw new Error('release marker is not the bounded alpha bootstrap marker');
-          if (marker.workflowRevision !== 2) throw new Error(`unexpected release marker workflowRevision: ${marker.workflowRevision}`);
+          if (marker.workflowRevision !== 3) throw new Error(`unexpected release marker workflowRevision: ${marker.workflowRevision}`);
           if (pkg.name !== marker.package || pkg.version !== marker.version) throw new Error('package.json does not match release marker');
           NODE
           echo "eligible=true" >> "$GITHUB_OUTPUT"
@@ -123,7 +124,7 @@ jobs:
           test -f "sdk/release/npm-local/truyn-sdk-${PACKAGE_VERSION}.tgz"
           sha256sum "sdk/release/npm-local/truyn-sdk-${PACKAGE_VERSION}.tgz" | tee sdk/release/npm-local/SHA256SUMS
 
-      - name: Detect immutable registry state
+      - name: Detect immutable npm registry state
         id: registry
         if: steps.eligibility.outputs.eligible == 'true'
         shell: bash
@@ -142,7 +143,7 @@ jobs:
           cat /tmp/npm-view.err >&2
           exit 1
 
-      - name: Verify pre-existing version is byte-identical
+      - name: Verify pre-existing npm version is byte-identical
         if: steps.eligibility.outputs.eligible == 'true' && steps.registry.outputs.exists == 'true'
         shell: bash
         run: |
@@ -158,13 +159,13 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${NODE_AUTH_TOKEN:-}" ]]; then
-            echo 'NPM_BOOTSTRAP_TOKEN or NPM_TOKEN is required for the first publication of a new npm package.' >&2
+            echo 'NPM_BOOTSTRAP_TOKEN or NPM_TOKEN is required in the sdk-release environment for the first publication of a new npm package.' >&2
             exit 1
           fi
           npm whoami
           npm publish "sdk/release/npm-local/truyn-sdk-${PACKAGE_VERSION}.tgz" --access public --provenance
 
-      - name: Verify public registry tarball, provenance and clean install
+      - name: Verify public npm registry tarball, provenance and clean install
         if: steps.eligibility.outputs.eligible == 'true'
         shell: bash
         run: |
@@ -214,7 +215,7 @@ jobs:
             --arg integrity "$integrity" \
             --arg shasum "$shasum" \
             --arg attestationUrl "$attestation_url" \
-            '{package:$package,version:$version,sourceSha:$sourceSha,workflowRun:$workflowRun,sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,cleanRoomInstall:"PASS",signatureAudit:"PASS"}' \
+            '{package:$package,version:$version,sourceSha:$sourceSha,workflowRun:$workflowRun,environment:"sdk-release",sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,cleanRoomInstall:"PASS",signatureAudit:"PASS"}' \
             > sdk/release/npm-release-evidence.json
           cat sdk/release/npm-release-evidence.json
 
@@ -227,5 +228,310 @@ jobs:
             sdk/release/npm-local/truyn-sdk-${{ env.PACKAGE_VERSION }}.tgz
             sdk/release/npm-local/SHA256SUMS
             sdk/release/npm-release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+
+  publish-pypi:
+    name: Publish and verify truyn-sdk
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: sdk-release
+    timeout-minutes: 25
+    env:
+      PACKAGE_NAME: truyn-sdk
+      PACKAGE_VERSION: 0.1.0a1
+      RELEASE_MARKER: sdk/release/pypi-alpha-bootstrap.json
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+      SOURCE_DATE_EPOCH: '1788457969'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact green main SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Determine bounded PyPI release eligibility
+        id: eligibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git rev-parse HEAD^ >/dev/null
+          if ! git diff --name-only HEAD^ HEAD | grep -Fxq "$RELEASE_MARKER"; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "Ignoring successful main CI for $SOURCE_SHA because it is not the bounded PyPI release-marker commit."
+            exit 0
+          fi
+          marker_revision="$(python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          marker = json.loads(Path(os.environ['RELEASE_MARKER']).read_text())
+          revision = marker.get('workflowRevision', 0)
+          print(revision if isinstance(revision, int) else 0)
+          PY
+          )"
+          if [[ "$marker_revision" -lt 3 ]]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "Ignoring historical PyPI release marker revision $marker_revision on $SOURCE_SHA."
+            exit 0
+          fi
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          marker = json.loads(Path(os.environ['RELEASE_MARKER']).read_text())
+          pyproject = Path('sdk/python/pyproject.toml').read_text()
+          expected = {
+              'package': os.environ['PACKAGE_NAME'],
+              'version': os.environ['PACKAGE_VERSION'],
+              'channel': 'alpha',
+              'bootstrap': True,
+              'workflowRevision': 3,
+              'sourceDateEpoch': int(os.environ['SOURCE_DATE_EPOCH']),
+          }
+          if marker != expected:
+              raise SystemExit(f'unexpected PyPI release marker: {marker!r}')
+          if 'name = "truyn-sdk"' not in pyproject or 'version = "0.1.0a1"' not in pyproject:
+              raise SystemExit('pyproject.toml does not match the bounded PyPI release coordinate')
+          PY
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+
+      - name: Require hosted CodeQL success on the same SHA
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100")"
+            count="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql")] | length' <<<"$runs")"
+            failed="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status == "completed" and .conclusion != "success")] | length' <<<"$runs")"
+            pending="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status != "completed")] | length' <<<"$runs")"
+            succeeded="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status == "completed" and .conclusion == "success")] | length' <<<"$runs")"
+            if [[ "$failed" -gt 0 ]]; then
+              echo "Hosted CodeQL failed on $SOURCE_SHA" >&2
+              exit 1
+            fi
+            if [[ "$count" -gt 0 && "$pending" -eq 0 && "$succeeded" -eq "$count" ]]; then
+              echo "Hosted CodeQL PASS on $SOURCE_SHA"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Hosted CodeQL did not reach a successful terminal state on $SOURCE_SHA" >&2
+          exit 1
+
+      - name: Set up Python
+        if: steps.eligibility.outputs.eligible == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build and locally verify Python distributions
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install --disable-pip-version-check 'build>=1.2,<2' 'twine>=6,<7' 'pypi-attestations==0.0.30'
+          rm -rf sdk/release/pypi-local sdk/release/pypi-registry sdk/release/pypi-cleanroom sdk/release/pypi-SHA256SUMS
+          mkdir -p sdk/release/pypi-local sdk/release/pypi-registry
+          python -m build sdk/python --outdir sdk/release/pypi-local
+          python -m twine check sdk/release/pypi-local/*
+          test "$(find sdk/release/pypi-local -maxdepth 1 -type f | wc -l)" -eq 2
+          sha256sum sdk/release/pypi-local/* | sort | tee sdk/release/pypi-SHA256SUMS
+          python -m venv /tmp/truyn-pypi-local
+          /tmp/truyn-pypi-local/bin/python -m pip install --disable-pip-version-check 'cryptography>=43,<47'
+          /tmp/truyn-pypi-local/bin/python -m pip install --disable-pip-version-check --no-index --no-deps --find-links sdk/release/pypi-local "${PACKAGE_NAME}==${PACKAGE_VERSION}"
+          /tmp/truyn-pypi-local/bin/python - <<'PY'
+          from importlib.metadata import version
+          from truyn import TRUYN_SDK_STABLE_API_VERSION, TruynClient, TruynLocalNodeClient
+          assert version('truyn-sdk') == '0.1.0a1'
+          assert isinstance(TRUYN_SDK_STABLE_API_VERSION, str)
+          assert TruynClient is not None
+          assert TruynLocalNodeClient is not None
+          PY
+
+      - name: Detect immutable PyPI release state
+        id: registry
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          package = os.environ['PACKAGE_NAME']
+          version = os.environ['PACKAGE_VERSION']
+          output = Path(os.environ['GITHUB_OUTPUT'])
+          url = f'https://pypi.org/pypi/{package}/{version}/json'
+          try:
+              with urllib.request.urlopen(url, timeout=20) as response:
+                  payload = json.load(response)
+          except urllib.error.HTTPError as exc:
+              if exc.code == 404:
+                  with output.open('a') as fh:
+                      fh.write('exists=false\n')
+                  raise SystemExit(0)
+              raise
+
+          local_files = sorted(p for p in Path('sdk/release/pypi-local').iterdir() if p.is_file())
+          remote = {entry['filename']: entry for entry in payload.get('urls', [])}
+          if {p.name for p in local_files} != set(remote):
+              raise SystemExit(f'PyPI release file set differs from local immutable build: local={[p.name for p in local_files]} remote={sorted(remote)}')
+          for path in local_files:
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              if remote[path.name]['digests']['sha256'] != digest:
+                  raise SystemExit(f'PyPI already contains non-identical immutable file {path.name}')
+          with output.open('a') as fh:
+              fh.write('exists=true\n')
+          PY
+
+      - name: Verify pre-existing PyPI release without republishing
+        if: steps.eligibility.outputs.eligible == 'true' && steps.registry.outputs.exists == 'true'
+        run: echo 'truyn-sdk 0.1.0a1 already exists on PyPI and matches the exact local distribution hashes; publication will not be repeated.'
+
+      - name: Publish immutable Python alpha through PyPI Trusted Publishing
+        if: steps.eligibility.outputs.eligible == 'true' && steps.registry.outputs.exists == 'false'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdk/release/pypi-local
+          verbose: true
+
+      - name: Verify public PyPI bytes, hashes and release metadata
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          package = os.environ['PACKAGE_NAME']
+          version = os.environ['PACKAGE_VERSION']
+          local_dir = Path('sdk/release/pypi-local')
+          registry_dir = Path('sdk/release/pypi-registry')
+          registry_dir.mkdir(parents=True, exist_ok=True)
+          api_url = f'https://pypi.org/pypi/{package}/{version}/json'
+          payload = None
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen(api_url, timeout=20) as response:
+                      payload = json.load(response)
+                  break
+              except urllib.error.HTTPError as exc:
+                  if exc.code != 404:
+                      raise
+              time.sleep(5)
+          if payload is None:
+              raise SystemExit(f'{package}=={version} did not become visible on PyPI')
+
+          local_files = sorted(p for p in local_dir.iterdir() if p.is_file())
+          remote = {entry['filename']: entry for entry in payload.get('urls', [])}
+          if {p.name for p in local_files} != set(remote):
+              raise SystemExit('public PyPI file set does not exactly match local immutable build')
+
+          evidence_files = []
+          for path in local_files:
+              local_bytes = path.read_bytes()
+              local_sha = hashlib.sha256(local_bytes).hexdigest()
+              entry = remote[path.name]
+              if entry['digests']['sha256'] != local_sha:
+                  raise SystemExit(f'PyPI SHA-256 mismatch for {path.name}')
+              with urllib.request.urlopen(entry['url'], timeout=30) as response:
+                  remote_bytes = response.read()
+              if remote_bytes != local_bytes:
+                  raise SystemExit(f'PyPI byte mismatch for {path.name}')
+              (registry_dir / path.name).write_bytes(remote_bytes)
+              evidence_files.append({
+                  'filename': path.name,
+                  'sha256': local_sha,
+                  'size': len(local_bytes),
+                  'url': entry['url'],
+              })
+
+          evidence = {
+              'package': package,
+              'version': version,
+              'sourceSha': os.environ['SOURCE_SHA'],
+              'sourceDateEpoch': int(os.environ['SOURCE_DATE_EPOCH']),
+              'workflowRun': f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+              'environment': 'sdk-release',
+              'registry': 'https://pypi.org',
+              'files': evidence_files,
+              'byteIdentity': 'PASS',
+          }
+          Path('sdk/release/pypi-release-evidence.json').write_text(json.dumps(evidence, indent=2) + '\n')
+          PY
+          cat sdk/release/pypi-release-evidence.json
+
+      - name: Verify PyPI PEP 740 provenance against inn-media/truyn
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -r '.files[].url' sdk/release/pypi-release-evidence.json | while IFS= read -r url; do
+            pypi-attestations verify pypi --repository https://github.com/inn-media/truyn "$url"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('sdk/release/pypi-release-evidence.json')
+          evidence = json.loads(path.read_text())
+          evidence['pep740Provenance'] = 'PASS'
+          path.write_text(json.dumps(evidence, indent=2) + '\n')
+          PY
+
+      - name: Clean-room install from public PyPI
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv sdk/release/pypi-cleanroom
+          sdk/release/pypi-cleanroom/bin/python -m pip install --disable-pip-version-check --no-cache-dir --index-url https://pypi.org/simple "${PACKAGE_NAME}==${PACKAGE_VERSION}"
+          sdk/release/pypi-cleanroom/bin/python - <<'PY'
+          from importlib.metadata import version
+          from truyn import TRUYN_SDK_STABLE_API_VERSION, TruynClient, TruynLocalNodeClient
+          assert version('truyn-sdk') == '0.1.0a1'
+          assert isinstance(TRUYN_SDK_STABLE_API_VERSION, str)
+          assert TruynClient is not None
+          assert TruynLocalNodeClient is not None
+          PY
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('sdk/release/pypi-release-evidence.json')
+          evidence = json.loads(path.read_text())
+          evidence['cleanRoomInstall'] = 'PASS'
+          path.write_text(json.dumps(evidence, indent=2) + '\n')
+          PY
+          cat sdk/release/pypi-release-evidence.json
+
+      - name: Upload immutable PyPI release evidence
+        if: steps.eligibility.outputs.eligible == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-pypi-${{ env.PACKAGE_VERSION }}-${{ env.SOURCE_SHA }}
+          path: |
+            sdk/release/pypi-local/*
+            sdk/release/pypi-registry/*
+            sdk/release/pypi-SHA256SUMS
+            sdk/release/pypi-release-evidence.json
           if-no-files-found: error
           retention-days: 90

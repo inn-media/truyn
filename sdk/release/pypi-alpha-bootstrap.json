@@ -3,6 +3,6 @@
   "version": "0.1.0a1",
   "channel": "alpha",
   "bootstrap": true,
-  "workflowRevision": 2,
+  "workflowRevision": 3,
   "sourceDateEpoch": 1788457969
 }
