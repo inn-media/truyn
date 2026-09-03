@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-test('D-200 packet-partition diagnostics preserve strict heal semantics and only inspect terminal failure', async () => {
+test('D-200 packet-partition diagnostics preserve strict heal semantics and checkpoint failure evidence', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'truyn-d200-packet-partition-'));
   const target = join(dir, 'campaign.sh');
   await copyFile('benchmarks/scale/class-d-azure-1000-campaign.sh', target);
@@ -36,8 +36,10 @@ test('D-200 packet-partition diagnostics preserve strict heal semantics and only
 
   const loop = block.indexOf('for n in $(seq 1 90); do');
   const diagnostic = block.indexOf('PACKET_DIAG_PHASE=heal-timeout');
+  const checkpoint = block.indexOf('TRUYN_D200_FAILURE_EVIDENCE=CHECKPOINT');
   const successGate = block.indexOf('[[ "$heal_code" == 200 ]]');
-  assert.ok(loop >= 0 && diagnostic > loop && successGate > diagnostic, 'diagnostics must run only after heal retries are exhausted and before the unchanged fail-closed gate');
+  assert.ok(loop >= 0 && diagnostic > loop && checkpoint > diagnostic && successGate > checkpoint,
+    'diagnostics and durable evidence must run only after heal retries are exhausted and before the unchanged fail-closed gate');
 
   for (const field of ['ActiveState', 'SubState', 'Result', 'MainPID', 'NRestarts', 'ExecMainCode', 'ExecMainStatus', 'StateChangeTimestamp']) {
     assert.ok(block.includes(`-p ${field}`), `expected compact systemd diagnostic ${field}`);
@@ -49,6 +51,16 @@ test('D-200 packet-partition diagnostics preserve strict heal semantics and only
   assert.ok(block.includes('PACKET_DIAG_UNIT='), 'terminal failure must capture compact systemd unit summaries');
   assert.ok(block.includes("journalctl -u '${packet_diag_unit}' -n 20 --no-pager -o short-iso | tail -c 3072"), 'each journal capture must stay below the Run Command output tail');
   assert.ok(block.includes("PACKET_DIAG_JOURNAL_UNIT='${packet_diag_unit}'"), 'each bounded journal response must identify its unit at the tail');
+
+  assert.ok(block.includes('failure_tmp="${EVIDENCE}.d200-failure.tmp"'), 'failure evidence must be written atomically through a temporary file');
+  assert.ok(block.includes('mv "$failure_tmp" "$EVIDENCE"'), 'failure evidence must become the cleanup-visible canonical evidence file');
+  assert.ok(block.includes('"baselineSuccessRatio":${base_rate}'), 'failure evidence must preserve completed baseline routing');
+  assert.ok(block.includes('"postRestartSuccessRatio":${post_rate}'), 'failure evidence must preserve completed post-restart routing');
+  assert.ok(block.includes('"healedSuccessRatio":null'), 'unmeasured healed routing must stay unknown, not be fabricated');
+  assert.ok(block.includes('"packetPartitionRecoveryMs":null'), 'failed partition recovery must stay unknown, not be fabricated');
+  assert.ok(block.includes('"acknowledgedWriteLossCount":null'), 'unverified post-failure write retention must stay unknown');
+  assert.ok(block.includes('"failure":{"stage":"packet-partition","reason":"heal-timeout"'), 'failure evidence must identify the exact failed stage');
+  assert.ok(block.includes('"cleanup":{"confirmed":false,"remainingResources":null,"finalizedByExitTrap":true}'), 'outer cleanup trap must remain authoritative for final cleanup fields');
 
   assert.equal(block.includes('systemctl restart'), false, 'diagnostic patch must never restart a service');
   assert.equal(block.includes('systemctl start'), false, 'diagnostic patch must never start a service');

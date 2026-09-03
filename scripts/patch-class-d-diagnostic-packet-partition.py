@@ -50,6 +50,27 @@ if [[ "$heal_code" != 200 ]]; then
     packet_partition_journal=$(remote "${VMS[0]}" "set +e; journalctl -u '${packet_diag_unit}' -n 20 --no-pager -o short-iso | tail -c 3072; echo; echo PACKET_DIAG_JOURNAL_UNIT='${packet_diag_unit}'")
     printf '%s\n' "$packet_partition_journal"
   done
+  failure_tmp="${EVIDENCE}.d200-failure.tmp"
+  cat >"$failure_tmp" <<JSON
+{
+  "class":"D-1000",
+  "scope":"1000-real-process-scale+safety-contract-v2",
+  "testedCommit":"${GITHUB_SHA}",
+  "workflowRunId":"${GITHUB_RUN_ID}",
+  "topology":{"nodeCount":${NODE_COUNT},"realProcessCount":${NODE_COUNT},"hostCount":${HOST_COUNT},"realProcessesPerHost":${NODES_PER_HOST},"uniqueIdentityCount":${NODE_COUNT},"uniqueEndpointCount":${NODE_COUNT},"syntheticNodeCount":0},
+  "readiness":{"readyNodeCount":${readiness_ready},"readyNodeRatio":1,"barrierMs":${readiness_ms},"validPeers":{"min":${readiness_min_valid},"max":${readiness_max_valid}},"populatedBuckets":{"min":${readiness_min_buckets},"max":${readiness_max_buckets}},"remoteEndpointHosts":{"min":${readiness_min_hosts},"max":${readiness_max_hosts}}},
+  "routing":{"baselineSuccessRatio":${base_rate},"baselineProbes":${base_total},"postRestartSuccessRatio":${post_rate},"healedSuccessRatio":null,"healedProbes":0,"latencyMs":{"aggregation":"max-of-host-quantiles","p50":${base_p50},"p90":${base_p90},"p95":${base_p95},"p99":${base_p99}}},
+  "convergence":{"probeMode":"parallel-host-fanout","hostCount":${HOST_COUNT},"aggregation":"max-of-host-quantiles","aggregateMs":${conv_ms},"latencyMs":{"p95":${conv_p95},"p99":${conv_p99}},"routingSuccessRatio":${conv_rate},"nodeProbeCount":${conv_total}},
+  "recovery":{"latencyMs":{"p95":${recovery_p95}},"restartedNodeCount":100,"identityAndStatePathsPreserved":true,"packetPartitionRecoveryMs":null},
+  "adversarial":{"packetPartition":{"exercised":true,"realPacketPath":true,"blockedSuccesses":${partition_successes},"probeCount":${partition_probes},"recoveryMs":null}},
+  "safety":{"acknowledgedWriteCount":${writes},"acknowledgedWriteLossCount":null,"invalidSignedStateAcceptedCount":${invalid_signed_state_accepted},"staleRevokedReceiptAcceptedCount":${stale_receipt_accepted},"unauthorizedProviderExecutionCount":${unauthorized_provider_execution}},
+  "resources":{},
+  "failure":{"stage":"packet-partition","reason":"heal-timeout","healCode":"${heal_code}","evidenceComplete":false},
+  "cleanup":{"confirmed":false,"remainingResources":null,"finalizedByExitTrap":true}
+}
+JSON
+  mv "$failure_tmp" "$EVIDENCE"
+  echo "TRUYN_D200_FAILURE_EVIDENCE=CHECKPOINT stage=packet-partition reason=heal-timeout healCode=${heal_code}"
 fi
 [[ "$heal_code" == 200 ]]
 partition_recovery_ms=$(( $(date +%s%3N) - heal_start ))

@@ -9,6 +9,32 @@ export const TRUYN_QUIC_ALPN = 'truyn/1';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
+export function normalizeTransientQuicUdpSendError(error) {
+  if (error?.code !== 'EPERM') return error;
+  const normalized = new Error('quic_udp_send_temporarily_unavailable', { cause: error });
+  // @matrixai/quic@2.0.9 treats unknown send_ errors as internal/fatal. Linux
+  // netfilter packet drops can surface as EPERM from dgram.send(); ENETUNREACH
+  // is already classified by the upstream client/server as a non-fatal send
+  // dropout. Preserve the original error as cause and translate only EPERM.
+  normalized.code = 'ENETUNREACH';
+  normalized.originalCode = error.code;
+  if (typeof error?.syscall === 'string') normalized.syscall = error.syscall;
+  if (typeof error?.address === 'string') normalized.address = error.address;
+  if (Number.isInteger(error?.port)) normalized.port = error.port;
+  normalized.transient = true;
+  return normalized;
+}
+
+class TruynQuicSocket extends QUICSocket {
+  async send_(...params) {
+    try {
+      return await super.send_(...params);
+    } catch (error) {
+      throw normalizeTransientQuicUdpSendError(error);
+    }
+  }
+}
+
 function arrayBuffer(buffer) {
   return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 }
@@ -80,7 +106,7 @@ export class TruynQuicTransport {
     this.port = port;
     this.tls = tls;
     this.maxMessageBytes = maxMessageBytes;
-    this.socket = new QUICSocket({});
+    this.socket = new TruynQuicSocket({});
     this.server = null;
     this.clients = new Set();
     this.serverSessions = new WeakMap();
