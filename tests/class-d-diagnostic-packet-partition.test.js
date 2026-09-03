@@ -40,14 +40,15 @@ test('D-200 packet-partition diagnostics preserve strict heal semantics and only
   assert.ok(loop >= 0 && diagnostic > loop && successGate > diagnostic, 'diagnostics must run only after heal retries are exhausted and before the unchanged fail-closed gate');
 
   for (const field of ['ActiveState', 'SubState', 'Result', 'MainPID', 'NRestarts', 'ExecMainCode', 'ExecMainStatus', 'StateChangeTimestamp']) {
-    assert.ok(block.includes(`-p ${field}`), `expected systemd diagnostic ${field}`);
+    assert.ok(block.includes(`-p ${field}`), `expected compact systemd diagnostic ${field}`);
   }
-  assert.ok(block.includes('journalctl -u ') && block.includes('-n 40 --no-pager -o short-iso'), 'terminal failure must capture bounded journal tail');
-  assert.ok(block.includes('systemctl show ') && block.includes('--no-pager -p ActiveState'), 'terminal failure must capture bounded systemd unit state');
   assert.ok(block.includes('PACKET_DIAG_PROCESS_COUNT='), 'terminal failure must capture node-service process count');
-  assert.ok(block.includes('PACKET_DIAG_CONTROL_LISTENERS_BEGIN'), 'terminal failure must capture control listeners');
-  assert.ok(block.includes('PACKET_DIAG_QUIC_LISTENERS_BEGIN'), 'terminal failure must capture QUIC listeners');
-  assert.ok(block.includes('PACKET_DIAG_PARTITION_RULES_BEGIN'), 'terminal failure must prove whether a DROP rule remains');
+  assert.ok(block.includes('PACKET_DIAG_PARTITION_RULE_COUNT='), 'terminal failure must prove whether a DROP rule remains');
+  assert.ok(block.includes('PACKET_DIAG_CONTROL_LISTENERS='), 'terminal failure must capture control listeners');
+  assert.ok(block.includes('PACKET_DIAG_QUIC_LISTENERS='), 'terminal failure must capture QUIC listeners');
+  assert.ok(block.includes('PACKET_DIAG_UNIT='), 'terminal failure must capture compact systemd unit summaries');
+  assert.ok(block.includes("journalctl -u '${packet_diag_unit}' -n 20 --no-pager -o short-iso | tail -c 3072"), 'each journal capture must stay below the Run Command output tail');
+  assert.ok(block.includes("PACKET_DIAG_JOURNAL_UNIT='${packet_diag_unit}'"), 'each bounded journal response must identify its unit at the tail');
 
   assert.equal(block.includes('systemctl restart'), false, 'diagnostic patch must never restart a service');
   assert.equal(block.includes('systemctl start'), false, 'diagnostic patch must never start a service');
