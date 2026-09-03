@@ -1,0 +1,329 @@
+name: SDK Registry Release Repair
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  repair-and-verify:
+    name: Publish npm and verify npm/PyPI
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: sdk-release
+    timeout-minutes: 30
+    env:
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+      RELEASE_MARKER: sdk/release/registry-repair.json
+      NPM_PACKAGE: '@truyn/sdk'
+      NPM_VERSION: '0.1.0-alpha.1'
+      NPM_DIST_TAG: alpha
+      NPM_EXPECTED_SHA256: 06c782226ae6cc72b7f9c457b15c8bc188b4efc0e7d28ff3da4819382ef22119
+      PYPI_PACKAGE: truyn-sdk
+      PYPI_VERSION: 0.1.0a1
+      PYPI_WHEEL_SHA256: dec464064dec577aa56d33780c6222ac674accf07fe09ae59af18a191afcd958
+      PYPI_SDIST_SHA256: a2e1e2baa6248cab18bdee08b10e832a39453836a64ad0b55c000f48c890ddaf
+      PYPI_PUBLICATION_SOURCE_SHA: fda6b75fda5331dd9cdc7e642f7a0a5556749a64
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact green main SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Determine bounded repair eligibility
+        id: eligibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git rev-parse HEAD^ >/dev/null
+          if ! git diff --name-only HEAD^ HEAD | grep -Fxq "$RELEASE_MARKER"; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "Ignoring ordinary main CI for $SOURCE_SHA because the bounded registry repair marker did not change."
+            exit 0
+          fi
+          jq -e \
+            --arg npmPackage "$NPM_PACKAGE" \
+            --arg npmVersion "$NPM_VERSION" \
+            --arg npmDistTag "$NPM_DIST_TAG" \
+            --arg npmSha "$NPM_EXPECTED_SHA256" \
+            --arg pypiPackage "$PYPI_PACKAGE" \
+            --arg pypiVersion "$PYPI_VERSION" \
+            --arg wheelSha "$PYPI_WHEEL_SHA256" \
+            --arg sdistSha "$PYPI_SDIST_SHA256" \
+            --arg publicationSha "$PYPI_PUBLICATION_SOURCE_SHA" \
+            '. == {
+              npmPackage:$npmPackage,
+              npmVersion:$npmVersion,
+              npmDistTag:$npmDistTag,
+              npmExpectedSha256:$npmSha,
+              pypiPackage:$pypiPackage,
+              pypiVersion:$pypiVersion,
+              pypiWheelSha256:$wheelSha,
+              pypiSdistSha256:$sdistSha,
+              pypiPublicationSourceSha:$publicationSha,
+              repairRevision:1
+            }' "$RELEASE_MARKER" >/dev/null
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+
+      - name: Require hosted CodeQL success on the same SHA
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100")"
+            count="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql")] | length' <<<"$runs")"
+            failed="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status == "completed" and .conclusion != "success")] | length' <<<"$runs")"
+            pending="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status != "completed")] | length' <<<"$runs")"
+            succeeded="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .status == "completed" and .conclusion == "success")] | length' <<<"$runs")"
+            if [[ "$failed" -gt 0 ]]; then
+              echo "Hosted CodeQL failed on $SOURCE_SHA" >&2
+              exit 1
+            fi
+            if [[ "$count" -gt 0 && "$pending" -eq 0 && "$succeeded" -eq "$count" ]]; then
+              echo "Hosted CodeQL PASS on $SOURCE_SHA"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Hosted CodeQL did not reach a successful terminal state on $SOURCE_SHA" >&2
+          exit 1
+
+      - name: Set up Node.js for npm registry
+        if: steps.eligibility.outputs.eligible == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+
+      - name: Pin npm release client
+        if: steps.eligibility.outputs.eligible == 'true'
+        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+
+      - name: Build exact npm artifact and require known immutable bytes
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          npm install --prefix sdk/typescript --ignore-scripts --no-audit --no-fund
+          npm test --prefix sdk/typescript
+          npm run build --prefix sdk/typescript
+          rm -rf sdk/release/registry-repair
+          mkdir -p sdk/release/registry-repair/npm-local sdk/release/registry-repair/npm-registry
+          npm pack ./sdk/typescript --pack-destination sdk/release/registry-repair/npm-local
+          local_file="sdk/release/registry-repair/npm-local/truyn-sdk-${NPM_VERSION}.tgz"
+          test -f "$local_file"
+          actual_sha="$(sha256sum "$local_file" | awk '{print $1}')"
+          test "$actual_sha" = "$NPM_EXPECTED_SHA256"
+          printf '%s  %s\n' "$actual_sha" "$local_file" > sdk/release/registry-repair/npm-SHA256SUMS
+
+      - name: Detect npm immutable version
+        if: steps.eligibility.outputs.eligible == 'true'
+        id: npm_registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npm view "${NPM_PACKAGE}@${NPM_VERSION}" version --json >/tmp/npm-version.json 2>/tmp/npm-view.err; then
+            test "$(jq -r '.' /tmp/npm-version.json)" = "$NPM_VERSION"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -Eq 'E404|404 Not Found|is not in this registry' /tmp/npm-view.err; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          cat /tmp/npm-view.err >&2
+          exit 1
+
+      - name: Publish npm prerelease with explicit alpha dist-tag
+        if: steps.eligibility.outputs.eligible == 'true' && steps.npm_registry.outputs.exists == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN || secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NODE_AUTH_TOKEN:-}"
+          test "$(npm whoami)" = "truyn"
+          npm publish "sdk/release/registry-repair/npm-local/truyn-sdk-${NPM_VERSION}.tgz" \
+            --access public \
+            --tag "$NPM_DIST_TAG" \
+            --provenance
+
+      - name: Verify public npm bytes, provenance, alpha tag and clean install
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          visible=false
+          for attempt in $(seq 1 40); do
+            if [[ "$(npm view "${NPM_PACKAGE}@${NPM_VERSION}" version 2>/dev/null || true)" == "$NPM_VERSION" ]]; then
+              visible=true
+              break
+            fi
+            sleep 5
+          done
+          test "$visible" = true
+          registry_file="$(npm pack "${NPM_PACKAGE}@${NPM_VERSION}" --pack-destination sdk/release/registry-repair/npm-registry | tail -n 1)"
+          local_file="sdk/release/registry-repair/npm-local/truyn-sdk-${NPM_VERSION}.tgz"
+          remote_file="sdk/release/registry-repair/npm-registry/$registry_file"
+          cmp "$local_file" "$remote_file"
+          remote_sha="$(sha256sum "$remote_file" | awk '{print $1}')"
+          test "$remote_sha" = "$NPM_EXPECTED_SHA256"
+          dist_json="$(npm view "${NPM_PACKAGE}@${NPM_VERSION}" dist --json)"
+          integrity="$(jq -r '.integrity // empty' <<<"$dist_json")"
+          shasum="$(jq -r '.shasum // empty' <<<"$dist_json")"
+          attestation_url="$(jq -r '.attestations.url // empty' <<<"$dist_json")"
+          test -n "$integrity"
+          test -n "$shasum"
+          test -n "$attestation_url"
+          tags="$(npm view "$NPM_PACKAGE" dist-tags --json)"
+          test "$(jq -r '.alpha // empty' <<<"$tags")" = "$NPM_VERSION"
+          mkdir -p sdk/release/registry-repair/npm-cleanroom
+          cd sdk/release/registry-repair/npm-cleanroom
+          npm init --yes >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund "${NPM_PACKAGE}@${NPM_VERSION}"
+          node --input-type=module -e "import('${NPM_PACKAGE}').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.createHttpClient !== 'function') throw new Error('createHttpClient export missing'); })"
+          npm audit signatures
+          cd ../../../..
+          jq -n \
+            --arg package "$NPM_PACKAGE" \
+            --arg version "$NPM_VERSION" \
+            --arg distTag "$NPM_DIST_TAG" \
+            --arg sourceSha "$SOURCE_SHA" \
+            --arg sha256 "$remote_sha" \
+            --arg integrity "$integrity" \
+            --arg shasum "$shasum" \
+            --arg attestationUrl "$attestation_url" \
+            '{package:$package,version:$version,distTag:$distTag,sourceSha:$sourceSha,sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,byteIdentity:"PASS",cleanRoomInstall:"PASS",signatureAudit:"PASS"}' \
+            > sdk/release/registry-repair/npm-release-evidence.json
+
+      - name: Set up Python for public PyPI verification
+        if: steps.eligibility.outputs.eligible == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify immutable public PyPI files and exact hashes
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p sdk/release/registry-repair/pypi
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          package = os.environ['PYPI_PACKAGE']
+          version = os.environ['PYPI_VERSION']
+          expected = {
+              f'truyn_sdk-{version}-py3-none-any.whl': os.environ['PYPI_WHEEL_SHA256'],
+              f'truyn_sdk-{version}.tar.gz': os.environ['PYPI_SDIST_SHA256'],
+          }
+          api_url = f'https://pypi.org/pypi/{package}/{version}/json'
+          payload = None
+          for _ in range(20):
+              try:
+                  with urllib.request.urlopen(api_url, timeout=20) as response:
+                      payload = json.load(response)
+                  break
+              except urllib.error.HTTPError as exc:
+                  if exc.code != 404:
+                      raise
+              time.sleep(5)
+          if payload is None:
+              raise SystemExit(f'{package}=={version} is not public on PyPI')
+          remote = {entry['filename']: entry for entry in payload.get('urls', [])}
+          if set(remote) != set(expected):
+              raise SystemExit(f'unexpected public PyPI file set: {sorted(remote)}')
+          out = Path('sdk/release/registry-repair/pypi')
+          evidence_files = []
+          urls = []
+          for filename, expected_sha in expected.items():
+              entry = remote[filename]
+              if entry['digests']['sha256'] != expected_sha:
+                  raise SystemExit(f'PyPI metadata SHA mismatch for {filename}')
+              with urllib.request.urlopen(entry['url'], timeout=30) as response:
+                  data = response.read()
+              actual_sha = hashlib.sha256(data).hexdigest()
+              if actual_sha != expected_sha:
+                  raise SystemExit(f'PyPI byte SHA mismatch for {filename}')
+              (out / filename).write_bytes(data)
+              urls.append(entry['url'])
+              evidence_files.append({'filename': filename, 'sha256': actual_sha, 'size': len(data), 'url': entry['url']})
+          (out / 'urls.txt').write_text('\n'.join(urls) + '\n')
+          evidence = {
+              'package': package,
+              'version': version,
+              'publicationSourceSha': os.environ['PYPI_PUBLICATION_SOURCE_SHA'],
+              'verificationSourceSha': os.environ['SOURCE_SHA'],
+              'files': evidence_files,
+              'byteIdentity': 'PASS',
+          }
+          (out / 'pypi-release-evidence.json').write_text(json.dumps(evidence, indent=2) + '\n')
+          PY
+
+      - name: Verify PyPI PEP 740 provenance and clean-room install
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check 'pypi-attestations==0.0.30'
+          while IFS= read -r url; do
+            pypi-attestations verify pypi --repository https://github.com/inn-media/truyn "$url"
+          done < sdk/release/registry-repair/pypi/urls.txt
+          python -m venv sdk/release/registry-repair/pypi-cleanroom
+          sdk/release/registry-repair/pypi-cleanroom/bin/python -m pip install --disable-pip-version-check --no-cache-dir --index-url https://pypi.org/simple "${PYPI_PACKAGE}==${PYPI_VERSION}"
+          sdk/release/registry-repair/pypi-cleanroom/bin/python - <<'PY'
+          from importlib.metadata import version
+          from truyn import TRUYN_SDK_STABLE_API_VERSION, TruynClient, TruynLocalNodeClient
+          assert version('truyn-sdk') == '0.1.0a1'
+          assert isinstance(TRUYN_SDK_STABLE_API_VERSION, str)
+          assert TruynClient is not None
+          assert TruynLocalNodeClient is not None
+          PY
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('sdk/release/registry-repair/pypi/pypi-release-evidence.json')
+          evidence = json.loads(path.read_text())
+          evidence['pep740Provenance'] = 'PASS'
+          evidence['cleanRoomInstall'] = 'PASS'
+          path.write_text(json.dumps(evidence, indent=2) + '\n')
+          PY
+
+      - name: Upload registry release evidence
+        if: steps.eligibility.outputs.eligible == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-registry-repair-${{ env.SOURCE_SHA }}
+          path: |
+            sdk/release/registry-repair/npm-local/*
+            sdk/release/registry-repair/npm-registry/*
+            sdk/release/registry-repair/npm-SHA256SUMS
+            sdk/release/registry-repair/npm-release-evidence.json
+            sdk/release/registry-repair/pypi/*
+          if-no-files-found: error
+          retention-days: 90
