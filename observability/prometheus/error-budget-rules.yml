@@ -1,0 +1,100 @@
+groups:
+  - name: truyn-production-error-budgets
+    interval: 1m
+    rules:
+      - record: truyn:slo_error_budget_consumed:ratio
+        labels:
+          slo: SLO-HTTP-1
+          objective: "0.9995"
+          allowed_error_ratio: "0.0005"
+        expr: |
+          (
+            sum(increase(truyn_http_requests_total{surface="relay",outcome="failure"}[28d]))
+            /
+            clamp_min(sum(increase(truyn_http_requests_total{surface="relay",outcome=~"success|failure"}[28d])), 1)
+          ) / 0.0005
+
+      - record: truyn:slo_error_budget_consumed:ratio
+        labels:
+          slo: SLO-AUTH-1
+          objective: "0.999"
+          allowed_error_ratio: "0.001"
+        expr: |
+          (
+            sum(increase(truyn_authenticated_requests_total{surface="relay",outcome="failure"}[28d]))
+            /
+            clamp_min(sum(increase(truyn_authenticated_requests_total{surface="relay",outcome=~"success|failure"}[28d])), 1)
+          ) / 0.001
+
+      - record: truyn:slo_error_budget_consumed:ratio
+        labels:
+          slo: SLO-DISPATCH-1
+          objective: "0.999"
+          allowed_error_ratio: "0.001"
+        expr: |
+          (
+            sum(increase(truyn_dispatch_attempts_total{outcome="failure"}[28d]))
+            /
+            clamp_min(sum(increase(truyn_dispatch_attempts_total{outcome=~"success|failure"}[28d])), 1)
+          ) / 0.001
+
+      - record: truyn:slo_error_budget_consumed:ratio
+        labels:
+          slo: SLO-RESULT-1
+          objective: "0.999"
+          allowed_error_ratio: "0.001"
+        expr: |
+          (
+            (
+              (sum(increase(truyn_result_delivery_total{outcome="failure"}[28d])) or vector(0))
+              + (sum(increase(truyn_result_timeouts_total[28d])) or vector(0))
+            )
+            /
+            clamp_min(
+              (sum(increase(truyn_result_delivery_total{outcome=~"success|failure"}[28d])) or vector(0))
+              + (sum(increase(truyn_result_timeouts_total[28d])) or vector(0)),
+              1
+            )
+          ) / 0.001
+
+      - record: truyn:slo_error_budget_consumed:ratio
+        labels:
+          slo: SLO-PROVIDER-1
+          objective: "0.999"
+          allowed_error_ratio: "0.001"
+        expr: |
+          (
+            sum(increase(truyn_provider_service_events_total{lane="first_party",outcome="failure"}[28d]))
+            /
+            clamp_min(sum(increase(truyn_provider_service_events_total{lane="first_party",outcome=~"success|failure"}[28d])), 1)
+          ) / 0.001
+
+      - record: truyn:slo_error_budget_consumed:ratio
+        labels:
+          slo: SLO-DHT-1
+          objective: "0.999"
+          allowed_error_ratio: "0.001"
+        expr: |
+          (
+            sum(increase(truyn_network_routing_operations_total{operation!="provider-dispatch",outcome="failure"}[28d]))
+            /
+            clamp_min(sum(increase(truyn_network_routing_operations_total{operation!="provider-dispatch",outcome=~"success|failure"}[28d])), 1)
+          ) / 0.001
+
+      - record: truyn:slo_error_budget_consumed:ratio
+        labels:
+          slo: SLO-DHT-RECOVERY-1
+          objective: "0.99"
+          allowed_error_ratio: "0.01"
+        expr: |
+          (
+            sum(increase(truyn_network_recovery_events_total{outcome="failure"}[28d]))
+            /
+            clamp_min(sum(increase(truyn_network_recovery_events_total{outcome=~"success|failure"}[28d])), 1)
+          ) / 0.01
+
+      - record: truyn:slo_error_budget_remaining:ratio
+        expr: clamp_min(1 - truyn:slo_error_budget_consumed:ratio, 0)
+
+      - record: truyn:slo_error_budget_breached
+        expr: truyn:slo_error_budget_consumed:ratio >= 1
