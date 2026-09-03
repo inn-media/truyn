@@ -21,14 +21,16 @@ test('D-200 healed origin diagnostics distinguish peer-record freshness from cac
   assert.ok(healedStart >= 0 && retentionStart > healedStart, 'expected bounded healed-routing block');
   const block = after.slice(healedStart, retentionStart);
 
-  assert.ok(block.includes("first=need(j,node_id,'d1000-healed',k,'first')"), 'canonical first attempt must remain the acceptance probe');
+  const preProbe = block.indexOf('peer_before=persisted_peer_state(j,node_id)');
+  const firstProbe = block.indexOf("first=need(j,node_id,'d1000-healed',k,'first')");
+  assert.ok(preProbe >= 0 && firstProbe > preProbe, 'target lease snapshot must occur before the canonical acceptance probe');
   assert.ok(block.includes("'--max-time','15'"), 'first attempt must retain the 15-second request timeout');
   assert.ok(block.includes('success=sum(ok for ok,_,_ in rows)'), 'acceptance success must count only first attempts');
   assert.ok(block.includes("assert float('$healed_rate') >= .99, '$healed_rate'"), 'strict healed routing threshold must remain 99%');
 
   assert.ok(block.includes("path=f'/var/lib/truyqn-d1000/node-{global_index}-state.json'"), 'diagnostics must read the actual persisted node state path');
-  assert.ok(block.includes("'peerRecordBeforeFirstAttempt':peer_before"), 'target peer-record state must be captured before recovery actions');
-  assert.ok(block.includes("'peerRecordAfterTimeout':peer_after_timeout"), 'post-timeout record transition must be captured');
+  assert.ok(block.includes("'peerRecordBeforeFirstAttempt':peer_before"), 'pre-probe target peer-record state must be retained for failed probes');
+  assert.ok(block.includes("'peerRecordAfterFirstAttempt':peer_after_timeout"), 'post-first-attempt record transition must be captured');
   assert.ok(block.includes("if peer_before.get('validNow') is True:"), 'classifier must branch on pre-first-attempt record freshness');
 
   assert.ok(block.includes("control+'/faults/partition'"), 'valid-record failures must use the existing bounded fault control to discard cached target clients');
@@ -37,8 +39,9 @@ test('D-200 healed origin diagnostics distinguish peer-record freshness from cac
   assert.ok(block.includes("classification='valid-record-session-reset-recovered'"), 'transport/session recovery must have an explicit class');
 
   assert.ok(block.includes("refresh=targeted_refresh(j,node_id,k)"), 'stale/missing target records must use bounded targeted refresh');
-  assert.ok(block.includes("classification='stale-record-target-refresh-recovered'"), 'record-freshness recovery must have an explicit class');
-  assert.ok(block.includes("record_transition='became-valid-after-timeout'"), 'background lookup warming must remain observable');
+  assert.ok(block.includes("classification='stale-record-target-refresh-recovered'"), 'stale record recovery must have an explicit class');
+  assert.ok(block.includes("classification='missing-record-target-refresh-recovered'"), 'missing record recovery must have an explicit class');
+  assert.ok(block.includes("record_transition='became-valid-during-first-attempt'"), 'background lookup warming during the timed-out first attempt must remain observable');
   assert.ok(block.includes("'schema':'truyn.d200.healed-reconvergence.v2'"), 'artifact schema must identify the origin-aware classifier');
 
   assert.equal(block.includes('d1000-healed-fresh-session-retry'), false, 'ambiguous fresh-session label must be removed');
