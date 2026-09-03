@@ -16,6 +16,15 @@ test('npm alpha release is bounded to successful exact-main CI', () => {
   assert.match(workflow, /workflow_run\.head_branch == 'main'/);
   assert.match(workflow, /SOURCE_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
   assert.match(workflow, /git diff --name-only HEAD\^ HEAD \| grep -Fxq "\$RELEASE_MARKER"/);
+  assert.match(workflow, /eligible=false/);
+  assert.match(workflow, /eligible=true/);
+});
+
+test('historical npm marker revisions are cleanly ineligible before strict validation', () => {
+  assert.match(workflow, /Number\.isInteger\(marker\.workflowRevision\) \? marker\.workflowRevision : 0/);
+  assert.match(workflow, /if \[\[ "\$marker_revision" -lt 2 \]\]; then/);
+  assert.match(workflow, /Ignoring historical npm release marker revision/);
+  assert.match(workflow, /marker\.workflowRevision !== 2/);
 });
 
 test('npm alpha release requires same-SHA hosted CodeQL before publication', () => {
@@ -26,13 +35,24 @@ test('npm alpha release requires same-SHA hosted CodeQL before publication', () 
   assert.match(workflow, /Hosted CodeQL PASS on \$SOURCE_SHA/);
 });
 
+test('npm release reproduces the SDK runtime dependency boundary', () => {
+  assert.match(workflow, /npm install --ignore-scripts --no-audit --no-fund\n\s*npm install --prefix sdk\/typescript/);
+  assert.match(workflow, /npm test --prefix sdk\/typescript/);
+  assert.match(workflow, /npm run build --prefix sdk\/typescript/);
+});
+
+test('npm bootstrap auth is scoped to the publish step and verified', () => {
+  assert.doesNotMatch(workflow, /^\s{6}NODE_AUTH_TOKEN:/m);
+  assert.match(workflow, /Bootstrap publish immutable npm version[\s\S]*NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_BOOTSTRAP_TOKEN \|\| secrets\.NPM_TOKEN \}\}/);
+  assert.match(workflow, /npm whoami/);
+});
+
 test('npm alpha release is immutable, provenance-bearing and registry verified', () => {
   assert.match(workflow, /PACKAGE_NAME: '@truyn\/sdk'/);
   assert.match(workflow, /PACKAGE_VERSION: '0\.1\.0-alpha\.1'/);
   assert.match(workflow, /npm view "\$\{PACKAGE_NAME\}@\$\{PACKAGE_VERSION\}" version/);
   assert.match(workflow, /cmp "sdk\/release\/npm-local\/truyn-sdk-\$\{PACKAGE_VERSION\}\.tgz"/);
   assert.match(workflow, /npm publish "sdk\/release\/npm-local\/truyn-sdk-\$\{PACKAGE_VERSION\}\.tgz" --access public --provenance/);
-  assert.match(workflow, /NPM_BOOTSTRAP_TOKEN \|\| secrets\.NPM_TOKEN/);
   assert.match(workflow, /attestations\.url/);
   assert.match(workflow, /npm install --ignore-scripts --no-audit --no-fund "\$\{PACKAGE_NAME\}@\$\{PACKAGE_VERSION\}"/);
   assert.match(workflow, /TruynClient export missing/);
@@ -41,11 +61,12 @@ test('npm alpha release is immutable, provenance-bearing and registry verified',
   assert.match(workflow, /npm-release-evidence\.json/);
 });
 
-test('npm alpha bootstrap marker exactly matches the package release', () => {
+test('npm alpha bootstrap marker exactly matches the package release and repair revision', () => {
   assert.deepEqual(marker, {
     package: '@truyn/sdk',
     version: '0.1.0-alpha.1',
     channel: 'alpha',
-    bootstrap: true
+    bootstrap: true,
+    workflowRevision: 2
   });
 });

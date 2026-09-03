@@ -2,5 +2,6 @@
   "package": "@truyn/sdk",
   "version": "0.1.0-alpha.1",
   "channel": "alpha",
-  "bootstrap": true
+  "bootstrap": true,
+  "workflowRevision": 2
 }
