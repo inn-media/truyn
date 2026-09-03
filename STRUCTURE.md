@@ -51,7 +51,7 @@ When current-status documents disagree with accepted code/evidence, the document
 - `adapters/mcp/` — implemented bounded MCP server/client/current-contract surfaces.
 - `adapters/a2a/` — **implemented** A2A server and client/provider surfaces. This directory is no longer a reserved future target.
 - `adapters/providers/` — provider-specific and imported MCP/A2A provider adapters.
-- `sdk/` — first-party SDK program. TypeScript/JavaScript and Python reference clients exist; Go/Java/.NET parity/publication remains later work.
+- `sdk/` — five-language first-party Developer Release program. TypeScript/JavaScript, Python, Go, Java and C#/.NET have implemented clients and executable conformance; native registry publication remains a separate release gate.
 - `gateways/` — HTTP/legacy compatibility bridges.
 - `compute/` — compute-near-data/sandbox/execution-policy ownership as it matures.
 - `trust/` — Trustability/provenance/receipts/lifecycle components.
@@ -87,15 +87,28 @@ Current repository ownership is factual, not aspirational:
 - `adapters/mcp/server.js` — TRUYN MCP surface;
 - `adapters/mcp/client.js` — current MCP remote client;
 - `adapters/providers/mcp-discovery.js` — explicit MCP tool discovery/import;
-- `tests/interoperability-bidirectional.test.js` — accepted C7 in-repository proof of both cross-protocol directions.
+- `tests/interoperability-bidirectional.test.js` — accepted C7 in-repository proof of both cross-protocol directions;
+- `tests/interoperability-independent-a2a.test.js` — Sprint C independent official A2A SDK black-box proof;
+- `tests/interoperability-independent-mcp.test.js` — Sprint D independent official MCP SDK black-box proof.
 
-The old wording that A2A is “architecture-only” or that `tests/interoperability/` is merely a future owner is obsolete. Current interoperability tests are ordinary `tests/*.test.js` files and therefore run through the repository test command.
+The old wording that A2A is “architecture-only”, that the reverse bridge is missing, or that independent SDK/reference-server interoperability is entirely future work is obsolete. Current interoperability tests are ordinary `tests/*.test.js` files and run through the repository test command.
 
 ## SDK / developer surface
 
-Current main includes TypeScript/JavaScript and Python first-party reference SDK work. PR `#373` adds the bounded DX-3 surface: stable API-v1 primitives for those clients, authenticated relay event streaming with abortable waits, reference-only object/artifact payloads, conformance markers and developer-site source.
+The Developer Release implementation is source/build complete. All five required first-party SDKs — TypeScript/JavaScript, Python, Go, Java and C#/.NET — implement the bounded relay-client contract and participate in one executable five-language E2E conformance gate.
 
-Remote provider-side NEED cancellation and token-delta streaming remain follow-up work. Go/Java/.NET parity and full package/release stability are not yet complete.
+Current SDK/DX ownership includes:
+
+- stable API-v1 primitives;
+- signed identity/envelope handling;
+- authorization-aware discovery and OFFER/NEED/RESULT flows;
+- requester-owned direct NEED cancellation;
+- authenticated event streaming and signed generic `PARTIAL` streaming;
+- portable reference-oriented object/artifact payloads;
+- Agent Descriptor serving plus five-language fetch/verify/negotiation;
+- package builds and exact source/digest provenance for npm, PyPI, Go, Maven and NuGet.
+
+Native public registry publication and live public developer-site activation remain release/evidence gates. Chain-stage cancellation, a standardized universal tokenizer/token-ID convention and delegated Descriptor-signing keys remain outside the accepted alpha contract.
 
 ## Documentation tree
 
@@ -143,6 +156,6 @@ A2A Agent Cards/Tasks/Artifacts and MCP Tools/Resources are adapter objects, not
 
 ## Current maturity boundary
 
-Class C and D-100 are accepted; D-1000 remains open. C1–C7 A2A/MCP bounded interoperability is accepted; C8 is open. TypeScript/Python SDK/DX work exists including merged DX-3, while broader SDK parity/stability remains open. Governance is G1 bootstrap Founding Stewardship. Mainnet and stable TRUYN/1 compatibility are not yet claimed.
+Class C and D-100 are accepted; D-1000 remains open. C1–C7 A2A/MCP bounded interoperability is accepted and independent official A2A/MCP SDK black-box proofs exist; C8 remains open. The five-language Developer Release implementation is source/build complete, while public package publication and developer-site liveness remain open release operations. Governance is G1 bootstrap Founding Stewardship. Mainnet and stable TRUYN/1 compatibility are not yet claimed.
 
 Canonical current facts belong in `docs/architecture/IMPLEMENTATION_STATUS.md`.

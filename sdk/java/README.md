@@ -1,25 +1,40 @@
 # TRUYN Java SDK
 
-**Status:** DX-2 skeleton client surface. Internal only; not a public stable Maven-compatible release.
+**Status:** implemented Developer Release relay client; source/build complete, pre-stable, and not yet claimed as a publicly published Maven Central release.
 
-This directory now contains the first Java shape for the required first-party SDK matrix:
+The Java SDK is one of the five required first-party Developer Release clients. It implements the bounded common contract rather than a DTO/skeleton-only surface:
 
-- `pom.xml` declares the in-repository Java skeleton project;
-- `src/main/java/org/truyn/sdk/TruynClient.java` defines the client builder and async operation surface;
-- `TruynModels.java` defines foundational DTOs and signed envelope payload records;
-- `TruynException.java` defines the normalized error taxonomy.
+- Ed25519 identity and signed TRUYN envelopes;
+- authenticated relay registration/session use;
+- authorization-aware discovery;
+- `OFFER` / `NEED` / verified provider event / correlated `RESULT`;
+- requester-owned direct NEED cancellation;
+- stable API-v1 object/artifact reference shapes;
+- Agent Descriptor HTTP retrieval, schema/version/expiry validation, identity-key signature verification and protocol/interface negotiation;
+- normalized fail-closed errors.
 
-The skeleton is pinned to:
+Current alpha coordinate:
 
 ```text
-protocol: TRUYN/1
-agent descriptor schema: truyn.agent-descriptor/v1
+org.truyn:truyn-sdk:0.1.0-alpha.1
 ```
 
-Run the shared source/fixture conformance gate from the repository root:
+`TRUYN/1` remains draft and this package line is pre-stable.
+
+Run the Java source/fixture conformance gate:
 
 ```bash
 node sdk/conformance/run-conformance.mjs --language=java --json
 ```
 
-DX-2 does not publish a Maven artifact, does not call cloud providers, does not start a relay, and does not change `network/**`, relay runtime, QUIC/Kademlia or D-1000 behavior.
+Run the real five-language Developer Release network gate:
+
+```bash
+node sdk/conformance/run-five-language-e2e.mjs
+```
+
+Ordinary CI also compiles the Java SDK and builds/verifies Maven binary/source/Javadoc/POM artifacts with exact source SHA, byte size and SHA-256 provenance.
+
+Package build success is not public registry publication. Maven Central publication remains an external release/evidence gate and must not be inferred from this README.
+
+See `../README.md`, `../conformance/README.md`, `../../docs/compatibility/SDK_COMPATIBILITY.md` and `../../docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`.

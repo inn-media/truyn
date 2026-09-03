@@ -69,7 +69,7 @@ For the production relay tested on 2026-08-23, direct-origin bypass denial is no
 
 The accepted production origin-authentication boundary is implemented with Azure Front Door Rule Set `SocketAddr` sanitize/inject proof, Container Apps `AzureFrontDoor.Backend` ingress restriction and the runtime origin guard. It is **not dependent on an Azure WAF policy**. WAF/rate limiting may still be used for abuse controls, but they are separate from origin authentication.
 
-The TRUYN Agent Descriptor and first-party SDK program are currently **defined architecture/scaffolding**, not implemented runtime security claims. When implemented, they must preserve the existing provider-security invariants in this document.
+The TRUYN Agent Descriptor and five-language first-party SDK program are implemented bounded Developer Release security surfaces, not architecture/scaffolding placeholders. They remain client/discovery convenience layers over the existing server-side provider-security boundary: Descriptor serving is disabled by default and limited to an explicitly allowed public capability subset; Descriptor consumers verify schema/version/expiry and identity-key signatures; SDKs do not gain provider authorization, ownership or billing authority from transport or descriptive metadata. Package verification currently checks package structure, licensing, digests and forbidden **entry names**; it does not recursively scan the bytes of every archived file for credential/topology patterns. Public registry publication and live-site deployment remain separate operational release gates.
 
 ## Core principles
 
@@ -105,6 +105,8 @@ authenticated scoped descriptor view
 
 A Descriptor must not contain upstream provider credentials, private keys, private origins/backchannels, privileged allowlists, hidden private provider IDs/capabilities, long-lived secret-bearing URLs or other private operational state.
 
+The current Developer Release serving path implements the intentionally public form only: it is disabled by default, requires explicit opt-in and a public capability allowlist, signs with the runtime TRUYN identity key and does not create a scoped authorization channel merely by serving metadata. The current provider runtime creates that signed Descriptor once at startup; automatic refresh/re-signing before `expiresAt` is not yet implemented, so long-lived serving past the configured TTL requires restart/reissue. The canonical five-language conformance fixture exercises a valid `interfaces[].endpoint`; complete malformed/missing-endpoint parity across every client remains an explicit follow-up rather than an accepted guarantee.
+
 ### SDKs are not a policy boundary
 
 First-party SDKs for JavaScript/TypeScript, Python, Go, Java and C#/.NET are developer convenience surfaces. They must converge on the same server/node authorization and billing decisions as CLI, MCP, HTTP, WebSocket and native paths.
@@ -129,7 +131,7 @@ HTTP, WebSocket, MCP, SDK, fast paths, and legacy compatibility paths must conve
 
 ## Public/private repository boundary
 
-The public repository may contain protocol semantics, governance contracts/decision records, generic implementation code, security invariants, local examples, generic adapters, first-party SDK source/scaffolding, Agent Descriptor schemas, conformance fixtures, reviewed benchmark methodology, and sanitized benchmark evidence.
+The public repository may contain protocol semantics, governance contracts/decision records, generic implementation code, security invariants, local examples, generic adapters, first-party SDK source and verified package-build logic, Agent Descriptor schemas/fixtures, conformance fixtures, reviewed benchmark methodology, and sanitized benchmark evidence.
 
 It must not contain unnecessary live operational data such as:
 
@@ -150,7 +152,7 @@ Privileged deployment/operations material belongs in access-controlled operation
 
 The public tree is guarded by automated tests that allowlist the safe public workflow set and reject known operational paths/markers, credential/private-key patterns, and live cloud-topology patterns. The public CI workflow has read-only repository contents permission and does not receive provider/cloud credentials from its workflow definition.
 
-Future SDK/Descriptor release tests should extend that leakage boundary to generated packages, example applications and descriptor fixtures so a safe source tree cannot produce an unsafe package or public descriptor.
+Generated package verification currently checks package structure, `LICENSE`/`NOTICE`, artifact digests and forbidden archive entry-name patterns such as `.env`, `.git`, `.github`, `node_modules` and private-key-like names. It does **not** unpack and content-scan every archive member with the repository credential/topology regexes. Therefore this verifier is an additional packaging hygiene gate, not proof that arbitrary secret bytes embedded under an ordinary filename could not enter an archive. Public registry publication and live developer-site deployment still require their own least-privileged release infrastructure and external service configuration.
 
 ## Benchmark evidence preservation
 
@@ -224,15 +226,20 @@ See `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`.
 
 Deployment of equivalent origin protection in other environments, issuance/rotation of live edge and protected-provider proofs after infrastructure changes, deployment of the durable sponsored-usage store, and richer account-level tenancy remain separate from the in-repository tests. The current production relay origin perimeter itself is no longer an unproven item.
 
-The future SDK/DX conformance gate must add, before SDK parity/stability is claimed:
+### Developer Release / Descriptor security evidence
 
-- public Agent Descriptor → no private capability/provider disclosure;
-- scoped Agent Descriptor → no more visibility than normal authorized discovery;
-- expired/invalidly signed Descriptor → explicit rejection;
-- every supported SDK language → unauthorized private-provider request causes zero upstream execution;
-- generated SDK packages/examples/descriptor fixtures → public-repository leakage scan.
+The old future-only SDK/Descriptor gate description is obsolete. Current main proves a bounded Developer Release security profile including:
 
-These are future SDK/Descriptor acceptance requirements, not claims about tests that already exist today.
+- Agent Descriptor serving is default-off and exposes only explicitly allowed public capability classes;
+- Descriptor schema/version/expiry, identity-key signature binding, tamper/wrong-key rejection and protocol/interface negotiation are covered by shared fixtures/tests for the accepted canonical valid profile;
+- all five required SDK languages consume the same signed canonical Descriptor fixture in the executable Developer Release E2E;
+- direct NEED cancellation ownership/late-output rejection is proven by dedicated runtime tests; the five-language E2E itself exercises an owner cancellation call but is not the ownership-negative proof;
+- per-commit generated package artifacts are checked for structure, licensing, digests and forbidden entry names and are bound to the exact source SHA that built them; ordinary CI does not make the fixed alpha coordinate an immutable published release;
+- SDK/Descriptor metadata does not become provider authorization, provider ownership or billing authority.
+
+Open bounded security/release follow-ups include runtime Descriptor refresh/re-signing before expiry, full malformed/missing-interface-endpoint parity across every first-party verifier, archive-member content scanning beyond entry-name checks, and the separate tagged/native-publication immutability gate.
+
+This does **not** claim that every possible private-provider adversarial case has been independently repeated in every SDK language, nor that public registries or the developer site are already live. Broader cross-protocol adversarial acceptance remains C8; live registry/site release security remains an operational deployment gate; stable SDK/protocol compatibility remains separate.
 
 ## Related architecture and governance
 

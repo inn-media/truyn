@@ -1,8 +1,10 @@
 # TRUYN A2A / MCP Interoperability Architecture
 
 **Status:** canonical interoperability architecture synchronized with current `main`.  
-**Snapshot:** 2026-08-27  
-**Source baseline:** `63e54cbe30d363ef4609732b512fe64ab860cf9d`  
+**Snapshot:** 2026-09-03  
+**Source baseline:** `dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Sprint C exact proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
+**Sprint D exact proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
 **Protocol state:** TRUYN/1 draft; A2A/MCP compatibility is bounded, not stable.
 
 ## Purpose
@@ -27,18 +29,22 @@ The security rule is invariant across protocols:
 
 ## Current implementation state
 
-The architecture is no longer A2A-server-only. The accepted in-repository implementation is:
+The accepted implementation/adoption profile is:
 
 | Gate | Current state | Evidence |
 |---|---|---|
 | C1 — MCP current-contract baseline | **Accepted / CI-proven** | current MCP server/configured provider tests |
 | C2 — general MCP discovery/import | **Accepted / CI-proven** | PR `#332`, `adapters/mcp/client.js`, `adapters/providers/mcp-discovery.js` |
 | C3 — A2A server facade | **Accepted / CI-proven** | `adapters/a2a/server.js`, `tests/a2a-server.test.js` |
-| C4 — A2A client/provider adapter | **Accepted / CI-proven** | PR `#340`, merge `1735528461a04de60f9f8572b466a732a6f03c62` |
-| C5 — bounded async polling lifecycle | **Accepted / CI-proven** | PR `#352`, merge `591d30d8f57fb7c661c847bb059cd437f437dd08` |
-| C6 — artifact integrity mapping | **Accepted / CI-proven** | PR `#368`, merge `0e6e4119450e9de55fb9be32b993a28f98dda148` |
-| C7 — bidirectional A2A↔MCP bridge composition | **Accepted / CI-proven** | PR `#357`, merge `f04fcd1d4d72af85a6b97686c7c875388ef6038a`; `tests/interoperability-bidirectional.test.js` |
-| C8 — complete cross-protocol adversarial matrix | **OPEN** | active PR `#369`; must not be described as accepted yet |
+| C4 — A2A client/provider adapter | **Accepted / CI-proven** | PR `#340` |
+| C5 — bounded async polling lifecycle | **Accepted / CI-proven** | PR `#352` |
+| C6 — artifact integrity mapping | **Accepted / CI-proven** | PR `#368` |
+| C7 — bidirectional A2A↔MCP bridge composition | **Accepted / CI-proven** | PR `#357`, `tests/interoperability-bidirectional.test.js` |
+| Sprint C — independent remote A2A | **Accepted / official SDK black-box CI-proven** | `@a2a-js/sdk@1.0.1`, separate process, `tests/interoperability-independent-a2a.test.js` |
+| Sprint D — independent remote MCP | **Accepted / official SDK black-box CI-proven** | `@modelcontextprotocol/server@2.0.0`, separate process, `tests/interoperability-independent-mcp.test.js` |
+| C8 — complete cross-protocol adversarial matrix | **OPEN** | PR `#369`; exact-head/full-suite/DCO/CodeQL + post-merge acceptance still required |
+| External referenced file/artifact profile | **OPEN** | integrity-verified external round trip still required |
+| Stable A2A/MCP compatibility guarantee | **OPEN** | TRUYN/1 remains draft |
 
 ## A2A server edge
 
@@ -86,7 +92,7 @@ C5 adds bounded polling semantics without duplicate side effects:
 - failed/rejected/canceled and input/auth-required states are explicit;
 - polling never falls back to a second `SendMessage`.
 
-Streaming token deltas, push notifications and full remote cancellation equivalence are separate features and must not be inferred from polling support.
+A2A polling support is distinct from the native TRUYN direct-NEED cancellation and generic `PARTIAL` streaming implemented in the Developer Release runtime. Full semantic equivalence to every external A2A cancellation/push/stream feature is not claimed.
 
 ## Artifact integrity
 
@@ -101,7 +107,7 @@ C6 owns cross-A2A artifact normalization and integrity requirements:
 - authoritative TRUYN provenance replaces spoofable remote provider provenance;
 - corrupt or unverifiable artifacts do not become successful results.
 
-This integrity layer is reusable by C7/C8 but is not itself a claim of external ecosystem certification.
+This integrity layer is reusable by C7/C8. The remaining external-artifact gate is not C6 implementation; it is a black-box adoption proof carrying a referenced file/artifact through the claimed external profile.
 
 ## Bidirectional bridge composition
 
@@ -119,7 +125,9 @@ A2A client
 → completed A2A Task/Artifact
 ```
 
-The proof asserts exactly one remote MCP execution and preserves authoritative TRUYN provider identity.
+The C7 proof asserts exactly one remote MCP execution and preserves authoritative TRUYN provider identity.
+
+Sprint D additionally runs the remote MCP side as a separate process using official `@modelcontextprotocol/server@2.0.0`, through the SDK's public handler lifecycle. External counters prove the positive execution path and targeted owner/requester/billing spoof negatives produce zero unauthorized external tool calls.
 
 ### MCP → TRUYN → A2A
 
@@ -133,7 +141,9 @@ MCP client
 → MCP truyn_poll result
 ```
 
-The proof asserts exactly one remote A2A execution and preserves request/message/task correlation without promoting remote metadata into TRUYN authority.
+The C7 proof asserts exactly one remote A2A execution and preserves request/message/task correlation without promoting remote metadata into TRUYN authority.
+
+Sprint C additionally runs the remote A2A side as a separate process using official A2A Project `@a2a-js/sdk@1.0.1`, with its own request handler/task store. TRUYN sees only the external Agent Card and JSON-RPC interface; external instrumentation confirms the independent execution path.
 
 ## Authorization and authority invariants
 
@@ -147,22 +157,27 @@ Every bridge implementation MUST preserve these invariants:
 6. retry/poll/fallback logic cannot duplicate remote side effects;
 7. invalid artifacts and malformed external-protocol responses cannot be converted into success.
 
-C8 is the bounded acceptance matrix intended to exercise these invariants systematically across both directions. Until C8 is merged and exact-main verification is green, the **complete negative matrix remains open**.
+C8 is the bounded acceptance matrix intended to exercise these invariants systematically across both directions. Sprint C/D targeted negatives strengthen the evidence but do not substitute for C8. Until C8 is merged and exact-main verification is green, the **complete negative matrix remains open**.
 
 ## MCP boundary
 
-The implemented MCP profile covers the surfaces TRUYN currently claims: server discovery/tool calls, configured provider invocation and general explicitly selected tool discovery/import. Broader optional MCP resources, prompts, subscriptions, Apps/extensions and ecosystem-wide certification remain outside the accepted profile unless separately implemented and evidenced.
+The implemented MCP profile covers the surfaces TRUYN currently claims: server discovery/tool calls, configured provider invocation and general explicitly selected tool discovery/import. Broader optional MCP resources, prompts, subscriptions, Apps/extensions remain outside the accepted profile unless separately implemented and evidenced.
 
 ## Adoption boundary
 
-C7 means the bidirectional bridge exists and is CI-proven inside the repository. It does **not** mean:
+TRUYN has now crossed two distinct evidence levels:
 
-- independent A2A SDK/reference-server interoperability has been certified;
-- independent MCP SDK/reference-server interoperability has been certified;
+1. **C7:** bounded in-repository bidirectional composition;
+2. **Sprint C/D:** bounded independent official SDK/reference-server black-box interoperability in both directions.
+
+This still does **not** mean:
+
+- ecosystem-wide certification across all A2A/MCP implementations/transports;
 - every A2A/MCP optional feature is supported;
+- independent referenced file/artifact interoperability has been accepted;
 - the adapters have a stable-v1 compatibility guarantee.
 
-The next adoption proof should therefore test the existing bridge against independent external implementations, not recreate C4–C7.
+The next adoption work is therefore C8 security closure plus an integrity-verified external referenced artifact/file profile and later stability/version policy—not re-proving that independent A2A/MCP implementations can interoperate at all.
 
 ## Versioning
 

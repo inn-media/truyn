@@ -1,7 +1,7 @@
 # A2A / MCP Compatibility Matrix
 
-**Snapshot:** 2026-08-29  
-**Production/reference baseline:** `main@afe77b8415bb58039da6a85b45566e1348b164c5`  
+**Snapshot:** 2026-09-03  
+**Current synchronized source:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
 **Sprint D exact executable proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
 **TRUYN protocol:** `TRUYN/1` draft  
@@ -28,6 +28,7 @@ This document is the factual compatibility matrix for the A2A and MCP edges. It 
 | Cross-protocol adversarial security matrix | **OPEN — C8** | active PR `#369`; do not mark accepted until exact-head/full-suite/DCO/CodeQL and post-merge exact-main gates pass |
 | Independent external A2A reference/SDK interoperability | **Proven for MCP→TRUYN→A2A — Sprint C** | official A2A Project `@a2a-js/sdk@1.0.1`, upstream tag `v1.0.1` / `f5ca7d05945a69cbf3dcd357203d4ce99201494f`; separate-process Agent Card + JSON-RPC black box; exact core source `a435ed16e559226ed095959b7b95aa7067271302` |
 | Independent external MCP reference/SDK interoperability | **Proven for A2A→TRUYN→MCP — Sprint D** | official `@modelcontextprotocol/server@2.0.0`; separate Node process; public `handler.fetch()`/`handler.close()`; exact core source `0a40e635533f6a9623b19057b3320ba2a888f1f1`; durable record `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md` |
+| External referenced file/artifact interoperability | **OPEN** | independent external round trip carrying an integrity-verified referenced file/artifact remains to be accepted |
 | Stable A2A/MCP compatibility guarantee | **Not available** | TRUYN/1 is draft; external adapters remain independently versioned |
 
 ## Accepted C1–C7 profile
@@ -89,4 +90,4 @@ C6 proves the accepted A2A artifact-integrity mapping for text, canonical JSON, 
 
 A2A, MCP and TRUYN have independent release cadence. Unsupported versions fail explicitly. Adapter version changes should not require a new TRUYN protocol generation unless TRUYN network semantics change.
 
-Historical C1/C2/C3 documents and tests remain valid evidence for the slices they originally closed, but old “future work” wording must not be used as current repository status after C4–C7 merged. For C7, the durable acceptance authority is `docs/compatibility/A2A_MCP_C7_BIDIRECTIONAL_BRIDGE.md`; for Sprint C it is `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`; for Sprint D it is `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md`.
+Historical C1/C2/C3 documents and tests remain valid evidence for the slices they originally closed, but old “future work” wording must not be used as current repository status after C4–C7 and Sprint C/D were accepted. For C7, the durable acceptance authority is `docs/compatibility/A2A_MCP_C7_BIDIRECTIONAL_BRIDGE.md`; for Sprint C it is `docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md`; for Sprint D it is `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md`.
