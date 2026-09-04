@@ -12,11 +12,10 @@ on:
 permissions:
   actions: read
   contents: read
-  id-token: write
 
 jobs:
   registry-closure:
-    name: Publish npm and verify npm/PyPI
+    name: Verify npm/PyPI registry closure
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -32,6 +31,7 @@ jobs:
       NPM_VERSION: '0.1.0-alpha.1'
       NPM_DIST_TAG: alpha
       NPM_EXPECTED_SHA256: 06c782226ae6cc72b7f9c457b15c8bc188b4efc0e7d28ff3da4819382ef22119
+      NPM_PUBLICATION_SOURCE_SHA: 905376383107d802efe4520ae3ab44cb55d10256
       PYPI_PACKAGE: truyn-sdk
       PYPI_VERSION: 0.1.0a1
       PYPI_WHEEL_FILENAME: truyn_sdk-0.1.0a1-py3-none-any.whl
@@ -49,7 +49,7 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Determine bounded registry closure eligibility
+      - name: Determine bounded verification eligibility
         id: eligibility
         shell: bash
         run: |
@@ -66,26 +66,28 @@ jobs:
             --arg npmVersion "$NPM_VERSION" \
             --arg npmDistTag "$NPM_DIST_TAG" \
             --arg npmSha "$NPM_EXPECTED_SHA256" \
+            --arg npmPublicationSha "$NPM_PUBLICATION_SOURCE_SHA" \
             --arg pypiPackage "$PYPI_PACKAGE" \
             --arg pypiVersion "$PYPI_VERSION" \
             --arg wheelFilename "$PYPI_WHEEL_FILENAME" \
             --arg wheelSha "$PYPI_WHEEL_SHA256" \
             --arg sdistFilename "$PYPI_SDIST_FILENAME" \
             --arg sdistSha "$PYPI_SDIST_SHA256" \
-            --arg publicationSha "$PYPI_PUBLICATION_SOURCE_SHA" \
+            --arg pypiPublicationSha "$PYPI_PUBLICATION_SOURCE_SHA" \
             '. == {
               npmPackage:$npmPackage,
               npmVersion:$npmVersion,
               npmDistTag:$npmDistTag,
               npmExpectedSha256:$npmSha,
+              npmPublicationSourceSha:$npmPublicationSha,
               pypiPackage:$pypiPackage,
               pypiVersion:$pypiVersion,
               pypiWheelFilename:$wheelFilename,
               pypiWheelSha256:$wheelSha,
               pypiSdistFilename:$sdistFilename,
               pypiSdistSha256:$sdistSha,
-              pypiPublicationSourceSha:$publicationSha,
-              repairRevision:2
+              pypiPublicationSourceSha:$pypiPublicationSha,
+              repairRevision:3
             }' "$RELEASE_MARKER" >/dev/null
           echo "eligible=true" >> "$GITHUB_OUTPUT"
 
@@ -113,18 +115,18 @@ jobs:
           echo "Hosted CodeQL did not reach a successful terminal state on $SOURCE_SHA" >&2
           exit 1
 
-      - name: Set up Node.js for npm registry
+      - name: Set up Node.js for npm verification
         if: steps.eligibility.outputs.eligible == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           registry-url: https://registry.npmjs.org
 
-      - name: Pin npm release client
+      - name: Pin npm verification client
         if: steps.eligibility.outputs.eligible == 'true'
         run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
 
-      - name: Build exact npm artifact and require immutable bytes
+      - name: Build exact npm reference artifact
         if: steps.eligibility.outputs.eligible == 'true'
         shell: bash
         run: |
@@ -142,77 +144,27 @@ jobs:
           test "$actual_sha" = "$NPM_EXPECTED_SHA256"
           printf '%s  %s\n' "$actual_sha" "$local_file" > sdk/release/registry-closure/npm-SHA256SUMS
 
-      - name: Detect immutable npm version
-        if: steps.eligibility.outputs.eligible == 'true'
-        id: npm_registry
-        shell: bash
-        run: |
-          set -euo pipefail
-          if npm view "${NPM_PACKAGE}@${NPM_VERSION}" version --json >/tmp/npm-version.json 2>/tmp/npm-view.err; then
-            test "$(jq -r '.' /tmp/npm-version.json)" = "$NPM_VERSION"
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if grep -Eq 'E404|404 Not Found|is not in this registry' /tmp/npm-view.err; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          cat /tmp/npm-view.err >&2
-          exit 1
-
-      - name: Verify pre-existing npm version is byte-identical
-        if: steps.eligibility.outputs.eligible == 'true' && steps.npm_registry.outputs.exists == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          registry_file="$(npm pack "${NPM_PACKAGE}@${NPM_VERSION}" --pack-destination sdk/release/registry-closure/npm-registry | tail -n 1)"
-          local_file="sdk/release/registry-closure/npm-local/truyn-sdk-${NPM_VERSION}.tgz"
-          remote_file="sdk/release/registry-closure/npm-registry/$registry_file"
-          cmp "$local_file" "$remote_file"
-          test "$(sha256sum "$remote_file" | awk '{print $1}')" = "$NPM_EXPECTED_SHA256"
-
-      - name: Publish npm prerelease with explicit alpha dist-tag
-        if: steps.eligibility.outputs.eligible == 'true' && steps.npm_registry.outputs.exists == 'false'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${NODE_AUTH_TOKEN:-}"
-          test "$(npm whoami)" = "truyn"
-          npm publish "sdk/release/registry-closure/npm-local/truyn-sdk-${NPM_VERSION}.tgz" \
-            --access public \
-            --tag "$NPM_DIST_TAG" \
-            --provenance
-
-      - name: Repair npm alpha dist-tag if required
-        if: steps.eligibility.outputs.eligible == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          current="$(npm view "$NPM_PACKAGE" dist-tags --json 2>/dev/null | jq -r --arg tag "$NPM_DIST_TAG" '.[$tag] // empty')"
-          if [[ "$current" != "$NPM_VERSION" ]]; then
-            test -n "${NODE_AUTH_TOKEN:-}"
-            test "$(npm whoami)" = "truyn"
-            npm dist-tag add "${NPM_PACKAGE}@${NPM_VERSION}" "$NPM_DIST_TAG"
-          fi
-
-      - name: Verify public npm bytes, provenance, alpha tag and clean install
+      - name: Wait for immutable npm version to be publicly readable
         if: steps.eligibility.outputs.eligible == 'true'
         shell: bash
         run: |
           set -euo pipefail
           visible=false
-          for attempt in $(seq 1 40); do
-            if [[ "$(npm view "${NPM_PACKAGE}@${NPM_VERSION}" version 2>/dev/null || true)" == "$NPM_VERSION" ]]; then
+          for attempt in $(seq 1 120); do
+            version="$(npm view "${NPM_PACKAGE}@${NPM_VERSION}" version 2>/dev/null || true)"
+            if [[ "$version" == "$NPM_VERSION" ]]; then
               visible=true
               break
             fi
             sleep 5
           done
           test "$visible" = true
+
+      - name: Verify public npm artifact is byte-identical
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
           rm -rf sdk/release/registry-closure/npm-registry
           mkdir -p sdk/release/registry-closure/npm-registry
           registry_file="$(npm pack "${NPM_PACKAGE}@${NPM_VERSION}" --pack-destination sdk/release/registry-closure/npm-registry | tail -n 1)"
@@ -221,15 +173,47 @@ jobs:
           cmp "$local_file" "$remote_file"
           remote_sha="$(sha256sum "$remote_file" | awk '{print $1}')"
           test "$remote_sha" = "$NPM_EXPECTED_SHA256"
+          echo "NPM_REMOTE_SHA=$remote_sha" >> "$GITHUB_ENV"
+
+      - name: Ensure npm alpha dist-tag resolves to the immutable version
+        if: steps.eligibility.outputs.eligible == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tags="$(npm view "$NPM_PACKAGE" dist-tags --json 2>/dev/null || true)"
+          current="$(jq -r --arg tag "$NPM_DIST_TAG" '.[$tag] // empty' <<<"${tags:-{}}" 2>/dev/null || true)"
+          if [[ "$current" != "$NPM_VERSION" ]]; then
+            test -n "${NODE_AUTH_TOKEN:-}"
+            test "$(npm whoami)" = "truyn"
+            npm dist-tag add "${NPM_PACKAGE}@${NPM_VERSION}" "$NPM_DIST_TAG"
+          fi
+          matched=false
+          for attempt in $(seq 1 60); do
+            tags="$(npm view "$NPM_PACKAGE" dist-tags --json 2>/dev/null || true)"
+            current="$(jq -r --arg tag "$NPM_DIST_TAG" '.[$tag] // empty' <<<"${tags:-{}}" 2>/dev/null || true)"
+            if [[ "$current" == "$NPM_VERSION" ]]; then
+              matched=true
+              break
+            fi
+            sleep 5
+          done
+          test "$matched" = true
+
+      - name: Verify npm provenance metadata, signature and clean-room install
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
           dist_json="$(npm view "${NPM_PACKAGE}@${NPM_VERSION}" dist --json)"
           integrity="$(jq -r '.integrity // empty' <<<"$dist_json")"
           shasum="$(jq -r '.shasum // empty' <<<"$dist_json")"
           attestation_url="$(jq -r '.attestations.url // empty' <<<"$dist_json")"
           test -n "$integrity"
           test -n "$shasum"
+          test "$shasum" = "16c21b36ef460f08cbc7959d0231c21e66d44a6b"
           test -n "$attestation_url"
-          tags="$(npm view "$NPM_PACKAGE" dist-tags --json)"
-          test "$(jq -r --arg tag "$NPM_DIST_TAG" '.[$tag] // empty' <<<"$tags")" = "$NPM_VERSION"
           mkdir -p sdk/release/registry-closure/npm-cleanroom
           cd sdk/release/registry-closure/npm-cleanroom
           npm init --yes >/dev/null
@@ -241,13 +225,14 @@ jobs:
             --arg package "$NPM_PACKAGE" \
             --arg version "$NPM_VERSION" \
             --arg distTag "$NPM_DIST_TAG" \
-            --arg sourceSha "$SOURCE_SHA" \
+            --arg publicationSourceSha "$NPM_PUBLICATION_SOURCE_SHA" \
+            --arg verificationSourceSha "$SOURCE_SHA" \
             --arg workflowRun "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            --arg sha256 "$remote_sha" \
+            --arg sha256 "$NPM_REMOTE_SHA" \
             --arg integrity "$integrity" \
             --arg shasum "$shasum" \
             --arg attestationUrl "$attestation_url" \
-            '{package:$package,version:$version,distTag:$distTag,sourceSha:$sourceSha,workflowRun:$workflowRun,sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,byteIdentity:"PASS",cleanRoomInstall:"PASS",signatureAudit:"PASS"}' \
+            '{package:$package,version:$version,distTag:$distTag,publicationSourceSha:$publicationSourceSha,verificationSourceSha:$verificationSourceSha,workflowRun:$workflowRun,sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,byteIdentity:"PASS",distTagIdentity:"PASS",cleanRoomInstall:"PASS",signatureAudit:"PASS"}' \
             > sdk/release/registry-closure/npm-release-evidence.json
 
       - name: Set up Python for public PyPI verification
@@ -281,7 +266,7 @@ jobs:
           }
           api_url = f'https://pypi.org/pypi/{package}/{version}/json'
           payload = None
-          for _ in range(20):
+          for _ in range(60):
               try:
                   with urllib.request.urlopen(api_url, timeout=20) as response:
                       payload = json.load(response)
