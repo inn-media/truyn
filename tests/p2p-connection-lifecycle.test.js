@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DirectFirstP2P } from '../network/transport/p2p.js';
 
-function record({ sequence, endpoint }) {
-  return { nodeId: 'truyn:node:peer-b', sequence, endpoints: [endpoint] };
+function record({ nodeId = 'truyn:node:peer-b', sequence, endpoint }) {
+  return { nodeId, sequence, endpoints: [endpoint] };
 }
 
 function harness(initialRecord) {
@@ -69,4 +69,58 @@ test('newer peer-record sequence reconnects after peer restart even when endpoin
   assert.equal(second.result.serial, 2);
   assert.equal(h.connects.length, 2);
   assert.equal(h.disconnects.length, 1);
+});
+
+test('missing target record recovers through live discovery control RPCs and sends the application envelope exactly once', async () => {
+  const targetNodeId = 'truyn:node:target';
+  const target = record({ nodeId: targetNodeId, sequence: 9, endpoint: 'quic://10.0.0.9:4433' });
+  const liveA = record({ nodeId: 'truyn:node:live-a', sequence: 3, endpoint: 'quic://10.0.0.1:4433' });
+  const liveB = record({ nodeId: 'truyn:node:live-b', sequence: 4, endpoint: 'quic://10.0.0.2:4433' });
+  let currentTarget = null;
+  let fallbackLookups = 0;
+  let controlLookups = 0;
+  let envelopeSends = 0;
+  const ingested = [];
+
+  const discovery = {
+    k: 20,
+    get(nodeId) { return nodeId === targetNodeId ? currentTarget : null; },
+    snapshot() { return [liveA, liveB]; },
+    ingest(next) {
+      ingested.push(next.nodeId);
+      if (next.nodeId === targetNodeId) currentTarget = next;
+      return { accepted: true };
+    },
+    rpc: {
+      async findNode(peer, nodeId) {
+        controlLookups += 1;
+        assert.equal(nodeId, targetNodeId);
+        return peer.nodeId === liveA.nodeId ? { records: [target] } : { records: [] };
+      },
+      forget() {}
+    },
+    async findNode() {
+      fallbackLookups += 1;
+      throw new Error('stale iterative fallback must not run after live discovery recovered the target');
+    }
+  };
+  const quic = {
+    async connect(endpoint) { return { endpoint }; },
+    async disconnect() {},
+    async sendEnvelope(client, envelope) {
+      envelopeSends += 1;
+      return { endpoint: client.endpoint, envelopeId: envelope.id };
+    }
+  };
+  const router = new DirectFirstP2P({ quicTransport: quic, discovery });
+  const envelope = { id: 'need-once' };
+
+  const result = await router.send(targetNodeId, envelope, { allowRelayFallback: false });
+
+  assert.equal(result.transport, 'quic-direct');
+  assert.equal(result.result.envelopeId, 'need-once');
+  assert.equal(controlLookups, 2, 'bounded live peers are queried only on the discovery control plane');
+  assert.deepEqual(ingested, [targetNodeId]);
+  assert.equal(fallbackLookups, 0);
+  assert.equal(envelopeSends, 1, 'the application envelope must never be retried by discovery recovery');
 });
