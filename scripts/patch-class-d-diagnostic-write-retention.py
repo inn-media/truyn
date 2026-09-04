@@ -114,10 +114,13 @@ for marker in required:
     if marker not in patched:
         raise SystemExit(f'missing write-retention diagnostic marker: {marker}')
 
-if patched.count('ttlMs:${d200_durable_write_ttl_ms}') != 1:
+patched_durable_start = patched.index(durable_marker)
+patched_restart_start = patched.index(restart_marker, patched_durable_start)
+patched_durable = patched[patched_durable_start:patched_restart_start]
+if patched_durable.count('ttlMs:${d200_durable_write_ttl_ms}') != 1:
     raise SystemExit('unexpected patched durable TTL count')
-if patched.count('ttlMs:1800000') < 1:
-    raise SystemExit('non-durable 30-minute TTL unexpectedly removed')
+if 'ttlMs:1800000' in patched_durable:
+    raise SystemExit('expired 30-minute durable TTL remained after patch')
 if "assert float('$healed_rate') >= .99, '$healed_rate'" not in patched:
     raise SystemExit('strict healed acceptance changed unexpectedly')
 if '[[ "$ack_loss" == 0 ]]' not in patched:

@@ -45,12 +45,13 @@ test('D-200 composed heal diagnostics apply bounded local controls and preserve 
   assert.equal(campaignAfter.includes('d1000-healed-fresh-session-retry'), false, 'ambiguous legacy fresh-session retry must be removed');
 
   assert.equal(campaignBefore.includes('d200_durable_write_ttl_ms=21600000'), false, 'canonical campaign must remain unchanged before diagnostic composition');
+  assert.equal((campaignBefore.match(/ttlMs:1800000/g) ?? []).length, 1, 'canonical fixture must contain exactly one 30-minute durable-write TTL');
   assert.ok(campaignAfter.includes('d200_durable_write_ttl_ms=21600000'), 'diagnostic durable writes must outlive the bounded campaign');
   assert.ok(campaignAfter.includes('d200_retention_required_margin_ms=900000'), 'retention verifier must reserve a 15-minute TTL margin');
   assert.ok(campaignAfter.includes('TRUYN_D200_WRITE_RETENTION_WINDOW_INVALID phase=before-check'), 'retention must fail closed before an invalid TTL window');
   assert.ok(campaignAfter.includes('TRUYN_D200_WRITE_RETENTION_WINDOW_INVALID phase=after-check'), 'retention must fail closed if the verifier itself crosses TTL');
-  assert.ok(campaignAfter.includes('ttlMs:${d200_durable_write_ttl_ms}'), 'only diagnostic durable writes must use the extended TTL variable');
-  assert.ok(campaignAfter.includes('ttlMs:1800000'), 'non-durable safety probe TTL must remain unchanged');
+  assert.ok(campaignAfter.includes('ttlMs:${d200_durable_write_ttl_ms}'), 'diagnostic durable writes must use the extended TTL variable');
+  assert.equal(campaignAfter.includes('ttlMs:1800000'), false, 'expired 30-minute durable-write TTL must be removed from the diagnostic copy');
   assert.ok(campaignAfter.includes('[[ "$ack_loss" == 0 ]]'), 'acknowledged write loss acceptance must remain zero');
 
   assert.ok(campaignAfter.includes("assert float('$healed_rate') >= .99, '$healed_rate'"), 'first-attempt healed acceptance must remain >=99%');
