@@ -236,6 +236,20 @@ const statsUrl = `${baseUrl}/__truyn_black_box_stats`;
 artifactUrl = `${baseUrl}/__truyn_artifact/interop-proof.bin`;
 agentCard.supportedInterfaces[0].url = rpcUrl;
 
+let shuttingDown = false;
+function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  if (!server.listening) {
+    process.exit(0);
+    return;
+  }
+  server.close(() => process.exit(0));
+}
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
 process.stdout.write(`${JSON.stringify({
   type: 'ready',
   sdkPackage: SDK_PACKAGE,
@@ -250,17 +264,3 @@ process.stdout.write(`${JSON.stringify({
   proofSizeBytes: PROOF_BYTES.length,
   proofSha256: PROOF_DIGEST
 })}\n`);
-
-let shuttingDown = false;
-function shutdown() {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  if (!server.listening) {
-    process.exit(0);
-    return;
-  }
-  server.close(() => process.exit(0));
-}
-
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
