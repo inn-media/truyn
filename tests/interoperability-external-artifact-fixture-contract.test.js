@@ -68,14 +68,15 @@ async function startFixture(fixture) {
 async function stopFixtureCleanly(fixture, child, stderr) {
   assert.equal(child.exitCode, null, `${fixture.label} fixture must still be running before shutdown`);
   assert.equal(child.signalCode, null, `${fixture.label} fixture must not already be signaled before shutdown`);
+  const exitPromise = once(child, 'exit').then(([code, signal]) => ({ exited: true, code, signal }));
   child.kill('SIGTERM');
   const exit = await Promise.race([
-    once(child, 'exit').then(([code, signal]) => ({ exited: true, code, signal })),
+    exitPromise,
     delay(2_500).then(() => ({ exited: false, code: null, signal: null }))
   ]);
   if (!exit.exited) {
     child.kill('SIGKILL');
-    await once(child, 'exit');
+    await exitPromise;
     assert.fail(`${fixture.label} fixture did not shut down cleanly after SIGTERM: ${stderr()}`);
   }
   assert.equal(exit.code, 0, `${fixture.label} fixture shutdown must exit with code 0: ${stderr()}`);
@@ -98,8 +99,9 @@ for (const fixture of FIXTURES) {
       await stopFixtureCleanly(fixture, child, stderr);
     } finally {
       if (child.exitCode === null && child.signalCode === null) {
+        const forcedExit = once(child, 'exit');
         child.kill('SIGKILL');
-        await once(child, 'exit');
+        await forcedExit;
       }
     }
   });

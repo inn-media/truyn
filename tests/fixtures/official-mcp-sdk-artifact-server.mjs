@@ -225,20 +225,6 @@ const baseUrl = `http://${HOST}:${address.port}`;
 const endpoint = `${baseUrl}/mcp`;
 const statsUrl = `${baseUrl}/__truyn_black_box_stats`;
 
-process.stdout.write(`${JSON.stringify({
-  type: 'ready',
-  sdkPackage: SDK_PACKAGE,
-  sdkVersion: SDK_VERSION,
-  protocolVersion: MCP_PROTOCOL_VERSION,
-  endpoint,
-  statsUrl,
-  proofUri: PROOF_URI,
-  proofFilename: PROOF_FILENAME,
-  proofMediaType: PROOF_MEDIA_TYPE,
-  proofSizeBytes: PROOF_BYTES.length,
-  proofSha256: PROOF_DIGEST
-})}\n`);
-
 let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return;
@@ -264,3 +250,17 @@ async function shutdown() {
 
 process.on('SIGTERM', () => void shutdown());
 process.on('SIGINT', () => void shutdown());
+
+process.stdout.write(`${JSON.stringify({
+  type: 'ready',
+  sdkPackage: SDK_PACKAGE,
+  sdkVersion: SDK_VERSION,
+  protocolVersion: MCP_PROTOCOL_VERSION,
+  endpoint,
+  statsUrl,
+  proofUri: PROOF_URI,
+  proofFilename: PROOF_FILENAME,
+  proofMediaType: PROOF_MEDIA_TYPE,
+  proofSizeBytes: PROOF_BYTES.length,
+  proofSha256: PROOF_DIGEST
+})}\n`);
