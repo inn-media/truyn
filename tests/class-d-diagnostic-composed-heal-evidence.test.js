@@ -16,7 +16,7 @@ test('D-200 composed heal diagnostics apply bounded local controls and preserve 
 
   const run = spawnSync('python3', ['scripts/patch-class-d-diagnostic-composed-heal-evidence.py', provisionTarget, campaignTarget], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr || run.stdout);
-  assert.match(run.stdout, /TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,packet-partition,healed-reconvergence,healed-origin,bounded-evidence-transport/);
+  assert.match(run.stdout, /TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,packet-partition,healed-reconvergence,healed-origin,bounded-evidence-transport,write-retention-window/);
 
   const provisionAfter = await readFile(provisionTarget, 'utf8');
   const campaignAfter = await readFile(campaignTarget, 'utf8');
@@ -43,6 +43,17 @@ test('D-200 composed heal diagnostics apply bounded local controls and preserve 
   assert.ok(campaignAfter.includes("'schema':'truyn.d200.healed-evidence-transport.v1'"), 'transport schema must be explicit');
   assert.equal(campaignAfter.includes("'schema':'truyn.d200.healed-reconvergence.v2'"), false, 'unbounded v2 artifact schema must not remain');
   assert.equal(campaignAfter.includes('d1000-healed-fresh-session-retry'), false, 'ambiguous legacy fresh-session retry must be removed');
+
+  assert.equal(campaignBefore.includes('d200_durable_write_ttl_ms=21600000'), false, 'canonical campaign must remain unchanged before diagnostic composition');
+  assert.equal((campaignBefore.match(/ttlMs:1800000/g) ?? []).length, 1, 'canonical fixture must contain exactly one 30-minute durable-write TTL');
+  assert.ok(campaignAfter.includes('d200_durable_write_ttl_ms=21600000'), 'diagnostic durable writes must outlive the bounded campaign');
+  assert.ok(campaignAfter.includes('d200_retention_required_margin_ms=900000'), 'retention verifier must reserve a 15-minute TTL margin');
+  assert.ok(campaignAfter.includes('TRUYN_D200_WRITE_RETENTION_WINDOW_INVALID phase=before-check'), 'retention must fail closed before an invalid TTL window');
+  assert.ok(campaignAfter.includes('TRUYN_D200_WRITE_RETENTION_WINDOW_INVALID phase=after-check'), 'retention must fail closed if the verifier itself crosses TTL');
+  assert.ok(campaignAfter.includes('ttlMs:${d200_durable_write_ttl_ms}'), 'diagnostic durable writes must use the extended TTL variable');
+  assert.equal(campaignAfter.includes('ttlMs:1800000'), false, 'expired 30-minute durable-write TTL must be removed from the diagnostic copy');
+  assert.ok(campaignAfter.includes('[[ "$ack_loss" == 0 ]]'), 'acknowledged write loss acceptance must remain zero');
+
   assert.ok(campaignAfter.includes("assert float('$healed_rate') >= .99, '$healed_rate'"), 'first-attempt healed acceptance must remain >=99%');
   assert.ok(campaignAfter.includes('[[ "$partition_recovery_ms" -le 120000 ]]'), 'packet recovery must remain <=120s');
 
