@@ -19,6 +19,7 @@ steps = [
     ('scripts/patch-class-d-diagnostic-healed-reconvergence.py', campaign),
     ('scripts/patch-class-d-diagnostic-healed-origin.py', campaign),
     ('scripts/patch-class-d-diagnostic-healed-evidence-transport.py', campaign),
+    ('scripts/patch-class-d-diagnostic-write-retention.py', campaign),
 ]
 
 for script, target in steps:
@@ -51,7 +52,11 @@ campaign_required = {
     'forced target transport reset': "control+'/faults/partition'",
     'healed diagnostic schema v3': "'schema':'truyn.d200.healed-reconvergence.v3'",
     'healed evidence transport schema': "'schema':'truyn.d200.healed-evidence-transport.v1'",
+    'durable write TTL covering full campaign': 'd200_durable_write_ttl_ms=21600000',
+    'retention window precheck': 'TRUYN_D200_WRITE_RETENTION_WINDOW_INVALID phase=before-check',
+    'retention window postcheck': 'TRUYN_D200_WRITE_RETENTION_WINDOW_INVALID phase=after-check',
     'strict healed acceptance': "assert float('$healed_rate') >= .99, '$healed_rate'",
+    'strict acknowledged write retention': '[[ "$ack_loss" == 0 ]]',
 }
 for label, marker in provision_required.items():
     if marker not in provision_text:
@@ -66,6 +71,8 @@ if provision_text.count('d200_failure_evidence_checkpoint() {') != 1:
     raise SystemExit('unexpected universal failure checkpoint helper count after composition')
 if provision_text.count('d200_err_trap() {') != 1:
     raise SystemExit('unexpected universal ERR helper count after composition')
+if campaign_text.count('d200_durable_write_ttl_ms=21600000') != 1:
+    raise SystemExit('unexpected diagnostic durable write TTL setting count after composition')
 for forbidden in [
     'd1000-healed-fresh-session-retry',
     'HEALED_DIAG_B64=',
@@ -75,4 +82,4 @@ for forbidden in [
     if forbidden in campaign_text:
         raise SystemExit(f'unsafe healed diagnostic marker remained after composition: {forbidden}')
 
-print('TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,packet-partition,healed-reconvergence,healed-origin,bounded-evidence-transport')
+print('TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,packet-partition,healed-reconvergence,healed-origin,bounded-evidence-transport,write-retention-window')
