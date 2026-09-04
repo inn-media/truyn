@@ -7,9 +7,10 @@ const legacyPyPiWorkflowUrl = new URL('../.github/workflows/publish-python-alpha
 const workflow = await readFile(workflowUrl, 'utf8');
 const marker = JSON.parse(await readFile(new URL('../sdk/release/registry-closure.json', import.meta.url), 'utf8'));
 
-test('temporary registry closure is bounded to exact successful main CI', async () => {
+test('temporary registry closure is verification-only and bounded to exact successful main CI', async () => {
   await assert.rejects(access(legacyPyPiWorkflowUrl));
   assert.match(workflow, /name: SDK Registry Closure/);
+  assert.match(workflow, /name: Verify npm\/PyPI registry closure/);
   assert.match(workflow, /workflow_run:/);
   assert.match(workflow, /workflows:\s*\n\s*- CI/);
   assert.match(workflow, /branches:\s*\n\s*- main/);
@@ -19,14 +20,18 @@ test('temporary registry closure is bounded to exact successful main CI', async 
   assert.match(workflow, /git diff --name-only HEAD\^ HEAD \| grep -Fxq "\$RELEASE_MARKER"/);
   assert.match(workflow, /dynamic\/github-code-scanning\/codeql/);
   assert.match(workflow, /environment: sdk-release/);
+  assert.doesNotMatch(workflow, /npm publish/);
+  assert.doesNotMatch(workflow, /gh-action-pypi-publish/);
+  assert.doesNotMatch(workflow, /^\s*id-token:\s*write/m);
 });
 
-test('registry closure marker freezes immutable npm and PyPI coordinates', () => {
+test('registry closure marker freezes immutable npm and PyPI publication identities', () => {
   assert.deepEqual(marker, {
     npmPackage: '@truyn/sdk',
     npmVersion: '0.1.0-alpha.1',
     npmDistTag: 'alpha',
     npmExpectedSha256: '06c782226ae6cc72b7f9c457b15c8bc188b4efc0e7d28ff3da4819382ef22119',
+    npmPublicationSourceSha: '905376383107d802efe4520ae3ab44cb55d10256',
     pypiPackage: 'truyn-sdk',
     pypiVersion: '0.1.0a1',
     pypiWheelFilename: 'truyn_sdk-0.1.0a1-py3-none-any.whl',
@@ -34,22 +39,25 @@ test('registry closure marker freezes immutable npm and PyPI coordinates', () =>
     pypiSdistFilename: 'truyn_sdk-0.1.0a1.tar.gz',
     pypiSdistSha256: 'a2e1e2baa6248cab18bdee08b10e832a39453836a64ad0b55c000f48c890ddaf',
     pypiPublicationSourceSha: 'fda6b75fda5331dd9cdc7e642f7a0a5556749a64',
-    repairRevision: 2
+    repairRevision: 3
   });
 });
 
-test('npm closure publishes prerelease with alpha tag and repairs existing tag safely', () => {
-  assert.match(workflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_BOOTSTRAP_TOKEN \}\}/);
-  assert.match(workflow, /npm publish[\s\S]*--tag "\$NPM_DIST_TAG"[\s\S]*--provenance/);
-  assert.match(workflow, /npm dist-tag add "\$\{NPM_PACKAGE\}@\$\{NPM_VERSION\}" "\$NPM_DIST_TAG"/);
+test('npm closure tolerates registry propagation and proves immutable public bytes', () => {
+  assert.match(workflow, /Wait for immutable npm version to be publicly readable/);
+  assert.match(workflow, /for attempt in \$\(seq 1 120\)/);
+  assert.match(workflow, /npm view "\$\{NPM_PACKAGE\}@\$\{NPM_VERSION\}" version 2>\/dev\/null \|\| true/);
   assert.match(workflow, /cmp "\$local_file" "\$remote_file"/);
+  assert.match(workflow, /NPM_EXPECTED_SHA256/);
+  assert.match(workflow, /npm dist-tag add "\$\{NPM_PACKAGE\}@\$\{NPM_VERSION\}" "\$NPM_DIST_TAG"/);
+  assert.match(workflow, /test "\$shasum" = "16c21b36ef460f08cbc7959d0231c21e66d44a6b"/);
   assert.match(workflow, /attestations\.url/);
   assert.match(workflow, /npm audit signatures/);
-  assert.match(workflow, /NPM_EXPECTED_SHA256/);
+  assert.match(workflow, /publicationSourceSha:\$publicationSourceSha/);
+  assert.match(workflow, /distTagIdentity:"PASS"/);
 });
 
-test('PyPI closure is verification-only and binds PEP 740 publisher to exact publication SHA', () => {
-  assert.doesNotMatch(workflow, /gh-action-pypi-publish/);
+test('PyPI closure verifies exact PEP 740 publisher SHA without republishing', () => {
   assert.doesNotMatch(workflow, /PYPI_TOKEN/);
   assert.match(workflow, /pypi\.org\/integrity\/\{package\}\/\{version\}\//);
   assert.match(workflow, /publisher\.get\('repository_owner'\) == 'inn-media'/);
