@@ -18,6 +18,7 @@ steps = [
     ('scripts/patch-class-d-diagnostic-packet-partition.py', campaign),
     ('scripts/patch-class-d-diagnostic-healed-reconvergence.py', campaign),
     ('scripts/patch-class-d-diagnostic-healed-origin.py', campaign),
+    ('scripts/patch-class-d-diagnostic-healed-evidence-transport.py', campaign),
 ]
 
 for script, target in steps:
@@ -40,11 +41,16 @@ provision_required = {
 campaign_required = {
     'packet heal diagnostics': 'PACKET_DIAG_PHASE=heal-timeout',
     'packet durable checkpoint': 'TRUYN_D200_FAILURE_EVIDENCE=CHECKPOINT stage=packet-partition',
-    'healed reconvergence classifier': 'HEALED_DIAG_B64=',
+    'bounded healed evidence transport': 'D200_HEALED_EVIDENCE_TRANSPORT=1',
+    'healed diagnostic chunks': 'HEALED_DIAG_CHUNK_',
+    'healed diagnostic transport footer': 'HEALED_DIAG_META=',
+    'healed diagnostic truncation guard': 'TRUYN_D200_HEALED_PAYLOAD_TRUNCATED',
     'healed diagnostic artifact': 'class-d-200-healed-reconvergence.json',
+    'healed diagnostic artifact digest': 'class-d-200-healed-reconvergence-digest.txt',
     'peer-record origin capture': 'persisted_peer_state(j,node_id)',
     'forced target transport reset': "control+'/faults/partition'",
-    'healed diagnostic schema v2': "'schema':'truyn.d200.healed-reconvergence.v2'",
+    'healed diagnostic schema v3': "'schema':'truyn.d200.healed-reconvergence.v3'",
+    'healed evidence transport schema': "'schema':'truyn.d200.healed-evidence-transport.v1'",
     'strict healed acceptance': "assert float('$healed_rate') >= .99, '$healed_rate'",
 }
 for label, marker in provision_required.items():
@@ -60,7 +66,13 @@ if provision_text.count('d200_failure_evidence_checkpoint() {') != 1:
     raise SystemExit('unexpected universal failure checkpoint helper count after composition')
 if provision_text.count('d200_err_trap() {') != 1:
     raise SystemExit('unexpected universal ERR helper count after composition')
-if 'd1000-healed-fresh-session-retry' in campaign_text:
-    raise SystemExit('ambiguous healed fresh-session classifier remained after composition')
+for forbidden in [
+    'd1000-healed-fresh-session-retry',
+    'HEALED_DIAG_B64=',
+    "'result':value",
+    "'schema':'truyn.d200.healed-reconvergence.v2'",
+]:
+    if forbidden in campaign_text:
+        raise SystemExit(f'unsafe healed diagnostic marker remained after composition: {forbidden}')
 
-print('TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,packet-partition,healed-reconvergence,healed-origin')
+print('TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,packet-partition,healed-reconvergence,healed-origin,bounded-evidence-transport')
