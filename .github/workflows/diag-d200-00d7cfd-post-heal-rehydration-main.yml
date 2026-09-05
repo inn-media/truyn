@@ -1,0 +1,273 @@
+name: diag-d200-00d7cfd-post-heal-rehydration-main
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diag-d200-00d7cfd-post-heal-rehydration-main.yml']
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: truyn-d200-00d7cfd-post-heal-rehydration-main-single-shot
+  cancel-in-progress: false
+
+env:
+  LAUNCH_BASE_COMMIT: 00d7cfd39758485811d81d1763f836b03d6f9ec6
+  TESTED_COMMIT: 00d7cfd39758485811d81d1763f836b03d6f9ec6
+  TESTED_TREE_SHA: c942478a3f602270806f0b0246d2aed53e0b8297
+  EXACT_MAIN_CI_RUN: '33964490523'
+  EXACT_MAIN_CODEQL_RUN: '33964489890'
+  P2P_BLOB_SHA: d97d6aaaed5a370b76e37345384a3ea98bc1cb60
+  PROVISION_BLOB_SHA: c1c839943f5e02bdc716691d91226251c8e3ec00
+  CAMPAIGN_BLOB_SHA: 45d6a25e3dea8443c0a5463c2b029f1a5eec154a
+  COMPOSED_PATCHER_BLOB_SHA: d00b6160bd3b44820fbb26fd262b92922402c48a
+  BASELINE_ORIGIN_PATCHER_BLOB_SHA: 8f5466bec395aa530b4b8584a3ca071e9f2f5e50
+  HEALED_RECONVERGENCE_PATCHER_BLOB_SHA: 6a2c08618ddae4333b8ed596e7911e837eb6ff92
+  HEALED_ORIGIN_PATCHER_BLOB_SHA: 3aad48d1acdf04c6a474679f2c50db1cd0362656
+  HEALED_EVIDENCE_TRANSPORT_PATCHER_BLOB_SHA: 6ca765dc6210bceec7c6709f6a9414aee3e2f3a7
+  LOCAL_FAULT_CONTROL_PATCHER_BLOB_SHA: f48fee1947c3b95c7a44a1573bd42c3b088b7965
+  WRITE_RETENTION_PATCHER_BLOB_SHA: b7ba737a56d3694539edfb046cbc5986d6202616
+  HEALED_SUMMARY_HELPER_BLOB_SHA: 617bd4f99a178ba1a1903181913e0f1746778c12
+  AZURE_RESOURCE_GROUP: truyn
+  NODES_PER_HOST: '10'
+
+jobs:
+  diagnostic-d200:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - name: Enforce immutable one-shot launcher
+        env: { GH_TOKEN: '${{ github.token }}' }
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_RUN_ATTEMPT" == 1 && "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]
+          j="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}")"
+          [[ "$(jq '.files|length' <<<"$j")" == 1 ]]
+          [[ "$(jq -r '.files[0].filename' <<<"$j")" == '.github/workflows/diag-d200-00d7cfd-post-heal-rehydration-main.yml' ]]
+          [[ "$(jq -r '.files[0].status' <<<"$j")" == added ]]
+          [[ "$(jq -r '.parents[0].sha' <<<"$j")" == "$LAUNCH_BASE_COMMIT" ]]
+          b="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${LAUNCH_BASE_COMMIT}")"
+          t="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TESTED_COMMIT}")"
+          [[ "$(jq -r '.commit.tree.sha' <<<"$b")" == "$TESTED_TREE_SHA" ]]
+          [[ "$(jq -r '.commit.tree.sha' <<<"$t")" == "$TESTED_TREE_SHA" ]]
+          jq -e '.commit.verification.verified==true and .commit.verification.reason=="valid"' <<<"$t" >/dev/null
+
+      - uses: actions/checkout@v4
+        with: { ref: '${{ env.TESTED_COMMIT }}', persist-credentials: false, fetch-depth: 1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+
+      - name: Verify exact green immutable source
+        env: { GH_TOKEN: '${{ github.token }}' }
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+          [[ "$(git rev-parse "${TESTED_COMMIT}^{tree}")" == "$TESTED_TREE_SHA" ]]
+          declare -A pins=(
+            [network/transport/p2p.js]="$P2P_BLOB_SHA"
+            [benchmarks/scale/class-d-azure-1000-provision.sh]="$PROVISION_BLOB_SHA"
+            [benchmarks/scale/class-d-azure-1000-campaign.sh]="$CAMPAIGN_BLOB_SHA"
+            [scripts/patch-class-d-diagnostic-composed-heal-evidence.py]="$COMPOSED_PATCHER_BLOB_SHA"
+            [scripts/patch-class-d-diagnostic-baseline-origin.py]="$BASELINE_ORIGIN_PATCHER_BLOB_SHA"
+            [scripts/patch-class-d-diagnostic-healed-reconvergence.py]="$HEALED_RECONVERGENCE_PATCHER_BLOB_SHA"
+            [scripts/patch-class-d-diagnostic-healed-origin.py]="$HEALED_ORIGIN_PATCHER_BLOB_SHA"
+            [scripts/patch-class-d-diagnostic-healed-evidence-transport.py]="$HEALED_EVIDENCE_TRANSPORT_PATCHER_BLOB_SHA"
+            [scripts/patch-class-d-diagnostic-local-fault-control.py]="$LOCAL_FAULT_CONTROL_PATCHER_BLOB_SHA"
+            [scripts/patch-class-d-diagnostic-write-retention.py]="$WRITE_RETENTION_PATCHER_BLOB_SHA"
+            [scripts/summarize-class-d200-healed-origin.py]="$HEALED_SUMMARY_HELPER_BLOB_SHA"
+          )
+          for p in "${!pins[@]}"; do [[ "$(git rev-parse "${TESTED_COMMIT}:$p")" == "${pins[$p]}" ]]; done
+          ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
+          cq="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}")"
+          jq -e --arg sha "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$sha and .event=="push" and .status=="completed" and .conclusion=="success"' <<<"$ci" >/dev/null
+          jq -e --arg sha "$TESTED_COMMIT" '.head_branch=="main" and .head_sha==$sha and .status=="completed" and .conclusion=="success"' <<<"$cq" >/dev/null
+          git diff --check
+          printf 'tested_commit=%s\ntested_tree_sha=%s\nlaunch_base_commit=%s\nlauncher_sha=%s\nrun_id=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nstrict_d1000_acceptance=false\ndiagnostic_focus=post-heal-peer-state-rehydration\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$LAUNCH_BASE_COMMIT" "$GITHUB_SHA" "$GITHUB_RUN_ID" > class-d-200-diagnostic-input.txt
+
+      - name: Build immutable runtime bundle
+        id: runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          b="$RUNNER_TEMP/truyn-d200-runtime.tgz"
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh "$b"
+          s="$(awk '{print $1}' "${b}.sha256")"; [[ "$s" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s  %s\n' "$s" "$b" | sha256sum -c -
+          d="$(mktemp -d)"; tar -xzf "$b" -C "$d"
+          jq -e --arg sha "$TESTED_COMMIT" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$sha' "$d/manifest.json" >/dev/null
+          cp "$d/manifest.json" class-d-200-runtime-manifest.json
+          printf 'sha256:%s\n' "$s" > class-d-200-runtime-bundle-digest.txt
+          echo "path=$b" >> "$GITHUB_OUTPUT"; echo "sha=$s" >> "$GITHUB_OUTPUT"; rm -rf "$d"
+
+      - uses: azure/login@v2
+        with:
+          client-id: '${{ secrets.AZURE_CLIENT_ID }}'
+          tenant-id: '${{ secrets.AZURE_TENANT_ID }}'
+          subscription-id: '${{ secrets.AZURE_SUBSCRIPTION_ID }}'
+
+      - name: Select fail-closed 20-VM placement
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ok=false
+          for l in eastus2 eastus westus2 centralus northcentralus southcentralus westeurope northeurope; do
+            u="$(az vm list-usage -l "$l" -o json --only-show-errors)" || continue
+            rc="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].currentValue//-1' <<<"$u")"
+            rl="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].limit//-1' <<<"$u")"
+            for z in Standard_E2as_v7 Standard_D4as_v5 Standard_D4s_v5; do
+              q="$(az vm list-skus -l "$l" --size "$z" --all -o json --only-show-errors)" || continue
+              [[ "$(jq length <<<"$q")" -ge 1 ]] || continue
+              v="$(jq -r '[.[].capabilities[]?|select(.name=="vCPUs")|.value][0]//empty' <<<"$q")"; f="$(jq -r '.[0].family//empty' <<<"$q")"
+              [[ -n "$v" && -n "$f" ]] || continue
+              fc="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].currentValue//-1' <<<"$u")"; fl="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].limit//-1' <<<"$u")"
+              blocks="$(jq '[.[].restrictions[]?|select(.type=="Location" and .reasonCode=="NotAvailableForSubscription")]|length' <<<"$q")"; need=$((v*20))
+              echo "TRUYN_D200_CAPACITY_PROBE location=$l size=$z required=$need regionalRemaining=$((rl-rc)) familyRemaining=$((fl-fc)) blocks=$blocks"
+              if [[ "$blocks" == 0 && "$rc" -ge 0 && "$fc" -ge 0 && $((rl-rc)) -ge "$need" && $((fl-fc)) -ge "$need" ]]; then echo "TRUYN_D200_LOCATION=$l" >> "$GITHUB_ENV"; echo "TRUYN_D200_VM_SIZE=$z" >> "$GITHUB_ENV"; ok=true; break 2; fi
+            done
+          done
+          [[ "$ok" == true ]]
+
+      - name: Stage immutable runtime bundle
+        id: staging
+        env: { RUNTIME_BUNDLE: '${{ steps.runtime.outputs.path }}', RUNTIME_SHA: '${{ steps.runtime.outputs.sha }}' }
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          a="td2d200${GITHUB_RUN_ID}"; c=runtime; b=truyn-d200-runtime.tgz; [[ ${#a} -le 24 ]]
+          az storage account create -g "$AZURE_RESOURCE_GROUP" -n "$a" -l "$TRUYN_D200_LOCATION" --sku Standard_LRS --kind StorageV2 --https-only true --min-tls-version TLS1_2 --allow-blob-public-access false -o none --only-show-errors
+          rid="$(az storage account show -g "$AZURE_RESOURCE_GROUP" -n "$a" --query id -o tsv --only-show-errors)"; [[ "$rid" == /subscriptions/*/resourceGroups/*/providers/Microsoft.Storage/storageAccounts/"$a" ]]
+          k="$(az storage account keys list -g "$AZURE_RESOURCE_GROUP" -n "$a" --query '[0].value' -o tsv --only-show-errors)"; [[ -n "$k" ]]; echo "::add-mask::$k"
+          az storage container create --name "$c" --account-name "$a" --account-key "$k" -o none --only-show-errors
+          az storage blob upload --container-name "$c" --name "$b" --file "$RUNTIME_BUNDLE" --account-name "$a" --account-key "$k" --overwrite true -o none --only-show-errors
+          x="$(date -u -d '+6 hours' '+%Y-%m-%dT%H:%MZ')"; sas="$(az storage blob generate-sas --container-name "$c" --name "$b" --account-name "$a" --account-key "$k" --permissions r --https-only --expiry "$x" -o tsv --only-show-errors)"; [[ -n "$sas" ]]; echo "::add-mask::$sas"
+          url="https://${a}.blob.core.windows.net/${c}/${b}?${sas}"; echo "::add-mask::$url"
+          echo "TRUYN_D200_STAGING_ACCOUNT=$a" >> "$GITHUB_ENV"; echo "TRUYN_D200_STAGING_RESOURCE_ID=$rid" >> "$GITHUB_ENV"; echo "TRUYN_D200_RUNTIME_URL=$url" >> "$GITHUB_ENV"; echo "TRUYN_D200_RUNTIME_SHA256=$RUNTIME_SHA" >> "$GITHUB_ENV"
+
+      - name: Execute real 20-host 200-process campaign
+        id: campaign
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          t="$(mktemp -d)"; cp benchmarks/scale/class-d-azure-1000-provision.sh "$t/provision.sh"; cp benchmarks/scale/class-d-azure-1000-campaign.sh "$t/campaign.sh"
+          python3 scripts/patch-class-d-diagnostic-bootstrap-timeout.py "$t/provision.sh"
+          python3 scripts/patch-class-d-diagnostic-bootstrap-parallel.py "$t/provision.sh"
+          python3 scripts/patch-class-d-diagnostic-bandwidth-meter-parallel.py "$t/provision.sh"
+          python3 scripts/patch-class-d-diagnostic-readiness-parallel.py "$t/campaign.sh"
+          python3 scripts/patch-class-d-diagnostic-baseline-parallel.py "$t/campaign.sh"
+          python3 scripts/patch-class-d-diagnostic-restart-parallel.py "$t/campaign.sh"
+          python3 - "$t/campaign.sh" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); s=p.read_text()
+          if s.count('seq 10 14')!=3 or s.count('range(10,15)')!=1: raise SystemExit('unexpected restart range')
+          p.write_text(s.replace('seq 10 14','seq 5 9').replace('range(10,15)','range(5,10)'))
+          PY
+          python3 scripts/patch-class-d-diagnostic-composed-heal-evidence.py "$t/provision.sh" "$t/campaign.sh"
+          bash -n "$t/provision.sh"; bash -n "$t/campaign.sh"; set +e
+          PROVISION="$t/provision.sh" CAMPAIGN="$t/campaign.sh" GITHUB_SHA="$TESTED_COMMIT" TRUYN_AZURE_RESOURCE_GROUP="$AZURE_RESOURCE_GROUP" TRUYN_CLASS_D1000_LOCATION="$TRUYN_D200_LOCATION" TRUYN_CLASS_D1000_VM_SIZE="$TRUYN_D200_VM_SIZE" TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" bash -c 'set -Eeuo pipefail; source "$PROVISION"; source "$CAMPAIGN"' 2>&1 | tee class-d-200-diagnostic.log
+          rc=${PIPESTATUS[0]}; set -e; echo "campaign_rc=$rc" >> "$GITHUB_OUTPUT"; rm -rf "$t"; exit "$rc"
+
+      - name: Evaluate strict D-200 evidence
+        id: evaluate
+        if: always()
+        shell: bash
+        run: |
+          set +e; f=class-d-1000-evidence.json
+          if [[ ! -f "$f" ]]; then echo evaluator_rc=99 >> "$GITHUB_OUTPUT"; echo cleanup=false >> "$GITHUB_OUTPUT"; echo remaining=-1 >> "$GITHUB_OUTPUT"; exit 0; fi
+          jq -e '.topology.hostCount==20 and .topology.nodeCount==200 and .topology.realProcessCount==200 and .topology.realProcessesPerHost==10 and .topology.uniqueIdentityCount==200 and .topology.uniqueEndpointCount==200 and .topology.syntheticNodeCount==0 and .readiness.readyNodeRatio>=.99 and .routing.baselineSuccessRatio>=.99 and .routing.postRestartSuccessRatio>=.99 and .routing.healedSuccessRatio>=.99 and .convergence.routingSuccessRatio>=.99 and .convergence.latencyMs.p95<=120000 and .recovery.latencyMs.p95<=120000 and .recovery.packetPartitionRecoveryMs<=120000 and .adversarial.packetPartition.realPacketPath==true and .adversarial.packetPartition.blockedSuccesses==0 and .safety.acknowledgedWriteLossCount==0 and .safety.invalidSignedStateAcceptedCount==0 and .safety.staleRevokedReceiptAcceptedCount==0 and .safety.unauthorizedProviderExecutionCount==0 and .cleanup.confirmed==true and .cleanup.remainingResources==0' "$f" >/dev/null; rc=$?
+          echo "evaluator_rc=$rc" >> "$GITHUB_OUTPUT"; echo "cleanup=$(jq -r '.cleanup.confirmed//false' "$f")" >> "$GITHUB_OUTPUT"; echo "remaining=$(jq -r '.cleanup.remainingResources//-1' "$f")" >> "$GITHUB_OUTPUT"
+          for q in 'baseline=.routing.baselineSuccessRatio' 'post_restart=.routing.postRestartSuccessRatio' 'healed=.routing.healedSuccessRatio' 'convergence_routing=.convergence.routingSuccessRatio' 'convergence_p95=.convergence.latencyMs.p95' 'recovery_p95=.recovery.latencyMs.p95' 'partition_recovery=.recovery.packetPartitionRecoveryMs'; do k=${q%%=*}; e=${q#*=}; echo "$k=$(jq -r "$e//-1" "$f")" >> "$GITHUB_OUTPUT"; done
+          exit 0
+
+      - name: Summarize healed-origin classifier
+        id: reconvergence
+        if: always()
+        shell: bash
+        run: |
+          set +e; f=class-d-200-healed-reconvergence.json; d=class-d-200-healed-reconvergence-digest.txt
+          printf 'schema=missing\nfailed=0\nsession=0\nunverified=0\nvalid_refresh=0\nstale_refresh=0\nmissing_refresh=0\nunavailable_refresh=0\npersistent=0\nsampled_warmed=0\npayload_truncated=true\ndigest_ok=false\n' > /tmp/d200-summary
+          if [[ -f "$f" && -f "$d" ]]; then python3 scripts/summarize-class-d200-healed-origin.py "$f" "$d" > /tmp/d200-summary.new 2>class-d-200-healed-origin-summary-error.txt && mv /tmp/d200-summary.new /tmp/d200-summary; fi
+          while IFS='=' read -r k v; do case "$k" in schema|failed|session|unverified|valid_refresh|stale_refresh|missing_refresh|unavailable_refresh|persistent|sampled_warmed|payload_truncated|digest_ok) echo "$k=$v" >> "$GITHUB_OUTPUT";; esac; done < /tmp/d200-summary
+          cat /tmp/d200-summary
+
+      - name: Cleanup runtime staging fail-closed
+        id: staging_cleanup
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          a="${TRUYN_D200_STAGING_ACCOUNT:-td2d200${GITHUB_RUN_ID}}"
+          az storage account delete -g "$AZURE_RESOURCE_GROUP" -n "$a" --yes --only-show-errors >/dev/null 2>&1
+          ok=false; rem=-1; last=''
+          for _ in $(seq 1 60); do
+            err="$(mktemp)"
+            az storage account show -g "$AZURE_RESOURCE_GROUP" -n "$a" --only-show-errors -o json >/dev/null 2>"$err"
+            rc=$?; last="$(cat "$err")"; rm -f "$err"
+            if [[ $rc -ne 0 ]] && grep -Eqi 'ResourceNotFound|StorageAccountNotFound|could not be found|was not found' <<<"$last"; then ok=true; rem=0; break; fi
+            sleep 5
+          done
+          echo "confirmed=$ok" >> "$GITHUB_OUTPUT"; echo "remaining=$rem" >> "$GITHUB_OUTPUT"
+          printf 'confirmed=%s\nremaining=%s\naccount=%s\nresource_id=%s\n' "$ok" "$rem" "$a" "${TRUYN_D200_STAGING_RESOURCE_ID:-unknown}" > class-d-200-runtime-staging-cleanup.txt
+          if [[ "$ok" != true ]]; then printf '%s\n' "$last" > class-d-200-runtime-staging-cleanup-error.txt; fi
+
+      - name: Upload immutable diagnostic artifact
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 'truyn-class-d200-00d7cfd-${{ github.run_id }}'
+          path: |
+            class-d-200-*.json
+            class-d-200-*.txt
+            class-d-200-*.log
+            class-d-1000-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Normalize artifact digest
+        id: digest
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail; x='${{ steps.upload.outputs.artifact-digest }}'
+          if [[ "$x" =~ ^sha256:[0-9a-f]{64}$ ]]; then v="$x"; elif [[ "$x" =~ ^[0-9a-f]{64}$ ]]; then v="sha256:$x"; else exit 1; fi; echo "value=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Record strict terminal marker
+        if: always()
+        env:
+          CAMPAIGN_RC: '${{ steps.campaign.outputs.campaign_rc }}'
+          EVALUATOR_RC: '${{ steps.evaluate.outputs.evaluator_rc }}'
+          CLEANUP: '${{ steps.evaluate.outputs.cleanup }}'
+          REMAINING: '${{ steps.evaluate.outputs.remaining }}'
+          STAGING_CLEANUP: '${{ steps.staging_cleanup.outputs.confirmed }}'
+          STAGING_REMAINING: '${{ steps.staging_cleanup.outputs.remaining }}'
+          SCHEMA: '${{ steps.reconvergence.outputs.schema }}'
+          PAYLOAD_TRUNCATED: '${{ steps.reconvergence.outputs.payload_truncated }}'
+          DIGEST_OK: '${{ steps.reconvergence.outputs.digest_ok }}'
+          FIRST_FAILED: '${{ steps.reconvergence.outputs.failed }}'
+          SESSION: '${{ steps.reconvergence.outputs.session }}'
+          UNAVAILABLE: '${{ steps.reconvergence.outputs.unavailable_refresh }}'
+          PERSISTENT: '${{ steps.reconvergence.outputs.persistent }}'
+          ARTIFACT_ID: '${{ steps.upload.outputs.artifact-id }}'
+          DIGEST: '${{ steps.digest.outputs.value }}'
+          RUNTIME_SHA: '${{ steps.runtime.outputs.sha }}'
+          BASELINE: '${{ steps.evaluate.outputs.baseline }}'
+          POST_RESTART: '${{ steps.evaluate.outputs.post_restart }}'
+          HEALED: '${{ steps.evaluate.outputs.healed }}'
+          CONV: '${{ steps.evaluate.outputs.convergence_routing }}'
+          CONV_P95: '${{ steps.evaluate.outputs.convergence_p95 }}'
+          RECOVERY_P95: '${{ steps.evaluate.outputs.recovery_p95 }}'
+          PARTITION: '${{ steps.evaluate.outputs.partition_recovery }}'
+        shell: bash
+        run: |
+          set -Eeuo pipefail; result=FAIL
+          if [[ "${CAMPAIGN_RC:-99}" == 0 && "${EVALUATOR_RC:-99}" == 0 && "$CLEANUP" == true && "$REMAINING" == 0 && "$STAGING_CLEANUP" == true && "$STAGING_REMAINING" == 0 && "$SCHEMA" == truyn.d200.healed-reconvergence.v3 && "$PAYLOAD_TRUNCATED" == false && "$DIGEST_OK" == true && -n "$ARTIFACT_ID" && "$DIGEST" == sha256:* && "$RUNTIME_SHA" =~ ^[0-9a-f]{64}$ ]]; then result=PASS; fi
+          echo "TRUYN_D200_TERMINAL result=$result run=$GITHUB_RUN_ID launcher_sha=$GITHUB_SHA tested_sha=$TESTED_COMMIT tested_tree_sha=$TESTED_TREE_SHA exact_main_ci_run=$EXACT_MAIN_CI_RUN exact_main_codeql_run=$EXACT_MAIN_CODEQL_RUN runtime_sha256=sha256:${RUNTIME_SHA:-none} azure_location=${TRUYN_D200_LOCATION:-unknown} vm_size=${TRUYN_D200_VM_SIZE:-unknown} hosts=20 nodes=200 nodes_per_host=10 campaign_rc=${CAMPAIGN_RC:-99} evaluator_rc=${EVALUATOR_RC:-99} baseline=${BASELINE:--1} post_restart=${POST_RESTART:--1} healed=${HEALED:--1} convergence_routing=${CONV:--1} convergence_p95_ms=${CONV_P95:--1} recovery_p95_ms=${RECOVERY_P95:--1} partition_recovery_ms=${PARTITION:--1} classifier_schema=${SCHEMA:-missing} first_attempt_failed=${FIRST_FAILED:-0} valid_record_session_reset_recovered=${SESSION:-0} peer_state_unavailable_target_refresh_recovered=${UNAVAILABLE:-0} persistent_after_refresh=${PERSISTENT:-0} payload_truncated=${PAYLOAD_TRUNCATED:-true} classifier_digest_ok=${DIGEST_OK:-false} cleanup=${CLEANUP:-false} remaining=${REMAINING:--1} staging_cleanup=${STAGING_CLEANUP:-false} staging_remaining=${STAGING_REMAINING:--1} artifact_id=${ARTIFACT_ID:-none} digest=${DIGEST:-none}"
+          [[ "$result" == PASS ]]
