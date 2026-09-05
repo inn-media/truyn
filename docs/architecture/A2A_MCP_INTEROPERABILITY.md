@@ -1,16 +1,16 @@
 # TRUYN A2A / MCP Interoperability Architecture
 
-**Status:** canonical interoperability architecture synchronized through accepted C8 + Sprint E bounded evidence.  
+**Status:** canonical interoperability architecture synchronized through C8 + P2-E1/Sprint E + P2-E2 bounded pre-v1 acceptance.  
 **Snapshot:** 2026-09-05  
-**Fresh-base source:** `main@d9e49747531318890399dcf53f27eddcfd6f68b7`  
+**P2-E3 reconciliation base:** `main@9add7ae3d0c7e47343f844d084258d423dd35f63`  
 **Sprint C exact proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
 **Sprint D exact proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
 **C8 exact accepted head:** `14757e0f1d182e8fdf15e2f9e7ffe67749efc4ee`  
 **C8 exact accepted main:** `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`  
-**Sprint E repaired exact head:** `11892fb3f6a9dc8426958780fe244f26e624ff54`  
-**Sprint E ordinary CI:** `33956255543` — PASS  
-**Sprint E hosted CodeQL:** `33870132494` — PASS  
-**Protocol state:** TRUYN/1 draft; A2A/MCP compatibility is bounded, not stable.
+**P2-E1 exact accepted main:** `a85f9294c115c6d6db9dc90d63491c2e6d1af97f` / PR `#427`  
+**P2-E2 exact accepted main:** `6f64c3dc6333044126916d3dd0a118e3cf8220d4` / PR `#432`  
+**Compatibility generation:** `a2a-mcp-pre-v1/g1`  
+**Protocol state:** `TRUYN/1` draft; stable A2A/MCP v1 is **not declared**.
 
 ## Purpose
 
@@ -46,8 +46,9 @@ The security rule is invariant across protocols:
 | Sprint C — independent remote A2A | **Accepted / official SDK black-box CI-proven** | `@a2a-js/sdk@1.0.1`, separate process |
 | Sprint D — independent remote MCP | **Accepted / official SDK black-box CI-proven** | `@modelcontextprotocol/server@2.0.0`, separate process |
 | C8 — complete cross-protocol adversarial matrix | **Accepted / exact-head + exact-main CI/CodeQL** | PR `#423`; `docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md` |
-| Sprint E — external referenced artifact profile | **Accepted / bidirectional official SDK black-box CI-proven** | PR `#427`; `tests/interoperability-external-artifact.test.js`; `docs/compatibility/A2A_MCP_EXTERNAL_ARTIFACT_BLACK_BOX.md` |
-| Stable A2A/MCP compatibility guarantee | **OPEN** | TRUYN/1 remains draft |
+| P2-E1 / Sprint E — external referenced artifact profile | **Accepted / bidirectional official-SDK black-box + exact integrity proof** | PR `#427`; `tests/interoperability-external-artifact.test.js`; `docs/compatibility/A2A_MCP_EXTERNAL_ARTIFACT_BLACK_BOX.md` |
+| P2-E2 — bounded pre-v1 compatibility promise | **Accepted / CI-enforced** | PR `#432`; generation `a2a-mcp-pre-v1/g1`; `adapters/compatibility/a2a-mcp.js`; `docs/compatibility/A2A_MCP_STABILITY.md` |
+| Stable A2A/MCP v1 guarantee | **NOT DECLARED** | `TRUYN/1` remains draft |
 
 ## A2A server edge
 
@@ -110,7 +111,7 @@ C6 owns cross-A2A artifact normalization and integrity requirements:
 - authoritative TRUYN provenance replaces spoofable remote provider provenance;
 - corrupt or unverifiable artifacts do not become successful results.
 
-Sprint E proves this boundary against two independent external SDK processes with one deterministic referenced binary artifact:
+P2-E1 / Sprint E proves this boundary against two independent external SDK processes with one deterministic referenced binary artifact:
 
 ```text
 filename:   interop-proof.bin
@@ -121,7 +122,7 @@ sha256:     257b10be1e90139219f3aa9edbbdea24a80ef453cbbc16e840e1c34d0b24abae
 
 For `MCP → TRUYN → A2A`, the independent A2A process emits a URL Part and only an explicitly configured resolver materializes it. Missing resolver produces zero referenced-file fetches. Digest or size corruption fails closed.
 
-For `A2A → TRUYN → MCP`, the independent MCP process emits a standard `resource_link`; an explicit Sprint E resolver materializes it through MCP `resources/read` before C6 verification. The `.invalid` resource URI is never used as an implicit HTTP target.
+For `A2A → TRUYN → MCP`, the independent MCP process emits a standard `resource_link`; an explicit resolver materializes it through MCP `resources/read` before C6 verification. The `.invalid` resource URI is never used as an implicit HTTP target.
 
 The Sprint E MCP resolver is a bounded interoperability profile. It does **not** turn generalized MCP resources, mutability or publication into an accepted `MCP resources → TRUYN OBJECT/STATE` runtime feature.
 
@@ -141,7 +142,7 @@ A2A client
 
 C7 proves in-repository composition and exactly one remote MCP execution. Sprint D proves the remote MCP side as an independent official `@modelcontextprotocol/server@2.0.0` process.
 
-Sprint E extends that boundary with a standard MCP `resource_link`. The accepted positive path is `server/discover → tools/list → tools/call → resources/read`; there is exactly one tool execution and one resource read before verified bytes become a successful A2A Artifact.
+P2-E1 extends that boundary with a standard MCP `resource_link`. The accepted positive path is `server/discover → tools/list → tools/call → resources/read`; there is exactly one tool execution and one resource read before verified bytes become a successful A2A Artifact.
 
 ### MCP → TRUYN → A2A
 
@@ -157,7 +158,7 @@ MCP client
 
 C7 proves in-repository composition and exactly one remote A2A execution. Sprint C proves the remote A2A side as an independent official `@a2a-js/sdk@1.0.1` process.
 
-Sprint E extends that boundary with a referenced URL file. The external A2A executor runs once; the explicit resolver fetches the file once; absent resolver produces zero file fetches; corrupt digest or size fails closed without a second `SendMessage` fallback.
+P2-E1 extends that boundary with a referenced URL file. The external A2A executor runs once; the explicit resolver fetches the file once; absent resolver produces zero file fetches; corrupt digest or size fails closed without a second `SendMessage` fallback.
 
 ## Authorization and authority invariants
 
@@ -173,22 +174,39 @@ Every bridge implementation MUST preserve these invariants:
 
 C8 is the accepted bounded adversarial matrix exercising these invariants across both directions, including current account/tenant authority, replay/correlation attacks, bounded MCP reads/timeouts, artifact integrity/SSRF/provenance negatives, zero unauthorized remote execution and exactly-one valid execution. Durable exact-head and exact-main evidence is in `../compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md`.
 
-Sprint E is complementary evidence: it closes the referenced-artifact adoption profile but does not weaken or replace C8.
+P2-E1 is complementary evidence: it closes the referenced-artifact adoption profile but does not weaken or replace C8.
+
+P2-E2 makes the invariant subset explicit in compatibility generation `g1`: correlation semantics, artifact-integrity semantics, authorization boundary, provider-ownership authority, billing authority and exactly-once remote execution may not silently change inside the same declared generation.
 
 ## MCP boundary
 
 The implemented MCP profile covers server discovery/tool calls, configured provider invocation and general explicitly selected tool discovery/import. Broader optional MCP resources, prompts, subscriptions, Apps/extensions remain outside the accepted runtime profile unless separately implemented and evidenced.
 
-Sprint E exercises one standard `resource_link + resources/read` sequence only as an explicit artifact-resolution profile. That does not broaden generalized MCP resource support.
+P2-E1 exercises one standard `resource_link + resources/read` sequence only as an explicit artifact-resolution profile. That does not broaden generalized MCP resource support.
+
+## Bounded pre-v1 compatibility promise
+
+P2-E2 accepts compatibility generation `a2a-mcp-pre-v1/g1` while keeping `TRUYN/1` draft.
+
+The declared profile includes:
+
+- A2A `1.0` JSON-RPC Agent Card / `SendMessage` / bounded `GetTask` / Artifact mapping;
+- MCP `2026-07-28` import/provider discovery, `tools/list`, `tools/call`, plus the bounded P2-E1 referenced-resource resolver profile;
+- MCP facade/server `2026-07-28` plus bounded legacy inbound `2025-11-25` and `2025-06-18`;
+- deterministic failure for unsupported required versions or unknown required interoperability semantics;
+- optional unknown semantics may be ignored only when authority/integrity/correlation behavior is unchanged.
+
+The promise is executable through `adapters/compatibility/a2a-mcp.js` and `tests/a2a-mcp-compatibility-promise.test.js`. The durable migration/deprecation contract is `../compatibility/A2A_MCP_STABILITY.md`.
 
 ## Adoption boundary
 
-TRUYN has crossed four distinct bounded evidence levels:
+TRUYN has crossed five distinct bounded evidence levels:
 
 1. **C7:** in-repository bidirectional composition;
 2. **Sprint C/D:** independent official SDK/reference-server black-box interoperability in both directions;
 3. **C8:** adversarial cross-protocol security acceptance on exact head and exact merged main;
-4. **Sprint E:** bidirectional external referenced-artifact interoperability with exact integrity verification and explicit materialization.
+4. **P2-E1 / Sprint E:** bidirectional external referenced-artifact interoperability with exact integrity verification and explicit materialization;
+5. **P2-E2:** declared and CI-enforced bounded pre-v1 compatibility generation `a2a-mcp-pre-v1/g1`.
 
 This still does **not** mean:
 
@@ -196,12 +214,12 @@ This still does **not** mean:
 - every optional A2A/MCP feature is supported;
 - generalized MCP resources are a supported TRUYN OBJECT/STATE import/publication surface;
 - arbitrary remote URLs may be fetched;
-- the adapters have a stable-v1 compatibility guarantee.
+- stable A2A/MCP v1 has been declared.
 
-The remaining adoption/stability work is the explicit compatibility/stability declaration and new exact-version evidence whenever the claimed external profile expands.
+The remaining work is additive rather than a missing P2 gate: add exact-version evidence whenever the claimed supported external profile expands, separately implement/evidence optional surfaces, and graduate to a stable A2A/MCP guarantee only when the relevant TRUYN protocol generation is explicitly stable.
 
 ## Versioning
 
-A2A, MCP and TRUYN are versioned independently. Unsupported external protocol versions fail explicitly. A2A/MCP changes belong in adapters unless they change TRUYN network semantics. Exact versions exercised by evidence must be recorded in compatibility/evidence documents.
+A2A, MCP and TRUYN are versioned independently. Unsupported required external protocol versions fail explicitly. A2A/MCP changes belong in adapters unless they change TRUYN network semantics. Exact versions exercised by evidence must be recorded in compatibility/evidence documents.
 
-See `../compatibility/A2A_MCP_COMPATIBILITY.md` for the factual matrix, `../compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md` for C8, `../compatibility/A2A_MCP_EXTERNAL_ARTIFACT_BLACK_BOX.md` for Sprint E and `IMPLEMENTATION_STATUS.md` for repository-wide maturity.
+See `../compatibility/A2A_MCP_COMPATIBILITY.md` for the factual matrix, `../compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md` for C8, `../compatibility/A2A_MCP_EXTERNAL_ARTIFACT_BLACK_BOX.md` for P2-E1/Sprint E, `../compatibility/A2A_MCP_STABILITY.md` for P2-E2, `../compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md` for consolidated P2 evidence, and `IMPLEMENTATION_STATUS.md` for repository-wide maturity.

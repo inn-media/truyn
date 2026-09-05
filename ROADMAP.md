@@ -2,12 +2,14 @@
 
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`; governance rules live in `GOVERNANCE.md` and `docs/governance/`.
 
-**Snapshot:** 2026-09-03  
-**Production/reference baseline:** `main@dd7c3574490e18cc002372d5eb9af704daf03bda`  
+**Snapshot:** 2026-09-05  
+**Production/reference baseline:** `main@9add7ae3d0c7e47343f844d084258d423dd35f63`  
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73` / merged PR `#399`  
 **Sprint C exact executable proof:** `a435ed16e559226ed095959b7b95aa7067271302`  
 **Sprint D exact executable proof:** `0a40e635533f6a9623b19057b3320ba2a888f1f1`  
 **C8 exact accepted main:** `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38` / merged PR `#423`  
+**P2-E1 exact accepted main:** `a85f9294c115c6d6db9dc90d63491c2e6d1af97f` / merged PR `#427`  
+**P2-E2 exact accepted main:** `6f64c3dc6333044126916d3dd0a118e3cf8220d4` / merged PR `#432`  
 **Protocol:** `TRUYN/1` draft
 
 The project has not evolved strictly in numerical version order. Network scale, semantic retrieval, Trustability, provider security, external interoperability and SDK/DX progress in parallel. A completed track does not promote an unrelated track.
@@ -20,7 +22,7 @@ The project has not evolved strictly in numerical version order. Network scale, 
 4. **Bounded real-testnet proven** — real multi-process/host/network evidence exists.
 5. **Productionized** — operational lifecycle/SLO/security gates are accepted for the intended class.
 6. **Internet-scale proven** — large open/WAN/adversarial evidence exists.
-7. **Stable** — compatibility promises are declared.
+7. **Stable** — compatibility promises are declared for the stable claimed profile.
 
 ## Current top-level state
 
@@ -32,11 +34,11 @@ The project has not evolved strictly in numerical version order. Network scale, 
 | Semantic / distributed retrieval | **Implemented / benchmark-proven bounded slices** | broader decentralized operating scale |
 | Trustability | **Implemented / benchmark-proven bounded slices** | production authority/revocation operations |
 | Provider security / BYOK | **Fail-closed reference boundary + bounded account/org/tenant authority implemented** | durable authority/grant persistence + entitlement/accounting operations |
-| A2A / MCP | **C1–C8 accepted; Sprint C independent A2A + Sprint D independent MCP black-box proven** | integrity-verified external artifact/file profile + compatibility/stability policy |
+| A2A / MCP | **C1–C8 + Sprint C/D + P2-E1 external artifact + P2-E2 bounded pre-v1 `g1` accepted** | exact-version/profile evidence when the supported surface expands; stable-v1 graduation remains separate |
 | SDK / DX | **Developer Release source/build layer merged: five clients, direct NEED cancellation, signed PARTIAL, bounded valid-profile Descriptor serving/fetch/verify, five-language executable conformance, per-commit package build/provenance verification** | Descriptor refresh + malformed-endpoint parity + immutable tagged/native registry publication + live developer-site evidence |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Settlement x402/AP2 | **Defined only** | later optional adapter implementation |
-| Mainnet | **Not productionized** | D-1000 + stabilization/operations/compatibility gates |
+| Mainnet | **Not productionized** | D-1000 + stabilization/operations + stable-protocol graduation + governance maturity |
 
 ---
 
@@ -129,15 +131,19 @@ Current accepted state:
 
 C8 closed on exact green head `14757e0f1d182e8fdf15e2f9e7ffe67749efc4ee` and exact merged main `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`. The accepted evidence covers authorization/visibility, account/tenant and provider authority anti-spoofing, correlation attacks and replay, protocol/transport negatives, artifact integrity/SSRF/provenance negatives, zero unauthorized remote executions, exactly-one valid remote execution, full tests/DCO/CodeQL, zero unresolved review threads, and post-merge exact-main CI/CodeQL. Durable evidence and its SHA-256 payload digest are recorded in `docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md`.
 
-### Adoption proof after C7
+### Adoption / compatibility closure after C7
 
 - [x] **Sprint C** — independent official A2A SDK/reference black-box proof;
 - [x] **Sprint D** — independent official MCP SDK/server black-box proof, durable record `docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md`;
-- [ ] carry at least one integrity-verified referenced artifact/file through the claimed external profile;
-- [x] publish exact-version durable external interoperability evidence;
-- [ ] define a compatibility/stability policy before claiming stable A2A/MCP support.
+- [x] **P2-E1 / Sprint E** — carry one deterministic integrity-verified referenced artifact/file through both claimed external directions, PR `#427`;
+- [x] **P2-E1** — exact external artifact metadata preserved: `interop-proof.bin`, `application/octet-stream`, 29 bytes, SHA-256 `257b10be1e90139219f3aa9edbbdea24a80ef453cbbc16e840e1c34d0b24abae`;
+- [x] **P2-E2** — bounded pre-v1 compatibility promise accepted as generation `a2a-mcp-pre-v1/g1`, PR `#432`;
+- [x] **P2-E2** — fail-closed required-version/required-semantic negotiation plus immutable correlation/integrity/authorization/provider-ownership/billing/exactly-once semantics;
+- [x] consolidated P2 acceptance authority in `docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md`.
 
-Sprint C + Sprint D + C8 remain bounded evidence; they do not prove ecosystem-wide certification, close the external referenced artifact/file gate, or make `TRUYN/1` Stable.
+P2-E1 closed on exact merged main `a85f9294c115c6d6db9dc90d63491c2e6d1af97f` with post-merge CI `33956750696` and CodeQL `33956750451` PASS. P2-E2 closed on exact merged main `6f64c3dc6333044126916d3dd0a118e3cf8220d4` with post-merge CI `33959237543` and CodeQL `33959237875` 6/6 PASS.
+
+The accepted compatibility promise is deliberately **bounded pre-v1**. `TRUYN/1` remains draft and stable A2A/MCP v1 is **not yet declared**. Future work is additive: exact-version evidence whenever the supported external profile expands, separate implementation/evidence for optional surfaces, and eventual stable-v1 graduation only with an explicitly stable TRUYN protocol claim.
 
 ---
 
@@ -239,7 +245,7 @@ Before a stable mainnet claim, the project still needs at minimum:
 
 - [ ] accepted D-1000;
 - [ ] production lifecycle/restart/update/rollback plus accepted observability/alerting/on-call compliance against the defined production SLI/SLO contract;
-- [ ] externally evidenced artifact profile and compatibility/stability declaration;
+- [ ] graduation from bounded pre-v1 `a2a-mcp-pre-v1/g1` to any stable A2A/MCP guarantee only when the relevant TRUYN protocol generation is explicitly stable; P2-E1/P2-E2 bounded gates are already closed;
 - [ ] Descriptor refresh and full required endpoint-validation parity for the stable claimed profile;
 - [ ] **public immutable tagged/native** five-language package publication and released-version ecosystem evidence;
 - [ ] live public developer-site evidence;
