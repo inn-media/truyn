@@ -4,8 +4,10 @@ import { xorDistance } from '../dht/kademlia.js';
 const DEFAULT_DISCOVERY_FANOUT = 20;
 const DEFAULT_DISCOVERY_QUERY_BUDGET = 64;
 const DEFAULT_DISCOVERY_RECOVERY_TIMEOUT_MS = 9_000;
+const DEFAULT_DISCOVERY_CONTROL_ATTEMPTS = 2;
 const DEFAULT_DIRECT_CONNECT_TIMEOUT_MS = 5_000;
-const DEFAULT_DIRECT_CONNECT_ATTEMPTS = 2;
+const DEFAULT_DIRECT_CONNECT_ATTEMPTS = 3;
+const DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS = 20_000;
 
 function parseQuicEndpoint(value) {
   if (typeof value !== 'string' || !value.startsWith('quic://')) return null;
@@ -58,8 +60,10 @@ export class DirectFirstP2P {
     faults = null,
     discoveryRecoveryTimeoutMs = DEFAULT_DISCOVERY_RECOVERY_TIMEOUT_MS,
     discoveryQueryBudget = DEFAULT_DISCOVERY_QUERY_BUDGET,
+    discoveryControlAttempts = DEFAULT_DISCOVERY_CONTROL_ATTEMPTS,
     directConnectTimeoutMs = DEFAULT_DIRECT_CONNECT_TIMEOUT_MS,
-    directConnectAttempts = DEFAULT_DIRECT_CONNECT_ATTEMPTS
+    directConnectAttempts = DEFAULT_DIRECT_CONNECT_ATTEMPTS,
+    directConnectionReuseIdleMs = DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS
   } = {}) {
     if (!quicTransport) throw new Error('quicTransport is required');
     if (!discovery) throw new Error('peer discovery is required');
@@ -69,11 +73,17 @@ export class DirectFirstP2P {
     if (!Number.isInteger(discoveryQueryBudget) || discoveryQueryBudget < 1 || discoveryQueryBudget > 256) {
       throw new Error('discoveryQueryBudget must be between 1 and 256');
     }
+    if (!Number.isInteger(discoveryControlAttempts) || discoveryControlAttempts < 1 || discoveryControlAttempts > 4) {
+      throw new Error('discoveryControlAttempts must be between 1 and 4');
+    }
     if (!Number.isInteger(directConnectTimeoutMs) || directConnectTimeoutMs < 10 || directConnectTimeoutMs > 120_000) {
       throw new Error('directConnectTimeoutMs must be between 10 and 120000');
     }
     if (!Number.isInteger(directConnectAttempts) || directConnectAttempts < 1 || directConnectAttempts > 4) {
       throw new Error('directConnectAttempts must be between 1 and 4');
+    }
+    if (!Number.isInteger(directConnectionReuseIdleMs) || directConnectionReuseIdleMs < 10 || directConnectionReuseIdleMs > 120_000) {
+      throw new Error('directConnectionReuseIdleMs must be between 10 and 120000');
     }
     this.quic = quicTransport;
     this.discovery = discovery;
@@ -81,8 +91,10 @@ export class DirectFirstP2P {
     this.faults = faults;
     this.discoveryRecoveryTimeoutMs = discoveryRecoveryTimeoutMs;
     this.discoveryQueryBudget = discoveryQueryBudget;
+    this.discoveryControlAttempts = discoveryControlAttempts;
     this.directConnectTimeoutMs = directConnectTimeoutMs;
     this.directConnectAttempts = directConnectAttempts;
+    this.directConnectionReuseIdleMs = directConnectionReuseIdleMs;
     this.connections = new Map();
     this.discoveryRecoveries = new Map();
     this.queue = new ExplicitBackpressureQueue({ maxInFlight, maxQueued });
@@ -135,8 +147,16 @@ export class DirectFirstP2P {
     if (!selected) throw new Error('peer_has_no_quic_endpoint');
     const binding = peerRecordBinding(peerRecord, selected.value);
     const existing = this.connections.get(peerRecord.nodeId);
-    if (existing?.binding === binding) return existing.client;
-    if (existing) await this.#discardConnection(peerRecord.nodeId);
+    if (existing?.binding === binding) {
+      const lastUsedAt = Number.isFinite(existing.lastUsedAt) ? existing.lastUsedAt : 0;
+      if (Date.now() - lastUsedAt < this.directConnectionReuseIdleMs) {
+        existing.lastUsedAt = Date.now();
+        return existing.client;
+      }
+      await this.#discardConnection(peerRecord.nodeId);
+    } else if (existing) {
+      await this.#discardConnection(peerRecord.nodeId);
+    }
 
     let client = null;
     let lastError = null;
@@ -151,7 +171,7 @@ export class DirectFirstP2P {
     }
     if (!client) throw lastError || new Error('peer_connection_failed');
 
-    this.connections.set(peerRecord.nodeId, { client, binding });
+    this.connections.set(peerRecord.nodeId, { client, binding, lastUsedAt: Date.now() });
     this.#watchConnection(peerRecord.nodeId, client);
     return client;
   }
@@ -224,7 +244,16 @@ export class DirectFirstP2P {
 
           void (async () => {
             try {
-              const response = await rpc.findNode(peer, peerNodeId);
+              let response = null;
+              for (let attempt = 0; attempt < this.discoveryControlAttempts; attempt += 1) {
+                try {
+                  response = await rpc.findNode(peer, peerNodeId);
+                  break;
+                } catch {
+                  rpc.forget?.(peer.nodeId);
+                  if (attempt + 1 >= this.discoveryControlAttempts) throw new Error('discovery_control_recovery_exhausted');
+                }
+              }
               for (const record of response?.records || []) ingest.call(this.discovery, record);
               const recovered = this.discovery.get(peerNodeId);
               if (recovered) finish(recovered);
@@ -304,8 +333,8 @@ export class DirectFirstP2P {
       // on the control plane before any application envelope is dispatched. Use both
       // currently valid peers and previously authenticated routing hints, including an
       // exact stale target hint, and continuously expand the bounded query frontier as
-      // fresh signed records arrive. Only a currently valid signed target record can
-      // authorize the subsequent direct NEED send; control recovery never retries it.
+      // fresh signed records arrive. A failed read-only FIND_NODE control exchange gets
+      // one bounded fresh-session retry; the application envelope is never retried.
       const liveRecovery = this.#recoverFromLivePeers(peerNodeId);
       const iterativeRecovery = typeof this.discovery.findNode === 'function'
         ? this.#boundedDiscovery(peerNodeId, Promise.resolve().then(() => this.discovery.findNode(peerNodeId)))
