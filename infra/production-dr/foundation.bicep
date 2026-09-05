@@ -77,6 +77,9 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
       }
     ]
   }
+  dependsOn: [
+    cosmos
+  ]
 }
 
 var acaSubnetId = resourceId('Microsoft.Network/virtualNetworks/subnets', vnet.name, acaSubnetName)
@@ -86,6 +89,9 @@ resource authorityIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@202
   name: identityName
   location: location
   tags: tags
+  dependsOn: [
+    cosmos
+  ]
 }
 
 resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
@@ -100,6 +106,9 @@ resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
     publicNetworkAccess: 'Enabled'
     dataEndpointEnabled: false
   }
+  dependsOn: [
+    cosmos
+  ]
 }
 
 resource managedEnvironment 'Microsoft.App/managedEnvironments@2025-07-01' = {
@@ -189,6 +198,9 @@ resource cosmosPrivateDns 'Microsoft.Network/privateDnsZones@2024-06-01' = {
   name: cosmosPrivateDnsZoneName
   location: 'global'
   tags: tags
+  dependsOn: [
+    cosmos
+  ]
 }
 
 resource cosmosPrivateDnsVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
@@ -266,8 +278,10 @@ resource registryPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 }
 
 output contract object = {
-  schemaVersion: 1
+  schemaVersion: 2
   sourceSha: sourceSha
+  primaryRegion: location
+  secondaryRegion: secondaryLocation
   backupType: 'Continuous'
   backupTier: backupTier
   regionCount: 2

@@ -58,6 +58,14 @@ test('Container Apps foundation is internal and VNet integrated', async () => {
   assert.match(source, /publicNetworkAccess: 'Disabled'/);
 });
 
+test('capacity attempts do not fan out non-Cosmos infrastructure before Cosmos succeeds', async () => {
+  const source = await text(BICEP);
+  for (const resource of ['vnet', 'authorityIdentity', 'registry', 'cosmosPrivateDns']) {
+    assert.match(source, new RegExp(`resource ${resource} `));
+  }
+  assert.ok((source.match(/dependsOn:\s*\[\s*cosmos\s*\]/g) || []).length >= 4);
+});
+
 test('foundation workflow validates PRs but mutates Azure only from main push', async () => {
   const workflow = await text(WORKFLOW);
   assert.match(workflow, /pull_request:/);
@@ -82,6 +90,33 @@ test('foundation deploy is bounded to an existing resource group and never requi
   assert.doesNotMatch(workflow, /az group create/);
 });
 
+test('Cosmos region fallback is bounded, deterministic and capacity-only', async () => {
+  const workflow = await text(WORKFLOW);
+  assert.match(workflow, /TRUYN_DR_REGION_PAIRS \|\| 'northeurope:swedencentral germanywestcentral:francecentral'/);
+  assert.match(workflow, /for pair in \$REGION_PAIRS/);
+  assert.match(workflow, /\[\[ "\$attempt" -le 2 \]\]/);
+  assert.match(workflow, /GITHUB_REPOSITORY_ID}:\$\{primary}:\$\{secondary}/);
+  assert.match(workflow, /ServiceUnavailable\|high demand\|capacity\|region access\|LocationNotAvailableForResourceType\|RegionNotAvailable\|NotAvailableForSubscription/);
+  assert.match(workflow, /non-regional-capacity reason; fallback is forbidden/);
+  assert.match(workflow, /All bounded EU Cosmos region candidates are unavailable/);
+  assert.doesNotMatch(workflow, /PRIMARY_LOCATION:|SECONDARY_LOCATION:/);
+});
+
+test('live proof pins the actual selected region pair and records fallback evidence', async () => {
+  const workflow = await text(WORKFLOW);
+  for (const marker of [
+    'SELECTED_PRIMARY_LOCATION',
+    'SELECTED_SECONDARY_LOCATION',
+    'REGION_ATTEMPT_COUNT',
+    'REGION_FALLBACK_USED',
+    'primaryRegion: $primaryRegion',
+    'secondaryRegion: $secondaryRegion',
+    'regionAttemptCount: $regionAttemptCount',
+    'fallbackUsed: $fallbackUsed',
+  ]) assert.ok(workflow.includes(marker), `missing region evidence marker: ${marker}`);
+  assert.match(workflow, /\[\.locations\[\]\.locationName \| gsub\(" "; ""\) \| ascii_downcase\] \| sort/);
+});
+
 test('live foundation evidence proves backup, replication, RBAC and private ingress without identifiers', async () => {
   const workflow = await text(WORKFLOW);
   for (const marker of [
@@ -95,6 +130,7 @@ test('live foundation evidence proves backup, replication, RBAC and private ingr
     'containerAppsEnvironmentInternal: true',
     'partitionKeyVerified: true',
   ]) assert.ok(workflow.includes(marker), `missing live proof marker: ${marker}`);
+  assert.match(workflow, /schemaVersion: 2/);
   assert.match(workflow, /production-dr-foundation-evidence\.json/);
   assert.match(workflow, /actions\/upload-artifact@v4/);
   assert.doesNotMatch(workflow, /connectionString|accountKey|listKeys/i);
