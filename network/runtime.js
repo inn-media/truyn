@@ -64,7 +64,11 @@ export class TruynNetworkNode {
     this.peerRecordRenewTimer = null;
     this.peerRecordRenewalInFlight = null;
     this.peerRecordRecoveryRetryTimer = null;
-    this.peerRecordRecoveryRetryDelaysMs = [1_000, 3_000, 10_000];
+    this.peerRecordPropagationQueued = false;
+    // Peer-record propagation is control-plane recovery. The complete retry
+    // schedule remains comfortably inside the unchanged 120s network recovery
+    // contract and never retries an application NEED envelope.
+    this.peerRecordRecoveryRetryDelaysMs = [1_000, 3_000, 10_000, 30_000, 45_000];
     this.peerRecordLifecycle = {
       autoRenew: this.peerRecordAutoRenew,
       ttlMs: this.peerRecordTtlMs,
@@ -75,6 +79,15 @@ export class TruynNetworkNode {
       lastSequence: null,
       lastAnnouncementAt: null,
       lastAnnouncement: null,
+      propagation: {
+        recordId: null,
+        sequence: null,
+        targetNodeIds: [],
+        acknowledgedNodeIds: [],
+        pendingNodeIds: [],
+        ready: true,
+        lastUpdatedAt: null
+      },
       lastError: null
     };
     this.sequence = 0;
@@ -93,6 +106,10 @@ export class TruynNetworkNode {
       this.rpc?.forget?.(nodeId);
       const forgotten = this.router?.forget?.(nodeId);
       if (forgotten?.catch) void forgotten.catch(() => {});
+      // A changed signed peer record may change the Kademlia placement set for
+      // our own current record. Reconcile it asynchronously so record placement
+      // follows live routing state rather than depending on application traffic.
+      this.#schedulePeerRecordPropagation();
     };
     this.recordStore = new KademliaRecordStore({ onChange: onStateChange });
     this.quic = new TruynQuicTransport({ identity, host, port, tls });
@@ -178,6 +195,102 @@ export class TruynNetworkNode {
     this.peerRecordRenewTimer = null;
   }
 
+  #peerRecordPropagationPeers(record = this.localPeerRecord) {
+    if (!record || this.peerRecordPublishFanout <= 0) return [];
+    return this.discovery.closest(record.nodeId, this.peerRecordPublishFanout)
+      .filter((peer) => peer?.nodeId && peer.nodeId !== this.identity.nodeId);
+  }
+
+  #resetPeerRecordPropagation(record = this.localPeerRecord, peers = null) {
+    const candidates = Array.isArray(peers) ? peers : this.#peerRecordPropagationPeers(record);
+    const targetNodeIds = [...new Set(candidates.map((peer) => peer?.nodeId).filter(Boolean))].sort();
+    this.peerRecordLifecycle.propagation = {
+      recordId: record?.recordId || null,
+      sequence: record?.sequence ?? null,
+      targetNodeIds,
+      acknowledgedNodeIds: [],
+      pendingNodeIds: [...targetNodeIds],
+      ready: targetNodeIds.length === 0,
+      lastUpdatedAt: new Date().toISOString()
+    };
+  }
+
+  #recordPeerRecordPropagation(record, candidates, settled, { replaceTargets = false } = {}) {
+    if (!record || this.localPeerRecord?.recordId !== record.recordId) return;
+    const previous = this.peerRecordLifecycle.propagation || {};
+    const sameRecord = previous.recordId === record.recordId;
+    const candidateIds = candidates.map((peer) => peer?.nodeId).filter(Boolean);
+    const targets = new Set(
+      replaceTargets
+        ? candidateIds
+        : (sameRecord ? previous.targetNodeIds || [] : candidateIds)
+    );
+    const acknowledged = new Set(
+      sameRecord
+        ? (previous.acknowledgedNodeIds || []).filter((nodeId) => targets.has(nodeId))
+        : []
+    );
+    for (let i = 0; i < candidateIds.length; i += 1) {
+      if (settled[i]?.status === 'fulfilled') acknowledged.add(candidateIds[i]);
+    }
+    const targetNodeIds = [...targets].sort();
+    const acknowledgedNodeIds = [...acknowledged].filter((nodeId) => targets.has(nodeId)).sort();
+    const acknowledgedSet = new Set(acknowledgedNodeIds);
+    const pendingNodeIds = targetNodeIds.filter((nodeId) => !acknowledgedSet.has(nodeId));
+    this.peerRecordLifecycle.propagation = {
+      recordId: record.recordId,
+      sequence: record.sequence,
+      targetNodeIds,
+      acknowledgedNodeIds,
+      pendingNodeIds,
+      ready: pendingNodeIds.length === 0,
+      lastUpdatedAt: new Date().toISOString()
+    };
+  }
+
+  async #publishCurrentPeerRecord(record = this.localPeerRecord) {
+    if (!record || !this.started || this.closing || this.localPeerRecord?.recordId !== record.recordId) {
+      return { sequence: record?.sequence ?? null, attempted: 0, delivered: 0, failed: 0, failedNodeIds: [] };
+    }
+    const peers = this.#peerRecordPropagationPeers(record);
+    const announcement = await this.announcePeerRecord(record, {
+      peers,
+      fanout: peers.length,
+      replacePropagationTargets: true
+    });
+    if (announcement.failed > 0) {
+      this.#schedulePeerRecordRecoveryRetries(record, peers, announcement.failedNodeIds);
+    } else {
+      this.#clearPeerRecordRecoveryRetryTimer();
+      this.peerRecordLifecycle.lastError = null;
+    }
+    return announcement;
+  }
+
+  #schedulePeerRecordPropagation(record = this.localPeerRecord) {
+    if (this.peerRecordPropagationQueued || !this.started || this.closing || !record) return;
+    const recordId = record.recordId;
+    this.peerRecordPropagationQueued = true;
+    queueMicrotask(() => {
+      this.peerRecordPropagationQueued = false;
+      if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
+      const peers = this.#peerRecordPropagationPeers(record);
+      const targets = peers.map((peer) => peer.nodeId).sort();
+      const propagation = this.peerRecordLifecycle.propagation;
+      const currentTargets = propagation?.recordId === recordId ? [...(propagation.targetNodeIds || [])].sort() : [];
+      const unchangedTargets = targets.length === currentTargets.length && targets.every((nodeId, index) => nodeId === currentTargets[index]);
+      if (unchangedTargets && propagation?.ready) return;
+      void this.#publishCurrentPeerRecord(record).catch((error) => {
+        if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
+        this.peerRecordLifecycle.lastError = {
+          at: new Date().toISOString(),
+          code: error?.code || null,
+          message: error?.message || String(error)
+        };
+      });
+    });
+  }
+
   #clearPeerRecordRecoveryRetryTimer() {
     if (!this.peerRecordRecoveryRetryTimer) return;
     clearTimeout(this.peerRecordRecoveryRetryTimer);
@@ -198,7 +311,7 @@ export class TruynNetworkNode {
     this.peerRecordRecoveryRetryTimer = setTimeout(() => {
       this.peerRecordRecoveryRetryTimer = null;
       if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
-      void this.announcePeerRecord(record, { peers, fanout: peers.length })
+      void this.announcePeerRecord(record, { peers, fanout: peers.length, replacePropagationTargets: false })
         .then((result) => {
           if (result.failed === 0) {
             this.peerRecordLifecycle.lastError = null;
@@ -257,6 +370,16 @@ export class TruynNetworkNode {
     return structuredClone(this.peerRecordLifecycle);
   }
 
+  peerRecordPropagationReady() {
+    const propagation = this.peerRecordLifecycle.propagation;
+    return Boolean(
+      this.started &&
+      this.localPeerRecord &&
+      propagation?.recordId === this.localPeerRecord.recordId &&
+      propagation.ready === true
+    );
+  }
+
   discoveryPeriodicRefreshSnapshot() {
     return this.discovery.periodicRefreshSnapshot();
   }
@@ -281,6 +404,7 @@ export class TruynNetworkNode {
     await this.persistState();
     await this.recoverAcceptedWork();
     this.peerRecordLifecycle.lastSequence = this.localPeerRecord.sequence;
+    this.#resetPeerRecordPropagation(this.localPeerRecord, recoveryPeers);
 
     // A durable restart mints a strictly newer signed peer record. Publish it to every
     // still-valid peer recovered from durable routing state before startup completes.
@@ -290,7 +414,8 @@ export class TruynNetworkNode {
     if (recoveryPeers.length > 0) {
       const announcement = await this.announcePeerRecord(this.localPeerRecord, {
         peers: recoveryPeers,
-        fanout: recoveryPeers.length
+        fanout: recoveryPeers.length,
+        replacePropagationTargets: true
       });
       if (announcement.failed > 0) {
         this.#schedulePeerRecordRecoveryRetries(
@@ -322,11 +447,16 @@ export class TruynNetworkNode {
     this.sequence += 1;
     this.localPeerRecord = createPeerRecord({ identity: this.identity, endpoints: [endpoint], sequence: this.sequence,
       ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat });
+    this.#resetPeerRecordPropagation(this.localPeerRecord);
     if (persist) this.schedulePersist();
     return structuredClone(this.localPeerRecord);
   }
 
-  async announcePeerRecord(record = this.localPeerRecord, { fanout = this.peerRecordPublishFanout, peers = null } = {}) {
+  async announcePeerRecord(record = this.localPeerRecord, {
+    fanout = this.peerRecordPublishFanout,
+    peers = null,
+    replacePropagationTargets = true
+  } = {}) {
     if (!this.started) throw new Error('network node is not started');
     const verification = verifyPeerRecord(record);
     if (!verification.ok || record.nodeId !== this.identity.nodeId) throw new Error(`invalid_local_peer_record:${verification.reason || 'identity_mismatch'}`);
@@ -356,6 +486,7 @@ export class TruynNetworkNode {
       failed: failedNodeIds.length,
       failedNodeIds
     };
+    this.#recordPeerRecordPropagation(record, candidates, settled, { replaceTargets: replacePropagationTargets });
     this.peerRecordLifecycle.lastAnnouncementAt = new Date().toISOString();
     this.peerRecordLifecycle.lastAnnouncement = result;
     return structuredClone(result);
@@ -373,8 +504,9 @@ export class TruynNetworkNode {
       await this.persistState();
 
       const announcement = announce
-        ? await this.announcePeerRecord(record)
+        ? await this.#publishCurrentPeerRecord(record)
         : { sequence: record.sequence, attempted: 0, delivered: 0, failed: 0, failedNodeIds: [] };
+      if (!announce) this.#resetPeerRecordPropagation(record, []);
       this.peerRecordLifecycle.lastRenewedAt = new Date().toISOString();
       this.peerRecordLifecycle.lastSequence = record.sequence;
       this.peerRecordLifecycle.lastError = null;
@@ -403,6 +535,7 @@ export class TruynNetworkNode {
       if (!verification.ok) { results.push({ accepted: false, reason: verification.reason }); continue; }
       results.push(this.discovery.ingest(record));
     }
+    if (results.some((result) => result.accepted)) this.#schedulePeerRecordPropagation();
     return results;
   }
 
@@ -438,6 +571,7 @@ export class TruynNetworkNode {
     this.closing = true;
     this.#clearPeerRecordRenewTimer();
     this.#clearPeerRecordRecoveryRetryTimer();
+    this.peerRecordPropagationQueued = false;
     this.discovery.close();
     if (this.peerRecordRenewalInFlight) {
       try { await this.peerRecordRenewalInFlight; } catch { /* renewal failure must not prevent shutdown */ }
