@@ -153,7 +153,7 @@ export function createEntitlementAuthority({
     if (!requester?.ok) return { ok: false, reason: requester?.reason || 'requester_authority_denied' };
     if (!provider?.ok) return { ok: false, reason: provider?.reason || 'provider_authority_denied' };
 
-    for (const [kind, id] of [
+    const checks = [
       ['node', requester.nodeId],
       ['principal', requester.principalId],
       ['tenant', requester.tenantId],
@@ -165,7 +165,10 @@ export function createEntitlementAuthority({
       ['tenant', provider.tenantId],
       ['organization', provider.organizationId],
       ['account', provider.accountId]
-    ]) {
+    ];
+    for (const membershipId of requester.membershipIds || []) checks.push(['membership', membershipId]);
+    for (const membershipId of provider.membershipIds || []) checks.push(['membership', membershipId]);
+    for (const [kind, id] of checks) {
       if (revoked(kind, id)) return { ok: false, reason: `${kind}_revoked` };
     }
 
