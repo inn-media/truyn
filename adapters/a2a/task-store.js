@@ -39,6 +39,23 @@ function statusUpdateEvent(task, metadata = undefined) {
   };
 }
 
+function failPartial(task, errorCode, message, nowMs) {
+  const timestamp = nowIso(nowMs);
+  task.status = {
+    state: A2A_TASK_STATES.failed,
+    timestamp,
+    message: {
+      messageId: randomUUID(),
+      role: 'ROLE_AGENT',
+      parts: [{ text: message, mediaType: 'text/plain' }],
+      metadata: { 'io.truyn/errorCode': errorCode }
+    }
+  };
+  task.lastModified = timestamp;
+  task.streamEvents.push(statusUpdateEvent(task, { 'io.truyn/source': 'partial' }));
+  return task;
+}
+
 export class A2aTaskStore {
   constructor({ maxTasks = 1024, maxReplayMarkers = null, taskTtlMs = 60 * 60 * 1000, now = () => Date.now() } = {}) {
     if (!Number.isInteger(maxTasks) || maxTasks < 1) throw new Error('A2A maxTasks must be a positive integer');
@@ -122,7 +139,8 @@ export class A2aTaskStore {
       providerNodeId: null,
       providerTrust: null,
       streamArtifactId: null,
-      streamEvents: []
+      streamEvents: [],
+      nextStreamSequence: 0
     };
     this.tasks.set(task.id, task);
     if (correlationKey) {
@@ -284,7 +302,16 @@ export class A2aTaskStore {
 
     if (event.kind === 'PARTIAL') {
       const sequence = event.payload?.sequence;
-      if (!Number.isSafeInteger(sequence) || sequence < 0 || !Object.prototype.hasOwnProperty.call(event.payload || {}, 'delta')) return null;
+      const hasDelta = Object.prototype.hasOwnProperty.call(event.payload || {}, 'delta');
+      if (!Number.isSafeInteger(sequence) || sequence < 0 || !hasDelta || sequence !== task.nextStreamSequence) {
+        const nowMs = this.now();
+        const code = !hasDelta
+          ? 'A2A_PARTIAL_DELTA_REQUIRED'
+          : (!Number.isSafeInteger(sequence) || sequence < 0 ? 'A2A_PARTIAL_SEQUENCE_INVALID' : 'A2A_PARTIAL_SEQUENCE_MISMATCH');
+        failPartial(task, code, 'TRUYN partial failed A2A stream ordering validation', nowMs);
+        this.touchReplayMarker(task, nowMs);
+        return task;
+      }
       try {
         task.streamArtifactId ||= randomUUID();
         const artifact = artifactFromTruynResult(event.payload.delta, {
@@ -304,20 +331,14 @@ export class A2aTaskStore {
             metadata: { 'io.truyn/sequence': sequence }
           }
         });
+        task.nextStreamSequence += 1;
+        const nowMs = this.now();
+        task.lastModified = nowIso(nowMs);
+        this.touchReplayMarker(task, nowMs);
       } catch (error) {
         const nowMs = this.now();
-        task.status = {
-          state: A2A_TASK_STATES.failed,
-          timestamp: nowIso(nowMs),
-          message: {
-            messageId: randomUUID(),
-            role: 'ROLE_AGENT',
-            parts: [{ text: 'TRUYN partial failed A2A artifact integrity validation', mediaType: 'text/plain' }],
-            metadata: { 'io.truyn/errorCode': error?.code || 'A2A_PARTIAL_MAPPING_FAILED' }
-          }
-        };
-        task.lastModified = task.status.timestamp;
-        task.streamEvents.push(statusUpdateEvent(task, { 'io.truyn/source': 'partial' }));
+        failPartial(task, error?.code || 'A2A_PARTIAL_MAPPING_FAILED', 'TRUYN partial failed A2A artifact integrity validation', nowMs);
+        this.touchReplayMarker(task, nowMs);
       }
       return task;
     }
