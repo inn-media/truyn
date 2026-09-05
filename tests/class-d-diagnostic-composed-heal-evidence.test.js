@@ -16,7 +16,7 @@ test('D-200 composed heal diagnostics apply bounded local controls and preserve 
 
   const run = spawnSync('python3', ['scripts/patch-class-d-diagnostic-composed-heal-evidence.py', provisionTarget, campaignTarget], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr || run.stdout);
-  assert.match(run.stdout, /TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,packet-partition,healed-reconvergence,healed-origin,bounded-evidence-transport,write-retention-window/);
+  assert.match(run.stdout, /TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,baseline-origin,packet-partition,healed-reconvergence,healed-origin,bounded-evidence-transport,write-retention-window/);
 
   const provisionAfter = await readFile(provisionTarget, 'utf8');
   const campaignAfter = await readFile(campaignTarget, 'utf8');
@@ -25,6 +25,18 @@ test('D-200 composed heal diagnostics apply bounded local controls and preserve 
   assert.ok(provisionAfter.includes('TRUYN_CONTROL_HOST=127.0.0.1'), 'diagnostic fault control must remain on the localhost control plane');
   assert.equal(provisionAfter.match(/d200_failure_evidence_checkpoint\(\) \{/g)?.length, 1, 'universal failure helper must be installed exactly once on provisioner');
   assert.equal(provisionAfter.match(/d200_err_trap\(\) \{/g)?.length, 1, 'universal ERR helper must be installed exactly once on provisioner');
+
+  assert.ok(campaignAfter.includes('D200_BASELINE_ORIGIN_DIAG=1'), 'baseline origin diagnostics must be installed');
+  assert.ok(campaignAfter.includes('D200_BASELINE_ROW_MAX_BYTES=1800'), 'each transported baseline failure row must be bounded');
+  assert.ok(campaignAfter.includes("'peerRecordBeforeFirstAttempt':peer_before"), 'baseline must capture target peer-record validity before the first attempt');
+  assert.ok(campaignAfter.includes("'routingBeforeFirstAttempt':state_before"), 'baseline must capture routing/valid/stale counts before the first attempt');
+  assert.ok(campaignAfter.includes("'d1000-baseline-production-recovery-retry'"), 'failed baseline first attempts must get a production-path diagnostic retry');
+  assert.ok(campaignAfter.includes("'countedInBaselineAcceptance':False"), 'diagnostic retry must not change baseline acceptance');
+  assert.ok(campaignAfter.includes('class-d-200-baseline-origin.json'), 'baseline origin evidence artifact must be persisted');
+  assert.ok(campaignAfter.includes('class-d-200-baseline-origin-digest.txt'), 'baseline origin artifact must have a SHA-256 sidecar');
+  assert.ok(campaignAfter.includes('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED'), 'baseline evidence transport must fail closed on corruption/truncation');
+  assert.ok(campaignAfter.includes("assert float('$base_rate') >= .99, '$base_rate'"), 'baseline first-attempt acceptance must remain >=99%');
+
   assert.ok(campaignAfter.includes('PACKET_DIAG_PHASE=heal-timeout'), 'packet heal diagnostics must remain installed');
   assert.ok(campaignAfter.includes('TRUYN_D200_FAILURE_EVIDENCE=CHECKPOINT stage=packet-partition'), 'packet-specific checkpoint marker must coexist with universal provisioner checkpoint');
   assert.ok(campaignAfter.includes('D200_HEALED_EVIDENCE_TRANSPORT=1'), 'bounded healed evidence transport must be installed');
