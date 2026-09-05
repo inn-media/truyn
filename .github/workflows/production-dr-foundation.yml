@@ -43,6 +43,7 @@ jobs:
       AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
       AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+      RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
       PRIMARY_LOCATION: ${{ vars.TRUYN_PRIMARY_LOCATION || 'westeurope' }}
       SECONDARY_LOCATION: ${{ vars.TRUYN_SECONDARY_LOCATION || 'northeurope' }}
       BACKUP_TIER: Continuous30Days
@@ -65,20 +66,21 @@ jobs:
           az bicep install >/dev/null
           suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}" | sha256sum | cut -c1-10)"
           prefix="truyn${suffix}"
-          resource_group="truyn-prod-${suffix}"
           printf '::add-mask::%s\n' "$prefix"
-          printf '::add-mask::%s\n' "$resource_group"
-          printf 'PREFIX=%s\nRESOURCE_GROUP=%s\n' "$prefix" "$resource_group" >> "$GITHUB_ENV"
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+          printf 'PREFIX=%s\n' "$prefix" >> "$GITHUB_ENV"
 
       - name: Provision production persistence foundation
         shell: bash
         run: |
           set -euo pipefail
-          az group create \
+          resource_group_id="$(az group show \
             --name "$RESOURCE_GROUP" \
-            --location "$PRIMARY_LOCATION" \
-            --tags truyn-managed=true \
-            --only-show-errors >/dev/null
+            --query id \
+            -o tsv \
+            --only-show-errors)"
+          [[ -n "$resource_group_id" ]]
+          printf '::add-mask::%s\n' "$resource_group_id"
 
           az deployment group create \
             --resource-group "$RESOURCE_GROUP" \
