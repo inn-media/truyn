@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "closedAt": "2026-09-05",
+  "repository": "inn-media/truyn",
+  "npm": {
+    "package": "@truyn/sdk",
+    "version": "0.1.0-alpha.2",
+    "packageSourceSha": "67ad856327947bb6fa1728e8fee3ba8553b37e24",
+    "releaseTag": "sdk/npm/v0.1.0-alpha.2-release.4",
+    "tarballBytes": 21295,
+    "sha256": "e70e1d726511c0cd3454d7bafdc1245c00c7eeda0afe7e51781e98160e2144d7",
+    "shasum": "ac94d083a05348ae3a9cd3b086063f67d9225c44",
+    "integrity": "sha512-zBr13swGU9D81JmwPEau7HtSBTuhM2J7WNOVo4R/c40N49FeurWYEOE53hq4fnAQuHZ+BFdyOzz+ylmk0sNsZw==",
+    "attestationUrl": "https://registry.npmjs.org/-/npm/v1/attestations/@truyn%2fsdk@0.1.0-alpha.2",
+    "sigstoreTransparencyLogIndex": 2725236688,
+    "publishedAt": "2026-09-05T12:16:03.506Z",
+    "distTags": {
+      "alpha": "0.1.0-alpha.2",
+      "latest": "0.1.0-alpha.2"
+    },
+    "sourceCiRunId": 33965228235,
+    "sourceCodeqlRunId": 33965227398,
+    "publicationRunId": 33965529159,
+    "publicationWorkflowCommit": "7554630f1752e8c6969a4d03ab3415480c82657e",
+    "publicationWorkflowPath": ".github/workflows/npm-alpha2-bootstrap-publication.yml",
+    "publicationWorkflowRef": "refs/heads/release/npm-alpha2-bootstrap-publication-20260905",
+    "publicationAuthentication": "bounded one-shot npm credential for npm user truyn; no persistent token-backed publication workflow retained",
+    "githubProvenance": "PASS",
+    "byteIdentity": "PASS",
+    "cleanRoomInstall": "PASS",
+    "canonicalExports": [
+      "TruynClient",
+      "TruynLocalNodeClient"
+    ],
+    "signatureAudit": "PASS",
+    "publicationEvidenceArtifact": {
+      "artifactId": 9969303731,
+      "sizeBytes": 31831,
+      "digest": "sha256:90621c9cd33e12017b513eaa410347b161d15e469c3da991856a0befcb594866"
+    },
+    "independentVerification": {
+      "runId": 33965828141,
+      "credentialsUsedForRegistryReads": false,
+      "publicRegistryRead": "PASS",
+      "byteIdentity": "PASS",
+      "alphaTagIdentity": "PASS",
+      "latestTagIdentity": "PASS",
+      "cleanRoomInstall": "PASS",
+      "signatureAudit": "PASS",
+      "slsaProvenanceIdentity": "PASS",
+      "observedPublicationWorkflowCommit": "7554630f1752e8c6969a4d03ab3415480c82657e",
+      "observedPublicationWorkflowPath": ".github/workflows/npm-alpha2-bootstrap-publication.yml",
+      "observedPublicationWorkflowRef": "refs/heads/release/npm-alpha2-bootstrap-publication-20260905",
+      "evidenceArtifact": {
+        "artifactId": 9969387297,
+        "sizeBytes": 83740,
+        "digest": "sha256:80d7ba29d5942dce2a1e9a7d422f041a84f617770267abc8c311874fb3b8f524"
+      }
+    },
+    "secondaryPublicProvenanceProbe": {
+      "runId": 33966703296,
+      "credentialsUsedForRegistryReads": false,
+      "cleanRoomInstall": "PASS",
+      "signatureAudit": "PASS",
+      "slsaProvenanceIdentity": "PASS"
+    },
+    "trustedPublishingClosure": {
+      "status": "ACCOUNT_POLICY_PENDING_FOR_FUTURE_RELEASES",
+      "release3Result": "ENEEDAUTH after token-placeholder removal with GitHub OIDC variables present",
+      "repositoryAutomationCanModifyNpmTrust": false,
+      "futureRequirement": "Configure npm account-side Trusted Publisher for the exact future GitHub workflow identity before enabling a canonical npm publisher"
+    },
+    "immutableAttemptRefs": [
+      "sdk/npm/v0.1.0-alpha.2",
+      "sdk/npm/v0.1.0-alpha.2-release.1",
+      "sdk/npm/v0.1.0-alpha.2-release.2",
+      "sdk/npm/v0.1.0-alpha.2-release.3",
+      "sdk/npm/v0.1.0-alpha.2-release.4",
+      "sdk/npm/v0.1.0-alpha.2-release.5"
+    ],
+    "release5VerificationOnly": {
+      "tagTargetSha": "bf09a8bcdfc989306ea555a271d81f07ec2edbe2",
+      "registryMutation": false,
+      "result": "public bytes matched accepted artifact; verifier rejected an incorrect current-source provenance expectation because immutable npm provenance correctly identifies the earlier successful bootstrap publication"
+    }
+  },
+  "pypi": {
+    "package": "truyn-sdk",
+    "version": "0.1.0a1",
+    "recordedPublicationSourceSha": "fda6b75fda5331dd9cdc7e642f7a0a5556749a64",
+    "wheel": {
+      "filename": "truyn_sdk-0.1.0a1-py3-none-any.whl",
+      "sizeBytes": 18872,
+      "sha256": "dec464064dec577aa56d33780c6222ac674accf07fe09ae59af18a191afcd958"
+    },
+    "sdist": {
+      "filename": "truyn_sdk-0.1.0a1.tar.gz",
+      "sizeBytes": 18759,
+      "sha256": "a2e1e2baa6248cab18bdee08b10e832a39453836a64ad0b55c000f48c890ddaf"
+    },
+    "independentVerificationRunId": 33965828141,
+    "credentialsUsedForRegistryReads": false,
+    "distributionFileSet": "PASS",
+    "attestationsExcludedFromDistributionFileSet": "PASS",
+    "byteIdentity": "PASS",
+    "pep740Publisher": {
+      "kind": "GitHub",
+      "repository": "inn-media/truyn",
+      "workflow": "publish-sdk-alpha.yml",
+      "environment": "sdk-release",
+      "status": "PASS"
+    },
+    "pypiAttestationsVerify": "PASS",
+    "cleanRoomInstall": "PASS"
+  },
+  "cleanupRequirements": {
+    "removeAlpha2RepairWorkflow": true,
+    "removeSupersededGoWorkflow": true,
+    "removeTemporaryReleaseMarker": true,
+    "removeRepairSpecificTest": true,
+    "removeStaleWorkflowAllowlistEntries": true,
+    "retainTokenBackedNpmPublicationPath": false
+  }
+}
