@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { A2A_TASK_STATES, artifactsFromTruynResult } from './mapping.js';
+import { A2A_TASK_STATES, artifactFromTruynResult, artifactsFromTruynResult } from './mapping.js';
 
 const TERMINAL = new Set([
   A2A_TASK_STATES.completed,
@@ -26,6 +26,17 @@ function messageCorrelationKey(ownerKey, message) {
   const messageId = typeof message?.messageId === 'string' && message.messageId.length > 0 ? message.messageId : null;
   if (!messageId) return null;
   return JSON.stringify([ownerKey, messageId]);
+}
+
+function statusUpdateEvent(task, metadata = undefined) {
+  return {
+    statusUpdate: {
+      taskId: task.id,
+      contextId: task.contextId,
+      status: structuredClone(task.status),
+      ...(metadata === undefined ? {} : { metadata: structuredClone(metadata) })
+    }
+  };
 }
 
 export class A2aTaskStore {
@@ -109,7 +120,9 @@ export class A2aTaskStore {
       lastModified: timestamp,
       truynRequestId: null,
       providerNodeId: null,
-      providerTrust: null
+      providerTrust: null,
+      streamArtifactId: null,
+      streamEvents: []
     };
     this.tasks.set(task.id, task);
     if (correlationKey) {
@@ -164,31 +177,43 @@ export class A2aTaskStore {
       }
     };
     task.lastModified = timestamp;
+    task.streamEvents.push(statusUpdateEvent(task, { 'io.truyn/source': 'dispatch' }));
     this.touchReplayMarker(task, nowMs);
     return task;
   }
 
-  completeFromTruynEvent(event) {
-    if (!event || event.kind !== 'RESULT' || event.verification?.ok !== true) return null;
-    const requestId = event.envelope?.payload?.requestId;
-    const taskId = this.byTruynRequestId.get(requestId);
-    if (!taskId) return null;
+  cancel(taskId, message = 'Task canceled') {
     const task = this.tasks.get(taskId);
     if (!task) return null;
-    if (task.providerNodeId && event.envelope?.from !== task.providerNodeId) return null;
-    if (TERMINAL.has(task.status.state)) return task;
-
-    const payload = event.envelope.payload || {};
-    const metadata = payload.metadata && typeof payload.metadata === 'object' ? payload.metadata : {};
-    const failed = Boolean(metadata.failed);
+    if (task.status.state === A2A_TASK_STATES.canceled) return task;
+    if (TERMINAL.has(task.status.state)) return null;
     const nowMs = this.now();
     const timestamp = nowIso(nowMs);
-    task.providerNodeId = event.envelope.from || task.providerNodeId;
-    task.providerTrust = event.trust ? structuredClone(event.trust) : task.providerTrust;
+    task.status = {
+      state: A2A_TASK_STATES.canceled,
+      timestamp,
+      message: {
+        messageId: randomUUID(),
+        role: 'ROLE_AGENT',
+        parts: [{ text: String(message), mediaType: 'text/plain' }]
+      }
+    };
+    task.lastModified = timestamp;
+    task.streamEvents.push(statusUpdateEvent(task, { 'io.truyn/source': 'revoke' }));
+    this.touchReplayMarker(task, nowMs);
+    return task;
+  }
+
+  completeResult(task, { output, metadata = {}, providerNodeId = null, providerTrust = null } = {}) {
+    if (!task || TERMINAL.has(task.status.state)) return task || null;
+    const nowMs = this.now();
+    const timestamp = nowIso(nowMs);
+    task.providerNodeId = providerNodeId || task.providerNodeId;
+    task.providerTrust = providerTrust ? structuredClone(providerTrust) : task.providerTrust;
     task.lastModified = timestamp;
     this.touchReplayMarker(task, nowMs);
 
-    if (failed) {
+    if (metadata?.failed) {
       task.status = {
         state: A2A_TASK_STATES.failed,
         timestamp,
@@ -198,13 +223,14 @@ export class A2aTaskStore {
           parts: [{ text: String(metadata.error || 'TRUYN provider execution failed'), mediaType: 'text/plain' }]
         }
       };
+      task.streamEvents.push(statusUpdateEvent(task, { 'io.truyn/source': 'result' }));
       return task;
     }
 
     try {
-      task.artifacts = artifactsFromTruynResult(payload.output, {
+      task.artifacts = artifactsFromTruynResult(output, {
         artifactId: randomUUID(),
-        requestId,
+        requestId: task.truynRequestId,
         providerNodeId: task.providerNodeId,
         trust: task.providerTrust,
         metadata
@@ -225,7 +251,95 @@ export class A2aTaskStore {
         }
       };
     }
+    task.streamEvents.push(statusUpdateEvent(task, { 'io.truyn/source': 'result' }));
     return task;
+  }
+
+  completeFromTruynEvent(event) {
+    if (!event || event.kind !== 'RESULT' || event.verification?.ok !== true) return null;
+    const requestId = event.envelope?.payload?.requestId;
+    const taskId = this.byTruynRequestId.get(requestId);
+    if (!taskId) return null;
+    const task = this.tasks.get(taskId);
+    if (!task) return null;
+    if (task.providerNodeId && event.envelope?.from !== task.providerNodeId) return null;
+    const payload = event.envelope.payload || {};
+    return this.completeResult(task, {
+      output: payload.output,
+      metadata: payload.metadata && typeof payload.metadata === 'object' ? payload.metadata : {},
+      providerNodeId: event.envelope.from || task.providerNodeId,
+      providerTrust: event.trust || task.providerTrust
+    });
+  }
+
+  recordCompactEvent(event) {
+    if (!event || event.verification?.ok !== true) return null;
+    const requestId = event.requestId || event.frame?.i;
+    const taskId = this.byTruynRequestId.get(requestId);
+    if (!taskId) return null;
+    const task = this.tasks.get(taskId);
+    if (!task) return null;
+    if (task.providerNodeId && event.from && event.from !== task.providerNodeId) return null;
+    if (TERMINAL.has(task.status.state)) return task;
+
+    if (event.kind === 'PARTIAL') {
+      const sequence = event.payload?.sequence;
+      if (!Number.isSafeInteger(sequence) || sequence < 0 || !Object.prototype.hasOwnProperty.call(event.payload || {}, 'delta')) return null;
+      try {
+        task.streamArtifactId ||= randomUUID();
+        const artifact = artifactFromTruynResult(event.payload.delta, {
+          artifactId: task.streamArtifactId,
+          requestId,
+          providerNodeId: event.from || task.providerNodeId,
+          trust: event.trust || task.providerTrust,
+          metadata: event.payload.metadata || null
+        });
+        task.streamEvents.push({
+          artifactUpdate: {
+            taskId: task.id,
+            contextId: task.contextId,
+            artifact,
+            append: sequence > 0,
+            lastChunk: false,
+            metadata: { 'io.truyn/sequence': sequence }
+          }
+        });
+      } catch (error) {
+        const nowMs = this.now();
+        task.status = {
+          state: A2A_TASK_STATES.failed,
+          timestamp: nowIso(nowMs),
+          message: {
+            messageId: randomUUID(),
+            role: 'ROLE_AGENT',
+            parts: [{ text: 'TRUYN partial failed A2A artifact integrity validation', mediaType: 'text/plain' }],
+            metadata: { 'io.truyn/errorCode': error?.code || 'A2A_PARTIAL_MAPPING_FAILED' }
+          }
+        };
+        task.lastModified = task.status.timestamp;
+        task.streamEvents.push(statusUpdateEvent(task, { 'io.truyn/source': 'partial' }));
+      }
+      return task;
+    }
+
+    if (event.kind === 'RESULT') {
+      return this.completeResult(task, {
+        output: event.payload?.output,
+        metadata: event.payload?.metadata && typeof event.payload.metadata === 'object' ? event.payload.metadata : {},
+        providerNodeId: event.from || task.providerNodeId,
+        providerTrust: event.trust || task.providerTrust
+      });
+    }
+    return null;
+  }
+
+  streamEventsSince(task, cursor = 0) {
+    if (!task) return { events: [], cursor: 0 };
+    const safeCursor = Number.isSafeInteger(cursor) && cursor >= 0 ? Math.min(cursor, task.streamEvents.length) : 0;
+    return {
+      events: cloneList(task.streamEvents.slice(safeCursor)),
+      cursor: task.streamEvents.length
+    };
   }
 
   snapshot(task, { historyLength, includeArtifacts = true } = {}) {
