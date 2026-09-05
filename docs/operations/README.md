@@ -1,61 +1,46 @@
 # TRUYN Operations
 
-**Status:** current reference operations baseline for `0.1.0-dev`; not a mainnet SRE/SLO acceptance claim. The current production relay origin perimeter is deployment-proven, the numerical production SLI/SLO contract is defined, and standard production observability plus service-alert/error-budget policy are implemented. Production security-credential rotation, human on-call and recovery/DR contracts are now also implemented; deployed backends/probes/pager delivery, live private roster/rotation/restore evidence and durable SLO compliance evidence remain pre-stable.
+**Status:** current reference operations baseline; not a mainnet/SRE compliance claim. Numerical SLI/SLO, observability, alerting/error budgets, security rotation/on-call and recovery/DR contracts are implemented. Managed authority repository/runtime support is accepted through PR `#457`; live production authority/telemetry/pager/backup/restore evidence remains open.
 
-Operations documentation describes how the implemented reference system is expected to be run safely and what remains unproven. It deliberately excludes private cloud topology, credentials, live allowlists, resource IDs and cost ceilings.
+## Implemented repository/runtime contracts
 
-## Current operational surfaces
+- production SLI/SLO and 28-day error-budget contract (`PRODUCTION_SLO.md`, PR `#424`);
+- OpenTelemetry metrics/traces, structured logs, Prometheus endpoint and dashboards (`OBSERVABILITY.md`, PR `#434`);
+- service alerts and multi-window burn policy (`ALERTING.md`, PR `#434`);
+- credential/identity/trust rotation lifecycle (`ROTATION_LIFECYCLE.md`, PR `#440`);
+- PRIMARY/SECONDARY on-call ownership/escalation (`ON_CALL.md`, PR `#440`);
+- recovery/DR objectives and executable restore-drill contract (`RECOVERY_DR.md`, PR `#441`);
+- managed authority runtime architecture (`MANAGED_AUTHORITY_RUNTIME.md`, PR `#457`).
 
-- [Production SLI / SLO Contract](PRODUCTION_SLO.md) — numerical production targets, measurement window, exclusions, error budgets and burn-rate policy; defined target contract, not yet accepted production compliance evidence.
-- [Production Observability Plane](OBSERVABILITY.md) — OpenTelemetry/Prometheus metrics, OTLP traces, structured logs, correlation/privacy model and dashboards; implementation exists, deployment evidence remains open.
-- [Production Alerting and Error Budgets](ALERTING.md) — 28-day budget recording, multi-window SLO burn paging and service/security anomaly alerts; implementation exists, real pager delivery evidence remains open.
-- [Production Security Rotation Lifecycle](ROTATION_LIFECYCLE.md) — executable create -> overlap -> cutover -> verify -> revoke-old -> audit policy for origin/M2M proofs, entitlement keys, cloud/deploy identities, node identity and bootstrap trust records.
-- [Production On-Call Rotation](ON_CALL.md) — primary/secondary coverage, escalation, ownership and acknowledged handoff contract; actual people/contact routes remain private operational data.
-- [Production Recovery / DR](RECOVERY_DR.md) — numerical RTO/RPO, backup/restore policy, nine production failure classes and executable restore-drill acceptance.
-- [Node Operations](NODE_OPERATIONS.md) — identity/state/startup/restart/profile boundaries.
-- [Testnet Operations](TESTNET_OPERATIONS.md) — signed bootstrap, QUIC/Kademlia, churn/repair and evidence discipline.
-- [Billing Operations](BILLING_OPERATIONS.md) — BYOK, owner-funded and entitlement safety rules.
-- [Operational Security](../security/OPERATIONAL_SECURITY.md) — accepted edge/origin/provider proof rotation and incident handling.
+## Managed authority operations boundary
 
-## Current maturity
+PR `#457` supplies repository/runtime support for Cosmos checkpointing over managed identity/AAD, checkpoint digest/revision/ETag fencing, digest-bound bootstrap, private authority service/admin surface, monotonic relay cache and fail-closed readiness.
 
-The repository has executable relay/provider/node/testnet paths and a CI-proven v0.1 QUIC/Kademlia underlay. A four-node real QUIC/Kademlia trust-lifecycle testnet has also passed a bounded evidence gate.
+It does **not** prove:
 
-Separately, the current production relay perimeter has passed its deployment gate. This is a bounded production relay perimeter claim, not a claim that TRUYN mainnet operations are complete.
+- production Cosmos provisioning;
+- multi-region writes/failover;
+- continuous backup;
+- migration of real production authority state;
+- live relay cutover;
+- restore/failover drill acceptance;
+- measured revocation/grant/entitlement propagation.
 
-The production service-level target contract is defined in `PRODUCTION_SLO.md`. The standard production instrumentation plane is implemented in `observability/`: production startup initializes OpenTelemetry before runtime imports; metrics are exposed only on a loopback Prometheus listener; traces can be exported over OTLP/HTTP; and runtime/policy/provider/request events emit structured JSON logs using the shared hash-safe correlation model. Checked-in Grafana dashboards cover relay, network/DHT, provider runtimes, authorization, billing/entitlement, semantic retrieval, A2A/MCP and infrastructure.
+Those remain operational acceptance gates.
 
-The alerting layer records rolling 28-day error-budget consumption and implements multi-window service pages for availability, 5xx, dispatch, RESULT delivery/timeouts, provider failures and DHT degradation, plus anomaly/zero-budget signals for WebSocket disconnect storms, authorization denies, billing ambiguity, artifact-store failures and origin-bypass probes.
+## Live production evidence still open
 
-The rotation layer defines and machine-enforces one six-phase lifecycle across all P1 credential/identity/trust classes. The on-call layer defines primary/secondary continuous coverage, escalation deadlines, ownership and acknowledged handoff. The recovery/DR layer now defines numerical RTO/RPO and machine-enforced restore drills across instance, region, durable state, identity/key, semantic index, provider, relay, artifact-store and entitlement/accounting failure classes. Live secrets and personal/pager data intentionally remain outside the public repository.
+- deployed metrics/log/trace backends with retention/access controls;
+- independent HTTP/WebSocket probes from multiple vantage points;
+- real pager delivery and controlled test-fire;
+- populated private PRIMARY/SECONDARY roster;
+- sanitized credential/authority rotation drills;
+- configured backups/replication and accepted live restore drills;
+- durable 28-day SLO/error-budget evidence tied to an identified deployment;
+- long-window authority/accounting reconciliation evidence.
 
-These are still implementation surfaces until real deployment telemetry, independent probes, alert delivery, a populated private on-call roster/test-fire, exercised live rotations/restores and durable acceptance evidence satisfy the production operations contract.
+Public `/health` remains intentionally minimal; detailed operational state belongs in protected telemetry/control surfaces.
 
-What is **not** yet operationally complete:
+## Evidence rule
 
-- stable public mainnet bootstrap;
-- universal NAT/reachability support;
-- remaining large real-node / Internet-scale evidence required by the current network roadmap;
-- deployed production metrics/trace/log backends with defined retention and access controls;
-- independent HTTP/WebSocket synthetic probes from more than one vantage point;
-- production DHT and every deployed external A2A/MCP facade wired into the standard hooks and evidenced;
-- test-fired burn-rate/zero-budget alert delivery with a populated private primary/secondary roster and escalation evidence;
-- sanitized live rotation drills for each deployed credential/identity/trust authority being claimed;
-- configured production backup/replication paths plus sanitized accepted live restore drills for every production dependency/failure class being claimed;
-- accepted durable 28-day SLO compliance evidence;
-- signed release/updater/rollback lifecycle for all supported OSes;
-- production account/tenant commercial control plane;
-- deployed durable sponsored/prepaid/subscription accounting;
-- automatic equivalence proof for every future deployment or material edge/origin topology change.
-
-## General operational rule
-
-A temporary cloud workflow, successful one-shot deployment or local test is not by itself a production claim. Promote operational maturity only when the result is reproducible and recorded in durable evidence or a stable release contract.
-
-A defined SLO target, instrumented dashboard, checked-in alert rule, rotation state machine, on-call role contract or recovery validator is also not proof of production compliance. Productionized status requires real serving-path measurements, auditable exclusions, error-budget accounting, test-fired alert delivery, populated human coverage, exercised rotations/restores and durable acceptance evidence.
-
-## Public/private boundary
-
-Public runbooks may document generic configuration names, metric names, failure modes, rotation/recovery phases, role names and acceptance invariants. Exact live origins, provider/node IDs, cloud identities, privileged bootstrap sets, secret values, collector credentials, billing accounts, pager destinations, personal contact data, backup locations and incident-sensitive data remain outside the public repository.
-
-Public `/health` remains minimal. Metrics, traces and internal runtime state use the private observability plane and are never added to unauthenticated health output.
+Checked-in dashboards, runbooks and runtime support prove repository capability, not live production compliance. Production claims require deployment-specific evidence.

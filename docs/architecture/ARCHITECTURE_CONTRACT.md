@@ -2,127 +2,66 @@
 
 This document prevents architecture, implementation status, public documentation, governance and benchmark evidence from silently diverging.
 
-**Snapshot:** 2026-09-03  
-**Synchronized source:** `main@b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`  
-**Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`
+**Snapshot:** 2026-09-05  
+**Synchronized source:** `main@abd6bd95ecad8dc8d82bbf6d2983d96df80267d3`  
+**Protocol:** `TRUYN/1` draft  
+**A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
 
-## Document authority
+## Source ownership
 
-| Concern | Source of truth |
-|---|---|
-| TRUYN protocol semantics | `spec/protocol/<generation>/` |
-| Machine-readable wire schema | `proto/<generation>/` |
-| Governance / normative change process | `GOVERNANCE.md`, `docs/governance/` |
-| Architecture ownership/invariants | this document + subsystem architecture files |
-| Current implementation/proof status | `IMPLEMENTATION_STATUS.md` |
-| Measured/accepted benchmark facts | `docs/benchmarks/` |
-| Public project summary | root `README.md` |
-| Sequencing / next gates | root `ROADMAP.md` |
-| Historical changes | `CHANGELOG.md` |
+- `spec/protocol/<generation>/` — normative protocol semantics.
+- `proto/<generation>/` — machine-readable wire schema.
+- `GOVERNANCE.md` + `docs/governance/` — normative change process.
+- this document + subsystem architecture files — architecture invariants.
+- `IMPLEMENTATION_STATUS.md` — current factual maturity.
+- `docs/benchmarks/` — measured accepted/failed evidence.
+- `ROADMAP.md` — sequencing and next gates.
 
-If these disagree, the inconsistency is a documentation defect. Historical prose does not override newer accepted implementation/evidence.
+Accepted `main` evidence overrides stale current-status prose. Historical evidence remains historical.
 
-## Core invariants
+## Identity and authority
 
-### Identity
+TRUYN authority comes from authenticated/signed identities plus server-side authority state. Requester/provider payload metadata, A2A/MCP metadata and transport credentials are never implicit account, tenant, provider-owner, entitlement or billing authority.
 
-TRUYN authority comes from authenticated/signed TRUYN identities and local policy. External protocol metadata is never an implicit substitute.
+Accepted authority layers:
 
-### Provider authorization
+1. PR `#425` — Account → Organization → Tenant hierarchy, scoped memberships/roles and authoritative node/provider bindings;
+2. PR `#433` + `#456` — durable single-filesystem provider grants, entitlements, atomic accounting and terminal revocation;
+3. PR `#457` — managed authority repository/runtime support: Cosmos DB NoSQL checkpoint adapter using managed identity/AAD, checkpoint digest/source/revision, optimistic ETag fencing, digest-bound bootstrap, private authority role/API, monotonic relay snapshot cache and fail-closed staleness/readiness integration;
+4. PR `#463` — managed provider accounting wiring: managed `sponsored`, `prepaid`, and `subscription` modes await authoritative reserve before provider execution and authoritative reconcile/release on success, failure or cancellation; `owner-funded` and `byok` preserve local/private semantics.
 
-Provider discovery and execution are separate from capability compatibility. A provider may be technically compatible but hidden/denied to the requester. All execution-capable surfaces converge on the same provider visibility/access/billing boundary.
+Layers 3–4 are repository/runtime acceptance, not live production acceptance. Provisioning, multi-region writes, continuous backup, production migration/cutover, restore/failover drills, deployed operational controls and long-window reconciliation evidence remain deployment gates.
 
-### Billing
+## Authorization / billing / revocation
 
-Requester-controlled metadata cannot assign provider ownership or billing responsibility. Settlement mechanisms, when present, do not become authorization sources.
+Provider compatibility, visibility, authorization and billing are separate decisions. Execution-capable surfaces converge on the same authoritative provider/access/billing boundary before side effects. Requester metadata cannot assign ownership or billing responsibility. Chargeable managed paths reserve durable usage before execution and reconcile/release after terminal outcome; authoritative reconcile failure cannot be converted into a successful unpaid terminal result.
 
-### Interoperability
+Production Trust Authority is separate. PR `#438` remains unmerged, so its delegated roots/rotation/revocation/transparency behavior is not accepted main fact yet.
 
-A2A and MCP are adapters, not TRUYN/1 wire dependencies. Current accepted bounded ownership includes:
+## A2A / MCP interoperability
 
-- MCP current server/client/configured provider + general discovery/import (C1/C2);
-- A2A server facade (C3);
-- A2A client/provider discovery/import (C4);
-- bounded polling lifecycle (C5);
-- A2A artifact integrity (C6);
-- both in-repository A2A↔TRUYN↔MCP round trips (C7);
-- independent official A2A SDK black-box proof for `MCP→TRUYN→A2A` (Sprint C);
-- independent official MCP SDK black-box proof for `A2A→TRUYN→MCP` (Sprint D);
-- complete bounded cross-protocol adversarial security matrix (C8), accepted in PR `#423` on exact main `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`.
+A2A and MCP are adapters, not TRUYN/1 wire dependencies. Accepted bounded evidence includes C1–C8, independent official A2A/MCP black-box proofs, **P2-E1 / Sprint E** referenced-artifact interoperability, **P2-E2** compatibility generation `a2a-mcp-pre-v1/g1`, and **P2-E3** canonical documentation reconciliation in PR `#459`.
 
-C8 durable closure evidence is `../compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md`. The independent external SDK and C8 proofs are bounded evidence, not ecosystem-wide certification. An integrity-verified external referenced file/artifact round trip and a stable compatibility declaration remain later adoption/stability gates.
+Accepted artifact translation requires explicit resolution, bounded content, exact digest/byte-size checks, no implicit arbitrary URL fetch and authoritative TRUYN provenance. Polling/retry/fallback must not duplicate remote application side effects.
 
-### Artifact integrity
+**Stable A2A/MCP v1 is not declared.** `TRUYN/1` remains draft.
 
-Content/reference translation cannot silently weaken integrity. C6 requires bounded sizes, digest/byte-size/canonical encoding checks, no implicit URL resolution/SSRF and authoritative TRUYN provenance before successful cross-protocol projection.
+## Network scale
 
-### Exactly-once side effects
+Class C and D-100 are accepted. D-1000 is not. PR `#458` repairs target-readiness/transport establishment without weakening strict D-scale thresholds. Fresh D-200 run `33959493680` remains in progress and cannot be promoted to PASS until its unchanged predicates terminate green.
 
-Polling, fallback, retries and protocol translation must not duplicate provider-side execution where an accepted profile claims exactly-once behavior. C5/C7 and the independent black-box proofs provide bounded positive evidence; C8 provides the accepted bounded cross-protocol negative matrix with zero unauthorized remote execution and exactly-one valid execution assertions.
+## Production operations
 
-### Network scale
+The repository implements numerical SLI/SLO (`#424`), observability/alerts (`#434`), rotation/on-call (`#440`) and recovery/DR (`#441`) contracts. Productionized status still requires real deployed telemetry/probes/pager/roster, live rotation/restore evidence and durable 28-day SLO evidence.
 
-Class C and Class D-100 are accepted bounded network gates. D-1000 is not accepted until one exact pinned 20×50 campaign satisfies all evaluator/terminal/safety/routing/recovery/cleanup predicates. Current main includes bounded D-200 diagnostic/remediation work from PRs `#417` and `#418` plus the bounded packet-partition diagnostic patcher from PR `#419`; later one-shot launcher cleanup does not change those diagnostic sources. A preflight PASS, diagnostic success or successful cleanup cannot substitute for D-1000 campaign acceptance.
+## SDK / DX
 
-### Trustability
+Five first-party SDKs, shared conformance, direct NEED cancellation, signed generic `PARTIAL`, object/artifact references and bounded Agent Descriptor valid-profile verification are implemented. PyPI and Go public alphas are accepted. npm alpha.1 is immutable historical evidence whose required clean-room Node 22 ESM import failed; `#448` is merged and repairs packaging at alpha.2, but immutable public registry/provenance/clean-room acceptance evidence remains gated. Maven Central and NuGet remain open.
 
-Cryptographic identity/integrity and truth/trust are different. Trustability is claim/context/policy dependent and may use provenance, independent evidence, freshness, revocation and receipts.
+## Governance
 
-### Governance
-
-Repository permissions, infrastructure operation and commercial ownership do not define protocol governance. Current governance is G1 public-process/bootstrap Founding Stewardship; later neutral-governance stages must be demonstrated, not declared.
-
-## Implementation ownership map
-
-```text
-core/                 identity, protocol-independent domain/security logic
-network/              QUIC, sessions, Kademlia, routing, relay, NAT/testnet
-node/                  TRUYN node composition
-runtime/               executable provider/relay composition
-adapters/mcp/          MCP server/client protocol edge
-adapters/a2a/          A2A server/client/task/artifact protocol edge
-adapters/providers/    concrete/imported provider adapters
-sdk/                   five-language first-party developer clients
-trust/                 Trustability runtime components
-storage/               persistent state/objects/index/cache
-spec/ + proto/         normative semantics + machine wire schema
-```
-
-A2A directories are implemented owners now; they are not future placeholders.
-
-## SDK / DX ownership
-
-First-party SDKs consume TRUYN contracts; they do not bypass provider security or redefine the protocol. The Developer Release Layer is source/build complete on current main across TypeScript/JavaScript, Python, Go, Java and C#/.NET.
-
-The accepted bounded SDK/DX contract includes:
-
-- local Ed25519 identity creation and TRUYN envelope signing/verification;
-- authenticated relay registration/session use;
-- authorization-aware discovery;
-- `OFFER`, `NEED` and correlated `RESULT` flows;
-- requester-owned **direct NEED cancellation** through signed `REVOKE`, with ownership/late-output guarantees established by dedicated runtime negatives rather than the five-language E2E alone;
-- authenticated relay/event streaming;
-- signed generic ordered `PARTIAL` streaming with strict correlation/order/backpressure/terminal semantics;
-- portable reference-oriented object/artifact payloads;
-- default-off Agent Descriptor startup serving plus five-language canonical valid-profile HTTP fetch/schema/expiry/identity-signature/protocol-interface verification;
-- one executable five-language E2E conformance gate using a canonical valid signed Descriptor fixture;
-- per-commit npm/PyPI/Go/Maven/NuGet package builds with exact source SHA, byte size and SHA-256 provenance;
-- explicit compatibility/deprecation/migration policy.
-
-These implementation facts do **not** imply that `TRUYN/1` is stable, that packages are publicly published, or that the public developer site is live. The current provider runtime does not yet refresh/re-sign a served Descriptor before expiry; complete malformed/missing `interfaces[].endpoint` rejection parity across all clients remains open; generated-package verification does not content-scan every archived member; and ordinary CI artifacts under fixed alpha coordinates are per-commit verification artifacts rather than immutable tagged releases. Native registry publication and live-site activation/liveness remain separate release/evidence gates. Chain-stage cancellation, a standardized universal tokenizer/token-ID convention and delegated Descriptor-signing keys remain outside the accepted alpha contract.
-
-## Public/private operations boundary
-
-Public documentation/code/evidence may describe generic architecture and sanitized accepted results. Never commit private keys, provider secrets, secret-bearing URLs, private privileged topology/origins, customer data or sensitive live account/quota information.
+Current governance is G1 public-process/bootstrap Founding Stewardship. Neutral-governance maturity must be demonstrated before it is claimed.
 
 ## Status update discipline
 
-A change that materially advances an accepted subsystem should update the relevant current-status documents in the same release window. At minimum:
-
-1. `IMPLEMENTATION_STATUS.md` must reflect the new factual state;
-2. `ROADMAP.md` must close/open the corresponding gate;
-3. compatibility documents must stop calling merged behavior “planned”;
-4. public README/index/quickstart/security wording must not contradict canonical status;
-5. historical benchmark/changelog/acceptance records remain immutable unless correcting factual errors in those records.
-
-This synchronization rule is specifically intended to prevent the C3→C8, Developer Release and D-1000 documentation drift seen in earlier snapshots.
+A material accepted subsystem change should update current-status prose in the same release window. Open PRs remain candidates; merged repository/runtime support must not be overstated as live production evidence; historical benchmark/changelog/acceptance records remain audit history.
