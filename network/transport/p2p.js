@@ -2,7 +2,8 @@ import { BoundedAdmissionQueue } from '../admission/bounded-queue.js';
 import { xorDistance } from '../dht/kademlia.js';
 
 const DEFAULT_DISCOVERY_FANOUT = 20;
-const LIVE_DISCOVERY_MAX_ROUNDS = 2;
+const DEFAULT_DISCOVERY_QUERY_BUDGET = 64;
+const DEFAULT_DISCOVERY_RECOVERY_TIMEOUT_MS = 9_000;
 const DEFAULT_DIRECT_CONNECT_TIMEOUT_MS = 5_000;
 const DEFAULT_DIRECT_CONNECT_ATTEMPTS = 2;
 
@@ -55,11 +56,19 @@ export class DirectFirstP2P {
     maxInFlight = 64,
     maxQueued = 256,
     faults = null,
+    discoveryRecoveryTimeoutMs = DEFAULT_DISCOVERY_RECOVERY_TIMEOUT_MS,
+    discoveryQueryBudget = DEFAULT_DISCOVERY_QUERY_BUDGET,
     directConnectTimeoutMs = DEFAULT_DIRECT_CONNECT_TIMEOUT_MS,
     directConnectAttempts = DEFAULT_DIRECT_CONNECT_ATTEMPTS
   } = {}) {
     if (!quicTransport) throw new Error('quicTransport is required');
     if (!discovery) throw new Error('peer discovery is required');
+    if (!Number.isInteger(discoveryRecoveryTimeoutMs) || discoveryRecoveryTimeoutMs < 10 || discoveryRecoveryTimeoutMs > 120_000) {
+      throw new Error('discoveryRecoveryTimeoutMs must be between 10 and 120000');
+    }
+    if (!Number.isInteger(discoveryQueryBudget) || discoveryQueryBudget < 1 || discoveryQueryBudget > 256) {
+      throw new Error('discoveryQueryBudget must be between 1 and 256');
+    }
     if (!Number.isInteger(directConnectTimeoutMs) || directConnectTimeoutMs < 10 || directConnectTimeoutMs > 120_000) {
       throw new Error('directConnectTimeoutMs must be between 10 and 120000');
     }
@@ -70,6 +79,8 @@ export class DirectFirstP2P {
     this.discovery = discovery;
     this.relayFallback = relayFallback;
     this.faults = faults;
+    this.discoveryRecoveryTimeoutMs = discoveryRecoveryTimeoutMs;
+    this.discoveryQueryBudget = discoveryQueryBudget;
     this.directConnectTimeoutMs = directConnectTimeoutMs;
     this.directConnectAttempts = directConnectAttempts;
     this.connections = new Map();
@@ -145,49 +156,111 @@ export class DirectFirstP2P {
     return client;
   }
 
+  #recoveryCandidates(peerNodeId, queried) {
+    const candidates = new Map();
+    const add = (peer) => {
+      if (!peer?.nodeId || peer.nodeId === this.discovery.identity?.nodeId || queried.has(peer.nodeId)) return;
+      if (!candidates.has(peer.nodeId)) candidates.set(peer.nodeId, peer);
+    };
+
+    if (typeof this.discovery.snapshot === 'function') {
+      for (const peer of this.discovery.snapshot() || []) add(peer);
+    }
+    if (typeof this.discovery.closest === 'function') {
+      const count = Math.max(
+        this.discoveryQueryBudget,
+        Number.isInteger(this.discovery.k) ? this.discovery.k : DEFAULT_DISCOVERY_FANOUT
+      );
+      for (const peer of this.discovery.closest(peerNodeId, count) || []) add(peer);
+    }
+
+    return [...candidates.values()].sort(distanceOrder(peerNodeId));
+  }
+
   async #recoverFromLivePeers(peerNodeId) {
-    const snapshot = this.discovery.snapshot;
     const rpc = this.discovery.rpc;
     const ingest = this.discovery.ingest;
-    if (typeof snapshot !== 'function' || typeof rpc?.findNode !== 'function' || typeof ingest !== 'function') return null;
+    const canSnapshot = typeof this.discovery.snapshot === 'function';
+    const canUseRoutingHints = typeof this.discovery.closest === 'function';
+    if ((!canSnapshot && !canUseRoutingHints) || typeof rpc?.findNode !== 'function' || typeof ingest !== 'function') return null;
 
     const queried = new Set();
-    const fanout = Math.max(1, Math.min(64, Number.isInteger(this.discovery.k) ? this.discovery.k : DEFAULT_DISCOVERY_FANOUT));
-    for (let round = 0; round < LIVE_DISCOVERY_MAX_ROUNDS; round += 1) {
-      const peers = snapshot.call(this.discovery)
-        .filter((peer) => peer?.nodeId && peer.nodeId !== peerNodeId && !queried.has(peer.nodeId))
-        .sort(distanceOrder(peerNodeId))
-        .slice(0, fanout);
-      if (peers.length === 0) break;
-      for (const peer of peers) queried.add(peer.nodeId);
+    const concurrency = Math.max(1, Math.min(
+      this.discoveryQueryBudget,
+      64,
+      Number.isInteger(this.discovery.k) ? this.discovery.k : DEFAULT_DISCOVERY_FANOUT
+    ));
 
-      const recovered = await new Promise((resolve) => {
-        let remaining = peers.length;
-        let settled = false;
-        const finish = (record) => {
-          if (settled) return;
-          settled = true;
-          resolve(record);
-        };
-        for (const peer of peers) {
+    return new Promise((resolve) => {
+      let active = 0;
+      let launched = 0;
+      let settled = false;
+      let timer = null;
+
+      const finish = (record = null) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        resolve(record || this.discovery.get(peerNodeId));
+      };
+
+      const pump = () => {
+        if (settled) return;
+        const found = this.discovery.get(peerNodeId);
+        if (found) {
+          finish(found);
+          return;
+        }
+
+        const candidates = this.#recoveryCandidates(peerNodeId, queried);
+        let launchedNow = 0;
+        while (active < concurrency && launched < this.discoveryQueryBudget && candidates.length > 0) {
+          const peer = candidates.shift();
+          if (!peer || queried.has(peer.nodeId)) continue;
+          queried.add(peer.nodeId);
+          launched += 1;
+          launchedNow += 1;
+          active += 1;
+
           void (async () => {
             try {
               const response = await rpc.findNode(peer, peerNodeId);
               for (const record of response?.records || []) ingest.call(this.discovery, record);
-              const found = this.discovery.get(peerNodeId);
-              if (found) finish(found);
+              const recovered = this.discovery.get(peerNodeId);
+              if (recovered) finish(recovered);
             } catch {
               rpc.forget?.(peer.nodeId);
             } finally {
-              remaining -= 1;
-              if (remaining === 0) finish(this.discovery.get(peerNodeId));
+              active -= 1;
+              if (!settled) pump();
             }
           })();
         }
-      });
-      if (recovered) return recovered;
-    }
-    return this.discovery.get(peerNodeId);
+
+        if (active === 0 && launchedNow === 0) finish();
+      };
+
+      timer = setTimeout(() => finish(), this.discoveryRecoveryTimeoutMs);
+      timer.unref?.();
+      pump();
+    });
+  }
+
+  async #boundedDiscovery(peerNodeId, operation) {
+    if (!operation) return this.discovery.get(peerNodeId);
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer = null;
+      const finish = (record = null) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        resolve(record || this.discovery.get(peerNodeId));
+      };
+      timer = setTimeout(() => finish(), this.discoveryRecoveryTimeoutMs);
+      timer.unref?.();
+      void Promise.resolve(operation).then(finish, () => finish());
+    });
   }
 
   async #firstDiscovered(peerNodeId, operations) {
@@ -227,14 +300,15 @@ export class DirectFirstP2P {
       const racedLocal = this.discovery.get(peerNodeId);
       if (racedLocal) return racedLocal;
 
-      // A missing/expired target record must not force the application envelope through
-      // sequential stale routing hints or wait for the slowest control RPC in a fanout.
-      // Race the broad live-peer recovery with the normal iterative Kademlia walk and
-      // return as soon as either control-plane path ingests a valid signed target record.
-      // No application envelope is created or retried by this recovery path.
+      // A missing/expired target after restart or partition healing must be rehydrated
+      // on the control plane before any application envelope is dispatched. Use both
+      // currently valid peers and previously authenticated routing hints, including an
+      // exact stale target hint, and continuously expand the bounded query frontier as
+      // fresh signed records arrive. Only a currently valid signed target record can
+      // authorize the subsequent direct NEED send; control recovery never retries it.
       const liveRecovery = this.#recoverFromLivePeers(peerNodeId);
       const iterativeRecovery = typeof this.discovery.findNode === 'function'
-        ? Promise.resolve().then(() => this.discovery.findNode(peerNodeId))
+        ? this.#boundedDiscovery(peerNodeId, Promise.resolve().then(() => this.discovery.findNode(peerNodeId)))
         : null;
       return this.#firstDiscovered(peerNodeId, [liveRecovery, iterativeRecovery]);
     })();

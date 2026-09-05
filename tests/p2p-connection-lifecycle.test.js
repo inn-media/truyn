@@ -166,6 +166,102 @@ test('target discovery returns on the first valid control response without waiti
   assert.equal(envelopeSends, 1);
 });
 
+test('post-heal stale target routing hint is rehydrated before the first application envelope', async () => {
+  const targetNodeId = 'truyn:node:post-heal-target';
+  const staleTargetHint = record({ nodeId: targetNodeId, sequence: 7, endpoint: 'quic://10.0.0.40:4433' });
+  const freshTarget = record({ nodeId: targetNodeId, sequence: 8, endpoint: 'quic://10.0.0.40:4433' });
+  const liveSlow = record({ nodeId: 'truyn:node:post-heal-live', sequence: 3, endpoint: 'quic://10.0.0.41:4433' });
+  const never = new Promise(() => {});
+  let currentTarget = null;
+  let envelopeSends = 0;
+  const queried = [];
+
+  const discovery = {
+    k: 20,
+    identity: { nodeId: 'truyn:node:source' },
+    get(nodeId) { return nodeId === targetNodeId ? currentTarget : null; },
+    snapshot() { return [liveSlow]; },
+    closest() { return [staleTargetHint, liveSlow]; },
+    ingest(next) {
+      if (next.nodeId === targetNodeId) currentTarget = next;
+      return { accepted: true };
+    },
+    rpc: {
+      findNode(peer, nodeId) {
+        queried.push(peer.nodeId);
+        assert.equal(nodeId, targetNodeId);
+        if (peer.nodeId === targetNodeId) return Promise.resolve({ records: [freshTarget] });
+        return never;
+      },
+      forget() {}
+    },
+    findNode() { return never; }
+  };
+  const quic = {
+    async connect(endpoint) { return { endpoint }; },
+    async disconnect() {},
+    async sendEnvelope(client, envelope) {
+      assert.equal(currentTarget, freshTarget, 'fresh signed target record must exist before NEED dispatch');
+      envelopeSends += 1;
+      return { endpoint: client.endpoint, envelopeId: envelope.id };
+    }
+  };
+  const router = new DirectFirstP2P({
+    quicTransport: quic,
+    discovery,
+    discoveryRecoveryTimeoutMs: 100,
+    discoveryQueryBudget: 4
+  });
+
+  const result = await Promise.race([
+    router.send(targetNodeId, { id: 'post-heal-once' }, { allowRelayFallback: false }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('stale_target_hint_not_rehydrated')), 250))
+  ]);
+
+  assert.equal(result.transport, 'quic-direct');
+  assert.equal(result.result.envelopeId, 'post-heal-once');
+  assert.equal(queried[0], targetNodeId, 'the exact authenticated routing hint should be queried first');
+  assert.equal(envelopeSends, 1, 'rehydration must not retry the application envelope');
+});
+
+test('target readiness recovery is bounded and never dispatches an envelope without a valid target record', async () => {
+  const targetNodeId = 'truyn:node:missing-after-heal';
+  const live = record({ nodeId: 'truyn:node:bounded-live', sequence: 1, endpoint: 'quic://10.0.0.50:4433' });
+  const never = new Promise(() => {});
+  let envelopeSends = 0;
+
+  const discovery = {
+    k: 20,
+    identity: { nodeId: 'truyn:node:bounded-source' },
+    get() { return null; },
+    snapshot() { return [live]; },
+    closest() { return [live]; },
+    ingest() { return { accepted: true }; },
+    rpc: {
+      findNode() { return never; },
+      forget() {}
+    },
+    findNode() { return never; }
+  };
+  const quic = {
+    async connect(endpoint) { return { endpoint }; },
+    async disconnect() {},
+    async sendEnvelope() { envelopeSends += 1; return { ok: true }; }
+  };
+  const router = new DirectFirstP2P({
+    quicTransport: quic,
+    discovery,
+    discoveryRecoveryTimeoutMs: 20,
+    discoveryQueryBudget: 1
+  });
+
+  await assert.rejects(
+    router.send(targetNodeId, { id: 'must-not-send' }, { allowRelayFallback: false }),
+    /peer_not_discovered/
+  );
+  assert.equal(envelopeSends, 0);
+});
+
 test('transient QUIC session establishment timeout retries only the connection and sends the envelope once', async () => {
   const targetNodeId = 'truyn:node:connect-retry';
   const target = record({ nodeId: targetNodeId, sequence: 5, endpoint: 'quic://10.0.0.30:4433' });
