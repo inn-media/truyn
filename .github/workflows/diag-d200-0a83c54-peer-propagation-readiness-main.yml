@@ -1,7 +1,9 @@
 name: diag-d200-0a83c54-peer-propagation-readiness-main
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diag-d200-0a83c54-peer-propagation-readiness-main.yml']
 
 permissions:
   contents: read
@@ -13,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  LAUNCH_BASE_COMMIT: PENDING
+  LAUNCH_BASE_COMMIT: 71749ffd28c4fb69430a0fd9304ea505a7e34c47
   TESTED_COMMIT: 0a83c54a2b1f4f44802af435716a6611049e8adc
   TESTED_TREE_SHA: fe9b20ba5584f0ae4918ba3400e0d5f18a3d7246
   EXACT_MAIN_CI_RUN: '33984683794'
