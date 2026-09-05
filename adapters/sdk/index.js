@@ -27,6 +27,57 @@ function billingEstimate(need) {
   return Number.isInteger(value) && value > 0 ? value : null;
 }
 
+function reportedUsageTokens(metadata, fallback = 0) {
+  const usage = metadata?.usage;
+  const direct = [metadata?.totalTokens, usage?.total_tokens, usage?.totalTokens, usage?.totalTokenCount, usage?.total];
+  for (const value of direct) if (Number.isSafeInteger(value) && value >= 0) return value;
+  const groups = [
+    [usage?.prompt_tokens, usage?.completion_tokens],
+    [usage?.input_tokens, usage?.output_tokens],
+    [usage?.inputTokens, usage?.outputTokens],
+    [usage?.promptTokenCount, usage?.candidatesTokenCount, usage?.thoughtsTokenCount]
+  ];
+  for (const values of groups) {
+    const present = values.filter((value) => value != null);
+    if (present.length > 0 && present.every((value) => Number.isSafeInteger(value) && value >= 0)) {
+      return present.reduce((sum, value) => sum + value, 0);
+    }
+  }
+  return Number.isSafeInteger(fallback) && fallback >= 0 ? fallback : 0;
+}
+
+function settleBilling(billing, input) {
+  if (typeof billing?.finalize !== 'function') return null;
+  try {
+    return billing.finalize(input);
+  } catch {
+    return { ok: false, reason: 'accounting_reconcile_unavailable' };
+  }
+}
+
+function attachBillingMetadata(metadata, billing, settlement) {
+  if (!billing) return metadata;
+  metadata.billingMode = billing.mode;
+  metadata.billingResponsibility = billing.billingResponsibility;
+  if (settlement) {
+    metadata.billingAccountingStatus = settlement.status || (settlement.ok ? 'settled' : 'failed');
+    if (settlement.reason) metadata.billingAccountingReason = settlement.reason;
+    if (settlement.accounted != null) metadata.billingAccounted = Boolean(settlement.accounted);
+    if (settlement.quotaOverrun != null) metadata.billingQuotaOverrun = Boolean(settlement.quotaOverrun);
+  }
+  return metadata;
+}
+
+function accountingFailure(metadata, settlement) {
+  if (!settlement || settlement.ok !== false) return false;
+  metadata.error = 'PROVIDER_ACCOUNTING_FAILED';
+  metadata.errorClass = 'billing';
+  metadata.billingDenied = true;
+  metadata.billingReason = settlement.reason || 'accounting_reconcile_failed';
+  metadata.failed = true;
+  return true;
+}
+
 function isRecoverableSocketError(error) {
   const message = String(error?.message || '').toLowerCase();
   return message === 'fast_socket_closed'
@@ -195,6 +246,7 @@ export class TruynAdapterHost {
         }
       }
       const startedAt = Date.now();
+      let billingSettled = false;
       try {
         let input = need.payload?.input;
         let contextResolution = null;
@@ -205,14 +257,17 @@ export class TruynAdapterHost {
         }
         const execution = await this.adapter.execute({ capability, input, policy: need.payload?.policy || {}, need, node: this.node });
         const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
-        const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, ...(normalized.metadata || {}) };
-        if (billing) { metadata.billingMode = billing.mode; metadata.billingResponsibility = billing.billingResponsibility; }
+        const settlement = settleBilling(billing, { outcome: 'completed', actualTokens: reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0) });
+        billingSettled = typeof billing?.finalize === 'function';
+        const metadata = attachBillingMetadata({ adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, ...(normalized.metadata || {}) }, billing, settlement);
         if (contextResolution) metadata.contextResolution = contextResolution;
         if (need.chain) metadata.chainStage = need.stageIndex;
-        if (compact) await this.node.compactResult(need.id, normalized.output, metadata); else await this.node.result(need.id, normalized.output, metadata);
+        const output = accountingFailure(metadata, settlement) ? null : normalized.output;
+        if (compact) await this.node.compactResult(need.id, output, metadata); else await this.node.result(need.id, output, metadata);
       } catch (error) {
-        const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, error: error.message, failed: true };
-        if (billing) { metadata.billingMode = billing.mode; metadata.billingResponsibility = billing.billingResponsibility; }
+        const settlement = billingSettled ? null : settleBilling(billing, { outcome: 'failed', actualTokens: 0, reason: error.message });
+        if (typeof billing?.finalize === 'function') billingSettled = true;
+        const metadata = attachBillingMetadata({ adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, error: error.message, failed: true }, billing, settlement);
         if (need.chain) metadata.chainStage = need.stageIndex;
         if (compact) await this.node.compactResult(need.id, null, metadata); else await this.node.result(need.id, null, metadata);
       }
@@ -261,7 +316,12 @@ export class TruynAdapterHost {
         return;
       }
     }
+    if (signal.aborted) {
+      settleBilling(billing, { outcome: 'cancelled', actualTokens: 0, reason: signal.reason?.message || 'request_cancelled' });
+      return;
+    }
     const startedAt = Date.now();
+    let billingSettled = false;
     try {
       let input = need.payload?.input;
       let contextResolution = null;
@@ -270,19 +330,26 @@ export class TruynAdapterHost {
         input = resolved.value;
         if ((resolved.stats?.contextRefs || 0) > 0) contextResolution = resolved.stats;
       }
-      if (signal.aborted) return;
+      if (signal.aborted) {
+        settleBilling(billing, { outcome: 'cancelled', actualTokens: 0, reason: signal.reason?.message || 'request_cancelled' });
+        return;
+      }
       const execution = await this.adapter.execute({ capability, input, policy: need.payload?.policy || {}, need, node: this.node, signal, emitPartial: (delta, partialMetadata = {}) => this.sendPartial(need, state, delta, partialMetadata) });
-      if (signal.aborted) return;
       const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
-      const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, ...(normalized.metadata || {}), partialCount: state.nextSequence };
-      if (billing) { metadata.billingMode = billing.mode; metadata.billingResponsibility = billing.billingResponsibility; }
+      const settlement = settleBilling(billing, { outcome: 'completed', actualTokens: reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0) });
+      billingSettled = typeof billing?.finalize === 'function';
+      if (signal.aborted) return;
+      const metadata = attachBillingMetadata({ adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, ...(normalized.metadata || {}), partialCount: state.nextSequence }, billing, settlement);
       if (contextResolution) metadata.contextResolution = contextResolution;
       if (need.chain) metadata.chainStage = need.stageIndex;
-      if (!signal.aborted) await this.sendTerminal(need, normalized.output, metadata);
+      const output = accountingFailure(metadata, settlement) ? null : normalized.output;
+      await this.sendTerminal(need, output, metadata);
     } catch (error) {
+      const outcome = signal.aborted ? 'cancelled' : 'failed';
+      const settlement = billingSettled ? null : settleBilling(billing, { outcome, actualTokens: 0, reason: error.message || outcome });
+      if (typeof billing?.finalize === 'function') billingSettled = true;
       if (signal.aborted) return;
-      const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, error: error.message, failed: true };
-      if (billing) { metadata.billingMode = billing.mode; metadata.billingResponsibility = billing.billingResponsibility; }
+      const metadata = attachBillingMetadata({ adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, error: error.message, failed: true }, billing, settlement);
       if (need.chain) metadata.chainStage = need.stageIndex;
       await this.sendTerminal(need, null, metadata);
     }

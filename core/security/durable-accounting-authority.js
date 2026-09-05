@@ -58,8 +58,7 @@ export function createDurableAccountingAuthority({ filePath, now = () => new Dat
         const same = existing.entitlementId === entitlement && existing.actorId === actor && existing.providerNodeId === provider && existing.periodKey === period && existing.estimatedTokens === tokens;
         if (!same) return { ok: false, reason: 'reservation_id_conflict' };
         const ledger = state.ledgers[ledgerKey] || { committedRequests: 0, committedTokens: 0, reservedRequests: 0, reservedTokens: 0 };
-        return {
-          ok: existing.status === 'reserved' || existing.status === 'committed',
+        const base = {
           idempotent: true,
           status: existing.status,
           quotaOverrun: Boolean(existing.quotaOverrun),
@@ -67,6 +66,9 @@ export function createDurableAccountingAuthority({ filePath, now = () => new Dat
           remainingRequests: remaining(existing.maxRequests, ledger.committedRequests, ledger.reservedRequests),
           remainingTokens: remaining(existing.maxTokens, ledger.committedTokens, ledger.reservedTokens)
         };
+        if (existing.status === 'reserved') return { ok: true, ...base };
+        if (existing.status === 'committed') return { ok: false, reason: 'reservation_already_committed', ...base };
+        return { ok: false, reason: `reservation_${existing.status}`, ...base };
       }
 
       const ledger = state.ledgers[ledgerKey] || {
