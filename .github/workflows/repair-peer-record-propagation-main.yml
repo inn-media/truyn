@@ -1,0 +1,42 @@
+name: repair-peer-record-propagation-main
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/repair-peer-record-propagation-main.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-peer-record-propagation-main-single-shot
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/peer-record-propagation-readiness
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply bounded production propagation repair
+        run: python3 scripts/apply-peer-record-propagation-repair.py
+      - name: Verify syntax and focused propagation contract
+        run: |
+          node --check network/runtime.js
+          node --test tests/peer-record-propagation-readiness.test.js
+          git diff --check
+      - name: Commit repair and remove branch-local temporary tooling
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add network/runtime.js tests/peer-record-propagation-readiness.test.js
+          git rm scripts/apply-peer-record-propagation-repair.py .github/workflows/repair-peer-record-propagation.yml
+          git commit -s -m 'fix(network): enforce peer-record propagation readiness'
+          git push origin HEAD:fix/peer-record-propagation-readiness
