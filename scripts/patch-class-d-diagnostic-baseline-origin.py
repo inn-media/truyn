@@ -39,8 +39,8 @@ D200_BASELINE_ROW_MAX_BYTES=1800
 base_success=0; base_total=0; base_p50=0; base_p90=0; base_p95=0; base_p99=0
 baseline_dir=$(mktemp -d)
 baseline_diag_phase_dir=$(mktemp -d)
-baseline_diag_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-baseline-origin.jsonl"
 baseline_diag_json="${GITHUB_WORKSPACE:-$PWD}/class-d-200-baseline-origin.json"
+baseline_diag_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-baseline-origin.jsonl"
 baseline_diag_digest="${GITHUB_WORKSPACE:-$PWD}/class-d-200-baseline-origin-digest.txt"
 : >"$baseline_diag_jsonl"
 baseline_pids=()
@@ -53,9 +53,9 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
 set -Eeuo pipefail
 python3 - <<'PY'
 import concurrent.futures,json,os,random,subprocess,time
-records=json.load(open('/var/lib/truyqn-d1000/records-by-host.json'))
+records=json.load(open('/var/lib/truyn-d1000/records-by-host.json'))
 host=${i}; H=${HOST_COUNT}; N=${NODES_PER_HOST}; base=${CONTROL_BASE}
-diag_path=f'/var/lib/truyqn-d1000/baseline-origin-host-{host}.json'
+diag_path=f'/var/lib/truyn-d1000/baseline-origin-host-{host}.json'
 
 def get_json(url, timeout='8'):
     p=subprocess.run(['curl','-sS','--max-time',timeout,url],text=True,capture_output=True)
@@ -86,7 +86,7 @@ def state(j):
 
 def persisted_peer_state(j,node_id):
     global_index=host*N+j
-    path=f'/var/lib/truyqn-d1000/node-{global_index}-state.json'
+    path=f'/var/lib/truyn-d1000/node-{global_index}-state.json'
     result={'readOk':False,'present':False,'validNow':False}
     try:
         value=json.load(open(path))
@@ -202,7 +202,7 @@ set -Eeuo pipefail
 python3 - <<'PY'
 import concurrent.futures,json,subprocess,time
 host=${i}; N=${NODES_PER_HOST}; base=${CONTROL_BASE}
-path=f'/var/lib/truyqn-d1000/baseline-origin-host-{host}.json'
+path=f'/var/lib/truyn-d1000/baseline-origin-host-{host}.json'
 value=json.load(open(path))
 
 def get_json(url, timeout='8'):
@@ -234,7 +234,7 @@ def state(j):
 
 def persisted_peer_state(j,node_id):
     global_index=host*N+j
-    state_path=f'/var/lib/truyqn-d1000/node-{global_index}-state.json'
+    state_path=f'/var/lib/truyn-d1000/node-{global_index}-state.json'
     result={'readOk':False,'present':False,'validNow':False}
     try:
         saved=json.load(open(state_path))
@@ -324,7 +324,7 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   for n in $(seq 0 $((failure_count-1))); do
     row_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
 import base64,hashlib,json
-path='/var/lib/truyqn-d1000/baseline-origin-host-${i}.json'
+path='/var/lib/truyn-d1000/baseline-origin-host-${i}.json'
 n=${n}
 value=json.load(open(path))
 row=value['failures'][n]
