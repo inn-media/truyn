@@ -15,12 +15,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  LAUNCH_BASE_COMMIT: e84af619d4432c1a98853ea3b8dcf05624430590
+  LAUNCH_BASE_COMMIT: 06c08881ef3e95e7f41a1f34221f3d0597949a43
   TESTED_COMMIT: e84af619d4432c1a98853ea3b8dcf05624430590
   TESTED_TREE_SHA: 5552626e22b19ed9bacbaa09105805ea15d4c45d
   EXACT_MAIN_CI_RUN: '33975305905'
   EXACT_MAIN_CODEQL_RUN: '33975305631'
-  P2P_BLOB_SHA: ac2e6f780901110b0ce666e254122aa539e34608
+  P2P_BLOB_SHA: ac2e6f78f0afdfc69f0a93d8899ef41c089fec52
   PROVISION_BLOB_SHA: c1c839943f5e02bdc716691d91226251c8e3ec00
   CAMPAIGN_BLOB_SHA: 45d6a25e3dea8443c0a5463c2b029f1a5eec154a
   RUNTIME_BUNDLE_BUILDER_BLOB_SHA: a49bbc7c700a277ca9ed3cc26e905b51ea4b6baf
@@ -54,15 +54,19 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          workflow='.github/workflows/diag-d200-e84af619-first-need-readiness-main.yml'
           [[ "$GITHUB_RUN_ATTEMPT" == 1 && "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]
           j="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}")"
           [[ "$(jq '.files|length' <<<"$j")" == 1 ]]
-          [[ "$(jq -r '.files[0].filename' <<<"$j")" == '.github/workflows/diag-d200-e84af619-first-need-readiness-main.yml' ]]
-          [[ "$(jq -r '.files[0].status' <<<"$j")" == added ]]
+          [[ "$(jq -r '.files[0].filename' <<<"$j")" == "$workflow" ]]
+          [[ "$(jq -r '.files[0].status' <<<"$j")" == modified ]]
           [[ "$(jq -r '.parents[0].sha' <<<"$j")" == "$LAUNCH_BASE_COMMIT" ]]
           b="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${LAUNCH_BASE_COMMIT}")"
+          [[ "$(jq -r '.parents[0].sha' <<<"$b")" == "$TESTED_COMMIT" ]]
+          [[ "$(jq '.files|length' <<<"$b")" == 1 ]]
+          [[ "$(jq -r '.files[0].filename' <<<"$b")" == "$workflow" ]]
+          [[ "$(jq -r '.files[0].status' <<<"$b")" == added ]]
           t="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TESTED_COMMIT}")"
-          [[ "$(jq -r '.commit.tree.sha' <<<"$b")" == "$TESTED_TREE_SHA" ]]
           [[ "$(jq -r '.commit.tree.sha' <<<"$t")" == "$TESTED_TREE_SHA" ]]
           jq -e '.commit.verification.verified==true and .commit.verification.reason=="valid"' <<<"$t" >/dev/null
 
@@ -100,7 +104,10 @@ jobs:
             [scripts/patch-class-d-diagnostic-write-retention.py]="$WRITE_RETENTION_PATCHER_BLOB_SHA"
             [scripts/summarize-class-d200-healed-origin.py]="$HEALED_SUMMARY_HELPER_BLOB_SHA"
           )
-          for p in "${!pins[@]}"; do [[ "$(git rev-parse "${TESTED_COMMIT}:$p")" == "${pins[$p]}" ]]; done
+          for p in "${!pins[@]}"; do
+            actual="$(git rev-parse "${TESTED_COMMIT}:$p")"
+            [[ "$actual" == "${pins[$p]}" ]] || { echo "TRUYN_D200_PIN_MISMATCH path=$p actual=$actual expected=${pins[$p]}"; exit 1; }
+          done
           ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
           cq="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}")"
           jq -e --arg sha "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$sha and .event=="push" and .status=="completed" and .conclusion=="success"' <<<"$ci" >/dev/null
