@@ -8,7 +8,7 @@ TRUYN is a logical network for agent-to-agent communication, decentralized AI, c
 
 **TRUYN — connects intelligence to intelligence.**
 
-[Manifesto](MANIFESTO.md) · [Whitepaper](WHITEPAPER.md) · [Architecture](STRUCTURE.md) · [Status](docs/architecture/IMPLEMENTATION_STATUS.md) · [Roadmap](ROADMAP.md) · [A2A/MCP](docs/architecture/A2A_MCP_INTEROPERABILITY.md) · [SDK/DX](docs/architecture/SDK_DEVELOPER_EXPERIENCE.md) · [Governance](GOVERNANCE.md) · [Security](SECURITY.md) · [Apache-2.0](LICENSE)
+[Manifesto](MANIFESTO.md) · [Whitepaper](WHITEPAPER.md) · [Architecture](STRUCTURE.md) · [Status](docs/architecture/IMPLEMENTATION_STATUS.md) · [Roadmap](ROADMAP.md) · [A2A/MCP](docs/architecture/A2A_MCP_INTEROPERABILITY.md) · [P2 A2A/MCP evidence](docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md) · [SDK/DX](docs/architecture/SDK_DEVELOPER_EXPERIENCE.md) · [Governance](GOVERNANCE.md) · [Security](SECURITY.md) · [Apache-2.0](LICENSE)
 
 ---
 
@@ -52,8 +52,8 @@ BYOK — Bring Your Own Intelligence / Provider — is the normal private-provid
 
 ## Current factual status
 
-**Snapshot:** 2026-09-03  
-**Synchronized source:** `main@b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`  
+**Snapshot:** 2026-09-05  
+**P2-E3 reconciliation base:** `main@9add7ae3d0c7e47343f844d084258d423dd35f63`  
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`  
 **Protocol:** `TRUYN/1` draft
 
@@ -74,6 +74,9 @@ BYOK — Bring Your Own Intelligence / Provider — is the normal private-provid
 | A2A→TRUYN→MCP | **C7 + independent official MCP SDK black-box proven** |
 | MCP→TRUYN→A2A | **C7 + independent official A2A SDK black-box proven** |
 | Complete A2A/MCP adversarial matrix | **ACCEPTED — C8 / PR #423 / exact-head + exact-main CI/CodeQL** |
+| External referenced file/artifact interoperability | **ACCEPTED — P2-E1 / Sprint E / PR #427** |
+| Bounded pre-v1 A2A/MCP compatibility promise | **ACCEPTED — P2-E2 / `a2a-mcp-pre-v1/g1` / PR #432** |
+| Stable A2A/MCP v1 guarantee | **NOT DECLARED — `TRUYN/1` remains draft** |
 | Five first-party SDK clients | **Implemented / executable conformance proven** |
 | Direct NEED cancellation | **Implemented / bounded CI-proven** |
 | Signed generic PARTIAL streaming | **Implemented / bounded CI-proven** |
@@ -135,13 +138,19 @@ Independent ecosystem-side black-box proofs also exist in both directions:
 - **Sprint C:** `MCP→TRUYN→A2A` against official A2A Project `@a2a-js/sdk@1.0.1` in a separate process;
 - **Sprint D:** `A2A→TRUYN→MCP` against official `@modelcontextprotocol/server@2.0.0` in a separate process.
 
-C8 is also accepted as the bounded adversarial cross-protocol security matrix. It closed in PR `#423` on exact head `14757e0f1d182e8fdf15e2f9e7ffe67749efc4ee` and exact merged main `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`; see [C8 Security Closure Evidence](docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md).
+C8 is accepted as the bounded adversarial cross-protocol security matrix. It closed in PR `#423` on exact head `14757e0f1d182e8fdf15e2f9e7ffe67749efc4ee` and exact merged main `b7f8c5e0ffd0fb8db30d1d6d48811db96fb17e38`; see [C8 Security Closure Evidence](docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md).
 
-These proofs establish bounded interoperability/security; they do not imply ecosystem-wide certification.
+P2-E1 / Sprint E is also accepted. PR `#427` carries one deterministic referenced binary artifact across both independent official-SDK directions with explicit materialization, exact SHA-256/size verification and no implicit arbitrary URL fetch. The artifact is `interop-proof.bin`, `application/octet-stream`, `29` bytes, SHA-256 `257b10be1e90139219f3aa9edbbdea24a80ef453cbbc16e840e1c34d0b24abae`.
+
+P2-E2 is accepted in PR `#432`. Compatibility generation `a2a-mcp-pre-v1/g1` declares the bounded A2A `1.0` and MCP `2026-07-28` profiles, bounded legacy MCP facade versions, fail-closed required-semantic negotiation and immutable correlation/integrity/authority/billing/exactly-once semantics.
+
+These proofs establish bounded interoperability/security/compatibility; they do not imply ecosystem-wide certification or stable-v1.
 
 ### What is still open
 
-An independent integrity-verified referenced file/artifact round trip, broader optional protocol surfaces and a stable compatibility promise remain adoption/stability work. C8 itself is closed.
+The previously open external referenced-artifact gate and bounded compatibility-policy gate are closed by P2-E1 and P2-E2. Remaining A2A/MCP work is additive: exact-version evidence whenever the claimed external profile expands, separately implemented/evidenced optional surfaces, and eventual stable-v1 graduation only after the relevant TRUYN protocol generation is declared stable. Stable A2A/MCP v1 is **not yet declared**.
+
+See [P2 Final Acceptance Evidence](docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md) and [Bounded Pre-v1 Compatibility Promise](docs/compatibility/A2A_MCP_STABILITY.md).
 
 ---
 
@@ -156,7 +165,7 @@ The accepted C6 A2A mapping includes:
 - **no implicit remote URL fetching / SSRF**;
 - authoritative TRUYN provenance rather than remote spoofable provider metadata.
 
-Invalid/corrupt remote artifacts must fail closed instead of becoming successful cross-protocol results.
+P2-E1 proves that boundary across two independent official external SDK processes for the deterministic referenced artifact profile. Invalid/corrupt remote artifacts fail closed instead of becoming successful cross-protocol results, and absent resolvers cause zero reference materialization.
 
 ---
 
@@ -295,9 +304,10 @@ Use these sources in this order for current facts:
 1. [Protocol specification](spec/protocol/v1/README.md) for normative TRUYN/1 semantics;
 2. [Architecture Contract](docs/architecture/ARCHITECTURE_CONTRACT.md) for ownership/invariants;
 3. [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md) for factual maturity;
-4. [Benchmark Evidence](docs/benchmarks/README.md) for measured accepted/failed campaigns;
-5. [Roadmap](ROADMAP.md) for next gates;
-6. this README for the public summary.
+4. [P2 A2A/MCP Final Acceptance](docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md) for consolidated external interoperability/compatibility closure;
+5. [Benchmark Evidence](docs/benchmarks/README.md) for measured accepted/failed campaigns;
+6. [Roadmap](ROADMAP.md) for next gates;
+7. this README for the public summary.
 
 If an old PR/issue/document says a later-merged capability is “planned”, that historical statement does not override current main.
 
