@@ -3,7 +3,8 @@ name: SDK Registry Closure
 on:
   push:
     tags:
-      - 'sdk/npm/v0.1.0-alpha.2'
+      - 'sdk/npm/v0.1.0-alpha.2-release.1'
+  workflow_dispatch:
 
 permissions:
   actions: read
@@ -18,7 +19,7 @@ jobs:
     timeout-minutes: 30
     env:
       SOURCE_SHA: ${{ github.sha }}
-      RELEASE_TAG: sdk/npm/v0.1.0-alpha.2
+      RELEASE_TAG: sdk/npm/v0.1.0-alpha.2-release.1
       RELEASE_MARKER: sdk/release/registry-closure.json
       NPM_PACKAGE: '@truyn/sdk'
       NPM_VERSION: '0.1.0-alpha.2'
@@ -73,7 +74,7 @@ jobs:
               pypiSdistFilename:$sdistFilename,
               pypiSdistSha256:$sdistSha,
               pypiPublicationSourceSha:$pypiPublicationSha,
-              repairRevision:5
+              repairRevision:6
             }' "$RELEASE_MARKER" >/dev/null
           test "$(node -p "require('./sdk/typescript/package.json').version")" = "$NPM_VERSION"
 
