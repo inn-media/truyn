@@ -10,7 +10,7 @@ A release is publishable only from an exact merged commit for which ordinary CI,
 
 The initial npm/PyPI bootstrap publication infrastructure has already been exercised. npm `@truyn/sdk@0.1.0-alpha.1` is immutable, but clean-room Node 22 ESM import later proved that artifact unusable because `ws` had been bundled through a CommonJS dynamic require. That coordinate must never be overwritten. The bounded npm repair therefore uses the new immutable version `0.1.0-alpha.2`; Python remains `0.1.0a1`, and the Go/Java/.NET alpha coordinates remain unchanged.
 
-The configured npm Trusted Publisher identity remains `publish-sdk-alpha.yml`. For the bounded alpha.2 repair, that workflow is temporarily reduced to one immutable tag-only operation on `sdk/npm/v0.1.0-alpha.2`: it consumes the exact package artifact uploaded by successful ordinary main CI for the same source SHA, requires hosted CodeQL success on that same SHA, publishes through OIDC without a long-lived publish token, and verifies immutable registry evidence. The superseded `go-sdk-alpha-release.yml` filename contains no publication path and is removed by the post-evidence cleanup PR. Ordinary `ci.yml` remains non-publishing.
+The configured npm Trusted Publisher identity remains `publish-sdk-alpha.yml`. For the bounded alpha.2 repair, that workflow consumes the exact package artifact uploaded by successful ordinary main CI for the same source SHA, requires hosted CodeQL success on that same SHA, publishes through OIDC without a long-lived publish token, and verifies immutable registry evidence. The first candidate tag `sdk/npm/v0.1.0-alpha.2` was created from an exact-green main SHA by a GitHub Actions bootstrap, but GitHub correctly suppressed a second workflow from that `GITHUB_TOKEN`-originated tag event. That candidate tag is immutable and is not moved or reused. The operational publication therefore uses the distinct immutable tag `sdk/npm/v0.1.0-alpha.2-release.1`; the one-shot workflow temporarily permits `workflow_dispatch`, but its first release-identity gate still requires `GITHUB_REF` to equal that exact tag and requires the tag to resolve to the workflow source SHA. The superseded `go-sdk-alpha-release.yml` filename contains no publication path and is removed by the post-evidence cleanup PR. Ordinary `ci.yml` remains non-publishing.
 
 npm Trusted Publishing covers `npm publish`; npm registry-management commands such as dist-tag mutation are a separate authenticated operation. The repair publish therefore uses the default `latest` tag through Trusted Publishing, while the additional `alpha` tag is repaired only through the narrow existing environment credential if it is not already correct. That credential is not used as the publishing identity and is removed/revoked when no longer needed.
 
@@ -34,13 +34,15 @@ The Go module lives in the `sdk/go` subdirectory, so its accepted VCS release ta
 sdk/go/v0.1.0-alpha.1
 ```
 
-The npm packaging repair uses the one-shot release tag:
+The npm packaging repair uses the one-shot operational release tag:
 
 ```text
-sdk/npm/v0.1.0-alpha.2
+sdk/npm/v0.1.0-alpha.2-release.1
 ```
 
-The npm tag may be created only after the exact merged source SHA has successful ordinary main CI and hosted CodeQL. The Trusted Publisher workflow must prove that the tag resolves to that exact SHA before any registry mutation.
+The earlier `sdk/npm/v0.1.0-alpha.2` candidate tag remains immutable historical release-setup evidence and is not a publication tag.
+
+The operational npm tag may be created only after the exact merged source SHA has successful ordinary main CI and hosted CodeQL. The Trusted Publisher workflow must prove that the tag resolves to that exact SHA before any registry mutation. A temporary explicit dispatch is acceptable only when the workflow is run with the exact immutable release tag as its ref; dispatching `main`, a branch, or another tag fails the same release-identity gate before registry access.
 
 ## npm publication and repair contract
 
@@ -50,7 +52,7 @@ The npm organization/scope `truyn` exists and the bootstrap publication boundary
 
 For `0.1.0-alpha.2` the release operation MUST:
 
-1. run only from the immutable `sdk/npm/v0.1.0-alpha.2` tag through `publish-sdk-alpha.yml`;
+1. run only with immutable `sdk/npm/v0.1.0-alpha.2-release.1` as `GITHUB_REF` through `publish-sdk-alpha.yml`, whether the initiating event is a direct external tag push or the bounded one-shot `workflow_dispatch` targeting that exact tag;
 2. require successful ordinary main CI and hosted CodeQL for the exact tagged SHA;
 3. download the exact `truyn-sdk-release-<CI run id>` artifact from that successful CI run rather than rebuilding an independently resolved npm dependency graph;
 4. verify `sdk/release/dist/manifest.json` against the tagged SHA and TypeScript version before publication;
@@ -108,7 +110,7 @@ A release-infrastructure change is accepted only when all applicable conditions 
 - registry namespace/package ownership is verified for the target ecosystem;
 - publisher identity is bound to `inn-media/truyn` and the narrow release workflow/environment boundary supported by that registry;
 - ordinary `ci.yml` contains no registry publication path;
-- publication is immutable tag-only and cannot be invoked through `workflow_dispatch` or `pull_request_target`;
+- publication remains exact immutable-tag-bound; the bounded temporary `workflow_dispatch` can succeed only when `GITHUB_REF` is the exact release tag, while `pull_request_target` is forbidden;
 - permissions are least-privileged;
 - registry writes consume the exact successful CI artifact or another reviewed immutable artifact bound to the exact accepted source SHA;
 - the protected `sdk-release` environment gates registry publication;

@@ -8,9 +8,9 @@ const marker = JSON.parse(await readFile(new URL('../sdk/release/registry-closur
 
 test('alpha.2 repair publishes only through the configured npm Trusted Publisher workflow', () => {
   assert.match(workflow, /name: SDK Registry Closure/);
-  assert.match(workflow, /tags:\s*\n\s*- 'sdk\/npm\/v0\.1\.0-alpha\.2'/);
+  assert.match(workflow, /tags:\s*\n\s*- 'sdk\/npm\/v0\.1\.0-alpha\.2-release\.1'/);
   assert.doesNotMatch(workflow, /workflow_run:/);
-  assert.doesNotMatch(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /environment: sdk-release/);
   const publishStep = workflow.match(/      - name: Publish immutable npm alpha\.2 repair through Trusted Publishing\n[\s\S]*?(?=\n      - name: )/)?.[0];
@@ -25,7 +25,7 @@ test('registry repair marker is exact, immutable and tag-bound', () => {
     npmPackage: '@truyn/sdk',
     npmVersion: '0.1.0-alpha.2',
     npmDistTag: 'alpha',
-    npmReleaseTag: 'sdk/npm/v0.1.0-alpha.2',
+    npmReleaseTag: 'sdk/npm/v0.1.0-alpha.2-release.1',
     npmSupersedes: '0.1.0-alpha.1',
     npmRepairReason: '0.1.0-alpha.1 is immutable and fails clean-room Node 22 ESM import because ws was bundled as CommonJS dynamic require',
     pypiPackage: 'truyn-sdk',
@@ -35,7 +35,7 @@ test('registry repair marker is exact, immutable and tag-bound', () => {
     pypiSdistFilename: 'truyn_sdk-0.1.0a1.tar.gz',
     pypiSdistSha256: 'a2e1e2baa6248cab18bdee08b10e832a39453836a64ad0b55c000f48c890ddaf',
     pypiPublicationSourceSha: 'fda6b75fda5331dd9cdc7e642f7a0a5556749a64',
-    repairRevision: 5
+    repairRevision: 6
   });
   assert.match(workflow, /\. == \{/);
   assert.match(workflow, /test "\$GITHUB_REF" = "refs\/tags\/\$RELEASE_TAG"/);
