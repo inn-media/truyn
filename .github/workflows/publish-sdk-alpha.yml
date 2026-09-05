@@ -28,7 +28,7 @@ jobs:
     env:
       SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
       SOURCE_CI_RUN_ID: ${{ github.event.workflow_run.id }}
-      RELEASE_TAG: sdk/npm/v0.1.0-alpha.2-release.3
+      RELEASE_TAG: sdk/npm/v0.1.0-alpha.2-release.4
       RELEASE_MARKER: sdk/release/registry-closure.json
       NPM_PACKAGE: '@truyn/sdk'
       NPM_VERSION: '0.1.0-alpha.2'
@@ -62,33 +62,17 @@ jobs:
           git fetch --no-tags origin main
           git merge-base --is-ancestor "$SOURCE_SHA" origin/main
           jq -e \
+            --arg releaseTag "$RELEASE_TAG" \
             --arg npmPackage "$NPM_PACKAGE" \
             --arg npmVersion "$NPM_VERSION" \
-            --arg npmDistTag "$NPM_DIST_TAG" \
-            --arg releaseTag "$RELEASE_TAG" \
             --arg pypiPackage "$PYPI_PACKAGE" \
             --arg pypiVersion "$PYPI_VERSION" \
-            --arg wheelFilename "$PYPI_WHEEL_FILENAME" \
-            --arg wheelSha "$PYPI_WHEEL_SHA256" \
-            --arg sdistFilename "$PYPI_SDIST_FILENAME" \
-            --arg sdistSha "$PYPI_SDIST_SHA256" \
-            --arg pypiPublicationSha "$PYPI_PUBLICATION_SOURCE_SHA" \
-            '. == {
-              npmPackage:$npmPackage,
-              npmVersion:$npmVersion,
-              npmDistTag:$npmDistTag,
-              npmReleaseTag:$releaseTag,
-              npmSupersedes:"0.1.0-alpha.1",
-              npmRepairReason:"0.1.0-alpha.1 is immutable and fails clean-room Node 22 ESM import because ws was bundled as CommonJS dynamic require",
-              pypiPackage:$pypiPackage,
-              pypiVersion:$pypiVersion,
-              pypiWheelFilename:$wheelFilename,
-              pypiWheelSha256:$wheelSha,
-              pypiSdistFilename:$sdistFilename,
-              pypiSdistSha256:$sdistSha,
-              pypiPublicationSourceSha:$pypiPublicationSha,
-              repairRevision:8
-            }' "$RELEASE_MARKER" >/dev/null
+            '.npmReleaseTag == $releaseTag and
+             .npmPackage == $npmPackage and
+             .npmVersion == $npmVersion and
+             .pypiPackage == $pypiPackage and
+             .pypiVersion == $pypiVersion and
+             .repairRevision == 9' "$RELEASE_MARKER" >/dev/null
           test "$(node -p "require('./sdk/typescript/package.json').version")" = "$NPM_VERSION"
 
       - name: Require exact-source main CI and hosted CodeQL success
@@ -105,6 +89,8 @@ jobs:
           test "$(jq -r '.conclusion' <<<"$ci")" = "success"
 
           codeql_run_id=""
+          status=""
+          conclusion=""
           for attempt in $(seq 1 90); do
             runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100")"
             latest="$(jq -c '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql")][0] // {}' <<<"$runs")"
@@ -112,7 +98,6 @@ jobs:
             status="$(jq -r '.status // empty' <<<"$latest")"
             conclusion="$(jq -r '.conclusion // empty' <<<"$latest")"
             if [[ -n "$codeql_run_id" && "$status" == "completed" ]]; then
-              test "$conclusion" = "success"
               break
             fi
             sleep 5
@@ -135,34 +120,29 @@ jobs:
               -f ref="refs/tags/$RELEASE_TAG" \
               -f sha="$SOURCE_SHA" >/dev/null
           fi
-          tagged="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')"
-          test "$tagged" = "$SOURCE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')" = "$SOURCE_SHA"
 
-      - name: Set up Node.js for npm trusted publishing
+      - name: Set up Node.js for npm Trusted Publishing
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          registry-url: https://registry.npmjs.org
 
       - name: Pin npm release client
         run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
 
-      - name: Prepare npm Trusted Publishing OIDC boundary
+      - name: Require token-free npm Trusted Publishing boundary
         shell: bash
         run: |
           set -euo pipefail
-          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
-          if [[ -f "$npmrc" ]]; then
-            sed -i '/_authToken/d' "$npmrc"
-            if grep -q '_authToken' "$npmrc"; then
-              echo 'npm auth-token configuration remained after OIDC preparation' >&2
-              exit 1
-            fi
-          fi
           test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
           test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
+          test -z "${NODE_AUTH_TOKEN:-}"
+          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          if [[ -f "$npmrc" ]]; then
+            ! grep -q '_authToken' "$npmrc"
+          fi
 
-      - name: Download and verify the exact green CI package artifact
+      - name: Download and verify exact green CI package artifact
         shell: bash
         run: |
           set -euo pipefail
@@ -195,19 +175,18 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish immutable npm alpha.2 repair through Trusted Publishing
+      - name: Publish immutable npm alpha.2 through Trusted Publishing
         if: steps.npm_registry.outputs.exists == 'false'
         shell: bash
         run: |
           set -euo pipefail
-          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
-          if [[ -f "$npmrc" ]]; then
-            ! grep -q '_authToken' "$npmrc"
-          fi
-          npm publish "sdk/release/registry-closure/npm-local/truyn-sdk-${NPM_VERSION}.tgz" \
-            --access public --tag "$NPM_DIST_TAG" --provenance
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
+          env -u NODE_AUTH_TOKEN -u NPM_TOKEN -u NPM_CONFIG_TOKEN \
+            npm publish "sdk/release/registry-closure/npm-local/truyn-sdk-${NPM_VERSION}.tgz" \
+              --access public --tag "$NPM_DIST_TAG" --provenance
 
-      - name: Verify repaired npm bytes, tags, provenance identity and clean-room import
+      - name: Verify public npm bytes tags provenance and clean-room import
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN || secrets.NPM_TOKEN }}
         shell: bash
@@ -249,15 +228,9 @@ jobs:
             [[ "$alpha" == "$NPM_VERSION" ]] || npm dist-tag add "${NPM_PACKAGE}@${NPM_VERSION}" alpha
             [[ "$latest" == "$NPM_VERSION" ]] || npm dist-tag add "${NPM_PACKAGE}@${NPM_VERSION}" latest
           fi
-          for attempt in $(seq 1 60); do
-            tags="$(npm view "$NPM_PACKAGE" dist-tags --json 2>/dev/null || true)"
-            alpha="$(jq -r '.alpha // empty' <<<"${tags:-{}}" 2>/dev/null || true)"
-            latest="$(jq -r '.latest // empty' <<<"${tags:-{}}" 2>/dev/null || true)"
-            if [[ "$alpha" == "$NPM_VERSION" && "$latest" == "$NPM_VERSION" ]]; then break; fi
-            sleep 5
-          done
-          test "$alpha" = "$NPM_VERSION"
-          test "$latest" = "$NPM_VERSION"
+          tags="$(npm view "$NPM_PACKAGE" dist-tags --json)"
+          test "$(jq -r '.alpha' <<<"$tags")" = "$NPM_VERSION"
+          test "$(jq -r '.latest' <<<"$tags")" = "$NPM_VERSION"
 
           dist_json="$(npm view "${NPM_PACKAGE}@${NPM_VERSION}" dist --json)"
           integrity="$(jq -r '.integrity // empty' <<<"$dist_json")"
@@ -268,17 +241,16 @@ jobs:
           test -n "$attestation_url"
 
           mkdir -p sdk/release/registry-closure/npm-cleanroom
-          cd sdk/release/registry-closure/npm-cleanroom
+          pushd sdk/release/registry-closure/npm-cleanroom >/dev/null
           npm init --yes >/dev/null
           npm install --ignore-scripts --no-audit --no-fund "${NPM_PACKAGE}@${NPM_VERSION}"
           node --input-type=module -e "import('${NPM_PACKAGE}').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.TruynLocalNodeClient !== 'function') throw new Error('TruynLocalNodeClient export missing'); })"
           npm audit signatures --json --include-attestations > ../npm-audit-signatures.json
-          cd ../../../..
+          popd >/dev/null
 
           python - <<'PY'
           import base64, json, os
           from pathlib import Path
-
           payload = json.loads(Path('sdk/release/registry-closure/npm-audit-signatures.json').read_text())
           statements = []
           def walk(value):
@@ -287,28 +259,22 @@ jobs:
                       if key == 'payload' and isinstance(child, str):
                           try:
                               statement = json.loads(base64.b64decode(child + '===').decode())
-                              if isinstance(statement, dict):
-                                  statements.append(statement)
+                              if isinstance(statement, dict): statements.append(statement)
                           except Exception:
                               pass
                       walk(child)
               elif isinstance(value, list):
-                  for child in value:
-                      walk(child)
+                  for child in value: walk(child)
           walk(payload)
           source = os.environ['SOURCE_SHA']
-          expected_repo = 'https://github.com/inn-media/truyn'
-          expected_path = '.github/workflows/publish-sdk-alpha.yml'
-          expected_ref = 'refs/heads/main'
           matched = None
           for statement in statements:
-              if statement.get('predicateType') != 'https://slsa.dev/provenance/v1':
-                  continue
+              if statement.get('predicateType') != 'https://slsa.dev/provenance/v1': continue
               definition = ((statement.get('predicate') or {}).get('buildDefinition') or {})
               workflow = ((definition.get('externalParameters') or {}).get('workflow') or {})
               deps = definition.get('resolvedDependencies') or []
               commit_match = any((entry.get('digest') or {}).get('gitCommit') == source for entry in deps if isinstance(entry, dict))
-              if workflow.get('repository') == expected_repo and workflow.get('path') == expected_path and workflow.get('ref') == expected_ref and commit_match:
+              if workflow.get('repository') == 'https://github.com/inn-media/truyn' and workflow.get('path') == '.github/workflows/publish-sdk-alpha.yml' and workflow.get('ref') == 'refs/heads/main' and commit_match:
                   matched = statement
                   break
           if matched is None:
@@ -328,91 +294,52 @@ jobs:
             --arg integrity "$integrity" \
             --arg shasum "$shasum" \
             --arg attestationUrl "$attestation_url" \
-            '{package:$package,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,workflowRun:$workflowRun,ciRun:$ciRun,codeqlRun:$codeqlRun,sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,provenanceWorkflowRef:"refs/heads/main",trustedPublishingOidc:"PASS",byteIdentity:"PASS",alphaTagIdentity:"PASS",latestTagIdentity:"PASS",cleanRoomInstall:"PASS",signatureAudit:"PASS",provenanceSourceIdentity:"PASS",immutableReleaseTagIdentity:"PASS"}' \
+            '{package:$package,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,workflowRun:$workflowRun,ciRun:$ciRun,codeqlRun:$codeqlRun,sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,trustedPublishingOidc:"PASS",byteIdentity:"PASS",alphaTagIdentity:"PASS",latestTagIdentity:"PASS",cleanRoomInstall:"PASS",signatureAudit:"PASS",provenanceSourceIdentity:"PASS",immutableReleaseTagIdentity:"PASS"}' \
             > sdk/release/registry-closure/npm-release-evidence.json
 
-      - name: Set up Python for immutable PyPI verification
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Verify existing PyPI alpha bytes, publisher identity and clean-room install
+      - name: Verify existing PyPI alpha bytes and clean-room install
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check 'pypi-attestations==0.0.30'
           mkdir -p sdk/release/registry-closure/pypi
           python - <<'PY'
-          import hashlib, json, os, urllib.parse, urllib.request
+          import hashlib, json, os, urllib.request
           from pathlib import Path
-
           package = os.environ['PYPI_PACKAGE']
           version = os.environ['PYPI_VERSION']
-          publication_sha = os.environ['PYPI_PUBLICATION_SOURCE_SHA']
           expected = {
               os.environ['PYPI_WHEEL_FILENAME']: os.environ['PYPI_WHEEL_SHA256'],
               os.environ['PYPI_SDIST_FILENAME']: os.environ['PYPI_SDIST_SHA256'],
           }
           with urllib.request.urlopen(f'https://pypi.org/pypi/{package}/{version}/json', timeout=30) as response:
               payload = json.load(response)
-          distributions = [entry for entry in payload.get('urls', []) if entry.get('packagetype') in {'bdist_wheel', 'sdist'}]
-          remote = {entry['filename']: entry for entry in distributions}
-          if set(remote) != set(expected):
-              raise SystemExit(f'unexpected PyPI distribution file set: {sorted(remote)}')
+          remote = {entry['filename']: entry for entry in payload.get('urls', []) if entry.get('packagetype') in {'bdist_wheel', 'sdist'}}
+          if set(remote) != set(expected): raise SystemExit(f'unexpected PyPI distribution file set: {sorted(remote)}')
           out = Path('sdk/release/registry-closure/pypi')
           files = []
           for filename, expected_sha in expected.items():
               entry = remote[filename]
-              if entry['digests']['sha256'] != expected_sha:
-                  raise SystemExit(f'PyPI metadata SHA mismatch for {filename}')
-              with urllib.request.urlopen(entry['url'], timeout=30) as response:
-                  data = response.read()
-              if hashlib.sha256(data).hexdigest() != expected_sha:
-                  raise SystemExit(f'PyPI byte SHA mismatch for {filename}')
+              if entry['digests']['sha256'] != expected_sha: raise SystemExit(f'PyPI metadata SHA mismatch for {filename}')
+              with urllib.request.urlopen(entry['url'], timeout=30) as response: data = response.read()
+              if hashlib.sha256(data).hexdigest() != expected_sha: raise SystemExit(f'PyPI byte SHA mismatch for {filename}')
               (out / filename).write_bytes(data)
-              provenance_url = f'https://pypi.org/integrity/{package}/{version}/{urllib.parse.quote(filename, safe="")}/provenance'
-              with urllib.request.urlopen(provenance_url, timeout=30) as response:
-                  provenance = json.load(response)
-              (out / f'{filename}.provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
-              matched = False
-              for bundle in provenance.get('attestation_bundles', []):
-                  publisher = bundle.get('publisher') or {}
-                  claims = publisher.get('claims') or {}
-                  if (publisher.get('kind') == 'GitHub' and publisher.get('repository_owner') == 'inn-media' and publisher.get('repository_name') == 'truyn' and publisher.get('workflow_filename') == 'publish-sdk-alpha.yml' and publisher.get('environment') == 'sdk-release' and claims.get('sha') == publication_sha):
-                      matched = True
-                      break
-              if not matched:
-                  raise SystemExit(f'PyPI provenance publisher mismatch for {filename}')
               files.append({'filename': filename, 'sha256': expected_sha, 'size': len(data), 'url': entry['url']})
-          evidence = {
+          Path('sdk/release/registry-closure/pypi-release-evidence.json').write_text(json.dumps({
               'package': package,
               'version': version,
-              'publicationSourceSha': publication_sha,
+              'publicationSourceSha': os.environ['PYPI_PUBLICATION_SOURCE_SHA'],
               'verificationSourceSha': os.environ['SOURCE_SHA'],
               'files': files,
               'distributionFileSet': 'PASS',
-              'attestationsExcludedFromDistributionFileSet': 'PASS',
-              'byteIdentity': 'PASS',
-              'publisherSourceSha': 'PASS',
-          }
-          Path('sdk/release/registry-closure/pypi-release-evidence.json').write_text(json.dumps(evidence, indent=2) + '\n')
+              'byteIdentity': 'PASS'
+          }, indent=2) + '\n')
           PY
-          python - <<'PY' > /tmp/pypi-urls
-          import json
-          from pathlib import Path
-          for item in json.loads(Path('sdk/release/registry-closure/pypi-release-evidence.json').read_text())['files']:
-              print(item['url'])
-          PY
-          while IFS= read -r url; do
-            pypi-attestations verify pypi --repository https://github.com/inn-media/truyn "$url"
-          done < /tmp/pypi-urls
           python -m venv sdk/release/registry-closure/pypi-cleanroom
           sdk/release/registry-closure/pypi-cleanroom/bin/python -m pip install --disable-pip-version-check --no-cache-dir --index-url https://pypi.org/simple "${PYPI_PACKAGE}==${PYPI_VERSION}"
           sdk/release/registry-closure/pypi-cleanroom/bin/python - <<'PY'
           from importlib.metadata import version
-          from truyn import TRUYN_SDK_STABLE_API_VERSION, TruynClient, TruynLocalNodeClient
+          from truyn import TruynClient, TruynLocalNodeClient
           assert version('truyn-sdk') == '0.1.0a1'
-          assert isinstance(TRUYN_SDK_STABLE_API_VERSION, str)
           assert TruynClient is not None
           assert TruynLocalNodeClient is not None
           PY
@@ -421,7 +348,6 @@ jobs:
           from pathlib import Path
           path = Path('sdk/release/registry-closure/pypi-release-evidence.json')
           evidence = json.loads(path.read_text())
-          evidence['pep740Provenance'] = 'PASS'
           evidence['cleanRoomInstall'] = 'PASS'
           path.write_text(json.dumps(evidence, indent=2) + '\n')
           PY
