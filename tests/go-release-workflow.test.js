@@ -14,7 +14,7 @@ test('alpha.2 repair publishes only through the configured npm Trusted Publisher
   assert.doesNotMatch(workflow, /pull_request_target:/);
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /environment: sdk-release/);
-  assert.match(workflow, /RELEASE_TAG: sdk\/npm\/v0\.1\.0-alpha\.2-release\.2/);
+  assert.match(workflow, /RELEASE_TAG: sdk\/npm\/v0\.1\.0-alpha\.2-release\.3/);
   const publishStep = workflow.match(/      - name: Publish immutable npm alpha\.2 repair through Trusted Publishing\n[\s\S]*?(?=\n      - name: )/)?.[0];
   assert.ok(publishStep, 'trusted-publishing step must exist');
   assert.match(publishStep, /npm publish[\s\S]*--access public --tag "\$NPM_DIST_TAG" --provenance/);
@@ -22,12 +22,23 @@ test('alpha.2 repair publishes only through the configured npm Trusted Publisher
   assert.doesNotMatch(supersededWorkflow, /npm publish/);
 });
 
+test('Trusted Publishing preparation removes setup-node auth-token placeholder before publish', () => {
+  assert.match(workflow, /Prepare npm Trusted Publishing OIDC boundary/);
+  assert.match(workflow, /sed -i '\/_authToken\/d' "\$npmrc"/);
+  assert.match(workflow, /grep -q '_authToken'/);
+  assert.match(workflow, /ACTIONS_ID_TOKEN_REQUEST_URL/);
+  assert.match(workflow, /ACTIONS_ID_TOKEN_REQUEST_TOKEN/);
+  const publishStep = workflow.match(/      - name: Publish immutable npm alpha\.2 repair through Trusted Publishing\n[\s\S]*?(?=\n      - name: )/)?.[0];
+  assert.ok(publishStep);
+  assert.match(publishStep, /! grep -q '_authToken' "\$npmrc"/);
+});
+
 test('registry repair marker is exact, immutable and workflow-run tag-bound', () => {
   assert.deepEqual(marker, {
     npmPackage: '@truyn/sdk',
     npmVersion: '0.1.0-alpha.2',
     npmDistTag: 'alpha',
-    npmReleaseTag: 'sdk/npm/v0.1.0-alpha.2-release.2',
+    npmReleaseTag: 'sdk/npm/v0.1.0-alpha.2-release.3',
     npmSupersedes: '0.1.0-alpha.1',
     npmRepairReason: '0.1.0-alpha.1 is immutable and fails clean-room Node 22 ESM import because ws was bundled as CommonJS dynamic require',
     pypiPackage: 'truyn-sdk',
@@ -37,7 +48,7 @@ test('registry repair marker is exact, immutable and workflow-run tag-bound', ()
     pypiSdistFilename: 'truyn_sdk-0.1.0a1.tar.gz',
     pypiSdistSha256: 'a2e1e2baa6248cab18bdee08b10e832a39453836a64ad0b55c000f48c890ddaf',
     pypiPublicationSourceSha: 'fda6b75fda5331dd9cdc7e642f7a0a5556749a64',
-    repairRevision: 7
+    repairRevision: 8
   });
   assert.match(workflow, /Create or verify immutable release tag after green gates/);
   assert.match(workflow, /git\/matching-refs\/tags\/\$RELEASE_TAG/);
@@ -68,6 +79,7 @@ test('npm verification repairs only absent/alpha.1 tags and refuses rollback fro
   assert.match(workflow, /gitCommit/);
   assert.match(workflow, /npmSupersedes/);
   assert.match(workflow, /Refusing to move npm dist-tag/);
+  assert.match(workflow, /trustedPublishingOidc:\"PASS\"/);
   assert.match(workflow, /alphaTagIdentity:\"PASS\"/);
   assert.match(workflow, /latestTagIdentity:\"PASS\"/);
   assert.match(workflow, /provenanceSourceIdentity:\"PASS\"/);
