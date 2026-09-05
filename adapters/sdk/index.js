@@ -46,10 +46,10 @@ function reportedUsageTokens(metadata, fallback = 0) {
   return Number.isSafeInteger(fallback) && fallback >= 0 ? fallback : 0;
 }
 
-function settleBilling(billing, input) {
+async function settleBilling(billing, input) {
   if (typeof billing?.finalize !== 'function') return null;
   try {
-    return billing.finalize(input);
+    return await billing.finalize(input);
   } catch {
     return { ok: false, reason: 'accounting_reconcile_unavailable' };
   }
@@ -236,7 +236,7 @@ export class TruynAdapterHost {
       }
       let billing = null;
       if (this.billingPolicy) {
-        billing = this.billingPolicy.authorize(need, { accessPolicy: this.accessPolicy, estimatedTokens: billingEstimate(need) });
+        billing = await this.billingPolicy.authorize(need, { accessPolicy: this.accessPolicy, estimatedTokens: billingEstimate(need) });
         if (!billing?.ok) {
           const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: 0, error: 'PROVIDER_BILLING_DENIED', errorClass: 'billing', billingDenied: true, billingMode: this.billingPolicy.mode, billingReason: billing?.reason || 'billing_not_authorized', failed: true };
           if (need.chain) metadata.chainStage = need.stageIndex;
@@ -257,7 +257,7 @@ export class TruynAdapterHost {
         }
         const execution = await this.adapter.execute({ capability, input, policy: need.payload?.policy || {}, need, node: this.node });
         const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
-        const settlement = settleBilling(billing, { outcome: 'completed', actualTokens: reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0) });
+        const settlement = await settleBilling(billing, { outcome: 'completed', actualTokens: reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0) });
         billingSettled = typeof billing?.finalize === 'function';
         const metadata = attachBillingMetadata({ adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, ...(normalized.metadata || {}) }, billing, settlement);
         if (contextResolution) metadata.contextResolution = contextResolution;
@@ -265,7 +265,7 @@ export class TruynAdapterHost {
         const output = accountingFailure(metadata, settlement) ? null : normalized.output;
         if (compact) await this.node.compactResult(need.id, output, metadata); else await this.node.result(need.id, output, metadata);
       } catch (error) {
-        const settlement = billingSettled ? null : settleBilling(billing, { outcome: 'failed', actualTokens: 0, reason: error.message });
+        const settlement = billingSettled ? null : await settleBilling(billing, { outcome: 'failed', actualTokens: 0, reason: error.message });
         if (typeof billing?.finalize === 'function') billingSettled = true;
         const metadata = attachBillingMetadata({ adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, error: error.message, failed: true }, billing, settlement);
         if (need.chain) metadata.chainStage = need.stageIndex;
@@ -307,7 +307,7 @@ export class TruynAdapterHost {
     }
     let billing = null;
     if (this.billingPolicy) {
-      billing = this.billingPolicy.authorize(need, { accessPolicy: this.accessPolicy, estimatedTokens: billingEstimate(need) });
+      billing = await this.billingPolicy.authorize(need, { accessPolicy: this.accessPolicy, estimatedTokens: billingEstimate(need) });
       if (!billing?.ok) {
         if (signal.aborted) return;
         const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: 0, error: 'PROVIDER_BILLING_DENIED', errorClass: 'billing', billingDenied: true, billingMode: this.billingPolicy.mode, billingReason: billing?.reason || 'billing_not_authorized', failed: true };
@@ -317,7 +317,7 @@ export class TruynAdapterHost {
       }
     }
     if (signal.aborted) {
-      settleBilling(billing, { outcome: 'cancelled', actualTokens: 0, reason: signal.reason?.message || 'request_cancelled' });
+      await settleBilling(billing, { outcome: 'cancelled', actualTokens: 0, reason: signal.reason?.message || 'request_cancelled' });
       return;
     }
     const startedAt = Date.now();
@@ -331,12 +331,18 @@ export class TruynAdapterHost {
         if ((resolved.stats?.contextRefs || 0) > 0) contextResolution = resolved.stats;
       }
       if (signal.aborted) {
-        settleBilling(billing, { outcome: 'cancelled', actualTokens: 0, reason: signal.reason?.message || 'request_cancelled' });
+        await settleBilling(billing, { outcome: 'cancelled', actualTokens: 0, reason: signal.reason?.message || 'request_cancelled' });
         return;
       }
       const execution = await this.adapter.execute({ capability, input, policy: need.payload?.policy || {}, need, node: this.node, signal, emitPartial: (delta, partialMetadata = {}) => this.sendPartial(need, state, delta, partialMetadata) });
       const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
-      const settlement = settleBilling(billing, { outcome: 'completed', actualTokens: reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0) });
+      const actualTokens = reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0);
+      if (signal.aborted) {
+        await settleBilling(billing, { outcome: 'cancelled', actualTokens, reason: signal.reason?.message || 'request_cancelled' });
+        billingSettled = typeof billing?.finalize === 'function';
+        return;
+      }
+      const settlement = await settleBilling(billing, { outcome: 'completed', actualTokens });
       billingSettled = typeof billing?.finalize === 'function';
       if (signal.aborted) return;
       const metadata = attachBillingMetadata({ adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, ...(normalized.metadata || {}), partialCount: state.nextSequence }, billing, settlement);
@@ -346,7 +352,7 @@ export class TruynAdapterHost {
       await this.sendTerminal(need, output, metadata);
     } catch (error) {
       const outcome = signal.aborted ? 'cancelled' : 'failed';
-      const settlement = billingSettled ? null : settleBilling(billing, { outcome, actualTokens: 0, reason: error.message || outcome });
+      const settlement = billingSettled ? null : await settleBilling(billing, { outcome, actualTokens: 0, reason: error.message || outcome });
       if (typeof billing?.finalize === 'function') billingSettled = true;
       if (signal.aborted) return;
       const metadata = attachBillingMetadata({ adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, error: error.message, failed: true }, billing, settlement);
