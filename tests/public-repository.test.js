@@ -11,9 +11,7 @@ const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.c
 const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/.gitkeep',
   '.github/workflows/ci.yml',
-  '.github/workflows/publish-sdk-alpha.yml',
   '.github/workflows/publish-python-alpha.yml',
-  '.github/workflows/go-sdk-alpha-release.yml',
   '.github/workflows/production-dr-foundation.yml'
 ]);
 const BENCHMARK_EVIDENCE_DIR = 'docs/benchmarks/';
@@ -198,8 +196,6 @@ test('public repository contains no known operational/cloud leakage or credentia
 
     const isBenchmarkEvidence = file.relative.startsWith(BENCHMARK_EVIDENCE_DIR);
     for (const marker of forbiddenLiteralMarkers) {
-      // GitHub Actions run URLs are reproducibility evidence in sanitized benchmark reports.
-      // They remain forbidden elsewhere because arbitrary run links can expose operational context.
       if (isBenchmarkEvidence && marker === 'github.com/inn-media/truyn/actions/runs/') continue;
       if (content.includes(marker)) violations.push(`${file.relative}: forbidden operational marker category`);
     }
