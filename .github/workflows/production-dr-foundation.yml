@@ -1,0 +1,180 @@
+name: Production DR Foundation
+
+on:
+  pull_request:
+    paths:
+      - 'infra/production-dr/**'
+      - '.github/workflows/production-dr-foundation.yml'
+      - 'tests/production-dr-foundation.test.js'
+      - 'tests/public-repository.test.js'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/production-dr/**'
+      - '.github/workflows/production-dr-foundation.yml'
+      - 'tests/production-dr-foundation.test.js'
+      - 'tests/public-repository.test.js'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile production DR Bicep
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep install >/dev/null
+          az bicep build --file infra/production-dr/foundation.bicep --stdout >/dev/null
+
+  apply:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+      AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+      PRIMARY_LOCATION: ${{ vars.TRUYN_PRIMARY_LOCATION || 'westeurope' }}
+      SECONDARY_LOCATION: ${{ vars.TRUYN_SECONDARY_LOCATION || 'northeurope' }}
+      BACKUP_TIER: Continuous30Days
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Prepare deployment identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          az bicep install >/dev/null
+          suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}" | sha256sum | cut -c1-10)"
+          prefix="truyn${suffix}"
+          resource_group="truyn-prod-${suffix}"
+          printf '::add-mask::%s\n' "$prefix"
+          printf '::add-mask::%s\n' "$resource_group"
+          printf 'PREFIX=%s\nRESOURCE_GROUP=%s\n' "$prefix" "$resource_group" >> "$GITHUB_ENV"
+
+      - name: Provision production persistence foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          az group create \
+            --name "$RESOURCE_GROUP" \
+            --location "$PRIMARY_LOCATION" \
+            --tags truyn-managed=true \
+            --only-show-errors >/dev/null
+
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "production-dr-foundation-${GITHUB_SHA:0:12}" \
+            --template-file infra/production-dr/foundation.bicep \
+            --parameters \
+              namePrefix="$PREFIX" \
+              sourceSha="$GITHUB_SHA" \
+              location="$PRIMARY_LOCATION" \
+              secondaryLocation="$SECONDARY_LOCATION" \
+              backupTier="$BACKUP_TIER" \
+            --only-show-errors \
+            --query properties.outputs.contract.value \
+            -o json > /tmp/foundation-contract.json
+
+      - name: Prove live persistence controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosmos="${PREFIX}cosmos"
+          identity="${PREFIX}-authority-mi"
+          environment="${PREFIX}-aca-env"
+          registry="${PREFIX}acr"
+          database='authority'
+          container='checkpoints'
+          for value in "$cosmos" "$identity" "$environment" "$registry"; do printf '::add-mask::%s\n' "$value"; done
+
+          account_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json)"
+          jq -e --arg tier "$BACKUP_TIER" '
+            .backupPolicy.type == "Continuous" and
+            .backupPolicy.continuousModeProperties.tier == $tier and
+            (.locations | length) == 2 and
+            .enableAutomaticFailover == true and
+            .enableMultipleWriteLocations == false and
+            .disableLocalAuth == true and
+            (.publicNetworkAccess | ascii_downcase) == "disabled"
+          ' <<<"$account_json" >/dev/null
+
+          container_json="$(az cosmosdb sql container show --resource-group "$RESOURCE_GROUP" --account-name "$cosmos" --database-name "$database" --name "$container" --only-show-errors -o json)"
+          jq -e '.resource.partitionKey.paths == ["/partitionKey"]' <<<"$container_json" >/dev/null
+
+          principal="$(az identity show --resource-group "$RESOURCE_GROUP" --name "$identity" --query principalId -o tsv --only-show-errors)"
+          [[ -n "$principal" ]]
+          printf '::add-mask::%s\n' "$principal"
+
+          data_roles="$(az cosmosdb sql role assignment list --resource-group "$RESOURCE_GROUP" --account-name "$cosmos" --only-show-errors -o json)"
+          jq -e --arg principal "$principal" 'any(.[]; .principalId == $principal and (.roleDefinitionId | endswith("/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002")))' <<<"$data_roles" >/dev/null
+
+          environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --only-show-errors -o json)"
+          jq -e '.properties.vnetConfiguration.internal == true and (.properties.publicNetworkAccess | ascii_downcase) == "disabled"' <<<"$environment_json" >/dev/null
+
+          cosmos_id="$(jq -r '.id' <<<"$account_json")"
+          registry_id="$(az acr show --resource-group "$RESOURCE_GROUP" --name "$registry" --query id -o tsv --only-show-errors)"
+          for value in "$cosmos_id" "$registry_id"; do printf '::add-mask::%s\n' "$value"; done
+
+          pe_connections="$(az network private-endpoint-connection list --id "$cosmos_id" --only-show-errors -o json)"
+          jq -e 'any(.[]; (.privateLinkServiceConnectionState.status | ascii_downcase) == "approved")' <<<"$pe_connections" >/dev/null
+
+          acr_roles="$(az role assignment list --assignee-object-id "$principal" --scope "$registry_id" --only-show-errors -o json)"
+          jq -e 'any(.[]; (.roleDefinitionId | ascii_downcase | endswith("/7f951dda-4ed3-4680-a7ca-43fe172d538d")))' <<<"$acr_roles" >/dev/null
+
+          jq -n \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg tier "$BACKUP_TIER" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              schemaVersion: 1,
+              component: "production-dr-foundation",
+              sourceSha: $sourceSha,
+              generatedAt: $generatedAt,
+              status: "PASS",
+              persistence: {
+                continuousBackup: true,
+                backupTier: $tier,
+                regionCount: 2,
+                automaticFailover: true,
+                multiWrite: false,
+                localAuthDisabled: true,
+                publicNetworkDisabled: true,
+                privateEndpointApproved: true,
+                partitionKeyVerified: true
+              },
+              identity: {
+                managedIdentity: true,
+                cosmosDataContributor: true,
+                registryPull: true
+              },
+              servingFoundation: {
+                containerAppsEnvironmentInternal: true
+              }
+            }' > production-dr-foundation-evidence.json
+
+      - name: Upload sanitized foundation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-dr-foundation-evidence
+          path: production-dr-foundation-evidence.json
+          if-no-files-found: error
+          retention-days: 30

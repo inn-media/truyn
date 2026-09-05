@@ -1,0 +1,92 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+const BICEP = new URL('../infra/production-dr/foundation.bicep', import.meta.url);
+const WORKFLOW = new URL('../.github/workflows/production-dr-foundation.yml', import.meta.url);
+
+async function text(url) {
+  return readFile(url, 'utf8');
+}
+
+test('production DR foundation pins continuous PITR and two-region single-writer authority', async () => {
+  const source = await text(BICEP);
+  assert.match(source, /backupTier string = 'Continuous30Days'/);
+  assert.match(source, /type: 'Continuous'/);
+  assert.match(source, /tier: backupTier/);
+  assert.match(source, /enableAutomaticFailover: true/);
+  assert.match(source, /enableMultipleWriteLocations: false/);
+  assert.match(source, /failoverPriority: 0/);
+  assert.match(source, /failoverPriority: 1/);
+  assert.match(source, /regionCount: 2/);
+});
+
+test('production authority Cosmos is Entra-only and private-network only', async () => {
+  const source = await text(BICEP);
+  assert.match(source, /disableLocalAuth: true/);
+  assert.match(source, /publicNetworkAccess: 'Disabled'/);
+  assert.match(source, /networkAclBypass: 'None'/);
+  assert.match(source, /groupIds:\s*\[\s*'Sql'\s*\]/s);
+  assert.match(source, /privatelink\.documents\.azure\.com/);
+  assert.match(source, /privateEndpointNetworkPolicies: 'Disabled'/);
+  assert.doesNotMatch(source, /listKeys|connectionString|accountKey|primaryKey|secondaryKey/i);
+});
+
+test('production authority checkpoint container matches runtime partition contract', async () => {
+  const source = await text(BICEP);
+  assert.match(source, /containerName string = 'checkpoints'/);
+  assert.match(source, /paths:\s*\[\s*'\/partitionKey'\s*\]/s);
+  assert.match(source, /kind: 'Hash'/);
+  assert.match(source, /version: 2/);
+});
+
+test('production authority uses managed identity with bounded data-plane and registry roles', async () => {
+  const source = await text(BICEP);
+  assert.match(source, /Microsoft\.ManagedIdentity\/userAssignedIdentities/);
+  assert.match(source, /00000000-0000-0000-0000-000000000002/);
+  assert.match(source, /Microsoft\.DocumentDB\/databaseAccounts\/sqlRoleAssignments/);
+  assert.match(source, /7f951dda-4ed3-4680-a7ca-43fe172d538d/);
+  assert.match(source, /adminUserEnabled: false/);
+});
+
+test('Container Apps foundation is internal and VNet integrated', async () => {
+  const source = await text(BICEP);
+  assert.match(source, /Microsoft\.App\/managedEnvironments@2025-07-01/);
+  assert.match(source, /serviceName: 'Microsoft\.App\/environments'/);
+  assert.match(source, /infrastructureSubnetId: acaSubnetId/);
+  assert.match(source, /internal: true/);
+  assert.match(source, /publicNetworkAccess: 'Disabled'/);
+});
+
+test('foundation workflow validates PRs but mutates Azure only from main push', async () => {
+  const workflow = await text(WORKFLOW);
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /push:\s*\n\s*branches: \[main\]/);
+  assert.match(workflow, /if: github\.event_name == 'pull_request'/);
+  assert.match(workflow, /if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /az bicep build --file infra\/production-dr\/foundation\.bicep/);
+  assert.match(workflow, /azure\/login@v2/);
+  assert.match(workflow, /BACKUP_TIER: Continuous30Days/);
+  const validateIndex = workflow.indexOf('validate:');
+  const applyIndex = workflow.indexOf('apply:');
+  assert.ok(validateIndex >= 0 && applyIndex > validateIndex);
+  assert.doesNotMatch(workflow.slice(validateIndex, applyIndex), /azure\/login@v2/);
+});
+
+test('live foundation evidence proves backup, replication, RBAC and private ingress without identifiers', async () => {
+  const workflow = await text(WORKFLOW);
+  for (const marker of [
+    '.backupPolicy.type == "Continuous"',
+    '(.locations | length) == 2',
+    '.enableAutomaticFailover == true',
+    '.enableMultipleWriteLocations == false',
+    '.disableLocalAuth == true',
+    'privateEndpointApproved: true',
+    'cosmosDataContributor: true',
+    'containerAppsEnvironmentInternal: true',
+    'partitionKeyVerified: true',
+  ]) assert.ok(workflow.includes(marker), `missing live proof marker: ${marker}`);
+  assert.match(workflow, /production-dr-foundation-evidence\.json/);
+  assert.match(workflow, /actions\/upload-artifact@v4/);
+  assert.doesNotMatch(workflow, /connectionString|accountKey|listKeys/i);
+});
