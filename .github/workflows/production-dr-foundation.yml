@@ -44,8 +44,7 @@ jobs:
       AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
       AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
       RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
-      PRIMARY_LOCATION: ${{ vars.TRUYN_PRIMARY_LOCATION || 'westeurope' }}
-      SECONDARY_LOCATION: ${{ vars.TRUYN_SECONDARY_LOCATION || 'northeurope' }}
+      REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'northeurope:swedencentral germanywestcentral:francecentral' }}
       BACKUP_TIER: Continuous30Days
     steps:
       - uses: actions/checkout@v4
@@ -58,17 +57,13 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_VALUE }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
 
-      - name: Prepare deployment identity
+      - name: Prepare deployment tooling
         shell: bash
         run: |
           set -euo pipefail
           az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
           az bicep install >/dev/null
-          suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}" | sha256sum | cut -c1-10)"
-          prefix="truyn${suffix}"
-          printf '::add-mask::%s\n' "$prefix"
           printf '::add-mask::%s\n' "$RESOURCE_GROUP"
-          printf 'PREFIX=%s\n' "$prefix" >> "$GITHUB_ENV"
 
       - name: Provision production persistence foundation
         shell: bash
@@ -82,19 +77,73 @@ jobs:
           [[ -n "$resource_group_id" ]]
           printf '::add-mask::%s\n' "$resource_group_id"
 
-          az deployment group create \
-            --resource-group "$RESOURCE_GROUP" \
-            --name "production-dr-foundation-${GITHUB_SHA:0:12}" \
-            --template-file infra/production-dr/foundation.bicep \
-            --parameters \
-              namePrefix="$PREFIX" \
-              sourceSha="$GITHUB_SHA" \
-              location="$PRIMARY_LOCATION" \
-              secondaryLocation="$SECONDARY_LOCATION" \
-              backupTier="$BACKUP_TIER" \
-            --only-show-errors \
-            --query properties.outputs.contract.value \
-            -o json > /tmp/foundation-contract.json
+          selected_primary=''
+          selected_secondary=''
+          selected_prefix=''
+          selected_attempt=''
+          attempt=0
+
+          for pair in $REGION_PAIRS; do
+            attempt=$((attempt + 1))
+            [[ "$attempt" -le 2 ]] || break
+            [[ "$pair" == *:* ]] || { echo '::error::Invalid TRUYN_DR_REGION_PAIRS entry'; exit 1; }
+            primary="${pair%%:*}"
+            secondary="${pair#*:}"
+            [[ "$primary" =~ ^[a-z0-9]+$ && "$secondary" =~ ^[a-z0-9]+$ && "$primary" != "$secondary" ]] || {
+              echo '::error::Invalid TRUYN_DR_REGION_PAIRS region name'; exit 1;
+            }
+
+            pair_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}:${primary}:${secondary}" | sha256sum | cut -c1-10)"
+            prefix="truyn${pair_suffix}"
+            deployment_name="production-dr-${GITHUB_SHA:0:8}-${pair_suffix}"
+            printf '::add-mask::%s\n' "$prefix"
+            printf '::add-mask::%s\n' "$deployment_name"
+
+            rm -f /tmp/foundation-contract.json /tmp/foundation-deploy.err
+            if az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$deployment_name" \
+              --template-file infra/production-dr/foundation.bicep \
+              --parameters \
+                namePrefix="$prefix" \
+                sourceSha="$GITHUB_SHA" \
+                location="$primary" \
+                secondaryLocation="$secondary" \
+                backupTier="$BACKUP_TIER" \
+              --only-show-errors \
+              --query properties.outputs.contract.value \
+              -o json > /tmp/foundation-contract.json 2> /tmp/foundation-deploy.err; then
+              selected_primary="$primary"
+              selected_secondary="$secondary"
+              selected_prefix="$prefix"
+              selected_attempt="$attempt"
+              break
+            fi
+
+            if grep -Eiq 'Microsoft\.DocumentDB|database account|Cosmos' /tmp/foundation-deploy.err && \
+               grep -Eiq 'ServiceUnavailable|high demand|capacity|region access|LocationNotAvailableForResourceType|RegionNotAvailable|NotAvailableForSubscription' /tmp/foundation-deploy.err; then
+              echo "Azure Cosmos regional capacity unavailable for bounded candidate #${attempt}; trying the next candidate."
+              continue
+            fi
+
+            echo '::error::Production DR deployment failed for a non-regional-capacity reason; fallback is forbidden.'
+            exit 1
+          done
+
+          [[ -n "$selected_prefix" ]] || {
+            echo '::error::All bounded EU Cosmos region candidates are unavailable.'
+            exit 1
+          }
+
+          printf 'PREFIX=%s\n' "$selected_prefix" >> "$GITHUB_ENV"
+          printf 'SELECTED_PRIMARY_LOCATION=%s\n' "$selected_primary" >> "$GITHUB_ENV"
+          printf 'SELECTED_SECONDARY_LOCATION=%s\n' "$selected_secondary" >> "$GITHUB_ENV"
+          printf 'REGION_ATTEMPT_COUNT=%s\n' "$selected_attempt" >> "$GITHUB_ENV"
+          if [[ "$selected_attempt" -gt 1 ]]; then
+            printf 'REGION_FALLBACK_USED=true\n' >> "$GITHUB_ENV"
+          else
+            printf 'REGION_FALLBACK_USED=false\n' >> "$GITHUB_ENV"
+          fi
 
       - name: Prove live persistence controls
         shell: bash
@@ -109,10 +158,14 @@ jobs:
           for value in "$cosmos" "$identity" "$environment" "$registry"; do printf '::add-mask::%s\n' "$value"; done
 
           account_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json)"
-          jq -e --arg tier "$BACKUP_TIER" '
+          jq -e \
+            --arg tier "$BACKUP_TIER" \
+            --arg primary "$SELECTED_PRIMARY_LOCATION" \
+            --arg secondary "$SELECTED_SECONDARY_LOCATION" '
             .backupPolicy.type == "Continuous" and
             .backupPolicy.continuousModeProperties.tier == $tier and
             (.locations | length) == 2 and
+            ([.locations[].locationName | gsub(" "; "") | ascii_downcase] | sort) == ([$primary, $secondary] | sort) and
             .enableAutomaticFailover == true and
             .enableMultipleWriteLocations == false and
             .disableLocalAuth == true and
@@ -145,13 +198,23 @@ jobs:
           jq -n \
             --arg sourceSha "$GITHUB_SHA" \
             --arg tier "$BACKUP_TIER" \
+            --arg primaryRegion "$SELECTED_PRIMARY_LOCATION" \
+            --arg secondaryRegion "$SELECTED_SECONDARY_LOCATION" \
+            --argjson regionAttemptCount "$REGION_ATTEMPT_COUNT" \
+            --argjson fallbackUsed "$REGION_FALLBACK_USED" \
             --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{
-              schemaVersion: 1,
+              schemaVersion: 2,
               component: "production-dr-foundation",
               sourceSha: $sourceSha,
               generatedAt: $generatedAt,
               status: "PASS",
+              placement: {
+                primaryRegion: $primaryRegion,
+                secondaryRegion: $secondaryRegion,
+                regionAttemptCount: $regionAttemptCount,
+                fallbackUsed: $fallbackUsed
+              },
               persistence: {
                 continuousBackup: true,
                 backupTier: $tier,
