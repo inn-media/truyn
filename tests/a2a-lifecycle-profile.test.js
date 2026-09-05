@@ -209,7 +209,7 @@ test('P3-A1 CancelTask maps to requester-owned TRUYN REVOKE, aborts provider wor
 
   const hidden = await rpc(url, 'CancelTask', { id: taskId }, { token: 'other-token' });
   assert.equal(hidden.error.code, -32001);
-  assert.equal(h.relay.state.requests.get(requestId).status, 'dispatched');
+  assert.equal(h.relay.state.requests.get(requestId).status, 'matched');
 
   const cancelled = await rpc(url, 'CancelTask', { id: taskId }, { token: 'owner-token' });
   assert.equal(cancelled.error, undefined);
