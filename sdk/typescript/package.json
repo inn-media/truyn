@@ -1,6 +1,6 @@
 {
   "name": "@truyn/sdk",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "First-party JavaScript/TypeScript SDK for the TRUYN Intelligence Network",
   "license": "Apache-2.0",
   "type": "module",
@@ -32,8 +32,11 @@
     "url": "https://github.com/inn-media/truyn/issues"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean --out-dir dist --target node22 --platform node",
+    "build": "tsup src/index.ts --format esm --dts --clean --out-dir dist --target node22 --platform node --external ws",
     "test": "node --experimental-strip-types --test test/*.test.ts"
+  },
+  "dependencies": {
+    "ws": "8.21.1"
   },
   "devDependencies": {
     "tsup": "8.5.1",
