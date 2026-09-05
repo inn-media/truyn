@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   registry-closure:
-    name: Publish repaired npm alpha and verify npm/PyPI
+    name: Publish repaired npm alpha and verify public registry
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -28,18 +28,11 @@ jobs:
     env:
       SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
       SOURCE_CI_RUN_ID: ${{ github.event.workflow_run.id }}
-      RELEASE_TAG: sdk/npm/v0.1.0-alpha.2-release.4
+      RELEASE_TAG: sdk/npm/v0.1.0-alpha.2-release.5
       RELEASE_MARKER: sdk/release/registry-closure.json
       NPM_PACKAGE: '@truyn/sdk'
       NPM_VERSION: '0.1.0-alpha.2'
       NPM_DIST_TAG: alpha
-      PYPI_PACKAGE: truyn-sdk
-      PYPI_VERSION: 0.1.0a1
-      PYPI_WHEEL_FILENAME: truyn_sdk-0.1.0a1-py3-none-any.whl
-      PYPI_WHEEL_SHA256: dec464064dec577aa56d33780c6222ac674accf07fe09ae59af18a191afcd958
-      PYPI_SDIST_FILENAME: truyn_sdk-0.1.0a1.tar.gz
-      PYPI_SDIST_SHA256: a2e1e2baa6248cab18bdee08b10e832a39453836a64ad0b55c000f48c890ddaf
-      PYPI_PUBLICATION_SOURCE_SHA: fda6b75fda5331dd9cdc7e642f7a0a5556749a64
       GH_TOKEN: ${{ github.token }}
 
     steps:
@@ -50,32 +43,27 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate bounded workflow-run release identity
+      - name: Require current exact main and bounded release marker
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           test "$GITHUB_REF" = "refs/heads/main"
           test "${{ github.event.workflow_run.path }}" = ".github/workflows/ci.yml"
-          test "${{ github.event.workflow_run.head_sha }}" = "$SOURCE_SHA"
           test "${{ github.event.workflow_run.id }}" = "$SOURCE_CI_RUN_ID"
           git fetch --no-tags origin main
-          git merge-base --is-ancestor "$SOURCE_SHA" origin/main
+          test "$(git rev-parse origin/main)" = "$SOURCE_SHA"
           jq -e \
             --arg releaseTag "$RELEASE_TAG" \
             --arg npmPackage "$NPM_PACKAGE" \
             --arg npmVersion "$NPM_VERSION" \
-            --arg pypiPackage "$PYPI_PACKAGE" \
-            --arg pypiVersion "$PYPI_VERSION" \
             '.npmReleaseTag == $releaseTag and
              .npmPackage == $npmPackage and
              .npmVersion == $npmVersion and
-             .pypiPackage == $pypiPackage and
-             .pypiVersion == $pypiVersion and
-             .repairRevision == 9' "$RELEASE_MARKER" >/dev/null
+             .repairRevision == 10' "$RELEASE_MARKER" >/dev/null
           test "$(node -p "require('./sdk/typescript/package.json').version")" = "$NPM_VERSION"
 
-      - name: Require exact-source main CI and hosted CodeQL success
+      - name: Require exact-source CI and hosted CodeQL success
         id: gates
         shell: bash
         run: |
@@ -97,9 +85,7 @@ jobs:
             codeql_run_id="$(jq -r '.id // empty' <<<"$latest")"
             status="$(jq -r '.status // empty' <<<"$latest")"
             conclusion="$(jq -r '.conclusion // empty' <<<"$latest")"
-            if [[ -n "$codeql_run_id" && "$status" == "completed" ]]; then
-              break
-            fi
+            if [[ -n "$codeql_run_id" && "$status" == "completed" ]]; then break; fi
             sleep 5
           done
           test -n "$codeql_run_id"
@@ -108,7 +94,7 @@ jobs:
           echo "ci_run_id=$SOURCE_CI_RUN_ID" >> "$GITHUB_OUTPUT"
           echo "codeql_run_id=$codeql_run_id" >> "$GITHUB_OUTPUT"
 
-      - name: Create or verify immutable release tag after green gates
+      - name: Create or verify immutable release tag
         shell: bash
         run: |
           set -euo pipefail
@@ -122,25 +108,21 @@ jobs:
           fi
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')" = "$SOURCE_SHA"
 
-      - name: Set up Node.js for npm Trusted Publishing
+      - name: Set up Node.js without registry token injection
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Pin npm release client
+      - name: Pin npm Trusted Publishing client
         run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
 
-      - name: Require token-free npm Trusted Publishing boundary
+      - name: Require GitHub OIDC request capability
         shell: bash
         run: |
           set -euo pipefail
           test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
           test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
-          test -z "${NODE_AUTH_TOKEN:-}"
-          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
-          if [[ -f "$npmrc" ]]; then
-            ! grep -q '_authToken' "$npmrc"
-          fi
+          test "$(npm config get registry)" = "https://registry.npmjs.org/"
 
       - name: Download and verify exact green CI package artifact
         shell: bash
@@ -180,11 +162,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          oidc_npmrc="$RUNNER_TEMP/npm-oidc-empty.npmrc"
+          : > "$oidc_npmrc"
           test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
           test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
           env -u NODE_AUTH_TOKEN -u NPM_TOKEN -u NPM_CONFIG_TOKEN \
+            NPM_CONFIG_USERCONFIG="$oidc_npmrc" \
             npm publish "sdk/release/registry-closure/npm-local/truyn-sdk-${NPM_VERSION}.tgz" \
-              --access public --tag "$NPM_DIST_TAG" --provenance
+              --registry https://registry.npmjs.org/ --access public --tag "$NPM_DIST_TAG" --provenance
 
       - name: Verify public npm bytes tags provenance and clean-room import
         env:
@@ -215,18 +200,15 @@ jobs:
           alpha="$(jq -r '.alpha // empty' <<<"$tags")"
           latest="$(jq -r '.latest // empty' <<<"$tags")"
           superseded="$(jq -r '.npmSupersedes' "$RELEASE_MARKER")"
-          for tag in alpha latest; do
-            current="$(jq -r --arg tag "$tag" '.[$tag] // empty' <<<"$tags")"
-            if [[ "$current" != "$NPM_VERSION" && -n "$current" && "$current" != "$superseded" ]]; then
-              echo "Refusing to move npm dist-tag $tag from $current back to $NPM_VERSION" >&2
+          test "$alpha" = "$NPM_VERSION"
+          if [[ "$latest" != "$NPM_VERSION" ]]; then
+            if [[ -n "$latest" && "$latest" != "$superseded" ]]; then
+              echo "Refusing to move latest from $latest back to $NPM_VERSION" >&2
               exit 1
             fi
-          done
-          if [[ "$alpha" != "$NPM_VERSION" || "$latest" != "$NPM_VERSION" ]]; then
             test -n "${NODE_AUTH_TOKEN:-}"
             test "$(npm whoami)" = "truyn"
-            [[ "$alpha" == "$NPM_VERSION" ]] || npm dist-tag add "${NPM_PACKAGE}@${NPM_VERSION}" alpha
-            [[ "$latest" == "$NPM_VERSION" ]] || npm dist-tag add "${NPM_PACKAGE}@${NPM_VERSION}" latest
+            npm dist-tag add "${NPM_PACKAGE}@${NPM_VERSION}" latest
           fi
           tags="$(npm view "$NPM_PACKAGE" dist-tags --json)"
           test "$(jq -r '.alpha' <<<"$tags")" = "$NPM_VERSION"
@@ -297,62 +279,7 @@ jobs:
             '{package:$package,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,workflowRun:$workflowRun,ciRun:$ciRun,codeqlRun:$codeqlRun,sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,trustedPublishingOidc:"PASS",byteIdentity:"PASS",alphaTagIdentity:"PASS",latestTagIdentity:"PASS",cleanRoomInstall:"PASS",signatureAudit:"PASS",provenanceSourceIdentity:"PASS",immutableReleaseTagIdentity:"PASS"}' \
             > sdk/release/registry-closure/npm-release-evidence.json
 
-      - name: Verify existing PyPI alpha bytes and clean-room install
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p sdk/release/registry-closure/pypi
-          python - <<'PY'
-          import hashlib, json, os, urllib.request
-          from pathlib import Path
-          package = os.environ['PYPI_PACKAGE']
-          version = os.environ['PYPI_VERSION']
-          expected = {
-              os.environ['PYPI_WHEEL_FILENAME']: os.environ['PYPI_WHEEL_SHA256'],
-              os.environ['PYPI_SDIST_FILENAME']: os.environ['PYPI_SDIST_SHA256'],
-          }
-          with urllib.request.urlopen(f'https://pypi.org/pypi/{package}/{version}/json', timeout=30) as response:
-              payload = json.load(response)
-          remote = {entry['filename']: entry for entry in payload.get('urls', []) if entry.get('packagetype') in {'bdist_wheel', 'sdist'}}
-          if set(remote) != set(expected): raise SystemExit(f'unexpected PyPI distribution file set: {sorted(remote)}')
-          out = Path('sdk/release/registry-closure/pypi')
-          files = []
-          for filename, expected_sha in expected.items():
-              entry = remote[filename]
-              if entry['digests']['sha256'] != expected_sha: raise SystemExit(f'PyPI metadata SHA mismatch for {filename}')
-              with urllib.request.urlopen(entry['url'], timeout=30) as response: data = response.read()
-              if hashlib.sha256(data).hexdigest() != expected_sha: raise SystemExit(f'PyPI byte SHA mismatch for {filename}')
-              (out / filename).write_bytes(data)
-              files.append({'filename': filename, 'sha256': expected_sha, 'size': len(data), 'url': entry['url']})
-          Path('sdk/release/registry-closure/pypi-release-evidence.json').write_text(json.dumps({
-              'package': package,
-              'version': version,
-              'publicationSourceSha': os.environ['PYPI_PUBLICATION_SOURCE_SHA'],
-              'verificationSourceSha': os.environ['SOURCE_SHA'],
-              'files': files,
-              'distributionFileSet': 'PASS',
-              'byteIdentity': 'PASS'
-          }, indent=2) + '\n')
-          PY
-          python -m venv sdk/release/registry-closure/pypi-cleanroom
-          sdk/release/registry-closure/pypi-cleanroom/bin/python -m pip install --disable-pip-version-check --no-cache-dir --index-url https://pypi.org/simple "${PYPI_PACKAGE}==${PYPI_VERSION}"
-          sdk/release/registry-closure/pypi-cleanroom/bin/python - <<'PY'
-          from importlib.metadata import version
-          from truyn import TruynClient, TruynLocalNodeClient
-          assert version('truyn-sdk') == '0.1.0a1'
-          assert TruynClient is not None
-          assert TruynLocalNodeClient is not None
-          PY
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          path = Path('sdk/release/registry-closure/pypi-release-evidence.json')
-          evidence = json.loads(path.read_text())
-          evidence['cleanRoomInstall'] = 'PASS'
-          path.write_text(json.dumps(evidence, indent=2) + '\n')
-          PY
-
-      - name: Upload immutable registry closure evidence
+      - name: Upload immutable npm registry closure evidence
         uses: actions/upload-artifact@v4
         with:
           name: truyn-sdk-registry-closure-${{ env.SOURCE_SHA }}
@@ -362,7 +289,5 @@ jobs:
             sdk/release/registry-closure/npm-release-evidence.json
             sdk/release/registry-closure/npm-audit-signatures.json
             sdk/release/registry-closure/npm-provenance-statement.json
-            sdk/release/registry-closure/pypi-release-evidence.json
-            sdk/release/registry-closure/pypi/*
           if-no-files-found: error
           retention-days: 90

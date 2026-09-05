@@ -2,9 +2,9 @@
   "npmPackage": "@truyn/sdk",
   "npmVersion": "0.1.0-alpha.2",
   "npmDistTag": "alpha",
-  "npmReleaseTag": "sdk/npm/v0.1.0-alpha.2-release.4",
+  "npmReleaseTag": "sdk/npm/v0.1.0-alpha.2-release.5",
   "npmSupersedes": "0.1.0-alpha.1",
-  "npmRepairReason": "release.3 reached npm publish with GitHub OIDC available but setup-node still exported a legacy NODE_AUTH_TOKEN placeholder; release.4 removes registry-url setup and strips token variables from the publish subprocess",
+  "npmRepairReason": "release.3 reached npm publish but inherited setup-node token configuration and failed ENEEDAUTH; release.4 was already an immutable pre-existing ref on that source; release.5 uses a token-free temporary npmrc and strips token variables from the actual Trusted Publishing subprocess",
   "pypiPackage": "truyn-sdk",
   "pypiVersion": "0.1.0a1",
   "pypiWheelFilename": "truyn_sdk-0.1.0a1-py3-none-any.whl",
@@ -12,5 +12,5 @@
   "pypiSdistFilename": "truyn_sdk-0.1.0a1.tar.gz",
   "pypiSdistSha256": "a2e1e2baa6248cab18bdee08b10e832a39453836a64ad0b55c000f48c890ddaf",
   "pypiPublicationSourceSha": "fda6b75fda5331dd9cdc7e642f7a0a5556749a64",
-  "repairRevision": 9
+  "repairRevision": 10
 }
