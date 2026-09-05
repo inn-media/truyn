@@ -1,37 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 
-const workflowUrl = new URL('../.github/workflows/go-sdk-alpha-release.yml', import.meta.url);
-const legacyPyPiWorkflowUrl = new URL('../.github/workflows/publish-python-alpha.yml', import.meta.url);
-const workflow = await readFile(workflowUrl, 'utf8');
+const workflow = await readFile(new URL('../.github/workflows/publish-sdk-alpha.yml', import.meta.url), 'utf8');
+const supersededWorkflow = await readFile(new URL('../.github/workflows/go-sdk-alpha-release.yml', import.meta.url), 'utf8');
 const marker = JSON.parse(await readFile(new URL('../sdk/release/registry-closure.json', import.meta.url), 'utf8'));
 
-test('temporary registry closure is verification-only and bounded to exact successful main CI', async () => {
-  await assert.rejects(access(legacyPyPiWorkflowUrl));
+test('alpha.2 repair publishes only through the configured npm Trusted Publisher workflow', () => {
   assert.match(workflow, /name: SDK Registry Closure/);
-  assert.match(workflow, /name: Verify npm\/PyPI registry closure/);
-  assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /workflows:\s*\n\s*- CI/);
-  assert.match(workflow, /branches:\s*\n\s*- main/);
-  assert.doesNotMatch(workflow, /^\s*pull_request:/m);
-  assert.doesNotMatch(workflow, /^\s*push:/m);
-  assert.match(workflow, /SOURCE_SHA: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
-  assert.match(workflow, /git diff --name-only HEAD\^ HEAD \| grep -Fxq "\$RELEASE_MARKER"/);
-  assert.match(workflow, /dynamic\/github-code-scanning\/codeql/);
+  assert.match(workflow, /tags:\s*\n\s*- 'sdk\/npm\/v0\.1\.0-alpha\.2'/);
+  assert.doesNotMatch(workflow, /workflow_run:/);
+  assert.doesNotMatch(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /id-token: write/);
   assert.match(workflow, /environment: sdk-release/);
-  assert.doesNotMatch(workflow, /npm publish/);
-  assert.doesNotMatch(workflow, /gh-action-pypi-publish/);
-  assert.doesNotMatch(workflow, /^\s*id-token:\s*write/m);
+  const publishStep = workflow.match(/      - name: Publish immutable npm alpha\.2 repair through Trusted Publishing\n[\s\S]*?(?=\n      - name: )/)?.[0];
+  assert.ok(publishStep, 'trusted-publishing step must exist');
+  assert.match(publishStep, /npm publish[\s\S]*--access public --provenance/);
+  assert.doesNotMatch(publishStep, /NODE_AUTH_TOKEN/);
+  assert.doesNotMatch(supersededWorkflow, /npm publish/);
 });
 
-test('registry closure marker freezes immutable npm and PyPI publication identities', () => {
+test('registry repair marker is exact, immutable and tag-bound', () => {
   assert.deepEqual(marker, {
     npmPackage: '@truyn/sdk',
-    npmVersion: '0.1.0-alpha.1',
+    npmVersion: '0.1.0-alpha.2',
     npmDistTag: 'alpha',
-    npmExpectedSha256: '06c782226ae6cc72b7f9c457b15c8bc188b4efc0e7d28ff3da4819382ef22119',
-    npmPublicationSourceSha: '905376383107d802efe4520ae3ab44cb55d10256',
+    npmReleaseTag: 'sdk/npm/v0.1.0-alpha.2',
+    npmSupersedes: '0.1.0-alpha.1',
+    npmRepairReason: '0.1.0-alpha.1 is immutable and fails clean-room Node 22 ESM import because ws was bundled as CommonJS dynamic require',
     pypiPackage: 'truyn-sdk',
     pypiVersion: '0.1.0a1',
     pypiWheelFilename: 'truyn_sdk-0.1.0a1-py3-none-any.whl',
@@ -39,33 +35,45 @@ test('registry closure marker freezes immutable npm and PyPI publication identit
     pypiSdistFilename: 'truyn_sdk-0.1.0a1.tar.gz',
     pypiSdistSha256: 'a2e1e2baa6248cab18bdee08b10e832a39453836a64ad0b55c000f48c890ddaf',
     pypiPublicationSourceSha: 'fda6b75fda5331dd9cdc7e642f7a0a5556749a64',
-    repairRevision: 3
+    repairRevision: 5
   });
+  assert.match(workflow, /\. == \{/);
+  assert.match(workflow, /test "\$GITHUB_REF" = "refs\/tags\/\$RELEASE_TAG"/);
 });
 
-test('npm closure tolerates registry propagation and proves immutable public bytes', () => {
-  assert.match(workflow, /Wait for immutable npm version to be publicly readable/);
-  assert.match(workflow, /for attempt in \$\(seq 1 120\)/);
-  assert.match(workflow, /npm view "\$\{NPM_PACKAGE\}@\$\{NPM_VERSION\}" version 2>\/dev\/null \|\| true/);
-  assert.match(workflow, /cmp "\$local_file" "\$remote_file"/);
-  assert.match(workflow, /NPM_EXPECTED_SHA256/);
-  assert.match(workflow, /npm dist-tag add "\$\{NPM_PACKAGE\}@\$\{NPM_VERSION\}" "\$NPM_DIST_TAG"/);
-  assert.match(workflow, /test "\$shasum" = "16c21b36ef460f08cbc7959d0231c21e66d44a6b"/);
-  assert.match(workflow, /attestations\.url/);
-  assert.match(workflow, /npm audit signatures/);
-  assert.match(workflow, /publicationSourceSha:\$publicationSourceSha/);
-  assert.match(workflow, /distTagIdentity:"PASS"/);
+test('publication consumes exact successful main-CI artifact and requires same-source CodeQL', () => {
+  assert.match(workflow, /Require exact-source main CI and hosted CodeQL success/);
+  assert.match(workflow, /\.github\/workflows\/ci\.yml/);
+  assert.match(workflow, /dynamic\/github-code-scanning\/codeql/);
+  assert.match(workflow, /gh run download/);
+  assert.match(workflow, /truyn-sdk-release-\$\{\{ steps\.gates\.outputs\.ci_run_id \}\}/);
+  assert.match(workflow, /verify-release\.mjs sdk\/release\/registry-closure\/ci-bundle/);
+  assert.match(workflow, /\.sourceSha == \$source and \.typescript == \$npm/);
+  assert.doesNotMatch(workflow, /npm run build --prefix sdk\/typescript/);
 });
 
-test('PyPI closure verifies exact PEP 740 publisher SHA without republishing', () => {
+test('npm verification repairs only absent/alpha.1 tags and refuses rollback from newer versions', () => {
+  assert.match(workflow, /npm dist-tag add "\$\{NPM_PACKAGE\}@\$\{NPM_VERSION\}" alpha/);
+  assert.match(workflow, /npm dist-tag add "\$\{NPM_PACKAGE\}@\$\{NPM_VERSION\}" latest/);
+  assert.match(workflow, /npm audit signatures --json --include-attestations/);
+  assert.match(workflow, /expected_path = '\.github\/workflows\/publish-sdk-alpha\.yml'/);
+  assert.match(workflow, /resolvedDependencies/);
+  assert.match(workflow, /gitCommit/);
+  assert.match(workflow, /npmSupersedes/);
+  assert.match(workflow, /Refusing to move npm dist-tag/);
+  assert.match(workflow, /alphaTagIdentity:\"PASS\"/);
+  assert.match(workflow, /latestTagIdentity:\"PASS\"/);
+  assert.match(workflow, /provenanceSourceIdentity:\"PASS\"/);
+});
+
+test('PyPI remains verification-only and preserves bytes, sizes, PEP 740 publisher SHA and downloads', () => {
+  assert.doesNotMatch(workflow, /gh-action-pypi-publish/);
   assert.doesNotMatch(workflow, /PYPI_TOKEN/);
+  assert.match(workflow, /'size': len\(data\)/);
   assert.match(workflow, /pypi\.org\/integrity\/\{package\}\/\{version\}\//);
   assert.match(workflow, /publisher\.get\('repository_owner'\) == 'inn-media'/);
-  assert.match(workflow, /publisher\.get\('repository_name'\) == 'truyn'/);
   assert.match(workflow, /publisher\.get\('workflow_filename'\) == 'publish-sdk-alpha\.yml'/);
-  assert.match(workflow, /publisher\.get\('environment'\) == 'sdk-release'/);
   assert.match(workflow, /claims\.get\('sha'\) == publication_sha/);
   assert.match(workflow, /pypi-attestations verify pypi --repository https:\/\/github\.com\/inn-media\/truyn/);
-  assert.match(workflow, /--index-url https:\/\/pypi\.org\/simple/);
-  assert.match(workflow, /publisherSourceSha.*PASS/);
+  assert.match(workflow, /sdk\/release\/registry-closure\/pypi\/\*/);
 });

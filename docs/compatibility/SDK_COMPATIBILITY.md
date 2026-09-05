@@ -1,6 +1,6 @@
 # TRUYN SDK Compatibility and Migration Policy
 
-**Status:** Developer Release policy implemented for the `0.1.0-alpha.x` line; public registry publication remains gated.  
+**Status:** Developer Release policy implemented for the `0.1.0-alpha.x` family; public registry state remains evidence-gated.  
 **Protocol:** `TRUYN/1` remains draft.  
 **Stable SDK API contract:** `1` is a separately versioned developer-facing contract and does not imply protocol stable-v1.
 
@@ -8,15 +8,17 @@ TRUYN requires first-party SDKs for JavaScript/TypeScript, Python, Go, Java and 
 
 ## Developer Release coordinates
 
-The bounded alpha release line is:
+The bounded alpha family is:
 
-- TypeScript / JavaScript: `@truyn/sdk@0.1.0-alpha.1`;
+- TypeScript / JavaScript: `@truyn/sdk@0.1.0-alpha.2`;
 - Python: `truyn-sdk==0.1.0a1` (import package `truyn`);
 - Go: `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`;
 - Java: `org.truyn:truyn-sdk:0.1.0-alpha.1`;
 - C#/.NET: `Truyn.Sdk 0.1.0-alpha.1`.
 
-These coordinates describe the source/package line. They are **not a claim that every public registry already contains the package**. Registry state is verified independently; source/build conformance cannot substitute for public publication evidence.
+The npm `0.1.0-alpha.1` artifact is immutable but superseded for installation because clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. That defect is repaired by the distinct `0.1.0-alpha.2` version; the immutable alpha.1 bytes are never overwritten. The other ecosystem coordinates are unchanged because this repair is npm-packaging-specific.
+
+These coordinates describe the current source/package family. Registry state is verified independently; source/build conformance cannot substitute for public publication evidence.
 
 ## Compatibility declaration required for every release
 
@@ -46,6 +48,8 @@ Within one immutable pre-release version:
 - a package rebuild from different source is forbidden;
 - unknown required protocol or Descriptor semantics fail explicitly;
 - security gates may become stricter in a compatible patch, but a release must not broaden authorization, provider visibility or billing authority as a compatibility shortcut.
+
+If a published immutable prerelease is defective, the correction receives a new version. npm alpha.2 is the concrete application of this rule to the alpha.1 packaging defect.
 
 ### Stable `1.x` target
 
@@ -117,6 +121,8 @@ The required executable conformance gate covers the same release contract for Ty
 
 A language implementation is not parity-complete merely because it can call an HTTP endpoint or define matching DTO names.
 
+For TypeScript/JavaScript, package parity additionally includes installing the packed npm artifact into a clean Node project and importing the public client exports. A source-level TypeScript test is not sufficient to prove consumer package usability.
+
 ## Migration checklist for application developers
 
 When upgrading an SDK package:
@@ -128,6 +134,8 @@ When upgrading an SDK package:
 5. never persist or copy internal provider credentials into SDK configuration or TRUYN payloads;
 6. keep artifact fetching explicit and authorization-aware;
 7. treat a new Descriptor capability as discoverability, not authorization.
+
+For npm users on this alpha family, migrate from `@truyn/sdk@0.1.0-alpha.1` to `@truyn/sdk@0.1.0-alpha.2`. Once the repair registry gate is accepted, both the `alpha` and default `latest` npm tags are required to resolve to alpha.2.
 
 ## Stable-v1 ecosystem gate
 

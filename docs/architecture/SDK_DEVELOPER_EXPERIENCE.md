@@ -5,7 +5,7 @@
 **Protocol:** `TRUYN/1` draft  
 **Stable SDK API contract:** `1` (separate from protocol stability)
 
-The old “SDK scaffolding only” and “portable payload slice only” descriptions are obsolete. TypeScript/JavaScript, Python, Go, Java and C#/.NET now have implemented first-party Developer Release clients and share one executable conformance path. Package artifacts and provenance are built in ordinary CI. Public registry publication is intentionally not claimed until registry ownership/trusted-publishing bootstrap is complete.
+The old “SDK scaffolding only” and “portable payload slice only” descriptions are obsolete. TypeScript/JavaScript, Python, Go, Java and C#/.NET now have implemented first-party Developer Release clients and share one executable conformance path. Package artifacts and provenance are built in ordinary CI. Public registry publication is intentionally not claimed until the applicable registry evidence is complete.
 
 ## Target developer experience
 
@@ -29,14 +29,14 @@ consume references/events/provenance safely
 
 | Language | Repository target | Distribution coordinate | Developer Release state |
 |---|---|---|---|
-| TypeScript / JavaScript | `sdk/typescript/` | npm `@truyn/sdk@0.1.0-alpha.1` | **Implemented client + Descriptor verification + executable conformance** |
+| TypeScript / JavaScript | `sdk/typescript/` | npm `@truyn/sdk@0.1.0-alpha.2` | **Implemented client + Descriptor verification + executable conformance; alpha.2 packaging repair candidate** |
 | Python | `sdk/python/` | PyPI `truyn-sdk==0.1.0a1` | **Implemented client + Descriptor verification + executable conformance** |
 | Go | `sdk/go/` | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance** |
 | Java | `sdk/java/` | Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance** |
 | C# / .NET | `sdk/dotnet/` | NuGet `Truyn.Sdk 0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance** |
 | Rust | `sdk/rust/` | optional | optional secondary track |
 
-The coordinates above identify the intended immutable alpha release line. `publicDistribution=false` remains correct until each native public registry location is actually observed and bound to release evidence.
+The npm `0.1.0-alpha.1` artifact is immutable but superseded for installation: a required clean-room Node 22 ESM import exposed the bundled CommonJS `ws` failure. The repair is therefore a distinct immutable `0.1.0-alpha.2` coordinate. Python, Go, Java and .NET retain their existing alpha-family coordinates. `publicDistribution` remains evidence-gated until each applicable native location is actually observed and bound to accepted release evidence.
 
 ## Common Developer Release contract
 
@@ -189,16 +189,18 @@ Ordinary CI builds and verifies consumer distributions for all required ecosyste
 
 `sdk/release/dist/manifest.json` binds each artifact to:
 
-- exact source commit SHA;
+- exact reported source commit SHA;
 - package coordinate/version;
 - byte size;
 - SHA-256 digest.
 
-Release verification also checks LICENSE/NOTICE and forbidden-content boundaries. CI uploads the exact release bundle as immutable workflow evidence for the run.
+Release verification also checks LICENSE/NOTICE and forbidden-content boundaries. CI uploads the release bundle as workflow evidence for the run. For the TypeScript repair, ordinary CI also installs the packed npm tarball in a clean project and imports the public client exports, so package importability is a normal acceptance gate rather than only a post-publication check.
 
 ### Publication boundary
 
-Native public registry publication is **not performed by ordinary CI** and is not claimed by this PR. Registry ownership/trusted-publishing bootstrap must be complete first. The later release-infrastructure PR is defined in `sdk/release/PUBLISHING.md` and must use a protected `sdk-release` environment, immutable tag-only release flow, least privilege and exact-bundle verification.
+Native public registry publication is **not performed by ordinary CI**. For the npm alpha.2 repair, the temporary tag-only release workflow consumes the exact successful main-CI package artifact for the same immutable source SHA, requires hosted CodeQL success on that SHA, publishes only the new coordinate, repairs both `alpha` and default `latest` tags, verifies registry byte identity, checks the npm provenance statement against repository/workflow/tag/source identity, runs signature audit and clean-room import, and archives structured evidence. PyPI remains verification-only in that repair flow.
+
+The broken immutable npm alpha.1 artifact is historical evidence and is never overwritten.
 
 Do not add a permissive publication workflow or weaken the public-workflow allowlist to simulate completion.
 
@@ -232,7 +234,7 @@ SDKs MUST NOT:
 
 ## Developer documentation/site
 
-`docs/developer-site/index.html` and `/docs` are the public developer-site source for the Developer Release profile. They describe the five-language alpha line, runtime surface, package coordinates, conformance, release provenance and compatibility boundary.
+`docs/developer-site/index.html` and `/docs` are the public developer-site source for the Developer Release profile. They describe the five-language alpha family, runtime surface, package coordinates, conformance, release provenance and compatibility boundary.
 
 A source tree being Pages-ready is not the same as a live deployment. Public site activation/liveness must be verified separately after the accepted PR is merged and repository/domain Pages settings are enabled.
 
@@ -247,7 +249,7 @@ A source tree being Pages-ready is not the same as a live deployment. Public sit
 - [x] package builds + exact source/digest release provenance;
 - [x] stable compatibility/deprecation/migration policy;
 - [x] bounded Agent Descriptor serving + five-language fetch/verify/negotiation lifecycle;
-- [ ] public native registry publication after external ownership/trusted-publishing bootstrap;
+- [ ] immutable public npm alpha.2 repair evidence and remaining native registry publication evidence;
 - [ ] live public developer-site activation/liveness proof after merge/settings activation.
 
 ### Optional / post-Developer-Release
