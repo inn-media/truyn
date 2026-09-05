@@ -28,6 +28,10 @@ test('D-200 baseline-origin evidence preserves first-attempt acceptance and boun
 
   assert.ok(block.includes('D200_BASELINE_ORIGIN_DIAG=1'));
   assert.ok(block.includes('D200_BASELINE_ROW_MAX_BYTES=1800'));
+  assert.ok(block.includes("records=json.load(open('/var/lib/truyn-d1000/records-by-host.json'))"), 'baseline diagnostics must consume the records file provisioned on every VM');
+  assert.ok(block.includes("path=f'/var/lib/truyn-d1000/node-{global_index}-state.json'"), 'first-attempt peer state must use the canonical node-state directory');
+  assert.ok(block.includes("state_path=f'/var/lib/truyn-d1000/node-{global_index}-state.json'"), 'diagnostic retry peer state must use the canonical node-state directory');
+  assert.equal(block.includes('/var/lib/truyqn-d1000/'), false, 'misspelled diagnostic state path must never reappear');
   assert.ok(block.includes("peer_before=persisted_peer_state(j,node_id)"));
   assert.ok(block.includes("'routingBeforeFirstAttempt':state_before"));
   assert.ok(block.includes("'--max-time','15'"), 'canonical first attempt timeout must remain 15 seconds');
@@ -42,7 +46,7 @@ test('D-200 baseline-origin evidence preserves first-attempt acceptance and boun
   assert.ok(block.includes("'staleRoutingPeers':r.get('staleRoutingPeers')"));
   assert.ok(block.includes("'peerRecordBeforeFirstAttempt':peer_before"));
   assert.ok(block.includes("'boundedProductionDiscoveryRecovery'"));
-  assert.ok(block.includes("diag_path=f'/var/lib/truyqn-d1000/baseline-origin-host-{host}.json'"), 'full host evidence must be persisted off stdout');
+  assert.ok(block.includes("diag_path=f'/var/lib/truyn-d1000/baseline-origin-host-{host}.json'"), 'full host evidence must be persisted off stdout');
   assert.ok(block.includes('BASE_DIAG_B64='), 'one bounded failure row may be transferred per remote call');
   assert.ok(block.includes('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED'), 'byte/digest/count mismatches must fail closed');
   assert.ok(block.includes('class-d-200-baseline-origin.json'));
@@ -67,5 +71,7 @@ test('D-200 baseline-origin patch also composes directly on canonical campaign',
   assert.equal(run.status, 0, run.stderr || run.stdout);
   const text = await readFile(target, 'utf8');
   assert.ok(text.includes('D200_BASELINE_ORIGIN_DIAG=1'));
+  assert.ok(text.includes("records=json.load(open('/var/lib/truyn-d1000/records-by-host.json'))"));
+  assert.equal(text.includes('/var/lib/truyqn-d1000/'), false);
   assert.ok(text.includes("assert float('$base_rate') >= .99, '$base_rate'"));
 });
