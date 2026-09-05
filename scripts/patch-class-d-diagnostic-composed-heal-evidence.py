@@ -15,6 +15,7 @@ for label, target in [('provision', provision), ('campaign', campaign)]:
 steps = [
     ('scripts/patch-class-d-diagnostic-local-fault-control.py', provision),
     ('scripts/patch-class-d-diagnostic-failure-evidence.py', provision),
+    ('scripts/patch-class-d-diagnostic-baseline-origin.py', campaign),
     ('scripts/patch-class-d-diagnostic-packet-partition.py', campaign),
     ('scripts/patch-class-d-diagnostic-healed-reconvergence.py', campaign),
     ('scripts/patch-class-d-diagnostic-healed-origin.py', campaign),
@@ -40,6 +41,15 @@ provision_required = {
     'universal ERR trap': 'd200_err_trap() {',
 }
 campaign_required = {
+    'baseline origin diagnostics': 'D200_BASELINE_ORIGIN_DIAG=1',
+    'baseline target record capture': "'peerRecordBeforeFirstAttempt':peer_before",
+    'baseline routing snapshot': "'routingBeforeFirstAttempt':state_before",
+    'baseline production recovery retry': "'d1000-baseline-production-recovery-retry'",
+    'baseline retry excluded from acceptance': "'countedInBaselineAcceptance':False",
+    'baseline persisted artifact': 'class-d-200-baseline-origin.json',
+    'baseline artifact digest': 'class-d-200-baseline-origin-digest.txt',
+    'baseline payload truncation guard': 'TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED',
+    'strict baseline acceptance': "assert float('$base_rate') >= .99, '$base_rate'",
     'packet heal diagnostics': 'PACKET_DIAG_PHASE=heal-timeout',
     'packet durable checkpoint': 'TRUYN_D200_FAILURE_EVIDENCE=CHECKPOINT stage=packet-partition',
     'bounded healed evidence transport': 'D200_HEALED_EVIDENCE_TRANSPORT=1',
@@ -71,6 +81,8 @@ if provision_text.count('d200_failure_evidence_checkpoint() {') != 1:
     raise SystemExit('unexpected universal failure checkpoint helper count after composition')
 if provision_text.count('d200_err_trap() {') != 1:
     raise SystemExit('unexpected universal ERR helper count after composition')
+if campaign_text.count('D200_BASELINE_ORIGIN_DIAG=1') != 1:
+    raise SystemExit('unexpected baseline origin diagnostic setting count after composition')
 if campaign_text.count('d200_durable_write_ttl_ms=21600000') != 1:
     raise SystemExit('unexpected diagnostic durable write TTL setting count after composition')
 for forbidden in [
@@ -82,4 +94,4 @@ for forbidden in [
     if forbidden in campaign_text:
         raise SystemExit(f'unsafe healed diagnostic marker remained after composition: {forbidden}')
 
-print('TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,packet-partition,healed-reconvergence,healed-origin,bounded-evidence-transport,write-retention-window')
+print('TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,baseline-origin,packet-partition,healed-reconvergence,healed-origin,bounded-evidence-transport,write-retention-window')
