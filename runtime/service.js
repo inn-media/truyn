@@ -12,6 +12,8 @@ import { createProviderBackchannelGuard } from './provider-backchannel-guard.js'
 import { ProviderTruynNode } from './provider-node.js';
 import { enforceOwnerProviderRuntimeLock } from './owner-provider-lock.js';
 import { createPublicAgentDescriptor, maybeServePublicAgentDescriptor } from './agent-descriptor.js';
+import { managedRelayAuthorityStatus } from './relay-authority-runtime.js';
+import { installRelayAuthorityReadiness } from './relay-readiness.js';
 import { getObservabilityPlane } from '../observability/plane.js';
 
 const role = process.env.TRUYN_ROLE || 'provider';
@@ -71,6 +73,13 @@ async function runRelay() {
     productionMode: relaySecurity.productionMode,
     exposeDiagnostics: process.env.TRUYN_PRIVATE_DIAGNOSTICS === '1'
   });
+  let authorityReadiness = null;
+  if (process.env.TRUYN_AUTHORITY_URL) {
+    authorityReadiness = installRelayAuthorityReadiness(relay.server, {
+      statusProvider: managedRelayAuthorityStatus,
+      onReadyChange: (ready) => observability.setRuntimeReady('relay', ready)
+    });
+  }
   observability.observeHttpServer(relay.server, { surface: 'relay' });
   observability.bindRelayState(relay.state);
 
@@ -109,6 +118,7 @@ async function runRelay() {
       await relay.listen({ host, port });
     }
   } catch (error) {
+    authorityReadiness?.stop();
     observability.recordInfrastructure('relay-startup', error);
     await originGuard?.close().catch(() => {});
     await backchannelGuard?.close().catch(() => {});
@@ -116,16 +126,19 @@ async function runRelay() {
     throw error;
   }
 
-  observability.setRuntimeReady('relay', true);
+  const relayReady = authorityReadiness ? authorityReadiness.status().ready === true : true;
+  observability.setRuntimeReady('relay', relayReady);
   runtimeLog('info', 'runtime.ready', {
-    ok: true,
+    ok: relayReady,
     role: 'relay',
-    ready: true,
+    ready: relayReady,
+    authorityManaged: Boolean(authorityReadiness),
     originGuard: originGuardConfig.enabled,
     providerBackchannelGuard: backchannelEnabled
   });
 
   const shutdown = async () => {
+    authorityReadiness?.stop();
     observability.setRuntimeReady('relay', false);
     runtimeLog('info', 'runtime.shutdown', { ok: true, role: 'relay', ready: false });
     await originGuard?.close();
