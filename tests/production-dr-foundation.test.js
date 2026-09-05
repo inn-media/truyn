@@ -73,6 +73,15 @@ test('foundation workflow validates PRs but mutates Azure only from main push', 
   assert.doesNotMatch(workflow.slice(validateIndex, applyIndex), /azure\/login@v2/);
 });
 
+test('foundation deploy is bounded to an existing resource group and never requires subscription-scope RG creation', async () => {
+  const workflow = await text(WORKFLOW);
+  assert.match(workflow, /RESOURCE_GROUP: \$\{\{ vars\.TRUYN_AZURE_RESOURCE_GROUP \|\| 'truyn' \}\}/);
+  assert.match(workflow, /az group show/);
+  assert.match(workflow, /az deployment group create/);
+  assert.match(workflow, /--resource-group "\$RESOURCE_GROUP"/);
+  assert.doesNotMatch(workflow, /az group create/);
+});
+
 test('live foundation evidence proves backup, replication, RBAC and private ingress without identifiers', async () => {
   const workflow = await text(WORKFLOW);
   for (const marker of [
