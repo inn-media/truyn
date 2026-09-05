@@ -189,6 +189,9 @@ export function createOriginGuard({ targetHost = '127.0.0.1', targetPort, token 
       if (req.method === 'GET' && url.pathname === '/health') {
         return writeJson(res, 200, { ok: true, protocol: 'TRUYN/1' });
       }
+      // Readiness is intentionally unauthenticated like liveness, but unlike /health it is
+      // proxied to the inner relay so orchestration observes managed-authority staleness.
+      if (req.method === 'GET' && url.pathname === '/ready') return proxyHttp(req, res);
       return writeJson(res, 403, { ok: false, error: 'origin_guard_denied' });
     }
     return proxyHttp(req, res);
