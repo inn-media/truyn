@@ -1,25 +1,34 @@
 name: SDK Registry Closure
 
 on:
-  push:
-    tags:
-      - 'sdk/npm/v0.1.0-alpha.2-release.1'
-  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - main
 
 permissions:
   actions: read
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
   registry-closure:
     name: Publish repaired npm alpha and verify npm/PyPI
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.repository.full_name == github.repository
     runs-on: ubuntu-latest
     environment: sdk-release
     timeout-minutes: 30
     env:
-      SOURCE_SHA: ${{ github.sha }}
-      RELEASE_TAG: sdk/npm/v0.1.0-alpha.2-release.1
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+      SOURCE_CI_RUN_ID: ${{ github.event.workflow_run.id }}
+      RELEASE_TAG: sdk/npm/v0.1.0-alpha.2-release.2
       RELEASE_MARKER: sdk/release/registry-closure.json
       NPM_PACKAGE: '@truyn/sdk'
       NPM_VERSION: '0.1.0-alpha.2'
@@ -34,20 +43,24 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Checkout exact tagged source SHA
+      - name: Checkout exact green main source SHA
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.SOURCE_SHA }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate immutable one-shot release identity
+      - name: Validate bounded workflow-run release identity
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          test "$GITHUB_REF" = "refs/tags/$RELEASE_TAG"
-          test "$(git rev-list -n 1 "$RELEASE_TAG")" = "$SOURCE_SHA"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "${{ github.event.workflow_run.path }}" = ".github/workflows/ci.yml"
+          test "${{ github.event.workflow_run.head_sha }}" = "$SOURCE_SHA"
+          test "${{ github.event.workflow_run.id }}" = "$SOURCE_CI_RUN_ID"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main
           jq -e \
             --arg npmPackage "$NPM_PACKAGE" \
             --arg npmVersion "$NPM_VERSION" \
@@ -74,7 +87,7 @@ jobs:
               pypiSdistFilename:$sdistFilename,
               pypiSdistSha256:$sdistSha,
               pypiPublicationSourceSha:$pypiPublicationSha,
-              repairRevision:6
+              repairRevision:7
             }' "$RELEASE_MARKER" >/dev/null
           test "$(node -p "require('./sdk/typescript/package.json').version")" = "$NPM_VERSION"
 
@@ -83,14 +96,47 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100")"
-          ci_run_id="$(jq -r '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .event == "push" and .status == "completed" and .conclusion == "success")][0].id // empty' <<<"$runs")"
-          test -n "$ci_run_id"
-          codeql_count="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql")] | length' <<<"$runs")"
-          codeql_failed="$(jq '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and (.status != "completed" or .conclusion != "success"))] | length' <<<"$runs")"
-          test "$codeql_count" -gt 0
-          test "$codeql_failed" -eq 0
-          echo "ci_run_id=$ci_run_id" >> "$GITHUB_OUTPUT"
+          ci="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_CI_RUN_ID")"
+          test "$(jq -r '.head_sha' <<<"$ci")" = "$SOURCE_SHA"
+          test "$(jq -r '.path' <<<"$ci")" = ".github/workflows/ci.yml"
+          test "$(jq -r '.event' <<<"$ci")" = "push"
+          test "$(jq -r '.head_branch' <<<"$ci")" = "main"
+          test "$(jq -r '.status' <<<"$ci")" = "completed"
+          test "$(jq -r '.conclusion' <<<"$ci")" = "success"
+
+          codeql_run_id=""
+          for attempt in $(seq 1 90); do
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100")"
+            latest="$(jq -c '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql")][0] // {}' <<<"$runs")"
+            codeql_run_id="$(jq -r '.id // empty' <<<"$latest")"
+            status="$(jq -r '.status // empty' <<<"$latest")"
+            conclusion="$(jq -r '.conclusion // empty' <<<"$latest")"
+            if [[ -n "$codeql_run_id" && "$status" == "completed" ]]; then
+              test "$conclusion" = "success"
+              break
+            fi
+            sleep 5
+          done
+          test -n "$codeql_run_id"
+          test "$status" = "completed"
+          test "$conclusion" = "success"
+          echo "ci_run_id=$SOURCE_CI_RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "codeql_run_id=$codeql_run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Create or verify immutable release tag after green gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$RELEASE_TAG" --jq '.[0].object.sha // empty')"
+          if [[ -n "$existing" ]]; then
+            test "$existing" = "$SOURCE_SHA"
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$RELEASE_TAG" \
+              -f sha="$SOURCE_SHA" >/dev/null
+          fi
+          tagged="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')"
+          test "$tagged" = "$SOURCE_SHA"
 
       - name: Set up Node.js for npm trusted publishing
         uses: actions/setup-node@v4
@@ -140,9 +186,9 @@ jobs:
         run: |
           set -euo pipefail
           npm publish "sdk/release/registry-closure/npm-local/truyn-sdk-${NPM_VERSION}.tgz" \
-            --access public --provenance
+            --access public --tag "$NPM_DIST_TAG" --provenance
 
-      - name: Verify repaired npm bytes, default tags, provenance identity and clean-room import
+      - name: Verify repaired npm bytes, tags, provenance identity and clean-room import
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN || secrets.NPM_TOKEN }}
         shell: bash
@@ -221,8 +267,7 @@ jobs:
                   for key, child in value.items():
                       if key == 'payload' and isinstance(child, str):
                           try:
-                              decoded = base64.b64decode(child + '===').decode()
-                              statement = json.loads(decoded)
+                              statement = json.loads(base64.b64decode(child + '===').decode())
                               if isinstance(statement, dict):
                                   statements.append(statement)
                           except Exception:
@@ -235,7 +280,7 @@ jobs:
           source = os.environ['SOURCE_SHA']
           expected_repo = 'https://github.com/inn-media/truyn'
           expected_path = '.github/workflows/publish-sdk-alpha.yml'
-          expected_ref = 'refs/tags/' + os.environ['RELEASE_TAG']
+          expected_ref = 'refs/heads/main'
           matched = None
           for statement in statements:
               if statement.get('predicateType') != 'https://slsa.dev/provenance/v1':
@@ -248,7 +293,7 @@ jobs:
                   matched = statement
                   break
           if matched is None:
-              raise SystemExit('npm provenance is not bound to the expected TRUYN repository/workflow/tag/source SHA')
+              raise SystemExit('npm provenance is not bound to expected TRUYN repository/workflow/main/source SHA')
           Path('sdk/release/registry-closure/npm-provenance-statement.json').write_text(json.dumps(matched, indent=2) + '\n')
           PY
 
@@ -258,11 +303,13 @@ jobs:
             --arg sourceSha "$SOURCE_SHA" \
             --arg releaseTag "$RELEASE_TAG" \
             --arg workflowRun "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg ciRun "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${{ steps.gates.outputs.ci_run_id }}" \
+            --arg codeqlRun "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${{ steps.gates.outputs.codeql_run_id }}" \
             --arg sha256 "$remote_sha" \
             --arg integrity "$integrity" \
             --arg shasum "$shasum" \
             --arg attestationUrl "$attestation_url" \
-            '{package:$package,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,workflowRun:$workflowRun,sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,byteIdentity:"PASS",alphaTagIdentity:"PASS",latestTagIdentity:"PASS",cleanRoomInstall:"PASS",signatureAudit:"PASS",provenanceSourceIdentity:"PASS"}' \
+            '{package:$package,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,workflowRun:$workflowRun,ciRun:$ciRun,codeqlRun:$codeqlRun,sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,provenanceWorkflowRef:"refs/heads/main",byteIdentity:"PASS",alphaTagIdentity:"PASS",latestTagIdentity:"PASS",cleanRoomInstall:"PASS",signatureAudit:"PASS",provenanceSourceIdentity:"PASS",immutableReleaseTagIdentity:"PASS"}' \
             > sdk/release/registry-closure/npm-release-evidence.json
 
       - name: Set up Python for immutable PyPI verification
@@ -289,9 +336,10 @@ jobs:
           }
           with urllib.request.urlopen(f'https://pypi.org/pypi/{package}/{version}/json', timeout=30) as response:
               payload = json.load(response)
-          remote = {entry['filename']: entry for entry in payload.get('urls', [])}
+          distributions = [entry for entry in payload.get('urls', []) if entry.get('packagetype') in {'bdist_wheel', 'sdist'}]
+          remote = {entry['filename']: entry for entry in distributions}
           if set(remote) != set(expected):
-              raise SystemExit(f'unexpected PyPI file set: {sorted(remote)}')
+              raise SystemExit(f'unexpected PyPI distribution file set: {sorted(remote)}')
           out = Path('sdk/release/registry-closure/pypi')
           files = []
           for filename, expected_sha in expected.items():
@@ -323,6 +371,8 @@ jobs:
               'publicationSourceSha': publication_sha,
               'verificationSourceSha': os.environ['SOURCE_SHA'],
               'files': files,
+              'distributionFileSet': 'PASS',
+              'attestationsExcludedFromDistributionFileSet': 'PASS',
               'byteIdentity': 'PASS',
               'publisherSourceSha': 'PASS',
           }
