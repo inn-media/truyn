@@ -87,6 +87,8 @@ export function createProviderGrantAuthority({
       ['organization', requester.organizationId],
       ['account', requester.accountId]
     ];
+    for (const membershipId of provider.membershipIds || []) checks.push(['membership', membershipId]);
+    for (const membershipId of requester.membershipIds || []) checks.push(['membership', membershipId]);
     for (const [kind, id] of checks) {
       if (revoked(kind, id)) return { ok: false, reason: `${kind}_revoked` };
     }

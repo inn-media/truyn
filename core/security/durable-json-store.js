@@ -29,6 +29,18 @@ function durableStateError(code, cause = null) {
   return error;
 }
 
+function processAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === 'EPERM') return true;
+    if (error?.code === 'ESRCH') return false;
+    return true;
+  }
+}
+
 export function createDurableJsonStore({
   filePath,
   defaultState = { version: 1, revision: 0 },
@@ -59,22 +71,36 @@ export function createDurableJsonStore({
     return parsed;
   }
 
+  function readLockRecord() {
+    try {
+      const parsed = JSON.parse(readFileSync(lockPath, 'utf8'));
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+    } catch (error) {
+      if (error?.code === 'ENOENT') return null;
+      return null;
+    }
+  }
+
   function acquireLock() {
     const startedAt = nowMs();
+    const owner = randomBytes(16).toString('hex');
     for (;;) {
       try {
         const fd = openSync(lockPath, 'wx', 0o600);
-        writeFileSync(fd, JSON.stringify({ pid: process.pid, acquiredAt: new Date(nowMs()).toISOString() }));
+        writeFileSync(fd, JSON.stringify({ pid: process.pid, owner, acquiredAt: new Date(nowMs()).toISOString() }));
         fsyncSync(fd);
         closeSync(fd);
-        return;
+        return owner;
       } catch (error) {
         if (error?.code !== 'EEXIST') throw durableStateError('durable_lock_unavailable', error);
         try {
           const ageMs = nowMs() - statSync(lockPath).mtimeMs;
           if (ageMs >= staleLockMs) {
-            unlinkSync(lockPath);
-            continue;
+            const record = readLockRecord();
+            if (!record || !processAlive(Number(record.pid))) {
+              unlinkSync(lockPath);
+              continue;
+            }
           }
         } catch (statError) {
           if (statError?.code === 'ENOENT') continue;
@@ -86,8 +112,10 @@ export function createDurableJsonStore({
     }
   }
 
-  function releaseLock() {
+  function releaseLock(owner) {
     try {
+      const record = readLockRecord();
+      if (!record || record.owner !== owner) return;
       unlinkSync(lockPath);
     } catch (error) {
       if (error?.code !== 'ENOENT') throw error;
@@ -126,7 +154,7 @@ export function createDurableJsonStore({
 
   function transaction(mutator) {
     if (typeof mutator !== 'function') throw new Error('transaction mutator is required');
-    acquireLock();
+    const owner = acquireLock();
     try {
       const current = readUnlocked();
       const draft = clone(current);
@@ -137,7 +165,7 @@ export function createDurableJsonStore({
       persistUnlocked(draft);
       return { result: clone(result), state: clone(draft) };
     } finally {
-      releaseLock();
+      releaseLock(owner);
     }
   }
 
