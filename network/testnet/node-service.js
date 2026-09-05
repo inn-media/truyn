@@ -216,8 +216,17 @@ export async function createTestnetNodeService({
 
   const dhtReadiness = () => {
     const routing = routingReadinessFields(node.discovery.routingSnapshot());
+    const lifecycle = node.peerRecordLifecycleSnapshot();
+    const propagation = lifecycle?.propagation || {};
+    const propagationReady = node.peerRecordPropagationReady();
+    const refresh = lastDhtRefresh || {
+      status: 'never_refreshed',
+      refreshed: false,
+      completedAt: null
+    };
     return {
       ok: true,
+      ready: propagationReady,
       nodeId: identity.nodeId,
       validPeers: routing.validPeers,
       populatedBuckets: routing.populatedBuckets,
@@ -228,11 +237,19 @@ export async function createTestnetNodeService({
         occupancy: routing.bucketOccupancy
       },
       remoteEndpointDiversity: remoteEndpointDiversity(),
-      refresh: lastDhtRefresh || {
-        status: 'never_refreshed',
-        refreshed: false,
-        completedAt: null
-      }
+      peerRecordPropagation: {
+        ready: propagationReady,
+        recordId: propagation.recordId || null,
+        sequence: propagation.sequence ?? null,
+        targetCount: Array.isArray(propagation.targetNodeIds) ? propagation.targetNodeIds.length : 0,
+        acknowledgedCount: Array.isArray(propagation.acknowledgedNodeIds) ? propagation.acknowledgedNodeIds.length : 0,
+        pendingCount: Array.isArray(propagation.pendingNodeIds) ? propagation.pendingNodeIds.length : 0,
+        pendingNodeIds: Array.isArray(propagation.pendingNodeIds) ? [...propagation.pendingNodeIds] : [],
+        lastUpdatedAt: propagation.lastUpdatedAt || null
+      },
+      refresh: refresh.refreshed && !propagationReady
+        ? { ...refresh, status: 'peer_record_propagation_pending' }
+        : refresh
     };
   };
 
