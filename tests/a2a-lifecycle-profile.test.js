@@ -203,7 +203,7 @@ test('P3-A1 CancelTask maps to requester-owned TRUYN REVOKE, aborts provider wor
   }, { token: 'owner-token' });
   assert.equal(sent.error, undefined);
   const taskId = sent.result.task.id;
-  const requestId = h.relay.state.requests.values().next().value?.envelope?.id;
+  const requestId = h.relay.state.requests.keys().next().value;
   assert.ok(requestId);
   await started;
 
