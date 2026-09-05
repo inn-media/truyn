@@ -23,8 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Apply bounded production propagation repair
         run: python3 scripts/apply-peer-record-propagation-repair.py
       - name: Verify syntax and focused propagation contract
