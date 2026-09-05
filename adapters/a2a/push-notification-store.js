@@ -56,7 +56,7 @@ export function normalizeTaskPushNotificationConfig(config, {
     : (generateId ? randomUUID() : '');
   if (!configId) throw new Error('A2A push notification config id is required');
   const requestedTenant = typeof config.tenant === 'string' ? config.tenant.trim() : '';
-  if (requestedTenant && requestedTenant !== tenant) throw new Error('A2A push notification tenant does not match authoritative tenant');
+  if (requestedTenant !== tenant) throw new Error('A2A push notification tenant does not match authoritative tenant');
   return {
     tenant,
     id: configId,
@@ -70,21 +70,24 @@ export function normalizeTaskPushNotificationConfig(config, {
 }
 
 export class A2aPushNotificationStore {
-  constructor({ maxConfigsPerTask = DEFAULT_MAX_CONFIGS_PER_TASK, allowInsecureLoopback = true } = {}) {
+  constructor({ maxConfigsPerTask = DEFAULT_MAX_CONFIGS_PER_TASK, allowInsecureLoopback = true, tenant = '' } = {}) {
     if (!Number.isInteger(maxConfigsPerTask) || maxConfigsPerTask < 1 || maxConfigsPerTask > 64) {
       throw new Error('A2A maxConfigsPerTask must be an integer between 1 and 64');
     }
+    if (typeof tenant !== 'string') throw new Error('A2A push notification tenant must be a string');
     this.maxConfigsPerTask = maxConfigsPerTask;
     this.allowInsecureLoopback = allowInsecureLoopback;
+    this.tenant = tenant;
     this.byTaskId = new Map();
   }
 
-  create(task, ownerKey, config, { tenant = '' } = {}) {
+  create(task, ownerKey, config, { tenant = this.tenant } = {}) {
     if (!task || task.id === undefined) throw new Error('A2A task is required for push configuration');
     if (task.ownerKey !== ownerKey) throw new Error('A2A push configuration owner mismatch');
+    if (tenant !== this.tenant) throw new Error('A2A push notification tenant does not match authoritative tenant');
     const normalized = normalizeTaskPushNotificationConfig(config, {
       taskId: task.id,
-      tenant,
+      tenant: this.tenant,
       allowInsecureLoopback: this.allowInsecureLoopback
     });
     const configs = this.byTaskId.get(task.id) || new Map();
