@@ -1,14 +1,21 @@
 import http from 'node:http';
-import { A2A_PROTOCOL_VERSION, a2aError, a2aErrorData, mapA2aMessageToTruynInput, normalizeA2aMessage, normalizeA2aSkill, projectA2aSkill } from './mapping.js';
+import { A2A_PROTOCOL_VERSION, A2A_TASK_STATES, a2aError, a2aErrorData, mapA2aMessageToTruynInput, normalizeA2aMessage, normalizeA2aSkill, projectA2aSkill } from './mapping.js';
 import { A2aTaskStore } from './task-store.js';
 
 const DEFAULT_MAX_BODY_BYTES = 256 * 1024;
 const DEFAULT_BLOCKING_WAIT_MS = 120_000;
 const DEFAULT_POLL_INTERVAL_MS = 25;
 const AUTHENTICATION_ERROR_CODE = -32000;
+const TASK_NOT_FOUND_ERROR_CODE = -32001;
+const TASK_NOT_CANCELABLE_ERROR_CODE = -32002;
+const UNSUPPORTED_OPERATION_ERROR_CODE = -32004;
 
 function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isAsyncIterable(value) {
+  return Boolean(value) && typeof value[Symbol.asyncIterator] === 'function';
 }
 
 function sendJson(res, status, body, headers = {}) {
@@ -22,6 +29,22 @@ function sendJson(res, status, body, headers = {}) {
     ...headers
   });
   res.end(data);
+}
+
+function beginSse(res) {
+  if (res.headersSent) return;
+  res.writeHead(200, {
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-cache, no-store',
+    connection: 'keep-alive',
+    'x-content-type-options': 'nosniff'
+  });
+}
+
+function writeSse(res, body, { event = null } = {}) {
+  if (res.writableEnded) return;
+  if (event) res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(body)}\n\n`);
 }
 
 async function readJson(req, maxBodyBytes) {
@@ -145,7 +168,9 @@ export function createA2aServer({
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
   maxTasks = 1024,
   taskTtlMs = 60 * 60 * 1000,
-  allowAnonymousTaskAccess = false
+  allowAnonymousTaskAccess = false,
+  enableStreaming = false,
+  enableCancellation = false
 } = {}) {
   if (!node) throw new Error('node is required');
   const normalizedAgent = normalizeAgent(agent);
@@ -162,12 +187,15 @@ export function createA2aServer({
   if (!Number.isInteger(maxBodyBytes) || maxBodyBytes < 1024) throw new Error('A2A maxBodyBytes must be an integer >= 1024');
   if (!Number.isInteger(maxBlockingWaitMs) || maxBlockingWaitMs < 1) throw new Error('A2A maxBlockingWaitMs must be a positive integer');
   if (!Number.isInteger(pollIntervalMs) || pollIntervalMs < 0) throw new Error('A2A pollIntervalMs must be a non-negative integer');
+  if (typeof enableStreaming !== 'boolean') throw new Error('A2A enableStreaming must be boolean');
+  if (typeof enableCancellation !== 'boolean') throw new Error('A2A enableCancellation must be boolean');
 
   const normalizedRpcPath = normalizeRpcPath(rpcPath);
   const store = new A2aTaskStore({ maxTasks, taskTtlMs });
   let registered = false;
   let registerPromise = null;
   let pollTail = Promise.resolve();
+  let compactPollTail = Promise.resolve();
   let listeningUrl = null;
 
   async function ensureRegistered() {
@@ -220,10 +248,6 @@ export function createA2aServer({
     if (skill.visibility === 'public') {
       return dispatchableOffers.every((offer) => offerAccessMode(offer) === 'public');
     }
-    // node.find() is already requester-scoped by the relay using the authenticated
-    // TRUYN node session, including provider policy and relay-level trusted grants.
-    // Do not reinterpret descriptive OFFER metadata here. Also do not treat the
-    // relay /v1/offers own-offer fallback as dispatchable provider evidence.
     return true;
   }
 
@@ -248,7 +272,7 @@ export function createA2aServer({
     const card = {
       ...normalizedAgent,
       capabilities: {
-        streaming: false,
+        streaming: enableStreaming,
         pushNotifications: false,
         extendedAgentCard: hasExtended
       },
@@ -274,6 +298,17 @@ export function createA2aServer({
       return polled;
     });
     pollTail = run.catch(() => {});
+    return run;
+  }
+
+  async function drainCompactEvents() {
+    const run = compactPollTail.then(async () => {
+      await ensureRegistered();
+      const polled = await node.pollCompact({ waitMs: 0 });
+      for (const event of polled.events || []) store.recordCompactEvent(event);
+      return polled;
+    });
+    compactPollTail = run.catch(() => {});
     return run;
   }
 
@@ -308,7 +343,7 @@ export function createA2aServer({
     return matched;
   }
 
-  async function sendMessage(params, req) {
+  async function createTaskFromRequest(params, req, { compact = false } = {}) {
     if (!isObject(params)) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
     const message = normalizeA2aMessage(params.message);
     const principal = await authenticateRequest(req);
@@ -316,17 +351,13 @@ export function createA2aServer({
 
     if (message.taskId) {
       const existing = store.getAccessible(message.taskId, ownerKey, { allowAnonymous: allowAnonymousTaskAccess });
-      if (!existing) throw a2aError(-32001, 'Task not found', 'TASK_NOT_FOUND', { taskId: message.taskId });
-      throw a2aError(-32004, 'Task continuation is not supported by the bounded C3 facade', 'UNSUPPORTED_OPERATION', { taskId: message.taskId });
+      if (!existing) throw a2aError(TASK_NOT_FOUND_ERROR_CODE, 'Task not found', 'TASK_NOT_FOUND', { taskId: message.taskId });
+      throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'Task continuation is not supported by the bounded A2A facade', 'UNSUPPORTED_OPERATION', { taskId: message.taskId });
     }
 
     const skill = await chooseSkill(message, principal, req);
     if (Array.isArray(params.configuration?.acceptedOutputModes) && params.configuration.acceptedOutputModes.some((mode) => !skill.outputModes.includes(mode))) {
       throw a2aError(-32005, 'Requested output mode is not supported', 'CONTENT_TYPE_NOT_SUPPORTED');
-    }
-    const returnImmediately = Boolean(params.configuration?.returnImmediately);
-    if (returnImmediately && ownerKey === null && !allowAnonymousTaskAccess) {
-      throw a2aError(-32602, 'Anonymous non-blocking tasks are disabled because they cannot be securely polled', 'INVALID_PARAMS');
     }
 
     const task = store.create({ ownerKey, contextId: message.contextId || null, message, skill });
@@ -340,19 +371,30 @@ export function createA2aServer({
 
     try {
       await ensureRegistered();
-      const matched = await node.need(skill.capability, input, policy);
+      const matched = compact
+        ? await node.compactNeed(skill.capability, input, policy, { waitMs: 0 })
+        : await node.need(skill.capability, input, policy);
       store.start(task.id, {
         truynRequestId: matched.needId,
         providerNodeId: matched.provider || null,
-        providerTrust: matched.providerTrust || null
+        providerTrust: matched.providerTrust || matched.trust || null
       });
     } catch (error) {
       store.reject(task.id, error?.body?.error || error.message || 'TRUYN dispatch rejected');
-      return { task: store.snapshot(task) };
     }
+    return { task, principal, ownerKey, skill, message };
+  }
 
-    if (!returnImmediately) await waitForTerminal(task);
-    return { task: store.snapshot(task) };
+  async function sendMessage(params, req) {
+    const returnImmediately = Boolean(params?.configuration?.returnImmediately);
+    const principal = await authenticateRequest(req);
+    const ownerKey = stablePrincipalKey(principal, principalKey);
+    if (returnImmediately && ownerKey === null && !allowAnonymousTaskAccess) {
+      throw a2aError(-32602, 'Anonymous non-blocking tasks are disabled because they cannot be securely polled', 'INVALID_PARAMS');
+    }
+    const created = await createTaskFromRequest(params, req, { compact: false });
+    if (!returnImmediately && !store.isTerminal(created.task)) await waitForTerminal(created.task);
+    return { task: store.snapshot(created.task) };
   }
 
   async function getTask(params, req) {
@@ -362,14 +404,81 @@ export function createA2aServer({
     }
     const principal = await authenticateRequest(req);
     const ownerKey = stablePrincipalKey(principal, principalKey);
-    await drainTruynEvents();
+    await Promise.all([drainTruynEvents(), drainCompactEvents()]);
     const task = store.getAccessible(params.id, ownerKey, { allowAnonymous: allowAnonymousTaskAccess });
-    if (!task) throw a2aError(-32001, 'Task not found', 'TASK_NOT_FOUND', { taskId: params.id });
+    if (!task) throw a2aError(TASK_NOT_FOUND_ERROR_CODE, 'Task not found', 'TASK_NOT_FOUND', { taskId: params.id });
     return store.snapshot(task, { historyLength: params.historyLength });
   }
 
+  async function cancelTask(params, req) {
+    if (!enableCancellation) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'CancelTask is not enabled', 'UNSUPPORTED_OPERATION');
+    if (!isObject(params) || typeof params.id !== 'string' || params.id.length === 0) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
+    const principal = await authenticateRequest(req);
+    const ownerKey = stablePrincipalKey(principal, principalKey);
+    await Promise.all([drainTruynEvents(), drainCompactEvents()]);
+    const task = store.getAccessible(params.id, ownerKey, { allowAnonymous: allowAnonymousTaskAccess });
+    if (!task) throw a2aError(TASK_NOT_FOUND_ERROR_CODE, 'Task not found', 'TASK_NOT_FOUND', { taskId: params.id });
+    if (task.status.state === A2A_TASK_STATES.canceled) return store.snapshot(task);
+    if (store.isTerminal(task)) {
+      throw a2aError(TASK_NOT_CANCELABLE_ERROR_CODE, 'Task is already terminal and cannot be canceled', 'TASK_NOT_CANCELABLE', { taskId: params.id });
+    }
+    if (!task.truynRequestId) throw a2aError(TASK_NOT_CANCELABLE_ERROR_CODE, 'Task has no active TRUYN request', 'TASK_NOT_CANCELABLE', { taskId: params.id });
+
+    try {
+      await node.revoke(task.truynRequestId, 'a2a_cancelled', { targetKind: 'need' });
+    } catch (error) {
+      if (error?.status === 409) {
+        await Promise.all([drainTruynEvents(), drainCompactEvents()]);
+        if (store.isTerminal(task)) {
+          throw a2aError(TASK_NOT_CANCELABLE_ERROR_CODE, 'Task became terminal before cancellation', 'TASK_NOT_CANCELABLE', { taskId: params.id });
+        }
+      }
+      throw error;
+    }
+    store.cancel(task.id, 'Task canceled by A2A requester');
+    return store.snapshot(task);
+  }
+
+  async function* streamTask(task, { cursor = 0 } = {}) {
+    yield { task: store.snapshot(task) };
+    if (store.isTerminal(task)) return;
+    const deadline = Date.now() + maxBlockingWaitMs;
+    let nextCursor = cursor;
+    while (!store.isTerminal(task)) {
+      await drainCompactEvents();
+      const batch = store.streamEventsSince(task, nextCursor);
+      nextCursor = batch.cursor;
+      for (const event of batch.events) yield event;
+      if (store.isTerminal(task)) break;
+      if (Date.now() >= deadline) {
+        throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'Bounded A2A stream timed out before terminal state', 'UNSUPPORTED_OPERATION', { taskId: task.id });
+      }
+      await delay(pollIntervalMs);
+    }
+    const finalBatch = store.streamEventsSince(task, nextCursor);
+    for (const event of finalBatch.events) yield event;
+  }
+
+  async function sendStreamingMessage(params, req) {
+    if (!enableStreaming) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'SendStreamingMessage is not enabled', 'UNSUPPORTED_OPERATION');
+    const created = await createTaskFromRequest(params, req, { compact: true });
+    return streamTask(created.task);
+  }
+
+  async function subscribeToTask(params, req) {
+    if (!enableStreaming) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'SubscribeToTask is not enabled', 'UNSUPPORTED_OPERATION');
+    if (!isObject(params) || typeof params.id !== 'string' || params.id.length === 0) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
+    const principal = await authenticateRequest(req);
+    const ownerKey = stablePrincipalKey(principal, principalKey);
+    await drainCompactEvents();
+    const task = store.getAccessible(params.id, ownerKey, { allowAnonymous: allowAnonymousTaskAccess });
+    if (!task) throw a2aError(TASK_NOT_FOUND_ERROR_CODE, 'Task not found', 'TASK_NOT_FOUND', { taskId: params.id });
+    if (store.isTerminal(task)) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'Terminal tasks cannot be resubscribed', 'UNSUPPORTED_OPERATION', { taskId: params.id });
+    return streamTask(task, { cursor: task.streamEvents.length });
+  }
+
   async function getExtendedAgentCard(_params, req) {
-    if (!authenticate || !authorize) throw a2aError(-32004, 'Extended Agent Card is not supported', 'UNSUPPORTED_OPERATION');
+    if (!authenticate || !authorize) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'Extended Agent Card is not supported', 'UNSUPPORTED_OPERATION');
     const principal = await authenticateRequest(req);
     if (!principal) throw a2aError(AUTHENTICATION_ERROR_CODE, 'Authentication required', 'AUTHENTICATION_REQUIRED');
     return agentCard(principal, req, { extended: true });
@@ -387,10 +496,13 @@ export function createA2aServer({
       });
     }
     if (body.method === 'SendMessage') return sendMessage(body.params || {}, req);
+    if (body.method === 'SendStreamingMessage') return sendStreamingMessage(body.params || {}, req);
+    if (body.method === 'SubscribeToTask') return subscribeToTask(body.params || {}, req);
     if (body.method === 'GetTask') return getTask(body.params || {}, req);
+    if (body.method === 'CancelTask') return cancelTask(body.params || {}, req);
     if (body.method === 'GetExtendedAgentCard') return getExtendedAgentCard(body.params || {}, req);
-    if (['SendStreamingMessage', 'SubscribeToTask', 'CancelTask'].includes(body.method)) {
-      throw a2aError(-32004, `${body.method} is not supported by the bounded C3 facade`, 'UNSUPPORTED_OPERATION');
+    if (['CreateTaskPushNotificationConfig', 'GetTaskPushNotificationConfig', 'ListTaskPushNotificationConfigs', 'DeleteTaskPushNotificationConfig'].includes(body.method)) {
+      throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, `${body.method} is not supported by this lifecycle slice`, 'UNSUPPORTED_OPERATION');
     }
     throw a2aError(-32601, 'Method not found', 'METHOD_NOT_FOUND');
   }
@@ -411,6 +523,19 @@ export function createA2aServer({
         }
         body = await readJson(req, maxBodyBytes);
         const result = await dispatchRpc(body, req);
+        if (isAsyncIterable(result)) {
+          beginSse(res);
+          try {
+            for await (const event of result) {
+              writeSse(res, { jsonrpc: '2.0', id: requestId(body), result: event });
+            }
+          } catch (error) {
+            writeSse(res, errorResponse(requestId(body), error), { event: 'error' });
+          } finally {
+            if (!res.writableEnded) res.end();
+          }
+          return;
+        }
         return sendJson(res, 200, { jsonrpc: '2.0', id: requestId(body), result });
       }
       return sendJson(res, 404, { ok: false, error: 'not_found' });
