@@ -79,6 +79,17 @@ jobs:
         env:
           TRUYN_RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: sdk/release/build-release.sh
+      - name: Clean-room import packed TypeScript SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-0.1.0-alpha.2.tgz"
+          test -f "$package"
+          cleanroom="$(mktemp -d)"
+          cd "$cleanroom"
+          npm init --yes >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund "$package"
+          node --input-type=module -e "import('@truyn/sdk').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.TruynLocalNodeClient !== 'function') throw new Error('TruynLocalNodeClient export missing'); })"
       - name: Upload SDK release bundle
         uses: actions/upload-artifact@v4
         with:
