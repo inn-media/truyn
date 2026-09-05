@@ -24,14 +24,14 @@ export async function executeWithDurableAccounting({
   const estimate = positiveInteger(estimatedTokens);
   if (!estimate) return { ok: false, reason: 'billing_token_estimate_required', executed: false };
 
-  const billing = billingPolicy.authorize(need, { accessPolicy, estimatedTokens: estimate });
+  const billing = await billingPolicy.authorize(need, { accessPolicy, estimatedTokens: estimate });
   if (!billing?.ok) return { ok: false, reason: billing?.reason || 'billing_not_authorized', billing, executed: false };
 
   try {
     const execution = await execute({ billing, need });
     const actualTokens = executionTotalTokens(execution, billing.reservedTokens || estimate);
     if (typeof billing.finalize === 'function') {
-      const reconciliation = billing.finalize({ outcome: 'completed', actualTokens });
+      const reconciliation = await billing.finalize({ outcome: 'completed', actualTokens });
       if (!reconciliation?.ok) {
         const error = new Error(reconciliation?.reason || 'accounting_reconcile_failed');
         error.code = reconciliation?.reason || 'accounting_reconcile_failed';
@@ -45,7 +45,7 @@ export async function executeWithDurableAccounting({
     return { ok: true, executed: true, execution, billing, reconciliation: null, actualTokens };
   } catch (error) {
     if (typeof billing.finalize === 'function' && !error?.reconciliation) {
-      const release = billing.finalize({ outcome: 'failed', actualTokens: 0, reason: error?.code || error?.message || 'provider_execution_failed' });
+      const release = await billing.finalize({ outcome: 'failed', actualTokens: 0, reason: error?.code || error?.message || 'provider_execution_failed' });
       if (!release?.ok && release?.reason !== 'reservation_already_committed') error.accountingRelease = release;
     }
     throw error;
