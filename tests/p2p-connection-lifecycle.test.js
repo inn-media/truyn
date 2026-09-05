@@ -77,7 +77,7 @@ test('missing target record recovers through live discovery control RPCs and sen
   const liveA = record({ nodeId: 'truyn:node:live-a', sequence: 3, endpoint: 'quic://10.0.0.1:4433' });
   const liveB = record({ nodeId: 'truyn:node:live-b', sequence: 4, endpoint: 'quic://10.0.0.2:4433' });
   let currentTarget = null;
-  let fallbackLookups = 0;
+  let iterativeLookups = 0;
   let controlLookups = 0;
   let envelopeSends = 0;
   const ingested = [];
@@ -100,8 +100,8 @@ test('missing target record recovers through live discovery control RPCs and sen
       forget() {}
     },
     async findNode() {
-      fallbackLookups += 1;
-      throw new Error('stale iterative fallback must not run after live discovery recovered the target');
+      iterativeLookups += 1;
+      return null;
     }
   };
   const quic = {
@@ -121,6 +121,84 @@ test('missing target record recovers through live discovery control RPCs and sen
   assert.equal(result.result.envelopeId, 'need-once');
   assert.equal(controlLookups, 2, 'bounded live peers are queried only on the discovery control plane');
   assert.deepEqual(ingested, [targetNodeId]);
-  assert.equal(fallbackLookups, 0);
+  assert.equal(iterativeLookups, 1, 'iterative Kademlia recovery is raced instead of started after live fanout');
   assert.equal(envelopeSends, 1, 'the application envelope must never be retried by discovery recovery');
+});
+
+test('target discovery returns on the first valid control response without waiting for a slow peer', async () => {
+  const targetNodeId = 'truyn:node:target-early';
+  const target = record({ nodeId: targetNodeId, sequence: 2, endpoint: 'quic://10.0.0.20:4433' });
+  const liveA = record({ nodeId: 'truyn:node:live-slow', sequence: 1, endpoint: 'quic://10.0.0.1:4433' });
+  const liveB = record({ nodeId: 'truyn:node:live-fast', sequence: 1, endpoint: 'quic://10.0.0.2:4433' });
+  let currentTarget = null;
+  let envelopeSends = 0;
+  const never = new Promise(() => {});
+
+  const discovery = {
+    k: 20,
+    get(nodeId) { return nodeId === targetNodeId ? currentTarget : null; },
+    snapshot() { return [liveA, liveB]; },
+    ingest(next) {
+      if (next.nodeId === targetNodeId) currentTarget = next;
+      return { accepted: true };
+    },
+    rpc: {
+      findNode(peer) {
+        return peer.nodeId === liveA.nodeId ? never : Promise.resolve({ records: [target] });
+      },
+      forget() {}
+    },
+    async findNode() { return null; }
+  };
+  const quic = {
+    async connect(endpoint) { return { endpoint }; },
+    async disconnect() {},
+    async sendEnvelope() { envelopeSends += 1; return { ok: true }; }
+  };
+  const router = new DirectFirstP2P({ quicTransport: quic, discovery });
+
+  const result = await Promise.race([
+    router.send(targetNodeId, { id: 'early-success' }, { allowRelayFallback: false }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('discovery_waited_for_slowest_peer')), 200))
+  ]);
+
+  assert.equal(result.transport, 'quic-direct');
+  assert.equal(envelopeSends, 1);
+});
+
+test('transient QUIC session establishment timeout retries only the connection and sends the envelope once', async () => {
+  const targetNodeId = 'truyn:node:connect-retry';
+  const target = record({ nodeId: targetNodeId, sequence: 5, endpoint: 'quic://10.0.0.30:4433' });
+  let connectAttempts = 0;
+  let envelopeSends = 0;
+  const never = new Promise(() => {});
+  const discovery = {
+    get(nodeId) { return nodeId === targetNodeId ? target : null; },
+    async findNode() { return target; }
+  };
+  const quic = {
+    connect(endpoint) {
+      connectAttempts += 1;
+      if (connectAttempts === 1) return never;
+      return Promise.resolve({ endpoint, serial: connectAttempts });
+    },
+    async disconnect() {},
+    async sendEnvelope(client, envelope) {
+      envelopeSends += 1;
+      return { serial: client.serial, envelopeId: envelope.id };
+    }
+  };
+  const router = new DirectFirstP2P({
+    quicTransport: quic,
+    discovery,
+    directConnectTimeoutMs: 20,
+    directConnectAttempts: 2
+  });
+
+  const result = await router.send(targetNodeId, { id: 'application-once' }, { allowRelayFallback: false });
+
+  assert.equal(result.transport, 'quic-direct');
+  assert.equal(result.result.serial, 2);
+  assert.equal(connectAttempts, 2);
+  assert.equal(envelopeSends, 1, 'connection recovery must not duplicate the application envelope');
 });
