@@ -13,7 +13,8 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/ci.yml',
   '.github/workflows/publish-sdk-alpha.yml',
   '.github/workflows/publish-python-alpha.yml',
-  '.github/workflows/go-sdk-alpha-release.yml'
+  '.github/workflows/go-sdk-alpha-release.yml',
+  '.github/workflows/production-dr-foundation.yml'
 ]);
 const BENCHMARK_EVIDENCE_DIR = 'docs/benchmarks/';
 
