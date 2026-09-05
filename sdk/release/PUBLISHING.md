@@ -6,13 +6,15 @@
 **Protected GitHub Environment:** `sdk-release`  
 **Protocol status:** `TRUYN/1` draft
 
-A release is publishable only from an exact merged commit for which ordinary CI, DCO, CodeQL/security, five-language executable conformance and `sdk/release/build-release.sh` are green. GitHub Actions artifacts are evidence/build outputs, not substitutes for native package registries.
+A release is publishable only from an exact merged main commit whose ordinary CI, CodeQL/security, five-language executable conformance and release-package verification are green. GitHub Actions artifacts are evidence/build outputs, not substitutes for native package registries.
 
-The initial npm/PyPI bootstrap publication infrastructure has already been exercised. npm `@truyn/sdk@0.1.0-alpha.1` is immutable, but clean-room Node 22 ESM import later proved that artifact unusable because `ws` had been bundled through a CommonJS dynamic require. That coordinate must never be overwritten. The bounded npm repair therefore uses the new immutable version `0.1.0-alpha.2`; Python remains `0.1.0a1`, and the Go/Java/.NET alpha coordinates remain unchanged.
+npm `@truyn/sdk@0.1.0-alpha.1` is immutable but unusable for Node 22 ESM consumers because the published artifact bundled `ws` through a CommonJS dynamic require. That coordinate must never be overwritten. The bounded repair therefore uses the distinct immutable package version `0.1.0-alpha.2`; Python remains `0.1.0a1`, and Go/Java/.NET remain on their accepted alpha.1-family coordinates.
 
-The configured npm Trusted Publisher identity remains `publish-sdk-alpha.yml`. For the bounded alpha.2 repair, that workflow consumes the exact package artifact uploaded by successful ordinary main CI for the same source SHA, requires hosted CodeQL success on that same SHA, publishes through OIDC without a long-lived publish token, and verifies immutable registry evidence. The first candidate tag `sdk/npm/v0.1.0-alpha.2` was created from an exact-green main SHA by a GitHub Actions bootstrap, but GitHub correctly suppressed a second workflow from that `GITHUB_TOKEN`-originated tag event. That candidate tag is immutable and is not moved or reused. The operational publication therefore uses the distinct immutable tag `sdk/npm/v0.1.0-alpha.2-release.1`; the one-shot workflow temporarily permits `workflow_dispatch`, but its first release-identity gate still requires `GITHUB_REF` to equal that exact tag and requires the tag to resolve to the workflow source SHA. The superseded `go-sdk-alpha-release.yml` filename contains no publication path and is removed by the post-evidence cleanup PR. Ordinary `ci.yml` remains non-publishing.
+Two GitHub release-trigger attempts are retained as immutable historical evidence and are never moved or reused. `sdk/npm/v0.1.0-alpha.2` was a candidate tag whose `GITHUB_TOKEN`-originated tag event was correctly suppressed by GitHub recursion protection. `sdk/npm/v0.1.0-alpha.2-release.1` was then created from exact-green main and dispatched to the canonical workflow, but GitHub ended that bot-triggered dispatch as `startup_failure` before any job or registry mutation. The operational repair therefore returns to the repository's previously proven `CI → workflow_run` execution path. The workflow obtains `SOURCE_SHA` and the exact CI run id from the successful main CI event, waits for hosted same-SHA CodeQL to reach success, and only then creates or verifies the immutable `sdk/npm/v0.1.0-alpha.2-release.2` tag before any registry mutation.
 
-npm Trusted Publishing covers `npm publish`; npm registry-management commands such as dist-tag mutation are a separate authenticated operation. The repair publish therefore uses the default `latest` tag through Trusted Publishing, while the additional `alpha` tag is repaired only through the narrow existing environment credential if it is not already correct. That credential is not used as the publishing identity and is removed/revoked when no longer needed.
+This workflow-run fallback does not weaken source binding. The release tag is verified independently against `SOURCE_SHA`; the exact successful main-CI artifact is consumed without rebuilding; npm provenance must bind the package to `inn-media/truyn`, `.github/workflows/publish-sdk-alpha.yml`, `refs/heads/main` and the same git commit. The permanent evidence therefore records both the provenance workflow ref and the distinct immutable release tag relation.
+
+npm Trusted Publishing covers `npm publish`; npm registry-management commands such as dist-tag mutation are a separate authenticated operation. The publish command uses explicit `--tag alpha`, public access and provenance. If the default `latest` tag still points to the superseded alpha.1 package, the narrow existing `sdk-release` credential may advance it to alpha.2; the anti-rollback guard refuses to move either `alpha` or `latest` backward from any other version.
 
 ## Package identities
 
@@ -21,117 +23,112 @@ npm Trusted Publishing covers `npm publish`; npm registry-management commands su
 | npm | `@truyn/sdk` | `0.1.0-alpha.2` (supersedes broken immutable `0.1.0-alpha.1`) |
 | PyPI | `truyn-sdk` | `0.1.0a1` |
 | Go modules | `github.com/inn-media/truyn/sdk/go` | `v0.1.0-alpha.1` |
-| Maven | `org.truyn:truyn-sdk` | `0.1.0-alpha.1` |
+| Maven | `org.truyn:truyn-sdk:0.1.0-alpha.1` | `0.1.0-alpha.1` |
 | NuGet | `Truyn.Sdk` | `0.1.0-alpha.1` |
 
 ## Canonical source/tag rule
 
 Release tags are immutable and may never be moved or reused.
 
-The Go module lives in the `sdk/go` subdirectory, so its accepted VCS release tag is:
+The Go module lives in `sdk/go`, so its accepted VCS tag is:
 
 ```text
 sdk/go/v0.1.0-alpha.1
 ```
 
-The npm packaging repair uses the one-shot operational release tag:
+The npm repair's operational release tag is:
 
 ```text
-sdk/npm/v0.1.0-alpha.2-release.1
+sdk/npm/v0.1.0-alpha.2-release.2
 ```
 
-The earlier `sdk/npm/v0.1.0-alpha.2` candidate tag remains immutable historical release-setup evidence and is not a publication tag.
+The earlier `sdk/npm/v0.1.0-alpha.2` and `sdk/npm/v0.1.0-alpha.2-release.1` refs remain immutable historical setup/failed-trigger evidence. They are not publication tags and are never retargeted.
 
-The operational npm tag may be created only after the exact merged source SHA has successful ordinary main CI and hosted CodeQL. The Trusted Publisher workflow must prove that the tag resolves to that exact SHA before any registry mutation. A temporary explicit dispatch is acceptable only when the workflow is run with the exact immutable release tag as its ref; dispatching `main`, a branch, or another tag fails the same release-identity gate before registry access.
+`release.2` is created by the canonical release workflow only after the triggering main CI is successful and hosted CodeQL for the same source SHA has completed successfully. If the tag already exists, the workflow accepts it only when it resolves to exactly the same `SOURCE_SHA`; any conflicting existing ref fails closed.
 
 ## npm publication and repair contract
 
-Target: public package `@truyn/sdk` on npm.
+Target: public package `@truyn/sdk@0.1.0-alpha.2`.
 
-The npm organization/scope `truyn` exists and the bootstrap publication boundary has already been exercised. The immutable `0.1.0-alpha.1` package must remain historical evidence; it is not a repair target.
+The release operation MUST:
 
-For `0.1.0-alpha.2` the release operation MUST:
+1. be initiated only by successful `CI` completion for a `push` to `main` through `publish-sdk-alpha.yml`;
+2. bind `SOURCE_SHA` and the CI run id directly to that successful workflow-run event;
+3. require hosted CodeQL success for the same source SHA before creating the operational release tag or touching a registry;
+4. create or verify immutable `sdk/npm/v0.1.0-alpha.2-release.2 → SOURCE_SHA` after those green gates;
+5. download the exact `truyn-sdk-release-<CI run id>` artifact and verify its manifest against the same source SHA and TypeScript version, rather than rebuilding a separately resolved package graph;
+6. publish the exact CI tarball through npm Trusted Publishing/OIDC with `--access public --tag alpha --provenance`, without a long-lived publish token;
+7. if the package coordinate already exists, refuse overwrite and require byte-for-byte identity with the selected CI artifact;
+8. require the public registry tarball SHA-256, `dist.integrity`, `dist.shasum` and attestation metadata;
+9. require `alpha == 0.1.0-alpha.2`, repair `latest` only from absent/alpha.1, and refuse rollback from any newer/different version;
+10. clean-room install/import the public package and verify `TruynClient` plus `TruynLocalNodeClient`;
+11. run `npm audit signatures --include-attestations` and inspect the SLSA provenance so repository, workflow path, main ref and source git commit match;
+12. archive source SHA, immutable release tag, CI run, CodeQL run, publication workflow run, registry hashes, provenance and clean-room evidence.
 
-1. run only with immutable `sdk/npm/v0.1.0-alpha.2-release.1` as `GITHUB_REF` through `publish-sdk-alpha.yml`, whether the initiating event is a direct external tag push or the bounded one-shot `workflow_dispatch` targeting that exact tag;
-2. require successful ordinary main CI and hosted CodeQL for the exact tagged SHA;
-3. download the exact `truyn-sdk-release-<CI run id>` artifact from that successful CI run rather than rebuilding an independently resolved npm dependency graph;
-4. verify `sdk/release/dist/manifest.json` against the tagged SHA and TypeScript version before publication;
-5. publish the exact CI tarball through npm Trusted Publishing / OIDC with public access and provenance, without requiring a long-lived publishing token;
-6. verify the registry tarball byte-for-byte against that CI artifact;
-7. require both `alpha` and the default `latest` dist-tags to resolve to the repaired version so tagged and unqualified installation do not continue resolving to broken alpha.1;
-8. clean-room install/import the public package;
-9. run npm signature/provenance verification and inspect the attestation statement so repository, workflow path, immutable tag ref and source git commit all match the expected release identity;
-10. archive the tarball, hashes, decoded provenance statement and structured release evidence.
+Long-lived credentials must not be committed. Any narrow credential used only to repair dist-tags remains scoped to `sdk-release` and is removed/revoked after closure.
 
-Long-lived credentials must not be committed to the repository. Any narrow bootstrap credential used only for dist-tag repair remains scoped to the protected `sdk-release` environment and should be removed/revoked after closure.
+## PyPI verification-only contract
 
-## PyPI trusted publishing
+Target remains `truyn-sdk==0.1.0a1`; the npm repair MUST NOT republish that immutable PyPI coordinate.
 
-Target: `truyn-sdk==0.1.0a1` on PyPI.
+The verifier independently downloads and hashes the accepted wheel and sdist, verifies PEP 740 publisher identity/source SHA, and performs a clean-room install from public PyPI. Only entries whose PyPI `packagetype` is `bdist_wheel` or `sdist` participate in the distribution-file-set equality check. Provenance/attestation records are evidence for those distributions and are not themselves treated as distribution files.
 
-The accepted publication uses GitHub OIDC / PyPI Trusted Publishing bound to:
+Accepted PyPI publisher identity remains:
 
-- PyPI project: `truyn-sdk`
-- GitHub owner: `inn-media`
-- repository: `truyn`
-- workflow filename: `publish-sdk-alpha.yml`
-- environment: `sdk-release`
-
-The npm alpha.2 repair MUST NOT republish the immutable PyPI coordinate. It independently re-verifies the already-published wheel and sdist hashes/bytes, PEP 740 publisher identity and exact publication source SHA, records each artifact byte size, and performs a clean-room install from public PyPI.
+- project: `truyn-sdk`;
+- GitHub owner/repository: `inn-media/truyn`;
+- workflow filename: `publish-sdk-alpha.yml`;
+- environment: `sdk-release`;
+- publication source SHA: the already accepted PyPI publication SHA recorded in the release marker.
 
 ## NuGet trusted publishing
 
-Target: `Truyn.Sdk` on nuget.org.
-
-Configure a nuget.org Trusted Publishing policy with the narrow repository/workflow/environment identity when public NuGet publication is performed. No long-lived NuGet API key belongs in repository source. A NuGet release is accepted only when registry bytes and provenance are bound to an exact accepted source.
+Target remains `Truyn.Sdk 0.1.0-alpha.1`. A future public NuGet publication must use the narrow repository/workflow/environment identity supported by nuget.org and must bind public artifacts to an exact accepted source.
 
 ## Maven-compatible publication
 
-Target coordinates remain `org.truyn:truyn-sdk:0.1.0-alpha.1`.
-
-The release bundle contains the binary JAR, sources JAR, Javadoc JAR and POM. A public Maven Central publication additionally requires the external Central account boundary: ownership/verification of the `org.truyn` namespace, publisher credentials/token and signing material required by Central. Those credentials/signing materials are intentionally not committed to the repository and must be scoped to the protected `sdk-release` environment or the narrowest supported external publisher boundary.
-
-A Maven publish is accepted only when the registry resolves the exact coordinates and the published artifacts match the release manifest digests/signatures.
+Target remains `org.truyn:truyn-sdk:0.1.0-alpha.1`. Public Maven Central publication remains subject to its external namespace, account, credential and signing boundaries. Those credentials/signing materials never belong in repository source.
 
 ## Go module publication
 
-Go requires no registry write credential. The accepted module tag is:
+Go requires no registry write credential. The accepted module path/tag pair is:
 
 ```text
+github.com/inn-media/truyn/sdk/go
 sdk/go/v0.1.0-alpha.1
 ```
-
-The module path in `sdk/go/go.mod` is `github.com/inn-media/truyn/sdk/go`; the subdirectory tag is therefore the native release coordinate used by Go tooling/proxies.
 
 ## Release-infrastructure acceptance gate
 
 A release-infrastructure change is accepted only when all applicable conditions are true:
 
-- registry namespace/package ownership is verified for the target ecosystem;
-- publisher identity is bound to `inn-media/truyn` and the narrow release workflow/environment boundary supported by that registry;
+- registry namespace/package ownership is verified;
+- publisher identity is bound to `inn-media/truyn` and `publish-sdk-alpha.yml` / `sdk-release`;
 - ordinary `ci.yml` contains no registry publication path;
-- publication remains exact immutable-tag-bound; the bounded temporary `workflow_dispatch` can succeed only when `GITHUB_REF` is the exact release tag, while `pull_request_target` is forbidden;
-- permissions are least-privileged;
-- registry writes consume the exact successful CI artifact or another reviewed immutable artifact bound to the exact accepted source SHA;
-- the protected `sdk-release` environment gates registry publication;
-- exact-source CI and hosted CodeQL are green before publication;
-- public registry bytes, installability and provenance are verified after publication;
-- temporary one-shot release workflow content/markers/tests are removed after evidence acceptance.
+- `workflow_run` accepts only successful push CI from `main` in this repository;
+- `pull_request_target` and generic manual publication are absent;
+- permissions are limited to Actions read, OIDC and the temporary contents write needed to create the immutable release tag;
+- registry writes consume the exact successful CI artifact bound to the accepted source SHA;
+- hosted same-SHA CodeQL is green before tag creation/publication;
+- public registry bytes, installability, signatures and provenance are verified after publication;
+- PyPI distribution-file verification excludes attestation records from the distribution set;
+- temporary release workflow content/markers/tests are removed after permanent release evidence is committed.
 
 ## Release evidence
 
-For every language, keep or record:
+Permanent closure evidence records at minimum:
 
 - exact merged source SHA;
-- native package name/version;
-- package byte size;
-- SHA-256 from the accepted release artifact/manifest;
-- registry/version URL or Go VCS tag;
-- CI run proving five-language conformance and package verification;
-- CodeQL/security result for the same accepted source;
-- publication/verification workflow run and protected environment identity where applicable;
-- provenance/attestation identity for registries that support it;
-- clean-room install/import result;
-- no credentials/private keys/`.env`/repository internals inside distributions.
+- immutable native release tag and its target SHA;
+- package name/version and byte size;
+- selected CI run proving five-language conformance/package verification;
+- hosted CodeQL run for the same source;
+- publication/verification workflow run and protected environment;
+- registry tarball SHA-256 plus `dist.integrity` and `dist.shasum`;
+- decoded npm provenance statement and signature-audit result;
+- `alpha`/`latest` identities;
+- public clean-room install/import result;
+- PyPI wheel/sdist hashes, sizes, PEP 740 verification and clean-room result;
+- confirmation that no credential/private key/`.env`/repository internals are present in distributions.
 
-`publicDistribution` may become true only for a package whose native public location has been observed and whose bytes/version are bound back to the accepted release evidence.
+`publicDistribution` becomes true only after the public native coordinate and its bytes/provenance are independently observed and bound back to this evidence.
