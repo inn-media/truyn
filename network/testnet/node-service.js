@@ -175,6 +175,8 @@ export async function createTestnetNodeService({
   let lastDhtRefresh = null;
   const statusSnapshot = () => ({
     ok: true,
+    ready: node.peerRecordPropagationReady(),
+    acceptanceReady: node.peerRecordPropagationReady(),
     nodeId: identity.nodeId,
     started: node.started,
     uptimeMs: Date.now() - startedAt,
@@ -216,8 +218,11 @@ export async function createTestnetNodeService({
 
   const dhtReadiness = () => {
     const routing = routingReadinessFields(node.discovery.routingSnapshot());
+    const propagation = node.peerRecordLifecycleSnapshot().propagation || {};
+    const propagationReady = node.peerRecordPropagationReady();
     return {
-      ok: true,
+      ok: propagationReady,
+      acceptanceReady: propagationReady,
       nodeId: identity.nodeId,
       validPeers: routing.validPeers,
       populatedBuckets: routing.populatedBuckets,
@@ -226,6 +231,15 @@ export async function createTestnetNodeService({
         bucketCount: routing.bucketCount,
         populatedBuckets: routing.populatedBuckets,
         occupancy: routing.bucketOccupancy
+      },
+      peerRecordPropagation: {
+        ready: propagationReady,
+        recordId: propagation.recordId || null,
+        sequence: propagation.sequence ?? null,
+        targetCount: Array.isArray(propagation.targetNodeIds) ? propagation.targetNodeIds.length : 0,
+        acknowledgedCount: Array.isArray(propagation.acknowledgedNodeIds) ? propagation.acknowledgedNodeIds.length : 0,
+        pendingCount: Array.isArray(propagation.pendingNodeIds) ? propagation.pendingNodeIds.length : 0,
+        pendingNodeIds: Array.isArray(propagation.pendingNodeIds) ? [...propagation.pendingNodeIds] : []
       },
       remoteEndpointDiversity: remoteEndpointDiversity(),
       refresh: lastDhtRefresh || {
