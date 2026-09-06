@@ -1,0 +1,231 @@
+name: Publish npm SDK via Trusted Publishing
+
+on:
+  push:
+    tags:
+      - 'sdk/npm/v*'
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+jobs:
+  publish:
+    if: github.repository == 'inn-media/truyn'
+    runs-on: ubuntu-latest
+    environment: sdk-release
+    timeout-minutes: 30
+    env:
+      NPM_PACKAGE: '@truyn/sdk'
+      NPM_REGISTRY: 'https://registry.npmjs.org/'
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate immutable tag and exact current main
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          case "$tag" in
+            sdk/npm/v*) ;;
+            *) echo "Unexpected release ref: $GITHUB_REF" >&2; exit 1 ;;
+          esac
+
+          version="${tag#sdk/npm/v}"
+          test -n "$version"
+          test "$(node -p "require('./sdk/typescript/package.json').version")" = "$version"
+
+          source_sha="$(git rev-parse HEAD)"
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          current_main="$(git rev-parse refs/remotes/origin/main)"
+          test "$source_sha" = "$current_main"
+
+          remote_tag="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq '.object.sha')"
+          test "$remote_tag" = "$source_sha"
+
+          if [[ "$version" == *-* ]]; then
+            dist_tag='alpha'
+          else
+            dist_tag='latest'
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve exact-main CI and hosted CodeQL gates
+        id: gates
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100")"
+
+          ci_run_id="$(jq -r '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .event == "push" and .head_branch == "main" and .head_sha == env.SOURCE_SHA and .conclusion == "success")] | first | .id // empty' <<<"$runs")"
+          test -n "$ci_run_id"
+
+          codeql_run_id="$(jq -r '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .head_sha == env.SOURCE_SHA and .conclusion == "success")] | first | .id // empty' <<<"$runs")"
+          test -n "$codeql_run_id"
+
+          codeql_jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$codeql_run_id/jobs?per_page=100")"
+          test "$(jq '[.jobs[] | select(.conclusion != "success")] | length' <<<"$codeql_jobs")" = '0'
+          test "$(jq '.jobs | length' <<<"$codeql_jobs")" -gt 0
+
+          echo "ci_run_id=$ci_run_id" >> "$GITHUB_OUTPUT"
+          echo "codeql_run_id=$codeql_run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          package-manager-cache: false
+
+      - name: Pin npm trusted-publishing client
+        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+
+      - name: Download and verify exact CI package artifact
+        id: artifact
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+          NPM_VERSION: ${{ steps.source.outputs.version }}
+          CI_RUN_ID: ${{ steps.gates.outputs.ci_run_id }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/truyn-npm-release
+          mkdir -p /tmp/truyn-npm-release/ci /tmp/truyn-npm-release/registry
+
+          gh run download "$CI_RUN_ID" \
+            --name "truyn-sdk-release-$CI_RUN_ID" \
+            --dir /tmp/truyn-npm-release/ci
+
+          node sdk/release/verify-release.mjs /tmp/truyn-npm-release/ci
+          jq -e --arg source "$SOURCE_SHA" --arg version "$NPM_VERSION" \
+            '.sourceSha == $source and .typescript == $version' \
+            /tmp/truyn-npm-release/ci/manifest.json >/dev/null
+
+          package="/tmp/truyn-npm-release/ci/typescript/truyn-sdk-${NPM_VERSION}.tgz"
+          test -f "$package"
+          sha256="$(sha256sum "$package" | awk '{print $1}')"
+
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Detect immutable registry state
+        id: registry
+        shell: bash
+        env:
+          NPM_VERSION: ${{ steps.source.outputs.version }}
+          PACKAGE_FILE: ${{ steps.artifact.outputs.package }}
+        run: |
+          set -euo pipefail
+          existing="$(npm view "${NPM_PACKAGE}@${NPM_VERSION}" version --registry="$NPM_REGISTRY" 2>/dev/null || true)"
+          if [[ "$existing" == "$NPM_VERSION" ]]; then
+            packed="$(npm pack "${NPM_PACKAGE}@${NPM_VERSION}" --registry="$NPM_REGISTRY" --pack-destination /tmp/truyn-npm-release/registry | tail -n 1)"
+            cmp "$PACKAGE_FILE" "/tmp/truyn-npm-release/registry/$packed"
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+          elif [[ -n "$existing" ]]; then
+            echo "Unexpected registry response for ${NPM_PACKAGE}@${NPM_VERSION}: $existing" >&2
+            exit 1
+          else
+            echo 'exists=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish exact verified package through npm OIDC
+        if: steps.registry.outputs.exists == 'false'
+        shell: bash
+        env:
+          NPM_VERSION: ${{ steps.source.outputs.version }}
+          NPM_DIST_TAG: ${{ steps.source.outputs.dist_tag }}
+          PACKAGE_FILE: ${{ steps.artifact.outputs.package }}
+        run: |
+          set -euo pipefail
+          test -z "${NODE_AUTH_TOKEN:-}"
+          test -z "${NPM_TOKEN:-}"
+          npm publish "$PACKAGE_FILE" \
+            --access public \
+            --tag "$NPM_DIST_TAG" \
+            --provenance \
+            --registry="$NPM_REGISTRY"
+
+      - name: Verify public bytes provenance signatures and clean-room import
+        shell: bash
+        env:
+          NPM_VERSION: ${{ steps.source.outputs.version }}
+          NPM_DIST_TAG: ${{ steps.source.outputs.dist_tag }}
+          PACKAGE_FILE: ${{ steps.artifact.outputs.package }}
+          EXPECTED_SHA256: ${{ steps.artifact.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          visible=false
+          for attempt in $(seq 1 120); do
+            if [[ "$(npm view "${NPM_PACKAGE}@${NPM_VERSION}" version --registry="$NPM_REGISTRY" 2>/dev/null || true)" == "$NPM_VERSION" ]]; then
+              visible=true
+              break
+            fi
+            sleep 5
+          done
+          test "$visible" = true
+
+          rm -rf /tmp/truyn-npm-release/registry
+          mkdir -p /tmp/truyn-npm-release/registry
+          packed="$(npm pack "${NPM_PACKAGE}@${NPM_VERSION}" --registry="$NPM_REGISTRY" --pack-destination /tmp/truyn-npm-release/registry | tail -n 1)"
+          remote_file="/tmp/truyn-npm-release/registry/$packed"
+          cmp "$PACKAGE_FILE" "$remote_file"
+          remote_sha="$(sha256sum "$remote_file" | awk '{print $1}')"
+          test "$remote_sha" = "$EXPECTED_SHA256"
+
+          tags="$(npm view "$NPM_PACKAGE" dist-tags --json --registry="$NPM_REGISTRY")"
+          test "$(jq -r --arg tag "$NPM_DIST_TAG" '.[$tag] // empty' <<<"$tags")" = "$NPM_VERSION"
+
+          dist="$(npm view "${NPM_PACKAGE}@${NPM_VERSION}" dist --json --registry="$NPM_REGISTRY")"
+          integrity="$(jq -r '.integrity // empty' <<<"$dist")"
+          shasum="$(jq -r '.shasum // empty' <<<"$dist")"
+          attestation_url="$(jq -r '.attestations.url // empty' <<<"$dist")"
+          test -n "$integrity"
+          test -n "$shasum"
+          test -n "$attestation_url"
+
+          rm -rf /tmp/truyn-npm-release/cleanroom
+          mkdir -p /tmp/truyn-npm-release/cleanroom
+          cd /tmp/truyn-npm-release/cleanroom
+          npm init --yes >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund --registry="$NPM_REGISTRY" "${NPM_PACKAGE}@${NPM_VERSION}"
+          node --input-type=module -e "import('${NPM_PACKAGE}').then((m)=>{if(typeof m.TruynClient!=='function')throw new Error('TruynClient export missing');if(typeof m.TruynLocalNodeClient!=='function')throw new Error('TruynLocalNodeClient export missing')})"
+          npm audit signatures --json --include-attestations > /tmp/truyn-npm-release/npm-audit-signatures.json
+          cd "$GITHUB_WORKSPACE"
+
+          jq -n \
+            --arg package "$NPM_PACKAGE" \
+            --arg version "$NPM_VERSION" \
+            --arg sourceSha "${{ steps.source.outputs.source_sha }}" \
+            --arg releaseTag "${GITHUB_REF#refs/tags/}" \
+            --arg ciRunId "${{ steps.gates.outputs.ci_run_id }}" \
+            --arg codeqlRunId "${{ steps.gates.outputs.codeql_run_id }}" \
+            --arg publicationRunId "$GITHUB_RUN_ID" \
+            --arg sha256 "$remote_sha" \
+            --arg integrity "$integrity" \
+            --arg shasum "$shasum" \
+            --arg attestationUrl "$attestation_url" \
+            --arg distTag "$NPM_DIST_TAG" \
+            '{package:$package,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,ciRunId:$ciRunId,codeqlRunId:$codeqlRunId,publicationRunId:$publicationRunId,publicationAuthentication:"npm Trusted Publishing (GitHub Actions OIDC)",sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,distTag:$distTag,byteIdentity:"PASS",signatureAudit:"PASS",cleanRoomInstall:"PASS"}' \
+            > /tmp/truyn-npm-release/npm-trusted-publishing-evidence.json
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-sdk-npm-trusted-publishing-${{ github.run_id }}
+          path: |
+            /tmp/truyn-npm-release/npm-trusted-publishing-evidence.json
+            /tmp/truyn-npm-release/npm-audit-signatures.json
+          if-no-files-found: error
+          retention-days: 90

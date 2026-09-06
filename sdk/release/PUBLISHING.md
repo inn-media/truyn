@@ -41,19 +41,49 @@ These refs are evidence and are never moved, deleted or reused:
 - `sdk/npm/v0.1.0-alpha.2-release.4` — successful immutable publication of the exact accepted CI tarball with GitHub provenance.
 - `sdk/npm/v0.1.0-alpha.2-release.5` — post-publication verification-only ref at `bf09a8bcdfc989306ea555a271d81f07ec2edbe2`; no package mutation occurred. Public bytes matched, while that verifier correctly exposed that immutable provenance belongs to the earlier successful release.4 bootstrap workflow rather than the later verification source.
 
+## npm Trusted Publisher identity for future releases
+
+The canonical repository-side publication path is `.github/workflows/publish-npm.yml`. It is intentionally token-free and requests only GitHub Actions read access, repository contents read access, and `id-token: write` for the publish job. It runs on GitHub-hosted runners in the `sdk-release` environment, consumes the exact ordinary-CI package artifact, requires exact-current-main CI and hosted CodeQL success, and calls `npm publish` without `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or `npm whoami`.
+
+The npm account-side trust relationship must bind exactly this identity:
+
+- Repository: `inn-media/truyn`
+- Workflow filename: `publish-npm.yml`
+- Environment: `sdk-release`
+- Allowed action: direct `npm publish`
+
+The one-time maintainer command is:
+
+```bash
+npm install --global npm@11.19.1
+npm login --auth-type=web --registry=https://registry.npmjs.org/
+npm trust github @truyn/sdk \
+  --repo inn-media/truyn \
+  --file publish-npm.yml \
+  --environment sdk-release \
+  --allow-publish \
+  --yes
+npm trust list @truyn/sdk
+npm access set mfa=publish @truyn/sdk
+npm logout --registry=https://registry.npmjs.org/
+```
+
+`npm trust` and the package publishing-access mutation require an interactive npm maintainer session with account-level 2FA. A bypass-2FA automation/granular token is deliberately not accepted for creating the trust relationship. Therefore repository automation must never attempt to bootstrap this setting with a long-lived npm token. The binding is accepted only after `npm trust list @truyn/sdk` shows the exact repository/workflow/environment tuple above and package publishing access is set to require 2FA and disallow traditional tokens.
+
 ## Future npm release policy
 
 The alpha.2 repair workflows, marker and repair-specific tests are removed after closure. The repository intentionally retains **no token-backed npm publication path**.
 
-Before a future npm release workflow is introduced, npm account-side Trusted Publisher configuration must authorize its exact GitHub repository/workflow identity. A future canonical workflow must then:
+For future npm releases the canonical workflow must remain `.github/workflows/publish-npm.yml`, and npm account-side Trusted Publisher configuration must authorize its exact GitHub repository/workflow/environment identity. The workflow must:
 
-1. accept only an exact merged `main` source with ordinary CI and same-source hosted CodeQL green;
+1. accept only an exact current merged `main` source with ordinary CI and same-source hosted CodeQL green;
 2. consume the exact verified CI package artifact rather than rebuilding an independently resolved dependency graph;
-3. create a fresh immutable release tag only after those gates;
+3. run only from a fresh immutable `sdk/npm/v*` tag whose target is that exact current `main` source;
 4. fail closed if the target version already exists unless public bytes are identical;
 5. publish through npm Trusted Publishing with `--provenance`, without a long-lived npm token in the publish step;
-6. independently verify public bytes, tags, signatures/provenance and clean-room installability;
-7. preserve permanent release evidence and remove temporary release scaffolding after closure.
+6. use `alpha` for prerelease versions and `latest` for stable versions; during prerelease work `latest` may intentionally remain on the last accepted default version because npm OIDC authorizes publish/stage operations, not arbitrary `dist-tag` mutation;
+7. independently verify public bytes, the publish-time dist-tag, signatures/provenance and clean-room installability;
+8. preserve release evidence and never move, delete or reuse immutable release tags.
 
 If npm Trusted Publisher is not configured, publication must fail rather than silently fall back to a persistent token path. Any exceptional bootstrap requires an explicit bounded one-shot workflow, exact-byte pinning, independent verification, and immediate cleanup as performed for alpha.2.
 
