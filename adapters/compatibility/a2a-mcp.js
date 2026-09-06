@@ -38,6 +38,13 @@ const MCP_IMPORT_SEMANTICS = Object.freeze([
   'resource-subscriptions-listen-v1',
   'resource-update-explicit-reread-v1',
   'resource-provider-authority-correlation-v1',
+  'prompts-list',
+  'prompts-get',
+  'prompt-object-v1',
+  'prompt-list-subscriptions-listen-v1',
+  'prompt-explicit-refresh-v1',
+  'prompt-explicit-mrtr-v1',
+  'prompt-untrusted-data-boundary-v1',
   ...SECURITY_INVARIANTS
 ]);
 
@@ -74,7 +81,10 @@ export const A2A_MCP_COMPATIBILITY = Object.freeze({
       'tools/call',
       'TRUYN facade/import profile',
       'bounded general resource import -> TRUYN OBJECT/STATE',
-      'bounded resource subscriptions/listen invalidation -> explicit reread'
+      'bounded resource subscriptions/listen invalidation -> explicit reread',
+      'bounded prompt import -> immutable TRUYN OBJECT snapshot',
+      'bounded promptsListChanged invalidation -> explicit list/get refresh',
+      'explicit-only prompt MRTR continuation'
     ]),
     importKnownSemantics: MCP_IMPORT_SEMANTICS,
     facadeKnownSemantics: MCP_FACADE_SEMANTICS
@@ -89,6 +99,8 @@ export const A2A_MCP_COMPATIBILITY = Object.freeze({
   excludedOptionalSurfaces: Object.freeze([
     'arbitrary-mcp-resource-publication',
     'arbitrary-mcp-prompts',
+    'mcp-prompt-facade-publication',
+    'mcp-prompt-completion',
     'mcp-apps-extensions',
     'full-a2a-streaming-semantic-parity',
     'full-a2a-push-semantic-parity'
