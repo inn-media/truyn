@@ -58,9 +58,14 @@ The modern outbound/import profile is exactly MCP `2026-07-28`. It promises:
 - P3-M1 explicit general `resources/read` -> immutable TRUYN `OBJECT` materialization;
 - P3-M1 stable provider-authority + resource-URI -> monotonic TRUYN `STATE` semantics;
 - P3-M1 `subscriptions/listen` resource update correlation;
-- update notification as invalidation only, followed by explicit reread before authoritative STATE advancement.
+- P3-M1 update notification as invalidation only, followed by explicit reread before authoritative STATE advancement;
+- P3-M2 bounded `prompts/list` discovery;
+- P3-M2 explicit `prompts/get` -> immutable content-addressed prompt `OBJECT` materialization;
+- P3-M2 `subscriptions/listen` `promptsListChanged` correlation and invalidation-only semantics;
+- P3-M2 explicit-only multi-round-trip continuation for `input_required` without automatic sampling/elicitation;
+- P3-M2 prompt content as untrusted data with no execution or URI-fetch authority.
 
-The exact P3-M1 runtime/evidence contract is `MCP_GENERAL_RESOURCE_SEMANTICS.md`.
+The exact P3-M1 runtime/evidence contract is `MCP_GENERAL_RESOURCE_SEMANTICS.md`. The exact P3-M2 runtime/evidence contract is `MCP_PROMPT_SEMANTICS.md`.
 
 Legacy MCP versions are **not** silently promoted into the outbound/import promise merely because the TRUYN MCP facade can accept them.
 
@@ -72,20 +77,22 @@ The existing facade continues to accept:
 - `2025-11-25` — legacy initialize/tool profile;
 - `2025-06-18` — legacy initialize/tool profile.
 
-P3-M1 does not by itself promise arbitrary TRUYN -> MCP Resource publication from the facade. The runtime declaration remains authoritative: `MCP_SUPPORTED_VERSIONS` and the compatibility manifest must stay aligned in CI.
+P3-M1 does not promise arbitrary TRUYN -> MCP Resource publication from the facade. P3-M2 also does not promise TRUYN -> MCP Prompt publication from the facade. The runtime declaration remains authoritative: `MCP_SUPPORTED_VERSIONS` and the compatibility manifest must stay aligned in CI.
 
 ### Still outside the promise
 
 The compatibility promise still excludes:
 
 - arbitrary MCP Resource publication from TRUYN;
-- MCP Prompts as a production runtime surface;
+- arbitrary or facade-published MCP Prompts outside the bounded P3-M2 import profile;
+- automatic prompt execution, sampling, elicitation, or privilege interpretation;
+- prompt argument completion via `completion/complete`;
 - MCP Apps/extensions;
 - undeclared future MCP versions in the outbound/import profile;
-- implicit URI fetching or heuristic resource resolution;
+- implicit URI fetching or heuristic resource/prompt-link resolution;
 - a claim that every third-party MCP implementation is certified.
 
-Prompts are tracked separately as P3-M2; Apps/extensions as P3-M3.
+Apps/extensions remain tracked separately as P3-M3.
 
 ## 4. P3-M1 general Resource -> OBJECT/STATE rules
 
@@ -123,7 +130,47 @@ An update notification only invalidates the local snapshot. It cannot create a t
 
 Disconnect/re-listen establishes a fresh bounded subscription correlation. It does not replay or duplicate trusted STATE transitions.
 
-## 6. Version negotiation and immutable security rules
+## 6. P3-M2 Prompt -> immutable OBJECT rules
+
+`prompts/list` is discovery only. Prompt descriptors and argument descriptors are cacheable metadata, not executable authority.
+
+Only explicit `prompts/get` can produce an accepted prompt snapshot. A complete result is normalized and content-addressed as an immutable `OBJECT` using profile `mcp-prompt-object/v1`.
+
+Rules:
+
+- prompt name and arguments are explicit caller input;
+- argument maps are canonicalized before hashing;
+- identical normalized prompt bytes -> same OBJECT ID and idempotent local revision;
+- changed normalized prompt bytes -> new immutable OBJECT;
+- prompt `user` / `assistant` roles are preserved;
+- text/image/audio/resource-link/embedded-resource content is bounded and validated;
+- unknown content types fail closed;
+- prompt content never becomes authorization, provider ownership, billing authority, or automatic execution authority;
+- `resource_link` / embedded-resource URIs stay opaque data and are never implicitly fetched;
+- failed explicit refresh leaves the prior accepted OBJECT intact.
+
+Provider authority is provenance only. It is recorded in the snapshot source but cannot turn identical prompt bytes into execution authority.
+
+P3-M2 deliberately does not create TRUYN protocol-level `STATE` for prompt templates. Local revision counters are observational importer state, not trusted network STATE.
+
+## 7. P3-M2 subscriptions and MRTR
+
+P3-M2 listens for prompt catalog invalidation using `subscriptions/listen` with `promptsListChanged: true`.
+
+The client fails closed unless the acknowledgement arrives first, the subscription ID matches exactly, and the server explicitly honors `promptsListChanged`. A later `notifications/prompts/list_changed` only marks the catalog stale. It cannot replace any previously accepted prompt OBJECT.
+
+Disconnect/re-listen uses a fresh correlation ID and does not duplicate accepted prompt revisions.
+
+If `prompts/get` returns `resultType=input_required`:
+
+- no OBJECT is materialized;
+- no automatic sampling or elicitation occurs;
+- no automatic retry occurs;
+- bounded `inputRequests` / `requestState` are returned to the caller;
+- continuation requires explicit caller-provided `inputResponses`;
+- only a later complete result can materialize a prompt OBJECT.
+
+## 8. Version negotiation and immutable security rules
 
 Compatibility negotiation remains fail closed:
 
@@ -137,7 +184,7 @@ Compatibility negotiation remains fail closed:
 | MCP modern header/body mismatch | fail closed |
 | legacy MCP used on undeclared import direction | fail closed |
 
-Unknown optional metadata may never be interpreted as authorization, provider ownership, billing, provenance, resource-update authority, or execution grant.
+Unknown optional metadata may never be interpreted as authorization, provider ownership, billing, provenance, resource-update authority, prompt execution authority, or execution grant.
 
 Within generation g1, TRUYN must not silently weaken:
 
@@ -148,11 +195,11 @@ Within generation g1, TRUYN must not silently weaken:
 - billing authority;
 - exactly-once remote execution guarantees.
 
-P3-M1 is additive because it introduces an explicitly negotiated import semantic without redefining successful g1 tool/artifact behavior or those immutable security invariants.
+P3-M1 and P3-M2 are additive because each introduces explicitly negotiated import semantics without redefining successful g1 tool/artifact behavior or those immutable security invariants.
 
-## 7. Executable evidence
+## 9. Executable evidence
 
-Compatibility is not Markdown-only. The machine-readable declaration is enforced by `tests/a2a-mcp-compatibility-promise.test.js` plus P3-M1-specific tests.
+Compatibility is not Markdown-only. The machine-readable declaration is enforced by `tests/a2a-mcp-compatibility-promise.test.js` plus milestone-specific tests.
 
 P3-M1 executable evidence:
 
@@ -162,45 +209,55 @@ P3-M1 executable evidence:
 - `tests/mcp-general-resources-compatibility.test.js`;
 - independent fixture `tests/fixtures/official-mcp-sdk-resource-server.mjs`;
 - exact external SDK `@modelcontextprotocol/server@2.0.0`;
+- exact MCP protocol `2026-07-28`.
+
+P3-M2 executable evidence:
+
+- `tests/mcp-prompts.test.js`;
+- `tests/mcp-prompts-security.test.js`;
+- `tests/mcp-prompts-official.test.js`;
+- `tests/mcp-prompts-compatibility.test.js`;
+- independent fixture `tests/fixtures/official-mcp-sdk-prompt-server.mjs`;
+- exact external SDK `@modelcontextprotocol/server@2.0.0`;
 - exact MCP protocol `2026-07-28`;
-- full repository `npm test` g1 regression.
+- full repository `npm test` g1 + P3-M1 regression.
 
-The independent fixture uses the official MCP SDK rather than TRUYN MCP implementations and exercises real Resource discovery/read plus official resource-update notification delivery.
-
-Required P3-M1 rows include:
+Required P3-M2 rows include:
 
 | Gate | Expected |
 |---|---|
-| `resources/list` descriptor discovery | PASS, no trusted OBJECT created |
-| explicit `resources/read` | verified OBJECT + STATE |
-| identical reread | same STATE version |
-| changed reread | new OBJECT + STATE version +1 |
-| cross-resource content injection | deterministic FAIL |
-| stale/conflicting mutable update | deterministic FAIL |
-| subscription update before acknowledgement | deterministic FAIL |
-| forged subscription ID / unhonored URI | deterministic FAIL |
-| notification without reread | STATE unchanged/invalidated |
-| explicit reread after notification | verified STATE advancement |
-| disconnect/re-listen | fresh correlation, no duplicate STATE transition |
-| implicit arbitrary URI fetch | zero |
-| MCP Prompts/Apps required as P3-M1 semantics | deterministic FAIL |
-| legacy MCP outbound/import Resource profile | deterministic FAIL |
+| `prompts/list` descriptor discovery | PASS, no executable authority created |
+| explicit `prompts/get` complete result | immutable content-addressed OBJECT |
+| identical prompt refresh | same OBJECT / idempotent local revision |
+| changed prompt refresh | new immutable OBJECT |
+| malformed role/content | deterministic FAIL |
+| duplicate names/arguments/cursors | deterministic FAIL |
+| prompt-linked URI | preserved as data; implicit fetch = 0 |
+| prompt instruction text | data only; execution authority = false |
+| list change before acknowledgement | deterministic FAIL |
+| forged subscription ID / unhonored filter | deterministic FAIL |
+| notification without explicit refresh | accepted OBJECT unchanged |
+| disconnect/re-listen | fresh correlation, no duplicate accepted revision |
+| `input_required` initial result | return to caller; materialization = 0 |
+| MRTR without explicit caller responses | no retry / deterministic FAIL on continuation API |
+| legacy MCP outbound/import Prompt profile | deterministic FAIL |
+| prompt facade publication/completion/Apps required | deterministic FAIL |
 
-A green P3-M1 unit test cannot substitute for a failing official-SDK black-box or repository-wide regression.
+A green milestone unit test cannot substitute for a failing official-SDK black-box or repository-wide regression.
 
-## 8. Referenced artifact compatibility remains unchanged
+## 10. Referenced artifact compatibility remains unchanged
 
 The accepted Sprint E referenced-artifact profile still preserves media type, filename, exact byte size, SHA-256 digest, authoritative TRUYN provenance and explicit resolution semantics. Referenced content is materialized only through an explicit resolver; absent resolver/digest mismatch/size mismatch fail closed.
 
-The durable authority for that separate path remains `A2A_MCP_EXTERNAL_ARTIFACT_BLACK_BOX.md`. P3-M1 general resources do not weaken it.
+The durable authority for that separate path remains `A2A_MCP_EXTERNAL_ARTIFACT_BLACK_BOX.md`. P3-M1 Resources and P3-M2 Prompts do not weaken it.
 
-## 9. Breaking-change and migration rule
+## 11. Breaking-change and migration rule
 
 An incompatible A2A/MCP profile change must not be hidden inside the same immutable release/profile declaration. A breaking change requires a new declared compatibility generation or explicit supported-version/range change, migration notes, executable positive/negative evidence, exact external SDK/reference versions, and re-validation of authority, provenance, integrity and correlation.
 
 Lossless dual-profile support is allowed when both profiles remain independently testable and security-equivalent. Silent heuristic translation of unknown required semantics is forbidden.
 
-## 10. Evidence required for compatibility changes
+## 12. Evidence required for compatibility changes
 
 Acceptance records must identify, where applicable:
 
@@ -213,9 +270,9 @@ Acceptance records must identify, where applicable:
 - CodeQL run ID;
 - limitations and explicitly unsupported surfaces.
 
-P3-M1 durable semantic evidence is `MCP_GENERAL_RESOURCE_SEMANTICS.md`; final authority remains the exact merged-main CI/CodeQL evidence.
+P3-M1 durable semantic evidence is `MCP_GENERAL_RESOURCE_SEMANTICS.md`. P3-M2 durable semantic evidence is `MCP_PROMPT_SEMANTICS.md`. Final authority remains exact merged-main CI/CodeQL evidence.
 
-## 11. Graduation to stable compatibility
+## 13. Graduation to stable compatibility
 
 Generation `g1` is a **bounded pre-v1 compatibility promise**, not stable-v1.
 
