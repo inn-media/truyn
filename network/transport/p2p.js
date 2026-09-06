@@ -142,6 +142,34 @@ export class DirectFirstP2P {
     }
   }
 
+  async #boundedSharedDiscoveryClient(peerRecord) {
+    const rpc = this.discovery.rpc;
+    if (typeof rpc?.client !== 'function') return null;
+    let timer = null;
+    let timedOut = false;
+    const operation = Promise.resolve().then(() => rpc.client(peerRecord));
+    try {
+      return await Promise.race([
+        operation,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            timedOut = true;
+            const error = new Error(`p2p_connect_timeout:${peerRecord.nodeId}`);
+            error.code = 'TRUYN_P2P_CONNECT_TIMEOUT';
+            reject(error);
+          }, this.directConnectTimeoutMs);
+          timer.unref?.();
+        })
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+      if (timedOut) {
+        rpc.forget?.(peerRecord.nodeId);
+        void operation.then(() => rpc.forget?.(peerRecord.nodeId)).catch(() => {});
+      }
+    }
+  }
+
   async #directClient(peerRecord) {
     const selected = selectedQuicEndpoint(peerRecord);
     if (!selected) throw new Error('peer_has_no_quic_endpoint');
@@ -156,6 +184,17 @@ export class DirectFirstP2P {
       await this.#discardConnection(peerRecord.nodeId);
     } else if (existing) {
       await this.#discardConnection(peerRecord.nodeId);
+    }
+
+    // The production runtime already owns an authenticated discovery QUIC session
+    // cache. Reuse that transport instead of opening a second application-only
+    // connection and blindly retrying the same peer-record binding three times.
+    // A pre-dispatch failure is handled below by bounded control-plane re-resolution;
+    // no application envelope is retried.
+    if (typeof this.discovery.rpc?.client === 'function') {
+      const shared = await this.#boundedSharedDiscoveryClient(peerRecord);
+      if (!shared) throw new Error('peer_connection_failed');
+      return shared;
     }
 
     let client = null;
@@ -275,6 +314,99 @@ export class DirectFirstP2P {
     });
   }
 
+  async #preDispatchRefresh(peerNodeId, currentRecord) {
+    const rpc = this.discovery.rpc;
+    const ingest = this.discovery.ingest;
+    if (typeof rpc?.findNode !== 'function' || typeof ingest !== 'function') {
+      return { record: this.discovery.get(peerNodeId) || currentRecord, retry: false, reason: 'control_refresh_unavailable' };
+    }
+
+    const candidatesById = new Map();
+    const add = (peer) => {
+      if (!peer?.nodeId || peer.nodeId === this.discovery.identity?.nodeId || candidatesById.has(peer.nodeId)) return;
+      candidatesById.set(peer.nodeId, peer);
+    };
+    add(currentRecord);
+    for (const peer of this.#recoveryCandidates(peerNodeId, new Set())) add(peer);
+
+    const fanout = Math.max(1, Math.min(
+      this.discoveryQueryBudget,
+      Number.isInteger(this.discovery.k) ? this.discovery.k : DEFAULT_DISCOVERY_FANOUT
+    ));
+    const batch = [...candidatesById.values()].sort(distanceOrder(peerNodeId)).slice(0, fanout);
+    if (batch.length === 0) {
+      return { record: this.discovery.get(peerNodeId) || currentRecord, retry: false, reason: 'control_refresh_no_candidates' };
+    }
+
+    const timeoutMs = Math.min(this.discoveryRecoveryTimeoutMs, this.directConnectTimeoutMs);
+    return new Promise((resolve) => {
+      let remaining = batch.length;
+      let settled = false;
+      let timer = null;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        resolve(value);
+      };
+      const unchanged = () => this.discovery.get(peerNodeId) || currentRecord;
+      const finishUnchanged = (reason) => {
+        const record = unchanged();
+        const changed = Boolean(record?.recordId && currentRecord?.recordId && record.recordId !== currentRecord.recordId);
+        finish({ record, retry: changed, reason: changed ? 'peer_record_refreshed' : reason });
+      };
+
+      timer = setTimeout(() => finishUnchanged('control_refresh_timeout'), timeoutMs);
+      timer.unref?.();
+
+      for (const peer of batch) {
+        void Promise.resolve()
+          .then(() => rpc.findNode(peer, peerNodeId))
+          .then((response) => {
+            for (const record of response?.records || []) ingest.call(this.discovery, record);
+            const refreshed = this.discovery.get(peerNodeId) || currentRecord;
+            const changed = Boolean(refreshed?.recordId && currentRecord?.recordId && refreshed.recordId !== currentRecord.recordId);
+            if (changed) {
+              finish({ record: refreshed, retry: true, reason: 'peer_record_refreshed' });
+              return;
+            }
+            // Querying the target itself is a read-only control-plane reachability
+            // proof. QuicDiscoveryRpc retains that authenticated session, so the
+            // subsequent application dispatch reuses it instead of opening another
+            // blind connection attempt to the same binding.
+            if (peer.nodeId === peerNodeId && refreshed) {
+              finish({ record: refreshed, retry: true, reason: 'target_control_reachable' });
+            }
+          })
+          .catch(() => { rpc.forget?.(peer.nodeId); })
+          .finally(() => {
+            remaining -= 1;
+            if (!settled && remaining === 0) finishUnchanged('control_refresh_no_authority_change');
+          });
+      }
+    });
+  }
+
+  async #connectBeforeApplication(peerNodeId, record) {
+    try {
+      return { client: await this.#directClient(record), record, recovered: false };
+    } catch (error) {
+      if (!retryableConnectError(error)) throw error;
+      await this.#discardConnection(peerNodeId);
+      this.discovery.rpc?.forget?.(peerNodeId);
+
+      const recovery = await this.#preDispatchRefresh(peerNodeId, record);
+      if (!recovery.retry || !recovery.record) throw error;
+      try {
+        const client = await this.#directClient(recovery.record);
+        return { client, record: recovery.record, recovered: true, recoveryReason: recovery.reason };
+      } catch (retryError) {
+        retryError.initialDirectFailure = error?.message || String(error);
+        throw retryError;
+      }
+    }
+  }
+
   async #boundedDiscovery(peerNodeId, operation) {
     if (!operation) return this.discovery.get(peerNodeId);
     return new Promise((resolve) => {
@@ -353,19 +485,26 @@ export class DirectFirstP2P {
     return this.queue.run(async () => {
       const record = await this.#discover(peerNodeId);
       let directError = null;
+      let applicationAttempted = false;
       if (record) {
         try {
           this.faults?.assertPeer(peerNodeId, 'direct');
-          const client = await this.#directClient(record);
-          const result = await this.quic.sendEnvelope(client, envelope);
+          const connected = await this.#connectBeforeApplication(peerNodeId, record);
+          applicationAttempted = true;
+          const result = await this.quic.sendEnvelope(connected.client, envelope);
           return { transport: 'quic-direct', result };
         } catch (error) {
           directError = error;
-          await this.#discardConnection(peerNodeId);
+          await this.forget(peerNodeId);
         }
       } else {
         directError = new Error('peer_not_discovered');
       }
+
+      // Once sendEnvelope is attempted, delivery is ambiguous: the peer may already
+      // have executed the signed envelope even if the response path fails. Never turn
+      // that ambiguity into a second application execution via relay fallback.
+      if (applicationAttempted) throw directError;
       if (!allowRelayFallback || typeof this.relayFallback !== 'function') throw directError;
       try {
         await this.faults?.beforeRelay(peerNodeId);
@@ -378,7 +517,10 @@ export class DirectFirstP2P {
     });
   }
 
-  async forget(peerNodeId) { await this.#discardConnection(peerNodeId); }
+  async forget(peerNodeId) {
+    this.discovery.rpc?.forget?.(peerNodeId);
+    await this.#discardConnection(peerNodeId);
+  }
   admissionSnapshot() { return this.queue.snapshot(); }
 }
 
