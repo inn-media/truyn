@@ -11,6 +11,7 @@ const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.c
 const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/.gitkeep',
   '.github/workflows/ci.yml',
+  '.github/workflows/publish-npm.yml',
   '.github/workflows/publish-python-alpha.yml',
   '.github/workflows/production-dr-foundation.yml'
 ]);
