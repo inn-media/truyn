@@ -169,8 +169,14 @@ export class QuicDiscoveryRpc {
   }
 }
 
-export function createQuicDiscoveryControlHandler(discovery, { maxRecords = null, recordStore = null, localPeerRecord = null } = {}) {
+export function createQuicDiscoveryControlHandler(discovery, {
+  maxRecords = null,
+  recordStore = null,
+  localPeerRecord = null,
+  persistRecordStore = null
+} = {}) {
   if (!discovery?.closest || !discovery?.get) throw new Error('peer discovery is required');
+  if (persistRecordStore != null && typeof persistRecordStore !== 'function') throw new Error('persistRecordStore must be a function');
   const limit = Number.isInteger(maxRecords) && maxRecords > 0 ? maxRecords : discovery.k;
   return async (method, payload, context) => {
     if (method === QUIC_DHT_METHOD_PING) {
@@ -216,7 +222,12 @@ export function createQuicDiscoveryControlHandler(discovery, { maxRecords = null
       if (!verification.ok) throw new Error(`invalid_dht_record:${verification.reason}`);
       const stored = recordStore.put(record);
       if (!stored.accepted) throw new Error(stored.reason || 'dht_store_rejected');
-      return { stored: true, recordId: record.recordId };
+      // A dht.store response is a write acknowledgement. When durable state is
+      // configured by the runtime, do not emit that ACK until the accepted record
+      // has crossed the persistence barrier. A persistence failure therefore
+      // fails closed and is not counted toward the writer's quorum.
+      if (persistRecordStore) await persistRecordStore();
+      return { stored: true, durable: Boolean(persistRecordStore), recordId: record.recordId };
     }
 
     if (method === QUIC_DHT_METHOD_FIND_VALUE) {
