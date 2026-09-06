@@ -102,13 +102,15 @@ export class TruynNetworkNode {
     this.faults = faultController || new NetworkFaultController();
     const onStateChange = () => this.schedulePersist();
     const onRecordAccepted = ({ nodeId, previous, record }) => {
-      if (!previous || previous.recordId === record.recordId) return;
-      this.rpc?.forget?.(nodeId);
-      const forgotten = this.router?.forget?.(nodeId);
-      if (forgotten?.catch) void forgotten.catch(() => {});
-      // A changed signed peer record may change the Kademlia placement set for
-      // our own current record. Reconcile it asynchronously so record placement
-      // follows live routing state rather than depending on application traffic.
+      if (previous?.recordId === record.recordId) return;
+      if (previous) {
+        this.rpc?.forget?.(nodeId);
+        const forgotten = this.router?.forget?.(nodeId);
+        if (forgotten?.catch) void forgotten.catch(() => {});
+      }
+      // Any first-seen or changed valid peer record can change the Kademlia
+      // placement set for our own current record. Reconcile it on the control
+      // plane and fail readiness closed until the required placements ACK.
       this.#schedulePeerRecordPropagation();
     };
     this.recordStore = new KademliaRecordStore({ onChange: onStateChange });
@@ -267,8 +269,27 @@ export class TruynNetworkNode {
     return announcement;
   }
 
+  #stagePeerRecordPropagation(record = this.localPeerRecord) {
+    if (!record || !this.started || this.closing || this.localPeerRecord?.recordId !== record.recordId) return false;
+    const peers = this.#peerRecordPropagationPeers(record);
+    const targetNodeIds = peers.map((peer) => peer.nodeId).sort();
+    const propagation = this.peerRecordLifecycle.propagation;
+    const currentTargets = propagation?.recordId === record.recordId
+      ? [...(propagation.targetNodeIds || [])].sort()
+      : [];
+    const unchangedTargets = targetNodeIds.length === currentTargets.length &&
+      targetNodeIds.every((nodeId, index) => nodeId === currentTargets[index]);
+    if (propagation?.recordId === record.recordId && unchangedTargets) return false;
+    this.#resetPeerRecordPropagation(record, peers);
+    return true;
+  }
+
   #schedulePeerRecordPropagation(record = this.localPeerRecord) {
-    if (this.peerRecordPropagationQueued || !this.started || this.closing || !record) return;
+    if (!this.started || this.closing || !record) return;
+    // Readiness must close synchronously when live discovery changes the required
+    // placement set; the queued operation below is control-plane dissemination.
+    this.#stagePeerRecordPropagation(record);
+    if (this.peerRecordPropagationQueued) return;
     const recordId = record.recordId;
     this.peerRecordPropagationQueued = true;
     queueMicrotask(() => {
