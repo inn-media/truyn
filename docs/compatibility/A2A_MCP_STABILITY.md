@@ -10,11 +10,11 @@
 
 This document defines the interoperability-specific compatibility promise for the current pre-v1 TRUYN A2A/MCP adapters. It complements `SDK_COMPATIBILITY.md`; it does not replace SDK/package SemVer, Agent Descriptor versioning, or TRUYN protocol versioning.
 
-The word **stable** is intentionally not used as a current product claim. `TRUYN/1` remains draft. Generation `a2a-mcp-pre-v1/g1` means that the tested profiles and migration rules below are declared and executable, while a future incompatible profile may still require a new compatibility generation before TRUYN protocol stable-v1.
+The word **stable** is intentionally not used as a current product claim. `TRUYN/1` remains draft. Generation `a2a-mcp-pre-v1/g1` means that the tested profiles and migration rules below are declared and executable, while future incompatible profiles may still require a new compatibility generation before TRUYN protocol stable-v1.
 
-## 1. Version dimensions
+## 1. Independent version dimensions
 
-These dimensions are independent:
+These dimensions remain independent:
 
 ```text
 SDK package version
@@ -29,9 +29,7 @@ A package version alone never proves A2A/MCP compatibility. Interoperability is 
 
 ## 2. Declared A2A profile
 
-Generation `g1` promises the bounded A2A `1.0` JSON-RPC profile used by the accepted C3–C7 and Sprint C/E evidence.
-
-Promised surfaces:
+Generation `g1` promises the bounded A2A `1.0` JSON-RPC profile used by accepted C3-C7 and Sprint C/E evidence:
 
 - Agent Card discovery/validation;
 - JSON-RPC `SendMessage` execution;
@@ -43,62 +41,105 @@ Promised surfaces:
 - fail-closed authorization/provider-owner/billing boundaries;
 - exactly-once remote execution for the accepted bridge profile.
 
-The A2A promise does **not** currently include:
-
-- arbitrary future A2A protocol versions;
-- full semantic parity for every streaming mode;
-- full push-notification semantic parity;
-- every optional A2A extension/security scheme;
-- a claim that every third-party A2A implementation is certified.
+The core g1 promise does not silently expand to arbitrary future A2A versions or every optional extension. Extended lifecycle profiles require their own exact-version evidence.
 
 ## 3. Declared MCP profile
 
 ### Import/provider direction
 
-The TRUYN MCP import/provider profile promises the modern tested protocol `2026-07-28` for:
+The modern outbound/import profile is exactly MCP `2026-07-28`. It promises:
 
 - discovery;
 - `tools/list`;
 - `tools/call`;
 - explicitly selected TRUYN import/provider mapping;
-- the bounded Sprint E `resource_link` + `resources/read` referenced-artifact resolver profile.
+- bounded Sprint E `resource_link` + explicit `resources/read` referenced-artifact resolution;
+- P3-M1 bounded `resources/list` and `resources/templates/list` discovery;
+- P3-M1 explicit general `resources/read` -> immutable TRUYN `OBJECT` materialization;
+- P3-M1 stable provider-authority + resource-URI -> monotonic TRUYN `STATE` semantics;
+- P3-M1 `subscriptions/listen` resource update correlation;
+- update notification as invalidation only, followed by explicit reread before authoritative STATE advancement.
+
+The exact P3-M1 runtime/evidence contract is `MCP_GENERAL_RESOURCE_SEMANTICS.md`.
 
 Legacy MCP versions are **not** silently promoted into the outbound/import promise merely because the TRUYN MCP facade can accept them.
 
 ### TRUYN MCP facade/server direction
 
-The current facade declares these accepted inbound protocol versions:
+The existing facade continues to accept:
 
 - `2026-07-28` — modern profile;
 - `2025-11-25` — legacy initialize/tool profile;
 - `2025-06-18` — legacy initialize/tool profile.
 
-The runtime declaration is authoritative: `MCP_SUPPORTED_VERSIONS` and the compatibility manifest must remain aligned in CI.
+P3-M1 does not by itself promise arbitrary TRUYN -> MCP Resource publication from the facade. The runtime declaration remains authoritative: `MCP_SUPPORTED_VERSIONS` and the compatibility manifest must stay aligned in CI.
 
-The MCP promise does **not** currently include arbitrary optional resources, arbitrary prompts, MCP Apps/extensions, subscriptions, or a general `MCP resources → TRUYN OBJECT/STATE` semantic mapping. Sprint E proves one bounded referenced-resource resolver path only.
+### Still outside the promise
 
-## 4. Version negotiation rules
+The compatibility promise still excludes:
 
-Compatibility negotiation is fail closed.
+- arbitrary MCP Resource publication from TRUYN;
+- MCP Prompts as a production runtime surface;
+- MCP Apps/extensions;
+- undeclared future MCP versions in the outbound/import profile;
+- implicit URI fetching or heuristic resource resolution;
+- a claim that every third-party MCP implementation is certified.
+
+Prompts are tracked separately as P3-M2; Apps/extensions as P3-M3.
+
+## 4. P3-M1 general Resource -> OBJECT/STATE rules
+
+`resources/list` and `resources/templates/list` are discovery only. A descriptor/template is not a trusted content object.
+
+Only an explicit, bounded `resources/read` response can materialize content. Accepted bytes produce immutable content-addressed TRUYN `OBJECT` snapshots. Mutable knowledge uses stable `STATE` whose identity includes both the selected MCP provider authority and canonical MCP resource URI.
+
+Rules inside `mcp-resource-object-state/v1`:
+
+- first accepted snapshot -> STATE version 1;
+- identical digest -> idempotent, version unchanged;
+- changed digest -> new immutable OBJECT and STATE version +1;
+- older resource `lastModified` -> deterministic rejection;
+- different bytes at the same `lastModified` -> deterministic conflicting-update rejection;
+- multiple contents -> immutable leaf OBJECTs plus deterministic manifest OBJECT;
+- failed reread -> previous authoritative STATE remains intact;
+- same URI from a different provider authority -> different STATE identity;
+- identical immutable bytes may still deduplicate as the same OBJECT.
+
+A resource URI is an MCP routing/identity value, not URL-fetch authority. P3-M1 never performs an implicit HTTP/file/network fetch from `resource.uri`.
+
+## 5. P3-M1 subscription semantics
+
+For MCP `2026-07-28`, P3-M1 uses `subscriptions/listen` with `notifications.resourceSubscriptions`.
+
+The client fails closed unless:
+
+1. `notifications/subscriptions/acknowledged` arrives before resource updates;
+2. the subscription ID equals the local listen request ID;
+3. the honored URI set is a subset of the requested URI set;
+4. every `notifications/resources/updated` URI belongs to that honored set;
+5. event size/count stay within configured bounds.
+
+An update notification only invalidates the local snapshot. It cannot create a trusted OBJECT or advance STATE. The client must explicitly call `resources/read`, validate the returned correlation/content/bounds, and only then materialize the new OBJECT/STATE.
+
+Disconnect/re-listen establishes a fresh bounded subscription correlation. It does not replay or duplicate trusted STATE transitions.
+
+## 6. Version negotiation and immutable security rules
+
+Compatibility negotiation remains fail closed:
 
 | Input | Required behavior |
 |---|---|
-| supported declared version + supported required semantics | execute |
-| declared legacy version on a direction where it is explicitly supported | execute |
+| supported version + supported required semantics | execute |
 | unsupported required version | deterministic compatibility error |
-| unknown optional field/semantic | may ignore without changing authority |
+| unknown optional semantic | may ignore without changing authority |
 | unknown required semantic | deterministic fail closed |
 | missing required version | deterministic compatibility error |
-| MCP modern header/body version mismatch | fail closed |
-| A2A Agent Card without JSON-RPC `1.0` overlap | fail closed |
+| MCP modern header/body mismatch | fail closed |
+| legacy MCP used on undeclared import direction | fail closed |
 
-The machine-readable negotiation helper returns explicit `INTEROP_*` compatibility error codes. Existing protocol facades keep their protocol-native errors as well; for example unsupported MCP versions return the established `-32022` compatibility error.
+Unknown optional metadata may never be interpreted as authorization, provider ownership, billing, provenance, resource-update authority, or execution grant.
 
-Unknown optional metadata may never be interpreted as an authorization, provider-ownership, billing, provenance, or execution grant.
-
-## 5. Immutable security/correctness semantics within generation g1
-
-Within the same immutable adapter/release version and the same declared compatibility generation, TRUYN must not silently change the meaning of:
+Within generation g1, TRUYN must not silently weaken:
 
 - correlation semantics;
 - artifact integrity semantics;
@@ -107,98 +148,79 @@ Within the same immutable adapter/release version and the same declared compatib
 - billing authority;
 - exactly-once remote execution guarantees.
 
-A security fix may become stricter without a new generation when it only rejects behavior that was already outside the declared promise. A change that redefines a promised successful interaction, authority source, integrity rule, or required correlation rule is compatibility-breaking and requires the migration process below.
+P3-M1 is additive because it introduces an explicitly negotiated import semantic without redefining successful g1 tool/artifact behavior or those immutable security invariants.
 
-## 6. Breaking-change rule
+## 7. Executable evidence
 
-An incompatible A2A/MCP profile change must not be hidden inside the same immutable release/profile declaration.
+Compatibility is not Markdown-only. The machine-readable declaration is enforced by `tests/a2a-mcp-compatibility-promise.test.js` plus P3-M1-specific tests.
 
-A breaking change requires all of:
+P3-M1 executable evidence:
 
-1. a new declared A2A/MCP compatibility generation or explicit supported-version/range change;
-2. an immutable package/adapter version change where released artifacts are affected;
-3. release notes describing the break;
-4. a migration note describing old → new behavior;
-5. executable conformance evidence for both accepted and rejected paths;
-6. exact external SDK/reference versions for any black-box evidence;
-7. re-validation of authorization, provenance, artifact-integrity, correlation and exactly-once invariants.
+- `tests/mcp-general-resources.test.js`;
+- `tests/mcp-general-resources-security.test.js`;
+- `tests/mcp-general-resources-official.test.js`;
+- `tests/mcp-general-resources-compatibility.test.js`;
+- independent fixture `tests/fixtures/official-mcp-sdk-resource-server.mjs`;
+- exact external SDK `@modelcontextprotocol/server@2.0.0`;
+- exact MCP protocol `2026-07-28`;
+- full repository `npm test` g1 regression.
 
-Lossless dual-profile support is allowed when both profiles remain independently testable and security-equivalent. Silent heuristic translation of unknown required semantics is forbidden.
+The independent fixture uses the official MCP SDK rather than TRUYN MCP implementations and exercises real Resource discovery/read plus official resource-update notification delivery.
 
-## 7. Deprecation and migration
-
-Pre-v1 profiles may evolve faster than stable-v1, but migrations are explicit.
-
-For a superseded compatibility profile:
-
-- mark the old profile deprecated in this contract and the machine-readable declaration;
-- state its replacement generation/version range;
-- publish a migration note;
-- retain executable conformance for the overlap window where support is claimed;
-- remove the old profile only in a declared incompatible generation/release change, unless an emergency security issue requires earlier rejection;
-- never use deprecation to broaden requester identity, provider visibility, provider ownership, billing responsibility, credential exposure, or URL-resolution authority.
-
-## 8. Referenced artifact compatibility contract
-
-After Sprint E, generation `g1` promises that the accepted referenced-artifact profile preserves:
-
-- `mediaType` / MIME type;
-- filename;
-- exact byte size;
-- SHA-256 digest;
-- authoritative TRUYN provenance;
-- explicit resolution semantics.
-
-Referenced content is materialized only through an explicit resolver. An absent resolver fails closed. Digest or size mismatch fails closed. Implicit arbitrary URL fetching remains outside the promise.
-
-The durable external black-box authority for this profile is `A2A_MCP_EXTERNAL_ARTIFACT_BLACK_BOX.md`. The compatibility promise does not weaken C6/Sprint E integrity rules.
-
-## 9. Executable compatibility matrix
-
-This policy is not Markdown-only. `tests/a2a-mcp-compatibility-promise.test.js` enforces the declared generation against runtime constants and negotiation behavior.
-
-Required executable rows:
+Required P3-M1 rows include:
 
 | Gate | Expected |
 |---|---|
-| A2A `1.0` + declared required semantics | PASS |
-| unknown optional A2A semantic | PASS / ignored |
-| unsupported A2A required version | deterministic FAIL |
-| MCP `2026-07-28` import profile | PASS |
-| declared legacy MCP facade version | PASS |
-| legacy MCP version used as undeclared import profile | deterministic FAIL |
-| completely unsupported MCP version | protocol-native deterministic FAIL |
-| unknown required interoperability semantic | deterministic FAIL |
-| compatibility declaration vs runtime constants | PASS |
-| referenced artifact metadata + explicit resolver + SHA-256/size | PASS |
-| missing resolver/corrupt referenced artifact | FAIL in Sprint E black-box suite |
-| positive external remote execution | exactly once in Sprint C/D/E evidence |
+| `resources/list` descriptor discovery | PASS, no trusted OBJECT created |
+| explicit `resources/read` | verified OBJECT + STATE |
+| identical reread | same STATE version |
+| changed reread | new OBJECT + STATE version +1 |
+| cross-resource content injection | deterministic FAIL |
+| stale/conflicting mutable update | deterministic FAIL |
+| subscription update before acknowledgement | deterministic FAIL |
+| forged subscription ID / unhonored URI | deterministic FAIL |
+| notification without reread | STATE unchanged/invalidated |
+| explicit reread after notification | verified STATE advancement |
+| disconnect/re-listen | fresh correlation, no duplicate STATE transition |
+| implicit arbitrary URI fetch | zero |
+| MCP Prompts/Apps required as P3-M1 semantics | deterministic FAIL |
+| legacy MCP outbound/import Resource profile | deterministic FAIL |
 
-The repository-wide `npm test` gate composes this compatibility test with the existing A2A/MCP C-series tests and independent Sprint C/D/E black-box tests. A green compatibility-policy unit test cannot substitute for a failing external interoperability proof.
+A green P3-M1 unit test cannot substitute for a failing official-SDK black-box or repository-wide regression.
 
-## 10. Evidence required for a compatibility-generation change
+## 8. Referenced artifact compatibility remains unchanged
 
-Every generation change must record:
+The accepted Sprint E referenced-artifact profile still preserves media type, filename, exact byte size, SHA-256 digest, authoritative TRUYN provenance and explicit resolution semantics. Referenced content is materialized only through an explicit resolver; absent resolver/digest mismatch/size mismatch fail closed.
+
+The durable authority for that separate path remains `A2A_MCP_EXTERNAL_ARTIFACT_BLACK_BOX.md`. P3-M1 general resources do not weaken it.
+
+## 9. Breaking-change and migration rule
+
+An incompatible A2A/MCP profile change must not be hidden inside the same immutable release/profile declaration. A breaking change requires a new declared compatibility generation or explicit supported-version/range change, migration notes, executable positive/negative evidence, exact external SDK/reference versions, and re-validation of authority, provenance, integrity and correlation.
+
+Lossless dual-profile support is allowed when both profiles remain independently testable and security-equivalent. Silent heuristic translation of unknown required semantics is forbidden.
+
+## 10. Evidence required for compatibility changes
+
+Acceptance records must identify, where applicable:
 
 - exact source SHA;
 - compatibility generation;
 - TRUYN protocol status/generation;
-- A2A supported/tested versions;
-- MCP import/facade supported/tested versions;
+- external A2A/MCP versions;
 - exact external SDK versions used for black-box evidence;
 - CI run ID;
 - CodeQL run ID;
-- artifact/evidence digest where applicable;
-- exactly-once counters where remote execution is involved;
-- migration/deprecation notes;
 - limitations and explicitly unsupported surfaces.
 
-## 11. Graduation to a stable A2A/MCP guarantee
+P3-M1 durable semantic evidence is `MCP_GENERAL_RESOURCE_SEMANTICS.md`; final authority remains the exact merged-main CI/CodeQL evidence.
+
+## 11. Graduation to stable compatibility
 
 Generation `g1` is a **bounded pre-v1 compatibility promise**, not stable-v1.
 
-The wording may be promoted to **Stable A2A/MCP compatibility guarantee** only after the repository separately declares the relevant TRUYN protocol generation stable and the stable ecosystem gates require the same version ranges, conformance matrix, migration/deprecation rules, immutable release provenance, and accepted external interoperability evidence.
+The wording may be promoted to a stable A2A/MCP compatibility guarantee only after the repository separately declares the relevant TRUYN protocol generation stable and the stable ecosystem gates require the same version ranges, conformance matrix, migration/deprecation rules, immutable release provenance and accepted external interoperability evidence.
 
-Until then, the correct claim is:
+Until then, the correct claim remains:
 
 > TRUYN declares and CI-enforces bounded pre-v1 A2A/MCP compatibility profiles with explicit fail-closed negotiation and migration rules.
