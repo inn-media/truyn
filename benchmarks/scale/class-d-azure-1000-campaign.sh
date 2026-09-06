@@ -41,10 +41,11 @@ while [[ "\$(date +%s)" -lt "\$deadline" ]]; do
     control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
     readiness=\$(curl -fsS --max-time 10 "\${control_url}/dht/readiness")
     status=\$(printf '%s' "\$readiness" | jq -r '.refresh.status')
+    propagation_ready=\$(printf '%s' "\$readiness" | jq -r '.acceptanceReady == true and .peerRecordPropagation.ready == true')
     valid=\$(printf '%s' "\$readiness" | jq -r '.validPeers')
     buckets=\$(printf '%s' "\$readiness" | jq -r '.populatedBuckets')
     hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount')
-    if [[ "\$status" == refreshed && "\$valid" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE} && "\$buckets" -gt 0 && "\$hosts" -ge 2 ]]; then
+    if [[ "\$propagation_ready" == true && "\$status" == refreshed && "\$valid" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE} && "\$buckets" -gt 0 && "\$hosts" -ge 2 ]]; then
       ready=\$((ready + 1))
     fi
     if [[ "\$valid" -lt "\$min_valid" ]]; then min_valid="\$valid"; fi
