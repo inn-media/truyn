@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  LAUNCH_BASE_COMMIT: __STAGED__
+  LAUNCH_BASE_COMMIT: 3fdfc8424d033145e3a16d9b507392d19476d392
   TESTED_COMMIT: 148c8230be3e76388f657f45042f5f26f8371dd9
   TESTED_TREE_SHA: 5aa8ba5da3c0b578d09cb8b22fea845efa479bc0
   EXACT_MAIN_CI_RUN: '34014862590'
@@ -47,7 +47,6 @@ env:
 
 jobs:
   diagnostic-d200:
-    if: ${{ false }}
     name: Immutable D-200 verification on 148c823
     runs-on: ubuntu-22.04
     timeout-minutes: 300
