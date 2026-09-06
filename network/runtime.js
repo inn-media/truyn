@@ -140,7 +140,8 @@ export class TruynNetworkNode {
     });
     this.quic.onControl(createQuicDiscoveryControlHandler(this.discovery, {
       recordStore: this.recordStore,
-      localPeerRecord: () => this.localPeerRecord
+      localPeerRecord: () => this.localPeerRecord,
+      persistRecordStore: () => this.persistState()
     }));
   }
 
