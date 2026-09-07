@@ -232,7 +232,7 @@ export class DirectFirstP2P {
     try {
       return await state.promise;
     } finally {
-      if (this.connectingByNodeId.get(peerRecord.nodeId) === state) this.connectingByNodeId.delete(peerRecord.nodeId);
+      if (this.connectingByNodeId.get(peerRecord.nodeId) === state) this.connectingByNodeId.delete(peerNodeId);
     }
   }
 
@@ -307,7 +307,12 @@ export class DirectFirstP2P {
 
     this.discoveryRecoveries.set(peerNodeId, state);
     try {
-      return await this.#boundedPhase(peerNodeId, routeDeadlineAt, 'discovery', () => state.promise);
+      try {
+        return await this.#boundedPhase(peerNodeId, routeDeadlineAt, 'discovery', () => state.promise);
+      } catch (error) {
+        if (error?.code === 'TRUYN_ROUTE_DEADLINE_EXCEEDED') return this.discovery.get(peerNodeId);
+        throw error;
+      }
     } finally {
       if (this.discoveryRecoveries.get(peerNodeId) === state) this.discoveryRecoveries.delete(peerNodeId);
     }
