@@ -18,6 +18,18 @@ async function generateTls() {
   return { dir, key: await readFile(keyPath, 'utf8'), cert: await readFile(certPath, 'utf8') };
 }
 
+async function stage(name, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    const detail = error?.message || String(error);
+    const wrapped = new Error(`network_runtime_stage_failed:${name}:${detail}`);
+    wrapped.code = error?.code || 'TRUYN_NETWORK_RUNTIME_STAGE_FAILED';
+    if (error instanceof Error) wrapped.cause = error;
+    throw wrapped;
+  }
+}
+
 function bindUdp(socket, port = 0, host = '127.0.0.1') {
   return new Promise((resolve, reject) => {
     socket.once('error', reject);
@@ -60,25 +72,25 @@ test('v0.1 composed runtime bootstraps, discovers, stores DHT state and routes N
   const b = new TruynNetworkNode({ host: '127.0.0.1', tls, relayFallback, capabilities: ['router'] });
   const c = new TruynNetworkNode({ host: '127.0.0.1', tls, relayFallback, capabilities: ['echo'] });
   try {
-    const [recordA, recordB, recordC] = await Promise.all([a.start(), b.start(), c.start()]);
+    const [recordA, recordB, recordC] = await stage('start', () => Promise.all([a.start(), b.start(), c.start()]));
     assert.equal(recordA.nodeId, a.identity.nodeId);
     b.bootstrap([recordC]);
     a.bootstrap([recordB]);
 
-    assert.equal(await a.pingPeer(b.identity.nodeId), true);
+    assert.equal(await stage('ping-b', () => a.pingPeer(b.identity.nodeId)), true);
     assert.equal(a.discovery.get(c.identity.nodeId), null);
-    const discovered = await a.findPeer(c.identity.nodeId);
+    const discovered = await stage('find-c', () => a.findPeer(c.identity.nodeId));
     assert.equal(discovered.nodeId, c.identity.nodeId);
 
     c.onEnvelope(async (message, context) => ({ type: message.type, from: message.from, transport: context.transport, input: message.payload.input }));
-    const direct = await a.need(c.identity.nodeId, 'echo', { value: 42 });
+    const direct = await stage('need-c', () => a.need(c.identity.nodeId, 'echo', { value: 42 }));
     assert.equal(direct.transport, 'quic-direct');
     assert.deepEqual(direct.result, { type: 'NEED', from: a.identity.nodeId, transport: 'quic', input: { value: 42 } });
 
     const capabilityRecord = a.createRecord('capability', 'echo', { providerNodeId: c.identity.nodeId, protocol: 'TRUYN/1' });
-    const stored = await a.storeAt(b.identity.nodeId, capabilityRecord);
+    const stored = await stage('store-b', () => a.storeAt(b.identity.nodeId, capabilityRecord));
     assert.equal(stored.stored, true);
-    const found = await a.findValueAt(b.identity.nodeId, 'capability', 'echo');
+    const found = await stage('find-value-b', () => a.findValueAt(b.identity.nodeId, 'capability', 'echo'));
     assert.equal(found.records.length, 1);
     assert.equal(found.records[0].recordId, capabilityRecord.recordId);
     assert.equal(relayCalls, 0);

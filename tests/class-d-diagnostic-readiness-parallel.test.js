@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-test('D-200 diagnostic patch fans readiness probes out and recovers only persisted observations', async () => {
+test('D-200 diagnostic patch fans readiness probes out, requires every host, and never calls /need', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'truyn-d200-readiness-parallel-'));
   const target = join(dir, 'campaign.sh');
   await copyFile('benchmarks/scale/class-d-azure-1000-campaign.sh', target);
@@ -63,7 +63,10 @@ test('D-200 diagnostic patch fans readiness probes out and recovers only persist
   assert.equal(block.split('deadline=\\$((\\$(date +%s) + 120))').length - 1, 1, 'there must be exactly one 120-second readiness window');
   assert.ok(block.includes('"\\$valid" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE}'), 'peer bound must remain unchanged');
   assert.ok(block.includes('"\\$buckets" -gt 0'), 'bucket readiness predicate must remain unchanged');
-  assert.ok(block.includes('"\\$hosts" -ge 2'), 'remote-host diversity predicate must remain unchanged');
+  assert.ok(block.includes('"\\$hosts" -eq ${HOST_COUNT}'), 'every node must observe all Class-D hosts before baseline readiness passes');
+  assert.equal(block.includes('"\\$hosts" -ge 2'), false, 'weak two-host readiness is no longer accepted for D-200');
+  assert.equal(block.includes('/need'), false, 'readiness must contain zero application NEED calls');
+  assert.ok(block.includes('.acceptanceReady == true and .peerRecordPropagation.ready == true'), 'acceptance and propagation readiness remain mandatory');
   assert.ok(block.includes('[[ "$readiness_ready" == "$NODE_COUNT" ]]'), 'all nodes must still pass readiness');
 
   assert.equal(after.slice(after.indexOf('STAGE=convergence')), beforeConvergence, 'stages after readiness must remain byte-identical');

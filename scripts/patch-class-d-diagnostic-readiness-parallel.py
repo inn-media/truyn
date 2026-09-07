@@ -8,6 +8,12 @@ if len(sys.argv) != 2:
 path = Path(sys.argv[1])
 text = path.read_text()
 
+host_gate = '"\\$hosts" -ge 2'
+host_gate_replacement = '"\\$hosts" -eq ${HOST_COUNT}'
+if text.count(host_gate) != 1:
+    raise SystemExit(f'unexpected readiness host-diversity gate count: {text.count(host_gate)}')
+text = text.replace(host_gate, host_gate_replacement, 1)
+
 head = '''readiness_min_hosts=999999; readiness_max_hosts=0
 readiness_start_ms=$(date +%s%3N)
 for i in $(seq 0 $((HOST_COUNT-1))); do
@@ -102,4 +108,15 @@ readiness_ms=$(( $(date +%s%3N) - readiness_start_ms ))
 if text.count(tail) != 1:
     raise SystemExit(f'unexpected readiness loop tail count: {text.count(tail)}')
 text = text.replace(tail, replacement, 1)
+
+readiness_start = text.find('STAGE=readiness-barrier')
+convergence_start = text.find('STAGE=convergence')
+if readiness_start < 0 or convergence_start <= readiness_start:
+    raise SystemExit('readiness/convergence stage boundaries not found')
+readiness_block = text[readiness_start:convergence_start]
+if '/need' in readiness_block:
+    raise SystemExit('readiness barrier must not issue application /need calls')
+if host_gate_replacement not in readiness_block:
+    raise SystemExit('readiness barrier must require full HOST_COUNT endpoint diversity')
+
 path.write_text(text)
