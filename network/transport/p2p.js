@@ -277,7 +277,17 @@ export class DirectFirstP2P {
 
     const existing = this.discoveryRecoveries.get(peerNodeId);
     if (existing) {
-      return this.#boundedPhase(peerNodeId, routeDeadlineAt, 'discovery-coalesced', () => existing.promise);
+      try {
+        return await this.#boundedPhase(
+          peerNodeId,
+          routeDeadlineAt,
+          'discovery-coalesced',
+          () => existing.promise
+        );
+      } catch (error) {
+        if (error?.code === 'TRUYN_ROUTE_DEADLINE_EXCEEDED') return this.discovery.get(peerNodeId);
+        throw error;
+      }
     }
 
     const discoveryDeadlineAt = Math.min(routeDeadlineAt, Date.now() + this.discoveryRecoveryTimeoutMs);
