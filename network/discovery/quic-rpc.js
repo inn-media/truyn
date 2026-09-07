@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { verifyPeerRecord } from './peer-discovery.js';
 import { verifyDhtRecord } from '../dht/kademlia.js';
 
@@ -44,6 +45,23 @@ export class QuicDiscoveryRpc {
     this.faults = faults;
     this.ingestPeerRecord = typeof ingestPeerRecord === 'function' ? ingestPeerRecord : null;
     this.clients = new Map();
+    this.connectingByNodeId = new Map();
+    this.deadlineContext = new AsyncLocalStorage();
+  }
+
+  withDeadline(deadlineAt, operation) {
+    if (!Number.isFinite(deadlineAt)) return operation();
+    const inherited = this.deadlineContext.getStore();
+    const effective = Number.isFinite(inherited) ? Math.min(inherited, deadlineAt) : deadlineAt;
+    return this.deadlineContext.run(effective, operation);
+  }
+
+  #effectiveTimeout(requestedTimeoutMs = null) {
+    const requested = Number.isFinite(requestedTimeoutMs) ? Math.max(1, Math.floor(requestedTimeoutMs)) : this.timeoutMs;
+    const deadlineAt = this.deadlineContext.getStore();
+    if (!Number.isFinite(deadlineAt)) return requested;
+    const remaining = deadlineAt - Date.now();
+    return remaining <= 0 ? 0 : Math.max(1, Math.min(requested, remaining));
   }
 
   #watchClient(nodeId, client) {
@@ -56,6 +74,25 @@ export class QuicDiscoveryRpc {
     }
   }
 
+  async #disconnect(client) {
+    if (!client) return;
+    if (typeof this.quic.disconnect === 'function') {
+      try { await this.quic.disconnect(client); } catch {}
+      return;
+    }
+    if (typeof client.destroy === 'function') {
+      try { await client.destroy({ force: true }); } catch {}
+    }
+  }
+
+  #forgetClient(nodeId, client) {
+    if (!client) return;
+    const existing = this.clients.get(nodeId);
+    if (existing?.client !== client) return;
+    this.clients.delete(nodeId);
+    void this.#disconnect(client);
+  }
+
   async client(peer) {
     const selected = selectedEndpoint(peer);
     if (!selected) throw new Error('discovery_peer_has_no_quic_endpoint');
@@ -63,13 +100,43 @@ export class QuicDiscoveryRpc {
     const existing = this.clients.get(peer.nodeId);
     if (existing?.binding === binding) return existing.client;
     if (existing) this.forget(peer.nodeId);
-    const client = await this.quic.connect(selected.endpoint);
-    this.clients.set(peer.nodeId, { client, binding });
-    this.#watchClient(peer.nodeId, client);
-    return client;
+
+    const currentPending = this.connectingByNodeId.get(peer.nodeId);
+    if (currentPending?.binding === binding && !currentPending.discarded) return currentPending.promise;
+    if (currentPending) {
+      currentPending.discarded = true;
+      this.connectingByNodeId.delete(peer.nodeId);
+    }
+
+    const state = { binding, promise: null, discarded: false };
+    state.promise = (async () => {
+      const client = await this.quic.connect(selected.endpoint);
+      if (state.discarded || this.connectingByNodeId.get(peer.nodeId) !== state) {
+        await this.#disconnect(client);
+        const error = new Error(`discovery_connection_superseded:${peer.nodeId}`);
+        error.code = 'TRUYN_DISCOVERY_CONNECTION_SUPERSEDED';
+        throw error;
+      }
+      this.clients.set(peer.nodeId, { client, binding });
+      this.#watchClient(peer.nodeId, client);
+      return client;
+    })();
+    this.connectingByNodeId.set(peer.nodeId, state);
+    try {
+      return await state.promise;
+    } finally {
+      if (this.connectingByNodeId.get(peer.nodeId) === state) this.connectingByNodeId.delete(peer.nodeId);
+    }
   }
 
-  async bounded(peer, operation) {
+  async bounded(peer, operation, { timeoutMs = null, state = null } = {}) {
+    const effectiveTimeoutMs = this.#effectiveTimeout(timeoutMs);
+    if (effectiveTimeoutMs <= 0) {
+      const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peer.nodeId}`);
+      error.code = 'TRUYN_DHT_RPC_TIMEOUT';
+      if (state) state.cancelledError = error;
+      throw error;
+    }
     let timer = null;
     try {
       this.faults?.assertPeer(peer.nodeId, 'dht-rpc');
@@ -79,22 +146,26 @@ export class QuicDiscoveryRpc {
           timer = setTimeout(() => {
             const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peer.nodeId}`);
             error.code = 'TRUYN_DHT_RPC_TIMEOUT';
+            if (state) state.cancelledError = error;
             reject(error);
-          }, this.timeoutMs);
-          timer.unref?.();
+          }, effectiveTimeoutMs);
         })
       ]);
     } catch (error) {
-      this.forget(peer.nodeId);
+      if (state) this.#forgetClient(peer.nodeId, state.client);
+      else this.forget(peer.nodeId);
       throw error;
     } finally {
       if (timer) clearTimeout(timer);
     }
   }
 
-  async ping(peer) {
+  async ping(peer, options = {}) {
+    const state = { client: null, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.client(peer);
+      state.client = client;
+      if (state.cancelledError) throw state.cancelledError;
       const result = await this.quic.requestControl(client, QUIC_DHT_METHOD_PING, null);
       if (verifyPeerRecord(result?.peerRecord).ok && this.ingestPeerRecord) {
         const record = structuredClone(result.peerRecord);
@@ -103,69 +174,74 @@ export class QuicDiscoveryRpc {
         setImmediate(() => this.ingestPeerRecord?.(record));
       }
       return Boolean(result?.pong);
-    });
+    }, { ...options, state });
   }
 
-  async findNode(peer, targetNodeId) {
+  async findNode(peer, targetNodeId, options = {}) {
+    const state = { client: null, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.client(peer);
+      state.client = client;
+      if (state.cancelledError) throw state.cancelledError;
       const result = await this.quic.requestControl(client, QUIC_DISCOVERY_METHOD_FIND_NODE, { targetNodeId });
       const records = [];
       for (const record of result?.records || []) {
         if (verifyPeerRecord(record).ok) records.push(record);
       }
       return { records };
-    });
+    }, { ...options, state });
   }
 
-  async announce(peer, record) {
+  async announce(peer, record, options = {}) {
     const verification = verifyPeerRecord(record);
     if (!verification.ok) throw new Error(`invalid_peer_record:${verification.reason}`);
+    const state = { client: null, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.client(peer);
+      state.client = client;
+      if (state.cancelledError) throw state.cancelledError;
       return this.quic.requestControl(client, QUIC_DISCOVERY_METHOD_ANNOUNCE, { record });
-    });
+    }, { ...options, state });
   }
 
-  async store(peer, record) {
+  async store(peer, record, options = {}) {
     const verification = verifyDhtRecord(record);
     if (!verification.ok) throw new Error(`invalid DHT record: ${verification.reason}`);
+    const state = { client: null, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.client(peer);
+      state.client = client;
+      if (state.cancelledError) throw state.cancelledError;
       return this.quic.requestControl(client, QUIC_DHT_METHOD_STORE, { record });
-    });
+    }, { ...options, state });
   }
 
-  async findValue(peer, namespace, key) {
+  async findValue(peer, namespace, key, options = {}) {
+    const state = { client: null, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.client(peer);
+      state.client = client;
+      if (state.cancelledError) throw state.cancelledError;
       const result = await this.quic.requestControl(client, QUIC_DHT_METHOD_FIND_VALUE, { namespace, key });
       const records = [];
       for (const record of result?.records || []) {
         if (verifyDhtRecord(record).ok) records.push(record);
       }
       return { records };
-    });
+    }, { ...options, state });
   }
 
   forget(nodeId) {
+    const pending = this.connectingByNodeId.get(nodeId);
+    if (pending) {
+      pending.discarded = true;
+      this.connectingByNodeId.delete(nodeId);
+    }
     const existing = this.clients.get(nodeId);
     this.clients.delete(nodeId);
     const client = existing?.client || existing;
     if (!client) return;
-    if (typeof this.quic.disconnect === 'function') {
-      try {
-        const disconnected = this.quic.disconnect(client);
-        if (disconnected?.catch) void disconnected.catch(() => {});
-      } catch {}
-      return;
-    }
-    if (typeof client.destroy === 'function') {
-      try {
-        const destroyed = client.destroy({ force: true });
-        if (destroyed?.catch) void destroyed.catch(() => {});
-      } catch {}
-    }
+    void this.#disconnect(client);
   }
 }
 

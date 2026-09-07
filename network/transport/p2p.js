@@ -1,10 +1,8 @@
 import { BoundedAdmissionQueue } from '../admission/bounded-queue.js';
-import { xorDistance } from '../dht/kademlia.js';
+import { verifyPeerRecord } from '../discovery/peer-discovery.js';
 
-const DEFAULT_DISCOVERY_FANOUT = 20;
-const DEFAULT_DISCOVERY_QUERY_BUDGET = 64;
 const DEFAULT_DISCOVERY_RECOVERY_TIMEOUT_MS = 9_000;
-const DEFAULT_DISCOVERY_CONTROL_ATTEMPTS = 2;
+const DEFAULT_ROUTE_ATTEMPT_TIMEOUT_MS = 12_500;
 const DEFAULT_DIRECT_CONNECT_TIMEOUT_MS = 5_000;
 const DEFAULT_DIRECT_CONNECT_ATTEMPTS = 3;
 const DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS = 20_000;
@@ -31,17 +29,16 @@ function peerRecordBinding(peerRecord, endpointValue) {
   return `${Number.isInteger(peerRecord?.sequence) ? peerRecord.sequence : 'na'}:${endpointValue}`;
 }
 
-function distanceOrder(targetNodeId) {
-  return (left, right) => {
-    const dl = xorDistance(left.nodeId, targetNodeId);
-    const dr = xorDistance(right.nodeId, targetNodeId);
-    return dl < dr ? -1 : dl > dr ? 1 : left.nodeId.localeCompare(right.nodeId);
-  };
-}
-
 function retryableConnectError(error) {
   if (error?.code === 'TRUYN_P2P_CONNECT_TIMEOUT' || error?.transient === true) return true;
   return ['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH'].includes(error?.code);
+}
+
+function routeDeadlineError(peerNodeId, phase) {
+  const error = new Error(`route_deadline_exceeded:${phase}:${peerNodeId}`);
+  error.code = 'TRUYN_ROUTE_DEADLINE_EXCEEDED';
+  error.phase = phase;
+  return error;
 }
 
 export class ExplicitBackpressureQueue extends BoundedAdmissionQueue {
@@ -59,8 +56,11 @@ export class DirectFirstP2P {
     maxQueued = 256,
     faults = null,
     discoveryRecoveryTimeoutMs = DEFAULT_DISCOVERY_RECOVERY_TIMEOUT_MS,
-    discoveryQueryBudget = DEFAULT_DISCOVERY_QUERY_BUDGET,
-    discoveryControlAttempts = DEFAULT_DISCOVERY_CONTROL_ATTEMPTS,
+    // Kept as accepted compatibility options only. The broad fanout recovery path was
+    // removed; canonical PeerDiscovery.findNode() owns normal Kademlia traversal.
+    discoveryQueryBudget = null,
+    discoveryControlAttempts = null,
+    routeAttemptTimeoutMs = DEFAULT_ROUTE_ATTEMPT_TIMEOUT_MS,
     directConnectTimeoutMs = DEFAULT_DIRECT_CONNECT_TIMEOUT_MS,
     directConnectAttempts = DEFAULT_DIRECT_CONNECT_ATTEMPTS,
     directConnectionReuseIdleMs = DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS
@@ -70,11 +70,14 @@ export class DirectFirstP2P {
     if (!Number.isInteger(discoveryRecoveryTimeoutMs) || discoveryRecoveryTimeoutMs < 10 || discoveryRecoveryTimeoutMs > 120_000) {
       throw new Error('discoveryRecoveryTimeoutMs must be between 10 and 120000');
     }
-    if (!Number.isInteger(discoveryQueryBudget) || discoveryQueryBudget < 1 || discoveryQueryBudget > 256) {
+    if (discoveryQueryBudget != null && (!Number.isInteger(discoveryQueryBudget) || discoveryQueryBudget < 1 || discoveryQueryBudget > 256)) {
       throw new Error('discoveryQueryBudget must be between 1 and 256');
     }
-    if (!Number.isInteger(discoveryControlAttempts) || discoveryControlAttempts < 1 || discoveryControlAttempts > 4) {
+    if (discoveryControlAttempts != null && (!Number.isInteger(discoveryControlAttempts) || discoveryControlAttempts < 1 || discoveryControlAttempts > 4)) {
       throw new Error('discoveryControlAttempts must be between 1 and 4');
+    }
+    if (!Number.isInteger(routeAttemptTimeoutMs) || routeAttemptTimeoutMs < 100 || routeAttemptTimeoutMs >= 15_000) {
+      throw new Error('routeAttemptTimeoutMs must be between 100 and 14999');
     }
     if (!Number.isInteger(directConnectTimeoutMs) || directConnectTimeoutMs < 10 || directConnectTimeoutMs > 120_000) {
       throw new Error('directConnectTimeoutMs must be between 10 and 120000');
@@ -90,14 +93,35 @@ export class DirectFirstP2P {
     this.relayFallback = relayFallback;
     this.faults = faults;
     this.discoveryRecoveryTimeoutMs = discoveryRecoveryTimeoutMs;
-    this.discoveryQueryBudget = discoveryQueryBudget;
-    this.discoveryControlAttempts = discoveryControlAttempts;
+    this.routeAttemptTimeoutMs = routeAttemptTimeoutMs;
     this.directConnectTimeoutMs = directConnectTimeoutMs;
     this.directConnectAttempts = directConnectAttempts;
     this.directConnectionReuseIdleMs = directConnectionReuseIdleMs;
     this.connections = new Map();
+    this.connectingByNodeId = new Map();
     this.discoveryRecoveries = new Map();
     this.queue = new ExplicitBackpressureQueue({ maxInFlight, maxQueued });
+  }
+
+  #remainingMs(deadlineAt) {
+    return Math.max(0, deadlineAt - Date.now());
+  }
+
+  async #boundedPhase(peerNodeId, deadlineAt, phase, operation, phaseLimitMs = null) {
+    const remaining = this.#remainingMs(deadlineAt);
+    if (remaining <= 0) throw routeDeadlineError(peerNodeId, phase);
+    const timeoutMs = Math.max(1, Math.min(remaining, phaseLimitMs ?? remaining));
+    let timer = null;
+    try {
+      return await Promise.race([
+        Promise.resolve().then(operation),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(routeDeadlineError(peerNodeId, phase)), timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   #watchConnection(peerNodeId, client) {
@@ -110,14 +134,25 @@ export class DirectFirstP2P {
     }
   }
 
-  async #discardConnection(peerNodeId) {
-    const existing = this.connections.get(peerNodeId);
-    this.connections.delete(peerNodeId);
-    if (!existing?.client || typeof this.quic.disconnect !== 'function') return;
-    try { await this.quic.disconnect(existing.client); } catch { /* stale connection disposal is best-effort */ }
+  async #disconnectClient(client) {
+    if (!client || typeof this.quic.disconnect !== 'function') return;
+    try { await this.quic.disconnect(client); } catch { /* stale connection disposal is best-effort */ }
   }
 
-  async #boundedConnect(peerNodeId, endpoint) {
+  async #discardConnection(peerNodeId) {
+    const pending = this.connectingByNodeId.get(peerNodeId);
+    if (pending) {
+      pending.discarded = true;
+      this.connectingByNodeId.delete(peerNodeId);
+    }
+    const existing = this.connections.get(peerNodeId);
+    this.connections.delete(peerNodeId);
+    await this.#disconnectClient(existing?.client);
+  }
+
+  async #boundedConnect(peerNodeId, endpoint, deadlineAt) {
+    const timeoutMs = Math.min(this.directConnectTimeoutMs, this.#remainingMs(deadlineAt));
+    if (timeoutMs <= 0) throw routeDeadlineError(peerNodeId, 'direct-connect');
     let timer = null;
     let timedOut = false;
     const operation = Promise.resolve().then(() => this.quic.connect(endpoint));
@@ -130,19 +165,41 @@ export class DirectFirstP2P {
             const error = new Error(`p2p_connect_timeout:${peerNodeId}`);
             error.code = 'TRUYN_P2P_CONNECT_TIMEOUT';
             reject(error);
-          }, this.directConnectTimeoutMs);
-          timer.unref?.();
+          }, timeoutMs);
         })
       ]);
     } finally {
       if (timer) clearTimeout(timer);
-      if (timedOut && typeof this.quic.disconnect === 'function') {
-        void operation.then((client) => this.quic.disconnect(client)).catch(() => {});
-      }
+      if (timedOut) void operation.then((client) => this.#disconnectClient(client)).catch(() => {});
     }
   }
 
-  async #directClient(peerRecord) {
+  async #connectWithRetry(peerRecord, selected, binding, deadlineAt, state) {
+    let client = null;
+    let lastError = null;
+    for (let attempt = 0; attempt < this.directConnectAttempts; attempt += 1) {
+      if (this.#remainingMs(deadlineAt) <= 0) throw routeDeadlineError(peerRecord.nodeId, 'direct-connect');
+      try {
+        client = await this.#boundedConnect(peerRecord.nodeId, selected.endpoint, deadlineAt);
+        break;
+      } catch (error) {
+        lastError = error;
+        if (!retryableConnectError(error) || attempt + 1 >= this.directConnectAttempts) throw error;
+      }
+    }
+    if (!client) throw lastError || new Error('peer_connection_failed');
+    if (state.discarded || this.connectingByNodeId.get(peerRecord.nodeId) !== state) {
+      await this.#disconnectClient(client);
+      const error = new Error(`p2p_connection_superseded:${peerRecord.nodeId}`);
+      error.code = 'TRUYN_P2P_CONNECTION_SUPERSEDED';
+      throw error;
+    }
+    this.connections.set(peerRecord.nodeId, { client, binding, lastUsedAt: Date.now() });
+    this.#watchConnection(peerRecord.nodeId, client);
+    return client;
+  }
+
+  async #directClient(peerRecord, deadlineAt) {
     const selected = selectedQuicEndpoint(peerRecord);
     if (!selected) throw new Error('peer_has_no_quic_endpoint');
     const binding = peerRecordBinding(peerRecord, selected.value);
@@ -158,206 +215,134 @@ export class DirectFirstP2P {
       await this.#discardConnection(peerRecord.nodeId);
     }
 
-    let client = null;
-    let lastError = null;
-    for (let attempt = 0; attempt < this.directConnectAttempts; attempt += 1) {
-      try {
-        client = await this.#boundedConnect(peerRecord.nodeId, selected.endpoint);
-        break;
-      } catch (error) {
-        lastError = error;
-        if (!retryableConnectError(error) || attempt + 1 >= this.directConnectAttempts) throw error;
-      }
+    const inFlight = this.connectingByNodeId.get(peerRecord.nodeId);
+    if (inFlight?.binding === binding && !inFlight.discarded) {
+      return this.#boundedPhase(peerRecord.nodeId, deadlineAt, 'direct-connect-coalesced', () => inFlight.promise);
     }
-    if (!client) throw lastError || new Error('peer_connection_failed');
+    if (inFlight) {
+      inFlight.discarded = true;
+      this.connectingByNodeId.delete(peerRecord.nodeId);
+    }
 
-    this.connections.set(peerRecord.nodeId, { client, binding, lastUsedAt: Date.now() });
-    this.#watchConnection(peerRecord.nodeId, client);
-    return client;
+    const state = { binding, promise: null, discarded: false };
+    state.promise = this.#connectWithRetry(peerRecord, selected, binding, deadlineAt, state);
+    this.connectingByNodeId.set(peerRecord.nodeId, state);
+    try {
+      return await state.promise;
+    } finally {
+      if (this.connectingByNodeId.get(peerRecord.nodeId) === state) this.connectingByNodeId.delete(peerRecord.nodeId);
+    }
   }
 
-  #recoveryCandidates(peerNodeId, queried) {
-    const candidates = new Map();
-    const add = (peer) => {
-      if (!peer?.nodeId || peer.nodeId === this.discovery.identity?.nodeId || queried.has(peer.nodeId)) return;
-      if (!candidates.has(peer.nodeId)) candidates.set(peer.nodeId, peer);
-    };
-
-    if (typeof this.discovery.snapshot === 'function') {
-      for (const peer of this.discovery.snapshot() || []) add(peer);
+  #exactStaleHint(peerNodeId) {
+    if (typeof this.discovery.durableSnapshot !== 'function') return null;
+    for (const record of this.discovery.durableSnapshot() || []) {
+      if (record?.nodeId !== peerNodeId) continue;
+      if (!verifyPeerRecord(record, { allowExpired: true }).ok) return null;
+      if (verifyPeerRecord(record).ok) return null;
+      return structuredClone(record);
     }
-    if (typeof this.discovery.closest === 'function') {
-      const count = Math.max(
-        this.discoveryQueryBudget,
-        Number.isInteger(this.discovery.k) ? this.discovery.k : DEFAULT_DISCOVERY_FANOUT
-      );
-      for (const peer of this.discovery.closest(peerNodeId, count) || []) add(peer);
-    }
-
-    return [...candidates.values()].sort(distanceOrder(peerNodeId));
+    return null;
   }
 
-  async #recoverFromLivePeers(peerNodeId) {
+  async #withDiscoveryDeadline(deadlineAt, operation) {
     const rpc = this.discovery.rpc;
-    const ingest = this.discovery.ingest;
-    const canSnapshot = typeof this.discovery.snapshot === 'function';
-    const canUseRoutingHints = typeof this.discovery.closest === 'function';
-    if ((!canSnapshot && !canUseRoutingHints) || typeof rpc?.findNode !== 'function' || typeof ingest !== 'function') return null;
-
-    const queried = new Set();
-    const concurrency = Math.max(1, Math.min(
-      this.discoveryQueryBudget,
-      64,
-      Number.isInteger(this.discovery.k) ? this.discovery.k : DEFAULT_DISCOVERY_FANOUT
-    ));
-
-    return new Promise((resolve) => {
-      let active = 0;
-      let launched = 0;
-      let settled = false;
-      let timer = null;
-
-      const finish = (record = null) => {
-        if (settled) return;
-        settled = true;
-        if (timer) clearTimeout(timer);
-        resolve(record || this.discovery.get(peerNodeId));
-      };
-
-      const pump = () => {
-        if (settled) return;
-        const found = this.discovery.get(peerNodeId);
-        if (found) {
-          finish(found);
-          return;
-        }
-
-        const candidates = this.#recoveryCandidates(peerNodeId, queried);
-        let launchedNow = 0;
-        while (active < concurrency && launched < this.discoveryQueryBudget && candidates.length > 0) {
-          const peer = candidates.shift();
-          if (!peer || queried.has(peer.nodeId)) continue;
-          queried.add(peer.nodeId);
-          launched += 1;
-          launchedNow += 1;
-          active += 1;
-
-          void (async () => {
-            try {
-              let response = null;
-              for (let attempt = 0; attempt < this.discoveryControlAttempts; attempt += 1) {
-                try {
-                  response = await rpc.findNode(peer, peerNodeId);
-                  break;
-                } catch {
-                  rpc.forget?.(peer.nodeId);
-                  if (attempt + 1 >= this.discoveryControlAttempts) throw new Error('discovery_control_recovery_exhausted');
-                }
-              }
-              for (const record of response?.records || []) ingest.call(this.discovery, record);
-              const recovered = this.discovery.get(peerNodeId);
-              if (recovered) finish(recovered);
-            } catch {
-              rpc.forget?.(peer.nodeId);
-            } finally {
-              active -= 1;
-              if (!settled) pump();
-            }
-          })();
-        }
-
-        if (active === 0 && launchedNow === 0) finish();
-      };
-
-      timer = setTimeout(() => finish(), this.discoveryRecoveryTimeoutMs);
-      timer.unref?.();
-      pump();
-    });
+    if (typeof rpc?.withDeadline === 'function') return rpc.withDeadline(deadlineAt, operation);
+    return operation();
   }
 
-  async #boundedDiscovery(peerNodeId, operation) {
-    if (!operation) return this.discovery.get(peerNodeId);
-    return new Promise((resolve) => {
-      let settled = false;
-      let timer = null;
-      const finish = (record = null) => {
-        if (settled) return;
-        settled = true;
-        if (timer) clearTimeout(timer);
-        resolve(record || this.discovery.get(peerNodeId));
-      };
-      timer = setTimeout(() => finish(), this.discoveryRecoveryTimeoutMs);
-      timer.unref?.();
-      void Promise.resolve(operation).then(finish, () => finish());
-    });
+  async #refreshExactStaleHint(peerNodeId, deadlineAt) {
+    const hint = this.#exactStaleHint(peerNodeId);
+    if (!hint || typeof this.discovery.rpc?.findNode !== 'function' || typeof this.discovery.ingest !== 'function') return null;
+    try {
+      const response = await this.#boundedPhase(
+        peerNodeId,
+        deadlineAt,
+        'stale-hint-refresh',
+        () => this.#withDiscoveryDeadline(deadlineAt, () => this.discovery.rpc.findNode(hint, peerNodeId))
+      );
+      for (const record of response?.records || []) this.discovery.ingest(record);
+      return this.discovery.get(peerNodeId);
+    } catch {
+      this.discovery.rpc?.forget?.(hint.nodeId);
+      return null;
+    }
   }
 
-  async #firstDiscovered(peerNodeId, operations) {
-    const pending = operations.filter(Boolean);
-    if (pending.length === 0) return this.discovery.get(peerNodeId);
-    return new Promise((resolve) => {
-      let remaining = pending.length;
-      let settled = false;
-      const finish = (record) => {
-        if (settled) return;
-        settled = true;
-        resolve(record);
-      };
-      for (const operation of pending) {
-        void Promise.resolve(operation)
-          .then((record) => {
-            const found = record || this.discovery.get(peerNodeId);
-            if (found) finish(found);
-          })
-          .catch(() => {})
-          .finally(() => {
-            remaining -= 1;
-            if (remaining === 0) finish(this.discovery.get(peerNodeId));
-          });
-      }
-    });
-  }
-
-  async #discover(peerNodeId) {
+  async #discover(peerNodeId, routeDeadlineAt) {
     const local = this.discovery.get(peerNodeId);
     if (local) return local;
 
     const existing = this.discoveryRecoveries.get(peerNodeId);
-    if (existing) return existing;
+    if (existing) {
+      try {
+        return await this.#boundedPhase(
+          peerNodeId,
+          routeDeadlineAt,
+          'discovery-coalesced',
+          () => existing.promise
+        );
+      } catch (error) {
+        if (error?.code === 'TRUYN_ROUTE_DEADLINE_EXCEEDED') return this.discovery.get(peerNodeId);
+        throw error;
+      }
+    }
 
-    const operation = (async () => {
+    const discoveryDeadlineAt = Math.min(routeDeadlineAt, Date.now() + this.discoveryRecoveryTimeoutMs);
+    const state = { promise: null };
+    state.promise = (async () => {
       const racedLocal = this.discovery.get(peerNodeId);
       if (racedLocal) return racedLocal;
 
-      // A missing/expired target after restart or partition healing must be rehydrated
-      // on the control plane before any application envelope is dispatched. Use both
-      // currently valid peers and previously authenticated routing hints, including an
-      // exact stale target hint, and continuously expand the bounded query frontier as
-      // fresh signed records arrive. A failed read-only FIND_NODE control exchange gets
-      // one bounded fresh-session retry; the application envelope is never retried.
-      const liveRecovery = this.#recoverFromLivePeers(peerNodeId);
-      const iterativeRecovery = typeof this.discovery.findNode === 'function'
-        ? this.#boundedDiscovery(peerNodeId, Promise.resolve().then(() => this.discovery.findNode(peerNodeId)))
-        : null;
-      return this.#firstDiscovered(peerNodeId, [liveRecovery, iterativeRecovery]);
+      // Normal-path discovery is deliberately sequential:
+      // fresh local record -> exact cryptographically authenticated stale endpoint hint
+      // -> canonical Kademlia alpha walk -> fail. The former broad live-peer fanout is
+      // intentionally absent so concurrent baseline routes cannot create an RPC storm.
+      const refreshed = await this.#refreshExactStaleHint(peerNodeId, discoveryDeadlineAt);
+      if (refreshed) return refreshed;
+      if (typeof this.discovery.findNode !== 'function') return null;
+      try {
+        return await this.#boundedPhase(
+          peerNodeId,
+          discoveryDeadlineAt,
+          'kademlia-find-node',
+          () => this.#withDiscoveryDeadline(discoveryDeadlineAt, () => this.discovery.findNode(peerNodeId))
+        );
+      } catch {
+        return this.discovery.get(peerNodeId);
+      }
     })();
 
-    this.discoveryRecoveries.set(peerNodeId, operation);
-    try { return await operation; }
-    finally {
-      if (this.discoveryRecoveries.get(peerNodeId) === operation) this.discoveryRecoveries.delete(peerNodeId);
+    this.discoveryRecoveries.set(peerNodeId, state);
+    try {
+      try {
+        return await this.#boundedPhase(peerNodeId, routeDeadlineAt, 'discovery', () => state.promise);
+      } catch (error) {
+        if (error?.code === 'TRUYN_ROUTE_DEADLINE_EXCEEDED') return this.discovery.get(peerNodeId);
+        throw error;
+      }
+    } finally {
+      if (this.discoveryRecoveries.get(peerNodeId) === state) this.discoveryRecoveries.delete(peerNodeId);
     }
   }
 
   async send(peerNodeId, envelope, { allowRelayFallback = true } = {}) {
     return this.queue.run(async () => {
-      const record = await this.#discover(peerNodeId);
+      const routeDeadlineAt = Date.now() + this.routeAttemptTimeoutMs;
+      let applicationDispatched = false;
       let directError = null;
+      const record = await this.#discover(peerNodeId, routeDeadlineAt);
       if (record) {
         try {
           this.faults?.assertPeer(peerNodeId, 'direct');
-          const client = await this.#directClient(record);
-          const result = await this.quic.sendEnvelope(client, envelope);
+          const client = await this.#directClient(record, routeDeadlineAt);
+          applicationDispatched = true;
+          const result = await this.#boundedPhase(
+            peerNodeId,
+            routeDeadlineAt,
+            'direct-envelope',
+            () => this.quic.sendEnvelope(client, envelope)
+          );
           return { transport: 'quic-direct', result };
         } catch (error) {
           directError = error;
@@ -366,14 +351,23 @@ export class DirectFirstP2P {
       } else {
         directError = new Error('peer_not_discovered');
       }
-      if (!allowRelayFallback || typeof this.relayFallback !== 'function') throw directError;
+
+      // Once the application envelope has entered a transport, delivery may be
+      // ambiguous. Never issue a second application dispatch through relay fallback.
+      if (applicationDispatched || !allowRelayFallback || typeof this.relayFallback !== 'function') throw directError;
       try {
         await this.faults?.beforeRelay(peerNodeId);
       } catch (error) {
         error.directFailure = directError?.message || 'unknown';
         throw error;
       }
-      const result = await this.relayFallback(peerNodeId, envelope);
+      applicationDispatched = true;
+      const result = await this.#boundedPhase(
+        peerNodeId,
+        routeDeadlineAt,
+        'relay-envelope',
+        () => this.relayFallback(peerNodeId, envelope)
+      );
       return { transport: 'relay-fallback', result, directFailure: directError?.message || 'unknown' };
     });
   }
