@@ -232,7 +232,7 @@ export class DirectFirstP2P {
     try {
       return await state.promise;
     } finally {
-      if (this.connectingByNodeId.get(peerRecord.nodeId) === state) this.connectingByNodeId.delete(peerNodeId);
+      if (this.connectingByNodeId.get(peerRecord.nodeId) === state) this.connectingByNodeId.delete(peerRecord.nodeId);
     }
   }
 
