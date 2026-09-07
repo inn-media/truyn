@@ -47,14 +47,26 @@ done
 readiness_ms=$(( $(date +%s%3N) - readiness_start_ms ))
 '''
 replacement = r'''  readiness_result_file=/tmp/truyn-d200-readiness-result
+  readiness_status_file=/tmp/truyn-d200-readiness-status
   wrapped_script="set -Eeuo pipefail
 result_file='$readiness_result_file'
+status_file='$readiness_status_file'
 result_tmp=\"\${result_file}.tmp\"
-rm -f \"\$result_file\" \"\$result_tmp\"
-{
+status_tmp=\"\${status_file}.tmp\"
+rm -f \"\$result_file\" \"\$result_tmp\" \"\$status_file\" \"\$status_tmp\"
+set +e
+(
+  set -Eeuo pipefail
+  {
 ${script}
-} | tee \"\$result_tmp\"
-mv \"\$result_tmp\" \"\$result_file\""
+  } | tee \"\$result_tmp\"
+)
+probe_rc=\$?
+set -e
+if [[ -f \"\$result_tmp\" ]]; then mv \"\$result_tmp\" \"\$result_file\"; fi
+printf 'READINESS_PROBE_RC=%s\\n' \"\$probe_rc\" > \"\$status_tmp\"
+mv \"\$status_tmp\" \"\$status_file\"
+exit \"\$probe_rc\""
   (remote "${VMS[$i]}" "$wrapped_script" >"$readiness_dir/$i") &
   readiness_pids+=("$!")
 done
@@ -62,25 +74,38 @@ readiness_failed=0
 for pid in "${readiness_pids[@]}"; do
   if ! wait "$pid"; then readiness_failed=1; fi
 done
-if [[ "$readiness_failed" != 0 ]]; then
-  rm -rf "$readiness_dir"
-  false
-fi
 readiness_markers_present() {
   local text="$1" key
   for key in READINESS_READY READINESS_TOTAL READINESS_MIN_VALID READINESS_MAX_VALID READINESS_MIN_BUCKETS READINESS_MAX_BUCKETS READINESS_MIN_HOSTS READINESS_MAX_HOSTS; do
     [[ -n "$(marker "$text" "$key")" ]] || return 1
   done
 }
+readiness_collection_attempts=4
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$readiness_dir/$i")"
   if ! readiness_markers_present "$out"; then
     recovered=''
-    if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; cat /tmp/truyn-d200-readiness-result")"; then
+    if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; cat /tmp/truin-d200-readiness-result")"; then
       :
     fi
     if ! readiness_markers_present "$recovered"; then
-      echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_observation_missing host=$i" >&2
+      for attempt in $(seq 1 "$readiness_collection_attempts"); do
+        recovered=''
+        if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; s=/tmp/truyn-d200-readiness-status; r=/tmp/truyn-d200-readiness-result; [[ -f \"\$s\" ]]; cat \"\$s\"; [[ -f \"\$r\" ]]; cat \"\$r\"")"; then
+          :
+        fi
+        probe_rc="$(marker "$recovered" READINESS_PROBE_RC)"
+        if [[ -n "$probe_rc" && "$probe_rc" != 0 ]]; then
+          echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_probe_failed host=$i rc=$probe_rc" >&2
+          rm -rf "$readiness_dir"
+          false
+        fi
+        if readiness_markers_present "$recovered"; then break; fi
+        [[ "$attempt" == "$readiness_collection_attempts" ]] || sleep 1
+      done
+    fi
+    if ! readiness_markers_present "$recovered"; then
+      echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_observation_missing host=$i launch_failure=$readiness_failed" >&2
       rm -rf "$readiness_dir"
       false
     fi
@@ -105,6 +130,7 @@ done
 rm -rf "$readiness_dir"
 readiness_ms=$(( $(date +%s%3N) - readiness_start_ms ))
 '''
+replacement = replacement.replace('/tmp/truin-d200-readiness-result', '/tmp/truyn-d200-readiness-result')
 if text.count(tail) != 1:
     raise SystemExit(f'unexpected readiness loop tail count: {text.count(tail)}')
 text = text.replace(tail, replacement, 1)
@@ -118,5 +144,11 @@ if '/need' in readiness_block:
     raise SystemExit('readiness barrier must not issue application /need calls')
 if host_gate_replacement not in readiness_block:
     raise SystemExit('readiness barrier must require full HOST_COUNT endpoint diversity')
+if 'READINESS_PROBE_RC=' not in readiness_block:
+    raise SystemExit('readiness barrier must persist guest probe exit status')
+if 'readiness_collection_attempts=4' not in readiness_block:
+    raise SystemExit('readiness observation recovery must stay bounded')
+if 'readiness_probe_failed host=$i rc=$probe_rc' not in readiness_block:
+    raise SystemExit('readiness observation recovery must distinguish probe failure from missing publication')
 
 path.write_text(text)
