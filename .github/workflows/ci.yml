@@ -97,19 +97,7 @@ jobs:
           path: sdk/release/dist
           if-no-files-found: error
           retention-days: 30
-      - name: Run npm test
-        shell: bash
-        run: |
-          set -o pipefail
-          npm test 2>&1 | tee npm-test.log
+      - run: npm test
         env:
           TRUYN_LOCAL_DEVELOPMENT: '1'
-      - name: Upload npm test diagnostic log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-test-log-${{ github.run_id }}
-          path: npm-test.log
-          if-no-files-found: error
-          retention-days: 1
       - run: git diff --check
