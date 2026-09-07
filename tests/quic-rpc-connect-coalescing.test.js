@@ -37,6 +37,50 @@ test('20 concurrent control queries to one peer create exactly one in-flight QUI
   assert.equal(connectCalls, 1, 'connection establishment is coalesced even though control RPCs remain independent');
 });
 
+test('failure on an old control client cannot supersede an in-flight replacement connect', async () => {
+  const peer = {
+    nodeId: 'truyn:node:replacement-peer',
+    sequence: 1,
+    endpoints: ['quic://10.0.0.92:4433']
+  };
+  let connectCalls = 0;
+  let releaseReplacement;
+  const replacementGate = new Promise((resolve) => { releaseReplacement = resolve; });
+  let rejectOldControl;
+  const oldControl = new Promise((_, reject) => { rejectOldControl = reject; });
+  const quic = {
+    async connect(endpoint) {
+      connectCalls += 1;
+      const serial = connectCalls;
+      if (serial === 2) await replacementGate;
+      return { endpoint, serial };
+    },
+    async disconnect() {},
+    async requestControl(client, method) {
+      if (client.serial === 1 && method === 'dht.ping') return { pong: true };
+      if (client.serial === 1 && method === 'dht.find-node') return oldControl;
+      if (client.serial === 2 && method === 'dht.ping') return { pong: true };
+      throw new Error(`unexpected_control:${client.serial}:${method}`);
+    }
+  };
+  const rpc = new QuicDiscoveryRpc({ quicTransport: quic, timeoutMs: 1_000 });
+  assert.equal(await rpc.ping(peer), true);
+
+  const staleRequest = rpc.findNode(peer, 'truyn:node:target');
+  await new Promise((resolve) => setImmediate(resolve));
+  rpc.forget(peer.nodeId);
+
+  const replacementRequest = rpc.ping(peer);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(connectCalls, 2, 'replacement connection must be in flight before the stale request fails');
+
+  rejectOldControl(new Error('old_control_failed'));
+  await assert.rejects(staleRequest, /old_control_failed/);
+  releaseReplacement();
+  assert.equal(await replacementRequest, true);
+  assert.equal(connectCalls, 2, 'failure on the old client must not force a third connection');
+});
+
 test('deadline context reduces DHT RPC timeout to the remaining route budget', async () => {
   const peer = {
     nodeId: 'truyn:node:deadline-peer',
