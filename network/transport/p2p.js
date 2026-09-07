@@ -117,7 +117,6 @@ export class DirectFirstP2P {
         Promise.resolve().then(operation),
         new Promise((_, reject) => {
           timer = setTimeout(() => reject(routeDeadlineError(peerNodeId, phase)), timeoutMs);
-          timer.unref?.();
         })
       ]);
     } finally {
@@ -167,7 +166,6 @@ export class DirectFirstP2P {
             error.code = 'TRUYN_P2P_CONNECT_TIMEOUT';
             reject(error);
           }, timeoutMs);
-          timer.unref?.();
         })
       ]);
     } finally {
