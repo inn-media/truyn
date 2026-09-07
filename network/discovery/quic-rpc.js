@@ -85,6 +85,14 @@ export class QuicDiscoveryRpc {
     }
   }
 
+  #forgetClient(nodeId, client) {
+    if (!client) return;
+    const existing = this.clients.get(nodeId);
+    if (existing?.client !== client) return;
+    this.clients.delete(nodeId);
+    void this.#disconnect(client);
+  }
+
   async client(peer) {
     const selected = selectedEndpoint(peer);
     if (!selected) throw new Error('discovery_peer_has_no_quic_endpoint');
@@ -121,11 +129,12 @@ export class QuicDiscoveryRpc {
     }
   }
 
-  async bounded(peer, operation, { timeoutMs = null } = {}) {
+  async bounded(peer, operation, { timeoutMs = null, state = null } = {}) {
     const effectiveTimeoutMs = this.#effectiveTimeout(timeoutMs);
     if (effectiveTimeoutMs <= 0) {
       const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peer.nodeId}`);
       error.code = 'TRUYN_DHT_RPC_TIMEOUT';
+      if (state) state.cancelledError = error;
       throw error;
     }
     let timer = null;
@@ -137,13 +146,14 @@ export class QuicDiscoveryRpc {
           timer = setTimeout(() => {
             const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peer.nodeId}`);
             error.code = 'TRUYN_DHT_RPC_TIMEOUT';
+            if (state) state.cancelledError = error;
             reject(error);
           }, effectiveTimeoutMs);
-          timer.unref?.();
         })
       ]);
     } catch (error) {
-      this.forget(peer.nodeId);
+      if (state) this.#forgetClient(peer.nodeId, state.client);
+      else this.forget(peer.nodeId);
       throw error;
     } finally {
       if (timer) clearTimeout(timer);
@@ -151,8 +161,11 @@ export class QuicDiscoveryRpc {
   }
 
   async ping(peer, options = {}) {
+    const state = { client: null, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.client(peer);
+      state.client = client;
+      if (state.cancelledError) throw state.cancelledError;
       const result = await this.quic.requestControl(client, QUIC_DHT_METHOD_PING, null);
       if (verifyPeerRecord(result?.peerRecord).ok && this.ingestPeerRecord) {
         const record = structuredClone(result.peerRecord);
@@ -161,49 +174,61 @@ export class QuicDiscoveryRpc {
         setImmediate(() => this.ingestPeerRecord?.(record));
       }
       return Boolean(result?.pong);
-    }, options);
+    }, { ...options, state });
   }
 
   async findNode(peer, targetNodeId, options = {}) {
+    const state = { client: null, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.client(peer);
+      state.client = client;
+      if (state.cancelledError) throw state.cancelledError;
       const result = await this.quic.requestControl(client, QUIC_DISCOVERY_METHOD_FIND_NODE, { targetNodeId });
       const records = [];
       for (const record of result?.records || []) {
         if (verifyPeerRecord(record).ok) records.push(record);
       }
       return { records };
-    }, options);
+    }, { ...options, state });
   }
 
   async announce(peer, record, options = {}) {
     const verification = verifyPeerRecord(record);
     if (!verification.ok) throw new Error(`invalid_peer_record:${verification.reason}`);
+    const state = { client: null, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.client(peer);
+      state.client = client;
+      if (state.cancelledError) throw state.cancelledError;
       return this.quic.requestControl(client, QUIC_DISCOVERY_METHOD_ANNOUNCE, { record });
-    }, options);
+    }, { ...options, state });
   }
 
   async store(peer, record, options = {}) {
     const verification = verifyDhtRecord(record);
     if (!verification.ok) throw new Error(`invalid DHT record: ${verification.reason}`);
+    const state = { client: null, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.client(peer);
+      state.client = client;
+      if (state.cancelledError) throw state.cancelledError;
       return this.quic.requestControl(client, QUIC_DHT_METHOD_STORE, { record });
-    }, options);
+    }, { ...options, state });
   }
 
   async findValue(peer, namespace, key, options = {}) {
+    const state = { client: null, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.client(peer);
+      state.client = client;
+      if (state.cancelledError) throw state.cancelledError;
       const result = await this.quic.requestControl(client, QUIC_DHT_METHOD_FIND_VALUE, { namespace, key });
       const records = [];
       for (const record of result?.records || []) {
         if (verifyDhtRecord(record).ok) records.push(record);
       }
       return { records };
-    }, options);
+    }, { ...options, state });
   }
 
   forget(nodeId) {
