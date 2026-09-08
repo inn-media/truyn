@@ -20,6 +20,11 @@ function boundedInteger(value, fallback, { min = 0, max = Number.MAX_SAFE_INTEGE
   return parsed;
 }
 
+function expiryMs(record) {
+  const parsed = Date.parse(record?.expiresAt);
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
 export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 300_000, capabilities = [], nat = null, issuedAt = new Date().toISOString() } = {}) {
   assertIdentity(identity);
   const normalizedEndpoints = [...new Set((endpoints || []).filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()))].sort();
@@ -118,6 +123,42 @@ export class PeerDiscovery {
 
   snapshot({ now = Date.now() } = {}) {
     return [...this.records.values()].filter((record) => verifyPeerRecord(record, { now }).ok).map((record) => structuredClone(record));
+  }
+
+  leaseSnapshot({ now = Date.now() } = {}) {
+    const records = [...this.records.values()];
+    let validPeerRecords = 0;
+    let expiredPeerRecords = 0;
+    let oldestIssuedAt = null;
+    let oldestIssuedMs = Number.POSITIVE_INFINITY;
+    let nearestExpiryAt = null;
+    let nearestExpiry = Number.POSITIVE_INFINITY;
+
+    for (const record of records) {
+      const valid = verifyPeerRecord(record, { now });
+      if (valid.ok) validPeerRecords += 1;
+      else if (valid.reason === 'peer_record_expired' && verifyPeerRecord(record, { now, allowExpired: true }).ok) expiredPeerRecords += 1;
+
+      const issued = Date.parse(record.issuedAt);
+      if (Number.isFinite(issued) && issued < oldestIssuedMs) {
+        oldestIssuedMs = issued;
+        oldestIssuedAt = record.issuedAt;
+      }
+      const expires = expiryMs(record);
+      if (Number.isFinite(expires) && expires < nearestExpiry) {
+        nearestExpiry = expires;
+        nearestExpiryAt = record.expiresAt;
+      }
+    }
+
+    return {
+      recordCount: records.length,
+      validPeerRecords,
+      expiredPeerRecords,
+      oldestPeerRecordIssuedAt: oldestIssuedAt,
+      nearestPeerRecordExpiryAt: nearestExpiryAt,
+      nearestPeerRecordExpiryMs: Number.isFinite(nearestExpiry) ? Math.round(nearestExpiry - now) : null
+    };
   }
 
   routingSnapshot({ now = Date.now() } = {}) {
@@ -289,6 +330,8 @@ export class PeerDiscovery {
             refreshed: Boolean(result.refreshed),
             reason: result.reason || null,
             targets: Array.isArray(result.targets) ? result.targets.length : 0,
+            nearExpiryTargets: result.targetSelection?.nearExpiryTargets || 0,
+            xorTargets: result.targetSelection?.xorTargets || 0,
             walks: Array.isArray(result.walks) ? result.walks.length : 0,
             queriedPeers: Array.isArray(result.queriedPeers) ? result.queriedPeers.length : 0,
             responses: result.responses || 0,
@@ -318,35 +361,71 @@ export class PeerDiscovery {
     }
   }
 
-  refreshTargets({ targetCount = this.k, now = Date.now(), seed = 'truyn-refresh' } = {}) {
+  refreshTargetPlan({ targetCount = this.k, now = Date.now(), seed = 'truyn-refresh', expiryTargetCount = null } = {}) {
     const limit = Math.max(0, Number.isInteger(targetCount) ? targetCount : this.k);
-    if (limit === 0) return [];
+    if (limit === 0) return { targets: [], nearExpiryTargets: [], xorTargets: [] };
+
+    const liveRecords = this.snapshot({ now }).filter((record) => record.nodeId !== this.identity.nodeId);
+    const defaultExpiryBudget = Math.max(1, Math.ceil(limit / 4));
+    const expiryBudget = Math.min(limit, boundedInteger(expiryTargetCount, defaultExpiryBudget, { min: 0, max: limit }));
+    const nearExpiryTargets = liveRecords
+      .slice()
+      .sort((left, right) => {
+        const le = expiryMs(left);
+        const re = expiryMs(right);
+        if (le !== re) return le - re;
+        const ld = xorDistance(left.nodeId, this.identity.nodeId);
+        const rd = xorDistance(right.nodeId, this.identity.nodeId);
+        return ld < rd ? -1 : ld > rd ? 1 : left.nodeId.localeCompare(right.nodeId);
+      })
+      .slice(0, expiryBudget)
+      .map((record) => record.nodeId);
 
     const routingSnapshot = this.routing.routingSnapshot();
-    const livePeerTargets = this.snapshot({ now }).map((record) => record.nodeId);
+    const livePeerTargets = liveRecords.map((record) => record.nodeId);
     const routingPeerTargets = this.routing.snapshot().map((peer) => peer.nodeId);
     const bucketTargets = routingSnapshot.bucketOccupancy
       .filter((bucket) => bucket.count > 0)
       .map((bucket) => `${seed}:${this.identity.nodeId}:bucket:${bucket.index}`);
-
-    return uniqueNonEmptyStrings([...livePeerTargets, ...routingPeerTargets, ...bucketTargets])
-      .filter((targetNodeId) => targetNodeId !== this.identity.nodeId)
+    const selected = new Set(nearExpiryTargets);
+    const xorTargets = uniqueNonEmptyStrings([...livePeerTargets, ...routingPeerTargets, ...bucketTargets])
+      .filter((targetNodeId) => targetNodeId !== this.identity.nodeId && !selected.has(targetNodeId))
       .sort((left, right) => {
         const dl = xorDistance(left, this.identity.nodeId);
         const dr = xorDistance(right, this.identity.nodeId);
         return dl < dr ? -1 : dl > dr ? 1 : left.localeCompare(right);
       })
-      .slice(0, limit);
+      .slice(0, Math.max(0, limit - nearExpiryTargets.length));
+
+    return {
+      targets: [...nearExpiryTargets, ...xorTargets],
+      nearExpiryTargets,
+      xorTargets
+    };
   }
 
-  async refreshRoutingTable({ targets = null, targetCount = this.k, maxRounds = 4, now = Date.now(), seed = 'truyn-refresh' } = {}) {
+  refreshTargets(options = {}) {
+    return this.refreshTargetPlan(options).targets;
+  }
+
+  async refreshRoutingTable({ targets = null, targetCount = this.k, maxRounds = 4, now = Date.now(), seed = 'truyn-refresh', expiryTargetCount = null } = {}) {
     const before = this.routingSnapshot({ now });
     const limit = Math.max(0, Number.isInteger(targetCount) ? targetCount : this.k);
-    const selectedTargets = uniqueNonEmptyStrings(Array.isArray(targets)
-      ? targets
-      : this.refreshTargets({ targetCount: limit, now, seed }))
+    const targetPlan = Array.isArray(targets)
+      ? {
+          targets: uniqueNonEmptyStrings(targets),
+          nearExpiryTargets: [],
+          xorTargets: []
+        }
+      : this.refreshTargetPlan({ targetCount: limit, now, seed, expiryTargetCount });
+    const selectedTargets = uniqueNonEmptyStrings(targetPlan.targets)
       .filter((targetNodeId) => targetNodeId !== this.identity.nodeId)
       .slice(0, limit);
+    const targetSelection = {
+      manualTargets: Array.isArray(targets) ? selectedTargets.length : 0,
+      nearExpiryTargets: Array.isArray(targets) ? 0 : targetPlan.nearExpiryTargets.filter((target) => selectedTargets.includes(target)).length,
+      xorTargets: Array.isArray(targets) ? 0 : targetPlan.xorTargets.filter((target) => selectedTargets.includes(target)).length
+    };
 
     if (typeof this.rpc?.findNode !== 'function') {
       return {
@@ -355,6 +434,7 @@ export class PeerDiscovery {
         before,
         after: this.routingSnapshot({ now }),
         targets: selectedTargets,
+        targetSelection,
         walks: [],
         queriedPeers: [],
         responses: 0,
@@ -386,6 +466,7 @@ export class PeerDiscovery {
       before,
       after,
       targets: selectedTargets,
+      targetSelection,
       walks,
       queriedPeers,
       responses,

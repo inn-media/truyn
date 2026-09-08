@@ -3,12 +3,24 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   buildClassD1000BootstrapPlan,
+  peerFailureDomain,
   summarizeClassD1000BootstrapPlan
 } from '../benchmarks/scale/class-d-1000-bootstrap.js';
 import { xorDistance } from '../network/dht/kademlia.js';
 
 function records(count) {
   return Array.from({ length: count }, (_, index) => ({ nodeId: `truyn:node:scale-${index}` }));
+}
+
+function recordsByHosts(hostCount, nodesPerHost) {
+  return Array.from({ length: hostCount * nodesPerHost }, (_, index) => {
+    const host = Math.floor(index / nodesPerHost);
+    const node = index % nodesPerHost;
+    return {
+      nodeId: `truyn:node:host-${host}-node-${node}`,
+      endpoints: [`quic://10.42.${host}.10:${4400 + node}`]
+    };
+  });
 }
 
 function bucketIndex(localNodeId, peerNodeId) {
@@ -46,6 +58,45 @@ test('D-1000 bootstrap plan preserves production-scale XOR invariants', () => {
     assert.deepEqual(peerIds, deterministicPeerIds, `expected deterministic peer order for ${record.nodeId}`);
     assert.ok(buckets.size >= 4, `expected XOR bucket diversity for ${record.nodeId}, got ${buckets.size}`);
   }
+});
+
+test('D-200 bootstrap plan guarantees all 20 failure domains inside the bounded 32-peer view', () => {
+  const input = recordsByHosts(20, 10);
+  const options = {
+    seed: 'd200-host-stratified',
+    maxPeersPerNode: 32,
+    peersPerBucket: 2,
+    requiredFailureDomains: 20
+  };
+  const first = buildClassD1000BootstrapPlan(input, options);
+  const second = buildClassD1000BootstrapPlan(input, options);
+  const summary = summarizeClassD1000BootstrapPlan(first);
+
+  assert.equal(summary.nodeCount, 200);
+  assert.equal(summary.minPeers, 32);
+  assert.equal(summary.maxPeers, 32);
+  assert.equal(summary.minFailureDomains, 20);
+  assert.equal(summary.maxFailureDomains, 20);
+  assert.equal(summary.allToAll, false);
+
+  for (const local of input) {
+    const peers = first.get(local.nodeId);
+    const peerIds = peers.map((peer) => peer.nodeId);
+    const domains = new Set(peers.map((peer) => peerFailureDomain(peer)));
+    assert.equal(peers.length, 32);
+    assert.equal(domains.size, 20, `expected all 20 failure domains for ${local.nodeId}`);
+    assert.equal(new Set(peerIds).size, 32, `expected unique bounded peers for ${local.nodeId}`);
+    assert.ok(!peerIds.includes(local.nodeId), `expected no self peer for ${local.nodeId}`);
+    assert.deepEqual(peerIds, peerNodeIds(second, local.nodeId), `expected deterministic host anchors for ${local.nodeId}`);
+  }
+});
+
+test('D-200 bootstrap plan fails closed when the required failure domains cannot fit in the peer bound', () => {
+  const input = recordsByHosts(20, 10);
+  assert.throws(
+    () => buildClassD1000BootstrapPlan(input, { maxPeersPerNode: 19, requiredFailureDomains: 20 }),
+    /requiredFailureDomains cannot exceed maxPeersPerNode/
+  );
 });
 
 test('D-1000 bootstrap plan does not reuse a host-common seed set', () => {
