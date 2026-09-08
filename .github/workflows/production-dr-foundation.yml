@@ -224,7 +224,8 @@ jobs:
           pe_connections="$(az network private-endpoint-connection list --id "$cosmos_id" --only-show-errors -o json)"
           if ! jq -e '
             any((. // [])[];
-              ((.privateLinkServiceConnectionState.status // "") | ascii_downcase) == "approved"
+              (((.privateLinkServiceConnectionState.status // "") | ascii_downcase) == "approved") or
+              (((.properties.privateLinkServiceConnectionState.status // "") | ascii_downcase) == "approved")
             )
           ' <<<"$pe_connections" >/dev/null; then fail_assertion 'cosmos-private-endpoint-approved'; fi
           pass_assertion 'cosmos-private-endpoint-approved'
