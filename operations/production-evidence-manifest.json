@@ -1,0 +1,88 @@
+{
+  "schema": "truyn.production-evidence-manifest/v1",
+  "manifestId": "prod-ops-evidence-01",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "environmentClass": "production",
+  "productionized": false,
+  "status": "collecting",
+  "source": {
+    "repository": "inn-media/truyn",
+    "productionSourceBaselineSha": "5daaac4a06b9573523f50caef7fc5c04175247b8",
+    "lastLiveAppliedSourceSha": "f5251f82c90fd2ac472c80b9a2260846516a7220",
+    "acceptedDeployedSourceSha": null
+  },
+  "region": {
+    "regionProfileId": "prod-eu-dual-region-01",
+    "residencyProfile": "eu",
+    "topologyProfile": "single-primary-automatic-failover",
+    "configuredPlacement": {
+      "primaryRegion": "germanywestcentral",
+      "secondaryRegion": "francecentral"
+    },
+    "acceptedRegionProfileId": null
+  },
+  "evidence": {
+    "deploymentIdentity": {
+      "ref": "operations/production-environment.json",
+      "status": "defined"
+    },
+    "sourceIdentity": {
+      "ref": "operations/production-source.json",
+      "status": "awaiting_accepted_live_apply"
+    },
+    "regionIdentity": {
+      "ref": "operations/production-region.json",
+      "status": "awaiting_accepted_live_apply"
+    },
+    "foundationApply": {
+      "sourceSha": "f5251f82c90fd2ac472c80b9a2260846516a7220",
+      "status": "post_provision_proof_failed",
+      "accepted": false,
+      "sanitizedEvidenceDigest": null
+    },
+    "telemetryBackends": null,
+    "externalProbes": null,
+    "pagerDelivery": null,
+    "onCallRoster": null,
+    "rotationDrills": [],
+    "restoreDrills": [],
+    "sloWindow28d": null
+  },
+  "acceptance": {
+    "requiredWindowDays": 28,
+    "accepted": false,
+    "requiredEvidenceClasses": [
+      "deploymentIdentity",
+      "sourceIdentity",
+      "regionIdentity",
+      "telemetryBackends",
+      "externalProbes",
+      "pagerDelivery",
+      "onCallRoster",
+      "rotationDrills",
+      "restoreDrills",
+      "sloWindow28d"
+    ]
+  },
+  "sanitization": {
+    "publicManifest": true,
+    "allowedLiveFields": [
+      "opaque evidence reference",
+      "exact public Git SHA",
+      "sanitized PASS/FAIL status",
+      "timestamp",
+      "aggregate measurement",
+      "SHA-256 digest"
+    ],
+    "forbiddenLiveFields": [
+      "credential or secret",
+      "private endpoint or origin",
+      "tenant or subscription identifier",
+      "private cloud resource name",
+      "pager destination",
+      "human operator identity",
+      "private allowlist or topology"
+    ]
+  },
+  "invariant": "productionized may become true only when every required evidence class is bound to this deploymentId, the accepted exact deployed source SHA and the accepted region profile, and the complete 28-day SLO/error-budget evidence is present without unresolved zero-budget violations."
+}
