@@ -1,0 +1,264 @@
+name: diag-d200-850fff25-qualified
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/diag-d200-850fff25-qualified.yml
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: diag-d200-850fff25-qualified
+  cancel-in-progress: false
+
+jobs:
+  d200:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    environment: class-d-diagnostic
+    env:
+      HOST_COUNT: '20'
+      NODES_PER_HOST: '10'
+      TARGET_TOTAL_NODES: '200'
+      BOOTSTRAP_MAX_PEERS_PER_NODE: '50'
+      AZURE_RESOURCE_GROUP: truyn
+      AZURE_LOCATION: northeurope
+      AZURE_NODE_VM_PREFIX: truyn-d1000
+      AZURE_DIAG_VM_PREFIX: truyn-d200diag
+      ARTIFACT_RETENTION_DAYS: '90'
+      NODE_NO_WARNINGS: '1'
+      TESTED_COMMIT: 850fff25f4af345932ac97167ec93cfcc1a8bf85
+      TESTED_TREE_SHA: a09b86b6f63c626303a8bf3be70defff4fdf7187
+      TESTED_MAIN_CI_RUN_ID: '34239801973'
+      TESTED_MAIN_CODEQL_RUN_ID: '34239801295'
+
+    steps:
+      - name: Enforce immutable one-shot launch commit
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "${GITHUB_RUN_ATTEMPT}" == "1" ]]
+          [[ "${GITHUB_EVENT_NAME}" == "push" ]]
+          [[ "${GITHUB_REF}" == "refs/heads/main" ]]
+          launch_commit="${GITHUB_SHA}"
+          parents="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${launch_commit}" --jq '[.parents[].sha] | join(" ")')"
+          [[ "${parents}" == "${TESTED_COMMIT}" ]]
+          mapfile -t files < <(gh api "repos/${GITHUB_REPOSITORY}/commits/${launch_commit}" --jq '.files[].filename')
+          [[ "${#files[@]}" -eq 1 ]]
+          [[ "${files[0]}" == ".github/workflows/diag-d200-850fff25-qualified.yml" ]]
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TESTED_COMMIT }}
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify exact green pinned repair source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "${TESTED_COMMIT}" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "${TESTED_TREE_SHA}" ]]
+          git show -s --format=%B "${TESTED_COMMIT}" | grep -q '^Signed-off-by:'
+
+          ci_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${TESTED_MAIN_CI_RUN_ID}")"
+          [[ "$(jq -r '.head_sha' <<<"${ci_json}")" == "${TESTED_COMMIT}" ]]
+          [[ "$(jq -r '.head_branch' <<<"${ci_json}")" == "main" ]]
+          [[ "$(jq -r '.event' <<<"${ci_json}")" == "push" ]]
+          [[ "$(jq -r '.conclusion' <<<"${ci_json}")" == "success" ]]
+
+          codeql_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${TESTED_MAIN_CODEQL_RUN_ID}")"
+          [[ "$(jq -r '.head_sha' <<<"${codeql_json}")" == "${TESTED_COMMIT}" ]]
+          [[ "$(jq -r '.head_branch' <<<"${codeql_json}")" == "main" ]]
+          [[ "$(jq -r '.conclusion' <<<"${codeql_json}")" == "success" ]]
+
+          bash scripts/class-d-200-preflight-qualification.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Build immutable runtime bundle
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund >/dev/null
+          npm test -- \
+            tests/class-d-diagnostic-readiness-parallel.test.js \
+            tests/class-d-diagnostic-readiness-window.test.js \
+            tests/class-d-diagnostic-restart-parallel.test.js \
+            tests/class-d-diagnostic-post-restart-origin.test.js \
+            tests/peer-record-restart-propagation-readiness.test.js \
+            tests/dht-replication-keyspace.test.js
+          mkdir -p .diag-runtime
+          tar \
+            --exclude='./.git' \
+            --exclude='./.diag-runtime' \
+            --exclude='./benchmarks/results' \
+            --exclude='./node_modules' \
+            -czf .diag-runtime/truyn-runtime.tgz .
+          sha256sum .diag-runtime/truyn-runtime.tgz > .diag-runtime/truyn-runtime.tgz.sha256
+
+      - name: Run azure/login@v2
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Select fail-closed 20-VM placement
+        id: placement
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mapfile -t vms < <(
+            az vm list -g "${AZURE_RESOURCE_GROUP}" --query "[?starts_with(name, '${AZURE_NODE_VM_PREFIX}') && powerState=='VM running'].name" -d -o tsv | sort -V
+          )
+          if [[ "${#vms[@]}" -lt "${HOST_COUNT}" ]]; then
+            echo "Expected at least ${HOST_COUNT} running Class-D VMs, found ${#vms[@]}" >&2
+            exit 1
+          fi
+          selected=("${vms[@]:0:${HOST_COUNT}}")
+          printf '%s\n' "${selected[@]}" > /tmp/truyn-d200-vms.txt
+          printf 'vms_json=%s\n' "$(printf '%s\n' "${selected[@]}" | jq -R . | jq -s -c .)" >> "${GITHUB_OUTPUT}"
+
+      - name: Stage immutable runtime bundle with OIDC data-plane auth
+        id: staging
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          source_storage="$(az storage account list -g "${AZURE_RESOURCE_GROUP}" --query '[?kind==`StorageV2` && allowBlobPublicAccess==`false`].name | [0]' -o tsv)"
+          [[ -n "${source_storage}" && "${source_storage}" != "null" ]]
+          source_container="diag-${GITHUB_RUN_ID}"
+          az storage container create --account-name "${source_storage}" --name "${source_container}" --auth-mode login --public-access off >/dev/null
+          az storage blob upload --account-name "${source_storage}" --container-name "${source_container}" --name truyn-runtime.tgz --file .diag-runtime/truyn-runtime.tgz --auth-mode login --overwrite true >/dev/null
+          source_uri="https://${source_storage}.blob.core.windows.net/${source_container}/truyn-runtime.tgz"
+          printf 'source_storage=%s\n' "${source_storage}" >> "${GITHUB_OUTPUT}"
+          printf 'source_container=%s\n' "${source_container}" >> "${GITHUB_OUTPUT}"
+          printf 'source_uri=%s\n' "${source_uri}" >> "${GITHUB_OUTPUT}"
+
+      - name: Execute real 20-host 200-process campaign
+        id: campaign
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cp benchmarks/scale/class-d-azure-1000-provision.sh /tmp/truyn-d200-provision.sh
+          cp benchmarks/scale/class-d-azure-1000-campaign.sh /tmp/truyn-d200-campaign.sh
+          python3 scripts/patch-class-d-diagnostic-bootstrap-timeout.py /tmp/truyn-d200-provision.sh
+          python3 scripts/patch-class-d-diagnostic-bootstrap-parallel.py /tmp/truyn-d200-provision.sh
+          python3 scripts/patch-class-d-diagnostic-bandwidth-meter-parallel.py /tmp/truyn-d200-provision.sh
+          python3 scripts/patch-class-d-diagnostic-readiness-parallel.py /tmp/truyn-d200-campaign.sh
+          python3 scripts/patch-class-d-diagnostic-readiness-window.py /tmp/truyn-d200-campaign.sh
+          python3 scripts/patch-class-d-diagnostic-baseline-parallel.py /tmp/truyn-d200-campaign.sh
+          python3 scripts/patch-class-d-diagnostic-restart-parallel.py /tmp/truyn-d200-campaign.sh
+          python3 scripts/patch-class-d-diagnostic-post-restart-origin.py /tmp/truyn-d200-campaign.sh
+          python3 - /tmp/truyn-d200-campaign.sh <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); s=p.read_text()
+          if s.count('seq 10 14') != 3:
+              raise SystemExit('unexpected restart range count')
+          s=s.replace('seq 10 14','seq 5 9')
+          if s.count('range(10,15)') != 1:
+              raise SystemExit('unexpected post-restart range count')
+          s=s.replace('range(10,15)','range(5,10)')
+          p.write_text(s)
+          PY
+          python3 scripts/patch-class-d-diagnostic-composed-heal-evidence.py /tmp/truyn-d200-provision.sh /tmp/truyn-d200-campaign.sh
+          sed -i 's/HOST_COUNT=100/HOST_COUNT=20/' /tmp/truyn-d200-campaign.sh
+          sed -i 's/TARGET_TOTAL_NODES=1000/TARGET_TOTAL_NODES=200/' /tmp/truyn-d200-campaign.sh
+          sed -i "s|: \"\${SOURCE_URI:?set SOURCE_URI}\"|SOURCE_URI=\"${{ steps.staging.outputs.source_uri }}\"|" /tmp/truyn-d200-campaign.sh
+          bash -n /tmp/truyn-d200-provision.sh
+          bash -n /tmp/truyn-d200-campaign.sh
+          chmod +x /tmp/truyn-d200-{provision,campaign}.sh
+          AZURE_VMS_JSON='${{ steps.placement.outputs.vms_json }}' \
+          bash /tmp/truyn-d200-campaign.sh | tee /tmp/truyn-d200-campaign.log
+
+      - name: Evaluate strict D-200 evidence
+        if: always()
+        id: evaluate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p benchmarks/results/class-d-200
+          if [[ -f /tmp/truyn-d200-campaign.log ]]; then
+            cp /tmp/truyn-d200-campaign.log benchmarks/results/class-d-200/campaign.log
+          fi
+          summary="$(find /tmp -maxdepth 3 -name 'class-d-azure-1000-summary.json' -type f -print -quit)"
+          [[ -n "${summary}" ]]
+          cp "${summary}" benchmarks/results/class-d-200/summary.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          summary=json.loads(Path('benchmarks/results/class-d-200/summary.json').read_text())
+          routing=summary['routing']
+          readiness=summary['readiness']
+          recovery=summary['recovery']
+          safety=summary['safety']
+          durability=summary['durability']
+          required={
+            'hosts':20,
+            'processes':200,
+            'identityCount':200,
+            'distinctControlEndpoints':200,
+            'syntheticProcesses':0,
+          }
+          for k,v in required.items():
+            assert summary[k] == v, (k,summary[k],v)
+          for route in ['baseline','convergence','postRestart','healed']:
+            assert routing[route]['successRate'] >= .99, (route,routing[route])
+          assert readiness['successRate'] >= .99
+          assert recovery['convergenceP95Ms'] <= 120000
+          assert recovery['restartP95Ms'] <= 120000
+          assert recovery['partitionRecoveryMs'] <= 120000
+          assert recovery['partitionBlockedSuccesses'] == 0
+          assert durability['writesReadBeforeFault'] == 100
+          assert durability['acknowledgedWrites'] == 100
+          assert durability['acknowledgedWriteLoss'] == 0
+          assert safety['invalidSignedStateAccepted'] == 0
+          assert safety['staleRevokedReceiptAccepted'] == 0
+          assert safety['unauthorizedProviderExecution'] == 0
+          tested=summary.get('testedCommit')
+          if tested is not None:
+            assert tested == os.environ['TESTED_COMMIT'], (tested, os.environ['TESTED_COMMIT'])
+          Path('benchmarks/results/class-d-200/strict-evaluator.json').write_text(json.dumps({
+            'passed':True,
+            'testedCommit':os.environ['TESTED_COMMIT'],
+            'testedTree':os.environ['TESTED_TREE_SHA'],
+            'postMergeCiRunId':os.environ['TESTED_MAIN_CI_RUN_ID'],
+            'postMergeCodeqlRunId':os.environ['TESTED_MAIN_CODEQL_RUN_ID'],
+            'run':os.environ.get('GITHUB_RUN_ID'),
+          },indent=2))
+          PY
+          echo "passed=true" >> "${GITHUB_OUTPUT}"
+
+      - name: Cleanup runtime staging fail-closed
+        if: always() && steps.staging.outputs.source_container != ''
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az storage container delete --account-name "${{ steps.staging.outputs.source_storage }}" --name "${{ steps.staging.outputs.source_container }}" --auth-mode login --yes >/dev/null
+
+      - name: Upload immutable diagnostic artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: truyn-class-d200-850fff25-${{ github.run_id }}
+          path: benchmarks/results/class-d-200
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+      - name: Record strict terminal marker
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "${{ steps.evaluate.outputs.passed }}" == "true" ]]
+          echo "TRUYN_D200_STRICT_PASS=true"
