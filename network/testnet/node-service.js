@@ -220,10 +220,18 @@ export async function createTestnetNodeService({
     const routing = routingReadinessFields(node.discovery.routingSnapshot());
     const propagation = node.peerRecordLifecycleSnapshot().propagation || {};
     const propagationReady = node.peerRecordPropagationReady();
+    const peerRecordLeases = node.discovery.leaseSnapshot();
+    const periodicRefresh = node.discovery.periodicRefreshSnapshot();
+    const localPeerRecord = node.localPeerRecord || {};
     return {
       ok: propagationReady,
       acceptanceReady: propagationReady,
       nodeId: identity.nodeId,
+      peerRecordSequence: localPeerRecord.sequence || 0,
+      localPeerRecordLease: {
+        issuedAt: localPeerRecord.issuedAt || null,
+        expiresAt: localPeerRecord.expiresAt || null
+      },
       validPeers: routing.validPeers,
       populatedBuckets: routing.populatedBuckets,
       routing,
@@ -241,6 +249,8 @@ export async function createTestnetNodeService({
         pendingCount: Array.isArray(propagation.pendingNodeIds) ? propagation.pendingNodeIds.length : 0,
         pendingNodeIds: Array.isArray(propagation.pendingNodeIds) ? [...propagation.pendingNodeIds] : []
       },
+      peerRecordLeases,
+      periodicRefresh,
       remoteEndpointDiversity: remoteEndpointDiversity(),
       refresh: lastDhtRefresh || {
         status: 'never_refreshed',
@@ -333,6 +343,8 @@ export async function createTestnetNodeService({
       refreshed: Boolean(result.refreshed),
       completedAt: new Date().toISOString(),
       targets: Array.isArray(result.targets) ? result.targets.length : 0,
+      nearExpiryTargets: result.targetSelection?.nearExpiryTargets || 0,
+      xorTargets: result.targetSelection?.xorTargets || 0,
       walks: Array.isArray(result.walks) ? result.walks.length : 0,
       queriedPeers: Array.isArray(result.queriedPeers) ? result.queriedPeers.length : 0,
       responses: result.responses || 0,
