@@ -44,7 +44,7 @@ jobs:
       AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
       AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
       RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
-      REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'northeurope:swedencentral germanywestcentral:francecentral' }}
+      REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'germanywestcentral:francecentral northeurope:swedencentral' }}
       BACKUP_TIER: Continuous30Days
     steps:
       - uses: actions/checkout@v4
@@ -157,43 +157,85 @@ jobs:
           container='checkpoints'
           for value in "$cosmos" "$identity" "$environment" "$registry"; do printf '::add-mask::%s\n' "$value"; done
 
+          fail_assertion() {
+            echo "::error::Live foundation assertion failed: $1"
+            exit 1
+          }
+          pass_assertion() {
+            echo "Live foundation assertion PASS: $1"
+          }
+
           account_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json)"
-          jq -e \
-            --arg tier "$BACKUP_TIER" \
+          if ! jq -e --arg tier "$BACKUP_TIER" '
+            (.backupPolicy.type // "") == "Continuous" and
+            (.backupPolicy.continuousModeProperties.tier // "") == $tier
+          ' <<<"$account_json" >/dev/null; then fail_assertion 'cosmos-backup-policy'; fi
+          pass_assertion 'cosmos-backup-policy'
+
+          if ! jq -e \
             --arg primary "$SELECTED_PRIMARY_LOCATION" \
             --arg secondary "$SELECTED_SECONDARY_LOCATION" '
-            .backupPolicy.type == "Continuous" and
-            .backupPolicy.continuousModeProperties.tier == $tier and
-            (.locations | length) == 2 and
-            ([.locations[].locationName | gsub(" "; "") | ascii_downcase] | sort) == ([$primary, $secondary] | sort) and
-            .enableAutomaticFailover == true and
-            .enableMultipleWriteLocations == false and
-            .disableLocalAuth == true and
-            (.publicNetworkAccess | ascii_downcase) == "disabled"
-          ' <<<"$account_json" >/dev/null
+            ((.locations // []) | length) == 2 and
+            ([((.locations // [])[].locationName // "") | gsub(" "; "") | ascii_downcase] | sort) == ([$primary, $secondary] | sort) and
+            (.enableAutomaticFailover // false) == true and
+            .enableMultipleWriteLocations == false
+          ' <<<"$account_json" >/dev/null; then fail_assertion 'cosmos-region-failover-policy'; fi
+          pass_assertion 'cosmos-region-failover-policy'
+
+          if ! jq -e '
+            (.disableLocalAuth // false) == true and
+            ((.publicNetworkAccess // "") | ascii_downcase) == "disabled"
+          ' <<<"$account_json" >/dev/null; then fail_assertion 'cosmos-auth-and-public-network'; fi
+          pass_assertion 'cosmos-auth-and-public-network'
 
           container_json="$(az cosmosdb sql container show --resource-group "$RESOURCE_GROUP" --account-name "$cosmos" --database-name "$database" --name "$container" --only-show-errors -o json)"
-          jq -e '.resource.partitionKey.paths == ["/partitionKey"]' <<<"$container_json" >/dev/null
+          if ! jq -e '((.resource.partitionKey.paths // [])) == ["/partitionKey"]' <<<"$container_json" >/dev/null; then fail_assertion 'cosmos-checkpoint-partition-contract'; fi
+          pass_assertion 'cosmos-checkpoint-partition-contract'
 
           principal="$(az identity show --resource-group "$RESOURCE_GROUP" --name "$identity" --query principalId -o tsv --only-show-errors)"
-          [[ -n "$principal" ]]
+          [[ -n "$principal" ]] || fail_assertion 'authority-managed-identity-principal'
           printf '::add-mask::%s\n' "$principal"
+          pass_assertion 'authority-managed-identity-principal'
 
           data_roles="$(az cosmosdb sql role assignment list --resource-group "$RESOURCE_GROUP" --account-name "$cosmos" --only-show-errors -o json)"
-          jq -e --arg principal "$principal" 'any(.[]; .principalId == $principal and (.roleDefinitionId | endswith("/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002")))' <<<"$data_roles" >/dev/null
+          if ! jq -e --arg principal "$principal" '
+            any((. // [])[];
+              (.principalId // "") == $principal and
+              ((.roleDefinitionId // "") | endswith("/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"))
+            )
+          ' <<<"$data_roles" >/dev/null; then fail_assertion 'cosmos-data-contributor-rbac'; fi
+          pass_assertion 'cosmos-data-contributor-rbac'
 
-          environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --only-show-errors -o json)"
-          jq -e '.properties.vnetConfiguration.internal == true and (.properties.publicNetworkAccess | ascii_downcase) == "disabled"' <<<"$environment_json" >/dev/null
+          environment_id="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --query id -o tsv --only-show-errors)"
+          [[ -n "$environment_id" ]] || fail_assertion 'aca-environment-id'
+          printf '::add-mask::%s\n' "$environment_id"
+          environment_json="$(az resource show --ids "$environment_id" --api-version 2025-07-01 --only-show-errors -o json)"
+          if ! jq -e '(.properties.vnetConfiguration.internal // false) == true' <<<"$environment_json" >/dev/null; then fail_assertion 'aca-internal-vnet'; fi
+          pass_assertion 'aca-internal-vnet'
+          if ! jq -e '((.properties.publicNetworkAccess // "") | ascii_downcase) == "disabled"' <<<"$environment_json" >/dev/null; then fail_assertion 'aca-public-network-disabled'; fi
+          pass_assertion 'aca-public-network-disabled'
 
-          cosmos_id="$(jq -r '.id' <<<"$account_json")"
+          cosmos_id="$(jq -r '.id // empty' <<<"$account_json")"
+          [[ -n "$cosmos_id" ]] || fail_assertion 'cosmos-resource-id'
           registry_id="$(az acr show --resource-group "$RESOURCE_GROUP" --name "$registry" --query id -o tsv --only-show-errors)"
+          [[ -n "$registry_id" ]] || fail_assertion 'registry-resource-id'
           for value in "$cosmos_id" "$registry_id"; do printf '::add-mask::%s\n' "$value"; done
 
           pe_connections="$(az network private-endpoint-connection list --id "$cosmos_id" --only-show-errors -o json)"
-          jq -e 'any(.[]; (.privateLinkServiceConnectionState.status | ascii_downcase) == "approved")' <<<"$pe_connections" >/dev/null
+          if ! jq -e '
+            any((. // [])[];
+              ((.privateLinkServiceConnectionState.status // "") | ascii_downcase) == "approved"
+            )
+          ' <<<"$pe_connections" >/dev/null; then fail_assertion 'cosmos-private-endpoint-approved'; fi
+          pass_assertion 'cosmos-private-endpoint-approved'
 
           acr_roles="$(az role assignment list --assignee-object-id "$principal" --scope "$registry_id" --only-show-errors -o json)"
-          jq -e 'any(.[]; (.roleDefinitionId | ascii_downcase | endswith("/7f951dda-4ed3-4680-a7ca-43fe172d538d")))' <<<"$acr_roles" >/dev/null
+          if ! jq -e '
+            any((. // [])[];
+              ((.roleDefinitionId // "") | ascii_downcase | endswith("/7f951dda-4ed3-4680-a7ca-43fe172d538d"))
+            )
+          ' <<<"$acr_roles" >/dev/null; then fail_assertion 'registry-pull-rbac'; fi
+          pass_assertion 'registry-pull-rbac'
 
           jq -n \
             --arg sourceSha "$GITHUB_SHA" \
@@ -232,7 +274,8 @@ jobs:
                 registryPull: true
               },
               servingFoundation: {
-                containerAppsEnvironmentInternal: true
+                containerAppsEnvironmentInternal: true,
+                publicNetworkDisabled: true
               }
             }' > production-dr-foundation-evidence.json
 
