@@ -1,0 +1,26 @@
+{
+  "schema": "truyn.production-region/v1",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "regionProfileId": "prod-eu-dual-region-01",
+  "cloud": "azure",
+  "residencyProfile": "eu",
+  "topologyProfile": "single-primary-automatic-failover",
+  "configuredPlacement": {
+    "primaryRegion": "germanywestcentral",
+    "secondaryRegion": "francecentral",
+    "regionCount": 2
+  },
+  "boundedFallbackPlacement": {
+    "primaryRegion": "northeurope",
+    "secondaryRegion": "swedencentral"
+  },
+  "lastLiveAppliedPlacement": {
+    "primaryRegion": "germanywestcentral",
+    "secondaryRegion": "francecentral"
+  },
+  "lastLivePlacementAccepted": false,
+  "acceptedRegionProfileId": null,
+  "status": "awaiting_accepted_live_apply",
+  "invariant": "acceptedRegionProfileId may be populated only from deployment-specific sanitized live evidence with status PASS for this deploymentId and the exact deployed source SHA.",
+  "notes": "The production region profile is fixed independently of acceptance. The last live Azure apply provisioned the configured Germany West Central / France Central pair after bounded fallback logic, but post-provision proof did not reach PASS, so live acceptance remains fail-closed."
+}
