@@ -48,6 +48,27 @@ test('D-200 collects all host/node readiness observations before failing the str
   assert.ok(block.includes('acknowledgedCount'));
   assert.ok(block.includes('pendingCount'));
 
+  const scriptStart = block.indexOf('  script=$(cat <<EOS\n');
+  const scriptEndMarker = '\nEOS\n)';
+  const scriptEnd = block.indexOf(scriptEndMarker, scriptStart);
+  assert.ok(scriptStart >= 0 && scriptEnd > scriptStart, 'readiness remote script heredoc must be present');
+  const scriptAssignment = block.slice(scriptStart + 2, scriptEnd + scriptEndMarker.length);
+  const nounsetHarness = `set -Eeuo pipefail
+HOST_COUNT=20
+NODES_PER_HOST=10
+CONTROL_BASE=19000
+BOOTSTRAP_MAX_PEERS_PER_NODE=32
+i=0
+${scriptAssignment}
+printf '%s\\n' "$script" | grep -F '. as $r' >/dev/null
+printf '%s\\n' "$script" | grep -F 'nodeIndex: $node' >/dev/null
+printf '%s\\n' "$script" | grep -F '$expected | to_entries[]' >/dev/null
+printf '%s\\n' "$script" | grep -F 'as $entry' >/dev/null
+printf '%s\\n' "$script" | grep -F 'index($entry.value)' >/dev/null
+`;
+  const nounset = spawnSync('bash', ['-u', '-c', nounsetHarness], { encoding: 'utf8' });
+  assert.equal(nounset.status, 0, `generated readiness heredoc must construct under bash -u without expanding jq variables: ${nounset.stderr || nounset.stdout}`);
+
   const failedFlag = block.indexOf('readiness_gate_failed=1');
   const aggregatePath = block.indexOf('class-d-200-readiness-node-observations.json');
   const aggregateFailure = block.indexOf('TRUYN_D200_READINESS_AGGREGATE_FAILURE');
