@@ -40,9 +40,8 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - **P2-E3** canonical documentation reconciliation — **ACCEPTED / merged** (`#459`).
 - **Stable A2A/MCP v1 is not declared**; `TRUYN/1` remains draft.
 - five first-party SDK clients + shared conformance — **IMPLEMENTED**.
-- PyPI alpha + Go alpha — **accepted immutable public releases**.
+- PyPI alpha + Go alpha + npm alpha.2 — **accepted immutable public releases**.
 - npm alpha.1 — immutable historical artifact with failed required clean-room ESM import.
-- npm alpha.2 — packaging repair **merged in #448**; immutable public registry/provenance/clean-room acceptance evidence remains gated.
 - Maven Central / NuGet — **OPEN**.
 - Production Trust Authority — **OPEN**; PR `#438` unmerged.
 - governance — **G1 / bootstrap Founding Stewardship**.
