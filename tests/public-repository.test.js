@@ -18,6 +18,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/publish-python-alpha.yml',
   '.github/workflows/production-dr-foundation.yml',
   '.github/workflows/production-metrics-backend.yml',
+  '.github/workflows/production-metrics-collector.yml',
   '.github/workflows/production-monitor-provider-registration.yml'
 ]);
 const BENCHMARK_EVIDENCE_DIR = 'docs/benchmarks/';

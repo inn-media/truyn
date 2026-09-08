@@ -155,6 +155,12 @@ resource metricsBackend 'Microsoft.App/containerApps@2025-07-01' = {
     managedEnvironmentId: environmentId
     configuration: {
       activeRevisionsMode: 'Single'
+      ingress: {
+        external: false
+        targetPort: 8428
+        transport: 'http'
+        allowInsecure: false
+      }
     }
     template: {
       scale: {
