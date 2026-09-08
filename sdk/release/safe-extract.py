@@ -37,7 +37,49 @@ _CREDENTIAL_PATTERNS = (
         ),
     ),
 )
-_SCAN_OVERLAP = 512
+_PRIVATE_CLOUD_PATTERNS = (
+    (
+        "azure-arm-resource-id",
+        re.compile(
+            rb"(?i)/subscriptions/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+            rb"/resourcegroups/[A-Za-z0-9._()\-]{1,90}/providers/[A-Za-z0-9.]+/[A-Za-z0-9._\-]+/[A-Za-z0-9._()\-]+"
+        ),
+    ),
+    (
+        "azure-identity-assignment",
+        re.compile(
+            rb"(?i)\b(?:azure[_-]?)?(?:subscription|tenant|client)[_-]?id\s*[:=]\s*[\"']?"
+            rb"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"
+        ),
+    ),
+    ("azure-key-vault-endpoint", re.compile(rb"(?i)https://[a-z0-9-]{3,63}\.vault\.azure\.net\b")),
+    ("azure-cosmos-endpoint", re.compile(rb"(?i)https://[a-z0-9-]{3,63}\.documents\.azure\.com\b")),
+    (
+        "azure-storage-endpoint",
+        re.compile(rb"(?i)https://[a-z0-9]{3,24}\.(?:blob|queue|table|file)\.core\.windows\.net\b"),
+    ),
+    (
+        "gcp-wif-resource",
+        re.compile(
+            rb"\bprojects/[0-9]{6,19}/locations/global/workloadIdentityPools/"
+            rb"[A-Za-z0-9_-]{4,32}/providers/[A-Za-z0-9_-]{4,32}\b"
+        ),
+    ),
+    (
+        "gcp-service-account",
+        re.compile(
+            rb"\b[A-Za-z0-9][A-Za-z0-9._-]{2,62}@[a-z][a-z0-9-]{4,28}\.iam\.gserviceaccount\.com\b"
+        ),
+    ),
+    (
+        "gcp-project-assignment",
+        re.compile(
+            rb"(?i)\b(?:gcp_project_(?:id|number)|google_cloud_project)\s*[:=]\s*[\"']?"
+            rb"(?:[0-9]{6,19}|[a-z][a-z0-9-]{4,28}[a-z0-9])\b"
+        ),
+    ),
+)
+_SCAN_OVERLAP = 1024
 _SCAN_CHUNK_BYTES = 64 * 1024
 
 
@@ -63,7 +105,7 @@ def _destination(root: Path, raw_name: str) -> Path:
     return target
 
 
-def _scan_forbidden_credential_material(source, member_name: str) -> None:
+def _scan_forbidden_release_material(source, member_name: str) -> None:
     carry = b""
     while True:
         chunk = source.read(_SCAN_CHUNK_BYTES)
@@ -75,6 +117,9 @@ def _scan_forbidden_credential_material(source, member_name: str) -> None:
         for pattern_name, pattern in _CREDENTIAL_PATTERNS:
             if pattern.search(window):
                 raise ValueError(f"credential material ({pattern_name}) in archive member: {member_name}")
+        for pattern_name, pattern in _PRIVATE_CLOUD_PATTERNS:
+            if pattern.search(window):
+                raise ValueError(f"private cloud topology ({pattern_name}) in archive member: {member_name}")
         carry = window[-_SCAN_OVERLAP:]
 
 
@@ -99,7 +144,7 @@ def _extract_tar(archive: Path, root: Path) -> None:
             if source is None:
                 raise ValueError(f"unreadable tar member: {member.name}")
             with source:
-                _scan_forbidden_credential_material(source, member.name)
+                _scan_forbidden_release_material(source, member.name)
 
         for member in members:
             target = _destination(root, member.name)
@@ -131,7 +176,7 @@ def _extract_zip(archive: Path, root: Path) -> None:
             if info.is_dir():
                 continue
             with zf.open(info, "r") as source:
-                _scan_forbidden_credential_material(source, info.filename)
+                _scan_forbidden_release_material(source, info.filename)
 
         for info in infos:
             target = _destination(root, info.filename)
