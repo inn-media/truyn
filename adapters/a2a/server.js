@@ -45,7 +45,7 @@ function beginSse(res) {
 }
 
 function writeSse(res, body, { event = null } = {}) {
-  if (res.writableEnded) return;
+  if (res.writableEnded || res.destroyed) return;
   if (event) res.write(`event: ${event}\n`);
   res.write(`data: ${JSON.stringify(body)}\n\n`);
 }
@@ -85,6 +85,28 @@ function normalizeRpcPath(value) {
 
 function delay(ms) {
   return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
+}
+
+function delayWithSignal(ms, signal) {
+  if (!signal) return delay(ms);
+  if (signal.aborted || ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer = null;
+    function finish() {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }
+    function onAbort() {
+      finish();
+    }
+    timer = setTimeout(finish, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) finish();
+  });
 }
 
 function requestId(body) {
@@ -493,31 +515,41 @@ export function createA2aServer({
     return store.snapshot(task);
   }
 
-  async function* streamTask(task, { cursor = 0 } = {}) {
+  async function* streamTask(task, { cursor = 0, signal = null } = {}) {
+    if (signal?.aborted) return;
     yield { task: store.snapshot(task) };
-    if (store.isTerminal(task)) return;
+    if (signal?.aborted || store.isTerminal(task)) return;
     const deadline = Date.now() + maxBlockingWaitMs;
     let nextCursor = cursor;
     while (!store.isTerminal(task)) {
+      if (signal?.aborted) return;
       await drainCompactEvents();
+      if (signal?.aborted) return;
       const batch = store.streamEventsSince(task, nextCursor);
       nextCursor = batch.cursor;
-      for (const event of batch.events) yield event;
-      if (store.isTerminal(task)) break;
+      for (const event of batch.events) {
+        if (signal?.aborted) return;
+        yield event;
+      }
+      if (signal?.aborted || store.isTerminal(task)) break;
       if (Date.now() >= deadline) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'Bounded A2A stream timed out before terminal state', 'UNSUPPORTED_OPERATION', { taskId: task.id });
-      await delay(pollIntervalMs);
+      await delayWithSignal(pollIntervalMs, signal);
     }
+    if (signal?.aborted) return;
     const finalBatch = store.streamEventsSince(task, nextCursor);
-    for (const event of finalBatch.events) yield event;
+    for (const event of finalBatch.events) {
+      if (signal?.aborted) return;
+      yield event;
+    }
   }
 
-  async function sendStreamingMessage(params, req) {
+  async function sendStreamingMessage(params, req, { signal = null } = {}) {
     if (!enableStreaming) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'SendStreamingMessage is not enabled', 'UNSUPPORTED_OPERATION');
     const created = await createTaskFromRequest(params, req, { compact: true });
-    return streamTask(created.task);
+    return streamTask(created.task, { signal });
   }
 
-  async function subscribeToTask(params, req) {
+  async function subscribeToTask(params, req, { signal = null } = {}) {
     if (!enableStreaming) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'SubscribeToTask is not enabled', 'UNSUPPORTED_OPERATION');
     if (!isObject(params) || typeof params.id !== 'string' || params.id.length === 0) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
     const { ownerKey } = await requestAuth(req);
@@ -525,7 +557,7 @@ export function createA2aServer({
     const task = store.getAccessible(params.id, ownerKey, { allowAnonymous: allowAnonymousTaskAccess });
     if (!task) throw a2aError(TASK_NOT_FOUND_ERROR_CODE, 'Task not found', 'TASK_NOT_FOUND', { taskId: params.id });
     if (store.isTerminal(task)) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'Terminal tasks cannot be resubscribed', 'UNSUPPORTED_OPERATION', { taskId: params.id });
-    return streamTask(task, { cursor: task.streamEvents.length });
+    return streamTask(task, { cursor: task.streamEvents.length, signal });
   }
 
   function requirePushEnabled() {
@@ -584,7 +616,7 @@ export function createA2aServer({
     return agentCard(principal, req, { extended: true });
   }
 
-  async function dispatchRpc(body, req) {
+  async function dispatchRpc(body, req, { streamSignal = null } = {}) {
     if (!isObject(body) || body.jsonrpc !== '2.0' || typeof body.method !== 'string' || body.method.length === 0) throw a2aError(-32600, 'Invalid Request', 'INVALID_REQUEST');
     const version = String(req.headers['a2a-version'] || '').trim();
     if (version !== A2A_PROTOCOL_VERSION) {
@@ -593,8 +625,8 @@ export function createA2aServer({
       });
     }
     if (body.method === 'SendMessage') return sendMessage(body.params || {}, req);
-    if (body.method === 'SendStreamingMessage') return sendStreamingMessage(body.params || {}, req);
-    if (body.method === 'SubscribeToTask') return subscribeToTask(body.params || {}, req);
+    if (body.method === 'SendStreamingMessage') return sendStreamingMessage(body.params || {}, req, { signal: streamSignal });
+    if (body.method === 'SubscribeToTask') return subscribeToTask(body.params || {}, req, { signal: streamSignal });
     if (body.method === 'GetTask') return getTask(body.params || {}, req);
     if (body.method === 'CancelTask') return cancelTask(body.params || {}, req);
     if (body.method === 'CreateTaskPushNotificationConfig') return createPushConfig(body.params || {}, req);
@@ -618,19 +650,40 @@ export function createA2aServer({
           throw a2aError(-32600, 'A2A JSON-RPC requires application/json', 'INVALID_REQUEST');
         }
         body = await readJson(req, maxBodyBytes);
-        const result = await dispatchRpc(body, req);
-        if (isAsyncIterable(result)) {
-          beginSse(res);
-          try {
-            for await (const event of result) writeSse(res, { jsonrpc: '2.0', id: requestId(body), result: event });
-          } catch (error) {
-            writeSse(res, errorResponse(requestId(body), error), { event: 'error' });
-          } finally {
-            if (!res.writableEnded) res.end();
-          }
-          return;
+        const isStreamingMethod = body?.method === 'SendStreamingMessage' || body?.method === 'SubscribeToTask';
+        const streamAbortController = isStreamingMethod ? new AbortController() : null;
+        const onStreamClose = streamAbortController
+          ? () => {
+              if (!res.writableEnded) streamAbortController.abort();
+            }
+          : null;
+        if (onStreamClose) {
+          res.once('close', onStreamClose);
+          if (res.destroyed) streamAbortController.abort();
         }
-        return sendJson(res, 200, { jsonrpc: '2.0', id: requestId(body), result });
+        try {
+          const result = await dispatchRpc(body, req, { streamSignal: streamAbortController?.signal || null });
+          if (isAsyncIterable(result)) {
+            beginSse(res);
+            try {
+              for await (const event of result) {
+                if (streamAbortController?.signal.aborted || res.destroyed) break;
+                writeSse(res, { jsonrpc: '2.0', id: requestId(body), result: event });
+              }
+            } catch (error) {
+              if (!streamAbortController?.signal.aborted && !res.destroyed) {
+                writeSse(res, errorResponse(requestId(body), error), { event: 'error' });
+              }
+            } finally {
+              if (!res.writableEnded && !res.destroyed) res.end();
+            }
+            return;
+          }
+          return sendJson(res, 200, { jsonrpc: '2.0', id: requestId(body), result });
+        } finally {
+          if (onStreamClose) res.off('close', onStreamClose);
+          if (streamAbortController && !streamAbortController.signal.aborted) streamAbortController.abort();
+        }
       }
       return sendJson(res, 404, { ok: false, error: 'not_found' });
     } catch (error) {
