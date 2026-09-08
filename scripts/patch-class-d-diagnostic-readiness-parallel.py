@@ -95,12 +95,12 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
           :
         fi
         probe_rc="$(marker "$recovered" READINESS_PROBE_RC)"
+        if readiness_markers_present "$recovered"; then break; fi
         if [[ -n "$probe_rc" && "$probe_rc" != 0 ]]; then
-          echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_probe_failed host=$i rc=$probe_rc" >&2
+          echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_probe_failed_without_complete_observation host=$i rc=$probe_rc" >&2
           rm -rf "$readiness_dir"
           false
         fi
-        if readiness_markers_present "$recovered"; then break; fi
         [[ "$attempt" == "$readiness_collection_attempts" ]] || sleep 1
       done
     fi
@@ -148,7 +148,9 @@ if 'READINESS_PROBE_RC=' not in readiness_block:
     raise SystemExit('readiness barrier must persist guest probe exit status')
 if 'readiness_collection_attempts=4' not in readiness_block:
     raise SystemExit('readiness observation recovery must stay bounded')
-if 'readiness_probe_failed host=$i rc=$probe_rc' not in readiness_block:
-    raise SystemExit('readiness observation recovery must distinguish probe failure from missing publication')
+if 'readiness_probe_failed_without_complete_observation host=$i rc=$probe_rc' not in readiness_block:
+    raise SystemExit('readiness observation recovery must distinguish incomplete probe failure from a complete failed observation')
+if readiness_block.index('if readiness_markers_present "$recovered"; then break; fi') > readiness_block.index('readiness_probe_failed_without_complete_observation'):
+    raise SystemExit('complete persisted observations must be preserved before probe rc is interpreted')
 
 path.write_text(text)

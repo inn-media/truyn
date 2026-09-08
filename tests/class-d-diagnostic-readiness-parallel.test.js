@@ -42,8 +42,8 @@ test('D-200 diagnostic patch fans readiness probes out, requires every host, and
 
   assert.ok(block.includes('readiness_result_file=/tmp/truyn-d200-readiness-result'), 'expected fixed per-VM observation path');
   assert.ok(block.includes('result_tmp=\\"\\${result_file}.tmp\\"'), 'expected temporary observation file');
-  assert.ok(block.includes('} | tee \\"\\$result_tmp\\"'), 'expected successful measurement output to be persisted');
-  assert.ok(block.includes('mv \\"\\$result_tmp\\" \\"\\$result_file\\"'), 'expected atomic publication after successful measurement');
+  assert.ok(block.includes('} | tee \\"\\$result_tmp\\"'), 'expected measurement output to be persisted');
+  assert.ok(block.includes('mv \\"\\$result_tmp\\" \\"\\$result_file\\"'), 'expected atomic publication after measurement');
   assert.ok(block.includes('readiness_markers_present()'), 'expected mandatory marker validation');
   assert.ok(block.includes(recoveryLine), 'expected read-only persisted-observation recovery');
   assert.ok(block.includes('readiness_observation_missing host=$i'), 'expected explicit fail-closed missing observation marker');
@@ -58,6 +58,10 @@ test('D-200 diagnostic patch fans readiness probes out, requires every host, and
   assert.equal(recoveryBlock.includes('deadline='), false, 'recovery must not create a second readiness window');
   assert.equal(recoveryBlock.includes('sleep 2'), false, 'recovery must not poll readiness again');
   assert.equal(recoveryBlock.includes('${script}'), false, 'recovery must not replay the readiness measurement body');
+  const completeObservationIndex = recoveryBlock.indexOf('if readiness_markers_present "$recovered"; then break; fi');
+  const failedWithoutObservationIndex = recoveryBlock.indexOf('readiness_probe_failed_without_complete_observation');
+  assert.ok(completeObservationIndex >= 0, 'complete persisted observations must be recognized');
+  assert.ok(failedWithoutObservationIndex > completeObservationIndex, 'complete failed observations must be preserved before probe rc is interpreted');
 
   assert.ok(block.includes('deadline=\\$((\\$(date +%s) + 120))'), 'readiness deadline must remain 120 seconds');
   assert.equal(block.split('deadline=\\$((\\$(date +%s) + 120))').length - 1, 1, 'there must be exactly one 120-second readiness window');
