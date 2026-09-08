@@ -1,13 +1,16 @@
 import http from 'node:http';
 import { A2A_PROTOCOL_VERSION, A2A_TASK_STATES, a2aError, a2aErrorData, mapA2aMessageToTruynInput, normalizeA2aMessage, normalizeA2aSkill, projectA2aSkill } from './mapping.js';
 import { A2aTaskStore } from './task-store.js';
+import { A2aPushNotificationStore } from './push-notification-store.js';
 
 const DEFAULT_MAX_BODY_BYTES = 256 * 1024;
 const DEFAULT_BLOCKING_WAIT_MS = 120_000;
 const DEFAULT_POLL_INTERVAL_MS = 25;
+const DEFAULT_PUSH_DELIVERY_TIMEOUT_MS = 5_000;
 const AUTHENTICATION_ERROR_CODE = -32000;
 const TASK_NOT_FOUND_ERROR_CODE = -32001;
 const TASK_NOT_CANCELABLE_ERROR_CODE = -32002;
+const PUSH_NOTIFICATION_NOT_SUPPORTED_ERROR_CODE = -32003;
 const UNSUPPORTED_OPERATION_ERROR_CODE = -32004;
 
 function isObject(value) {
@@ -170,7 +173,11 @@ export function createA2aServer({
   taskTtlMs = 60 * 60 * 1000,
   allowAnonymousTaskAccess = false,
   enableStreaming = false,
-  enableCancellation = false
+  enableCancellation = false,
+  enablePushNotifications = false,
+  deliverPushNotification = null,
+  maxPushConfigsPerTask = 8,
+  pushDeliveryTimeoutMs = DEFAULT_PUSH_DELIVERY_TIMEOUT_MS
 } = {}) {
   if (!node) throw new Error('node is required');
   const normalizedAgent = normalizeAgent(agent);
@@ -189,9 +196,15 @@ export function createA2aServer({
   if (!Number.isInteger(pollIntervalMs) || pollIntervalMs < 0) throw new Error('A2A pollIntervalMs must be a non-negative integer');
   if (typeof enableStreaming !== 'boolean') throw new Error('A2A enableStreaming must be boolean');
   if (typeof enableCancellation !== 'boolean') throw new Error('A2A enableCancellation must be boolean');
+  if (typeof enablePushNotifications !== 'boolean') throw new Error('A2A enablePushNotifications must be boolean');
+  if (deliverPushNotification !== null && deliverPushNotification !== undefined && typeof deliverPushNotification !== 'function') throw new Error('A2A deliverPushNotification must be a function');
+  if (enablePushNotifications && typeof deliverPushNotification !== 'function') throw new Error('A2A push notifications require an explicit deliverPushNotification hook');
+  if (!Number.isInteger(pushDeliveryTimeoutMs) || pushDeliveryTimeoutMs < 1) throw new Error('A2A pushDeliveryTimeoutMs must be a positive integer');
 
   const normalizedRpcPath = normalizeRpcPath(rpcPath);
   const store = new A2aTaskStore({ maxTasks, taskTtlMs });
+  const pushStore = new A2aPushNotificationStore({ maxConfigsPerTask: maxPushConfigsPerTask });
+  const pushCursorByTaskId = new Map();
   let registered = false;
   let registerPromise = null;
   let pollTail = Promise.resolve();
@@ -217,6 +230,11 @@ export function createA2aServer({
         cause: cause?.message || 'authentication_failed'
       });
     }
+  }
+
+  async function requestAuth(req) {
+    const principal = await authenticateRequest(req);
+    return { principal, ownerKey: stablePrincipalKey(principal, principalKey) };
   }
 
   async function skillAuthorized(skill, principal, req, operation) {
@@ -245,9 +263,7 @@ export function createA2aServer({
     const offers = await discoverSkillOffers(skill);
     const dispatchableOffers = offers.filter((offer) => !isOwnOffer(offer));
     if (dispatchableOffers.length === 0) return false;
-    if (skill.visibility === 'public') {
-      return dispatchableOffers.every((offer) => offerAccessMode(offer) === 'public');
-    }
+    if (skill.visibility === 'public') return dispatchableOffers.every((offer) => offerAccessMode(offer) === 'public');
     return true;
   }
 
@@ -273,28 +289,62 @@ export function createA2aServer({
       ...normalizedAgent,
       capabilities: {
         streaming: enableStreaming,
-        pushNotifications: false,
+        pushNotifications: enablePushNotifications,
         extendedAgentCard: hasExtended
       },
       defaultInputModes: aggregateModes(allowed, 'inputModes', ['text/plain', 'application/json']),
       defaultOutputModes: aggregateModes(allowed, 'outputModes', ['text/plain', 'application/json']),
       skills: allowed.map(projectA2aSkill),
-      supportedInterfaces: [{
-        url: rpcUrl(),
-        protocolBinding: 'JSONRPC',
-        protocolVersion: A2A_PROTOCOL_VERSION
-      }]
+      supportedInterfaces: [{ url: rpcUrl(), protocolBinding: 'JSONRPC', protocolVersion: A2A_PROTOCOL_VERSION }]
     };
     if (securitySchemes && isObject(securitySchemes)) card.securitySchemes = structuredClone(securitySchemes);
     if (Array.isArray(security)) card.security = structuredClone(security);
     return card;
   }
 
+  async function deliverWithTimeout(payload) {
+    let timer;
+    try {
+      await Promise.race([
+        Promise.resolve(deliverPushNotification(payload)),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('A2A push delivery timed out')), pushDeliveryTimeoutMs); })
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  async function deliverPendingPushEvents(task) {
+    if (!enablePushNotifications || !task) return;
+    const from = pushCursorByTaskId.get(task.id) || 0;
+    const batch = store.streamEventsSince(task, from);
+    pushCursorByTaskId.set(task.id, batch.cursor);
+    if (batch.events.length === 0) return;
+    const configs = pushStore.list(task, task.ownerKey);
+    if (configs.length === 0) return;
+    for (const event of batch.events) {
+      for (const config of configs) {
+        try {
+          await deliverWithTimeout({
+            config: structuredClone(config),
+            event: structuredClone(event),
+            task: store.snapshot(task)
+          });
+        } catch {
+          // Delivery is deliberately non-authoritative: callback failure must not change TRUYN/A2A task state.
+        }
+      }
+    }
+  }
+
   async function drainTruynEvents() {
     const run = pollTail.then(async () => {
       await ensureRegistered();
       const polled = await node.poll();
-      for (const event of polled.events || []) store.completeFromTruynEvent(event);
+      for (const event of polled.events || []) {
+        const task = store.completeFromTruynEvent(event);
+        await deliverPendingPushEvents(task);
+      }
       return polled;
     });
     pollTail = run.catch(() => {});
@@ -305,7 +355,10 @@ export function createA2aServer({
     const run = compactPollTail.then(async () => {
       await ensureRegistered();
       const polled = await node.pollCompact({ waitMs: 0 });
-      for (const event of polled.events || []) store.recordCompactEvent(event);
+      for (const event of polled.events || []) {
+        const task = store.recordCompactEvent(event);
+        await deliverPendingPushEvents(task);
+      }
       return polled;
     });
     compactPollTail = run.catch(() => {});
@@ -343,11 +396,11 @@ export function createA2aServer({
     return matched;
   }
 
-  async function createTaskFromRequest(params, req, { compact = false } = {}) {
+  async function createTaskFromRequest(params, req, { compact = false, auth = null } = {}) {
     if (!isObject(params)) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
     const message = normalizeA2aMessage(params.message);
-    const principal = await authenticateRequest(req);
-    const ownerKey = stablePrincipalKey(principal, principalKey);
+    const resolvedAuth = auth || await requestAuth(req);
+    const { principal, ownerKey } = resolvedAuth;
 
     if (message.taskId) {
       const existing = store.getAccessible(message.taskId, ownerKey, { allowAnonymous: allowAnonymousTaskAccess });
@@ -361,13 +414,21 @@ export function createA2aServer({
     }
 
     const task = store.create({ ownerKey, contextId: message.contextId || null, message, skill });
+    if (params.configuration?.taskPushNotificationConfig !== undefined) {
+      if (!enablePushNotifications) throw a2aError(PUSH_NOTIFICATION_NOT_SUPPORTED_ERROR_CODE, 'Push notifications are not enabled', 'PUSH_NOTIFICATION_NOT_SUPPORTED');
+      try {
+        pushStore.create(task, ownerKey, params.configuration.taskPushNotificationConfig, { tenant: '' });
+        pushCursorByTaskId.set(task.id, task.streamEvents.length);
+      } catch (error) {
+        store.delete(task.id, { forgetCorrelation: true });
+        throw a2aError(-32602, 'Invalid task push notification configuration', 'INVALID_PARAMS', { cause: error.message });
+      }
+    }
+
     const input = await mapA2aMessageToTruynInput(skill, message, { principal, taskId: task.id, contextId: task.contextId });
     const policyFromHook = buildPolicy ? await buildPolicy({ principal, skill, message: structuredClone(message), task: store.snapshot(task) }) : {};
     if (!isObject(policyFromHook)) throw new Error('A2A buildPolicy must return an object');
-    const policy = {
-      ...structuredClone(policyFromHook),
-      ...resultMetadataPolicy(task, message, skill)
-    };
+    const policy = { ...structuredClone(policyFromHook), ...resultMetadataPolicy(task, message, skill) };
 
     try {
       await ensureRegistered();
@@ -381,29 +442,26 @@ export function createA2aServer({
       });
     } catch (error) {
       store.reject(task.id, error?.body?.error || error.message || 'TRUYN dispatch rejected');
+      await deliverPendingPushEvents(task);
     }
     return { task, principal, ownerKey, skill, message };
   }
 
   async function sendMessage(params, req) {
     const returnImmediately = Boolean(params?.configuration?.returnImmediately);
-    const principal = await authenticateRequest(req);
-    const ownerKey = stablePrincipalKey(principal, principalKey);
-    if (returnImmediately && ownerKey === null && !allowAnonymousTaskAccess) {
+    const auth = await requestAuth(req);
+    if (returnImmediately && auth.ownerKey === null && !allowAnonymousTaskAccess) {
       throw a2aError(-32602, 'Anonymous non-blocking tasks are disabled because they cannot be securely polled', 'INVALID_PARAMS');
     }
-    const created = await createTaskFromRequest(params, req, { compact: false });
+    const created = await createTaskFromRequest(params, req, { compact: false, auth });
     if (!returnImmediately && !store.isTerminal(created.task)) await waitForTerminal(created.task);
     return { task: store.snapshot(created.task) };
   }
 
   async function getTask(params, req) {
     if (!isObject(params) || typeof params.id !== 'string' || params.id.length === 0) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
-    if (params.historyLength !== undefined && (!Number.isInteger(params.historyLength) || params.historyLength < 0)) {
-      throw a2aError(-32602, 'Invalid historyLength', 'INVALID_PARAMS');
-    }
-    const principal = await authenticateRequest(req);
-    const ownerKey = stablePrincipalKey(principal, principalKey);
+    if (params.historyLength !== undefined && (!Number.isInteger(params.historyLength) || params.historyLength < 0)) throw a2aError(-32602, 'Invalid historyLength', 'INVALID_PARAMS');
+    const { ownerKey } = await requestAuth(req);
     await Promise.all([drainTruynEvents(), drainCompactEvents()]);
     const task = store.getAccessible(params.id, ownerKey, { allowAnonymous: allowAnonymousTaskAccess });
     if (!task) throw a2aError(TASK_NOT_FOUND_ERROR_CODE, 'Task not found', 'TASK_NOT_FOUND', { taskId: params.id });
@@ -413,15 +471,12 @@ export function createA2aServer({
   async function cancelTask(params, req) {
     if (!enableCancellation) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'CancelTask is not enabled', 'UNSUPPORTED_OPERATION');
     if (!isObject(params) || typeof params.id !== 'string' || params.id.length === 0) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
-    const principal = await authenticateRequest(req);
-    const ownerKey = stablePrincipalKey(principal, principalKey);
+    const { ownerKey } = await requestAuth(req);
     await Promise.all([drainTruynEvents(), drainCompactEvents()]);
     const task = store.getAccessible(params.id, ownerKey, { allowAnonymous: allowAnonymousTaskAccess });
     if (!task) throw a2aError(TASK_NOT_FOUND_ERROR_CODE, 'Task not found', 'TASK_NOT_FOUND', { taskId: params.id });
     if (task.status.state === A2A_TASK_STATES.canceled) return store.snapshot(task);
-    if (store.isTerminal(task)) {
-      throw a2aError(TASK_NOT_CANCELABLE_ERROR_CODE, 'Task is already terminal and cannot be canceled', 'TASK_NOT_CANCELABLE', { taskId: params.id });
-    }
+    if (store.isTerminal(task)) throw a2aError(TASK_NOT_CANCELABLE_ERROR_CODE, 'Task is already terminal and cannot be canceled', 'TASK_NOT_CANCELABLE', { taskId: params.id });
     if (!task.truynRequestId) throw a2aError(TASK_NOT_CANCELABLE_ERROR_CODE, 'Task has no active TRUYN request', 'TASK_NOT_CANCELABLE', { taskId: params.id });
 
     try {
@@ -429,13 +484,12 @@ export function createA2aServer({
     } catch (error) {
       if (error?.status === 409) {
         await Promise.all([drainTruynEvents(), drainCompactEvents()]);
-        if (store.isTerminal(task)) {
-          throw a2aError(TASK_NOT_CANCELABLE_ERROR_CODE, 'Task became terminal before cancellation', 'TASK_NOT_CANCELABLE', { taskId: params.id });
-        }
+        if (store.isTerminal(task)) throw a2aError(TASK_NOT_CANCELABLE_ERROR_CODE, 'Task became terminal before cancellation', 'TASK_NOT_CANCELABLE', { taskId: params.id });
       }
       throw error;
     }
     store.cancel(task.id, 'Task canceled by A2A requester');
+    await deliverPendingPushEvents(task);
     return store.snapshot(task);
   }
 
@@ -450,9 +504,7 @@ export function createA2aServer({
       nextCursor = batch.cursor;
       for (const event of batch.events) yield event;
       if (store.isTerminal(task)) break;
-      if (Date.now() >= deadline) {
-        throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'Bounded A2A stream timed out before terminal state', 'UNSUPPORTED_OPERATION', { taskId: task.id });
-      }
+      if (Date.now() >= deadline) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'Bounded A2A stream timed out before terminal state', 'UNSUPPORTED_OPERATION', { taskId: task.id });
       await delay(pollIntervalMs);
     }
     const finalBatch = store.streamEventsSince(task, nextCursor);
@@ -468,13 +520,61 @@ export function createA2aServer({
   async function subscribeToTask(params, req) {
     if (!enableStreaming) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'SubscribeToTask is not enabled', 'UNSUPPORTED_OPERATION');
     if (!isObject(params) || typeof params.id !== 'string' || params.id.length === 0) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
-    const principal = await authenticateRequest(req);
-    const ownerKey = stablePrincipalKey(principal, principalKey);
+    const { ownerKey } = await requestAuth(req);
     await drainCompactEvents();
     const task = store.getAccessible(params.id, ownerKey, { allowAnonymous: allowAnonymousTaskAccess });
     if (!task) throw a2aError(TASK_NOT_FOUND_ERROR_CODE, 'Task not found', 'TASK_NOT_FOUND', { taskId: params.id });
     if (store.isTerminal(task)) throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, 'Terminal tasks cannot be resubscribed', 'UNSUPPORTED_OPERATION', { taskId: params.id });
     return streamTask(task, { cursor: task.streamEvents.length });
+  }
+
+  function requirePushEnabled() {
+    if (!enablePushNotifications) throw a2aError(PUSH_NOTIFICATION_NOT_SUPPORTED_ERROR_CODE, 'Push notifications are not enabled', 'PUSH_NOTIFICATION_NOT_SUPPORTED');
+  }
+
+  async function accessiblePushTask(taskId, req) {
+    if (typeof taskId !== 'string' || taskId.length === 0) throw a2aError(-32602, 'Invalid taskId', 'INVALID_PARAMS');
+    const { ownerKey } = await requestAuth(req);
+    const task = store.getAccessible(taskId, ownerKey, { allowAnonymous: allowAnonymousTaskAccess });
+    if (!task) throw a2aError(TASK_NOT_FOUND_ERROR_CODE, 'Task not found', 'TASK_NOT_FOUND', { taskId });
+    return { task, ownerKey };
+  }
+
+  async function createPushConfig(params, req) {
+    requirePushEnabled();
+    if (!isObject(params)) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
+    const { task, ownerKey } = await accessiblePushTask(params.taskId, req);
+    try {
+      const created = pushStore.create(task, ownerKey, params, { tenant: typeof params.tenant === 'string' ? params.tenant : '' });
+      pushCursorByTaskId.set(task.id, task.streamEvents.length);
+      return created;
+    } catch (error) {
+      throw a2aError(-32602, 'Invalid push notification configuration', 'INVALID_PARAMS', { cause: error.message });
+    }
+  }
+
+  async function getPushConfig(params, req) {
+    requirePushEnabled();
+    if (!isObject(params) || typeof params.id !== 'string' || !params.id) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
+    const { task, ownerKey } = await accessiblePushTask(params.taskId, req);
+    const config = pushStore.get(task, ownerKey, params.id);
+    if (!config) throw a2aError(TASK_NOT_FOUND_ERROR_CODE, 'Push notification configuration not found', 'TASK_NOT_FOUND', { taskId: task.id });
+    return config;
+  }
+
+  async function listPushConfigs(params, req) {
+    requirePushEnabled();
+    if (!isObject(params)) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
+    const { task, ownerKey } = await accessiblePushTask(params.taskId, req);
+    return { configs: pushStore.list(task, ownerKey) };
+  }
+
+  async function deletePushConfig(params, req) {
+    requirePushEnabled();
+    if (!isObject(params) || typeof params.id !== 'string' || !params.id) throw a2aError(-32602, 'Invalid parameters', 'INVALID_PARAMS');
+    const { task, ownerKey } = await accessiblePushTask(params.taskId, req);
+    if (!pushStore.delete(task, ownerKey, params.id)) throw a2aError(TASK_NOT_FOUND_ERROR_CODE, 'Push notification configuration not found', 'TASK_NOT_FOUND', { taskId: task.id });
+    return {};
   }
 
   async function getExtendedAgentCard(_params, req) {
@@ -485,14 +585,11 @@ export function createA2aServer({
   }
 
   async function dispatchRpc(body, req) {
-    if (!isObject(body) || body.jsonrpc !== '2.0' || typeof body.method !== 'string' || body.method.length === 0) {
-      throw a2aError(-32600, 'Invalid Request', 'INVALID_REQUEST');
-    }
+    if (!isObject(body) || body.jsonrpc !== '2.0' || typeof body.method !== 'string' || body.method.length === 0) throw a2aError(-32600, 'Invalid Request', 'INVALID_REQUEST');
     const version = String(req.headers['a2a-version'] || '').trim();
     if (version !== A2A_PROTOCOL_VERSION) {
       throw a2aError(-32009, `A2A version ${version || '0.3'} is not supported by this interface`, 'VERSION_NOT_SUPPORTED', {
-        requestedVersion: version || '0.3',
-        supportedVersion: A2A_PROTOCOL_VERSION
+        requestedVersion: version || '0.3', supportedVersion: A2A_PROTOCOL_VERSION
       });
     }
     if (body.method === 'SendMessage') return sendMessage(body.params || {}, req);
@@ -500,10 +597,11 @@ export function createA2aServer({
     if (body.method === 'SubscribeToTask') return subscribeToTask(body.params || {}, req);
     if (body.method === 'GetTask') return getTask(body.params || {}, req);
     if (body.method === 'CancelTask') return cancelTask(body.params || {}, req);
+    if (body.method === 'CreateTaskPushNotificationConfig') return createPushConfig(body.params || {}, req);
+    if (body.method === 'GetTaskPushNotificationConfig') return getPushConfig(body.params || {}, req);
+    if (body.method === 'ListTaskPushNotificationConfigs') return listPushConfigs(body.params || {}, req);
+    if (body.method === 'DeleteTaskPushNotificationConfig') return deletePushConfig(body.params || {}, req);
     if (body.method === 'GetExtendedAgentCard') return getExtendedAgentCard(body.params || {}, req);
-    if (['CreateTaskPushNotificationConfig', 'GetTaskPushNotificationConfig', 'ListTaskPushNotificationConfigs', 'DeleteTaskPushNotificationConfig'].includes(body.method)) {
-      throw a2aError(UNSUPPORTED_OPERATION_ERROR_CODE, `${body.method} is not supported by this lifecycle slice`, 'UNSUPPORTED_OPERATION');
-    }
     throw a2aError(-32601, 'Method not found', 'METHOD_NOT_FOUND');
   }
 
@@ -512,9 +610,7 @@ export function createA2aServer({
     try {
       const url = new URL(req.url, 'http://a2a.local');
       if (req.method === 'GET' && url.pathname === '/health') return sendJson(res, 200, { ok: true, protocol: 'A2A/1.0' });
-      if (req.method === 'GET' && url.pathname === '/.well-known/agent-card.json') {
-        return sendJson(res, 200, await agentCard(null, req, { extended: false }), { vary: 'A2A-Version, Authorization' });
-      }
+      if (req.method === 'GET' && url.pathname === '/.well-known/agent-card.json') return sendJson(res, 200, await agentCard(null, req, { extended: false }), { vary: 'A2A-Version, Authorization' });
       if (req.method === 'POST' && url.pathname === normalizedRpcPath) {
         const contentType = String(req.headers['content-type'] || '').toLowerCase();
         if (!contentType.startsWith('application/json')) {
@@ -526,9 +622,7 @@ export function createA2aServer({
         if (isAsyncIterable(result)) {
           beginSse(res);
           try {
-            for await (const event of result) {
-              writeSse(res, { jsonrpc: '2.0', id: requestId(body), result: event });
-            }
+            for await (const event of result) writeSse(res, { jsonrpc: '2.0', id: requestId(body), result: event });
           } catch (error) {
             writeSse(res, errorResponse(requestId(body), error), { event: 'error' });
           } finally {
@@ -552,6 +646,7 @@ export function createA2aServer({
   return {
     server,
     store,
+    pushStore,
     async publicAgentCard() { return agentCard(null, { headers: {} }, { extended: false }); },
     async listen({ host = '127.0.0.1', port = 8792 } = {}) {
       assertLoopback(host);
