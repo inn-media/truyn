@@ -1,4 +1,4 @@
-name: diag-d200-9c3f6061-peer-lease-repair
+name: diag-d200-bc9dc5f0-readiness-nounset-repair
 
 on:
   push:
@@ -12,21 +12,22 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d200-9c3f6061-peer-lease-repair-single-shot
+  group: truyn-d200-bc9dc5f0-readiness-nounset-repair-single-shot
   cancel-in-progress: false
 
 env:
-  TESTED_COMMIT: 9c3f606124081313946b6ea6e59ff6cac539835e
-  TESTED_TREE_SHA: 207e247ef073def97a5d5c41ff6688038855da1e
-  LAUNCH_PARENT: 9c3f606124081313946b6ea6e59ff6cac539835e
-  EXACT_MAIN_CI_RUN: '34263278221'
-  EXACT_MAIN_CODEQL_RUN: '34263277616'
+  TESTED_COMMIT: bc9dc5f04bb8d530105c80dca582e93672cdcd7f
+  TESTED_TREE_SHA: dc1665a8f03ba616c01ae0e220e3241829479741
+  LAUNCH_PARENT: 6d4d701aec7d5f9d6a3e37c7b495873a2dd4718d
+  EXACT_MAIN_CI_RUN: '34271684037'
+  EXACT_MAIN_CODEQL_RUN: '34271680547'
   CAMPAIGN_BLOB_SHA: 796d9d00dea3807279d8326de0a916a72b487949
   PROVISION_BLOB_SHA: c1c839943f5e02bdc716691d91226251c8e3ec00
   PREFLIGHT_BLOB_SHA: 4c14355e8c66d1eef8959d6151389f05daaed0a1
   READINESS_WINDOW_BLOB_SHA: 6ddfc11bb03d774fb38d4c265fa90867067e871b
   PEER_LEASE_PATCH_BLOB_SHA: 84b7e0211ec7685eeea96947c550831d2db727eb
-  READINESS_EVIDENCE_PATCH_BLOB_SHA: b6b05595499f1dde089e35d8f1c480ed3b3b2316
+  READINESS_EVIDENCE_PATCH_BLOB_SHA: 98f140a122704f2f1f7f01ec7ba1e4dc902a7bc8
+  READINESS_EVIDENCE_TEST_BLOB_SHA: 634e1bfa28445e358b04eeefb795600a07f61383
   BOOTSTRAP_PLANNER_BLOB_SHA: 1dc26bf6cbcdae3b748dcadc6d0728c082240534
   PEER_DISCOVERY_BLOB_SHA: d83b0e6f02f4d6d0ee7a38f633321c75911e5323
   NODE_SERVICE_BLOB_SHA: 3cc7088420dc55e20611351b069cc927433fad8a
@@ -36,7 +37,7 @@ env:
 
 jobs:
   diagnostic-d200:
-    name: Immutable qualified D-200 on 9c3f6061
+    name: Immutable qualified D-200 on bc9dc5f0
     runs-on: ubuntu-22.04
     timeout-minutes: 300
     steps:
@@ -61,6 +62,9 @@ jobs:
           [[ "$(jq -r '.commit.tree.sha' <<<"$t")" == "$TESTED_TREE_SHA" ]]
           jq -e '.commit.message | contains("Signed-off-by:")' <<<"$t" >/dev/null
           jq -e '.commit.verification.verified == true' <<<"$t" >/dev/null
+
+          cmp="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${TESTED_COMMIT}...${LAUNCH_PARENT}")"
+          [[ "$(jq -r '.status' <<<"$cmp")" == ahead || "$(jq -r '.status' <<<"$cmp")" == identical ]]
 
       - uses: actions/checkout@v4
         with:
@@ -92,6 +96,7 @@ jobs:
           [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-readiness-window.py")" == "$READINESS_WINDOW_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-peer-lease-freshness.py")" == "$PEER_LEASE_PATCH_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-readiness-evidence.py")" == "$READINESS_EVIDENCE_PATCH_BLOB_SHA" ]]
+          [[ "$(git rev-parse "${TESTED_COMMIT}:tests/class-d-diagnostic-readiness-evidence.test.js")" == "$READINESS_EVIDENCE_TEST_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:benchmarks/scale/class-d-1000-bootstrap.js")" == "$BOOTSTRAP_PLANNER_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:network/discovery/peer-discovery.js")" == "$PEER_DISCOVERY_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:network/testnet/node-service.js")" == "$NODE_SERVICE_BLOB_SHA" ]]
@@ -102,9 +107,10 @@ jobs:
           jq -e --arg sha "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$sha and .event=="push" and .status=="completed" and .conclusion=="success"' <<<"$ci" >/dev/null
           jq -e --arg sha "$TESTED_COMMIT" '.head_branch=="main" and .head_sha==$sha and .status=="completed" and .conclusion=="success"' <<<"$cq" >/dev/null
 
+          node --test tests/class-d-diagnostic-readiness-evidence.test.js
           bash scripts/class-d-200-preflight-qualification.sh
           git diff --check
-          printf 'tested_commit=%s\ntested_tree_sha=%s\nlauncher_sha=%s\nrun_id=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nacknowledged_write_count_required=100\nacknowledged_write_loss_required=0\nstrict_d1000_acceptance=false\ndiagnostic_focus=peer-lease-freshness-host-stratified-refresh-evidence\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$GITHUB_SHA" "$GITHUB_RUN_ID" > class-d-200-diagnostic-input.txt
+          printf 'tested_commit=%s\ntested_tree_sha=%s\nlauncher_sha=%s\nrun_id=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nacknowledged_write_count_required=100\nacknowledged_write_loss_required=0\nstrict_d1000_acceptance=false\ndiagnostic_focus=readiness-heredoc-nounset-peer-lease-freshness\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$GITHUB_SHA" "$GITHUB_RUN_ID" > class-d-200-diagnostic-input.txt
 
       - name: Build immutable runtime bundle
         id: runtime
@@ -300,7 +306,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d200-9c3f6061-${{ github.run_id }}'
+          name: 'truyn-class-d200-bc9dc5f0-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
