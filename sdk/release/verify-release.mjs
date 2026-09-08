@@ -1,9 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative, resolve, sep } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const root = resolve(process.argv[2] ?? 'sdk/release/dist');
+const safeExtractor = resolve(dirname(fileURLToPath(import.meta.url)), 'safe-extract.py');
 const manifest = JSON.parse(await readFile(resolve(root, 'manifest.json'), 'utf8'));
 if (manifest.schema !== 'truyn.sdk-release/v1') throw new Error('unexpected release manifest schema');
 if (!/^[0-9a-f]{40}$/i.test(manifest.sourceSha)) throw new Error('release source SHA must be exact');
@@ -54,15 +56,14 @@ async function extractEntriesFor(path) {
 
   const temporary = await mkdtemp(join(tmpdir(), 'truyn-sdk-archive-'));
   try {
-    const options = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] };
-    if (path.endsWith('.tgz') || path.endsWith('.tar.gz')) {
-      execFileSync('tar', ['-xzf', full, '-C', temporary, '--no-same-owner', '--no-same-permissions'], options);
-    } else if (path.endsWith('.jar')) {
-      execFileSync('jar', ['xf', full], { ...options, cwd: temporary });
-    } else if (path.endsWith('.whl') || path.endsWith('.nupkg')) {
-      execFileSync('unzip', ['-qq', full, '-d', temporary], options);
-    } else {
-      throw new Error(`unsupported package archive format: ${path}`);
+    try {
+      execFileSync(process.env.PYTHON ?? 'python', [safeExtractor, full, temporary], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+    } catch (error) {
+      const stderr = String(error?.stderr ?? '').trim();
+      throw new Error(`package archive denied: ${path}${stderr ? `: ${stderr}` : ''}`);
     }
     return await listExtractedEntries(temporary);
   } finally {
