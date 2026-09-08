@@ -1,11 +1,11 @@
 # TRUYN SDK and Developer Experience Architecture
 
-**Status:** Developer Release Layer implementation complete in source/build form; native registry publication and public-site activation remain external release gates.  
+**Status:** Developer Release Layer implementation complete in source/build form; npm, PyPI and Go have accepted immutable public releases, while Maven Central, NuGet and public-site activation remain external release gates.  
 **Developer Release PR:** `#399`  
 **Protocol:** `TRUYN/1` draft  
 **Stable SDK API contract:** `1` (separate from protocol stability)
 
-The old “SDK scaffolding only” and “portable payload slice only” descriptions are obsolete. TypeScript/JavaScript, Python, Go, Java and C#/.NET now have implemented first-party Developer Release clients and share one executable conformance path. Package artifacts and provenance are built in ordinary CI. Public registry publication is intentionally not claimed until the applicable registry evidence is complete.
+The old “SDK scaffolding only” and “portable payload slice only” descriptions are obsolete. TypeScript/JavaScript, Python, Go, Java and C#/.NET now have implemented first-party Developer Release clients and share one executable conformance path. Package artifacts and provenance are built in ordinary CI. npm, PyPI and Go have accepted immutable public release evidence; Maven Central and NuGet remain open.
 
 ## Target developer experience
 
@@ -29,14 +29,14 @@ consume references/events/provenance safely
 
 | Language | Repository target | Distribution coordinate | Developer Release state |
 |---|---|---|---|
-| TypeScript / JavaScript | `sdk/typescript/` | npm `@truyn/sdk@0.1.0-alpha.2` | **Implemented client + Descriptor verification + executable conformance; alpha.2 packaging repair candidate** |
-| Python | `sdk/python/` | PyPI `truyn-sdk==0.1.0a1` | **Implemented client + Descriptor verification + executable conformance** |
-| Go | `sdk/go/` | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance** |
-| Java | `sdk/java/` | Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance** |
-| C# / .NET | `sdk/dotnet/` | NuGet `Truyn.Sdk 0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance** |
+| TypeScript / JavaScript | `sdk/typescript/` | npm `@truyn/sdk@0.1.0-alpha.2` | **Implemented client + Descriptor verification + executable conformance; accepted immutable public release** |
+| Python | `sdk/python/` | PyPI `truyn-sdk==0.1.0a1` | **Implemented client + Descriptor verification + executable conformance; accepted immutable public release** |
+| Go | `sdk/go/` | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance; accepted immutable public release** |
+| Java | `sdk/java/` | Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance; Maven Central publication open** |
+| C# / .NET | `sdk/dotnet/` | NuGet `Truyn.Sdk 0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance; NuGet.org publication open** |
 | Rust | `sdk/rust/` | optional | optional secondary track |
 
-The npm `0.1.0-alpha.1` artifact is immutable but superseded for installation: a required clean-room Node 22 ESM import exposed the bundled CommonJS `ws` failure. The repair is therefore a distinct immutable `0.1.0-alpha.2` coordinate. Python, Go, Java and .NET retain their existing alpha-family coordinates. `publicDistribution` remains evidence-gated until each applicable native location is actually observed and bound to accepted release evidence.
+The npm `0.1.0-alpha.1` artifact is immutable but superseded for installation: a required clean-room Node 22 ESM import exposed the bundled CommonJS `ws` failure. The repair is therefore the distinct immutable `0.1.0-alpha.2` coordinate, which is now accepted as a public release with registry byte identity, provenance/signature evidence and independent clean-room verification. Python and Go are also accepted public alphas. Java/Maven Central and .NET/NuGet retain their existing alpha-family coordinates and remain open publication gates.
 
 ## Common Developer Release contract
 
@@ -194,15 +194,13 @@ Ordinary CI builds and verifies consumer distributions for all required ecosyste
 - byte size;
 - SHA-256 digest.
 
-Release verification also checks LICENSE/NOTICE and forbidden-content boundaries. CI uploads the release bundle as workflow evidence for the run. For the TypeScript repair, ordinary CI also installs the packed npm tarball in a clean project and imports the public client exports, so package importability is a normal acceptance gate rather than only a post-publication check.
+Release verification also checks LICENSE/NOTICE and forbidden-content boundaries. CI uploads the release bundle as workflow evidence for the run. For TypeScript, ordinary CI also installs the packed npm tarball in a clean project and imports the public client exports, so package importability is a normal acceptance gate rather than only a post-publication check.
 
 ### Publication boundary
 
-Native public registry publication is **not performed by ordinary CI**. For the npm alpha.2 repair, the temporary tag-only release workflow consumes the exact successful main-CI package artifact for the same immutable source SHA, requires hosted CodeQL success on that SHA, publishes only the new coordinate, repairs both `alpha` and default `latest` tags, verifies registry byte identity, checks the npm provenance statement against repository/workflow/tag/source identity, runs signature audit and clean-room import, and archives structured evidence. PyPI remains verification-only in that repair flow.
+Native public registry publication is **not performed by ordinary CI**. npm alpha.2 is already accepted as an immutable public release: its public registry bytes match the accepted artifact, provenance/signature evidence is recorded, and an independent clean-room Node 22 ESM install/import passed. Permanent evidence is `sdk/release/evidence/npm-alpha2-2026-09-05.json`.
 
-The broken immutable npm alpha.1 artifact is historical evidence and is never overwritten.
-
-Do not add a permissive publication workflow or weaken the public-workflow allowlist to simulate completion.
+The broken immutable npm alpha.1 artifact is historical evidence and is never overwritten. Maven Central and NuGet remain separate open native-publication gates. Do not add a permissive publication workflow or weaken the public-workflow allowlist to simulate completion.
 
 ## Stable compatibility and migration policy
 
@@ -249,7 +247,11 @@ A source tree being Pages-ready is not the same as a live deployment. Public sit
 - [x] package builds + exact source/digest release provenance;
 - [x] stable compatibility/deprecation/migration policy;
 - [x] bounded Agent Descriptor serving + five-language fetch/verify/negotiation lifecycle;
-- [ ] immutable public npm alpha.2 repair evidence and remaining native registry publication evidence;
+- [x] immutable public npm alpha.2 publication/evidence;
+- [ ] Maven Central publication evidence;
+- [ ] NuGet.org publication evidence;
+- [ ] archive-member byte-content leakage scanning;
+- [ ] automatic Descriptor refresh/re-signing and complete endpoint parity;
 - [ ] live public developer-site activation/liveness proof after merge/settings activation.
 
 ### Optional / post-Developer-Release
@@ -258,6 +260,6 @@ A source tree being Pages-ready is not the same as a live deployment. Public sit
 - [ ] chain-stage cancellation only if/when a separate bounded protocol contract is defined and proven;
 - [ ] delegated Descriptor-signing key/revocation profile only after portable proof and conformance exists.
 
-Therefore: **DX-3 runtime/API core is closed; the Developer Release implementation is source/build complete, while public distribution and live-site activation remain evidence-gated release operations rather than code-completeness claims.**
+Therefore: **DX-3 runtime/API core is closed; npm/PyPI/Go public alphas are accepted, while Maven Central, NuGet, Descriptor completion, archive scanning and live-site activation remain the Developer Release closure gates.**
 
 See `IMPLEMENTATION_STATUS.md`, `../../ROADMAP.md`, `../compatibility/SDK_COMPATIBILITY.md` and `../../sdk/release/PUBLISHING.md`.
