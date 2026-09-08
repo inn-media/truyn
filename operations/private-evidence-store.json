@@ -1,0 +1,38 @@
+{
+  "schema": "truyn.private-evidence-store/v1",
+  "storeId": "prod-ops-raw-evidence-01",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "environmentClass": "production",
+  "provider": "azure",
+  "service": "blob-storage",
+  "purpose": "raw operational evidence",
+  "status": "location_defined_not_yet_provisioned",
+  "location": {
+    "storageAccountReference": "private-config-only",
+    "containerName": "raw-operational-evidence",
+    "blobPrefix": "deployments/dc4518de-d1bf-4fce-b351-e43d7c152999/raw/"
+  },
+  "protectionContract": {
+    "publicAccess": "none",
+    "networkAccess": "private-endpoint-only",
+    "authentication": "microsoft-entra-managed-identity",
+    "sharedKeyAccess": "disabled",
+    "encryptionAtRest": "required",
+    "versioningOrAppendOnlyEvidence": "required",
+    "crossDeploymentWrites": "forbidden"
+  },
+  "evidenceContract": {
+    "rawEvidenceLivesHere": true,
+    "publicRepositoryStoresRawEvidence": false,
+    "publicManifestMayStore": [
+      "opaque evidence reference",
+      "exact public Git SHA",
+      "sanitized PASS/FAIL status",
+      "timestamp",
+      "aggregate measurement",
+      "SHA-256 digest"
+    ]
+  },
+  "manifestRef": "operations/production-evidence-manifest.json",
+  "invariant": "Raw production operational evidence must be written only under this deploymentId namespace in the private container. Storage account identity, private endpoint, credentials, tenant/subscription identifiers and operator identities must remain outside the public repository."
+}
