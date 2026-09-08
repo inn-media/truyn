@@ -144,6 +144,57 @@ with zipfile.ZipFile(zip_path, "w") as zf:
     zf.writestr(member_name, payload)
 `;
 
+const archiveBombGenerator = String.raw`
+import sys
+import tarfile
+import zipfile
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+kind = sys.argv[2]
+tar_path = root / f"archive-bomb-{kind}.tgz"
+zip_path = root / f"archive-bomb-{kind}.nupkg"
+
+MAX_MEMBERS = 4096
+MAX_MEMBER_BYTES = 32 * 1024 * 1024
+TOTAL_PART_BYTES = 22 * 1024 * 1024
+
+if kind == "member-count":
+    with tarfile.open(tar_path, "w:gz") as tf:
+        for index in range(MAX_MEMBERS + 1):
+            member = tarfile.TarInfo(f"package/member-{index:05d}.txt")
+            member.size = 0
+            tf.addfile(member)
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for index in range(MAX_MEMBERS + 1):
+            zf.writestr(f"package/member-{index:05d}.txt", b"")
+elif kind == "member-size":
+    source = root / "oversized-member.bin"
+    with source.open("wb") as handle:
+        handle.seek(MAX_MEMBER_BYTES)
+        handle.write(b"\0")
+    with tarfile.open(tar_path, "w:gz") as tf:
+        tf.add(source, arcname="package/oversized-member.bin")
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.write(source, arcname="package/oversized-member.bin")
+elif kind == "total-size":
+    sources = []
+    for index in range(3):
+        source = root / f"total-part-{index}.bin"
+        with source.open("wb") as handle:
+            handle.seek(TOTAL_PART_BYTES - 1)
+            handle.write(b"\0")
+        sources.append(source)
+    with tarfile.open(tar_path, "w:gz") as tf:
+        for index, source in enumerate(sources):
+            tf.add(source, arcname=f"package/total-part-{index}.bin")
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for index, source in enumerate(sources):
+            zf.write(source, arcname=f"package/total-part-{index}.bin")
+else:
+    raise SystemExit(f"unknown archive bomb fixture: {kind}")
+`;
+
 function generateFixtures(root, attack) {
   execFileSync(python, ['-c', generator, root, attack], { stdio: 'pipe' });
 }
@@ -229,6 +280,33 @@ for (const kind of ['azure', 'gcp']) {
       assert.doesNotMatch(zipResult.stderr, /11111111-2222-3333-4444-555555555555|123456789012/);
       assert.equal(existsSync(join(tarDestination, 'package', 'topology.txt')), false);
       assert.equal(existsSync(join(zipDestination, 'package', 'topology.txt')), false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+const bombCases = [
+  ['member-count', /archive member count limit exceeded/i, 'package/member-00000.txt'],
+  ['member-size', /archive member uncompressed size limit exceeded/i, 'package/oversized-member.bin'],
+  ['total-size', /archive total uncompressed size limit exceeded/i, 'package/total-part-0.bin'],
+];
+
+for (const [kind, expectedError, memberPath] of bombCases) {
+  test(`SDK release safe extractor denies ${kind} archive bombs in tar and zip families`, () => {
+    const root = mkdtempSync(join(tmpdir(), `truyn-sdk-archive-bomb-${kind}-`));
+    try {
+      execFileSync(python, ['-c', archiveBombGenerator, root, kind], { stdio: 'pipe' });
+
+      const tarDestination = join(root, `extract-bomb-${kind}-tar`);
+      const zipDestination = join(root, `extract-bomb-${kind}-zip`);
+      const tarResult = assertDenied(join(root, `archive-bomb-${kind}.tgz`), tarDestination);
+      const zipResult = assertDenied(join(root, `archive-bomb-${kind}.nupkg`), zipDestination);
+
+      assert.match(tarResult.stderr, expectedError);
+      assert.match(zipResult.stderr, expectedError);
+      assert.equal(existsSync(join(tarDestination, memberPath)), false);
+      assert.equal(existsSync(join(zipDestination, memberPath)), false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

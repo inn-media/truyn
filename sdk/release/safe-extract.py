@@ -81,6 +81,9 @@ _PRIVATE_CLOUD_PATTERNS = (
 )
 _SCAN_OVERLAP = 1024
 _SCAN_CHUNK_BYTES = 64 * 1024
+_MAX_ARCHIVE_MEMBERS = 4096
+_MAX_MEMBER_UNCOMPRESSED_BYTES = 32 * 1024 * 1024
+_MAX_TOTAL_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
 
 
 def _safe_parts(raw_name: str) -> tuple[str, ...]:
@@ -105,6 +108,28 @@ def _destination(root: Path, raw_name: str) -> Path:
     return target
 
 
+def _validate_archive_limits(entries, *, name_of, size_of, is_directory) -> None:
+    if len(entries) > _MAX_ARCHIVE_MEMBERS:
+        raise ValueError(
+            f"archive member count limit exceeded: {len(entries)} > {_MAX_ARCHIVE_MEMBERS}"
+        )
+
+    total_uncompressed = 0
+    for entry in entries:
+        if is_directory(entry):
+            continue
+        size = size_of(entry)
+        if size < 0:
+            raise ValueError(f"invalid negative archive member size: {name_of(entry)}")
+        if size > _MAX_MEMBER_UNCOMPRESSED_BYTES:
+            raise ValueError(
+                f"archive member uncompressed size limit exceeded: {name_of(entry)}"
+            )
+        total_uncompressed += size
+        if total_uncompressed > _MAX_TOTAL_UNCOMPRESSED_BYTES:
+            raise ValueError("archive total uncompressed size limit exceeded")
+
+
 def _scan_forbidden_release_material(source, member_name: str) -> None:
     carry = b""
     while True:
@@ -126,6 +151,12 @@ def _scan_forbidden_release_material(source, member_name: str) -> None:
 def _extract_tar(archive: Path, root: Path) -> None:
     with tarfile.open(archive, mode="r:*") as tf:
         members = tf.getmembers()
+        _validate_archive_limits(
+            members,
+            name_of=lambda member: member.name,
+            size_of=lambda member: member.size,
+            is_directory=lambda member: member.isdir(),
+        )
         for member in members:
             _destination(root, member.name)
             if member.issym() or member.islnk():
@@ -166,6 +197,12 @@ def _zip_is_symlink(info: zipfile.ZipInfo) -> bool:
 def _extract_zip(archive: Path, root: Path) -> None:
     with zipfile.ZipFile(archive) as zf:
         infos = zf.infolist()
+        _validate_archive_limits(
+            infos,
+            name_of=lambda info: info.filename,
+            size_of=lambda info: info.file_size,
+            is_directory=lambda info: info.is_dir(),
+        )
         for info in infos:
             _destination(root, info.filename)
             if _zip_is_symlink(info):
