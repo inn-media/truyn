@@ -18,8 +18,9 @@ concurrency:
 env:
   TESTED_COMMIT: 850fff25f4af345932ac97167ec93cfcc1a8bf85
   TESTED_TREE_SHA: a09b86b6f63c626303a8bf3be70defff4fdf7187
-  LAUNCH_PARENT: b536cde81679e34f3b46a518758de4f0dd46b2cc
-  PREVIOUS_PREFLIGHT_RUN: '34241095846'
+  LAUNCH_PARENT: 83dafb542e7ad912a80cf8c28837b3edb0cd06de
+  PREVIOUS_LAUNCH_PARENT: b536cde81679e34f3b46a518758de4f0dd46b2cc
+  PREVIOUS_PREFLIGHT_RUN: '34253914136'
   EXACT_MAIN_CI_RUN: '34239801973'
   EXACT_MAIN_CODEQL_RUN: '34239801295'
   CAMPAIGN_BLOB_SHA: 796d9d00dea3807279d8326de0a916a72b487949
@@ -35,7 +36,6 @@ jobs:
     name: Immutable qualified D-200 on 850fff25
     runs-on: ubuntu-22.04
     timeout-minutes: 300
-    environment: class-d-diagnostic
     steps:
       - name: Enforce immutable one-shot launch commit
         env:
@@ -56,7 +56,11 @@ jobs:
 
           p="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${LAUNCH_PARENT}")"
           [[ "$(jq '.parents|length' <<<"$p")" == 1 ]]
-          [[ "$(jq -r '.parents[0].sha' <<<"$p")" == "$TESTED_COMMIT" ]]
+          [[ "$(jq -r '.parents[0].sha' <<<"$p")" == "$PREVIOUS_LAUNCH_PARENT" ]]
+
+          pp="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${PREVIOUS_LAUNCH_PARENT}")"
+          [[ "$(jq '.parents|length' <<<"$pp")" == 1 ]]
+          [[ "$(jq -r '.parents[0].sha' <<<"$pp")" == "$TESTED_COMMIT" ]]
 
           t="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TESTED_COMMIT}")"
           [[ "$(jq -r '.commit.tree.sha' <<<"$t")" == "$TESTED_TREE_SHA" ]]
