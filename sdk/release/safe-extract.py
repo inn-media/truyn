@@ -148,6 +148,10 @@ def _scan_forbidden_release_material(source, member_name: str) -> None:
         carry = window[-_SCAN_OVERLAP:]
 
 
+def _is_tar_root_directory(member: tarfile.TarInfo) -> bool:
+    return member.isdir() and member.name in (".", "./")
+
+
 def _extract_tar(archive: Path, root: Path) -> None:
     with tarfile.open(archive, mode="r:*") as tf:
         members = tf.getmembers()
@@ -158,6 +162,8 @@ def _extract_tar(archive: Path, root: Path) -> None:
             is_directory=lambda member: member.isdir(),
         )
         for member in members:
+            if _is_tar_root_directory(member):
+                continue
             _destination(root, member.name)
             if member.issym() or member.islnk():
                 # Release packages do not require links. Rejecting them entirely is
@@ -178,6 +184,8 @@ def _extract_tar(archive: Path, root: Path) -> None:
                 _scan_forbidden_release_material(source, member.name)
 
         for member in members:
+            if _is_tar_root_directory(member):
+                continue
             target = _destination(root, member.name)
             if member.isdir():
                 target.mkdir(parents=True, exist_ok=True)
