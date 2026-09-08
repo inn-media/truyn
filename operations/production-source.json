@@ -1,0 +1,13 @@
+{
+  "schema": "truyn.production-source/v1",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "repository": "inn-media/truyn",
+  "productionSourceBaselineSha": "5daaac4a06b9573523f50caef7fc5c04175247b8",
+  "lastLiveAppliedSourceSha": "f5251f82c90fd2ac472c80b9a2260846516a7220",
+  "lastLiveApplyAccepted": false,
+  "lastLiveApplyEvidenceStatus": "post_provision_proof_failed",
+  "acceptedDeployedSourceSha": null,
+  "status": "awaiting_accepted_live_apply",
+  "invariant": "acceptedDeployedSourceSha may be populated only from deployment-specific sanitized live evidence with status PASS for this deploymentId.",
+  "notes": "The exact last live-applied Git SHA is recorded without promoting it to accepted production evidence. The next accepted live apply must bind this deploymentId to one exact source SHA and replace the null acceptedDeployedSourceSha only after all required post-deployment assertions pass."
+}
