@@ -110,6 +110,7 @@ test('P3-A1 streaming is opt-in and maps signed ordered TRUYN PARTIAL events to 
     node: facadeNode,
     agent: agent(),
     skills: [{ id: 'stream', name: 'Stream', description: 'Streaming lifecycle proof', capability: 'p3.a1.stream', visibility: 'public' }],
+    allowAnonymousTaskAccess: true,
     enableStreaming: true,
     pollIntervalMs: 2
   });
@@ -171,7 +172,7 @@ test('P3-A1 CancelTask maps to requester-owned TRUYN REVOKE, aborts provider wor
 
   await h.provider({
     capability: 'p3.a1.cancel',
-    fastPath: true,
+    fastPath: false, // SendMessage dispatches a classic NEED.
     accessPolicy: createProviderAccessPolicy({ mode: 'owner-only', allowedRequesterIds: [facadeNode.identity.nodeId] }),
     execute: async ({ signal }) => {
       executions += 1;
