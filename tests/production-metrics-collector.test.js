@@ -77,9 +77,42 @@ test('Sprint 7 acceptance requires all four relay metric families in the backend
     assert.match(collectorBicep, new RegExp(metric));
     assert.match(workflow, new RegExp(metric));
   }
-  assert.match(collectorBicep, /truyn_runtime_ready\{role="relay"\}/);
+  assert.match(collectorBicep, /truyn_runtime_ready\{role="relay"/);
   assert.match(collectorBicep, /TRUYN_METRICS_COLLECTOR_PASS http=1 dispatch=1 result=1 ready=1 loopback=1 remote_write=1/);
   assert.match(workflow, /status: "PASS"/);
+});
+
+test('Sprint 8 collection layer adds bounded production identity labels and rejects request identity labels', async () => {
+  const [collectorBicep, contractRaw] = await Promise.all([read(collectorBicepPath), read(contractPath)]);
+  const contract = JSON.parse(contractRaw);
+
+  assert.deepEqual(contract.seriesIdentityLabels, {
+    environment: 'production',
+    deployment: 'dc4518de-d1bf-4fce-b351-e43d7c152999',
+    service: 'truyn-relay',
+    regionValues: ['region-9f2d7c41', 'region-4b81a6e3']
+  });
+  assert.deepEqual(contract.forbiddenMetricLabels, ['requestId', 'providerId', 'nodeId']);
+
+  const configStart = collectorBicep.indexOf("var collectorConfig = '''");
+  const configEnd = collectorBicep.indexOf("var acceptanceScript = '''", configStart);
+  assert.ok(configStart >= 0 && configEnd > configStart, 'collector config block is missing');
+  const collectorConfig = collectorBicep.slice(configStart, configEnd);
+
+  assert.match(collectorConfig, /environment: "production"/);
+  assert.match(collectorConfig, /deployment: "\$\{deploymentId\}"/);
+  assert.match(collectorConfig, /service: "truyn-relay"/);
+  assert.match(collectorConfig, /region: "\$\{regionIdentity\}"/);
+  assert.match(collectorBicep, /germanywestcentral: 'region-9f2d7c41'/);
+  assert.match(collectorBicep, /northeurope: 'region-4b81a6e3'/);
+
+  for (const forbidden of contract.forbiddenMetricLabels) {
+    assert.equal(collectorConfig.includes(forbidden), false, `${forbidden} must not be injected by the collection layer`);
+  }
+
+  assert.match(collectorBicep, /FORBIDDEN_LABELS = \{'requestId', 'providerId', 'nodeId'\}/);
+  assert.match(collectorBicep, /any\(label in labels for label in FORBIDDEN_LABELS\)/);
+  assert.match(collectorBicep, /identity=1 forbidden=0/);
 });
 
 test('sanitized public evidence contains no private Azure topology', async () => {
