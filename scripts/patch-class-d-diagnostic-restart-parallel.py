@@ -68,10 +68,38 @@ done
 t_start=\$(date +%s%3N)
 start_ms=\$((t_start-t_start0))
 t_ready0=\$(date +%s%3N)
+good=0
+min_valid=999999
+min_buckets=999999
+min_hosts=999999
+max_pending=0
 for n in \$(seq 1 90); do
   good=0
+  min_valid=999999
+  min_buckets=999999
+  min_hosts=999999
+  max_pending=0
   for j in \$(seq 10 14); do
-    curl -fsS --max-time 1 http://127.0.0.1:\$(( ${CONTROL_BASE}+j ))/status >/dev/null 2>&1 && good=\$((good+1))
+    control_url="http://127.0.0.1:\$(( ${CONTROL_BASE}+j ))"
+    readiness=''
+    if readiness=\$(curl -fsS --max-time 2 "\${control_url}/dht/readiness" 2>/dev/null); then
+      acceptance_ready=\$(printf '%s' "\$readiness" | jq -r '.acceptanceReady == true and .peerRecordPropagation.ready == true' 2>/dev/null || echo false)
+      pending=\$(printf '%s' "\$readiness" | jq -r '.peerRecordPropagation.pendingCount // 999999' 2>/dev/null || echo 999999)
+      valid=\$(printf '%s' "\$readiness" | jq -r '.validPeers // 0' 2>/dev/null || echo 0)
+      buckets=\$(printf '%s' "\$readiness" | jq -r '.populatedBuckets // 0' 2>/dev/null || echo 0)
+      hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount // 0' 2>/dev/null || echo 0)
+      if [[ "\$valid" =~ ^[0-9]+$ && "\$valid" -lt "\$min_valid" ]]; then min_valid="\$valid"; fi
+      if [[ "\$buckets" =~ ^[0-9]+$ && "\$buckets" -lt "\$min_buckets" ]]; then min_buckets="\$buckets"; fi
+      if [[ "\$hosts" =~ ^[0-9]+$ && "\$hosts" -lt "\$min_hosts" ]]; then min_hosts="\$hosts"; fi
+      if [[ "\$pending" =~ ^[0-9]+$ && "\$pending" -gt "\$max_pending" ]]; then max_pending="\$pending"; fi
+      if [[ "\$acceptance_ready" == true &&
+            "\$pending" == 0 &&
+            "\$valid" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE} &&
+            "\$buckets" -gt 0 &&
+            "\$hosts" -ge 2 ]]; then
+        good=\$((good+1))
+      fi
+    fi
   done
   [[ \$good -eq 5 ]] && break
   sleep 1
@@ -84,6 +112,10 @@ echo STOP_MS=\$stop_ms
 echo START_MS=\$start_ms
 echo READY_MS=\$ready_ms
 echo RESTART_MS=\$restart_ms
+echo READY_MIN_VALID=\$min_valid
+echo READY_MIN_BUCKETS=\$min_buckets
+echo READY_MIN_HOSTS=\$min_hosts
+echo READY_MAX_PENDING=\$max_pending
 EOS
 )
   (remote "${VMS[$i]}" "$script" >"$restart_dir/$i") &
@@ -99,7 +131,11 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   start_ms=$(printf '%s\n' "$out" | sed -n 's/^START_MS=//p' | tail -1); [[ -n "$start_ms" ]]; start_values+=("$start_ms")
   ready_ms=$(printf '%s\n' "$out" | sed -n 's/^READY_MS=//p' | tail -1); [[ -n "$ready_ms" ]]; ready_values+=("$ready_ms")
   restart_ms=$(printf '%s\n' "$out" | sed -n 's/^RESTART_MS=//p' | tail -1); [[ -n "$restart_ms" ]]; recovery_values+=("$restart_ms")
-  echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i mode=parallel-node-restart stopMs=${stop_ms} startMs=${start_ms} readyMs=${ready_ms} restartMs=${restart_ms}"
+  ready_min_valid=$(printf '%s\n' "$out" | sed -n 's/^READY_MIN_VALID=//p' | tail -1); [[ -n "$ready_min_valid" ]]
+  ready_min_buckets=$(printf '%s\n' "$out" | sed -n 's/^READY_MIN_BUCKETS=//p' | tail -1); [[ -n "$ready_min_buckets" ]]
+  ready_min_hosts=$(printf '%s\n' "$out" | sed -n 's/^READY_MIN_HOSTS=//p' | tail -1); [[ -n "$ready_min_hosts" ]]
+  ready_max_pending=$(printf '%s\n' "$out" | sed -n 's/^READY_MAX_PENDING=//p' | tail -1); [[ -n "$ready_max_pending" ]]
+  echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i mode=parallel-node-restart stopMs=${stop_ms} startMs=${start_ms} readyMs=${ready_ms} restartMs=${restart_ms} peerPropagationReady=true pendingMax=${ready_max_pending} validMin=${ready_min_valid} bucketsMin=${ready_min_buckets} remoteHostsMin=${ready_min_hosts}"
 done
 rm -rf "$restart_dir"
 stop_p95=$(printf '%s\n' "${stop_values[@]}" | python3 -c 'import sys; a=sorted(float(x) for x in sys.stdin if x.strip()); print(a[min(len(a)-1,int((len(a)-1)*.95))])')
@@ -109,7 +145,7 @@ recovery_p95=$(printf '%s\n' "${recovery_values[@]}" | python3 -c 'import sys; a
 python3 - <<PY
 assert float('$recovery_p95') <= 120000, '$recovery_p95'
 PY
-echo "TRUYN_CLASS_D_1000 stage=restart-recovery restarted=100 mode=parallel-node-restart stopP95Ms=${stop_p95} startP95Ms=${start_p95} readyP95Ms=${ready_p95} recoveryP95Ms=${recovery_p95} status=PASS"
+echo "TRUYN_CLASS_D_1000 stage=restart-recovery restarted=100 mode=parallel-node-restart networkReady=true stopP95Ms=${stop_p95} startP95Ms=${start_p95} readyP95Ms=${ready_p95} recoveryP95Ms=${recovery_p95} status=PASS"
 
 '''
 
