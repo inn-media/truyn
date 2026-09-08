@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+repeats="${TRUYN_D200_QUALIFICATION_REPEATS:-5}"
+[[ "$repeats" =~ ^[1-9][0-9]*$ ]]
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+cp benchmarks/scale/class-d-azure-1000-provision.sh "$tmp/provision.sh"
+cp benchmarks/scale/class-d-azure-1000-campaign.sh "$tmp/campaign.sh"
+
+python3 scripts/patch-class-d-diagnostic-bootstrap-timeout.py "$tmp/provision.sh"
+python3 scripts/patch-class-d-diagnostic-bootstrap-parallel.py "$tmp/provision.sh"
+python3 scripts/patch-class-d-diagnostic-bandwidth-meter-parallel.py "$tmp/provision.sh"
+python3 scripts/patch-class-d-diagnostic-readiness-parallel.py "$tmp/campaign.sh"
+python3 scripts/patch-class-d-diagnostic-readiness-window.py "$tmp/campaign.sh"
+python3 scripts/patch-class-d-diagnostic-baseline-parallel.py "$tmp/campaign.sh"
+python3 scripts/patch-class-d-diagnostic-restart-parallel.py "$tmp/campaign.sh"
+python3 scripts/patch-class-d-diagnostic-post-restart-origin.py "$tmp/campaign.sh"
+python3 - "$tmp/campaign.sh" <<'PY'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]); s=p.read_text()
+if s.count('seq 10 14') != 3 or s.count('range(10,15)') != 1:
+    raise SystemExit('unexpected D-1000 restart range before D-200 qualification rewrite')
+p.write_text(s.replace('seq 10 14','seq 5 9').replace('range(10,15)','range(5,10)'))
+PY
+python3 scripts/patch-class-d-diagnostic-composed-heal-evidence.py "$tmp/provision.sh" "$tmp/campaign.sh"
+
+bash -n "$tmp/provision.sh"
+bash -n "$tmp/campaign.sh"
+
+# A qualification invoked from a Node test must execute its nested tests rather than
+# inheriting the parent runner's recursive-test context and silently skipping them.
+unset NODE_TEST_CONTEXT
+
+node --test \
+  tests/class-d-diagnostic-readiness-parallel.test.js \
+  tests/class-d-diagnostic-readiness-window.test.js \
+  tests/class-d-diagnostic-restart-parallel.test.js \
+  tests/class-d-diagnostic-post-restart-origin.test.js \
+  tests/peer-record-restart-propagation-readiness.test.js \
+  tests/dht-replication-keyspace.test.js
+
+for _ in $(seq 1 "$repeats"); do
+  node --test \
+    tests/class-d-diagnostic-readiness-window.test.js \
+    tests/peer-record-restart-propagation-readiness.test.js >/dev/null
+done
+
+python3 - "$tmp/campaign.sh" <<'PY'
+from pathlib import Path
+import sys
+s=Path(sys.argv[1]).read_text()
+
+def stage(a,b):
+    i=s.index(a); j=s.index(b,i+len(a)); return s[i:j]
+
+readiness=stage('STAGE=readiness-barrier','STAGE=convergence')
+restart=stage('STAGE=restart-recovery','STAGE=post-restart-routing')
+post=stage('STAGE=post-restart-routing','STAGE=packet-partition')
+partition=stage('STAGE=packet-partition','STAGE=healed-routing')
+healed=stage('STAGE=healed-routing','STAGE=write-retention')
+
+assert readiness.count('deadline=\\$((\\$(date +%s) + 120))') == 1
+assert '/need' not in readiness
+assert 'D200_READINESS_WINDOW_HARDENED=1' in readiness
+assert 'readiness_remaining=\\$((deadline - readiness_now))' in readiness
+assert 'if readiness=\\$(curl -fsS --max-time "\\$readiness_probe_timeout"' in readiness
+assert '"\\$hosts" -eq ${HOST_COUNT}' in readiness
+assert '"\\$valid" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE}' in readiness
+assert '.acceptanceReady == true and .peerRecordPropagation.ready == true' in readiness
+
+assert 'seq 10 14' not in s
+assert 'range(10,15)' not in s
+assert 'seq 5 9' in restart
+assert 'range(5,10)' in post
+assert '/dht/readiness' in restart
+assert 'peerRecordPropagation.ready == true' in restart
+assert 'pending' in restart
+assert "assert float('$recovery_p95') <= 120000" in restart
+
+assert 'acceptanceUsesFirstAttemptOnly' in post
+assert "'applicationRetryCount':0" in post
+assert "assert float('$post_rate') >= .99" in post
+
+assert 'blockedSuccesses' in s or 'PARTITION_SUCCESSES' in partition
+assert 'partition_recovery_ms' in partition
+assert '120000' in partition
+assert "assert float('$healed_rate') >= .99" in healed
+
+assert "assert float('$base_rate') >= .99" in s
+assert "assert float('$conv_rate') >= .99" in s
+assert "assert float('$conv_p95') <= 120000" in s
+assert 'invalidSignedStateAccepted' in s
+assert 'unauthorizedProviderExecution' in s
+assert 'acknowledgedWriteLoss' in s
+print('TRUYN_D200_PREFLIGHT_QUALIFICATION=PASS')
+PY
