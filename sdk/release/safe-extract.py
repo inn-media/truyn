@@ -23,7 +23,21 @@ _PRIVATE_KEY_MARKERS = (
     b"-----BEGIN OPENSSH PRIVATE KEY-----",
     b"-----BEGIN PGP PRIVATE KEY BLOCK-----",
 )
-_PRIVATE_KEY_OVERLAP = max(len(marker) for marker in _PRIVATE_KEY_MARKERS) - 1
+_CREDENTIAL_PATTERNS = (
+    ("aws-access-key", re.compile(rb"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")),
+    ("github-token", re.compile(rb"\b(?:gh[pousr]_[A-Za-z0-9]{20,255}|github_pat_[A-Za-z0-9_]{20,255})\b")),
+    ("slack-token", re.compile(rb"\bxox[baprs]-[A-Za-z0-9-]{10,255}\b")),
+    ("google-api-key", re.compile(rb"\bAIza[0-9A-Za-z_-]{35}\b")),
+    ("stripe-secret-key", re.compile(rb"\bsk_(?:live|test)_[0-9A-Za-z]{16,255}\b")),
+    (
+        "credential-assignment",
+        re.compile(
+            rb"(?i)\b(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password)"
+            rb"\s*[:=]\s*[\"']?[A-Za-z0-9_./+=:-]{20,256}"
+        ),
+    ),
+)
+_SCAN_OVERLAP = 512
 _SCAN_CHUNK_BYTES = 64 * 1024
 
 
@@ -49,7 +63,7 @@ def _destination(root: Path, raw_name: str) -> Path:
     return target
 
 
-def _scan_private_key_material(source, member_name: str) -> None:
+def _scan_forbidden_credential_material(source, member_name: str) -> None:
     carry = b""
     while True:
         chunk = source.read(_SCAN_CHUNK_BYTES)
@@ -58,7 +72,10 @@ def _scan_private_key_material(source, member_name: str) -> None:
         window = carry + chunk
         if any(marker in window for marker in _PRIVATE_KEY_MARKERS):
             raise ValueError(f"private key material in archive member: {member_name}")
-        carry = window[-_PRIVATE_KEY_OVERLAP:] if _PRIVATE_KEY_OVERLAP else b""
+        for pattern_name, pattern in _CREDENTIAL_PATTERNS:
+            if pattern.search(window):
+                raise ValueError(f"credential material ({pattern_name}) in archive member: {member_name}")
+        carry = window[-_SCAN_OVERLAP:]
 
 
 def _extract_tar(archive: Path, root: Path) -> None:
@@ -82,7 +99,7 @@ def _extract_tar(archive: Path, root: Path) -> None:
             if source is None:
                 raise ValueError(f"unreadable tar member: {member.name}")
             with source:
-                _scan_private_key_material(source, member.name)
+                _scan_forbidden_credential_material(source, member.name)
 
         for member in members:
             target = _destination(root, member.name)
@@ -114,7 +131,7 @@ def _extract_zip(archive: Path, root: Path) -> None:
             if info.is_dir():
                 continue
             with zf.open(info, "r") as source:
-                _scan_private_key_material(source, info.filename)
+                _scan_forbidden_credential_material(source, info.filename)
 
         for info in infos:
             target = _destination(root, info.filename)
