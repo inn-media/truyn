@@ -107,6 +107,43 @@ with zipfile.ZipFile(zip_path, "w") as zf:
     zf.writestr(member_name, payload)
 `;
 
+const privateCloudGenerator = String.raw`
+import io
+import sys
+import tarfile
+import zipfile
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+kind = sys.argv[2]
+tar_path = root / f"private-cloud-{kind}.tgz"
+zip_path = root / f"private-cloud-{kind}.nupkg"
+member_name = "package/topology.txt"
+
+if kind == "azure":
+    payload = (
+        b"AZURE_SUBSCRIPTION_ID=11111111-2222-3333-4444-555555555555\n"
+        b"resource=/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/truyn-prod/providers/Microsoft.DocumentDB/databaseAccounts/truyn-prod-cosmos\n"
+        b"endpoint=https://truynprodvault.vault.azure.net\n"
+    )
+elif kind == "gcp":
+    payload = (
+        b"GCP_PROJECT_NUMBER=123456789012\n"
+        b"wif=projects/123456789012/locations/global/workloadIdentityPools/truyn-prod-pool/providers/github\n"
+        b"runtime=truyn-runtime@truyn-private-prod.iam.gserviceaccount.com\n"
+    )
+else:
+    raise SystemExit(f"unknown private cloud fixture: {kind}")
+
+with tarfile.open(tar_path, "w:gz") as tf:
+    member = tarfile.TarInfo(member_name)
+    member.size = len(payload)
+    tf.addfile(member, io.BytesIO(payload))
+
+with zipfile.ZipFile(zip_path, "w") as zf:
+    zf.writestr(member_name, payload)
+`;
+
 function generateFixtures(root, attack) {
   execFileSync(python, ['-c', generator, root, attack], { stdio: 'pipe' });
 }
@@ -169,6 +206,29 @@ for (const kind of ['token', 'credential']) {
       assert.match(zipResult.stderr, /credential material/i);
       assert.equal(existsSync(join(tarDestination, 'package', 'settings.txt')), false);
       assert.equal(existsSync(join(zipDestination, 'package', 'settings.txt')), false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const kind of ['azure', 'gcp']) {
+  test(`SDK release safe extractor denies ${kind} private cloud topology in tar and zip members`, () => {
+    const root = mkdtempSync(join(tmpdir(), `truyn-sdk-private-cloud-${kind}-`));
+    try {
+      execFileSync(python, ['-c', privateCloudGenerator, root, kind], { stdio: 'pipe' });
+
+      const tarDestination = join(root, `extract-private-cloud-${kind}-tar`);
+      const zipDestination = join(root, `extract-private-cloud-${kind}-zip`);
+      const tarResult = assertDenied(join(root, `private-cloud-${kind}.tgz`), tarDestination);
+      const zipResult = assertDenied(join(root, `private-cloud-${kind}.nupkg`), zipDestination);
+
+      assert.match(tarResult.stderr, /private cloud topology/i);
+      assert.match(zipResult.stderr, /private cloud topology/i);
+      assert.doesNotMatch(tarResult.stderr, /11111111-2222-3333-4444-555555555555|123456789012/);
+      assert.doesNotMatch(zipResult.stderr, /11111111-2222-3333-4444-555555555555|123456789012/);
+      assert.equal(existsSync(join(tarDestination, 'package', 'topology.txt')), false);
+      assert.equal(existsSync(join(zipDestination, 'package', 'topology.txt')), false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
