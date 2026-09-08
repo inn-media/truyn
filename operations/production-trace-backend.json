@@ -1,0 +1,33 @@
+{
+  "schema": "truyn.production-trace-backend/v1",
+  "backendId": "prod-traces-01",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "backendClass": "azure-container-apps-tempo",
+  "backendVersion": "3.0.2",
+  "protocols": {
+    "otlpHttp": {
+      "enabled": true,
+      "port": 4318,
+      "path": "/v1/traces"
+    },
+    "otlpGrpc": {
+      "enabled": true,
+      "port": 4317
+    }
+  },
+  "storage": {
+    "backend": "azure-blob",
+    "authentication": "managed-identity",
+    "publicNetworkAccess": false,
+    "privateEndpointRequired": true,
+    "sharedKeyAccess": false
+  },
+  "publicIngress": false,
+  "acceptance": {
+    "readyEndpoint": "/ready",
+    "otlpHttpMustAcceptTrace": true,
+    "traceReadBackRequired": true,
+    "marker": "TRUYN_TRACE_CANARY_PASS otlp_http=accepted trace_readback=observed storage=azure-blob"
+  },
+  "status": "awaiting_exact_main_live_apply"
+}
