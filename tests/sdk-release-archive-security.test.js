@@ -56,6 +56,28 @@ with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr(member_name, payload)
 `;
 
+const privateKeyGenerator = String.raw`
+import io
+import sys
+import tarfile
+import zipfile
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+tar_path = root / "private-key.tgz"
+zip_path = root / "private-key.nupkg"
+payload = b"config\n-----BEGIN PRIVATE KEY-----\nZmFrZQ==\n-----END PRIVATE KEY-----\n"
+member_name = "package/config.txt"
+
+with tarfile.open(tar_path, "w:gz") as tf:
+    member = tarfile.TarInfo(member_name)
+    member.size = len(payload)
+    tf.addfile(member, io.BytesIO(payload))
+
+with zipfile.ZipFile(zip_path, "w") as zf:
+    zf.writestr(member_name, payload)
+`;
+
 function generateFixtures(root, attack) {
   execFileSync(python, ['-c', generator, root, attack], { stdio: 'pipe' });
 }
@@ -64,6 +86,7 @@ function assertDenied(archive, destination) {
   const result = spawnSync(python, [extractor, archive, destination], { encoding: 'utf8' });
   assert.notEqual(result.status, 0, `malicious archive unexpectedly accepted: ${archive}`);
   assert.match(result.stderr, /^DENIED /m, `missing fail-closed DENIED marker for ${archive}`);
+  return result;
 }
 
 for (const attack of ['traversal', 'absolute', 'symlink']) {
@@ -82,3 +105,22 @@ for (const attack of ['traversal', 'absolute', 'symlink']) {
     }
   });
 }
+
+test('SDK release safe extractor denies private-key material in tar and zip members', () => {
+  const root = mkdtempSync(join(tmpdir(), 'truyn-sdk-private-key-'));
+  try {
+    execFileSync(python, ['-c', privateKeyGenerator, root], { stdio: 'pipe' });
+
+    const tarDestination = join(root, 'extract-secret-tar');
+    const zipDestination = join(root, 'extract-secret-zip');
+    const tarResult = assertDenied(join(root, 'private-key.tgz'), tarDestination);
+    const zipResult = assertDenied(join(root, 'private-key.nupkg'), zipDestination);
+
+    assert.match(tarResult.stderr, /private key material/i);
+    assert.match(zipResult.stderr, /private key material/i);
+    assert.equal(existsSync(join(tarDestination, 'package', 'config.txt')), false);
+    assert.equal(existsSync(join(zipDestination, 'package', 'config.txt')), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
