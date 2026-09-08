@@ -1,0 +1,301 @@
+name: Production Metrics Backend
+
+on:
+  pull_request:
+    paths:
+      - 'infra/production-observability/**'
+      - 'operations/production-metrics-backend.json'
+      - '.github/workflows/production-metrics-backend.yml'
+      - 'tests/production-metrics-backend.test.js'
+      - 'tests/public-repository.test.js'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/production-observability/**'
+      - 'operations/production-metrics-backend.json'
+      - '.github/workflows/production-metrics-backend.yml'
+      - 'tests/production-metrics-backend.test.js'
+      - 'tests/public-repository.test.js'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  METRICS_REGION: germanywestcentral
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile metrics backend Bicep
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep install >/dev/null
+          az bicep build --file infra/production-observability/metrics-backend.bicep --stdout >/dev/null
+      - name: Validate backend contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .backendId == "prod-prometheus-01" and
+            .deploymentId == "dc4518de-d1bf-4fce-b351-e43d7c152999" and
+            .backendClass == "azure-monitor-managed-prometheus" and
+            .prometheusCompatible == true and
+            .region == "germanywestcentral" and
+            .seriesAcceptanceMetric == "truyn_backend_acceptance_series"
+          ' operations/production-metrics-backend.json >/dev/null
+
+  apply-and-prove:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Prepare deterministic backend identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:prometheus" | sha256sum | cut -c1-10)"
+          workspace="truyn-prom-${suffix}"
+          printf '::add-mask::%s\n' "$workspace"
+          printf 'WORKSPACE_NAME=%s\n' "$workspace" >> "$GITHUB_ENV"
+
+      - name: Provision Azure Monitor managed Prometheus backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep install >/dev/null
+          deployment_name="metrics-backend-${GITHUB_SHA:0:8}"
+          printf '::add-mask::%s\n' "$deployment_name"
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$deployment_name" \
+            --template-file infra/production-observability/metrics-backend.bicep \
+            --parameters \
+              workspaceName="$WORKSPACE_NAME" \
+              location="$METRICS_REGION" \
+              deploymentId="$DEPLOYMENT_ID" \
+              sourceSha="$GITHUB_SHA" \
+            --only-show-errors \
+            -o none
+
+          workspace_id="$(az deployment group show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$deployment_name" \
+            --query properties.outputs.workspaceId.value \
+            -o tsv \
+            --only-show-errors)"
+          [[ -n "$workspace_id" ]]
+          printf '::add-mask::%s\n' "$workspace_id"
+
+          workspace_json="$(az rest --method get --url "https://management.azure.com${workspace_id}?api-version=2023-04-03" --only-show-errors)"
+          jq -e '.properties.provisioningState == "Succeeded"' <<<"$workspace_json" >/dev/null
+
+          dcr_id="$(jq -r '.properties.defaultIngestionSettings.dataCollectionRuleResourceId // empty' <<<"$workspace_json")"
+          dcr_immutable="$(jq -r '.properties.defaultIngestionSettings.dataCollectionRuleImmutableId // empty' <<<"$workspace_json")"
+          ingest_base="$(jq -r '.properties.defaultIngestionSettings.ingestionEndpoints.metrics // empty' <<<"$workspace_json")"
+          query_endpoint="$(jq -r '.properties.metrics.prometheusQueryEndpoint // empty' <<<"$workspace_json")"
+          [[ -n "$dcr_id" && -n "$dcr_immutable" && -n "$ingest_base" && -n "$query_endpoint" ]]
+          for value in "$dcr_id" "$dcr_immutable" "$ingest_base" "$query_endpoint"; do
+            printf '::add-mask::%s\n' "$value"
+          done
+          printf 'WORKSPACE_ID=%s\n' "$workspace_id" >> "$GITHUB_ENV"
+          printf 'DCR_ID=%s\n' "$dcr_id" >> "$GITHUB_ENV"
+          printf 'WRITE_ENDPOINT=%s/dataCollectionRules/%s/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24\n' "$ingest_base" "$dcr_immutable" >> "$GITHUB_ENV"
+          printf 'QUERY_ENDPOINT=%s\n' "$query_endpoint" >> "$GITHUB_ENV"
+
+      - name: Authorize deployment identity for write and query
+        shell: bash
+        run: |
+          set -euo pipefail
+          management_token="$(az account get-access-token --resource 'https://management.azure.com/' --query accessToken -o tsv)"
+          principal_id="$(TOKEN="$management_token" python - <<'PY'
+          import base64, json, os
+          payload = os.environ['TOKEN'].split('.')[1]
+          payload += '=' * (-len(payload) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+          print(claims['oid'])
+          PY
+          )"
+          unset management_token
+          [[ -n "$principal_id" ]]
+          printf '::add-mask::%s\n' "$principal_id"
+
+          if ! az role assignment list --assignee-object-id "$principal_id" --scope "$DCR_ID" --role 'Monitoring Metrics Publisher' --query '[0].id' -o tsv --only-show-errors | grep -q .; then
+            az role assignment create \
+              --assignee-object-id "$principal_id" \
+              --assignee-principal-type ServicePrincipal \
+              --role 'Monitoring Metrics Publisher' \
+              --scope "$DCR_ID" \
+              --only-show-errors -o none
+          fi
+
+          if ! az role assignment list --assignee-object-id "$principal_id" --scope "$WORKSPACE_ID" --role 'Monitoring Data Reader' --query '[0].id' -o tsv --only-show-errors | grep -q .; then
+            az role assignment create \
+              --assignee-object-id "$principal_id" \
+              --assignee-principal-type ServicePrincipal \
+              --role 'Monitoring Data Reader' \
+              --scope "$WORKSPACE_ID" \
+              --only-show-errors -o none
+          fi
+
+      - name: Build Prometheus remote-write canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet python-snappy
+          python - <<'PY'
+          import snappy, struct, time
+
+          def varint(n):
+              out = bytearray()
+              while True:
+                  b = n & 0x7f
+                  n >>= 7
+                  if n:
+                      out.append(b | 0x80)
+                  else:
+                      out.append(b)
+                      return bytes(out)
+
+          def key(field, wire):
+              return varint((field << 3) | wire)
+
+          def string_field(field, value):
+              raw = value.encode()
+              return key(field, 2) + varint(len(raw)) + raw
+
+          def message_field(field, raw):
+              return key(field, 2) + varint(len(raw)) + raw
+
+          def label(name, value):
+              return string_field(1, name) + string_field(2, value)
+
+          def sample(value, timestamp_ms):
+              return key(1, 1) + struct.pack('<d', value) + key(2, 0) + varint(timestamp_ms)
+
+          labels = [
+              ('__name__', 'truyn_backend_acceptance_series'),
+              ('surface', 'production-ops'),
+              ('proof', 'metrics-backend'),
+          ]
+          timeseries = b''.join(message_field(1, label(k, v)) for k, v in labels)
+          timeseries += message_field(2, sample(1.0, int(time.time() * 1000)))
+          request = message_field(1, timeseries)
+          with open('/tmp/truyn-prom-write.snappy', 'wb') as fh:
+              fh.write(snappy.compress(request))
+          PY
+
+      - name: Prove backend accepts and exposes the series
+        shell: bash
+        run: |
+          set -euo pipefail
+          write_ok=false
+          for attempt in $(seq 1 80); do
+            write_token="$(az account get-access-token --resource 'https://monitoring.azure.com/' --query accessToken -o tsv)"
+            code="$(curl -sS -o /tmp/prom-write-response.txt -w '%{http_code}' \
+              -X POST "$WRITE_ENDPOINT" \
+              -H "Authorization: Bearer $write_token" \
+              -H 'Content-Encoding: snappy' \
+              -H 'Content-Type: application/x-protobuf' \
+              -H 'X-Prometheus-Remote-Write-Version: 0.1.0' \
+              --data-binary @/tmp/truyn-prom-write.snappy || true)"
+            unset write_token
+            if [[ "$code" == '200' || "$code" == '204' ]]; then
+              write_ok=true
+              break
+            fi
+            if [[ "$code" == '401' || "$code" == '403' || "$code" == '429' || "$code" =~ ^5 ]]; then
+              sleep 15
+              continue
+            fi
+            echo "::error::Prometheus remote-write rejected canary with HTTP ${code}."
+            exit 1
+          done
+          [[ "$write_ok" == true ]] || { echo '::error::Prometheus remote-write never accepted canary.'; exit 1; }
+
+          query_ok=false
+          for attempt in $(seq 1 90); do
+            query_token="$(az account get-access-token --resource 'https://prometheus.monitor.azure.com' --query accessToken -o tsv)"
+            code="$(curl -sS -o /tmp/prom-query.json -w '%{http_code}' \
+              -G "${QUERY_ENDPOINT%/}/api/v1/query" \
+              -H "Authorization: Bearer $query_token" \
+              --data-urlencode 'query=truyn_backend_acceptance_series{surface="production-ops",proof="metrics-backend"}' || true)"
+            unset query_token
+            if [[ "$code" == '200' ]] && python - <<'PY'
+          import json
+          try:
+              body = json.load(open('/tmp/prom-query.json'))
+              result = body.get('data', {}).get('result', [])
+              ok = body.get('status') == 'success' and any(float(item['value'][1]) == 1.0 for item in result)
+          except Exception:
+              ok = False
+          raise SystemExit(0 if ok else 1)
+          PY
+            then
+              query_ok=true
+              break
+            fi
+            if [[ "$code" == '200' || "$code" == '401' || "$code" == '403' || "$code" == '429' || "$code" =~ ^5 ]]; then
+              sleep 10
+              continue
+            fi
+            echo "::error::Prometheus query path failed with HTTP ${code}."
+            exit 1
+          done
+          [[ "$query_ok" == true ]] || { echo '::error::Canary series was not observed through PromQL.'; exit 1; }
+
+      - name: Emit sanitized Sprint 6 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg deploymentId "$DEPLOYMENT_ID" \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg region "$METRICS_REGION" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              schema: "truyn.production-metrics-backend-evidence/v1",
+              deploymentId: $deploymentId,
+              component: "metrics-backend",
+              backendClass: "azure-monitor-managed-prometheus",
+              prometheusCompatible: true,
+              region: $region,
+              sourceSha: $sourceSha,
+              exactMain: true,
+              workspaceProvisioningSucceeded: true,
+              remoteWriteAccepted: true,
+              promqlReadBackObserved: true,
+              acceptedSeries: "truyn_backend_acceptance_series",
+              generatedAt: $generatedAt,
+              status: "PASS"
+            }' > production-metrics-backend-evidence.json
+
+      - name: Upload sanitized metrics backend evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-metrics-backend-evidence
+          path: production-metrics-backend-evidence.json
+          if-no-files-found: error
+          retention-days: 30
