@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - 'infra/production-tracing/**'
+      - 'runtime/trace-export-canary.js'
       - 'operations/production-trace-backend.json'
+      - 'operations/production-trace-export.json'
       - '.github/workflows/production-trace-backend.yml'
       - 'tests/production-trace-backend.test.js'
       - 'tests/public-repository.test.js'
@@ -12,7 +14,9 @@ on:
     branches: [main]
     paths:
       - 'infra/production-tracing/**'
+      - 'runtime/trace-export-canary.js'
       - 'operations/production-trace-backend.json'
+      - 'operations/production-trace-export.json'
       - '.github/workflows/production-trace-backend.yml'
       - 'tests/production-trace-backend.test.js'
       - 'tests/public-repository.test.js'
@@ -49,6 +53,11 @@ jobs:
         run: |
           set -euo pipefail
           docker build --pull --tag truyn-trace-backend:validate infra/production-tracing/tempo >/dev/null
+      - name: Validate runtime trace canary syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check runtime/trace-export-canary.js
       - name: Validate trace backend contract
         shell: bash
         run: |
@@ -69,11 +78,30 @@ jobs:
             .publicIngress == false and
             .acceptance.traceReadBackRequired == true
           ' operations/production-trace-backend.json >/dev/null
+      - name: Validate production trace export contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema == "truyn.production-trace-export/v1" and
+            .exportId == "prod-trace-export-01" and
+            .deploymentId == "dc4518de-d1bf-4fce-b351-e43d7c152999" and
+            .runtimeRole == "provider" and
+            .runtimeImageBinding == "exact-main-source-sha" and
+            .environmentVariable == "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" and
+            .protocol == "otlp/http-protobuf" and
+            .endpointScope == "private-loopback-sidecar" and
+            .endpointPath == "/v1/traces" and
+            .publicEndpoint == false and
+            .acceptance.spanName == "truyn.provider.execute" and
+            .acceptance.exactTraceReadBackRequired == true and
+            .acceptance.sourceShaBindingRequired == true
+          ' operations/production-trace-export.json >/dev/null
 
   apply-and-prove:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
         with:
@@ -167,9 +195,10 @@ jobs:
           identity_name="truyn-traces-${trace_suffix}-mi"
           image_repo='truyn-trace-backend'
           image_name="${selected_registry}.azurecr.io/${image_repo}:${GITHUB_SHA}"
+          runtime_image="${selected_registry}.azurecr.io/truyn-runtime:${GITHUB_SHA}"
           opaque_region="region-$(printf '%s' "${DEPLOYMENT_ID}:${selected_region}" | sha256sum | cut -c1-8)"
 
-          for value in "$selected_environment" "$selected_environment_id" "$selected_prefix" "$selected_vnet_id" "$selected_private_endpoint_subnet_id" "$selected_registry" "$app_name" "$storage_name" "$identity_name" "$image_name"; do
+          for value in "$selected_environment" "$selected_environment_id" "$selected_prefix" "$selected_vnet_id" "$selected_private_endpoint_subnet_id" "$selected_registry" "$app_name" "$storage_name" "$identity_name" "$image_name" "$runtime_image"; do
             printf '::add-mask::%s\n' "$value"
           done
 
@@ -184,6 +213,7 @@ jobs:
           printf 'TRACE_STORAGE=%s\n' "$storage_name" >> "$GITHUB_ENV"
           printf 'TRACE_IDENTITY=%s\n' "$identity_name" >> "$GITHUB_ENV"
           printf 'TRACE_IMAGE=%s\n' "$image_name" >> "$GITHUB_ENV"
+          printf 'TRACE_RUNTIME_IMAGE=%s\n' "$runtime_image" >> "$GITHUB_ENV"
 
       - name: Build exact-main Tempo image
         shell: bash
@@ -197,7 +227,19 @@ jobs:
             --only-show-errors \
             -o none
 
-      - name: Provision private OTLP trace storage
+      - name: Build exact-main production runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr build \
+            --registry "$TRACE_REGISTRY" \
+            --image "truyn-runtime:${GITHUB_SHA}" \
+            --file Dockerfile \
+            . \
+            --only-show-errors \
+            -o none
+
+      - name: Provision private OTLP trace storage and runtime export canary
         shell: bash
         run: |
           set -euo pipefail
@@ -216,6 +258,7 @@ jobs:
               privateEndpointSubnetId="$TRACE_PE_SUBNET_ID" \
               registryName="$TRACE_REGISTRY" \
               imageName="$TRACE_IMAGE" \
+              runtimeImage="$TRACE_RUNTIME_IMAGE" \
               location="$TRACE_REGION" \
               deploymentId="$DEPLOYMENT_ID" \
               sourceSha="$GITHUB_SHA" \
@@ -227,11 +270,17 @@ jobs:
           storage_json="$(az storage account show --resource-group "$RESOURCE_GROUP" --name "$TRACE_STORAGE" --only-show-errors -o json)"
           identity_json="$(az identity show --resource-group "$RESOURCE_GROUP" --name "$TRACE_IDENTITY" --only-show-errors -o json)"
 
-          jq -e '
+          jq -e --arg runtimeImage "$TRACE_RUNTIME_IMAGE" --arg sourceSha "$GITHUB_SHA" '
             .properties.provisioningState == "Succeeded" and
             .properties.configuration.ingress.external == false and
             .properties.configuration.ingress.targetPort == 4318 and
-            .identity.type == "UserAssigned"
+            .identity.type == "UserAssigned" and
+            any(.properties.template.containers[];
+              .name == "runtime-trace-canary" and
+              .image == $runtimeImage and
+              any(.env[]; .name == "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" and .value == "http://127.0.0.1:4318/v1/traces") and
+              any(.env[]; .name == "TRUYN_VERSION" and .value == $sourceSha)
+            )
           ' <<<"$app_json" >/dev/null
           jq -e '
             .provisioningState == "Succeeded" and
@@ -269,6 +318,32 @@ jobs:
             exit 1
           }
 
+      - name: Prove production runtime trace export
+        shell: bash
+        run: |
+          set -euo pipefail
+          observed=false
+          for attempt in $(seq 1 120); do
+            logs="$(az containerapp logs show \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$TRACE_APP" \
+              --container acceptance-probe \
+              --type console \
+              --tail 150 \
+              --follow false \
+              --format text \
+              --only-show-errors 2>/dev/null || true)"
+            if grep -q 'TRUYN_TRACE_EXPORT_PASS span=truyn.provider.execute runtime=production source=exact-main' <<<"$logs"; then
+              observed=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$observed" == true ]] || {
+            echo '::error::Production runtime did not export a readable truyn.provider.execute trace.'
+            exit 1
+          }
+
       - name: Emit sanitized Sprint 9 evidence
         shell: bash
         run: |
@@ -300,10 +375,46 @@ jobs:
               status: "PASS"
             }' > production-trace-backend-evidence.json
 
+      - name: Emit sanitized Sprint 10 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg deploymentId "$DEPLOYMENT_ID" \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg region "$TRACE_OPAQUE_REGION" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              schema: "truyn.production-trace-export-evidence/v1",
+              deploymentId: $deploymentId,
+              component: "trace-export",
+              runtimeRole: "provider",
+              runtimeImageBoundToExactMain: true,
+              environmentVariable: "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+              endpointScope: "private-loopback-sidecar",
+              protocol: "otlp/http-protobuf",
+              spanName: "truyn.provider.execute",
+              providerSpanObserved: true,
+              exactTraceReadBackObserved: true,
+              sourceSha: $sourceSha,
+              exactMain: true,
+              region: $region,
+              generatedAt: $generatedAt,
+              status: "PASS"
+            }' > production-trace-export-evidence.json
+
       - name: Upload sanitized trace backend evidence
         uses: actions/upload-artifact@v4
         with:
           name: production-trace-backend-evidence
           path: production-trace-backend-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload sanitized trace export evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-trace-export-evidence
+          path: production-trace-export-evidence.json
           if-no-files-found: error
           retention-days: 30
