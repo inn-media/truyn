@@ -2,30 +2,33 @@
   "schema": "truyn.production-metrics-backend/v1",
   "backendId": "prod-prometheus-01",
   "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
-  "backendClass": "azure-monitor-managed-prometheus",
+  "backendClass": "azure-container-apps-victoriametrics",
+  "backendVersion": "v1.151.0",
   "prometheusCompatible": true,
-  "region": "germanywestcentral",
+  "publicIngress": false,
+  "productionPlane": "existing-internal-azure-container-apps",
   "status": "deployment_pending_live_series_proof",
   "seriesAcceptanceMetric": "truyn_backend_acceptance_series",
   "liveSeriesAccepted": false,
   "acceptedSourceSha": null,
   "publicResourceIdentity": false,
   "manifestIntegrationStatus": "pending_phase_a_merge",
+  "retentionDurabilityStatus": "separate_operations_gate",
   "evidenceContract": {
     "required": [
-      "workspace provisioning state Succeeded",
+      "existing production Container Apps environment is internal and public network disabled",
+      "VictoriaMetrics Container App provisioning state Succeeded with no public ingress",
       "Prometheus remote-write accepted the canary series",
-      "PromQL query observed the canary series",
+      "PromQL query independently observed the canary series",
       "sanitized evidence artifact status PASS"
     ],
     "forbiddenPublicFields": [
-      "workspace name",
-      "DCR/DCE resource identifiers",
-      "ingestion endpoint",
-      "query endpoint",
+      "Container App name or resource identifier",
+      "Container Apps environment name or resource identifier",
+      "private FQDN or IP address",
       "tenant/subscription identifiers",
       "credentials"
     ]
   },
-  "invariant": "liveSeriesAccepted may become true only after one live write of truyn_backend_acceptance_series is accepted by the backend and independently observed through the Prometheus query API."
+  "invariant": "liveSeriesAccepted may become true only after one live write of truyn_backend_acceptance_series is accepted by the production backend and independently observed through the Prometheus query API."
 }
