@@ -85,14 +85,14 @@ async function harness(t) {
   return {
     relay,
     relayUrl,
-    async provider({ capability, execute }) {
+    async provider({ capability, execute, fastPath = false }) {
       const node = new TruynNode({ relayUrl });
       const host = new TruynAdapterHost({
         node,
         adapter: createFunctionAdapter({ name: `official-${capability}`, capabilities: [capability], execute }),
         accessPolicy: createProviderAccessPolicy({ mode: 'public' }),
         pollIntervalMs: 5,
-        fastPath: true,
+        fastPath,
         socketPath: false,
         longPollMs: 25
       });
@@ -135,6 +135,7 @@ test('P3-A1 official @a2a-js/sdk@1.0.1 black-box proves streaming and resubscrip
 
   await h.provider({
     capability: 'p3.a1.official.stream',
+    fastPath: true, // SendStreamingMessage dispatches a compact NEED.
     execute: async ({ emitPartial }) => {
       executions += 1;
       await emitPartial('one');

@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
+import { Readable } from 'node:stream';
 import { createA2aServer } from '../adapters/a2a/server.js';
 import { A2A_PROTOCOL_VERSION } from '../adapters/a2a/mapping.js';
 
@@ -82,28 +84,37 @@ test('P3-A1 streaming disconnect tears down the SSE session and stops stream pol
     maxBlockingWaitMs: 2_000
   });
   const url = await facade.listen({ port: 0 });
-  t.after(() => facade.close());
-
   const abortController = new AbortController();
-  const response = await fetch(`${url}/a2a`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'text/event-stream',
-      'a2a-version': A2A_PROTOCOL_VERSION
-    },
-    body: JSON.stringify({
+  t.after(async () => {
+    abortController.abort();
+    await facade.close();
+  });
+
+  // Node 22 fetch can open a replacement idle pool socket after aborting SSE.
+  // Own one unpooled connection so the zero-connection assertion measures cleanup.
+  const response = await new Promise((resolve, reject) => {
+    const request = http.request(`${url}/a2a`, {
+      method: 'POST',
+      agent: false,
+      headers: {
+        'content-type': 'application/json',
+        accept: 'text/event-stream',
+        'a2a-version': A2A_PROTOCOL_VERSION
+      },
+      signal: abortController.signal
+    }, resolve);
+    request.once('error', reject);
+    request.end(JSON.stringify({
       jsonrpc: '2.0',
       id: 'disconnect-rpc',
       method: 'SendStreamingMessage',
       params: { message: message('disconnect after first frame') }
-    }),
-    signal: abortController.signal
+    }));
   });
 
-  assert.match(response.headers.get('content-type') || '', /^text\/event-stream/);
-  assert.ok(response.body);
-  const reader = response.body.getReader();
+  assert.match(response.headers['content-type'] || '', /^text\/event-stream/);
+  assert.ok(response.readable);
+  const reader = Readable.toWeb(response).getReader();
   const decoder = new TextDecoder();
   let received = '';
   while (!received.includes('\n\n')) {
