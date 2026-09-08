@@ -49,32 +49,32 @@ predicate = r'''    if [[ "\$propagation_ready" == true && "\$status" == refresh
 observation = predicate + r'''    printf '%s' "\$readiness" | jq -c \
       --argjson node "\$j" \
       --argjson expected "\$readiness_expected_hosts_json" '
-        . as $r
-        | ($r.remoteEndpointDiversity.hosts // []) as $present
+        . as \$r
+        | (\$r.remoteEndpointDiversity.hosts // []) as \$present
         | {
-            nodeIndex: $node,
+            nodeIndex: \$node,
             observationUnavailable: false,
-            acceptanceReady: ($r.acceptanceReady // false),
-            refreshStatus: ($r.refresh.status // "unknown"),
-            validPeers: ($r.validPeers // 0),
-            populatedBuckets: ($r.populatedBuckets // 0),
-            remoteHostCount: ($r.remoteEndpointDiversity.hostCount // 0),
+            acceptanceReady: (\$r.acceptanceReady // false),
+            refreshStatus: (\$r.refresh.status // "unknown"),
+            validPeers: (\$r.validPeers // 0),
+            populatedBuckets: (\$r.populatedBuckets // 0),
+            remoteHostCount: (\$r.remoteEndpointDiversity.hostCount // 0),
             missingHostIndexes: [
-              $expected | to_entries[] | . as $entry
-              | select(($present | index($entry.value)) == null)
-              | $entry.key
+              \$expected | to_entries[] | . as \$entry
+              | select((\$present | index(\$entry.value)) == null)
+              | \$entry.key
             ],
-            peerRecordSequence: ($r.peerRecordSequence // null),
-            oldestPeerRecordIssuedAt: ($r.peerRecordLeases.oldestPeerRecordIssuedAt // null),
-            nearestPeerRecordExpiryMs: ($r.peerRecordLeases.nearestPeerRecordExpiryMs // null),
-            expiredPeerRecords: ($r.peerRecordLeases.expiredPeerRecords // null),
+            peerRecordSequence: (\$r.peerRecordSequence // null),
+            oldestPeerRecordIssuedAt: (\$r.peerRecordLeases.oldestPeerRecordIssuedAt // null),
+            nearestPeerRecordExpiryMs: (\$r.peerRecordLeases.nearestPeerRecordExpiryMs // null),
+            expiredPeerRecords: (\$r.peerRecordLeases.expiredPeerRecords // null),
             peerRecordPropagation: {
-              ready: ($r.peerRecordPropagation.ready // false),
-              targetCount: ($r.peerRecordPropagation.targetCount // 0),
-              acknowledgedCount: ($r.peerRecordPropagation.acknowledgedCount // 0),
-              pendingCount: ($r.peerRecordPropagation.pendingCount // 0)
+              ready: (\$r.peerRecordPropagation.ready // false),
+              targetCount: (\$r.peerRecordPropagation.targetCount // 0),
+              acknowledgedCount: (\$r.peerRecordPropagation.acknowledgedCount // 0),
+              pendingCount: (\$r.peerRecordPropagation.pendingCount // 0)
             },
-            periodicRefreshLastResult: ($r.periodicRefresh.lastResult // null)
+            periodicRefreshLastResult: (\$r.periodicRefresh.lastResult // null)
           }
       ' > "\$readiness_observations_dir/\$j.json"
 '''
@@ -197,6 +197,11 @@ if '"\\$hosts" -eq ${HOST_COUNT}' not in block:
 if 'readiness_gate_failed=1' not in block or 'TRUYN_D200_READINESS_AGGREGATE_FAILURE' not in block:
     raise SystemExit('readiness evidence repair must fail only after aggregate collection')
 for required in (
+    r'. as \$r',
+    r'nodeIndex: \$node',
+    r'\$expected | to_entries[]',
+    r'as \$entry',
+    r'index(\$entry.value)',
     'missingHostIndexes',
     'oldestPeerRecordIssuedAt',
     'nearestPeerRecordExpiryMs',
