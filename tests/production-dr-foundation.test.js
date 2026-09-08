@@ -90,9 +90,9 @@ test('foundation deploy is bounded to an existing resource group and never requi
   assert.doesNotMatch(workflow, /az group create/);
 });
 
-test('Cosmos region fallback is bounded, deterministic and capacity-only', async () => {
+test('Cosmos region fallback is bounded, deterministic, capacity-only and prefers the proven pair', async () => {
   const workflow = await text(WORKFLOW);
-  assert.match(workflow, /TRUYN_DR_REGION_PAIRS \|\| 'northeurope:swedencentral germanywestcentral:francecentral'/);
+  assert.match(workflow, /TRUYN_DR_REGION_PAIRS \|\| 'germanywestcentral:francecentral northeurope:swedencentral'/);
   assert.match(workflow, /for pair in \$REGION_PAIRS/);
   assert.match(workflow, /\[\[ "\$attempt" -le 2 \]\]/);
   assert.match(workflow, /GITHUB_REPOSITORY_ID}:\$\{primary}:\$\{secondary}/);
@@ -114,23 +114,54 @@ test('live proof pins the actual selected region pair and records fallback evide
     'regionAttemptCount: $regionAttemptCount',
     'fallbackUsed: $fallbackUsed',
   ]) assert.ok(workflow.includes(marker), `missing region evidence marker: ${marker}`);
-  assert.match(workflow, /\[\.locations\[\]\.locationName \| gsub\(" "; ""\) \| ascii_downcase\] \| sort/);
+  assert.match(workflow, /\.locationName \/\/ ""\) \| gsub\(" "; ""\) \| ascii_downcase/);
 });
 
-test('live foundation evidence proves backup, replication, RBAC and private ingress without identifiers', async () => {
+test('live proof is null-safe and fail-closed for transformed Azure fields', async () => {
   const workflow = await text(WORKFLOW);
   for (const marker of [
-    '.backupPolicy.type == "Continuous"',
-    '(.locations | length) == 2',
-    '.enableAutomaticFailover == true',
-    '.enableMultipleWriteLocations == false',
-    '.disableLocalAuth == true',
-    'privateEndpointApproved: true',
-    'cosmosDataContributor: true',
-    'containerAppsEnvironmentInternal: true',
-    'partitionKeyVerified: true',
-  ]) assert.ok(workflow.includes(marker), `missing live proof marker: ${marker}`);
+    '(.publicNetworkAccess // "") | ascii_downcase',
+    '(.properties.publicNetworkAccess // "") | ascii_downcase',
+    '(.privateLinkServiceConnectionState.status // "") | ascii_downcase',
+    '(.roleDefinitionId // "") | endswith',
+    '(.roleDefinitionId // "") | ascii_downcase',
+    '.id // empty',
+  ]) assert.ok(workflow.includes(marker), `missing null-safe proof marker: ${marker}`);
+  assert.match(workflow, /fail_assertion\(\)/);
+  assert.match(workflow, /::error::Live foundation assertion failed:/);
+});
+
+test('live proof emits separate diagnostics for Cosmos, ACA, private endpoint and RBAC gates', async () => {
+  const workflow = await text(WORKFLOW);
+  for (const label of [
+    'cosmos-backup-policy',
+    'cosmos-region-failover-policy',
+    'cosmos-auth-and-public-network',
+    'cosmos-checkpoint-partition-contract',
+    'cosmos-data-contributor-rbac',
+    'aca-internal-vnet',
+    'aca-public-network-disabled',
+    'cosmos-private-endpoint-approved',
+    'registry-pull-rbac',
+  ]) assert.ok(workflow.includes(label), `missing live assertion diagnostic: ${label}`);
+  assert.match(workflow, /az resource show --ids "\$environment_id" --api-version 2025-07-01/);
+});
+
+test('live foundation evidence is emitted only after the semantic backup, replication, RBAC and private-ingress gates', async () => {
+  const workflow = await text(WORKFLOW);
+  for (const marker of [
+    '(.backupPolicy.type // "") == "Continuous"',
+    '((.locations // []) | length) == 2',
+    '.enableAutomaticFailover',
+    '.enableMultipleWriteLocations',
+    '.disableLocalAuth',
+    'cosmos-private-endpoint-approved',
+    'cosmos-data-contributor-rbac',
+    'aca-internal-vnet',
+    'cosmos-checkpoint-partition-contract',
+  ]) assert.ok(workflow.includes(marker), `missing live proof gate: ${marker}`);
   assert.match(workflow, /schemaVersion: 2/);
+  assert.match(workflow, /status: "PASS"/);
   assert.match(workflow, /production-dr-foundation-evidence\.json/);
   assert.match(workflow, /actions\/upload-artifact@v4/);
   assert.doesNotMatch(workflow, /connectionString|accountKey|listKeys/i);
