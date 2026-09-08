@@ -1,4 +1,4 @@
-name: diag-d200-850fff25-qualified
+name: diag-d200-9c3f6061-peer-lease-repair
 
 on:
   push:
@@ -12,28 +12,31 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d200-850fff25-qualified-single-shot
+  group: truyn-d200-9c3f6061-peer-lease-repair-single-shot
   cancel-in-progress: false
 
 env:
-  TESTED_COMMIT: 850fff25f4af345932ac97167ec93cfcc1a8bf85
-  TESTED_TREE_SHA: a09b86b6f63c626303a8bf3be70defff4fdf7187
-  LAUNCH_PARENT: 83dafb542e7ad912a80cf8c28837b3edb0cd06de
-  PREVIOUS_LAUNCH_PARENT: b536cde81679e34f3b46a518758de4f0dd46b2cc
-  PREVIOUS_PREFLIGHT_RUN: '34253914136'
-  EXACT_MAIN_CI_RUN: '34239801973'
-  EXACT_MAIN_CODEQL_RUN: '34239801295'
+  TESTED_COMMIT: 9c3f606124081313946b6ea6e59ff6cac539835e
+  TESTED_TREE_SHA: 207e247ef073def97a5d5c41ff6688038855da1e
+  LAUNCH_PARENT: 9c3f606124081313946b6ea6e59ff6cac539835e
+  EXACT_MAIN_CI_RUN: '34263278221'
+  EXACT_MAIN_CODEQL_RUN: '34263277616'
   CAMPAIGN_BLOB_SHA: 796d9d00dea3807279d8326de0a916a72b487949
   PROVISION_BLOB_SHA: c1c839943f5e02bdc716691d91226251c8e3ec00
-  PREFLIGHT_BLOB_SHA: 8aeddfbf70034c169bad47f520fcbdc2c57f6265
+  PREFLIGHT_BLOB_SHA: 4c14355e8c66d1eef8959d6151389f05daaed0a1
   READINESS_WINDOW_BLOB_SHA: 6ddfc11bb03d774fb38d4c265fa90867067e871b
+  PEER_LEASE_PATCH_BLOB_SHA: 84b7e0211ec7685eeea96947c550831d2db727eb
+  READINESS_EVIDENCE_PATCH_BLOB_SHA: b6b05595499f1dde089e35d8f1c480ed3b3b2316
+  BOOTSTRAP_PLANNER_BLOB_SHA: 1dc26bf6cbcdae3b748dcadc6d0728c082240534
+  PEER_DISCOVERY_BLOB_SHA: d83b0e6f02f4d6d0ee7a38f633321c75911e5323
+  NODE_SERVICE_BLOB_SHA: 3cc7088420dc55e20611351b069cc927433fad8a
   RUNTIME_BUILDER_BLOB_SHA: a49bbc7c700a277ca9ed3cc26e905b51ea4b6baf
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '10'
 
 jobs:
   diagnostic-d200:
-    name: Immutable qualified D-200 on 850fff25
+    name: Immutable qualified D-200 on 9c3f6061
     runs-on: ubuntu-22.04
     timeout-minutes: 300
     steps:
@@ -54,21 +57,10 @@ jobs:
           [[ "$(jq '.parents|length' <<<"$j")" == 1 ]]
           [[ "$(jq -r '.parents[0].sha' <<<"$j")" == "$LAUNCH_PARENT" ]]
 
-          p="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${LAUNCH_PARENT}")"
-          [[ "$(jq '.parents|length' <<<"$p")" == 1 ]]
-          [[ "$(jq -r '.parents[0].sha' <<<"$p")" == "$PREVIOUS_LAUNCH_PARENT" ]]
-
-          pp="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${PREVIOUS_LAUNCH_PARENT}")"
-          [[ "$(jq '.parents|length' <<<"$pp")" == 1 ]]
-          [[ "$(jq -r '.parents[0].sha' <<<"$pp")" == "$TESTED_COMMIT" ]]
-
           t="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TESTED_COMMIT}")"
           [[ "$(jq -r '.commit.tree.sha' <<<"$t")" == "$TESTED_TREE_SHA" ]]
           jq -e '.commit.message | contains("Signed-off-by:")' <<<"$t" >/dev/null
           jq -e '.commit.verification.verified == true' <<<"$t" >/dev/null
-
-          prev="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${PREVIOUS_PREFLIGHT_RUN}")"
-          jq -e --arg sha "$LAUNCH_PARENT" '.head_sha==$sha and .run_attempt==1 and .status=="completed" and .conclusion=="failure"' <<<"$prev" >/dev/null
 
       - uses: actions/checkout@v4
         with:
@@ -98,6 +90,11 @@ jobs:
           [[ "$(git rev-parse "${TESTED_COMMIT}:benchmarks/scale/class-d-azure-1000-provision.sh")" == "$PROVISION_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/class-d-200-preflight-qualification.sh")" == "$PREFLIGHT_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-readiness-window.py")" == "$READINESS_WINDOW_BLOB_SHA" ]]
+          [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-peer-lease-freshness.py")" == "$PEER_LEASE_PATCH_BLOB_SHA" ]]
+          [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-readiness-evidence.py")" == "$READINESS_EVIDENCE_PATCH_BLOB_SHA" ]]
+          [[ "$(git rev-parse "${TESTED_COMMIT}:benchmarks/scale/class-d-1000-bootstrap.js")" == "$BOOTSTRAP_PLANNER_BLOB_SHA" ]]
+          [[ "$(git rev-parse "${TESTED_COMMIT}:network/discovery/peer-discovery.js")" == "$PEER_DISCOVERY_BLOB_SHA" ]]
+          [[ "$(git rev-parse "${TESTED_COMMIT}:network/testnet/node-service.js")" == "$NODE_SERVICE_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/build-class-d-1000-runtime-bundle.sh")" == "$RUNTIME_BUILDER_BLOB_SHA" ]]
 
           ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
@@ -107,7 +104,7 @@ jobs:
 
           bash scripts/class-d-200-preflight-qualification.sh
           git diff --check
-          printf 'tested_commit=%s\ntested_tree_sha=%s\nlauncher_sha=%s\nrun_id=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nacknowledged_write_count_required=100\nacknowledged_write_loss_required=0\nstrict_d1000_acceptance=false\ndiagnostic_focus=post-493-qualified-readiness-window\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$GITHUB_SHA" "$GITHUB_RUN_ID" > class-d-200-diagnostic-input.txt
+          printf 'tested_commit=%s\ntested_tree_sha=%s\nlauncher_sha=%s\nrun_id=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nacknowledged_write_count_required=100\nacknowledged_write_loss_required=0\nstrict_d1000_acceptance=false\ndiagnostic_focus=peer-lease-freshness-host-stratified-refresh-evidence\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$GITHUB_SHA" "$GITHUB_RUN_ID" > class-d-200-diagnostic-input.txt
 
       - name: Build immutable runtime bundle
         id: runtime
@@ -210,9 +207,11 @@ jobs:
           cp benchmarks/scale/class-d-azure-1000-campaign.sh "$t/campaign.sh"
           python3 scripts/patch-class-d-diagnostic-bootstrap-timeout.py "$t/provision.sh"
           python3 scripts/patch-class-d-diagnostic-bootstrap-parallel.py "$t/provision.sh"
+          python3 scripts/patch-class-d-diagnostic-peer-lease-freshness.py "$t/provision.sh"
           python3 scripts/patch-class-d-diagnostic-bandwidth-meter-parallel.py "$t/provision.sh"
           python3 scripts/patch-class-d-diagnostic-readiness-parallel.py "$t/campaign.sh"
           python3 scripts/patch-class-d-diagnostic-readiness-window.py "$t/campaign.sh"
+          python3 scripts/patch-class-d-diagnostic-readiness-evidence.py "$t/campaign.sh"
           python3 scripts/patch-class-d-diagnostic-baseline-parallel.py "$t/campaign.sh"
           python3 scripts/patch-class-d-diagnostic-restart-parallel.py "$t/campaign.sh"
           python3 scripts/patch-class-d-diagnostic-post-restart-origin.py "$t/campaign.sh"
@@ -301,7 +300,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d200-850fff25-${{ github.run_id }}'
+          name: 'truyn-class-d200-9c3f6061-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
