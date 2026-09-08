@@ -33,6 +33,11 @@ param backendQueryUrl string
 param collectorVersion string = '0.158.0'
 
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+var regionIdentityByLocation = {
+  germanywestcentral: 'region-9f2d7c41'
+  northeurope: 'region-4b81a6e3'
+}
+var regionIdentity = contains(regionIdentityByLocation, location) ? regionIdentityByLocation[location] : 'region-unmapped'
 
 var collectorConfig = '''
 receivers:
@@ -44,6 +49,11 @@ receivers:
           scrape_timeout: 4s
           static_configs:
             - targets: ["127.0.0.1:9464"]
+              labels:
+                environment: "production"
+                deployment: "${deploymentId}"
+                service: "truyn-relay"
+                region: "${regionIdentity}"
 
 exporters:
   prometheusremotewrite:
@@ -72,11 +82,19 @@ import urllib.request
 RELAY_HTTP = 'http://127.0.0.1:8080'
 RELAY_METRICS = 'http://127.0.0.1:9464/metrics'
 QUERY_BASE = '${backendQueryUrl}'
+IDENTITY = {
+    'environment': 'production',
+    'deployment': '${deploymentId}',
+    'service': 'truyn-relay',
+    'region': '${regionIdentity}',
+}
+FORBIDDEN_LABELS = {'requestId', 'providerId', 'nodeId'}
+SERIES_SELECTOR = ','.join(f'{key}="{value}"' for key, value in IDENTITY.items())
 REQUIRED = [
-    ('truyn_http_requests_total{surface="relay"}', False),
-    ('truyn_dispatch_attempts_total', False),
-    ('truyn_result_delivery_total', False),
-    ('truyn_runtime_ready{role="relay"}', True),
+    ('truyn_http_requests_total{surface="relay",' + SERIES_SELECTOR + '}', False),
+    ('truyn_dispatch_attempts_total{' + SERIES_SELECTOR + '}', False),
+    ('truyn_result_delivery_total{' + SERIES_SELECTOR + '}', False),
+    ('truyn_runtime_ready{role="relay",' + SERIES_SELECTOR + '}', True),
 ]
 
 
@@ -101,6 +119,12 @@ def query_visible(expression, require_one=False):
         return False
     if body.get('status') != 'success' or not result:
         return False
+    for item in result:
+        labels = item.get('metric', {})
+        if any(labels.get(key) != value for key, value in IDENTITY.items()):
+            return False
+        if any(label in labels for label in FORBIDDEN_LABELS):
+            return False
     if not require_one:
         return True
     for item in result:
@@ -172,9 +196,9 @@ for _ in range(180):
 
 if not all(seen):
     missing = [REQUIRED[index][0] for index, value in enumerate(seen) if not value]
-    raise SystemExit('backend did not expose required relay metrics: ' + ','.join(missing))
+    raise SystemExit('backend did not expose required production relay metrics with safe identity labels: ' + ','.join(missing))
 
-print('TRUYN_METRICS_COLLECTOR_PASS http=1 dispatch=1 result=1 ready=1 loopback=1 remote_write=1', flush=True)
+print('TRUYN_METRICS_COLLECTOR_PASS http=1 dispatch=1 result=1 ready=1 loopback=1 remote_write=1 identity=1 forbidden=0', flush=True)
 while True:
     time.sleep(3600)
 PY

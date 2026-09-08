@@ -17,6 +17,20 @@
     "transport": "prometheus-remote-write",
     "privateEnvironmentOnly": true
   },
+  "seriesIdentityLabels": {
+    "environment": "production",
+    "deployment": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+    "service": "truyn-relay",
+    "regionValues": [
+      "region-9f2d7c41",
+      "region-4b81a6e3"
+    ]
+  },
+  "forbiddenMetricLabels": [
+    "requestId",
+    "providerId",
+    "nodeId"
+  ],
   "requiredMetrics": [
     "truyn_http_requests_total",
     "truyn_dispatch_attempts_total",
@@ -33,6 +47,8 @@
       "node-local collector scrapes relay /metrics",
       "collector remote-writes to the private production metrics backend",
       "backend PromQL exposes all four required metric families",
+      "every production relay series carries environment=production, the opaque deployment ID, service=truyn-relay and an opaque region label",
+      "production relay series carry none of requestId, providerId or nodeId",
       "truyn_runtime_ready for role=relay is observed with value 1",
       "sanitized exact-main evidence status PASS"
     ],
@@ -45,5 +61,5 @@
       "credentials"
     ]
   },
-  "invariant": "The relay /metrics listener must remain loopback-only. liveMetricsObserved may become true only after the private backend independently exposes all required metric families from the node-local collector."
+  "invariant": "The relay /metrics listener must remain loopback-only. Production metric series must be distinguishable by bounded deployment identity labels only; requestId, providerId and nodeId remain log/trace correlation fields and must never be metric labels."
 }
