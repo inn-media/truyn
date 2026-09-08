@@ -1,0 +1,309 @@
+name: Production Trace Backend
+
+on:
+  pull_request:
+    paths:
+      - 'infra/production-tracing/**'
+      - 'operations/production-trace-backend.json'
+      - '.github/workflows/production-trace-backend.yml'
+      - 'tests/production-trace-backend.test.js'
+      - 'tests/public-repository.test.js'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/production-tracing/**'
+      - 'operations/production-trace-backend.json'
+      - '.github/workflows/production-trace-backend.yml'
+      - 'tests/production-trace-backend.test.js'
+      - 'tests/public-repository.test.js'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'northeurope:swedencentral germanywestcentral:francecentral' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile trace backend Bicep
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep install >/dev/null
+          az bicep build --file infra/production-tracing/trace-backend.bicep --stdout >/dev/null
+      - name: Build pinned Tempo image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --pull --tag truyn-trace-backend:validate infra/production-tracing/tempo >/dev/null
+      - name: Validate trace backend contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .backendId == "prod-traces-01" and
+            .deploymentId == "dc4518de-d1bf-4fce-b351-e43d7c152999" and
+            .backendClass == "azure-container-apps-tempo" and
+            .backendVersion == "3.0.2" and
+            .protocols.otlpHttp.enabled == true and
+            .protocols.otlpHttp.port == 4318 and
+            .protocols.otlpHttp.path == "/v1/traces" and
+            .protocols.otlpGrpc.enabled == true and
+            .protocols.otlpGrpc.port == 4317 and
+            .storage.backend == "azure-blob" and
+            .storage.authentication == "managed-identity" and
+            .storage.publicNetworkAccess == false and
+            .publicIngress == false and
+            .acceptance.traceReadBackRequired == true
+          ' operations/production-trace-backend.json >/dev/null
+
+  apply-and-prove:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Resolve accepted private production Container Apps plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          az bicep install >/dev/null
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+          selected_environment=''
+          selected_environment_id=''
+          selected_region=''
+          selected_prefix=''
+          selected_vnet_id=''
+          selected_private_endpoint_subnet_id=''
+          selected_registry=''
+          attempt=0
+
+          for pair in $REGION_PAIRS; do
+            attempt=$((attempt + 1))
+            [[ "$attempt" -le 2 ]] || break
+            [[ "$pair" == *:* ]] || { echo '::error::Invalid production region pair.'; exit 1; }
+            primary="${pair%%:*}"
+            secondary="${pair#*:}"
+            pair_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}:${primary}:${secondary}" | sha256sum | cut -c1-10)"
+            prefix="truyn${pair_suffix}"
+            environment="${prefix}-aca-env"
+            cosmos="${prefix}cosmos"
+            vnet="${prefix}-vnet"
+            registry="${prefix}acr"
+            for value in "$prefix" "$environment" "$cosmos" "$vnet" "$registry"; do printf '::add-mask::%s\n' "$value"; done
+
+            if ! environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+            if ! cosmos_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+            if ! vnet_id="$(az network vnet show --resource-group "$RESOURCE_GROUP" --name "$vnet" --query id -o tsv --only-show-errors 2>/dev/null)"; then
+              continue
+            fi
+            if ! pe_subnet_id="$(az network vnet subnet show --resource-group "$RESOURCE_GROUP" --vnet-name "$vnet" --name private-endpoints --query id -o tsv --only-show-errors 2>/dev/null)"; then
+              continue
+            fi
+            if ! az acr show --resource-group "$RESOURCE_GROUP" --name "$registry" --only-show-errors -o none 2>/dev/null; then
+              continue
+            fi
+
+            if ! jq -e '
+              .properties.vnetConfiguration.internal == true and
+              (.properties.publicNetworkAccess | ascii_downcase) == "disabled" and
+              .properties.provisioningState == "Succeeded"
+            ' <<<"$environment_json" >/dev/null; then
+              continue
+            fi
+            if ! jq -e --arg primary "$primary" --arg secondary "$secondary" '
+              .provisioningState == "Succeeded" and
+              ([.locations[].locationName | gsub(" "; "") | ascii_downcase] | sort) == ([$primary, $secondary] | sort)
+            ' <<<"$cosmos_json" >/dev/null; then
+              continue
+            fi
+
+            selected_environment="$environment"
+            selected_environment_id="$(jq -r '.id' <<<"$environment_json")"
+            selected_region="$primary"
+            selected_prefix="$prefix"
+            selected_vnet_id="$vnet_id"
+            selected_private_endpoint_subnet_id="$pe_subnet_id"
+            selected_registry="$registry"
+            break
+          done
+
+          [[ -n "$selected_environment" && -n "$selected_environment_id" && -n "$selected_region" && -n "$selected_vnet_id" && -n "$selected_private_endpoint_subnet_id" && -n "$selected_registry" ]] || {
+            echo '::error::No accepted internal production Container Apps foundation is available.'
+            exit 1
+          }
+
+          trace_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:tempo" | sha256sum | cut -c1-10)"
+          app_name="truyn-traces-${trace_suffix}"
+          storage_name="truyntr${trace_suffix}"
+          identity_name="truyn-traces-${trace_suffix}-mi"
+          image_repo='truyn-trace-backend'
+          image_name="${selected_registry}.azurecr.io/${image_repo}:${GITHUB_SHA}"
+          opaque_region="region-$(printf '%s' "${DEPLOYMENT_ID}:${selected_region}" | sha256sum | cut -c1-8)"
+
+          for value in "$selected_environment" "$selected_environment_id" "$selected_prefix" "$selected_vnet_id" "$selected_private_endpoint_subnet_id" "$selected_registry" "$app_name" "$storage_name" "$identity_name" "$image_name"; do
+            printf '::add-mask::%s\n' "$value"
+          done
+
+          printf 'ACA_ENVIRONMENT=%s\n' "$selected_environment" >> "$GITHUB_ENV"
+          printf 'ACA_ENVIRONMENT_ID=%s\n' "$selected_environment_id" >> "$GITHUB_ENV"
+          printf 'TRACE_REGION=%s\n' "$selected_region" >> "$GITHUB_ENV"
+          printf 'TRACE_OPAQUE_REGION=%s\n' "$opaque_region" >> "$GITHUB_ENV"
+          printf 'TRACE_VNET_ID=%s\n' "$selected_vnet_id" >> "$GITHUB_ENV"
+          printf 'TRACE_PE_SUBNET_ID=%s\n' "$selected_private_endpoint_subnet_id" >> "$GITHUB_ENV"
+          printf 'TRACE_REGISTRY=%s\n' "$selected_registry" >> "$GITHUB_ENV"
+          printf 'TRACE_APP=%s\n' "$app_name" >> "$GITHUB_ENV"
+          printf 'TRACE_STORAGE=%s\n' "$storage_name" >> "$GITHUB_ENV"
+          printf 'TRACE_IDENTITY=%s\n' "$identity_name" >> "$GITHUB_ENV"
+          printf 'TRACE_IMAGE=%s\n' "$image_name" >> "$GITHUB_ENV"
+
+      - name: Build exact-main Tempo image
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr build \
+            --registry "$TRACE_REGISTRY" \
+            --image "truyn-trace-backend:${GITHUB_SHA}" \
+            --file infra/production-tracing/tempo/Dockerfile \
+            infra/production-tracing/tempo \
+            --only-show-errors \
+            -o none
+
+      - name: Provision private OTLP trace storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployment_name="trace-backend-${GITHUB_SHA:0:8}"
+          printf '::add-mask::%s\n' "$deployment_name"
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$deployment_name" \
+            --template-file infra/production-tracing/trace-backend.bicep \
+            --parameters \
+              appName="$TRACE_APP" \
+              storageAccountName="$TRACE_STORAGE" \
+              identityName="$TRACE_IDENTITY" \
+              environmentId="$ACA_ENVIRONMENT_ID" \
+              vnetId="$TRACE_VNET_ID" \
+              privateEndpointSubnetId="$TRACE_PE_SUBNET_ID" \
+              registryName="$TRACE_REGISTRY" \
+              imageName="$TRACE_IMAGE" \
+              location="$TRACE_REGION" \
+              deploymentId="$DEPLOYMENT_ID" \
+              sourceSha="$GITHUB_SHA" \
+              tempoVersion='3.0.2' \
+            --only-show-errors \
+            -o none
+
+          app_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$TRACE_APP" --only-show-errors -o json)"
+          storage_json="$(az storage account show --resource-group "$RESOURCE_GROUP" --name "$TRACE_STORAGE" --only-show-errors -o json)"
+          identity_json="$(az identity show --resource-group "$RESOURCE_GROUP" --name "$TRACE_IDENTITY" --only-show-errors -o json)"
+
+          jq -e '
+            .properties.provisioningState == "Succeeded" and
+            .properties.configuration.ingress.external == false and
+            .properties.configuration.ingress.targetPort == 4318 and
+            .identity.type == "UserAssigned"
+          ' <<<"$app_json" >/dev/null
+          jq -e '
+            .provisioningState == "Succeeded" and
+            (.publicNetworkAccess | ascii_downcase) == "disabled" and
+            .allowBlobPublicAccess == false and
+            .allowSharedKeyAccess == false and
+            .defaultToOAuthAuthentication == true and
+            .minimumTlsVersion == "TLS1_2"
+          ' <<<"$storage_json" >/dev/null
+          jq -e '.principalId != null and .clientId != null' <<<"$identity_json" >/dev/null
+
+      - name: Prove OTLP endpoint and trace read-back
+        shell: bash
+        run: |
+          set -euo pipefail
+          accepted=false
+          for attempt in $(seq 1 120); do
+            logs="$(az containerapp logs show \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$TRACE_APP" \
+              --container acceptance-probe \
+              --type console \
+              --tail 100 \
+              --follow false \
+              --format text \
+              --only-show-errors 2>/dev/null || true)"
+            if grep -q 'TRUYN_TRACE_CANARY_PASS otlp_http=accepted trace_readback=observed storage=azure-blob' <<<"$logs"; then
+              accepted=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$accepted" == true ]] || {
+            echo '::error::Tempo OTLP endpoint did not accept and return the trace canary.'
+            exit 1
+          }
+
+      - name: Emit sanitized Sprint 9 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg deploymentId "$DEPLOYMENT_ID" \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg region "$TRACE_OPAQUE_REGION" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              schema: "truyn.production-trace-backend-evidence/v1",
+              deploymentId: $deploymentId,
+              component: "trace-backend",
+              backendClass: "azure-container-apps-tempo",
+              backendVersion: "3.0.2",
+              protocols: { otlpHttp: true, otlpGrpc: true },
+              otlpHttpPort: 4318,
+              storageBackend: "azure-blob",
+              storageAuthentication: "managed-identity",
+              storagePublicNetworkDisabled: true,
+              privateEndpoint: true,
+              publicIngress: false,
+              region: $region,
+              sourceSha: $sourceSha,
+              exactMain: true,
+              otlpEndpointAccepted: true,
+              traceReadBackObserved: true,
+              generatedAt: $generatedAt,
+              status: "PASS"
+            }' > production-trace-backend-evidence.json
+
+      - name: Upload sanitized trace backend evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-trace-backend-evidence
+          path: production-trace-backend-evidence.json
+          if-no-files-found: error
+          retention-days: 30
