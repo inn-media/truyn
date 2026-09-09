@@ -3,6 +3,7 @@
   "protocol": "TRUYN/1",
   "stableSdkApiVersion": "1",
   "requiredFirstPartyLanguages": ["typescript", "python", "go", "java", "dotnet"],
+  "acceptedPublicDistributionLanguages": ["typescript", "python", "go"],
   "foundationalDtos": ["Identity", "AgentDescriptor", "Capability", "Offer", "Need", "Result", "ArtifactRef", "NormalizedError"],
   "dx3PortablePayloadKinds": ["object", "artifact"],
   "developerReleaseExecutableConformance": "sdk/conformance/run-five-language-e2e.mjs",
@@ -15,7 +16,8 @@
       "root": "sdk/typescript",
       "sourceFiles": ["sdk/typescript/src/types.ts", "sdk/typescript/src/client.ts", "sdk/typescript/src/local-node.ts", "sdk/typescript/src/descriptor.ts", "sdk/typescript/src/errors.ts", "sdk/typescript/src/stable-api.ts"],
       "requiredMarkers": ["export interface Identity", "export interface AgentDescriptor", "export interface Offer", "export type ArtifactRef", "export interface NormalizedError", "TRUYN_SDK_STABLE_API_VERSION", "createObjectPayload", "createArtifactPayload", "streamTruynItems", "streamEvents", "fetchAgentDescriptor", "verifyAgentDescriptorSignature", "TRUYN/1", "truyn.agent-descriptor/v1"],
-      "publicDistribution": false
+      "publicDistribution": true,
+      "publicDistributionChannel": "pre-release"
     },
     {
       "id": "python",
@@ -24,7 +26,8 @@
       "root": "sdk/python",
       "sourceFiles": ["sdk/python/src/truyn/client.py", "sdk/python/src/truyn/descriptor.py", "sdk/python/src/truyn/errors.py", "sdk/python/src/truyn/local_node.py", "sdk/python/src/truyn/stable_api.py"],
       "requiredMarkers": ["class TruynClient", "fetch_agent_descriptor", "verify_agent_descriptor_signature", "normalize_error", "TRUYN_SDK_STABLE_API_VERSION", "CancellationToken", "object_payload", "artifact_payload", "stream_items", "TRUYN/1", "truyn.agent-descriptor/v1"],
-      "publicDistribution": false
+      "publicDistribution": true,
+      "publicDistributionChannel": "pre-release"
     },
     {
       "id": "go",
@@ -33,7 +36,8 @@
       "root": "sdk/go",
       "sourceFiles": ["sdk/go/go.mod", "sdk/go/truyn.go", "sdk/go/descriptor.go", "sdk/go/truyn_test.go"],
       "requiredMarkers": ["module github.com/inn-media/truyn/sdk/go", "type Client struct", "CreateLocalIdentity", "func Connect", "func (c *Client) Need", "func (c *Client) CancelNeed", "FetchAgentDescriptor", "VerifiedAgentDescriptor", "type Identity struct", "type AgentDescriptor struct", "type OfferPayload struct", "type NeedPayload struct", "type ResultPayload struct", "type ArtifactRef string", "type NormalizedError struct", "StableSDKAPIVersion", "type ObjectPayload struct", "type ArtifactPayload struct", "type StreamItem", "TRUYN/1", "truyn.agent-descriptor/v1"],
-      "publicDistribution": false
+      "publicDistribution": true,
+      "publicDistributionChannel": "pre-release"
     },
     {
       "id": "java",

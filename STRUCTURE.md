@@ -43,7 +43,7 @@ A2A and MCP are adapters, not TRUYN/1 primitives. Accepted bounded evidence incl
 
 ## SDK / developer surface
 
-All five required first-party SDKs — TypeScript/JavaScript, Python, Go, Java and C#/.NET — implement the bounded relay-client contract and participate in executable conformance. PyPI and Go public alphas are accepted. npm alpha.1 is immutable historical evidence whose required clean-room ESM import failed; the distinct alpha.2 packaging repair is merged in `#448` and remains public-registry-evidence gated. Maven Central and NuGet remain open.
+All five required first-party SDKs — TypeScript/JavaScript, Python, Go, Java and C#/.NET — implement the bounded relay-client contract and participate in executable conformance. PyPI, Go and npm alpha.2 public alphas are accepted immutable releases. npm alpha.1 is immutable historical evidence whose required clean-room ESM import failed and is superseded without overwrite. Maven Central and NuGet remain open.
 
 ## Current maturity boundary
 

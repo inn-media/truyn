@@ -1,0 +1,15 @@
+{
+  "schema": "truyn.sdk-public-coordinates/v1",
+  "historicalBaselineSha": "5daaac4a06b9573523f50caef7fc5c04175247b8",
+  "reconciledOnMainSha": "4a3a312877d14e9f0ee361a9356e7369cad04398",
+  "channel": "public-pre-release",
+  "coordinates": {
+    "npm": {"registry":"npm","package":"@truyn/sdk","version":"0.1.0-alpha.2","coordinate":"@truyn/sdk@0.1.0-alpha.2","publicationState":"accepted"},
+    "pypi": {"registry":"PyPI","package":"truyn-sdk","version":"0.1.0a1","coordinate":"truyn-sdk==0.1.0a1","publicationState":"accepted"},
+    "go": {"registry":"Go module ecosystem","module":"github.com/inn-media/truyn/sdk/go","version":"v0.1.0-alpha.1","tag":"sdk/go/v0.1.0-alpha.1","coordinate":"github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1","publicationState":"accepted"},
+    "maven": {"registry":"Maven Central","groupId":"org.truyn","artifactId":"truyn-sdk","version":"0.1.0-alpha.1","coordinate":"org.truyn:truyn-sdk:0.1.0-alpha.1","publicationState":"open"},
+    "nuget": {"registry":"NuGet.org","package":"Truyn.Sdk","version":"0.1.0-alpha.1","coordinate":"Truyn.Sdk@0.1.0-alpha.1","publicationState":"open"}
+  },
+  "immutabilityRule": "A coordinate is never overwritten. Any materially different package source or bytes require a new version/tag.",
+  "statusBoundary": "npm, PyPI and Go are accepted immutable public releases. Maven Central and NuGet.org remain open until real public publication and independent verification are accepted."
+}
