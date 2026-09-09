@@ -1,8 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const root = resolve(process.argv[2] ?? 'sdk/release/dist');
+const safeExtractor = resolve(dirname(fileURLToPath(import.meta.url)), 'safe-extract.py');
 const manifest = JSON.parse(await readFile(resolve(root, 'manifest.json'), 'utf8'));
 if (manifest.schema !== 'truyn.sdk-release/v1') throw new Error('unexpected release manifest schema');
 if (!/^[0-9a-f]{40}$/i.test(manifest.sourceSha)) throw new Error('release source SHA must be exact');
@@ -26,17 +29,55 @@ for (const artifact of manifest.artifacts) {
   if (!/^[0-9a-f]{64}$/.test(artifact.sha256) || artifact.bytes <= 0) throw new Error(`invalid artifact digest: ${artifact.path}`);
 }
 
-function entriesFor(path) {
+function canonicalArchiveFormat(path) {
+  if (path.startsWith('typescript/') && path.endsWith('.tgz')) return 'npm-tgz';
+  if (path.startsWith('python/') && path.endsWith('.whl')) return 'python-wheel';
+  if (path.startsWith('go/') && path.endsWith('.tar.gz')) return 'go-tar-gz';
+  if (path.startsWith('java/') && path.endsWith('.jar')) return 'java-jar';
+  if (path.startsWith('dotnet/') && path.endsWith('.nupkg')) return 'dotnet-nupkg';
+  return null;
+}
+
+async function listExtractedEntries(directory, base = directory) {
+  const result = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const full = join(directory, entry.name);
+    const rel = relative(base, full).split(sep).join('/');
+    result.push(entry.isDirectory() ? `${rel}/` : rel);
+    if (entry.isDirectory()) result.push(...await listExtractedEntries(full, base));
+  }
+  return result;
+}
+
+async function extractEntriesFor(path) {
   const full = resolve(root, path);
-  if (path.endsWith('.tgz') || path.endsWith('.tar.gz')) return execFileSync('tar', ['-tzf', full], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
-  if (path.endsWith('.jar')) return execFileSync('jar', ['tf', full], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
-  if (path.endsWith('.whl') || path.endsWith('.nupkg')) return execFileSync('unzip', ['-Z1', full], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
-  return [];
+  const rootPrefix = `${root}${sep}`;
+  if (full !== root && !full.startsWith(rootPrefix)) throw new Error(`release artifact escapes dist root: ${path}`);
+
+  const temporary = await mkdtemp(join(tmpdir(), 'truyn-sdk-archive-'));
+  try {
+    try {
+      execFileSync(process.env.PYTHON ?? 'python', [safeExtractor, full, temporary], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+    } catch (error) {
+      const stderr = String(error?.stderr ?? '').trim();
+      throw new Error(`package archive denied: ${path}${stderr ? `: ${stderr}` : ''}`);
+    }
+    return await listExtractedEntries(temporary);
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
 }
 
 const packageArtifacts = manifest.artifacts.filter((artifact) => /\.(tgz|tar\.gz|whl|jar|nupkg)$/.test(artifact.path));
+const readFormats = new Set();
 for (const artifact of packageArtifacts) {
-  const entries = entriesFor(artifact.path);
+  const entries = await extractEntriesFor(artifact.path);
+  const format = canonicalArchiveFormat(artifact.path);
+  if (format) readFormats.add(format);
+
   const normalized = entries.map((entry) => entry.replace(/^\.\//, ''));
   const isMavenCompanion = /java\/truyn-sdk-0\.1\.0-alpha\.1-(sources|javadoc)\.jar$/.test(artifact.path);
   if (!isMavenCompanion) {
@@ -45,6 +86,10 @@ for (const artifact of packageArtifacts) {
   }
   const forbidden = normalized.find((entry) => /(^|\/)(\.git|\.github|node_modules|\.env)(\/|$)|private[_-]?key/i.test(entry));
   if (forbidden) throw new Error(`forbidden package entry ${forbidden} in ${artifact.path}`);
+}
+
+for (const expectedFormat of ['npm-tgz', 'python-wheel', 'go-tar-gz', 'java-jar', 'dotnet-nupkg']) {
+  if (!readFormats.has(expectedFormat)) throw new Error(`package archive format was not extracted/read: ${expectedFormat}`);
 }
 
 const javaPaths = new Set(manifest.artifacts.filter((artifact) => artifact.path.startsWith('java/')).map((artifact) => artifact.path));
@@ -57,4 +102,4 @@ for (const expected of [
   if (!javaPaths.has(expected)) throw new Error(`missing Maven publication companion: ${expected}`);
 }
 
-process.stdout.write(`PASS release package verification: ${manifest.artifacts.length} artifacts\n`);
+process.stdout.write(`PASS release package verification: ${manifest.artifacts.length} artifacts; extracted formats=${[...readFormats].sort().join(',')}\n`);
