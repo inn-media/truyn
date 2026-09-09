@@ -134,13 +134,14 @@ export class ActiveChallengeAttesterHost {
 }
 
 export class ActiveTrustCoordinator {
-  constructor({ node, verifierLimit = 8, resultTimeoutMs = 10_000, pollIntervalMs = 5 } = {}) {
+  constructor({ node, verifierLimit = 8, resultTimeoutMs = 10_000, pollIntervalMs = 5, authorityRegistry = null } = {}) {
     if (!node) throw new Error('active trust coordinator node is required');
     if (!Number.isInteger(verifierLimit) || verifierLimit < 1 || verifierLimit > 32) throw new Error('active verifierLimit must be 1..32');
     this.node = node;
     this.verifierLimit = verifierLimit;
     this.resultTimeoutMs = resultTimeoutMs;
     this.pollIntervalMs = pollIntervalMs;
+    this.authorityRegistry = authorityRegistry;
     this.metrics = { challengesIssued: 0, discoveryCalls: 0, verifierNeeds: 0, verifierResults: 0, verificationsAccepted: 0, verificationFailures: 0 };
   }
 
@@ -166,9 +167,7 @@ export class ActiveTrustCoordinator {
         const requestId = event?.envelope?.payload?.requestId;
         if (event?.kind !== 'RESULT' || !pending.has(requestId)) continue;
         const assignment = pending.get(requestId);
-        if (event.verification?.ok !== true || event.envelope.from !== assignment.verifier.nodeId) {
-          throw new Error('active challenge RESULT identity verification failed');
-        }
+        if (event.verification?.ok !== true || event.envelope.from !== assignment.verifier.nodeId) throw new Error('active challenge RESULT identity verification failed');
         results.set(requestId, event);
         pending.delete(requestId);
       }
@@ -193,6 +192,7 @@ export class ActiveTrustCoordinator {
     revocations = [],
     disputes = [],
     authorizedDisputerNodeIds = [],
+    authorityRegistry = this.authorityRegistry,
     retrievalProvenance = null,
     policy = {},
     now = Date.now(),
@@ -240,6 +240,7 @@ export class ActiveTrustCoordinator {
       revocations,
       disputes,
       authorizedDisputerNodeIds,
+      authorityRegistry,
       retrievalProvenance,
       policy,
       now,
