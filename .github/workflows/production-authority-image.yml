@@ -152,17 +152,41 @@ jobs:
             -o tsv \
             --only-show-errors 2>/dev/null || true)"
 
-          if [[ "$existing_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            write_enabled="$(az acr manifest show-metadata \
-              --registry "$REGISTRY_NAME" \
-              --name "$image_name" \
-              --query changeableAttributes.writeEnabled \
-              -o tsv \
-              --only-show-errors 2>/dev/null || true)"
-            [[ "$write_enabled" == "false" || "$write_enabled" == "False" ]] || {
-              echo '::error::Existing authority SHA tag is mutable; refusing to reuse it.'
+          verify_tag_and_manifest_locked() {
+            local digest="$1"
+            local tag_json manifest_json
+            tag_json="$(az acr repository show-tags \
+              --name "$REGISTRY_NAME" \
+              --repository "$IMAGE_REPOSITORY" \
+              --detail \
+              --only-show-errors \
+              -o json)"
+            jq -e --arg tag "$SOURCE_SHA" '
+              any(.[];
+                .name == $tag and
+                .changeableAttributes.writeEnabled == false and
+                .changeableAttributes.deleteEnabled == false)
+            ' <<<"$tag_json" >/dev/null || {
+              echo '::error::Authority SHA tag is not locked against rewrite and delete.'
               exit 1
             }
+
+            manifest_json="$(az acr manifest show-metadata \
+              --registry "$REGISTRY_NAME" \
+              --name "${IMAGE_REPOSITORY}@${digest}" \
+              --only-show-errors \
+              -o json)"
+            jq -e '
+              .changeableAttributes.writeEnabled == false and
+              .changeableAttributes.deleteEnabled == false
+            ' <<<"$manifest_json" >/dev/null || {
+              echo '::error::Authority manifest is not locked against rewrite and delete.'
+              exit 1
+            }
+          }
+
+          if [[ "$existing_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            verify_tag_and_manifest_locked "$existing_digest"
             digest="$existing_digest"
             reused=true
           else
@@ -191,17 +215,14 @@ jobs:
               --write-enabled false \
               --delete-enabled false \
               --only-show-errors >/dev/null
+            az acr repository update \
+              --name "$REGISTRY_NAME" \
+              --image "${IMAGE_REPOSITORY}@${digest}" \
+              --write-enabled false \
+              --delete-enabled false \
+              --only-show-errors >/dev/null
 
-            write_enabled="$(az acr manifest show-metadata \
-              --registry "$REGISTRY_NAME" \
-              --name "$image_name" \
-              --query changeableAttributes.writeEnabled \
-              -o tsv \
-              --only-show-errors)"
-            [[ "$write_enabled" == "false" || "$write_enabled" == "False" ]] || {
-              echo '::error::Authority SHA tag was not locked after publication.'
-              exit 1
-            }
+            verify_tag_and_manifest_locked "$digest"
             reused=false
           fi
 
