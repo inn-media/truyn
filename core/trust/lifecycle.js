@@ -173,6 +173,16 @@ function authorityAllows(authorityRegistry, { nodeId, publicKey, purpose, scope,
   }
 }
 
+function authorityAllowsAtSigningAndNow(authorityRegistry, request, signedAt, now) {
+  const signedAtMs = new Date(signedAt).getTime();
+  if (!Number.isFinite(signedAtMs)) return { ok: false, reason: 'authority_signing_time_invalid' };
+  const atSigning = authorityAllows(authorityRegistry, { ...request, at: signedAtMs });
+  if (!atSigning.ok) return { ...atSigning, reason: atSigning.reason || 'authority_not_authorized_at_signing' };
+  const current = authorityAllows(authorityRegistry, { ...request, at: now });
+  if (!current.ok) return current;
+  return current;
+}
+
 function productionAuthorityMetadata(authorityRegistry, fallback = null) {
   if (!authorityRegistry) return null;
   try {
@@ -191,10 +201,11 @@ function productionAuthorityMetadata(authorityRegistry, fallback = null) {
 
 function lineageSignerAuthorized(authorityRegistry, certificate, sourceId, now) {
   if (!authorityRegistry) return true;
-  const request = { nodeId: certificate.body.ownerNodeId, publicKey: certificate.publicKey, scope: { kind: 'source', value: String(sourceId), match: 'exact' }, at: now };
-  const owner = authorityAllows(authorityRegistry, { ...request, purpose: 'source-owner' });
-  if (owner.ok) return true;
-  return authorityAllows(authorityRegistry, { ...request, purpose: 'lineage-signer' }).ok;
+  const request = { nodeId: certificate.body.ownerNodeId, publicKey: certificate.publicKey, scope: { kind: 'source', value: String(sourceId), match: 'exact' } };
+  for (const purpose of ['source-owner', 'lineage-signer']) {
+    if (authorityAllowsAtSigningAndNow(authorityRegistry, { ...request, purpose }, certificate.issuedAt, now).ok) return true;
+  }
+  return false;
 }
 
 function declaredLineageIsCertified(attestation, certs, authorityRegistry, now) {
@@ -255,9 +266,6 @@ export function assessActiveTrust({
 
   const authorityView = authorityRegistry && typeof authorityRegistry.pin === 'function' ? authorityRegistry.pin() : authorityRegistry;
 
-  // A valid issuer-signed claim revocation is terminal even if the issuer's
-  // production authority was later expired/revoked. Preserve that terminal fact
-  // before evaluating current authority.
   if (revokedByIssuer('claim', claim.claimId, claim.issuedBy, revocations)) {
     return {
       protocol: 'truyn-active-trust-assessment-v1', version: 1, claimId: claim.claimId,
@@ -268,13 +276,12 @@ export function assessActiveTrust({
     };
   }
 
-  const claimAuthority = authorityAllows(authorityView, {
+  const claimAuthority = authorityAllowsAtSigningAndNow(authorityView, {
     nodeId: claim.issuedBy,
     publicKey: claim.publicKey,
     purpose: 'claim-issuer',
-    scope: { kind: 'domain', value: claim.body.domain, match: 'exact' },
-    at: now
-  });
+    scope: { kind: 'domain', value: claim.body.domain, match: 'exact' }
+  }, claim.issuedAt, now);
   if (!claimAuthority.ok) return authorityUntrustedAssessment(claim, attestations, claimAuthority.reason || 'claim_issuer_not_authorized', authorityView, claimAuthority);
 
   const certs = certificateIndex(lineageCertificates, revocations, now);
@@ -294,13 +301,12 @@ export function assessActiveTrust({
       staleAttestations += 1;
       continue;
     }
-    const verifierAuthority = authorityAllows(authorityView, {
+    const verifierAuthority = authorityAllowsAtSigningAndNow(authorityView, {
       nodeId: attestation.attesterNodeId,
       publicKey: attestation.publicKey,
       purpose: 'verifier',
-      scope: { kind: 'domain', value: claim.body.domain, match: 'exact' },
-      at: now
-    });
+      scope: { kind: 'domain', value: claim.body.domain, match: 'exact' }
+    }, attestation.createdAt, now);
     if (!verifierAuthority.ok) {
       unauthorizedAttestations += 1;
       continue;
@@ -317,13 +323,12 @@ export function assessActiveTrust({
   const validDisputes = (disputes || []).filter((dispute) => {
     if (!verifyDispute(dispute, claim.claimId).ok) return false;
     if (!authorityView) return explicitlyAuthorized.has(dispute.signerNodeId);
-    return authorityAllows(authorityView, {
+    return authorityAllowsAtSigningAndNow(authorityView, {
       nodeId: dispute.signerNodeId,
       publicKey: dispute.publicKey,
       purpose: 'disputer',
-      scope: { kind: 'domain', value: claim.body.domain, match: 'exact' },
-      at: now
-    }).ok;
+      scope: { kind: 'domain', value: claim.body.domain, match: 'exact' }
+    }, dispute.createdAt, now).ok;
   });
 
   let lifecycleStatus = base.truthAssessment.status;
