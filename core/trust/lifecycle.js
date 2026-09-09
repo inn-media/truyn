@@ -158,7 +158,10 @@ function certificateIndex(certificates, revocations, now) {
   for (const certificate of certificates || []) {
     if (!verifyLineageCertificate(certificate, { now }).ok) continue;
     if (revokedByIssuer('lineage-certificate', certificate.certificateId, certificate.body.ownerNodeId, revocations)) continue;
-    map.set(certificate.body.sourceCommitment, certificate);
+    const sourceCommitment = certificate.body.sourceCommitment;
+    const candidates = map.get(sourceCommitment) || [];
+    candidates.push(certificate);
+    map.set(sourceCommitment, candidates);
   }
   return map;
 }
@@ -209,10 +212,13 @@ function lineageSignerAuthorized(authorityRegistry, certificate, sourceId, now) 
 }
 
 function declaredLineageIsCertified(attestation, certs, authorityRegistry, now) {
-  const evidenceWithCerts = (attestation.body.evidence || []).map((evidence) => ({ evidence, certificate: certs.get(sourceLineageCommitment(evidence.sourceId)) })).filter((entry) => entry.certificate);
+  const evidenceWithCerts = (attestation.body.evidence || []).map((evidence) => {
+    const candidates = certs.get(sourceLineageCommitment(evidence.sourceId)) || [];
+    const authorized = authorityRegistry ? candidates.filter((certificate) => lineageSignerAuthorized(authorityRegistry, certificate, evidence.sourceId, now)) : candidates;
+    return { evidence, certificates: authorized };
+  }).filter((entry) => entry.certificates.length > 0);
   if (evidenceWithCerts.length === 0) return false;
-  if (authorityRegistry && evidenceWithCerts.some((entry) => !lineageSignerAuthorized(authorityRegistry, entry.certificate, entry.evidence.sourceId, now))) return false;
-  const sourceCerts = evidenceWithCerts.map((entry) => entry.certificate);
+  const sourceCerts = evidenceWithCerts.flatMap((entry) => entry.certificates);
   const certified = {
     originIds: new Set(sourceCerts.flatMap((cert) => cert.body.originCommitments)),
     publisherIds: new Set(sourceCerts.flatMap((cert) => cert.body.publisherCommitments)),
