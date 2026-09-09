@@ -521,6 +521,8 @@ export function createProductionTrustAuthority({
     const record = rootVersionRecord(state, issuerRef.id, issuerRef.version);
     if (!record) throw authorityError('authority_issuer_root_not_found');
     assertRootNotRevoked(issuerRef.id, record, revokedFn);
+    const createdMs = Date.parse(record.createdAt);
+    if (!Number.isFinite(createdMs) || atMs < createdMs) throw authorityError('authority_issuer_root_not_admitted');
     if (!recordActive(record, atMs)) throw authorityError('authority_issuer_root_not_current');
     if (record.supersededAt && registrationMs != null && registrationMs > Date.parse(record.supersededAt)) throw authorityError('authority_issuer_root_superseded_before_registration');
     return { nodeId: record.nodeId, publicKey: record.publicKey, purposes: record.purposes, scopes: record.scopes, notBefore: record.notBefore, expiresAt: record.expiresAt, rootId: issuerRef.id, rootVersion: record.version };
@@ -531,6 +533,8 @@ export function createProductionTrustAuthority({
     seen.add(certificateId);
     const record = state.certificates?.[certificateId];
     if (!record) throw authorityError('authority_certificate_not_found');
+    const registeredMs = Date.parse(record.registeredAt);
+    if (!Number.isFinite(registeredMs) || atMs < registeredMs) throw authorityError('authority_certificate_not_admitted');
     const certificate = record.certificate;
     const verification = verifyAuthorityCertificate(certificate, { now: atMs, allowExpired: true });
     if (!verification.ok) throw authorityError(verification.reason);
@@ -539,7 +543,6 @@ export function createProductionTrustAuthority({
     if (!recordActive(certificate.body, atMs)) throw authorityError('authority_certificate_not_current');
 
     const issuerRef = certificate.body.issuerRef;
-    const registeredMs = Date.parse(record.registeredAt);
     let issuer;
     if (issuerRef.type === 'root') {
       issuer = validateRootChainRecord(state, issuerRef, atMs, registeredMs, revokedFn);
@@ -665,6 +668,8 @@ export function createProductionTrustAuthority({
         const record = rootVersionRecord(state, root.rootId, root.currentVersion);
         if (!record || record.nodeId !== requesterNodeId) continue;
         if (requesterPublicKey && !samePublicKeyMaterial(record.publicKey, requesterPublicKey)) continue;
+        const createdMs = Date.parse(record.createdAt);
+        if (!Number.isFinite(createdMs) || atMs < createdMs) continue;
         assertRootNotRevoked(root.rootId, record, revokedFn);
         if (!recordActive(record, atMs)) continue;
         if (!record.purposes.includes(requestedPurpose)) continue;
@@ -767,8 +772,6 @@ export function createProductionTrustAuthority({
     });
   }
 
-  // Recover only an exact, durably prepared cross-file transition. Any
-  // unprepared or mismatched forward registry remains fail-closed below.
   recoverPreparedTransition();
   validateAnchoredState(registryStore.read());
 
