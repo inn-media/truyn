@@ -19,6 +19,7 @@ python3 scripts/patch-class-d-diagnostic-bandwidth-meter-parallel.py "$tmp/provi
 python3 scripts/patch-class-d-diagnostic-readiness-parallel.py "$tmp/campaign.sh"
 python3 scripts/patch-class-d-diagnostic-readiness-window.py "$tmp/campaign.sh"
 python3 scripts/patch-class-d-diagnostic-readiness-evidence.py "$tmp/campaign.sh"
+python3 scripts/patch-class-d-diagnostic-readiness-transport.py "$tmp/campaign.sh"
 python3 scripts/patch-class-d-diagnostic-baseline-parallel.py "$tmp/campaign.sh"
 python3 scripts/patch-class-d-diagnostic-restart-parallel.py "$tmp/campaign.sh"
 python3 scripts/patch-class-d-diagnostic-post-restart-origin.py "$tmp/campaign.sh"
@@ -35,8 +36,6 @@ python3 scripts/patch-class-d-diagnostic-composed-heal-evidence.py "$tmp/provisi
 bash -n "$tmp/provision.sh"
 bash -n "$tmp/campaign.sh"
 
-# A qualification invoked from a Node test must execute its nested tests rather than
-# inheriting the parent runner's recursive-test context and silently skipping them.
 unset NODE_TEST_CONTEXT
 
 node --test \
@@ -45,6 +44,7 @@ node --test \
   tests/class-d-diagnostic-readiness-parallel.test.js \
   tests/class-d-diagnostic-readiness-window.test.js \
   tests/class-d-diagnostic-readiness-evidence.test.js \
+  tests/class-d-diagnostic-readiness-transport.test.js \
   tests/class-d-diagnostic-restart-parallel.test.js \
   tests/class-d-diagnostic-post-restart-origin.test.js \
   tests/dht-readiness-testnet-endpoint.test.js \
@@ -56,6 +56,7 @@ for _ in $(seq 1 "$repeats"); do
   node --test \
     tests/class-d-diagnostic-readiness-window.test.js \
     tests/class-d-diagnostic-readiness-evidence.test.js \
+    tests/class-d-diagnostic-readiness-transport.test.js \
     tests/peer-record-restart-propagation-readiness.test.js >/dev/null
 done
 
@@ -94,6 +95,10 @@ assert readiness.count('deadline=\\$((\\$(date +%s) + 120))') == 1
 assert '/need' not in readiness
 assert 'D200_READINESS_WINDOW_HARDENED=1' in readiness
 assert 'D200_READINESS_EVIDENCE_V2=1' in readiness
+assert 'D200_READINESS_TRANSPORT_GZIP_V1=1' in readiness
+assert 'gzip -c -9 | base64 -w0' in readiness
+assert 'base64 -d | gzip -dc | jq -e' in readiness
+assert '"\\${#readiness_node_observations_b64}" -le 3000' in readiness
 assert 'readiness_remaining=\\$((deadline - readiness_now))' in readiness
 assert 'if readiness=\\$(curl -fsS --max-time "\\$readiness_probe_timeout"' in readiness
 assert '"\\$hosts" -eq ${HOST_COUNT}' in readiness
