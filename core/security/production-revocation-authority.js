@@ -112,6 +112,22 @@ function verifyEvent(event, expectedSequence, expectedPreviousHash) {
   return true;
 }
 
+function verifyMaterializedRevocations(state) {
+  const eventKeys = new Map();
+  for (const event of state.events) {
+    const key = keyFor(event.targetKind, event.targetId);
+    const record = state.revocations?.[key];
+    if (!record || record.status !== 'revoked' || record.kind !== event.targetKind || record.id !== event.targetId ||
+        record.eventId !== event.eventId || record.reason !== event.reasonClass || record.revokedAt !== event.effectiveAt) {
+      throw new Error('revocation_materialized_log_mismatch');
+    }
+    eventKeys.set(event.eventId, key);
+  }
+  for (const [key, record] of Object.entries(state.revocations || {})) {
+    if (!record?.eventId || eventKeys.get(record.eventId) !== key) throw new Error('revocation_materialized_log_mismatch');
+  }
+}
+
 function verifyState(state) {
   normalizeState(state);
   let previousHash = GENESIS_HEAD;
@@ -123,6 +139,7 @@ function verifyState(state) {
   }
   if (state.sequence !== sequence || state.authorityEpoch !== sequence) throw new Error('revocation_sequence_log_mismatch');
   if (state.headHash !== previousHash) throw new Error('revocation_head_log_mismatch');
+  verifyMaterializedRevocations(state);
   return state;
 }
 
@@ -189,8 +206,8 @@ export function createProductionRevocationAuthority({
         events: []
       });
       state.revocations ||= {};
-      for (const [, record] of legacyRevocations) {
-        appendEvent(state, {
+      for (const [key, record] of legacyRevocations) {
+        const event = appendEvent(state, {
           targetKind: record.kind,
           targetId: record.id,
           reasonClass: record.reason || 'legacy_revocation',
@@ -198,6 +215,8 @@ export function createProductionRevocationAuthority({
           effectiveAt: record.revokedAt || now(),
           issuerAuthorityId: 'legacy-import'
         });
+        record.eventId = event.eventId;
+        state.revocations[key] = record;
       }
       return { migrated: true, imported: legacyRevocations.length };
     });
