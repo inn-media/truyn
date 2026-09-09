@@ -1,4 +1,4 @@
-name: diag-d200-8f30fb45-readiness-transport-qualified
+name: diag-d200-2ced1707-readiness-lease-recovery-qualified
 
 on:
   push:
@@ -12,15 +12,15 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d200-8f30fb45-readiness-transport-qualified-single-shot
+  group: truyn-d200-2ced1707-readiness-lease-recovery-qualified-single-shot
   cancel-in-progress: false
 
 env:
-  TESTED_COMMIT: 8f30fb453dbf6b6e1f763770108ba05bfe3b300e
-  TESTED_TREE_SHA: 5c78b1dee04bfed3e8b87ee94dee9b96c321e200
-  LAUNCH_PARENT: 8f30fb453dbf6b6e1f763770108ba05bfe3b300e
-  EXACT_MAIN_CI_RUN: '34344981715'
-  EXACT_MAIN_CODEQL_RUN: '34344981211'
+  TESTED_COMMIT: 2ced17070641fd45394b3507eaff3d91ee23cacb
+  TESTED_TREE_SHA: 15dd3e36e9f5530bf9a5baa2caeaf83ebc79cef4
+  LAUNCH_PARENT: 2ced17070641fd45394b3507eaff3d91ee23cacb
+  EXACT_MAIN_CI_RUN: '34386378387'
+  EXACT_MAIN_CODEQL_RUN: '34386378204'
   CAMPAIGN_BLOB_SHA: 796d9d00dea3807279d8326de0a916a72b487949
   PROVISION_BLOB_SHA: c1c839943f5e02bdc716691d91226251c8e3ec00
   PREFLIGHT_BLOB_SHA: ce7e3e7056439600d0641f827f8f6645ad3ea31a
@@ -28,8 +28,8 @@ env:
   PEER_LEASE_PATCH_BLOB_SHA: 84b7e0211ec7685eeea96947c550831d2db727eb
   READINESS_EVIDENCE_PATCH_BLOB_SHA: fd87a7db08c2040dc8df716c230227dba8d043eb
   READINESS_EVIDENCE_TEST_BLOB_SHA: 7801e85a62fa5478b426d905e409a8062b52c0c1
-  READINESS_TRANSPORT_PATCH_BLOB_SHA: 56165ae36ac3d9c0589d0022ae5130363e175206
-  READINESS_TRANSPORT_TEST_BLOB_SHA: 145b54eda6eb1bcb6347fb938d42ea7752ac1d3e
+  READINESS_TRANSPORT_PATCH_BLOB_SHA: 865fca2b083b841317a0f09c41f1a0d40c1f1d46
+  READINESS_TRANSPORT_TEST_BLOB_SHA: 041299add6efb4f637643bb7fd5128f1716354a9
   COMPOSED_HEAL_EVIDENCE_PATCH_BLOB_SHA: c91093b953a60c342e6f71949c9fef3eeb94d245
   HEALED_ORIGIN_PATCH_BLOB_SHA: 9f22133f88551807f7eb0a847f9480b2c40a0ce8
   COMPOSED_HEAL_EVIDENCE_TEST_BLOB_SHA: 178aa0995d21a69ce1adc9f8f598adf36484508c
@@ -43,7 +43,7 @@ env:
 
 jobs:
   diagnostic-d200:
-    name: Immutable qualified D-200 on 8f30fb45
+    name: Immutable qualified D-200 on 2ced1707
     runs-on: ubuntu-22.04
     timeout-minutes: 300
     steps:
@@ -320,7 +320,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d200-8f30fb45-${{ github.run_id }}'
+          name: 'truyn-class-d200-2ced1707-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
