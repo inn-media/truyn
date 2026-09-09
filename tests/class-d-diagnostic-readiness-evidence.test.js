@@ -35,6 +35,8 @@ test('D-200 collects all host/node readiness observations before failing the str
   assert.ok(block.includes('"\\$hosts" -eq ${HOST_COUNT}'));
   assert.ok(block.includes('"\\$valid" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE}'));
   assert.equal(block.includes('/need'), false);
+  assert.ok(block.includes('/var/lib/truyn-d1000/records-by-host.json'), 'readiness evidence must read the canonical provisioned records file');
+  assert.equal(block.includes('/var/lib/truyqn-d1000/'), false, 'misspelled readiness path must never reappear');
 
   assert.ok(block.includes('READINESS_NODE_OBSERVATIONS_B64='));
   assert.ok(block.includes('readiness_observations_dir=\\$(mktemp -d)'));
@@ -65,9 +67,11 @@ printf '%s\\n' "$script" | grep -F 'nodeIndex: $node' >/dev/null
 printf '%s\\n' "$script" | grep -F '$expected | to_entries[]' >/dev/null
 printf '%s\\n' "$script" | grep -F 'as $entry' >/dev/null
 printf '%s\\n' "$script" | grep -F 'index($entry.value)' >/dev/null
+printf '%s\\n' "$script" | grep -F '/var/lib/truyn-d1000/records-by-host.json' >/dev/null
+if printf '%s\\n' "$script" | grep -F '/var/lib/truyqn-d1000/' >/dev/null; then exit 91; fi
 `;
   const nounset = spawnSync('bash', ['-u', '-c', nounsetHarness], { encoding: 'utf8' });
-  assert.equal(nounset.status, 0, `generated readiness heredoc must construct under bash -u without expanding jq variables: ${nounset.stderr || nounset.stdout}`);
+  assert.equal(nounset.status, 0, `generated readiness heredoc must construct under bash -u without expanding jq variables or reviving noncanonical paths: ${nounset.stderr || nounset.stdout}`);
 
   const failedFlag = block.indexOf('readiness_gate_failed=1');
   const aggregatePath = block.indexOf('class-d-200-readiness-node-observations.json');
