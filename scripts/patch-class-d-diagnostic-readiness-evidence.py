@@ -23,7 +23,7 @@ while [[ "\$(date +%s)" -lt "\$deadline" ]]; do
 '''
 init_new = r'''readiness_last_hosts=-1
 readiness_observations_dir=\$(mktemp -d)
-readiness_expected_hosts_json=\$(jq -c '[.[] | .[0].endpoints[0] | sub("^[^:]+://";"") | split(":")[0]]' /var/lib/truyqn-d1000/records-by-host.json)
+readiness_expected_hosts_json=\$(jq -c '[.[] | .[0].endpoints[0] | sub("^[^:]+://";"") | split(":")[0]]' /var/lib/truyn-d1000/records-by-host.json)
 [[ "\$(printf '%s' "\$readiness_expected_hosts_json" | jq 'length')" -eq ${HOST_COUNT} ]]
 while [[ "\$(date +%s)" -lt "\$deadline" ]]; do
 '''
@@ -197,6 +197,7 @@ if '"\\$hosts" -eq ${HOST_COUNT}' not in block:
 if 'readiness_gate_failed=1' not in block or 'TRUYN_D200_READINESS_AGGREGATE_FAILURE' not in block:
     raise SystemExit('readiness evidence repair must fail only after aggregate collection')
 for required in (
+    '/var/lib/truyn-d1000/records-by-host.json',
     r'. as \$r',
     r'nodeIndex: \$node',
     r'\$expected | to_entries[]',
@@ -215,6 +216,19 @@ for required in (
 ):
     if required not in block:
         raise SystemExit(f'readiness evidence missing required diagnostic: {required}')
+for forbidden in (
+    '/var/lib/truyqn-d1000/',
+    '/etc/truyqn-d1000/',
+    '/opt/truyqn/',
+    '/var/lib/truqyn-d1000/',
+    '/etc/truqyn-d1000/',
+    '/opt/truqyn/',
+    '/var/lib/truin-d1000/',
+    '/etc/truin-d1000/',
+    '/opt/truin/',
+):
+    if forbidden in block:
+        raise SystemExit(f'readiness evidence contains noncanonical runtime path: {forbidden}')
 if 'rm -rf "$readiness_dir"\n    false' in block:
     raise SystemExit('readiness evidence must not fail on the first semantically failing host')
 
