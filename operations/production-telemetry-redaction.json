@@ -1,0 +1,38 @@
+{
+  "schema": "truyn.production-telemetry-redaction/v1",
+  "redactionId": "prod-telemetry-redaction-01",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "environmentClass": "production",
+  "runtimeRole": "provider",
+  "runtimeImageBinding": "exact-main-source-sha",
+  "request": {
+    "transport": "loopback-http",
+    "method": "POST",
+    "route": "/telemetry-redaction",
+    "sensitiveFields": [
+      "authorization",
+      "apiKey",
+      "prompt",
+      "payload"
+    ]
+  },
+  "telemetrySurfaces": {
+    "structuredLogs": true,
+    "traces": true,
+    "metrics": true
+  },
+  "redactionContract": {
+    "source": "observability/plane.js:SENSITIVE_KEY",
+    "valuesMustBeAbsent": true,
+    "rawValuesInEvidence": false,
+    "publicEvidenceSanitized": true
+  },
+  "acceptance": {
+    "exactTraceReadBackRequired": true,
+    "consoleLogScanRequired": true,
+    "metricsScrapeRequired": true,
+    "sourceShaBindingRequired": true,
+    "marker": "TRUYN_TELEMETRY_REDACTION_PASS authorization=absent apiKey=absent prompt=absent payload=absent logs=clean traces=clean metrics=clean source=exact-main"
+  },
+  "status": "live_proof_required"
+}
