@@ -5,6 +5,7 @@ import path from 'node:path';
 
 const ROOT = path.resolve(new URL('..', import.meta.url).pathname);
 const workflowPath = path.join(ROOT, '.github/workflows/production-logs-retention.yml');
+const foundationWorkflowPath = path.join(ROOT, '.github/workflows/production-dr-foundation.yml');
 const bicepPath = path.join(ROOT, 'infra/production-observability/logs-retention.bicep');
 const contractPath = path.join(ROOT, 'operations/production-logs-retention.json');
 
@@ -48,6 +49,21 @@ test('Sprint 16 retains archive and audit logs beyond the 90-day minimum', async
   assert.match(workflow, /ARCHIVE_LOG_RETENTION_DAYS: '180'/);
   assert.match(workflow, /MIN_ARCHIVE_LOG_RETENTION_DAYS: '90'/);
   assert.match(workflow, /ARCHIVE_LOG_RETENTION_DAYS" -ge "\$MIN_ARCHIVE_LOG_RETENTION_DAYS/);
+});
+
+test('logs retention resolver preserves the foundation canonical region order', async () => {
+  const [workflow, foundationWorkflow] = await Promise.all([
+    read(workflowPath),
+    read(foundationWorkflowPath)
+  ]);
+  const regionPairLine = (text) => text
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.startsWith('REGION_PAIRS:'));
+
+  const expected = "REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'germanywestcentral:francecentral northeurope:swedencentral' }}";
+  assert.equal(regionPairLine(foundationWorkflow), expected);
+  assert.equal(regionPairLine(workflow), expected);
 });
 
 test('production Container Apps console and system logs route through Azure Monitor to both retention backends', async () => {
