@@ -50,7 +50,7 @@ test('D-200 composed heal diagnostics apply bounded local controls and preserve 
   assert.ok(campaignAfter.includes('class-d-200-healed-reconvergence.json'), 'healed classifier artifact must be retained');
   assert.ok(campaignAfter.includes('class-d-200-healed-reconvergence-digest.txt'), 'persisted healed evidence must have a SHA-256 digest sidecar');
   assert.ok(campaignAfter.includes('persisted_peer_state(j,node_id)'), 'peer-record origin diagnostics must be installed');
-  assert.ok(campaignAfter.includes("path=f'/var/lib/truwyn-d1000/node-{global_index}-state.json'".replace('truwyn','truyn')), 'healed diagnostics must use the canonical persisted peer-state path');
+  assert.ok(campaignAfter.includes("path=f'/var/lib/truyn-d1000/node-{global_index}-state.json'"), 'healed diagnostics must use the canonical persisted peer-state path');
   for (const forbiddenPath of [
     '/var/lib/truyqn-d1000/',
     '/etc/truyqn-d1000/',
