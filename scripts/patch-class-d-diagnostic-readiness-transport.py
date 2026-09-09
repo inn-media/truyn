@@ -42,27 +42,36 @@ recovery_block = recovery_anchor + r'''    if [[ "\$hosts" -lt ${HOST_COUNT} ]];
       readiness_recovery_targets=\$(jq -nc \
         --argjson expected "\$readiness_expected_hosts_json" \
         --argjson present "\$readiness_present_hosts_json" \
+        --argjson localHost ${i} \
+        --argjson localNode "\$j" \
         --slurpfile records /var/lib/truyn-d1000/records-by-host.json '
-          [ \$expected | to_entries[] | . as \$entry
-            | select((\$present | index(\$entry.value)) == null)
-            | \$records[0][\$entry.key][0].nodeId
-          ] | unique
+          (\$records[0][\$localHost][\$localNode].nodeId) as \$self
+          | [ \$expected | to_entries[] | . as \$entry
+              | select((\$present | index(\$entry.value)) == null)
+              | [ \$records[0][\$entry.key][] | select(.nodeId != \$self) | .nodeId ][0]
+              | select(. != null)
+            ] | unique
         ')
       readiness_recovery_target_count=\$(printf '%s' "\$readiness_recovery_targets" | jq 'length')
+      readiness_missing_host_count=\$(( ${HOST_COUNT} - hosts ))
+      [[ "\$readiness_recovery_target_count" -eq "\$readiness_missing_host_count" ]]
       if [[ "\$readiness_recovery_target_count" -gt 0 ]]; then
         [[ "\$readiness_recovery_target_count" -le ${HOST_COUNT} ]]
         [[ "\$readiness_recovery_target_count" -le ${BOOTSTRAP_MAX_PEERS_PER_NODE} ]]
-        readiness_refresh_body=\$(jq -nc \
-          --argjson targets "\$readiness_recovery_targets" \
-          --arg seed "d200-readiness-\${j}-\${readiness_now}" \
-          '{targets:\$targets,targetCount:(\$targets|length),maxRounds:4,seed:\$seed}')
-        readiness_refresh_timeout=\$readiness_remaining
-        if [[ "\$readiness_refresh_timeout" -gt 10 ]]; then readiness_refresh_timeout=10; fi
-        curl -fsS --max-time "\$readiness_refresh_timeout" \
-          -H 'content-type: application/json' \
-          --data-binary "\$readiness_refresh_body" \
-          "\${control_url}/dht/refresh" \
-          >"/tmp/truyn-d200-readiness-refresh-\${j}.json" 2>/dev/null || true
+        readiness_refresh_remaining=\$(( deadline - \$(date +%s) ))
+        if [[ "\$readiness_refresh_remaining" -gt 0 ]]; then
+          readiness_refresh_body=\$(jq -nc \
+            --argjson targets "\$readiness_recovery_targets" \
+            --arg seed "d200-readiness-\${j}-\${readiness_now}" \
+            '{targets:\$targets,targetCount:(\$targets|length),maxRounds:4,seed:\$seed}')
+          readiness_refresh_timeout=\$readiness_refresh_remaining
+          if [[ "\$readiness_refresh_timeout" -gt 10 ]]; then readiness_refresh_timeout=10; fi
+          curl -fsS --max-time "\$readiness_refresh_timeout" \
+            -H 'content-type: application/json' \
+            --data-binary "\$readiness_refresh_body" \
+            "\${control_url}/dht/refresh" \
+            >"/tmp/truyn-d200-readiness-refresh-\${j}.json" 2>/dev/null || true
+        fi
       fi
     fi
 '''
@@ -86,8 +95,16 @@ if '"\\${#readiness_node_observations_b64}" -le 3000' not in block:
     raise SystemExit('readiness transport repair must fail closed above the bounded RunCommand payload')
 if '/var/lib/truyqn-d1000/' in block or '/var/lib/truqyn-d1000/' in block:
     raise SystemExit('readiness lease recovery must use canonical truyn runtime paths')
+if '/var/lib/truuyn-d1000/' in block:
+    raise SystemExit('readiness lease recovery must use canonical truyn runtime paths')
 if '/var/lib/truyn-d1000/records-by-host.json' not in block:
     raise SystemExit('readiness lease recovery must use canonical records-by-host evidence')
+if 'select(.nodeId != \\$self)' not in block:
+    raise SystemExit('readiness lease recovery must exclude the current node from directed refresh targets')
+if 'readiness_refresh_remaining=\\$(( deadline - \\$(date +%s) ))' not in block:
+    raise SystemExit('readiness lease recovery must recompute remaining time immediately before refresh')
+if 'if [[ "\\$readiness_refresh_remaining" -gt 0 ]]' not in block:
+    raise SystemExit('readiness lease recovery must skip refresh after the absolute readiness deadline')
 if '"\\${control_url}/dht/refresh"' not in block:
     raise SystemExit('readiness lease recovery must use control-plane DHT refresh')
 if '"\\$readiness_recovery_target_count" -le ${HOST_COUNT}' not in block:
