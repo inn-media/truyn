@@ -45,7 +45,7 @@ The broader Developer Release gate additionally covers all five required SDK lan
 
 ## Boundary
 
-These examples are not stable package-publication examples and do not prove native registry availability. They intentionally import from repository source until public release coordinates are externally observable.
+These examples are not stable package-publication examples. Accepted immutable public prereleases currently exist for npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`; Maven Central and NuGet.org remain open. The examples intentionally continue to import repository source so they remain deterministic local onboarding proofs independent of registry availability.
 
 `TRUYN/1` remains draft. A source example or SDK client never bypasses server-side provider authorization, visibility or billing policy.
 

@@ -1,6 +1,6 @@
 # TRUYN SDK Quickstart
 
-**Status:** Developer Release relay-client/package implementation is source/build complete across TypeScript/JavaScript, Python, Go, Java and C#/.NET. This guide intentionally shows the smallest copy-paste TypeScript/Python local path; the full five-language executable gate is documented below. Native registry publication remains open, and Agent Descriptor refresh/interface-validation parity still has explicit gaps described below, so repository-source onboarding remains the reproducible default.
+**Status:** Developer Release relay-client/package implementation is source/build complete across TypeScript/JavaScript, Python, Go, Java and C#/.NET. npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` are accepted immutable public prereleases. Maven Central and NuGet.org publication remain open. Agent Descriptor refresh/interface-validation parity still has explicit gaps described below, so repository-source onboarding remains the reproducible common path across all five SDKs.
 
 **Protocol:** `TRUYN/1` draft  
 **Stable SDK API contract:** `1`  
@@ -41,7 +41,7 @@ For the two copy-paste examples above, Node.js `>=22` and Python `>=3.10` are su
 - Temurin JDK `17` with `java` and `mvn` available on `PATH`;
 - .NET SDK `8.0.x` with `dotnet` on `PATH`.
 
-`.github/workflows/ci.yml` is the canonical executable setup for this toolchain. The quickstart otherwise assumes a local loopback relay and repository source checkout until the public registry publication gate is accepted and observed.
+`.github/workflows/ci.yml` is the canonical executable setup for this toolchain. npm/PyPI/Go consumers may use the accepted immutable public prerelease coordinates above; Java/Maven and .NET/NuGet remain repository-source/build paths until their publication gates are accepted.
 
 ## Fastest path: TypeScript all-in-one
 
@@ -65,18 +65,10 @@ const requester = await TruynLocalNodeClient.connect({ relayUrl, name: 'hello-re
 
 try {
   await provider.offer('sdk.echo', { example: 'hello-need-result' });
-
-  const receipt = await requester.need(
-    'sdk.echo',
-    { text: 'hello TRUYN' },
-    { purpose: 'sdk-quickstart' }
-  );
-
+  const receipt = await requester.need('sdk.echo', { text: 'hello TRUYN' }, { purpose: 'sdk-quickstart' });
   const need = await provider.nextNeed({ timeoutMs: 2_000 });
   const output = { text: `RESULT: ${(need.input as { text: string }).text}` };
-
   await provider.result(need.needId, output, { example: 'hello-need-result' });
-
   const result = await requester.waitForResult(receipt.needId, { timeoutMs: 2_000 });
   console.log(JSON.stringify({ ok: result.verification.ok, output: result.output }, null, 2));
 } finally {
@@ -129,18 +121,10 @@ requester = TruynLocalNodeClient.connect(relay_url, name='hello-requester')
 
 try:
     provider.offer('sdk.echo', {'example': 'hello-need-result'})
-
-    receipt = requester.need(
-        'sdk.echo',
-        {'text': 'hello TRUYN'},
-        {'purpose': 'sdk-quickstart'},
-    )
-
+    receipt = requester.need('sdk.echo', {'text': 'hello TRUYN'}, {'purpose': 'sdk-quickstart'})
     need = provider.next_need(timeout_ms=2000)
     output = {'text': 'RESULT: ' + need['input']['text']}
-
     provider.result(need['needId'], output, {'example': 'hello-need-result'})
-
     result = requester.wait_for_result(receipt['needId'], timeout_ms=2000)
     print(json.dumps({'ok': result['verification']['ok'], 'output': result['output']}, indent=2))
 finally:
@@ -171,28 +155,13 @@ node sdk/conformance/run-five-language-e2e.mjs
 
 This starts one real local relay and one signed HTTP Agent Descriptor fixture, then independently exercises TypeScript, Python, Go, Java and .NET.
 
-Each language must:
+Each language must fetch and validate the same signed `truyn.agent-descriptor/v1` fixture, negotiate `TRUYN/1` plus a supported interface, register an independent provider/requester pair, publish an authorized OFFER, execute NEED → verified provider event → signed RESULT → verified requester RESULT, then issue a second direct NEED and exercise cancellation from the owning requester.
 
-- fetch the same valid signed `truyn.agent-descriptor/v1` fixture;
-- validate expiry and identity-key binding/signature;
-- select `TRUYN/1` plus a supported interface from that valid fixture;
-- register an independent provider/requester pair;
-- publish an authorized OFFER;
-- execute NEED → verified provider event → signed RESULT → verified requester RESULT;
-- issue a second direct NEED and exercise cancellation from the owning requester.
-
-This is executable network behavior, not skeleton/DTO parity. The runner does **not** by itself prove every Descriptor-negative or cancellation-authorization invariant in every language: it does not attempt a non-owner revoke, and its valid Descriptor fixture does not catch all malformed/missing-interface-endpoint cases. Those security/lifecycle properties must be backed by dedicated runtime/SDK regressions, and the current Descriptor gaps are documented below.
+This is executable network behavior, not skeleton/DTO parity. The runner does **not** by itself prove every Descriptor-negative or cancellation-authorization invariant in every language; dedicated runtime/SDK regressions back those security/lifecycle properties.
 
 ## Developer Release features beyond this minimal example
 
-The bounded SDK/runtime surface also includes:
-
-- authenticated relay event streaming;
-- signed generic ordered `PARTIAL` streaming;
-- direct NEED cancellation through signed `REVOKE` for the compact direct-NEED lifecycle;
-- reference-oriented object/artifact payloads;
-- default-off Agent Descriptor serving plus five-language fetch/signature/expiry handling against the accepted happy-path fixture;
-- built npm/PyPI/Go/Maven/NuGet verification artifacts with exact source SHA, byte size and SHA-256 provenance.
+The bounded SDK/runtime surface also includes authenticated relay event streaming, signed generic ordered `PARTIAL` streaming, direct NEED cancellation through signed `REVOKE`, reference-oriented object/artifact payloads, default-off Agent Descriptor serving plus five-language fetch/signature/expiry handling, and built npm/PyPI/Go/Maven/NuGet verification artifacts with exact source SHA, byte size and SHA-256 provenance.
 
 Current Descriptor limitations are explicit: the runtime signs the public Descriptor once at provider startup and does not automatically refresh/re-sign it before `expiresAt`, and Go/Java/.NET do not yet all enforce a non-empty `interfaces[].endpoint` during negotiation (with Go/.NET typed endpoint mapping also not fully aligned to the schema). Therefore a long-running provider can serve an expired Descriptor until restart, and usable endpoint-negotiation parity is not yet complete.
 
@@ -202,16 +171,7 @@ Current Descriptor limitations are explicit: the runtime signs the public Descri
 
 The TypeScript/Python copy-paste path proves a bounded local signed OFFER/NEED/RESULT transaction through a real local relay. The five-language E2E command proves that all five client implementations can execute the common happy-path relay flow and exercise the accepted Descriptor/cancellation calls described above; it is not a substitute for every negative/lifecycle regression.
 
-Neither proves:
-
-- public registry publication;
-- stable `TRUYN/1` protocol compatibility;
-- complete Agent Descriptor refresh/endpoint-negotiation parity;
-- remote production relay onboarding;
-- account/tenant control-plane behavior;
-- QUIC/Kademlia/DHT behavior;
-- D-1000 acceptance;
-- mainnet readiness.
+It does **not** prove stable `TRUYN/1` protocol compatibility, complete Agent Descriptor refresh/endpoint-negotiation parity, remote production relay onboarding, account/tenant control-plane behavior, QUIC/Kademlia/DHT behavior, D-1000 acceptance, or mainnet readiness. Public registry status is coordinate-specific: npm alpha.2, PyPI alpha and Go alpha are accepted immutable public releases; Maven Central and NuGet.org remain open.
 
 ## Next developer paths
 

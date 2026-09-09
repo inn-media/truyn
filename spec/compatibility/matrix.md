@@ -27,9 +27,13 @@ P3-M1 does not promote legacy MCP versions into outbound/import resource support
 
 | SDK line | Stable SDK API | TRUYN protocol | Agent Descriptor | Publication state |
 |---|---:|---|---|---|
-| `0.1.0-alpha.1` (`0.1.0a1` on PyPI) | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | five-language source/build/conformance proven; native public registry publication not yet evidenced |
+| npm `@truyn/sdk@0.1.0-alpha.2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| PyPI `truyn-sdk==0.1.0a1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | source/build/conformance proven; Maven Central publication open |
+| NuGet `Truyn.Sdk@0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | source/build/conformance proven; NuGet.org publication open |
 
-SDK package version and stable SDK API version are independent from protocol-generation stability.
+npm `@truyn/sdk@0.1.0-alpha.1` remains immutable historical failed evidence and is superseded without overwrite. SDK package version and stable SDK API version are independent from protocol-generation stability.
 
 ## Rules
 
@@ -41,6 +45,6 @@ SDK package version and stable SDK API version are independent from protocol-gen
 - Breaking network semantic changes require a new protocol generation or explicit extension negotiation.
 - Storage/config migrations are local implementation concerns and MUST NOT silently change network identity.
 - Implemented/CI-proven/bounded interoperability evidence does not by itself create a stable compatibility promise.
-- Native package build/provenance does not by itself prove public registry availability.
+- Package build/provenance does not by itself prove public registry availability; npm alpha.2, PyPI alpha and Go alpha are separately accepted from observed immutable public evidence, while Maven Central and NuGet.org remain open.
 
 See `../../docs/compatibility/README.md`, `../../docs/compatibility/SDK_COMPATIBILITY.md` and `../../docs/architecture/IMPLEMENTATION_STATUS.md` for the current factual maturity boundary.
