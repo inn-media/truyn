@@ -243,7 +243,11 @@ test('P3-A1 reconnect is owner-scoped, resumes future events, and never redispat
   assert.equal(dispatches, 1);
 
   originalAbort.abort();
-  await assert.rejects(original.reader.read(), /AbortError|aborted|terminated/i);
+  const disconnected = await original.reader.read().then(
+    ({ done }) => done,
+    (error) => /AbortError|aborted|terminated/i.test(String(error?.name || error?.message || error))
+  );
+  assert.equal(disconnected, true, 'aborting the original transport must terminate that SSE reader');
 
   const denied = await rpc(url, {
     jsonrpc: '2.0',
