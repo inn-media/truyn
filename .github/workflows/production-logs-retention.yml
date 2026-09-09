@@ -8,6 +8,8 @@ on:
       - '.github/workflows/production-logs-retention.yml'
       - 'tests/production-logs-retention.test.js'
       - 'tests/public-repository.test.js'
+      - 'infra/production-dr/**'
+      - '.github/workflows/production-dr-foundation.yml'
   push:
     branches: [main]
     paths:
@@ -16,6 +18,8 @@ on:
       - '.github/workflows/production-logs-retention.yml'
       - 'tests/production-logs-retention.test.js'
       - 'tests/public-repository.test.js'
+      - 'infra/production-dr/**'
+      - '.github/workflows/production-dr-foundation.yml'
 
 permissions:
   contents: read
@@ -150,12 +154,12 @@ jobs:
             break
           done
 
-          [[ -n "$selected_environment" && -n "$selected_environment_id" && -n "$selected_region" ]] || {
+          [[ -n "$selected_environment" && -n "$selected_environment_id" && -n "$selected_region" && -n "$selected_prefix" ]] || {
             echo '::error::No accepted internal production Container Apps foundation is available.'
             exit 1
           }
 
-          log_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:logs-retention" | sha256sum | cut -c1-10)"
+          log_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:${selected_prefix}:logs-retention" | sha256sum | cut -c1-10)"
           workspace_name="truyn-logs-${log_suffix}"
           archive_name="truynlogs${log_suffix}"
           for value in "$selected_environment" "$selected_environment_id" "$selected_prefix" "$workspace_name" "$archive_name"; do printf '::add-mask::%s\n' "$value"; done
