@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "profileId": "mcp-stable-v1/p1",
+  "statusDimensions": {
+    "truyn": {
+      "generation": "TRUYN/1",
+      "status": "draft"
+    },
+    "a2a": {
+      "status": "bounded-pre-v1"
+    },
+    "mcp": {
+      "status": "stable-v1",
+      "profile": "mcp-stable-v1/p1"
+    },
+    "aggregate": {
+      "generation": "a2a-mcp-pre-v1/g1",
+      "status": "bounded-pre-v1"
+    }
+  },
+  "frozenMatrix": "docs/compatibility/MCP_STABLE_V1_INTEROPERABILITY_MATRIX.json",
+  "frozenBaselineSha": "45474df58ec5ee30090fae4700905175c27b40cf",
+  "scope": {
+    "protocol": "mcp",
+    "direction": "import",
+    "transportProtocolVersion": "2026-07-28",
+    "requiredSemanticsVersion": 1,
+    "requiredSemantics": [
+      "tools/list-and-call",
+      "referenced-artifact-resolution",
+      "resources/list-and-read",
+      "prompts/list-and-get",
+      "apps-ui-extension/io.modelcontextprotocol/ui",
+      "apps-ui-explicit-ui-resource-linkage",
+      "apps-ui-same-provider-resource-authority",
+      "apps-ui-result-to-tool-resource-binding",
+      "apps-ui-app-only-model-isolation",
+      "apps-ui-untrusted-presentation-boundary"
+    ],
+    "apps": {
+      "extensionId": "io.modelcontextprotocol/ui",
+      "upstreamPackage": "@modelcontextprotocol/ext-apps",
+      "upstreamSourceVersion": "2.0.0",
+      "upstreamCommit": "4cd427394755ee0964172df5760852aa053a5c99",
+      "resourceUriScheme": "ui://",
+      "resourceMime": "text/html;profile=mcp-app"
+    }
+  },
+  "fallback": {
+    "unknownRequiredProtocolVersion": "fail-closed",
+    "unknownRequiredExtension": "fail-closed",
+    "unknownRequiredSemantic": "fail-closed",
+    "unknownOptionalExtension": "ignore-without-authority-or-behavior-expansion",
+    "unknownOptionalSemantic": "ignore-without-authority-or-behavior-expansion",
+    "serverWithoutApps": "continue-supported-non-apps-mcp-without-apps-inference",
+    "legacyOrFacadeAppsRequired": "fail-closed"
+  },
+  "migration": {
+    "from": "a2a-mcp-pre-v1/g1",
+    "rule": "opt-in-profile-selection",
+    "legacyDefaultRemains": "a2a-mcp-pre-v1/g1",
+    "legacyBehaviorPromotion": false,
+    "a2aPromotion": false,
+    "truynPromotion": false,
+    "aggregatePromotion": false,
+    "notes": "Existing g1 callers remain on the accepted bounded pre-v1 behavior unless they explicitly select and satisfy the stable MCP profile. Stable MCP selection does not widen A2A or TRUYN protocol guarantees."
+  },
+  "authorityBoundary": {
+    "uiContentIsPresentationOnly": true,
+    "authorizationFromUi": false,
+    "providerSelectionFromUi": false,
+    "billingFromUi": false,
+    "entitlementFromUi": false,
+    "executionAuthorityFromUi": false,
+    "provenanceAuthorityFromUi": false,
+    "implicitExternalFetchFromUi": false
+  }
+}
