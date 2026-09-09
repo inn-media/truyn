@@ -1,0 +1,70 @@
+{
+  "schema": "truyn.production-structured-log-backend/v1",
+  "backendId": "prod-structured-logs-01",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "environment": "production",
+  "source": {
+    "platform": "azure-container-apps",
+    "streams": [
+      "stdout",
+      "stderr"
+    ],
+    "category": "ContainerAppConsoleLogs",
+    "scope": "managed-environment"
+  },
+  "transport": {
+    "route": "azure-monitor-diagnostic-settings-event-hubs",
+    "eventHubTier": "Standard",
+    "firewallDefaultAction": "Deny",
+    "trustedMicrosoftServicesForDiagnosticIngest": true,
+    "collectorPrivateEndpointRequired": true
+  },
+  "collector": {
+    "name": "vector",
+    "version": "0.58.0",
+    "ingestTimeJsonParsing": true,
+    "rawPlatformPayloadRemovedAfterParsing": true,
+    "backendFeedbackExcluded": true
+  },
+  "backend": {
+    "name": "victorialogs",
+    "version": "1.52.0",
+    "publicIngress": false,
+    "structuredFieldsRequired": true,
+    "rawJsonBlobAccepted": false,
+    "retention": "7d",
+    "durableStorage": {
+      "type": "nfs-azure-file",
+      "tier": "premium",
+      "publicNetworkAccess": false,
+      "privateEndpointRequired": true,
+      "sharedKeyAccess": false,
+      "mountPath": "/victoria-logs-data"
+    }
+  },
+  "acceptance": {
+    "exactMainRuntimeImageRequired": true,
+    "stdoutRequired": true,
+    "stderrRequired": true,
+    "fieldReadBackRequired": true,
+    "durableStorageMountRequired": true,
+    "requiredFields": [
+      "timestamp",
+      "level",
+      "event",
+      "service",
+      "role",
+      "traceId",
+      "requestId",
+      "needId",
+      "resultId",
+      "streamProbe",
+      "canaryField",
+      "platform_stream",
+      "environment",
+      "deployment",
+      "structured"
+    ],
+    "terminalMarker": "TRUYN_STRUCTURED_LOG_PASS stdout=1 stderr=1 fields=preserved raw_blob=0 backend=victorialogs"
+  }
+}

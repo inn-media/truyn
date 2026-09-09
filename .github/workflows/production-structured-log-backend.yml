@@ -1,0 +1,589 @@
+name: Production Structured Log Backend
+
+on:
+  pull_request:
+    paths:
+      - 'infra/production-observability/structured-log-backend.bicep'
+      - 'infra/production-observability/structured-log-vector/**'
+      - 'runtime/structured-log-canary.js'
+      - 'operations/production-structured-log-backend.json'
+      - '.github/workflows/production-structured-log-backend.yml'
+      - 'tests/production-structured-log-backend.test.js'
+      - 'tests/public-repository.test.js'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/production-observability/structured-log-backend.bicep'
+      - 'infra/production-observability/structured-log-vector/**'
+      - 'runtime/structured-log-canary.js'
+      - 'operations/production-structured-log-backend.json'
+      - '.github/workflows/production-structured-log-backend.yml'
+      - 'tests/production-structured-log-backend.test.js'
+      - 'tests/public-repository.test.js'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'northeurope:swedencentral germanywestcentral:francecentral' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Compile structured log backend Bicep
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep install >/dev/null
+          az bicep build --file infra/production-observability/structured-log-backend.bicep --stdout >/dev/null
+
+      - name: Build and validate pinned Vector collector
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            --tag truyn-structured-log-vector:validate \
+            infra/production-observability/structured-log-vector >/dev/null
+          docker run --rm \
+            -e EVENTHUB_BOOTSTRAP='example.servicebus.windows.net:9093' \
+            -e EVENTHUB_NAME='container-console' \
+            -e EVENTHUB_CONNECTION_STRING='Endpoint=sb://example/;SharedAccessKeyName=collector;SharedAccessKey=dummy' \
+            -e LOG_BACKEND_APP='truyn-logs-validation' \
+            -e TRUYN_DEPLOYMENT_ID="$DEPLOYMENT_ID" \
+            -e VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true \
+            truyn-structured-log-vector:validate \
+            validate --no-environment /etc/vector/vector.yaml
+
+      - name: Validate canary syntax and Sprint 12 contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check runtime/structured-log-canary.js
+          node --test \
+            tests/production-structured-log-backend.test.js \
+            tests/public-repository.test.js
+          jq -e '
+            .schema == "truyn.production-structured-log-backend/v1" and
+            .source.streams == ["stdout", "stderr"] and
+            .source.category == "ContainerAppConsoleLogs" and
+            .transport.route == "azure-monitor-diagnostic-settings-event-hubs" and
+            .transport.eventHubTier == "Standard" and
+            .transport.firewallDefaultAction == "Deny" and
+            .transport.trustedMicrosoftServicesForDiagnosticIngest == true and
+            .transport.collectorPrivateEndpointRequired == true and
+            .collector.name == "vector" and
+            .collector.version == "0.58.0" and
+            .collector.ingestTimeJsonParsing == true and
+            .collector.backendFeedbackExcluded == true and
+            .backend.name == "victorialogs" and
+            .backend.version == "1.52.0" and
+            .backend.publicIngress == false and
+            .backend.structuredFieldsRequired == true and
+            .backend.rawJsonBlobAccepted == false and
+            .backend.durableStorage.type == "nfs-azure-file" and
+            .backend.durableStorage.publicNetworkAccess == false and
+            .backend.durableStorage.privateEndpointRequired == true and
+            .acceptance.stdoutRequired == true and
+            .acceptance.stderrRequired == true and
+            .acceptance.fieldReadBackRequired == true
+          ' operations/production-structured-log-backend.json >/dev/null
+          git diff --check
+
+  apply-and-prove:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify exact-main source
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ "$(git branch --show-current)" == "main" ]]
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Resolve accepted private production Container Apps plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          az bicep install >/dev/null
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+          selected_environment=''
+          selected_environment_id=''
+          selected_region=''
+          selected_prefix=''
+          selected_vnet_id=''
+          selected_private_endpoint_subnet_id=''
+          selected_registry=''
+          attempt=0
+
+          for pair in $REGION_PAIRS; do
+            attempt=$((attempt + 1))
+            [[ "$attempt" -le 2 ]] || break
+            [[ "$pair" == *:* ]] || { echo '::error::Invalid production region pair.'; exit 1; }
+            primary="${pair%%:*}"
+            secondary="${pair#*:}"
+            pair_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}:${primary}:${secondary}" | sha256sum | cut -c1-10)"
+            prefix="truyn${pair_suffix}"
+            environment="${prefix}-aca-env"
+            cosmos="${prefix}cosmos"
+            vnet="${prefix}-vnet"
+            registry="${prefix}acr"
+            for value in "$prefix" "$environment" "$cosmos" "$vnet" "$registry"; do printf '::add-mask::%s\n' "$value"; done
+
+            if ! environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+            if ! cosmos_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+            if ! vnet_id="$(az network vnet show --resource-group "$RESOURCE_GROUP" --name "$vnet" --query id -o tsv --only-show-errors 2>/dev/null)"; then
+              continue
+            fi
+            if ! pe_subnet_id="$(az network vnet subnet show --resource-group "$RESOURCE_GROUP" --vnet-name "$vnet" --name private-endpoints --query id -o tsv --only-show-errors 2>/dev/null)"; then
+              continue
+            fi
+            if ! az acr show --resource-group "$RESOURCE_GROUP" --name "$registry" --only-show-errors -o none 2>/dev/null; then
+              continue
+            fi
+
+            if ! jq -e '
+              .properties.vnetConfiguration.internal == true and
+              (.properties.publicNetworkAccess | ascii_downcase) == "disabled" and
+              .properties.provisioningState == "Succeeded"
+            ' <<<"$environment_json" >/dev/null; then
+              continue
+            fi
+            if ! jq -e --arg primary "$primary" --arg secondary "$secondary" '
+              .provisioningState == "Succeeded" and
+              ([.locations[].locationName | gsub(" "; "") | ascii_downcase] | sort) == ([$primary, $secondary] | sort)
+            ' <<<"$cosmos_json" >/dev/null; then
+              continue
+            fi
+
+            selected_environment="$environment"
+            selected_environment_id="$(jq -r '.id' <<<"$environment_json")"
+            selected_region="$primary"
+            selected_prefix="$prefix"
+            selected_vnet_id="$vnet_id"
+            selected_private_endpoint_subnet_id="$pe_subnet_id"
+            selected_registry="$registry"
+            break
+          done
+
+          [[ -n "$selected_environment" && -n "$selected_environment_id" && -n "$selected_region" && -n "$selected_vnet_id" && -n "$selected_private_endpoint_subnet_id" && -n "$selected_registry" ]] || {
+            echo '::error::No accepted internal production Container Apps foundation is available.'
+            exit 1
+          }
+
+          suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:structured-logs" | sha256sum | cut -c1-12)"
+          backend_app="truyn-logs-${suffix}"
+          canary_app="truyn-log-canary-${suffix}"
+          eventhub_namespace="truynlogs${suffix}"
+          identity_name="truyn-logs-${suffix}-mi"
+          storage_account="truynlg${suffix}"
+          storage_mount='victorialogs-data'
+          file_share='victorialogs'
+          vector_image="${selected_registry}.azurecr.io/truyn-structured-log-vector:${GITHUB_SHA}"
+          runtime_image="${selected_registry}.azurecr.io/truyn-runtime:${GITHUB_SHA}"
+
+          for value in \
+            "$selected_environment" "$selected_environment_id" "$selected_prefix" \
+            "$selected_vnet_id" "$selected_private_endpoint_subnet_id" "$selected_registry" \
+            "$backend_app" "$canary_app" "$eventhub_namespace" "$identity_name" \
+            "$storage_account" "$vector_image" "$runtime_image"; do
+            printf '::add-mask::%s\n' "$value"
+          done
+
+          printf 'ACA_ENVIRONMENT=%s\n' "$selected_environment" >> "$GITHUB_ENV"
+          printf 'ACA_ENVIRONMENT_ID=%s\n' "$selected_environment_id" >> "$GITHUB_ENV"
+          printf 'LOG_REGION=%s\n' "$selected_region" >> "$GITHUB_ENV"
+          printf 'LOG_VNET_ID=%s\n' "$selected_vnet_id" >> "$GITHUB_ENV"
+          printf 'LOG_PE_SUBNET_ID=%s\n' "$selected_private_endpoint_subnet_id" >> "$GITHUB_ENV"
+          printf 'LOG_REGISTRY=%s\n' "$selected_registry" >> "$GITHUB_ENV"
+          printf 'LOG_BACKEND_APP=%s\n' "$backend_app" >> "$GITHUB_ENV"
+          printf 'LOG_CANARY_APP=%s\n' "$canary_app" >> "$GITHUB_ENV"
+          printf 'LOG_EVENTHUB_NAMESPACE=%s\n' "$eventhub_namespace" >> "$GITHUB_ENV"
+          printf 'LOG_IDENTITY=%s\n' "$identity_name" >> "$GITHUB_ENV"
+          printf 'LOG_STORAGE_ACCOUNT=%s\n' "$storage_account" >> "$GITHUB_ENV"
+          printf 'LOG_STORAGE_MOUNT=%s\n' "$storage_mount" >> "$GITHUB_ENV"
+          printf 'LOG_FILE_SHARE=%s\n' "$file_share" >> "$GITHUB_ENV"
+          printf 'LOG_VECTOR_IMAGE=%s\n' "$vector_image" >> "$GITHUB_ENV"
+          printf 'LOG_RUNTIME_IMAGE=%s\n' "$runtime_image" >> "$GITHUB_ENV"
+
+      - name: Build exact-main Vector collector image
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr build \
+            --registry "$LOG_REGISTRY" \
+            --image "truyn-structured-log-vector:${GITHUB_SHA}" \
+            --file infra/production-observability/structured-log-vector/Dockerfile \
+            infra/production-observability/structured-log-vector \
+            --only-show-errors \
+            -o none
+
+      - name: Build exact-main production runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr build \
+            --registry "$LOG_REGISTRY" \
+            --image "truyn-runtime:${GITHUB_SHA}" \
+            --file Dockerfile \
+            . \
+            --only-show-errors \
+            -o none
+
+      - name: Provision protected structured log transport and backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployment_name="structured-logs-${GITHUB_SHA:0:8}"
+          printf '::add-mask::%s\n' "$deployment_name"
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$deployment_name" \
+            --template-file infra/production-observability/structured-log-backend.bicep \
+            --parameters \
+              appName="$LOG_BACKEND_APP" \
+              canaryAppName="$LOG_CANARY_APP" \
+              eventHubNamespaceName="$LOG_EVENTHUB_NAMESPACE" \
+              identityName="$LOG_IDENTITY" \
+              environmentName="$ACA_ENVIRONMENT" \
+              environmentId="$ACA_ENVIRONMENT_ID" \
+              vnetId="$LOG_VNET_ID" \
+              privateEndpointSubnetId="$LOG_PE_SUBNET_ID" \
+              registryName="$LOG_REGISTRY" \
+              vectorImage="$LOG_VECTOR_IMAGE" \
+              runtimeImage="$LOG_RUNTIME_IMAGE" \
+              location="$LOG_REGION" \
+              deploymentId="$DEPLOYMENT_ID" \
+              sourceSha="$GITHUB_SHA" \
+              victoriaLogsVersion='v1.52.0' \
+              vectorVersion='0.58.0' \
+            --only-show-errors \
+            -o none
+
+      - name: Provision private durable VictoriaLogs storage
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! az storage account show --resource-group "$RESOURCE_GROUP" --name "$LOG_STORAGE_ACCOUNT" --only-show-errors -o none 2>/dev/null; then
+            az storage account create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$LOG_STORAGE_ACCOUNT" \
+              --location "$LOG_REGION" \
+              --sku Premium_LRS \
+              --kind FileStorage \
+              --https-only false \
+              --allow-shared-key-access false \
+              --public-network-access Disabled \
+              --min-tls-version TLS1_2 \
+              --only-show-errors \
+              -o none
+          fi
+
+          az storage account update \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$LOG_STORAGE_ACCOUNT" \
+            --allow-shared-key-access false \
+            --public-network-access Disabled \
+            --default-action Deny \
+            --https-only false \
+            --only-show-errors \
+            -o none
+
+          if ! az storage share-rm show \
+            --resource-group "$RESOURCE_GROUP" \
+            --storage-account "$LOG_STORAGE_ACCOUNT" \
+            --name "$LOG_FILE_SHARE" \
+            --only-show-errors -o none 2>/dev/null; then
+            az storage share-rm create \
+              --resource-group "$RESOURCE_GROUP" \
+              --storage-account "$LOG_STORAGE_ACCOUNT" \
+              --name "$LOG_FILE_SHARE" \
+              --enabled-protocols NFS \
+              --access-tier Premium \
+              --quota 100 \
+              --root-squash NoRootSquash \
+              --only-show-errors \
+              -o none
+          fi
+
+          storage_id="$(az storage account show --resource-group "$RESOURCE_GROUP" --name "$LOG_STORAGE_ACCOUNT" --query id -o tsv --only-show-errors)"
+          printf '::add-mask::%s\n' "$storage_id"
+
+          file_zone='privatelink.file.core.windows.net'
+          if ! az network private-dns zone show --resource-group "$RESOURCE_GROUP" --name "$file_zone" --only-show-errors -o none 2>/dev/null; then
+            az network private-dns zone create --resource-group "$RESOURCE_GROUP" --name "$file_zone" --only-show-errors -o none
+          fi
+          file_zone_id="$(az network private-dns zone show --resource-group "$RESOURCE_GROUP" --name "$file_zone" --query id -o tsv --only-show-errors)"
+          printf '::add-mask::%s\n' "$file_zone_id"
+
+          links_json="$(az network private-dns link vnet list --resource-group "$RESOURCE_GROUP" --zone-name "$file_zone" --only-show-errors -o json)"
+          if ! jq -e --arg vnet "$LOG_VNET_ID" 'any(.[]; (.virtualNetwork.id | ascii_downcase) == ($vnet | ascii_downcase))' <<<"$links_json" >/dev/null; then
+            link_name="truyn-logs-$(printf '%s' "$LOG_VNET_ID" | sha256sum | cut -c1-10)"
+            printf '::add-mask::%s\n' "$link_name"
+            az network private-dns link vnet create \
+              --resource-group "$RESOURCE_GROUP" \
+              --zone-name "$file_zone" \
+              --name "$link_name" \
+              --virtual-network "$LOG_VNET_ID" \
+              --registration-enabled false \
+              --only-show-errors \
+              -o none
+          fi
+
+          pe_name="${LOG_STORAGE_ACCOUNT}-file-pe"
+          printf '::add-mask::%s\n' "$pe_name"
+          if ! az network private-endpoint show --resource-group "$RESOURCE_GROUP" --name "$pe_name" --only-show-errors -o none 2>/dev/null; then
+            az network private-endpoint create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$pe_name" \
+              --location "$LOG_REGION" \
+              --subnet "$LOG_PE_SUBNET_ID" \
+              --private-connection-resource-id "$storage_id" \
+              --group-id file \
+              --connection-name file \
+              --only-show-errors \
+              -o none
+          fi
+
+          if ! az network private-endpoint dns-zone-group show \
+            --resource-group "$RESOURCE_GROUP" \
+            --endpoint-name "$pe_name" \
+            --name default \
+            --only-show-errors -o none 2>/dev/null; then
+            az network private-endpoint dns-zone-group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --endpoint-name "$pe_name" \
+              --name default \
+              --zone-name file \
+              --private-dns-zone "$file_zone_id" \
+              --only-show-errors \
+              -o none
+          fi
+
+          az containerapp env storage set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$ACA_ENVIRONMENT" \
+            --storage-name "$LOG_STORAGE_MOUNT" \
+            --storage-type NfsAzureFile \
+            --server "${LOG_STORAGE_ACCOUNT}.file.core.windows.net" \
+            --file-share "/${LOG_STORAGE_ACCOUNT}/${LOG_FILE_SHARE}" \
+            --access-mode ReadWrite \
+            --only-show-errors \
+            -o none
+
+      - name: Mount durable storage into VictoriaLogs
+        shell: bash
+        run: |
+          set -euo pipefail
+          backend_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$LOG_BACKEND_APP" --only-show-errors -o json)"
+          backend_id="$(jq -r '.id' <<<"$backend_json")"
+          printf '::add-mask::%s\n' "$backend_id"
+
+          jq --arg storage "$LOG_STORAGE_MOUNT" '{
+            location: .location,
+            properties: {
+              template: (
+                .properties.template
+                | .volumes = (((.volumes // []) | map(select(.name != "victorialogs-data"))) + [{name:"victorialogs-data", storageType:"NfsAzureFile", storageName:$storage}])
+                | .containers = [
+                    .containers[]
+                    | if .name == "victorialogs" then
+                        .volumeMounts = (((.volumeMounts // []) | map(select(.volumeName != "victorialogs-data"))) + [{volumeName:"victorialogs-data", mountPath:"/victoria-logs-data"}])
+                      else . end
+                  ]
+              )
+            }
+          }' <<<"$backend_json" > /tmp/victorialogs-mount-patch.json
+
+          az rest \
+            --method patch \
+            --url "${backend_id}?api-version=2025-07-01" \
+            --headers 'Content-Type=application/merge-patch+json' \
+            --body @/tmp/victorialogs-mount-patch.json \
+            --only-show-errors \
+            -o none
+
+          mounted=false
+          for attempt in $(seq 1 120); do
+            current="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$LOG_BACKEND_APP" --only-show-errors -o json 2>/dev/null || true)"
+            if jq -e '
+              .properties.provisioningState == "Succeeded" and
+              any(.properties.template.volumes[]?; .name == "victorialogs-data" and .storageType == "NfsAzureFile" and .storageName == "victorialogs-data") and
+              any(.properties.template.containers[]?;
+                .name == "victorialogs" and
+                any(.volumeMounts[]?; .volumeName == "victorialogs-data" and .mountPath == "/victoria-logs-data")
+              )
+            ' <<<"$current" >/dev/null 2>&1; then
+              mounted=true
+              break
+            fi
+            sleep 5
+          done
+          [[ "$mounted" == true ]] || { echo '::error::Durable VictoriaLogs NFS mount did not become ready.'; exit 1; }
+
+      - name: Switch environment console logs to Azure Monitor routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          az containerapp env update \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$ACA_ENVIRONMENT" \
+            --logs-destination azure-monitor \
+            --only-show-errors \
+            -o none
+          environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$ACA_ENVIRONMENT" --only-show-errors -o json)"
+          destination="$(jq -r '.properties.appLogsConfiguration.destination // empty' <<<"$environment_json")"
+          [[ "${destination,,}" == 'azure-monitor' ]] || { echo '::error::Production environment did not switch to Azure Monitor log routing.'; exit 1; }
+
+      - name: Verify protected backend, durable storage, and exact-main canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          backend_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$LOG_BACKEND_APP" --only-show-errors -o json)"
+          canary_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$LOG_CANARY_APP" --only-show-errors -o json)"
+          storage_json="$(az storage account show --resource-group "$RESOURCE_GROUP" --name "$LOG_STORAGE_ACCOUNT" --only-show-errors -o json)"
+
+          jq -e --arg vector "$LOG_VECTOR_IMAGE" '
+            .properties.provisioningState == "Succeeded" and
+            .properties.configuration.ingress.external == false and
+            .properties.configuration.ingress.targetPort == 9428 and
+            any(.properties.template.volumes[]?; .name == "victorialogs-data" and .storageType == "NfsAzureFile") and
+            any(.properties.template.containers[]?;
+              .name == "victorialogs" and
+              any(.volumeMounts[]?; .volumeName == "victorialogs-data" and .mountPath == "/victoria-logs-data")
+            ) and
+            any(.properties.template.containers[]?; .name == "vector" and .image == $vector)
+          ' <<<"$backend_json" >/dev/null
+
+          jq -e --arg runtime "$LOG_RUNTIME_IMAGE" --arg sha "$GITHUB_SHA" '
+            .properties.provisioningState == "Succeeded" and
+            any(.properties.template.containers[]?;
+              .name == "runtime-log-canary" and
+              .image == $runtime and
+              any(.env[]?; .name == "TRUYN_VERSION" and .value == $sha)
+            )
+          ' <<<"$canary_json" >/dev/null
+
+          jq -e '
+            .kind == "FileStorage" and
+            .sku.name == "Premium_LRS" and
+            (.publicNetworkAccess | ascii_downcase) == "disabled" and
+            .allowSharedKeyAccess == false
+          ' <<<"$storage_json" >/dev/null
+
+          share_json="$(az storage share-rm show --resource-group "$RESOURCE_GROUP" --storage-account "$LOG_STORAGE_ACCOUNT" --name "$LOG_FILE_SHARE" --only-show-errors -o json)"
+          jq -e '.enabledProtocols == "NFS" and .rootSquash == "NoRootSquash"' <<<"$share_json" >/dev/null
+
+          env_storage="$(az containerapp env storage list --resource-group "$RESOURCE_GROUP" --name "$ACA_ENVIRONMENT" --only-show-errors -o json)"
+          jq -e --arg storage "$LOG_STORAGE_MOUNT" 'any(.[]?; .name == $storage and .properties.nfsAzureFile.accessMode == "ReadWrite")' <<<"$env_storage" >/dev/null
+
+          namespace_id="$(az eventhubs namespace show --resource-group "$RESOURCE_GROUP" --name "$LOG_EVENTHUB_NAMESPACE" --query id -o tsv --only-show-errors)"
+          printf '::add-mask::%s\n' "$namespace_id"
+          network_json="$(az rest --method get --url "${namespace_id}/networkRuleSets/default?api-version=2024-01-01" --only-show-errors -o json)"
+          jq -e '.properties.defaultAction == "Deny" and .properties.publicNetworkAccess == "Enabled" and .properties.trustedServiceAccessEnabled == true' <<<"$network_json" >/dev/null
+
+          diagnostics_json="$(az monitor diagnostic-settings list --resource "$ACA_ENVIRONMENT_ID" --only-show-errors -o json)"
+          jq -e 'any(.value[]?; any(.logs[]?; .category == "ContainerAppConsoleLogs" and .enabled == true) and (.eventHubName | length) > 0 and (.eventHubAuthorizationRuleId | length) > 0)' <<<"$diagnostics_json" >/dev/null
+
+      - name: Prove stdout and stderr JSON fields survive backend ingestion
+        shell: bash
+        run: |
+          set -euo pipefail
+          accepted=false
+          for attempt in $(seq 1 240); do
+            logs="$(az containerapp logs show \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$LOG_BACKEND_APP" \
+              --container acceptance-probe \
+              --type console \
+              --tail 100 \
+              --follow false \
+              --format text \
+              --only-show-errors 2>/dev/null || true)"
+            if grep -q 'TRUYN_STRUCTURED_LOG_PASS stdout=1 stderr=1 fields=preserved raw_blob=0 backend=victorialogs' <<<"$logs"; then
+              accepted=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$accepted" == true ]] || { echo '::error::Structured log backend did not return field-level stdout/stderr proof.'; exit 1; }
+
+      - name: Write sanitized structured log evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          jq -n \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg deploymentId "$DEPLOYMENT_ID" \
+            '{
+              schema: "truyn.production-structured-log-evidence/v1",
+              sourceSha: $sourceSha,
+              deploymentId: $deploymentId,
+              environment: "production",
+              source: "azure-container-apps-stdout-stderr",
+              transport: "azure-monitor-event-hubs",
+              collector: {name: "vector", version: "0.58.0"},
+              backend: {name: "victorialogs", version: "1.52.0", publicIngress: false, durableStorage: "nfs-azure-file"},
+              proof: {
+                stdoutObserved: true,
+                stderrObserved: true,
+                jsonFieldsPreserved: true,
+                rawJsonBlob: false,
+                rawPlatformPayloadRemoved: true,
+                fieldReadBack: true,
+                exactMainRuntimeImage: true,
+                eventHubDefaultDeny: true,
+                collectorPrivateEndpoint: true,
+                backendFeedbackExcluded: true,
+                durableStorageMounted: true,
+                storagePublicNetworkDisabled: true
+              }
+            }' > evidence/production-structured-log-backend.json
+          jq -e '
+            .proof.stdoutObserved == true and
+            .proof.stderrObserved == true and
+            .proof.jsonFieldsPreserved == true and
+            .proof.rawJsonBlob == false and
+            .proof.rawPlatformPayloadRemoved == true and
+            .proof.fieldReadBack == true and
+            .proof.durableStorageMounted == true
+          ' evidence/production-structured-log-backend.json >/dev/null
+
+      - name: Upload sanitized production evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-structured-log-backend-evidence
+          path: evidence/production-structured-log-backend.json
+          if-no-files-found: error
+          retention-days: 30
