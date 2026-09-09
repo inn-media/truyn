@@ -3,9 +3,12 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createProductionControlPlane } from './production-control-plane.js';
 import {
+  isLegacyProductionControlPlaneSnapshot,
   materializeProductionControlPlaneSnapshot,
+  migrateProductionControlPlaneSnapshot,
   productionControlPlaneSnapshotCounts,
   productionControlPlaneSnapshotDigest,
+  validateProductionControlPlaneSnapshot,
   verifyProductionControlPlaneSnapshotDigest
 } from './production-control-plane-snapshot.js';
 import { validateAuthorityCheckpointDocument } from './cosmos-authority-checkpoint.js';
@@ -67,6 +70,7 @@ export function createManagedProductionAuthority({
 
   function withControlPlane(document, callback) {
     validateAuthorityCheckpointDocument(document, { maxDocumentBytes: checkpointStore.maxDocumentBytes });
+    validateProductionControlPlaneSnapshot(document.state);
     const stateDir = mkdtempSync(join(temporaryRoot, 'truyn-managed-authority-'));
     try {
       materializeProductionControlPlaneSnapshot({ snapshot: document.state, stateDir });
@@ -74,6 +78,28 @@ export function createManagedProductionAuthority({
       return callback(control);
     } finally {
       rmSync(stateDir, { recursive: true, force: true });
+    }
+  }
+
+  async function migrateLegacyCheckpoint(current) {
+    if (!isLegacyProductionControlPlaneSnapshot(current.document.state)) return current;
+    if (!bootstrapSnapshot || !bootstrapDigest) throw new Error('production_authority_legacy_checkpoint_migration_bootstrap_required');
+    verifyProductionControlPlaneSnapshotDigest(bootstrapSnapshot, bootstrapDigest);
+    const migratedState = migrateProductionControlPlaneSnapshot({ snapshot: current.document.state, trustBootstrap: bootstrapSnapshot });
+    try {
+      return await checkpointStore.replace({
+        expectedEtag: current.etag,
+        revision: current.document.revision + 1,
+        sourceSha: sha,
+        state: migratedState,
+        committedAt: now().toISOString()
+      });
+    } catch (error) {
+      if (!conflict(error)) throw error;
+      const refreshed = await checkpointStore.read();
+      if (!refreshed) throw new Error('production_authority_checkpoint_unavailable');
+      if (isLegacyProductionControlPlaneSnapshot(refreshed.document.state)) throw new Error('production_authority_legacy_checkpoint_migration_conflict');
+      return refreshed;
     }
   }
 
@@ -90,7 +116,9 @@ export function createManagedProductionAuthority({
       }
     }
     if (!current) throw new Error('production_authority_checkpoint_unavailable');
+    current = await migrateLegacyCheckpoint(current);
     validateAuthorityCheckpointDocument(current.document, { maxDocumentBytes: checkpointStore.maxDocumentBytes });
+    validateProductionControlPlaneSnapshot(current.document.state);
     initialized = true;
     return describe(current.document);
   }
@@ -100,6 +128,7 @@ export function createManagedProductionAuthority({
     const current = await checkpointStore.read();
     if (!current) throw new Error('production_authority_checkpoint_unavailable');
     validateAuthorityCheckpointDocument(current.document, { maxDocumentBytes: checkpointStore.maxDocumentBytes });
+    validateProductionControlPlaneSnapshot(current.document.state);
     return current;
   }
 
