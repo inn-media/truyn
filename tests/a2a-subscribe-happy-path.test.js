@@ -32,13 +32,14 @@ async function readSseResult(reader, decoder, bufferRef) {
   }
 }
 
-async function openStream(url, body, signal) {
+async function openStream(url, body, signal, authorization = null) {
   const response = await fetch(`${url}/a2a`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       accept: 'text/event-stream',
-      'a2a-version': A2A_PROTOCOL_VERSION
+      'a2a-version': A2A_PROTOCOL_VERSION,
+      ...(authorization ? { authorization } : {})
     },
     body: JSON.stringify(body),
     signal
@@ -50,6 +51,19 @@ async function openStream(url, body, signal) {
     decoder: new TextDecoder(),
     buffer: { value: '' }
   };
+}
+
+async function rpc(url, body, authorization = null) {
+  const response = await fetch(`${url}/a2a`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'a2a-version': A2A_PROTOCOL_VERSION,
+      ...(authorization ? { authorization } : {})
+    },
+    body: JSON.stringify(body)
+  });
+  return response.json();
 }
 
 test('P3-A1 SubscribeToTask attaches to a running task and receives subsequent lifecycle events', { timeout: 5_000 }, async (t) => {
@@ -158,4 +172,130 @@ test('P3-A1 SubscribeToTask attaches to a running task and receives subsequent l
   assert.equal(completed.result.statusUpdate.taskId, taskId);
   assert.equal(completed.result.statusUpdate.contextId, contextId);
   assert.equal(completed.result.statusUpdate.status.state, 'TASK_STATE_COMPLETED');
+});
+
+test('P3-A1 reconnect is owner-scoped, resumes future events, and never redispatches TRUYN work', { timeout: 5_000 }, async (t) => {
+  const compactEvents = [];
+  let dispatches = 0;
+  const node = {
+    identity: { nodeId: 'facade-node' },
+    sessionToken: null,
+    async register() {
+      this.sessionToken = 'session-token';
+      return { ok: true };
+    },
+    async find() {
+      return {
+        offers: [{
+          from: 'provider-node',
+          payload: { metadata: { accessMode: 'authenticated' } }
+        }]
+      };
+    },
+    async compactNeed() {
+      dispatches += 1;
+      return { needId: 'need-reconnect-owner', provider: 'provider-node' };
+    },
+    async pollCompact() {
+      return { events: compactEvents.splice(0) };
+    }
+  };
+
+  const facade = createA2aServer({
+    node,
+    agent: {
+      name: 'TRUYN P3-A1 reconnect proof',
+      description: 'Owner-scoped reconnect and no-redispatch proof',
+      version: '0.1.0-p3-a1'
+    },
+    skills: [{
+      id: 'reconnect',
+      name: 'Reconnect',
+      description: 'Owner-scoped reconnect proof',
+      capability: 'p3.a1.reconnect',
+      visibility: 'authenticated'
+    }],
+    authenticate: async (req) => {
+      const header = String(req.headers.authorization || '');
+      if (!header.startsWith('Bearer ')) throw new Error('missing bearer');
+      return { sub: header.slice('Bearer '.length) };
+    },
+    authorize: async ({ principal }) => Boolean(principal?.sub),
+    enableStreaming: true,
+    pollIntervalMs: 2,
+    maxBlockingWaitMs: 2_000
+  });
+  const url = await facade.listen({ port: 0 });
+  t.after(() => facade.close());
+
+  const originalAbort = new AbortController();
+  const original = await openStream(url, {
+    jsonrpc: '2.0',
+    id: 'reconnect-send-rpc',
+    method: 'SendStreamingMessage',
+    params: { message: message('disconnect then explicitly resubscribe') }
+  }, originalAbort.signal, 'Bearer owner-a');
+
+  const created = await readSseResult(original.reader, original.decoder, original.buffer);
+  assert.equal(created.result.task.status.state, 'TASK_STATE_WORKING');
+  const taskId = created.result.task.id;
+  const contextId = created.result.task.contextId;
+  assert.equal(dispatches, 1);
+
+  originalAbort.abort();
+  await assert.rejects(original.reader.read(), /AbortError|aborted|terminated/i);
+
+  const denied = await rpc(url, {
+    jsonrpc: '2.0',
+    id: 'wrong-owner-subscribe-rpc',
+    method: 'SubscribeToTask',
+    params: { id: taskId }
+  }, 'Bearer owner-b');
+  assert.equal(denied.id, 'wrong-owner-subscribe-rpc');
+  assert.equal(denied.error?.data?.code, 'TASK_NOT_FOUND');
+  assert.equal(dispatches, 1, 'wrong-owner resubscription must never dispatch work');
+
+  const reconnectAbort = new AbortController();
+  const reconnected = await openStream(url, {
+    jsonrpc: '2.0',
+    id: 'owner-reconnect-rpc',
+    method: 'SubscribeToTask',
+    params: { id: taskId }
+  }, reconnectAbort.signal, 'Bearer owner-a');
+  t.after(() => reconnectAbort.abort());
+
+  const attached = await readSseResult(reconnected.reader, reconnected.decoder, reconnected.buffer);
+  assert.equal(attached.id, 'owner-reconnect-rpc');
+  assert.equal(attached.result.task.id, taskId);
+  assert.equal(attached.result.task.contextId, contextId);
+  assert.equal(attached.result.task.status.state, 'TASK_STATE_WORKING');
+  assert.equal(dispatches, 1, 'owner resubscription must attach without a second TRUYN NEED');
+
+  compactEvents.push(
+    {
+      kind: 'PARTIAL',
+      requestId: 'need-reconnect-owner',
+      from: 'provider-node',
+      verification: { ok: true },
+      payload: { sequence: 0, delta: 'after reconnect' }
+    },
+    {
+      kind: 'RESULT',
+      requestId: 'need-reconnect-owner',
+      from: 'provider-node',
+      verification: { ok: true },
+      payload: { output: 'complete after reconnect' }
+    }
+  );
+
+  const partial = await readSseResult(reconnected.reader, reconnected.decoder, reconnected.buffer);
+  assert.equal(partial.result.artifactUpdate.taskId, taskId);
+  assert.equal(partial.result.artifactUpdate.contextId, contextId);
+  assert.equal(partial.result.artifactUpdate.metadata['io.truyn/sequence'], 0);
+
+  const completed = await readSseResult(reconnected.reader, reconnected.decoder, reconnected.buffer);
+  assert.equal(completed.result.statusUpdate.taskId, taskId);
+  assert.equal(completed.result.statusUpdate.contextId, contextId);
+  assert.equal(completed.result.statusUpdate.status.state, 'TASK_STATE_COMPLETED');
+  assert.equal(dispatches, 1, 'reconnect lifecycle must preserve exactly one provider dispatch');
 });
