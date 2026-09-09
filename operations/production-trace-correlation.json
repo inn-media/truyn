@@ -1,0 +1,33 @@
+{
+  "schema": "truyn.production-trace-correlation/v1",
+  "correlationId": "prod-trace-correlation-01",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "environmentClass": "production",
+  "runtimeImageBinding": "exact-main-source-sha",
+  "syntheticRequest": {
+    "protocolPath": "signed-need-provider-result",
+    "rootSpan": "truyn.synthetic.request",
+    "providerSpan": "truyn.provider.execute",
+    "requiredCorrelationFields": [
+      "traceId",
+      "requestId",
+      "needId",
+      "resultId"
+    ],
+    "singleTraceRequired": true,
+    "resultVerificationRequired": true,
+    "endToEndRequired": true
+  },
+  "storageProof": {
+    "backend": "tempo",
+    "exactTraceReadBackRequired": true,
+    "providerSpanInSameTraceRequired": true
+  },
+  "publicIngress": false,
+  "acceptance": {
+    "exactSourceShaRequired": true,
+    "runtimeMarker": "TRUYN_TRACE_CORRELATION_SENT traceId=1 requestId=1 needId=1 resultId=1 end_to_end=1",
+    "backendMarker": "TRUYN_TRACE_EXPORT_PASS span=truyn.provider.execute runtime=production source=exact-main",
+    "status": "deployment_pending_live_e2e_proof"
+  }
+}
