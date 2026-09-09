@@ -270,6 +270,7 @@ test('P3-A1 reconnect is owner-scoped, resumes future events, and never redispat
   assert.equal(dispatches, 1);
 
   originalAbort.abort();
+  await original.reader.cancel().catch(() => {});
   const disconnectDeadline = Date.now() + 2_000;
   while (true) {
     const openConnections = await new Promise((resolve, reject) => {
