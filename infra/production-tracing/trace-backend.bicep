@@ -14,8 +14,8 @@ param identityName string
 @description('Existing internal production Container Apps environment resource ID.')
 param environmentId string
 
-@description('Existing production VNet resource ID used for private Blob DNS resolution.')
-param vnetId string
+@description('Existing shared Blob private DNS zone resource ID whose link to the selected production VNet was verified by the deployment workflow.')
+param blobPrivateDnsZoneId string
 
 @description('Existing production private-endpoint subnet resource ID.')
 param privateEndpointSubnetId string
@@ -48,7 +48,6 @@ param tempoVersion string = '3.0.2'
 var traceContainerName = 'traces'
 var blobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
-var blobPrivateDnsZoneName = 'privatelink.blob.core.windows.net'
 var tags = {
   component: 'production-trace-backend'
   deploymentId: deploymentId
@@ -109,25 +108,6 @@ resource traceContainer 'Microsoft.Storage/storageAccounts/blobServices/containe
   }
 }
 
-resource blobPrivateDns 'Microsoft.Network/privateDnsZones@2024-06-01' = {
-  name: blobPrivateDnsZoneName
-  location: 'global'
-  tags: tags
-}
-
-resource blobPrivateDnsVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
-  parent: blobPrivateDns
-  name: guid(traceStorage.id, vnetId)
-  location: 'global'
-  tags: tags
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: vnetId
-    }
-  }
-}
-
 resource blobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
   name: '${appName}-blob-pe'
   location: location
@@ -158,7 +138,7 @@ resource blobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZ
       {
         name: 'blob'
         properties: {
-          privateDnsZoneId: blobPrivateDns.id
+          privateDnsZoneId: blobPrivateDnsZoneId
         }
       }
     ]
@@ -300,7 +280,7 @@ resource traceBackend 'Microsoft.App/containerApps@2025-07-01' = {
 }
 
 output contract object = {
-  schemaVersion: 3
+  schemaVersion: 4
   sourceSha: sourceSha
   backend: 'tempo'
   backendVersion: tempoVersion
@@ -312,6 +292,7 @@ output contract object = {
   storagePublicNetworkDisabled: true
   managedIdentityRequired: true
   privateEndpointRequired: true
+  sharedBlobPrivateDnsRequired: true
   publicIngress: false
   productionRuntimeTraceExport: true
   traceExportEnvironmentVariable: 'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT'
