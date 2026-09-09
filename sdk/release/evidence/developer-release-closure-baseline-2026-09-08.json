@@ -1,0 +1,11 @@
+{
+  "schema": "truyn.developer-release-closure-baseline/v1",
+  "recordedDate": "2026-09-08",
+  "repository": "inn-media/truyn",
+  "ref": "refs/heads/main",
+  "baselineSha": "5daaac4a06b9573523f50caef7fc5c04175247b8",
+  "scope": "Developer Release Layer closure",
+  "sprint": "Block A / Sprint 1 — freeze exact main SHA",
+  "status": "frozen",
+  "note": "This record freezes the exact main commit observed at the start of Developer Release closure work. Later closure evidence must identify its own exact source SHA and must not reinterpret this baseline as proof of later Maven, NuGet, Descriptor, developer-site, or fresh-machine acceptance."
+}

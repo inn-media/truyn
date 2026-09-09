@@ -20,7 +20,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Provider authority | **Durable authority + managed runtime + managed provider accounting wiring accepted** | provisioned/live managed deployment, migration/cutover, multi-region/backup/restore/propagation/reconciliation evidence |
 | Trustability | **Bounded implementation accepted** | Production Trust Authority; PR `#438` remains open |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + stable ecosystem evidence |
-| SDK/DX | **Five clients/conformance implemented; PyPI + Go accepted; npm alpha.2 packaging repair merged** | npm alpha.2 public registry acceptance + Maven/NuGet + Descriptor/site completeness |
+| SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 accepted** | Maven/NuGet + Descriptor/site completeness |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Mainnet | **Not productionized** | D-1000 + live ops + live managed authority + stable/release/governance gates |
 
@@ -78,7 +78,7 @@ Public/release state:
 - PyPI `truyn-sdk==0.1.0a1` — accepted;
 - Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` — accepted;
 - npm `@truyn/sdk@0.1.0-alpha.1` — immutable historical artifact, but clean-room Node 22 ESM import failed;
-- npm `@truyn/sdk@0.1.0-alpha.2` — packaging repair merged in `#448`; packed clean-room import is CI-proven, while immutable public registry/provenance/clean-room evidence remains the acceptance gate;
+- npm `@truyn/sdk@0.1.0-alpha.2` — **accepted immutable public release**; public registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import are accepted, with permanent evidence in `sdk/release/evidence/npm-alpha2-2026-09-05.json`;
 - Maven Central — open;
 - NuGet — open.
 
