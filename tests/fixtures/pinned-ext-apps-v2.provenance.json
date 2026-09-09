@@ -1,0 +1,34 @@
+{
+  "fixtureProfile": "p3-m3-independent-ext-apps-wire/v1",
+  "independence": {
+    "importsTruynImplementation": false,
+    "importsTruynFixtureHelpers": false,
+    "behaviorSource": "exact pinned upstream MCP Apps source/specification"
+  },
+  "upstream": {
+    "package": "@modelcontextprotocol/ext-apps",
+    "sourceVersion": "2.0.0",
+    "repository": "https://github.com/modelcontextprotocol/ext-apps",
+    "commit": "4cd427394755ee0964172df5760852aa053a5c99",
+    "exactSourceUrls": [
+      "https://raw.githubusercontent.com/modelcontextprotocol/ext-apps/4cd427394755ee0964172df5760852aa053a5c99/package.json",
+      "https://raw.githubusercontent.com/modelcontextprotocol/ext-apps/4cd427394755ee0964172df5760852aa053a5c99/src/constants.ts",
+      "https://raw.githubusercontent.com/modelcontextprotocol/ext-apps/4cd427394755ee0964172df5760852aa053a5c99/src/server/index.ts",
+      "https://raw.githubusercontent.com/modelcontextprotocol/ext-apps/4cd427394755ee0964172df5760852aa053a5c99/specification/draft/apps.mdx"
+    ]
+  },
+  "upstreamFactsUsed": {
+    "extensionId": "io.modelcontextprotocol/ui",
+    "toolMetadataField": "_meta.ui.resourceUri",
+    "visibilityValues": ["model", "app"],
+    "visibilityDefault": ["model", "app"],
+    "resourceScheme": "ui://",
+    "resourceMime": "text/html;profile=mcp-app",
+    "resourceReadRule": "Host uses MCP resources/read for the referenced resource URI"
+  },
+  "transportContext": {
+    "truynModernMcpImportProfile": "2026-07-28",
+    "note": "This transport profile is TRUYN's accepted modern MCP import version. It is recorded separately from the ext-apps source version/specification context."
+  },
+  "fixture": "tests/fixtures/pinned-ext-apps-v2-server.mjs"
+}
