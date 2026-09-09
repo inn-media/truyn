@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import test from 'node:test';
 
-test('D-200 readiness evidence transport stays bounded and lossless without weakening readiness', async () => {
+test('D-200 readiness evidence transport stays bounded and lossless while recovering stale host leases', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'truyn-d200-readiness-transport-'));
   const target = join(dir, 'campaign.sh');
   await copyFile('benchmarks/scale/class-d-azure-1000-campaign.sh', target);
@@ -33,13 +33,23 @@ test('D-200 readiness evidence transport stays bounded and lossless without weak
   const block = value.slice(start, end);
 
   assert.ok(block.includes('D200_READINESS_TRANSPORT_GZIP_V1=1'));
+  assert.ok(block.includes('D200_READINESS_LEASE_RECOVERY_V1=1'));
   assert.ok(block.includes('gzip -c -9 | base64 -w0'));
   assert.ok(block.includes('base64 -d | gzip -dc | jq -e'));
+  assert.ok(block.includes('then . else error("invalid readiness observation payload") end'));
   assert.ok(block.includes('"\\${#readiness_node_observations_b64}" -le 3000'));
   assert.equal(block.split('deadline=\\$((\\$(date +%s) + 120))').length - 1, 1);
   assert.ok(block.includes('"\\$hosts" -eq ${HOST_COUNT}'));
   assert.ok(block.includes('"\\$valid" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE}'));
+  assert.ok(block.includes('/var/lib/truyn-d1000/records-by-host.json'));
+  assert.ok(block.includes('"\\${control_url}/dht/refresh"'));
+  assert.ok(block.includes('"\\$readiness_recovery_target_count" -le ${HOST_COUNT}'));
+  assert.ok(block.includes('"\\$readiness_recovery_target_count" -le ${BOOTSTRAP_MAX_PEERS_PER_NODE}'));
+  assert.ok(block.includes('targetCount:(\\$targets|length),maxRounds:4'));
+  assert.ok(block.includes('missingHostIndexes'));
   assert.equal(block.includes('/need'), false);
+  assert.equal(block.includes('/var/lib/truyqn-d1000/'), false);
+  assert.equal(block.includes('/var/lib/truqyn-d1000/'), false);
   assert.equal(value.slice(value.indexOf('STAGE=convergence')), afterReadiness, 'transport repair must not modify later acceptance stages');
 
   const observations = Array.from({ length: 10 }, (_, nodeIndex) => ({
@@ -73,6 +83,10 @@ test('D-200 readiness evidence transport stays bounded and lossless without weak
   const packed = gzipSync(json, { level: 9 }).toString('base64');
   assert.ok(packed.length <= 3000, `representative 10-node payload must fit the bounded RunCommand envelope, got ${packed.length}`);
   assert.deepEqual(JSON.parse(gunzipSync(Buffer.from(packed, 'base64')).toString('utf8')), observations);
+
+  const decoded = spawnSync('bash', ['-lc', `printf '%s' '${packed}' | base64 -d | gzip -dc | jq -e 'if type=="array" and length==10 then . else error("invalid readiness observation payload") end'`], { encoding: 'utf8' });
+  assert.equal(decoded.status, 0, decoded.stderr || decoded.stdout);
+  assert.deepEqual(JSON.parse(decoded.stdout), observations, 'decoder validation must preserve the evidence array instead of replacing it with boolean true');
 
   const second = spawnSync('python3', ['scripts/patch-class-d-diagnostic-readiness-transport.py', target], { encoding: 'utf8' });
   assert.notEqual(second.status, 0, 'transport repair must fail closed when applied twice');
