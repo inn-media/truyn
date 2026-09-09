@@ -20,6 +20,12 @@ param sourceSha string
 ])
 param victoriaMetricsVersion string = 'v1.151.0'
 
+@description('Retention period for production SLO-bearing metric series. Must remain greater than the canonical 28-day SLO window.')
+@allowed([
+  '90d'
+])
+param sloMetricsRetentionPeriod string = '90d'
+
 var probeScript = '''
 set -eu
 python -m pip install --disable-pip-version-check --no-cache-dir --quiet python-snappy==0.7.3
@@ -150,6 +156,7 @@ resource metricsBackend 'Microsoft.App/containerApps@2025-07-01' = {
     sourceSha: sourceSha
     managedBy: 'truyn-production-operations-plane'
     backend: 'victoriametrics'
+    retentionPeriod: sloMetricsRetentionPeriod
   }
   properties: {
     managedEnvironmentId: environmentId
@@ -174,6 +181,7 @@ resource metricsBackend 'Microsoft.App/containerApps@2025-07-01' = {
           args: [
             '-storageDataPath=/victoria-metrics-data'
             '-httpListenAddr=:8428'
+            '-retentionPeriod=${sloMetricsRetentionPeriod}'
           ]
           resources: {
             cpu: json('0.5')
