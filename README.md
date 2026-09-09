@@ -10,8 +10,8 @@ TRUYN is a logical network for agent-to-agent communication, decentralized AI, c
 
 ## Current factual status
 
-**Snapshot:** 2026-09-05  
-**Synchronized source:** `main@abd6bd95ecad8dc8d82bbf6d2983d96df80267d3`  
+**Snapshot:** 2026-09-09  
+**Synchronized source:** `main@4a3a312877d14e9f0ee361a9356e7369cad04398`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
@@ -40,7 +40,7 @@ TRUYN is a logical network for agent-to-agent communication, decentralized AI, c
 | PyPI alpha | **Accepted public immutable release** |
 | Go alpha | **Accepted public immutable release** |
 | npm alpha.1 | **Immutable historical artifact; clean-room Node 22 ESM import failed** |
-| npm alpha.2 repair | **Merged in #448; repository/package repair accepted, public registry evidence remains gated** |
+| npm alpha.2 | **Accepted public immutable release** |
 | Maven Central / NuGet | **OPEN** |
 | Stable mainnet | **Not yet** |
 
@@ -67,7 +67,7 @@ TypeScript/JavaScript, Python, Go, Java and C#/.NET first-party clients particip
 - PyPI `truyn-sdk==0.1.0a1` — accepted immutable public release;
 - Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` — accepted immutable public release;
 - npm `@truyn/sdk@0.1.0-alpha.1` — immutable historical artifact whose required clean-room Node 22 ESM import failed;
-- npm `@truyn/sdk@0.1.0-alpha.2` — packaging repair merged in `#448`; immutable public registry/provenance/clean-room evidence remains the acceptance gate;
+- npm `@truyn/sdk@0.1.0-alpha.2` — accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import;
 - Java Maven Central — open;
 - .NET NuGet — open.
 

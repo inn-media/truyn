@@ -28,7 +28,8 @@ test('D-200 healed origin diagnostics distinguish peer-record freshness from dra
   assert.ok(block.includes('success=sum(ok for ok,_,_ in rows)'), 'acceptance success must count only first attempts');
   assert.ok(block.includes("assert float('$healed_rate') >= .99, '$healed_rate'"), 'strict healed routing threshold must remain 99%');
 
-  assert.ok(block.includes("path=f'/var/lib/truyqn-d1000/node-{global_index}-state.json'"), 'diagnostics must read the actual persisted node state path');
+  assert.ok(block.includes("path=f'/var/lib/truyn-d1000/node-{global_index}-state.json'"), 'diagnostics must read the canonical persisted node state path');
+  assert.equal(block.includes('/var/lib/truyqn-d1000/'), false, 'misspelled healed diagnostic state path must never reappear');
   assert.ok(block.includes("'peerRecordBeforeFirstAttempt':peer_before"), 'pre-probe target peer-record state must be retained for failed probes');
   assert.ok(block.includes("'peerRecordAfterFirstAttempt':peer_after_timeout"), 'post-first-attempt record transition must be captured');
   assert.ok(block.includes("if peer_before.get('validNow') is True:"), 'classifier must branch on pre-first-attempt record freshness');

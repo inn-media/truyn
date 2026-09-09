@@ -1,0 +1,240 @@
+name: Production Telemetry Redaction
+
+on:
+  pull_request:
+    paths:
+      - 'observability/plane.js'
+      - 'observability/bootstrap.js'
+      - 'runtime/trace-export-canary.js'
+      - 'operations/production-telemetry-redaction.json'
+      - '.github/workflows/production-telemetry-redaction.yml'
+      - 'tests/production-telemetry-redaction.test.js'
+      - 'tests/observability.test.js'
+      - 'tests/public-repository.test.js'
+  workflow_run:
+    workflows:
+      - Production Trace Backend
+    types:
+      - completed
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Validate Sprint 13 contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema == "truyn.production-telemetry-redaction/v1" and
+            .redactionId == "prod-telemetry-redaction-01" and
+            .deploymentId == "dc4518de-d1bf-4fce-b351-e43d7c152999" and
+            .environmentClass == "production" and
+            .runtimeRole == "provider" and
+            .runtimeImageBinding == "exact-main-source-sha" and
+            .request.transport == "loopback-http" and
+            .request.method == "POST" and
+            .request.route == "/telemetry-redaction" and
+            .request.sensitiveFields == ["authorization", "apiKey", "prompt", "payload"] and
+            .telemetrySurfaces.structuredLogs == true and
+            .telemetrySurfaces.traces == true and
+            .telemetrySurfaces.metrics == true and
+            .redactionContract.valuesMustBeAbsent == true and
+            .redactionContract.rawValuesInEvidence == false and
+            .redactionContract.publicEvidenceSanitized == true and
+            .acceptance.exactTraceReadBackRequired == true and
+            .acceptance.consoleLogScanRequired == true and
+            .acceptance.metricsScrapeRequired == true and
+            .acceptance.sourceShaBindingRequired == true
+          ' operations/production-telemetry-redaction.json >/dev/null
+
+      - name: Validate production redaction canary syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check runtime/trace-export-canary.js
+
+      - name: Run targeted Sprint 13 regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/production-telemetry-redaction.test.js tests/observability.test.js tests/public-repository.test.js
+          git diff --check
+
+  prove-exact-main:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.name == 'Production Trace Backend' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Reconcile exact main SHA without checking out triggering code
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::Invalid source SHA.'; exit 1; }
+          remote_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$remote_main" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::Unable to resolve remote main SHA.'; exit 1; }
+          [[ "$remote_main" == "$SOURCE_SHA" ]] || {
+            echo '::error::main moved before Sprint 13 live acceptance; a fresh exact-main trace deployment is required.'
+            exit 1
+          }
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Resolve exact-main private trace runtime
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+          trace_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:tempo" | sha256sum | cut -c1-10)"
+          app_name="truyn-traces-${trace_suffix}"
+          printf '::add-mask::%s\n' "$app_name"
+
+          exact=false
+          for attempt in $(seq 1 90); do
+            app_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$app_name" --only-show-errors -o json 2>/dev/null || true)"
+            if [[ -n "$app_json" ]] && jq -e --arg sourceSha "$SOURCE_SHA" '
+              .properties.provisioningState == "Succeeded" and
+              .properties.configuration.ingress.external == false and
+              any(.properties.template.containers[];
+                .name == "runtime-trace-canary" and
+                (.image | endswith(":" + $sourceSha)) and
+                any(.env[]; .name == "TRUYN_VERSION" and .value == $sourceSha) and
+                any(.env[]; .name == "TRUYN_METRICS_HOST" and .value == "127.0.0.1") and
+                any(.env[]; .name == "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" and .value == "http://127.0.0.1:4318/v1/traces")
+              )
+            ' <<<"$app_json" >/dev/null; then
+              exact=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$exact" == true ]] || {
+            echo '::error::Exact-main production trace runtime was not deployed for Sprint 13.'
+            exit 1
+          }
+          printf 'TRACE_APP=%s\n' "$app_name" >> "$GITHUB_ENV"
+
+      - name: Prove sensitive values absent from live telemetry
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          authorization_value="Bearer sprint13-auth-${SOURCE_SHA:0:16}"
+          api_key_value="sprint13-key-${SOURCE_SHA:8:16}"
+          prompt_value="sprint13-prompt-${SOURCE_SHA:16:16}"
+          payload_value="sprint13-payload-${SOURCE_SHA:24:16}"
+          for value in "$authorization_value" "$api_key_value" "$prompt_value" "$payload_value"; do
+            printf '::add-mask::%s\n' "$value"
+          done
+
+          expected_marker="TRUYN_TELEMETRY_REDACTION_PASS authorization=absent apiKey=absent prompt=absent payload=absent logs=clean traces=clean metrics=clean source=exact-main sourceSha=${SOURCE_SHA}"
+          observed=false
+          logs=''
+          for attempt in $(seq 1 120); do
+            logs="$(az containerapp logs show \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$TRACE_APP" \
+              --container runtime-trace-canary \
+              --type console \
+              --tail 300 \
+              --follow false \
+              --format text \
+              --only-show-errors 2>/dev/null || true)"
+            if grep -Fq -- "$expected_marker" <<<"$logs"; then
+              observed=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$observed" == true ]] || {
+            echo '::error::Production redaction canary did not reach the exact-main terminal marker.'
+            exit 1
+          }
+
+          for forbidden in "$authorization_value" "$api_key_value" "$prompt_value" "$payload_value"; do
+            if grep -Fq -- "$forbidden" <<<"$logs"; then
+              echo '::error::A Sprint 13 synthetic sensitive value appeared in production console telemetry.'
+              exit 1
+            fi
+          done
+
+          echo 'TRUYN_SPRINT13_ACCEPTED values=absent surfaces=logs,traces,metrics source=exact-main'
+
+      - name: Emit sanitized Sprint 13 evidence
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg deploymentId "$DEPLOYMENT_ID" \
+            --arg sourceSha "$SOURCE_SHA" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              schema: "truyn.production-telemetry-redaction-evidence/v1",
+              deploymentId: $deploymentId,
+              component: "telemetry-redaction",
+              runtimeRole: "provider",
+              runtimeImageBoundToExactMain: true,
+              syntheticRequestObserved: true,
+              sensitiveFieldsTested: ["authorization", "apiKey", "prompt", "payload"],
+              authorizationValueAbsent: true,
+              apiKeyValueAbsent: true,
+              promptValueAbsent: true,
+              payloadValueAbsent: true,
+              structuredLogsClean: true,
+              exactTraceReadBackClean: true,
+              metricsScrapeClean: true,
+              rawValuesPublished: false,
+              sourceSha: $sourceSha,
+              exactMain: true,
+              generatedAt: $generatedAt,
+              status: "PASS"
+            }' > production-telemetry-redaction-evidence.json
+
+      - name: Upload sanitized Sprint 13 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-telemetry-redaction-evidence
+          path: production-telemetry-redaction-evidence.json
+          if-no-files-found: error
+          retention-days: 30

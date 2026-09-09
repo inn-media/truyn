@@ -56,7 +56,7 @@ The repository implements numerical SLI/SLO (`#424`), observability/alerts (`#43
 
 ## SDK / DX
 
-Five first-party SDKs, shared conformance, direct NEED cancellation, signed generic `PARTIAL`, object/artifact references and bounded Agent Descriptor valid-profile verification are implemented. PyPI and Go public alphas are accepted. npm alpha.1 is immutable historical evidence whose required clean-room Node 22 ESM import failed; `#448` is merged and repairs packaging at alpha.2, but immutable public registry/provenance/clean-room acceptance evidence remains gated. Maven Central and NuGet remain open.
+Five first-party SDKs, shared conformance, direct NEED cancellation, signed generic `PARTIAL`, object/artifact references and bounded Agent Descriptor valid-profile verification are implemented. PyPI, Go and npm alpha.2 public alphas are accepted immutable releases. npm alpha.1 is immutable historical evidence whose required clean-room Node 22 ESM import failed and is superseded without overwrite. Maven Central and NuGet remain open.
 
 ## Governance
 

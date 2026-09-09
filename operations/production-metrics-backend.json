@@ -1,0 +1,51 @@
+{
+  "schema": "truyn.production-metrics-backend/v1",
+  "backendId": "prod-prometheus-01",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "backendClass": "azure-container-apps-victoriametrics",
+  "backendVersion": "v1.151.0",
+  "prometheusCompatible": true,
+  "publicIngress": false,
+  "productionPlane": "existing-internal-azure-container-apps",
+  "status": "slo_and_probe_retention_90d_configured_live_proof_required",
+  "seriesAcceptanceMetric": "truyn_backend_acceptance_series",
+  "syntheticProbeRetentionMetric": "truyn_synthetic_probe_retention_series",
+  "liveSeriesAccepted": false,
+  "acceptedSourceSha": null,
+  "publicResourceIdentity": false,
+  "manifestIntegrationStatus": "pending_phase_a_merge",
+  "retentionDurabilityStatus": "runtime_policy_90d_slo_and_probe_live_proof_required",
+  "retention": {
+    "scope": "all-production-metrics-including-slo-bearing-and-synthetic-probe-series",
+    "canonicalSloWindowDays": 28,
+    "sloBearingSeriesDays": 90,
+    "syntheticProbeSeriesDays": 90,
+    "runtimePeriod": "90d",
+    "syntheticProbeRuntimePeriod": "90d",
+    "exceedsCanonicalSloWindow": true,
+    "probeHistoryCoversCanonicalSloWindow": true,
+    "syntheticProbeSharesBackendRetention": true,
+    "enforcement": "victoriametrics-retentionPeriod"
+  },
+  "evidenceContract": {
+    "required": [
+      "existing production Container Apps environment is internal and public network disabled",
+      "VictoriaMetrics Container App provisioning state Succeeded with no public ingress",
+      "VictoriaMetrics runtime contains -retentionPeriod=90d",
+      "configured SLO metrics retention is strictly greater than the canonical 28-day SLO window",
+      "configured synthetic probe retention is 90 days and strictly greater than the canonical 28-day SLO window",
+      "Prometheus remote-write accepted the backend canary series",
+      "Prometheus remote-write accepted a synthetic probe retention-class canary series",
+      "PromQL independently observed both backend and synthetic probe canary series",
+      "sanitized evidence artifact status PASS"
+    ],
+    "forbiddenPublicFields": [
+      "Container App name or resource identifier",
+      "Container Apps environment name or resource identifier",
+      "private FQDN or IP address",
+      "tenant/subscription identifiers",
+      "credentials"
+    ]
+  },
+  "invariant": "Production SLO-bearing and synthetic probe series retention must be configured to 90 days, remain strictly greater than the canonical 28-day SLO window, and be observed in the deployed VictoriaMetrics runtime. Sprint 15 additionally requires a synthetic probe retention-class series to be accepted and independently read back from that same backend."
+}

@@ -1,0 +1,325 @@
+name: Production Metrics Collector
+
+on:
+  pull_request:
+    paths:
+      - 'infra/production-observability/metrics-backend.bicep'
+      - 'infra/production-observability/metrics-collector.bicep'
+      - 'operations/production-metrics-collector.json'
+      - '.github/workflows/production-metrics-collector.yml'
+      - 'tests/production-metrics-collector.test.js'
+      - 'tests/public-repository.test.js'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/production-observability/metrics-backend.bicep'
+      - 'infra/production-observability/metrics-collector.bicep'
+      - 'operations/production-metrics-collector.json'
+      - '.github/workflows/production-metrics-collector.yml'
+      - 'tests/production-metrics-collector.test.js'
+      - 'tests/public-repository.test.js'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'germanywestcentral:francecentral northeurope:swedencentral' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile production observability Bicep
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep install >/dev/null
+          az bicep build --file infra/production-observability/metrics-backend.bicep --stdout >/dev/null
+          az bicep build --file infra/production-observability/metrics-collector.bicep --stdout >/dev/null
+      - name: Validate collector contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .collectorId == "prod-relay-metrics-collector-01" and
+            .deploymentId == "dc4518de-d1bf-4fce-b351-e43d7c152999" and
+            .collectorClass == "opentelemetry-collector-contrib-sidecar" and
+            .collectorVersion == "0.158.0" and
+            .metricsListener.host == "127.0.0.1" and
+            .metricsListener.port == 9464 and
+            .metricsListener.path == "/metrics" and
+            .metricsListener.loopbackOnly == true and
+            .metricsListener.publicIngress == false and
+            .requiredMetrics == [
+              "truyn_http_requests_total",
+              "truyn_dispatch_attempts_total",
+              "truyn_result_delivery_total",
+              "truyn_runtime_ready"
+            ]
+          ' operations/production-metrics-collector.json >/dev/null
+
+  apply-and-prove:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Resolve accepted production observability plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          az bicep install >/dev/null
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+          selected_environment=''
+          selected_environment_id=''
+          selected_region=''
+          selected_prefix=''
+          selected_registry=''
+          attempt=0
+
+          for pair in $REGION_PAIRS; do
+            attempt=$((attempt + 1))
+            [[ "$attempt" -le 2 ]] || break
+            [[ "$pair" == *:* ]] || { echo '::error::Invalid production region pair.'; exit 1; }
+            primary="${pair%%:*}"
+            secondary="${pair#*:}"
+            pair_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}:${primary}:${secondary}" | sha256sum | cut -c1-10)"
+            prefix="truyn${pair_suffix}"
+            environment="${prefix}-aca-env"
+            cosmos="${prefix}cosmos"
+            registry="${prefix}acr"
+            for value in "$prefix" "$environment" "$cosmos" "$registry"; do printf '::add-mask::%s\n' "$value"; done
+
+            if ! environment_id="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --query id -o tsv --only-show-errors 2>/dev/null)"; then
+              continue
+            fi
+            [[ -n "$environment_id" ]] || continue
+            printf '::add-mask::%s\n' "$environment_id"
+            if ! environment_json="$(az resource show --ids "$environment_id" --api-version 2025-07-01 --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+            if ! cosmos_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+            if ! registry_json="$(az acr show --resource-group "$RESOURCE_GROUP" --name "$registry" --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+
+            if ! jq -e '
+              (.properties.vnetConfiguration.internal // false) == true and
+              ((.properties.publicNetworkAccess // "") | ascii_downcase) == "disabled" and
+              (.properties.provisioningState // "") == "Succeeded"
+            ' <<<"$environment_json" >/dev/null; then
+              continue
+            fi
+            if ! jq -e --arg primary "$primary" --arg secondary "$secondary" '
+              .provisioningState == "Succeeded" and
+              ([.locations[].locationName | gsub(" "; "") | ascii_downcase] | sort) == ([$primary, $secondary] | sort)
+            ' <<<"$cosmos_json" >/dev/null; then
+              continue
+            fi
+            if ! jq -e '.provisioningState == "Succeeded"' <<<"$registry_json" >/dev/null; then
+              continue
+            fi
+
+            selected_environment="$environment"
+            selected_environment_id="$environment_id"
+            selected_region="$primary"
+            selected_prefix="$prefix"
+            selected_registry="$registry"
+            break
+          done
+
+          [[ -n "$selected_environment_id" && -n "$selected_region" && -n "$selected_registry" ]] || {
+            echo '::error::No accepted internal production foundation with ACR is available.'
+            exit 1
+          }
+
+          backend_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:victoriametrics" | sha256sum | cut -c1-10)"
+          collector_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:relay-metrics-collector" | sha256sum | cut -c1-10)"
+          backend_app="truyn-metrics-${backend_suffix}"
+          collector_app="truyn-relay-metrics-${collector_suffix}"
+          registry_login="$(az acr show --resource-group "$RESOURCE_GROUP" --name "$selected_registry" --query loginServer -o tsv --only-show-errors)"
+          [[ -n "$registry_login" ]]
+          for value in "$selected_environment" "$selected_environment_id" "$selected_prefix" "$selected_registry" "$registry_login" "$backend_app" "$collector_app"; do printf '::add-mask::%s\n' "$value"; done
+
+          relay_tag="truyn-relay:${GITHUB_SHA}"
+          relay_image="${registry_login}/${relay_tag}"
+          printf '::add-mask::%s\n' "$relay_image"
+
+          printf 'ACA_ENVIRONMENT_ID=%s\n' "$selected_environment_id" >> "$GITHUB_ENV"
+          printf 'OBSERVABILITY_REGION=%s\n' "$selected_region" >> "$GITHUB_ENV"
+          printf 'REGISTRY_NAME=%s\n' "$selected_registry" >> "$GITHUB_ENV"
+          printf 'BACKEND_APP=%s\n' "$backend_app" >> "$GITHUB_ENV"
+          printf 'COLLECTOR_APP=%s\n' "$collector_app" >> "$GITHUB_ENV"
+          printf 'RELAY_TAG=%s\n' "$relay_tag" >> "$GITHUB_ENV"
+          printf 'RELAY_IMAGE=%s\n' "$relay_image" >> "$GITHUB_ENV"
+
+      - name: Build exact-main production relay image
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr build \
+            --resource-group "$RESOURCE_GROUP" \
+            --registry "$REGISTRY_NAME" \
+            --image "$RELAY_TAG" \
+            --file Dockerfile \
+            --no-logs \
+            --only-show-errors \
+            . >/dev/null
+
+      - name: Wait for private metrics backend ingress
+        shell: bash
+        run: |
+          set -euo pipefail
+          backend_ready=false
+          for attempt in $(seq 1 180); do
+            if backend_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$BACKEND_APP" --only-show-errors -o json 2>/dev/null)"; then
+              if jq -e '
+                .properties.provisioningState == "Succeeded" and
+                .properties.configuration.ingress.external == false and
+                .properties.configuration.ingress.targetPort == 8428 and
+                ((.properties.configuration.ingress.fqdn // "") | length) > 0
+              ' <<<"$backend_json" >/dev/null; then
+                backend_fqdn="$(jq -r '.properties.configuration.ingress.fqdn' <<<"$backend_json")"
+                backend_ready=true
+                break
+              fi
+            fi
+            sleep 10
+          done
+          [[ "$backend_ready" == true ]] || {
+            echo '::error::Private metrics backend did not become internally reachable.'
+            exit 1
+          }
+          printf '::add-mask::%s\n' "$backend_fqdn"
+          backend_write_url="https://${backend_fqdn}/api/v1/write"
+          backend_query_url="https://${backend_fqdn}/api/v1/query"
+          printf '::add-mask::%s\n' "$backend_write_url"
+          printf '::add-mask::%s\n' "$backend_query_url"
+          printf 'BACKEND_WRITE_URL=%s\n' "$backend_write_url" >> "$GITHUB_ENV"
+          printf 'BACKEND_QUERY_URL=%s\n' "$backend_query_url" >> "$GITHUB_ENV"
+
+      - name: Provision relay with node-local metrics collector
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployment_name="metrics-collector-${GITHUB_SHA:0:8}"
+          printf '::add-mask::%s\n' "$deployment_name"
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$deployment_name" \
+            --template-file infra/production-observability/metrics-collector.bicep \
+            --parameters \
+              appName="$COLLECTOR_APP" \
+              environmentId="$ACA_ENVIRONMENT_ID" \
+              location="$OBSERVABILITY_REGION" \
+              deploymentId="$DEPLOYMENT_ID" \
+              sourceSha="$GITHUB_SHA" \
+              registryName="$REGISTRY_NAME" \
+              relayImage="$RELAY_IMAGE" \
+              backendWriteUrl="$BACKEND_WRITE_URL" \
+              backendQueryUrl="$BACKEND_QUERY_URL" \
+              collectorVersion='0.158.0' \
+            --only-show-errors \
+            -o none
+
+          app_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$COLLECTOR_APP" --only-show-errors -o json)"
+          jq -e '
+            .properties.provisioningState == "Succeeded" and
+            (.properties.configuration.ingress == null or .properties.configuration.ingress.external == false)
+          ' <<<"$app_json" >/dev/null
+
+      - name: Prove backend sees relay metrics
+        shell: bash
+        run: |
+          set -euo pipefail
+          accepted=false
+          for attempt in $(seq 1 180); do
+            logs="$(az containerapp logs show \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$COLLECTOR_APP" \
+              --container acceptance-probe \
+              --type console \
+              --tail 100 \
+              --follow false \
+              --format text \
+              --only-show-errors 2>/dev/null || true)"
+            if grep -q 'TRUYN_METRICS_COLLECTOR_PASS http=1 dispatch=1 result=1 ready=1 loopback=1 remote_write=1' <<<"$logs"; then
+              accepted=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$accepted" == true ]] || {
+            echo '::error::Backend did not expose the complete required relay metrics set.'
+            exit 1
+          }
+
+      - name: Emit sanitized Sprint 7 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg deploymentId "$DEPLOYMENT_ID" \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg region "$OBSERVABILITY_REGION" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              schema: "truyn.production-metrics-collector-evidence/v1",
+              deploymentId: $deploymentId,
+              component: "metrics-collector",
+              collectorClass: "opentelemetry-collector-contrib-sidecar",
+              collectorVersion: "0.158.0",
+              region: $region,
+              sourceSha: $sourceSha,
+              exactMain: true,
+              relayMetricsListener: {
+                host: "127.0.0.1",
+                port: 9464,
+                path: "/metrics",
+                loopbackOnly: true,
+                publicIngress: false
+              },
+              backendPrivateEnvironmentOnly: true,
+              prometheusRemoteWrite: true,
+              metricsObserved: {
+                truyn_http_requests_total: true,
+                truyn_dispatch_attempts_total: true,
+                truyn_result_delivery_total: true,
+                truyn_runtime_ready: true
+              },
+              runtimeReadyValueOne: true,
+              generatedAt: $generatedAt,
+              status: "PASS"
+            }' > production-metrics-collector-evidence.json
+
+      - name: Upload sanitized metrics collector evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-metrics-collector-evidence
+          path: production-metrics-collector-evidence.json
+          if-no-files-found: error
+          retention-days: 30

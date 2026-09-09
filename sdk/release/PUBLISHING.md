@@ -1,6 +1,6 @@
 # TRUYN SDK publication contract
 
-**Status:** npm/PyPI alpha registry closure completed on 2026-09-05  
+**Status:** npm/PyPI alpha registry closure completed on 2026-09-05; Go public prerelease accepted; Maven Central/NuGet.org remain open  
 **Canonical repository:** `inn-media/truyn`  
 **Protocol status:** `TRUYN/1` draft
 
@@ -8,13 +8,15 @@ A native SDK release is accepted only when its package bytes are bound to an exa
 
 ## Current public coordinates
 
-| Ecosystem | Package/module | Accepted coordinate |
-|---|---|---|
-| npm | `@truyn/sdk` | `0.1.0-alpha.2` |
-| PyPI | `truyn-sdk` | `0.1.0a1` |
-| Go modules | `github.com/inn-media/truyn/sdk/go` | `v0.1.0-alpha.1` |
-| Maven | `org.truyn:truyn-sdk` | `0.1.0-alpha.1` |
-| NuGet | `Truyn.Sdk` | `0.1.0-alpha.1` |
+| Ecosystem | Package/module | Coordinate | Publication state |
+|---|---|---|---|
+| npm | `@truyn/sdk` | `0.1.0-alpha.2` | **Accepted immutable public prerelease** |
+| PyPI | `truyn-sdk` | `0.1.0a1` | **Accepted immutable public prerelease** |
+| Go modules | `github.com/inn-media/truyn/sdk/go` | `v0.1.0-alpha.1` | **Accepted immutable public prerelease** |
+| Maven Central | `org.truyn:truyn-sdk` | `0.1.0-alpha.1` | **OPEN** |
+| NuGet.org | `Truyn.Sdk` | `0.1.0-alpha.1` | **OPEN** |
+
+The machine-readable authority for this coordinate-specific boundary is `sdk/release/public-coordinates.json`. Maven and NuGet coordinates above are reserved target coordinates, not accepted public distributions until their real registry publication and independent verification evidence is accepted.
 
 npm `0.1.0-alpha.1` remains public and immutable but is superseded: clean-room Node 22 ESM import proved it unusable because `ws` had been bundled through a CommonJS dynamic require. It is never overwritten. `0.1.0-alpha.2` externalizes `ws` and is the accepted npm alpha.
 
