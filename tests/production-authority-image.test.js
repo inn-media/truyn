@@ -16,21 +16,41 @@ test('authority image build is pinned to the exact accepted main source SHA', as
   assert.match(workflow, /\[\[ "\$actual_sha" == "\$SOURCE_SHA" \]\]/);
 });
 
-test('authority image uses only immutable full-SHA tag and never mutable image latest', async () => {
+test('authority image uses only the accepted full-SHA tag and never image latest', async () => {
   const workflow = await workflowText();
   assert.match(workflow, /IMAGE_REPOSITORY: truyn-authority/);
-  assert.match(workflow, /image_tag="\$\{IMAGE_REPOSITORY\}:\$\{SOURCE_SHA\}"/);
-  assert.match(workflow, /--image "\$image_tag"/);
+  assert.match(workflow, /image_name="\$\{IMAGE_REPOSITORY\}:\$\{SOURCE_SHA\}"/);
+  assert.match(workflow, /--image "\$image_name"/);
   assert.doesNotMatch(workflow, /truyn-authority:latest\b/i);
-  assert.doesNotMatch(workflow, /image_tag=.*\blatest\b/i);
-  assert.doesNotMatch(workflow, /\btag:\s*["']?latest\b/i);
+  assert.doesNotMatch(workflow, /--image\s+["']?[^"'\n]*:latest\b/i);
+  assert.doesNotMatch(workflow, /image_name=.*:latest\b/i);
 });
 
-test('authority image build completes before digest resolution', async () => {
+test('authority image build completes before its post-build digest is resolved', async () => {
   const workflow = await workflowText();
-  assert.match(workflow, /az acr build/);
+  const buildIndex = workflow.indexOf('az acr build');
+  const postBuildDigestIndex = workflow.indexOf('az acr manifest show-metadata', buildIndex);
+  assert.ok(buildIndex >= 0 && postBuildDigestIndex > buildIndex);
   assert.doesNotMatch(workflow, /--no-logs/);
-  assert.ok(workflow.indexOf('az acr build') < workflow.indexOf('az acr manifest show-metadata'));
+});
+
+test('existing SHA tag must already be locked and new publication is locked against rewrite/delete', async () => {
+  const workflow = await workflowText();
+  assert.match(workflow, /changeableAttributes\.writeEnabled/);
+  assert.match(workflow, /Existing authority SHA tag is mutable; refusing to reuse it/);
+  assert.match(workflow, /az acr repository update/);
+  assert.match(workflow, /--write-enabled false/);
+  assert.match(workflow, /--delete-enabled false/);
+  assert.match(workflow, /Authority SHA tag was not locked after publication/);
+  assert.match(workflow, /cancel-in-progress: false/);
+});
+
+test('Container Apps CLI discovery is enabled explicitly before registry discovery', async () => {
+  const workflow = await workflowText();
+  const installIndex = workflow.indexOf('az extension add --name containerapp');
+  const discoveryIndex = workflow.indexOf('az containerapp env show');
+  assert.ok(installIndex >= 0 && discoveryIndex > installIndex);
+  assert.match(workflow, /extension\.use_dynamic_install=yes_without_prompt/);
 });
 
 test('authority image digest is resolved from ACR and recorded as sanitized evidence', async () => {
@@ -40,6 +60,8 @@ test('authority image digest is resolved from ACR and recorded as sanitized evid
   assert.match(workflow, /AUTHORITY_IMAGE_DIGEST/);
   assert.match(workflow, /truyn\.production-authority-image-evidence\/v1/);
   assert.match(workflow, /immutableReference/);
+  assert.match(workflow, /writeLocked: true/);
+  assert.match(workflow, /deleteLocked: true/);
   assert.match(workflow, /mutableTagUsed: false/);
   assert.match(workflow, /status: "PASS"/);
   assert.match(workflow, /production-authority-image-evidence\.json/);
