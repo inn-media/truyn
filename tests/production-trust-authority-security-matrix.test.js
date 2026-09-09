@@ -27,6 +27,72 @@ function expiresFrom(clock, days = 30) {
   return new Date(clock + days * 24 * 60 * 60_000).toISOString();
 }
 
+test('production registry denies absent, expired and revoked authority', { concurrency: false }, (t) => {
+  const dir = stateDir(t, 'truyn-authority-deny-matrix-');
+  let clock = Date.parse('2035-12-01T00:00:00.000Z');
+  const control = createProductionControlPlane({ stateDir: dir, now: () => new Date(clock) });
+  const trust = control.trustAuthority;
+  const shortRoot = createIdentity();
+  const foreign = createIdentity();
+
+  trust.provisionRoot({
+    rootId: 'short-lived-root',
+    identity: shortRoot,
+    purposes: ['claim-issuer'],
+    scopes: [{ kind: 'domain', value: 'example.com', match: 'subdomain' }],
+    notBefore: new Date(clock).toISOString(),
+    expiresAt: new Date(clock + 1_000).toISOString()
+  });
+  assert.equal(trust.authorize({
+    nodeId: shortRoot.nodeId,
+    publicKey: shortRoot.publicKeyPem,
+    purpose: 'claim-issuer',
+    scope: { kind: 'domain', value: 'finance.example.com' },
+    at: clock
+  }).ok, true);
+  assert.equal(trust.authorize({
+    nodeId: foreign.nodeId,
+    publicKey: foreign.publicKeyPem,
+    purpose: 'claim-issuer',
+    scope: { kind: 'domain', value: 'finance.example.com' },
+    at: clock
+  }).ok, false, 'authority absent from the registry must deny');
+
+  clock += 2_000;
+  assert.equal(trust.authorize({
+    nodeId: shortRoot.nodeId,
+    publicKey: shortRoot.publicKeyPem,
+    purpose: 'claim-issuer',
+    scope: { kind: 'domain', value: 'finance.example.com' },
+    at: clock
+  }).ok, false, 'expired authority must deny');
+
+  const liveRoot = createIdentity();
+  trust.provisionRoot({
+    rootId: 'revocable-root',
+    identity: liveRoot,
+    purposes: ['claim-issuer'],
+    scopes: [{ kind: 'domain', value: 'example.com', match: 'subdomain' }],
+    notBefore: new Date(clock).toISOString(),
+    expiresAt: expiresFrom(clock, 365)
+  });
+  assert.equal(trust.authorize({
+    nodeId: liveRoot.nodeId,
+    publicKey: liveRoot.publicKeyPem,
+    purpose: 'claim-issuer',
+    scope: { kind: 'domain', value: 'finance.example.com' },
+    at: clock
+  }).ok, true);
+  trust.revokeRoot('revocable-root', { reason: 'deny_matrix' });
+  assert.equal(trust.authorize({
+    nodeId: liveRoot.nodeId,
+    publicKey: liveRoot.publicKeyPem,
+    purpose: 'claim-issuer',
+    scope: { kind: 'domain', value: 'finance.example.com' },
+    at: clock
+  }).ok, false, 'revoked authority must remain denied');
+});
+
 test('canonical public-key material authorizes across roots, delegations, claims, attestations and lineage while mismatched keys deny', { concurrency: false }, (t) => {
   const dir = stateDir(t);
   const clock = Date.parse('2036-01-01T00:00:00.000Z');
@@ -52,7 +118,6 @@ test('canonical public-key material authorizes across roots, delegations, claims
   const rootRef = trust.rootReference('root-canonical-key');
   const rootEquivalent = equivalentIdentity(root);
 
-  // Equivalent issuer PEM must match the already-provisioned root material.
   trust.issueCertificate({
     identity: rootEquivalent,
     issuerRef: rootRef,
@@ -94,7 +159,6 @@ test('canonical public-key material authorizes across roots, delegations, claims
     scope: { kind: 'domain', value: 'finance.example.com' },
     at: clock
   }).ok, true, 'same issuer key material in a different PEM representation must authorize');
-
   assert.equal(trust.authorize({
     nodeId: verifier.nodeId,
     publicKey: equivalentPem(verifier.publicKeyPem),
@@ -102,7 +166,6 @@ test('canonical public-key material authorizes across roots, delegations, claims
     scope: { kind: 'domain', value: 'finance.example.com' },
     at: clock
   }).ok, true, 'same verifier key material in a different PEM representation must authorize');
-
   assert.equal(trust.authorize({
     nodeId: verifier.nodeId,
     publicKey: equivalentPem(verifier.publicKeyPem),
@@ -110,7 +173,6 @@ test('canonical public-key material authorizes across roots, delegations, claims
     scope: { kind: 'domain', value: 'finance.example.com' },
     at: clock
   }).ok, false, 'canonical key equivalence must not bypass purpose constraints');
-
   assert.equal(trust.authorize({
     nodeId: verifier.nodeId,
     publicKey: createIdentity().publicKeyPem,
@@ -120,12 +182,7 @@ test('canonical public-key material authorizes across roots, delegations, claims
   }).ok, false, 'different key material must remain denied');
 
   const createdAt = new Date(clock).toISOString();
-  const claim = createClaim({
-    identity: issuer,
-    domain: 'finance.example.com',
-    statement: 'Canonical key regression claim.',
-    createdAt
-  });
+  const claim = createClaim({ identity: issuer, domain: 'finance.example.com', statement: 'Canonical key regression claim.', createdAt });
   const attestation = createAttestation({
     identity: equivalentIdentity(verifier),
     claim,
@@ -141,7 +198,6 @@ test('canonical public-key material authorizes across roots, delegations, claims
     issuedAt: createdAt,
     expiresAt
   });
-
   const assessment = assessActiveTrust({
     claim,
     attestations: [attestation],
@@ -187,12 +243,8 @@ test('ActiveTrustCoordinator functionally forwards its production registry and r
       this.sessionToken = 'test-session';
       return { ok: true, nodeId: this.identity.nodeId };
     },
-    async find() {
-      return { offers: [] };
-    },
-    async poll() {
-      return { events: [] };
-    }
+    async find() { return { offers: [] }; },
+    async poll() { return { events: [] }; }
   };
   const coordinator = new ActiveTrustCoordinator({ node, authorityRegistry: control.trustAuthority });
   const foreignIssuer = createIdentity();
@@ -227,7 +279,6 @@ test('corrupt production trust registry fails closed on restart', { concurrency:
 
 test('partial restore cannot drop anchored authority or terminal revocation state', { concurrency: false }, (t) => {
   const clock = Date.parse('2036-04-01T00:00:00.000Z');
-
   const missingRegistryDir = stateDir(t, 'truyn-missing-trust-state-');
   const first = createProductionControlPlane({ stateDir: missingRegistryDir, now: () => new Date(clock) });
   const root = createIdentity();
