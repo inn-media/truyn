@@ -16,7 +16,7 @@ Operational cross-cloud proofs, owner-cloud deployment workflows, private provid
 
 ## Package-publication boundary
 
-The repository can build and verify the five Developer Release package artifacts with exact source/digest provenance. These examples are **not** evidence that native public registries already serve those packages. Until public publication is externally observed, source-checkout commands remain the reproducible onboarding path shown here.
+The repository can build and verify the five Developer Release package artifacts with exact source/digest provenance. Public prerelease coordinates are accepted for npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`. Maven Central and NuGet.org publication remain open. These examples intentionally remain source-checkout examples so local onboarding is reproducible without depending on any registry.
 
 ## Security rules
 

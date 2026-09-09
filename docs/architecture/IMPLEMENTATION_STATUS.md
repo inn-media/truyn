@@ -1,8 +1,8 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot:** 2026-09-05  
-**Synchronized source:** `main@abd6bd95ecad8dc8d82bbf6d2983d96df80267d3`  
+**Snapshot:** 2026-09-09  
+**Synchronized source:** `main@4a3a312877d14e9f0ee361a9356e7369cad04398`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
@@ -39,7 +39,7 @@ This document distinguishes accepted `main` facts from open PRs, diagnostics, pl
 | PyPI alpha | **Accepted immutable public release** | — |
 | Go alpha | **Accepted immutable public release** | — |
 | npm alpha.1 | **Immutable historical artifact; clean-room Node 22 ESM failed** | superseded, never overwritten |
-| npm alpha.2 repair | **Merged / CI packaging repair accepted** | immutable public registry/provenance/clean-room evidence remains gated |
+| npm alpha.2 | **Accepted immutable public release** | — |
 | Maven Central / NuGet | **OPEN** | public publication evidence |
 | Agent Descriptor | **Bounded valid-profile implemented** | refresh/re-sign + full endpoint parity |
 | Live developer site | **OPEN** | deployment/liveness evidence |
@@ -75,7 +75,7 @@ Durable consolidated evidence: `../compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md`
 
 ## SDK / developer release boundary
 
-Five first-party clients and shared executable conformance are implemented. PyPI `truyn-sdk==0.1.0a1` and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` have accepted immutable public evidence. npm `@truyn/sdk@0.1.0-alpha.1` remains immutable historical evidence but failed the required clean-room Node 22 ESM import. PR `#448` is now merged and repairs the packaging at the distinct `@truyn/sdk@0.1.0-alpha.2` coordinate; packed clean-room import is CI-proven, while immutable public registry/provenance/clean-room evidence remains the release acceptance gate. Maven Central and NuGet remain open.
+Five first-party clients and shared executable conformance are implemented. PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2` have accepted immutable public evidence. npm `@truyn/sdk@0.1.0-alpha.1` remains immutable historical evidence but failed the required clean-room Node 22 ESM import and is superseded without overwrite. The accepted npm alpha.2 has public registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM verification recorded permanently in `../../sdk/release/evidence/npm-alpha2-2026-09-05.json`. Maven Central and NuGet remain open.
 
 Agent Descriptor refresh/re-sign, full endpoint parity, archive-member content scanning and live developer-site liveness remain open.
 

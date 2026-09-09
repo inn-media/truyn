@@ -1,0 +1,11 @@
+{
+  "schema": "truyn.developer-release-closure-baseline/v1",
+  "recordedDate": "2026-09-08",
+  "repository": "inn-media/truyn",
+  "ref": "refs/heads/main",
+  "baselineSha": "5daaac4a06b9573523f50caef7fc5c04175247b8",
+  "scope": "Developer Release Layer closure",
+  "sprint": "Block A / Sprint 1 — historical closure baseline",
+  "status": "frozen-historical",
+  "note": "This record preserves the historical Developer Release closure starting point only. It is not final acceptance evidence and must never substitute for current-main reconciliation, Maven Central, NuGet.org, Agent Descriptor, developer-site, clean-room, or final exact-main evidence."
+}

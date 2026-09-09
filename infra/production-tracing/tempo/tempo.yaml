@@ -1,0 +1,30 @@
+stream_over_http_enabled: true
+multitenancy_enabled: true
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+compactor:
+  compaction:
+    block_retention: 720h
+
+overrides:
+  per_tenant_override_config: /etc/tempo/overrides.yaml
+
+storage:
+  trace:
+    backend: azure
+    azure:
+      container_name: ${TEMPO_STORAGE_CONTAINER}
+      storage_account_name: ${AZURE_STORAGE_ACCOUNT}
+      use_managed_identity: true
+      user_assigned_id: ${AZURE_CLIENT_ID}
