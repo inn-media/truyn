@@ -261,14 +261,8 @@ test('relay managed authority remains installed while shutdown stops refreshes',
   assert.equal(providerPolicyFromOffer(envelope).accessMode, 'authority');
 });
 
-test('Cosmos checkpoint uses managed identity AAD auth and ETag conditional replacement', async () => {
-  const state = {
-    accountTenant: { version: 1, revision: 0, accountTenant: { accounts: [], organizations: [], tenants: [], memberships: [], nodeBindings: [], providerBindings: [] } },
-    revocations: { version: 1, revision: 0, revocations: {} },
-    grants: { version: 1, revision: 0, providerPolicies: {}, grants: {} },
-    entitlements: { version: 1, revision: 0, entitlements: {} },
-    accounting: { version: 1, revision: 0, ledgers: {}, reservations: {} }
-  };
+test('Cosmos checkpoint uses managed identity AAD auth and ETag conditional replacement', async (t) => {
+  const { snapshot: state } = fixture(t);
   const existing = createAuthorityCheckpointDocument({ id: 'production-authority', partitionKey: 'production-authority', revision: 1, sourceSha: SOURCE_SHA, state, committedAt: '2026-09-05T00:00:00.000Z' });
   const requests = [];
   const fakeHeaders = (etag) => ({ get(name) { return name.toLowerCase() === 'etag' ? etag : null; } });

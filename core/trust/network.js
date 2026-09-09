@@ -22,9 +22,7 @@ export function trustVerifierRequestCapability(domain, verifierNodeId) {
 
 export function trustVerifierOfferMetadata({ domain, verifierNodeId, requestCapability, methods = [] }) {
   const normalizedDomain = normalizeDomain(domain);
-  if (requestCapability !== trustVerifierRequestCapability(normalizedDomain, verifierNodeId)) {
-    throw new Error('claim verifier request capability mismatch');
-  }
+  if (requestCapability !== trustVerifierRequestCapability(normalizedDomain, verifierNodeId)) throw new Error('claim verifier request capability mismatch');
   return {
     protocol: TRUST_VERIFIER_NETWORK_PROTOCOL,
     version: TRUST_VERIFIER_NETWORK_VERSION,
@@ -54,12 +52,17 @@ export function parseTrustVerifierOffer(offer, domain) {
   };
 }
 
-export function resolveAuthorizedTrustVerifiers(offers, domain, { limit = 8 } = {}) {
+export function resolveAuthorizedTrustVerifiers(offers, domain, { limit = 8, authorize = null } = {}) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 32) throw new Error('claim verifier limit must be 1..32');
+  if (authorize != null && typeof authorize !== 'function') throw new Error('claim verifier authorize must be a function');
   const parsed = (offers || []).map((offer) => parseTrustVerifierOffer(offer, domain)).filter(Boolean);
   const unique = new Map();
   for (const verifier of parsed) if (!unique.has(verifier.nodeId)) unique.set(verifier.nodeId, verifier);
-  return [...unique.values()]
+  const candidates = [...unique.values()];
+  const authorized = authorize ? candidates.filter((verifier) => {
+    try { return authorize(verifier)?.ok === true; } catch { return false; }
+  }) : candidates;
+  return authorized
     .sort((left, right) => Number(right.trust?.score || 0) - Number(left.trust?.score || 0) || left.nodeId.localeCompare(right.nodeId))
     .slice(0, limit);
 }
