@@ -158,6 +158,34 @@ function revocationKey(kind, id) {
   return `${kind}:${id}`;
 }
 
+function sortedTargets(targets) {
+  return [...new Set(Array.isArray(targets) ? targets : [])].sort();
+}
+
+function registryCoordinates(state, revokedTargets) {
+  return {
+    storeRevision: Number.isSafeInteger(state?.revision) ? state.revision : 0,
+    authorityEpoch: Number.isSafeInteger(state?.authorityEpoch) ? state.authorityEpoch : 0,
+    headHash: state?.headHash || GENESIS_HEAD,
+    stateCommitment: state?.stateCommitment || GENESIS_STATE_COMMITMENT,
+    revokedAuthorityTargets: sortedTargets(revokedTargets)
+  };
+}
+
+function anchorCoordinates(anchor) {
+  return {
+    storeRevision: Number.isSafeInteger(anchor?.minimumStoreRevision) ? anchor.minimumStoreRevision : 0,
+    authorityEpoch: Number.isSafeInteger(anchor?.minimumAuthorityEpoch) ? anchor.minimumAuthorityEpoch : 0,
+    headHash: anchor?.headHash || GENESIS_HEAD,
+    stateCommitment: anchor?.stateCommitment || GENESIS_STATE_COMMITMENT,
+    revokedAuthorityTargets: sortedTargets(anchor?.revokedAuthorityTargets)
+  };
+}
+
+function sameCoordinates(left, right) {
+  return canonicalize(left) === canonicalize(right);
+}
+
 export function createProductionTrustAuthority({
   filePath,
   anchorFilePath = `${filePath}.anchor`,
@@ -234,35 +262,88 @@ export function createProductionTrustAuthority({
     return state;
   }
 
-  function advanceAnchor(state) {
-    validateRegistryState(state);
+  function normalizeAnchor(anchor) {
+    anchor.minimumStoreRevision ||= 0;
+    anchor.minimumAuthorityEpoch ||= 0;
+    anchor.headHash ||= GENESIS_HEAD;
+    anchor.stateCommitment ||= GENESIS_STATE_COMMITMENT;
+    anchor.revokedAuthorityTargets ||= [];
+    return anchor;
+  }
+
+  function assertPreparedTransition(prepared, anchor) {
+    if (!prepared || prepared.version !== 1 || !prepared.from || !prepared.to) throw authorityError('authority_state_anchor_stale');
+    if (!sameCoordinates(anchorCoordinates(anchor), prepared.from)) throw authorityError('authority_state_anchor_stale');
+    const fromTargets = new Set(sortedTargets(prepared.from.revokedAuthorityTargets));
+    for (const target of fromTargets) {
+      if (!sortedTargets(prepared.to.revokedAuthorityTargets).includes(target)) throw authorityError('authority_revocation_rollback_detected', { target });
+    }
+    const actualSet = new Set(revokedAuthorityTargets());
+    for (const target of sortedTargets(prepared.to.revokedAuthorityTargets)) {
+      if (!actualSet.has(target)) throw authorityError('authority_revocation_rollback_detected', { target });
+    }
+    return prepared;
+  }
+
+  function prepareAnchorTransition(nextState, currentState) {
+    validateRegistryState(currentState);
+    validateRegistryState(nextState);
     const actualRevocations = revokedAuthorityTargets();
-    return anchorStore.transaction((anchor) => {
-      anchor.minimumStoreRevision ||= 0;
-      anchor.minimumAuthorityEpoch ||= 0;
-      anchor.headHash ||= GENESIS_HEAD;
-      anchor.stateCommitment ||= GENESIS_STATE_COMMITMENT;
-      anchor.revokedAuthorityTargets ||= [];
-      const storeRevision = Number.isSafeInteger(state.revision) ? state.revision : 0;
-      const epoch = Number.isSafeInteger(state.authorityEpoch) ? state.authorityEpoch : 0;
-      if (storeRevision < anchor.minimumStoreRevision || epoch < anchor.minimumAuthorityEpoch) throw authorityError('authority_state_rollback_detected');
+    anchorStore.transaction((anchor) => {
+      normalizeAnchor(anchor);
+      if (anchor.preparedTransition) throw authorityError('authority_state_anchor_stale');
+      const from = registryCoordinates(currentState, anchor.revokedAuthorityTargets);
+      if (!sameCoordinates(anchorCoordinates(anchor), from)) throw authorityError('authority_state_anchor_stale');
       const actualSet = new Set(actualRevocations);
       for (const target of anchor.revokedAuthorityTargets) {
         if (!actualSet.has(target)) throw authorityError('authority_revocation_rollback_detected', { target });
       }
-      anchor.minimumStoreRevision = storeRevision;
-      anchor.minimumAuthorityEpoch = epoch;
-      anchor.headHash = state.headHash;
-      anchor.stateCommitment = state.stateCommitment;
-      anchor.revokedAuthorityTargets = actualRevocations;
-      return {
-        minimumStoreRevision: storeRevision,
-        minimumAuthorityEpoch: epoch,
-        headHash: state.headHash,
-        stateCommitment: state.stateCommitment,
-        revokedAuthorityTargets: actualRevocations
+      anchor.preparedTransition = {
+        version: 1,
+        from,
+        to: registryCoordinates(nextState, actualRevocations)
       };
-    }).result;
+    });
+  }
+
+  function finalizePreparedTransition(state) {
+    validateRegistryState(state);
+    anchorStore.transaction((anchor) => {
+      normalizeAnchor(anchor);
+      const prepared = assertPreparedTransition(anchor.preparedTransition, anchor);
+      if (!sameCoordinates(registryCoordinates(state, prepared.to.revokedAuthorityTargets), prepared.to)) {
+        throw authorityError('authority_state_anchor_stale');
+      }
+      anchor.minimumStoreRevision = prepared.to.storeRevision;
+      anchor.minimumAuthorityEpoch = prepared.to.authorityEpoch;
+      anchor.headHash = prepared.to.headHash;
+      anchor.stateCommitment = prepared.to.stateCommitment;
+      anchor.revokedAuthorityTargets = sortedTargets(prepared.to.revokedAuthorityTargets);
+      delete anchor.preparedTransition;
+    });
+  }
+
+  function recoverPreparedTransition() {
+    const state = validateRegistryState(registryStore.read());
+    const observed = anchorStore.read();
+    if (!observed.preparedTransition) return;
+    anchorStore.transaction((anchor) => {
+      normalizeAnchor(anchor);
+      const prepared = assertPreparedTransition(anchor.preparedTransition, anchor);
+      const matchesFrom = sameCoordinates(registryCoordinates(state, prepared.from.revokedAuthorityTargets), prepared.from);
+      const matchesTo = sameCoordinates(registryCoordinates(state, prepared.to.revokedAuthorityTargets), prepared.to);
+      if (matchesFrom) {
+        delete anchor.preparedTransition;
+        return;
+      }
+      if (!matchesTo) throw authorityError('authority_state_anchor_stale');
+      anchor.minimumStoreRevision = prepared.to.storeRevision;
+      anchor.minimumAuthorityEpoch = prepared.to.authorityEpoch;
+      anchor.headHash = prepared.to.headHash;
+      anchor.stateCommitment = prepared.to.stateCommitment;
+      anchor.revokedAuthorityTargets = sortedTargets(prepared.to.revokedAuthorityTargets);
+      delete anchor.preparedTransition;
+    });
   }
 
   function withMutationLock(callback) {
@@ -274,15 +355,23 @@ export function createProductionTrustAuthority({
   }
 
   function mutateLocked(mutator) {
-    const transaction = registryStore.transaction((state) => {
-      if (state.version == null) Object.assign(state, defaultRegistryState());
-      validateAnchoredState(state);
-      const result = mutator(state);
-      state.stateCommitment = authorityStateCommitment(state);
-      return result;
-    });
+    let transaction;
+    try {
+      transaction = registryStore.transaction((state) => {
+        if (state.version == null) Object.assign(state, defaultRegistryState());
+        validateAnchoredState(state);
+        const result = mutator(state);
+        state.stateCommitment = authorityStateCommitment(state);
+        return result;
+      }, {
+        beforePersist: (nextState, currentState) => prepareAnchorTransition(nextState, currentState)
+      });
+    } catch (error) {
+      recoverPreparedTransition();
+      throw error;
+    }
     validateRegistryState(transaction.state);
-    advanceAnchor(transaction.state);
+    finalizePreparedTransition(transaction.state);
     validateAnchoredState(transaction.state);
     return transaction.result;
   }
@@ -678,9 +767,9 @@ export function createProductionTrustAuthority({
     });
   }
 
-  // The registry and the independent anchor must agree at construction. We fail
-  // closed on an interrupted cross-file commit rather than silently accepting an
-  // unanchored authority state.
+  // Recover only an exact, durably prepared cross-file transition. Any
+  // unprepared or mismatched forward registry remains fail-closed below.
+  recoverPreparedTransition();
   validateAnchoredState(registryStore.read());
 
   return Object.freeze({
