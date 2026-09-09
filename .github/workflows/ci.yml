@@ -75,6 +75,8 @@ jobs:
         run: dotnet build sdk/dotnet/Truyn.Sdk.csproj --configuration Release --nologo
       - name: Five-language executable SDK conformance
         run: node sdk/conformance/run-five-language-e2e.mjs
+      - name: Verify SDK release scanner wiring
+        run: node --test tests/sdk-release-ci-contract.test.js
       - name: Build and verify SDK release packages
         env:
           TRUYN_RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
