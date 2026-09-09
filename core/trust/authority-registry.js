@@ -44,6 +44,14 @@ function authorityError(code, details = null) {
   return error;
 }
 
+function samePublicKeyMaterial(left, right) {
+  try {
+    return nodeIdFromPublicKey(left) === nodeIdFromPublicKey(right);
+  } catch {
+    return false;
+  }
+}
+
 function publicIdentity(input = {}, label = 'authority identity') {
   const publicKey = requiredString(input.publicKeyPem || input.publicKey, `${label} public key`);
   const nodeId = requiredString(input.nodeId || nodeIdFromPublicKey(publicKey), `${label} nodeId`);
@@ -364,7 +372,7 @@ export function createProductionTrustAuthority({
     const operationMs = now().getTime();
     assertRootNotRevoked(id, current);
     if (!recordActive(current, operationMs)) throw authorityError('authority_root_rotation_signer_not_current');
-    if (current.nodeId !== signer.nodeId || current.publicKey !== signer.publicKey) throw authorityError('authority_root_rotation_signer_mismatch');
+    if (current.nodeId !== signer.nodeId || !samePublicKeyMaterial(current.publicKey, signer.publicKey)) throw authorityError('authority_root_rotation_signer_mismatch');
     const issued = iso(issuedAt, 'authority root rotation issuedAt');
     if (Date.parse(issued) > operationMs || Date.parse(issued) < Date.parse(current.notBefore)) throw authorityError('authority_root_rotation_issued_at_invalid');
     const activation = iso(notBefore, 'authority root rotation notBefore');
@@ -452,7 +460,7 @@ export function createProductionTrustAuthority({
       issuer = validateCertificateChain(state, issuerRef.id, atMs, seen, revokedFn);
       if (parent.supersededAt && registeredMs > Date.parse(parent.supersededAt)) throw authorityError('authority_parent_superseded_before_registration');
     }
-    if (certificate.body.issuerNodeId !== issuer.nodeId || certificate.issuerPublicKey !== issuer.publicKey) throw authorityError('authority_certificate_issuer_mismatch');
+    if (certificate.body.issuerNodeId !== issuer.nodeId || !samePublicKeyMaterial(certificate.issuerPublicKey, issuer.publicKey)) throw authorityError('authority_certificate_issuer_mismatch');
     if (!issuer.purposes.includes('delegate')) throw authorityError('authority_issuer_cannot_delegate');
     if (!purposesContain(issuer.purposes, certificate.body.purposes)) throw authorityError('authority_purpose_delegation_widened');
     if (!authorityScopesContain(issuer.scopes, certificate.body.scopes)) throw authorityError('authority_scope_delegation_widened');
@@ -496,7 +504,7 @@ export function createProductionTrustAuthority({
       if (parentRecord.supersededAt) throw authorityError('authority_parent_certificate_superseded');
       issuer = validateCertificateChain(state, issuerRef.id, nowMs);
     }
-    if (certificate.body.issuerNodeId !== issuer.nodeId || certificate.issuerPublicKey !== issuer.publicKey) throw authorityError('authority_certificate_issuer_mismatch');
+    if (certificate.body.issuerNodeId !== issuer.nodeId || !samePublicKeyMaterial(certificate.issuerPublicKey, issuer.publicKey)) throw authorityError('authority_certificate_issuer_mismatch');
     if (!issuer.purposes.includes('delegate')) throw authorityError('authority_issuer_cannot_delegate');
     if (!purposesContain(issuer.purposes, certificate.body.purposes)) throw authorityError('authority_purpose_delegation_widened');
     if (!authorityScopesContain(issuer.scopes, certificate.body.scopes)) throw authorityError('authority_scope_delegation_widened');
@@ -567,7 +575,7 @@ export function createProductionTrustAuthority({
       for (const root of Object.values(state.roots || {})) {
         const record = rootVersionRecord(state, root.rootId, root.currentVersion);
         if (!record || record.nodeId !== requesterNodeId) continue;
-        if (requesterPublicKey && record.publicKey !== requesterPublicKey) continue;
+        if (requesterPublicKey && !samePublicKeyMaterial(record.publicKey, requesterPublicKey)) continue;
         assertRootNotRevoked(root.rootId, record, revokedFn);
         if (!recordActive(record, atMs)) continue;
         if (!record.purposes.includes(requestedPurpose)) continue;
@@ -578,7 +586,7 @@ export function createProductionTrustAuthority({
       for (const certificateId of Object.values(state.currentAuthorities || {})) {
         const record = state.certificates?.[certificateId];
         if (!record?.certificate || record.certificate.body.subjectNodeId !== requesterNodeId) continue;
-        if (requesterPublicKey && record.certificate.body.subjectPublicKey !== requesterPublicKey) continue;
+        if (requesterPublicKey && !samePublicKeyMaterial(record.certificate.body.subjectPublicKey, requesterPublicKey)) continue;
         let chain;
         try {
           chain = validateCertificateChain(state, certificateId, atMs, new Set(), revokedFn);
