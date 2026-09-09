@@ -15,6 +15,10 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: production-authority-image-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   SOURCE_SHA: 37144e03eaba714be26d106b3b0d396f0801f7d6
   IMAGE_REPOSITORY: truyn-authority
@@ -65,6 +69,13 @@ jobs:
           client-id: ${{ env.AZURE_CLIENT_VALUE }}
           tenant-id: ${{ env.AZURE_TENANT_VALUE }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Ensure Container Apps CLI extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          az extension add --name containerapp --upgrade --only-show-errors >/dev/null
 
       - name: Resolve accepted production registry
         shell: bash
@@ -129,35 +140,73 @@ jobs:
           }
           printf 'REGISTRY_NAME=%s\n' "$registry" >> "$GITHUB_ENV"
 
-      - name: Build immutable authority image from accepted SHA
-        shell: bash
-        run: |
-          set -euo pipefail
-          image_tag="${IMAGE_REPOSITORY}:${SOURCE_SHA}"
-          az acr build \
-            --resource-group "$RESOURCE_GROUP" \
-            --registry "$REGISTRY_NAME" \
-            --image "$image_tag" \
-            --file Dockerfile \
-            --only-show-errors \
-            . >/dev/null
-
-      - name: Resolve immutable manifest digest
+      - name: Build or reuse locked immutable authority image
         shell: bash
         run: |
           set -euo pipefail
           image_name="${IMAGE_REPOSITORY}:${SOURCE_SHA}"
-          digest="$(az acr manifest show-metadata \
+          existing_digest="$(az acr manifest show-metadata \
             --registry "$REGISTRY_NAME" \
             --name "$image_name" \
             --query digest \
             -o tsv \
-            --only-show-errors)"
-          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
-            echo '::error::Authority image digest is missing or malformed.'
-            exit 1
-          }
+            --only-show-errors 2>/dev/null || true)"
+
+          if [[ "$existing_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            write_enabled="$(az acr manifest show-metadata \
+              --registry "$REGISTRY_NAME" \
+              --name "$image_name" \
+              --query changeableAttributes.writeEnabled \
+              -o tsv \
+              --only-show-errors 2>/dev/null || true)"
+            [[ "$write_enabled" == "false" || "$write_enabled" == "False" ]] || {
+              echo '::error::Existing authority SHA tag is mutable; refusing to reuse it.'
+              exit 1
+            }
+            digest="$existing_digest"
+            reused=true
+          else
+            az acr build \
+              --resource-group "$RESOURCE_GROUP" \
+              --registry "$REGISTRY_NAME" \
+              --image "$image_name" \
+              --file Dockerfile \
+              --only-show-errors \
+              . >/dev/null
+
+            digest="$(az acr manifest show-metadata \
+              --registry "$REGISTRY_NAME" \
+              --name "$image_name" \
+              --query digest \
+              -o tsv \
+              --only-show-errors)"
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+              echo '::error::Authority image digest is missing or malformed.'
+              exit 1
+            }
+
+            az acr repository update \
+              --name "$REGISTRY_NAME" \
+              --image "$image_name" \
+              --write-enabled false \
+              --delete-enabled false \
+              --only-show-errors >/dev/null
+
+            write_enabled="$(az acr manifest show-metadata \
+              --registry "$REGISTRY_NAME" \
+              --name "$image_name" \
+              --query changeableAttributes.writeEnabled \
+              -o tsv \
+              --only-show-errors)"
+            [[ "$write_enabled" == "false" || "$write_enabled" == "False" ]] || {
+              echo '::error::Authority SHA tag was not locked after publication.'
+              exit 1
+            }
+            reused=false
+          fi
+
           printf 'AUTHORITY_IMAGE_DIGEST=%s\n' "$digest" >> "$GITHUB_ENV"
+          printf 'AUTHORITY_IMAGE_REUSED=%s\n' "$reused" >> "$GITHUB_ENV"
 
       - name: Emit sanitized immutable image evidence
         shell: bash
@@ -168,6 +217,7 @@ jobs:
             --arg repository "$IMAGE_REPOSITORY" \
             --arg tag "$SOURCE_SHA" \
             --arg digest "$AUTHORITY_IMAGE_DIGEST" \
+            --arg reused "$AUTHORITY_IMAGE_REUSED" \
             --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{
               schema: "truyn.production-authority-image-evidence/v1",
@@ -178,7 +228,10 @@ jobs:
                 repository: $repository,
                 tag: $tag,
                 digest: $digest,
-                immutableReference: ($repository + "@" + $digest)
+                immutableReference: ($repository + "@" + $digest),
+                writeLocked: true,
+                deleteLocked: true,
+                reusedLockedArtifact: ($reused == "true")
               },
               mutableTagUsed: false,
               generatedAt: $generatedAt,
