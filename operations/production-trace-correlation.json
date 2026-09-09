@@ -1,0 +1,46 @@
+{
+  "schema": "truyn.production-trace-correlation/v1",
+  "correlationId": "prod-trace-correlation-01",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "environmentClass": "production",
+  "requestClass": "signed-synthetic-need-result",
+  "path": [
+    "NEED",
+    "provider.execute",
+    "RESULT"
+  ],
+  "fields": {
+    "traceId": {
+      "required": true,
+      "source": "opentelemetry-trace-context",
+      "format": "32-lower-hex"
+    },
+    "requestId": {
+      "required": true,
+      "source": "relay-request-key"
+    },
+    "needId": {
+      "required": true,
+      "source": "signed-need-envelope-id"
+    },
+    "resultId": {
+      "required": true,
+      "source": "signed-result-envelope-id"
+    }
+  },
+  "invariants": {
+    "oneTrace": true,
+    "requestIdEqualsNeedId": true,
+    "signedNeed": true,
+    "signedResult": true,
+    "providerSpan": "truyn.provider.execute",
+    "correlationSpan": "truyn.trace.correlation.synthetic",
+    "exactTraceReadBackRequired": true,
+    "sourceShaBindingRequired": true,
+    "publicEndpoint": false
+  },
+  "acceptance": {
+    "marker": "TRUYN_TRACE_CORRELATION_PASS path=NEED-provider-RESULT fields=traceId,requestId,needId,resultId source=exact-main",
+    "evidenceArtifact": "production-trace-correlation-evidence"
+  }
+}
