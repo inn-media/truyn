@@ -1,0 +1,7 @@
+overrides:
+  normal:
+    compaction:
+      block_retention: 720h
+  incident:
+    compaction:
+      block_retention: 2160h
