@@ -5,7 +5,7 @@ COPY overrides.yaml /etc/tempo/overrides.yaml
 ENV TEMPO_STORAGE_CONTAINER=traces
 ENV AZURE_STORAGE_ACCOUNT=truyntempoverify
 ENV AZURE_CLIENT_ID=00000000-0000-0000-0000-000000000000
-RUN ["/tempo", "-config.file=/etc/tempo/tempo.yaml", "-config.expand-env=true", "-config.verify"]
+RUN ["/tempo", "-config.file=/etc/tempo/tempo.yaml", "-config.expand-env=true", "-config.verify=true"]
 
 FROM grafana/tempo:3.0.2
 
