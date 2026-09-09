@@ -288,7 +288,11 @@ test('P3-A1 reconnect is owner-scoped, resumes future events, and never redispat
     params: { id: taskId }
   }, 'Bearer owner-b');
   assert.equal(denied.id, 'wrong-owner-subscribe-rpc');
-  assert.equal(denied.error?.data?.code, 'TASK_NOT_FOUND');
+  assert.equal(denied.error?.code, -32001);
+  assert.equal(denied.error?.data?.[0]?.['@type'], 'type.googleapis.com/google.rpc.ErrorInfo');
+  assert.equal(denied.error?.data?.[0]?.reason, 'TASK_NOT_FOUND');
+  assert.equal(denied.error?.data?.[0]?.domain, 'a2a-protocol.org');
+  assert.equal(denied.error?.data?.[0]?.metadata?.taskId, taskId);
   assert.equal(dispatches, 1, 'wrong-owner resubscription must never dispatch work');
 
   const reconnectAbort = new AbortController();
