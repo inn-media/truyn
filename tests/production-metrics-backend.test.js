@@ -26,6 +26,32 @@ test('production metrics backend is VictoriaMetrics on the private Container App
   assert.equal(contract.liveSeriesAccepted, false);
 });
 
+test('Sprint 14 pins SLO-bearing metric retention to 90 days and exceeds the canonical 28-day window', async () => {
+  const [workflow, bicep, contractRaw] = await Promise.all([
+    read(workflowPath),
+    read(bicepPath),
+    read(contractPath)
+  ]);
+  const contract = JSON.parse(contractRaw);
+
+  assert.equal(contract.retention.canonicalSloWindowDays, 28);
+  assert.equal(contract.retention.sloBearingSeriesDays, 90);
+  assert.equal(contract.retention.runtimePeriod, '90d');
+  assert.equal(contract.retention.exceedsCanonicalSloWindow, true);
+  assert.ok(contract.retention.sloBearingSeriesDays > contract.retention.canonicalSloWindowDays);
+
+  assert.match(bicep, /param sloMetricsRetentionPeriod string = '90d'/);
+  assert.match(bicep, /'-retentionPeriod=\$\{sloMetricsRetentionPeriod\}'/);
+  assert.match(workflow, /CANONICAL_SLO_WINDOW_DAYS: '28'/);
+  assert.match(workflow, /METRICS_RETENTION_DAYS: '90'/);
+  assert.match(workflow, /METRICS_RETENTION_PERIOD: 90d/);
+  assert.match(workflow, /sloMetricsRetentionPeriod="\$METRICS_RETENTION_PERIOD"/);
+  assert.match(workflow, /\.tags\.retentionPeriod == \$retention/);
+  assert.match(workflow, /"-retentionPeriod=" \+ \$retention/);
+  assert.match(workflow, /retentionExceedsCanonicalSloWindow: \(\$retentionDays > \$canonicalSloWindowDays\)/);
+  assert.match(workflow, /runtimeRetentionArgumentObserved: true/);
+});
+
 test('live backend mutation is main-only and reuses an accepted internal production environment', async () => {
   const workflow = await read(workflowPath);
   assert.match(workflow, /push:\n\s+branches: \[main\]/);
@@ -64,7 +90,7 @@ test('backend has no public ingress and acceptance probe remains inside the same
 
 test('public acceptance artifact contains no private Azure topology or resource identity', async () => {
   const workflow = await read(workflowPath);
-  const marker = "schema: \"truyn.production-metrics-backend-evidence/v1\"";
+  const marker = "schema: \"truyn.production-metrics-backend-evidence/v2\"";
   const start = workflow.indexOf(marker);
   assert.ok(start >= 0, 'sanitized evidence block is missing');
   const end = workflow.indexOf("' > production-metrics-backend-evidence.json", start);
