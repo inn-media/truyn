@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "matrixId": "mcp-stable-v1/promotion-1",
+  "frozenFrom": {
+    "repository": "inn-media/truyn",
+    "mergedMainSha": "45474df58ec5ee30090fae4700905175c27b40cf",
+    "treeSha": "f31b68de41def8ff4bf74f8a2ccb50a94294632c",
+    "p3m3PullRequest": 527,
+    "p3m3QualifiedHeadSha": "5517518c39aff726fcec7adb59926e335c8e7b77",
+    "postMergeCiRun": 34300666796,
+    "postMergeCodeqlRun": 34300666728
+  },
+  "statusDimensionsBeforePromotion": {
+    "truyn": {
+      "generation": "TRUYN/1",
+      "status": "draft"
+    },
+    "a2a": {
+      "status": "bounded-pre-v1"
+    },
+    "mcp": {
+      "status": "bounded-pre-v1"
+    },
+    "aggregate": {
+      "generation": "a2a-mcp-pre-v1/g1",
+      "status": "bounded-pre-v1"
+    }
+  },
+  "supportedMcpSurface": {
+    "direction": "import",
+    "transportProtocolVersion": "2026-07-28",
+    "surfaces": [
+      "tools",
+      "referenced-artifacts",
+      "resources",
+      "prompts",
+      "apps-ui"
+    ],
+    "apps": {
+      "upstreamPackage": "@modelcontextprotocol/ext-apps",
+      "upstreamSourceVersion": "2.0.0",
+      "upstreamCommit": "4cd427394755ee0964172df5760852aa053a5c99",
+      "resourceUriScheme": "ui://",
+      "resourceUriMaxUtf8Bytes": 2048,
+      "uiMetaMaxSerializedUtf8Bytes": 4096,
+      "resourceMime": "text/html;profile=mcp-app",
+      "resourceMaxCumulativeBytes": 524288,
+      "resourceMaxContentsEntries": 32,
+      "visibilityValues": ["model", "app"],
+      "defaultVisibility": ["model", "app"],
+      "resourceResolution": "explicit-resources/read-same-provider-only",
+      "presentationAuthority": {
+        "authorization": false,
+        "providerSelection": false,
+        "billing": false,
+        "entitlement": false,
+        "execution": false,
+        "provenance": false
+      }
+    }
+  },
+  "compatibilityRows": [
+    {
+      "id": "modern-import-apps",
+      "direction": "import",
+      "transportProtocolVersion": "2026-07-28",
+      "appsRequired": true,
+      "expected": "PASS"
+    },
+    {
+      "id": "modern-import-no-apps",
+      "direction": "import",
+      "transportProtocolVersion": "2026-07-28",
+      "appsRequired": false,
+      "expected": "PASS_WITHOUT_APPS_INFERENCE"
+    },
+    {
+      "id": "legacy-import-apps-required",
+      "direction": "import",
+      "transportProtocolVersion": "legacy",
+      "appsRequired": true,
+      "expected": "FAIL_CLOSED"
+    },
+    {
+      "id": "facade-apps-required",
+      "direction": "facade",
+      "transportProtocolVersion": "2026-07-28",
+      "appsRequired": true,
+      "expected": "FAIL_CLOSED"
+    },
+    {
+      "id": "unknown-required-extension",
+      "direction": "import",
+      "transportProtocolVersion": "2026-07-28",
+      "unknownRequiredExtension": true,
+      "expected": "FAIL_CLOSED"
+    },
+    {
+      "id": "future-unsupported-version",
+      "direction": "import",
+      "transportProtocolVersion": "future-unsupported",
+      "appsRequired": true,
+      "expected": "FAIL_CLOSED"
+    }
+  ],
+  "securityInvariants": {
+    "implicitHttpFileDnsArbitraryUrlFetches": 0,
+    "crossProviderAcceptedSubstitutions": 0,
+    "appOnlyModelCallableLeakage": 0,
+    "rejectedPathRemoteExecutions": 0,
+    "uiAuthorityExpansion": 0,
+    "unknownRequiredBehavior": "fail-closed"
+  },
+  "regressionFamilies": [
+    "a2a-mcp-pre-v1/g1",
+    "mcp-tools",
+    "mcp-referenced-artifacts",
+    "p3-m1-resources",
+    "p3-m2-prompts",
+    "p3-m3-apps-negative-matrix-a",
+    "p3-m3-apps-negative-matrix-b",
+    "p3-m3-apps-negative-matrix-c",
+    "p3-m3-independent-black-box",
+    "p3-m3-no-apps-fallback",
+    "p3-m3-version-matrix"
+  ],
+  "promotionBoundary": {
+    "mayPromote": ["mcp"],
+    "mustRemainUnchanged": ["truyn", "a2a", "aggregate"],
+    "stableMcpProfileMustNotImplyStableAggregate": true,
+    "newProtocolBehaviorAllowedInPromotion": false
+  }
+}
