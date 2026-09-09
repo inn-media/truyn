@@ -14,7 +14,7 @@ param identityName string
 @description('Existing internal production Container Apps environment resource ID.')
 param environmentId string
 
-@description('Existing production VNet resource ID used for private Blob DNS resolution.')
+@description('Existing production VNet resource ID retained as a compatibility-bound deployment parameter. Blob private DNS linkage is shared and pre-existing.')
 param vnetId string
 
 @description('Existing production private-endpoint subnet resource ID.')
@@ -109,23 +109,11 @@ resource traceContainer 'Microsoft.Storage/storageAccounts/blobServices/containe
   }
 }
 
-resource blobPrivateDns 'Microsoft.Network/privateDnsZones@2024-06-01' = {
+// The Blob private DNS zone and its VNet link are shared production-network
+// resources. Tracing consumes the existing zone instead of trying to create a
+// second link to the same VNet, which Azure correctly rejects as a conflict.
+resource blobPrivateDns 'Microsoft.Network/privateDnsZones@2024-06-01' existing = {
   name: blobPrivateDnsZoneName
-  location: 'global'
-  tags: tags
-}
-
-resource blobPrivateDnsVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
-  parent: blobPrivateDns
-  name: guid(traceStorage.id, vnetId)
-  location: 'global'
-  tags: tags
-  properties: {
-    registrationEnabled: false
-    virtualNetwork: {
-      id: vnetId
-    }
-  }
 }
 
 resource blobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
@@ -300,7 +288,7 @@ resource traceBackend 'Microsoft.App/containerApps@2025-07-01' = {
 }
 
 output contract object = {
-  schemaVersion: 3
+  schemaVersion: 4
   sourceSha: sourceSha
   backend: 'tempo'
   backendVersion: tempoVersion
@@ -312,6 +300,7 @@ output contract object = {
   storagePublicNetworkDisabled: true
   managedIdentityRequired: true
   privateEndpointRequired: true
+  sharedBlobPrivateDnsRequired: true
   publicIngress: false
   productionRuntimeTraceExport: true
   traceExportEnvironmentVariable: 'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT'

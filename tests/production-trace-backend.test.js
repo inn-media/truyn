@@ -88,13 +88,19 @@ test('trace retention classes are fail-closed in the runtime exporter', async ()
   assert.match(bootstrap, /'truyn\.trace\.retention_class': traceRetentionClass/);
 });
 
-test('trace backend Bicep keeps storage private and injects normal retention into production runtime', async () => {
+test('trace backend Bicep keeps storage private and consumes shared Blob private DNS without duplicate VNet-link ownership', async () => {
   const bicep = await readFile(BICEP, 'utf8');
   assert.match(bicep, /Microsoft\.Storage\/storageAccounts@2023-05-01/);
   assert.match(bicep, /allowSharedKeyAccess: false/);
   assert.match(bicep, /publicNetworkAccess: 'Disabled'/);
   assert.match(bicep, /Microsoft\.ManagedIdentity\/userAssignedIdentities/);
   assert.match(bicep, /Microsoft\.Network\/privateEndpoints/);
+  assert.match(bicep, /resource blobPrivateDns 'Microsoft\.Network\/privateDnsZones@2024-06-01' existing/);
+  assert.match(bicep, /name: blobPrivateDnsZoneName/);
+  assert.match(bicep, /privateDnsZoneId: blobPrivateDns\.id/);
+  assert.doesNotMatch(bicep, /Microsoft\.Network\/privateDnsZones\/virtualNetworkLinks/);
+  assert.doesNotMatch(bicep, /guid\(traceStorage\.id, vnetId\)/);
+  assert.match(bicep, /sharedBlobPrivateDnsRequired: true/);
   assert.match(bicep, /external: false/);
   assert.match(bicep, /targetPort: 4318/);
   assert.match(bicep, /loadTextContent\('trace-retention-probe\.py'\)/);
