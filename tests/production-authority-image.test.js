@@ -34,14 +34,19 @@ test('authority image build completes before its post-build digest is resolved',
   assert.doesNotMatch(workflow, /--no-logs/);
 });
 
-test('existing SHA tag must already be locked and new publication is locked against rewrite/delete', async () => {
+test('existing and newly published authority images require both tag and manifest rewrite/delete locks', async () => {
   const workflow = await workflowText();
-  assert.match(workflow, /changeableAttributes\.writeEnabled/);
-  assert.match(workflow, /Existing authority SHA tag is mutable; refusing to reuse it/);
-  assert.match(workflow, /az acr repository update/);
+  assert.match(workflow, /verify_tag_and_manifest_locked\(\)/);
+  assert.match(workflow, /az acr repository show-tags/);
+  assert.match(workflow, /changeableAttributes\.writeEnabled == false/);
+  assert.match(workflow, /changeableAttributes\.deleteEnabled == false/);
+  assert.match(workflow, /Authority SHA tag is not locked against rewrite and delete/);
+  assert.match(workflow, /--image "\$\{IMAGE_REPOSITORY\}@\$\{digest\}"/);
+  assert.match(workflow, /Authority manifest is not locked against rewrite and delete/);
   assert.match(workflow, /--write-enabled false/);
   assert.match(workflow, /--delete-enabled false/);
-  assert.match(workflow, /Authority SHA tag was not locked after publication/);
+  assert.match(workflow, /verify_tag_and_manifest_locked "\$existing_digest"/);
+  assert.match(workflow, /verify_tag_and_manifest_locked "\$digest"/);
   assert.match(workflow, /cancel-in-progress: false/);
 });
 
