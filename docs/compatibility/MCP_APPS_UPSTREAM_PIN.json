@@ -1,0 +1,35 @@
+{
+  "profile": "p3-m3-mcp-apps-upstream/v1",
+  "mcpProtocolVersion": "2026-07-28",
+  "package": "@modelcontextprotocol/ext-apps",
+  "sourcePackageVersion": "2.0.0",
+  "repository": "https://github.com/modelcontextprotocol/ext-apps",
+  "commit": "4cd427394755ee0964172df5760852aa053a5c99",
+  "gitSpec": "git+https://github.com/modelcontextprotocol/ext-apps.git#4cd427394755ee0964172df5760852aa053a5c99",
+  "npmPublishedAtFreeze": false,
+  "baseMcpSdk": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/core": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0"
+  },
+  "selectionReason": "First upstream post-v2-migration fixup commit with ext-apps source version 2.0.0, MCP SDK 2.0.0 alignment, corrected peer/lock behavior, handler guards, docs, and wire-compat coverage.",
+  "rejectedPins": [
+    {
+      "selector": "latest",
+      "reason": "floating selector is forbidden"
+    },
+    {
+      "selector": "^2.0.0",
+      "reason": "floating semver range is forbidden"
+    },
+    {
+      "selector": "@modelcontextprotocol/ext-apps@1.7.5",
+      "reason": "published release predates MCP 2026-07-28 and remains on the SDK-v1-era Apps line"
+    },
+    {
+      "selector": "modelcontextprotocol/ext-apps#main",
+      "reason": "floating branch is forbidden"
+    }
+  ],
+  "rule": "P3-M3 fixtures and interoperability evidence must use this exact commit unless this pin file is explicitly revised in a reviewed commit with new exact-version evidence."
+}
