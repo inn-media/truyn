@@ -281,7 +281,7 @@ export function assessActiveTrust({
     publicKey: claim.publicKey,
     purpose: 'claim-issuer',
     scope: { kind: 'domain', value: claim.body.domain, match: 'exact' }
-  }, claim.issuedAt, now);
+  }, claim.createdAt, now);
   if (!claimAuthority.ok) return authorityUntrustedAssessment(claim, attestations, claimAuthority.reason || 'claim_issuer_not_authorized', authorityView, claimAuthority);
 
   const certs = certificateIndex(lineageCertificates, revocations, now);
