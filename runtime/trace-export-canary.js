@@ -7,17 +7,20 @@ import { getObservabilityPlane } from '../observability/plane.js';
 const role = 'provider';
 const endpoint = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
 const sourceSha = process.env.TRUYN_VERSION || '';
+const retentionClass = process.env.TRUYN_TRACE_RETENTION_CLASS || 'normal';
 const tempoReadyUrl = 'http://127.0.0.1:3200/ready';
 
 if (!endpoint) throw new Error('OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is required');
 if (endpoint !== 'http://127.0.0.1:4318/v1/traces') {
   throw new Error('production trace export canary requires the private loopback OTLP endpoint');
 }
+if (retentionClass !== 'normal') throw new Error('production trace export canary must use normal trace retention');
 if (!/^[0-9a-f]{40}$/.test(sourceSha)) throw new Error('TRUYN_VERSION must be the exact source SHA');
 
 process.env.TRUYN_ROLE = role;
 process.env.TRUYN_OBSERVABILITY = '1';
 process.env.OTEL_TRACES_SAMPLER = 'always_on';
+process.env.TRUYN_TRACE_RETENTION_CLASS = retentionClass;
 
 const synthetic = Object.freeze({
   authorization: `Bearer sprint13-auth-${sourceSha.slice(0, 16)}`,
@@ -35,7 +38,10 @@ function containsForbidden(value) {
 async function waitForTempoReady() {
   for (let attempt = 1; attempt <= 120; attempt += 1) {
     try {
-      const response = await fetch(tempoReadyUrl, { signal: AbortSignal.timeout(5_000) });
+      const response = await fetch(tempoReadyUrl, {
+        headers: { 'X-Scope-OrgID': retentionClass },
+        signal: AbortSignal.timeout(5_000)
+      });
       await response.body?.cancel();
       if (response.status === 200) {
         process.stdout.write('TRUYN_RUNTIME_TRACE_BACKEND_READY endpoint=private-loopback\n');
@@ -53,7 +59,10 @@ async function waitForExactTrace(traceId) {
   const url = `http://127.0.0.1:3200/api/v2/traces/${traceId}`;
   for (let attempt = 1; attempt <= 90; attempt += 1) {
     try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+      const response = await fetch(url, {
+        headers: { 'X-Scope-OrgID': retentionClass },
+        signal: AbortSignal.timeout(5_000)
+      });
       const body = await response.text();
       if (response.status === 200 && body.includes('truyn.provider.execute')) return body;
     } catch {
@@ -67,6 +76,10 @@ async function waitForExactTrace(traceId) {
 await waitForTempoReady();
 
 const telemetry = await startProductionObservability({ role });
+if (telemetry.traceRetentionClass !== retentionClass) {
+  await telemetry.shutdown().catch(() => {});
+  throw new Error('production trace exporter did not bind the expected retention class');
+}
 const observability = getObservabilityPlane({
   enabled: true,
   service: process.env.OTEL_SERVICE_NAME || 'truyn-provider-trace-canary',
@@ -195,6 +208,7 @@ const proof = JSON.stringify({
   traceId,
   sourceSha,
   endpoint: 'private-loopback-otlp-http',
+  retentionClass,
   redaction: {
     authorizationAbsent: true,
     apiKeyAbsent: true,
@@ -221,4 +235,4 @@ const server = http.createServer((req, res) => {
 });
 
 await new Promise((resolve) => server.listen(9466, '127.0.0.1', resolve));
-process.stdout.write(`TRUYN_RUNTIME_TRACE_EXPORT_SENT span=truyn.provider.execute traceId=${traceId} sourceSha=${sourceSha}\n`);
+process.stdout.write(`TRUYN_RUNTIME_TRACE_EXPORT_SENT span=truyn.provider.execute traceId=${traceId} sourceSha=${sourceSha} retentionClass=${retentionClass}\n`);

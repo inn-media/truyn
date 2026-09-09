@@ -1,0 +1,11 @@
+overrides:
+  normal:
+    compaction:
+      block_retention: 720h
+      compaction_window: 1h
+      compaction_disabled: false
+  incident:
+    compaction:
+      block_retention: 2160h
+      compaction_window: 1h
+      compaction_disabled: false
