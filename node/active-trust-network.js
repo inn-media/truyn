@@ -150,11 +150,26 @@ export class ActiveTrustCoordinator {
     return { ok: true, nodeId: this.node.identity.nodeId, alreadyRegistered: true };
   }
 
-  async discover(domain, limit = this.verifierLimit) {
+  async discover(domain, limit = this.verifierLimit, authorityRegistry = this.authorityRegistry, now = Date.now()) {
     await this.register();
     this.metrics.discoveryCalls += 1;
     const result = await this.node.find(trustVerifierDiscoveryCapability(domain));
-    return resolveAuthorizedTrustVerifiers(result.offers || [], domain, { limit });
+    const authorityView = authorityRegistry && typeof authorityRegistry.pin === 'function' ? authorityRegistry.pin() : authorityRegistry;
+    const normalizedDomain = String(domain).normalize('NFKC').trim().toLowerCase();
+    const authorize = authorityView ? (verifier) => {
+      try {
+        return authorityView.authorize({
+          nodeId: verifier.nodeId,
+          publicKey: verifier.publicKey,
+          purpose: 'verifier',
+          scope: { kind: 'domain', value: normalizedDomain, match: 'exact' },
+          at: now
+        });
+      } catch {
+        return { ok: false, reason: 'production_authority_unavailable' };
+      }
+    } : null;
+    return resolveAuthorizedTrustVerifiers(result.offers || [], normalizedDomain, { limit, authorize });
   }
 
   async waitForResults(assignments) {
@@ -203,7 +218,7 @@ export class ActiveTrustCoordinator {
     await this.register();
     const challenge = createChallenge({ identity: this.node.identity, claim, methods, reason, deadlineAt });
     this.metrics.challengesIssued += 1;
-    const verifiers = await this.discover(claim.body.domain, verifierLimit);
+    const verifiers = await this.discover(claim.body.domain, verifierLimit, authorityRegistry, now);
     const assignments = await Promise.all(verifiers.map(async (verifier) => {
       const assigned = await this.node.need(verifier.requestCapability, { claim, challenge }, {
         activeTrust: true,
