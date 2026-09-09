@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { closeSync, fsyncSync, mkdirSync, openSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { canonicalize } from '../protocol/index.js';
 
 const LEGACY_SNAPSHOT_KEYS = Object.freeze([
   'accountTenant',
@@ -23,6 +24,7 @@ const FILES = Object.freeze({
   trustAuthority: 'trust-authority.json',
   trustAuthorityAnchor: 'trust-authority.anchor.json'
 });
+const TRUST_REVOCATION_KINDS = new Set(['authority-root', 'authority-key', 'authority-certificate']);
 
 function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -55,6 +57,61 @@ function validateBaseSnapshot(snapshot, keys) {
   return snapshot;
 }
 
+function revocationDigest(value) {
+  return `sha256:${createHash('sha256').update(canonicalize(value)).digest('hex')}`;
+}
+
+function revocationEventId(event) {
+  const { eventId: _eventId, eventHash: _eventHash, ...body } = event;
+  return `truyn:revocation:${revocationDigest(body).slice('sha256:'.length)}`;
+}
+
+function revocationEventHash(event) {
+  const { eventHash: _eventHash, ...body } = event;
+  return revocationDigest(body);
+}
+
+function mergeBootstrapTrustRevocations(legacyState, bootstrapState) {
+  const merged = structuredClone(legacyState);
+  if (!isObject(merged) || !isObject(bootstrapState)) throw new Error('production authority revocation snapshot is invalid');
+  if (!Array.isArray(merged.events) || !Array.isArray(bootstrapState.events)) throw new Error('production authority revocation event log is invalid');
+  if (!isObject(merged.revocations) || !isObject(bootstrapState.revocations)) throw new Error('production authority revocation map is invalid');
+  if (!isObject(merged.kindEpochs)) throw new Error('production authority revocation epochs are invalid');
+  if (!Number.isSafeInteger(merged.sequence) || merged.sequence < 0 || merged.authorityEpoch !== merged.sequence || typeof merged.headHash !== 'string' || !merged.headHash) {
+    throw new Error('production authority revocation head is invalid');
+  }
+
+  let imported = 0;
+  for (const incoming of bootstrapState.events) {
+    if (!TRUST_REVOCATION_KINDS.has(incoming?.targetKind)) continue;
+    const key = `${incoming.targetKind}:${incoming.targetId}`;
+    if (merged.revocations[key]) continue;
+    const sourceRecord = bootstrapState.revocations[key];
+    if (!sourceRecord || sourceRecord.status !== 'revoked' || sourceRecord.eventId !== incoming.eventId) {
+      throw new Error('production authority bootstrap trust revocation is invalid');
+    }
+
+    const event = structuredClone(incoming);
+    delete event.eventId;
+    delete event.eventHash;
+    event.sequence = merged.sequence + 1;
+    event.authorityEpoch = event.sequence;
+    event.previousHash = merged.headHash;
+    event.eventId = revocationEventId(event);
+    event.eventHash = revocationEventHash(event);
+
+    merged.events.push(event);
+    merged.sequence = event.sequence;
+    merged.authorityEpoch = event.authorityEpoch;
+    merged.headHash = event.eventHash;
+    merged.kindEpochs[event.kind] = (Number.isSafeInteger(merged.kindEpochs[event.kind]) ? merged.kindEpochs[event.kind] : 0) + 1;
+    merged.revocations[key] = { ...structuredClone(sourceRecord), eventId: event.eventId };
+    imported += 1;
+  }
+  if (imported > 0) merged.revision += 1;
+  return merged;
+}
+
 export function isLegacyProductionControlPlaneSnapshot(snapshot) {
   if (!isObject(snapshot)) return false;
   if (isObject(snapshot.trustAuthority) || isObject(snapshot.trustAuthorityAnchor)) return false;
@@ -85,6 +142,7 @@ export function migrateProductionControlPlaneSnapshot({ snapshot, trustBootstrap
   validateProductionControlPlaneSnapshot(trustBootstrap);
   const migrated = {
     ...structuredClone(snapshot),
+    revocations: mergeBootstrapTrustRevocations(snapshot.revocations, trustBootstrap.revocations),
     trustAuthority: structuredClone(trustBootstrap.trustAuthority),
     trustAuthorityAnchor: structuredClone(trustBootstrap.trustAuthorityAnchor)
   };
