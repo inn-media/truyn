@@ -1,3 +1,4 @@
+import { verifyClaim } from '../claims/index.js';
 import { assessActiveTrust } from '../trust/lifecycle.js';
 
 export const OPERATIONAL_REVOCATION_KINDS = Object.freeze([
@@ -160,10 +161,6 @@ export function createRevocationDecisionCache({ revocationAuthority, onInvalidat
   let invalidations = 0;
 
   const unsubscribe = revocationAuthority.subscribe((event, context = {}) => {
-    // Authorization decisions may depend on several revocation classes at once
-    // (membership + provider + provider-grant, for example). A single-kind cache
-    // epoch is therefore insufficient. Any terminal revocation advances the
-    // global authority epoch and invalidates every cached authorization.
     entries.clear();
     invalidations += 1;
     if (typeof onInvalidate === 'function') onInvalidate({ event, context, invalidations });
@@ -236,15 +233,24 @@ export function createBoundedRevocationReplication({ sourceAuthority, replicas =
     const replica = replicaMap.get(id);
     if (!replica) throw new Error(`unknown revocation replica: ${id}`);
     if (partitioned.has(id)) return { replicaId: id, partitioned: true, applied: 0, sequence: replica.head().sequence };
-    const cursor = replica.head().sequence;
-    const events = sourceAuthority.exportEvents({ afterSequence: cursor });
-    if (events.length === 0) return { replicaId: id, partitioned: false, applied: 0, sequence: cursor };
-    const result = replica.applyReplicatedEvents(events);
-    for (const event of result.appliedEvents) {
-      const timing = timingFor(id, event);
-      timing.replicaAppliedAt = result.appliedAt;
+
+    let cursor = replica.head().sequence;
+    let headHash = replica.head().headHash;
+    let applied = 0;
+    while (true) {
+      const events = sourceAuthority.exportEvents({ afterSequence: cursor, limit: 1_000 });
+      if (events.length === 0) break;
+      const result = replica.applyReplicatedEvents(events);
+      if (result.sequence <= cursor && result.applied === 0) throw new Error('revocation_replica_no_progress');
+      for (const event of result.appliedEvents) {
+        const timing = timingFor(id, event);
+        timing.replicaAppliedAt = result.appliedAt;
+      }
+      applied += result.applied;
+      cursor = result.sequence;
+      headHash = result.headHash;
     }
-    return { replicaId: id, partitioned: false, applied: result.applied, sequence: result.sequence, headHash: result.headHash };
+    return { replicaId: id, partitioned: false, applied, sequence: cursor, headHash };
   }
 
   function replicateAll() {
@@ -267,7 +273,7 @@ export function createBoundedRevocationReplication({ sourceAuthority, replicas =
 
   function noteCacheInvalidated(replicaId, eventId, atMs = nowMs()) {
     const id = requiredString(replicaId, 'revocation replica id');
-    const event = sourceAuthority.exportEvents({ afterSequence: 0 }).find((candidate) => candidate.eventId === eventId);
+    const event = sourceAuthority.exportEvents({ afterSequence: 0, limit: 10_000 }).find((candidate) => candidate.eventId === eventId);
     if (!event) throw new Error(`unknown revocation event: ${eventId}`);
     const timing = timingFor(id, event);
     if (!timing.cacheInvalidatedAt) timing.cacheInvalidatedAt = new Date(atMs).toISOString();
@@ -276,7 +282,7 @@ export function createBoundedRevocationReplication({ sourceAuthority, replicas =
 
   function markDenied(replicaId, eventId, atMs = nowMs()) {
     const id = requiredString(replicaId, 'revocation replica id');
-    const event = sourceAuthority.exportEvents({ afterSequence: 0 }).find((candidate) => candidate.eventId === eventId);
+    const event = sourceAuthority.exportEvents({ afterSequence: 0, limit: 10_000 }).find((candidate) => candidate.eventId === eventId);
     if (!event) throw new Error(`unknown revocation event: ${eventId}`);
     const timing = timingFor(id, event);
     if (!timing.firstDeniedAt) timing.firstDeniedAt = new Date(atMs).toISOString();
@@ -321,6 +327,8 @@ export function assessActiveTrustWithOperationalRevocation({ revocationAuthority
 
   const claim = input.claim;
   if (claim?.claimId && revocationAuthority.isRevoked('trust-evidence', claim.claimId)) {
+    const verification = verifyClaim(claim);
+    if (!verification.ok) throw new Error(`invalid claim: ${verification.reason}`);
     const epoch = revocationAuthority.epochFor('trust-evidence');
     return {
       protocol: 'truyn-active-trust-assessment-v1',
