@@ -1,0 +1,253 @@
+name: Production Trace Correlation
+
+on:
+  pull_request:
+    paths:
+      - 'runtime/trace-export-canary.js'
+      - 'operations/production-trace-correlation.json'
+      - '.github/workflows/production-trace-correlation.yml'
+      - 'tests/production-trace-correlation.test.js'
+  push:
+    branches: [main]
+    paths:
+      - 'runtime/trace-export-canary.js'
+      - 'operations/production-trace-correlation.json'
+      - '.github/workflows/production-trace-correlation.yml'
+      - 'tests/production-trace-correlation.test.js'
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate Sprint 11 runtime canary syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check runtime/trace-export-canary.js
+      - name: Validate Sprint 11 correlation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema == "truyn.production-trace-correlation/v1" and
+            .correlationId == "prod-trace-correlation-01" and
+            .deploymentId == "dc4518de-d1bf-4fce-b351-e43d7c152999" and
+            .environmentClass == "production" and
+            .requestClass == "signed-synthetic-need-result" and
+            .path == ["NEED", "provider.execute", "RESULT"] and
+            .fields.traceId.required == true and
+            .fields.requestId.required == true and
+            .fields.needId.required == true and
+            .fields.resultId.required == true and
+            .invariants.oneTrace == true and
+            .invariants.requestIdEqualsNeedId == true and
+            .invariants.signedNeed == true and
+            .invariants.signedResult == true and
+            .invariants.providerSpan == "truyn.provider.execute" and
+            .invariants.correlationSpan == "truyn.trace.correlation.synthetic" and
+            .invariants.exactTraceReadBackRequired == true and
+            .invariants.sourceShaBindingRequired == true and
+            .invariants.publicEndpoint == false
+          ' operations/production-trace-correlation.json >/dev/null
+
+  prove:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Guard exact current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::Invalid push source SHA.'; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || { echo '::error::Checkout is not the push source SHA.'; exit 1; }
+          git fetch --no-tags --depth=1 origin main
+          [[ "$(git rev-parse FETCH_HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::main moved before Sprint 11 proof; exact-main correlation evidence is invalid.'
+            exit 1
+          }
+
+      - name: Require successful exact-SHA Production Trace Backend
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          accepted=false
+          for attempt in $(seq 1 240); do
+            runs="$(gh api --method GET \
+              -f branch=main \
+              -f event=push \
+              -f per_page=30 \
+              "/repos/${GITHUB_REPOSITORY}/actions/workflows/production-trace-backend.yml/runs")"
+            exact="$(jq -c --arg sha "$GITHUB_SHA" '[.workflow_runs[] | select(.head_sha == $sha)] | sort_by(.created_at) | last // empty' <<<"$runs")"
+            if [[ -n "$exact" ]]; then
+              status="$(jq -r '.status' <<<"$exact")"
+              conclusion="$(jq -r '.conclusion // ""' <<<"$exact")"
+              if [[ "$status" == completed ]]; then
+                [[ "$conclusion" == success ]] || {
+                  echo '::error::Exact-SHA Production Trace Backend did not succeed; Sprint 11 cannot consume its deployment.'
+                  exit 1
+                }
+                accepted=true
+                break
+              fi
+            fi
+            sleep 10
+          done
+          [[ "$accepted" == true ]] || {
+            echo '::error::Timed out waiting for successful exact-SHA Production Trace Backend.'
+            exit 1
+          }
+
+          git fetch --no-tags --depth=1 origin main
+          [[ "$(git rev-parse FETCH_HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::main moved while waiting for the trace backend; Sprint 11 evidence is invalid.'
+            exit 1
+          }
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Resolve exact-main private trace runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+          trace_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:tempo" | sha256sum | cut -c1-10)"
+          trace_app="truyn-traces-${trace_suffix}"
+          printf '::add-mask::%s\n' "$trace_app"
+
+          app_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$trace_app" --only-show-errors -o json)"
+          jq -e --arg sourceSha "$GITHUB_SHA" '
+            .properties.provisioningState == "Succeeded" and
+            .properties.configuration.ingress.external == false and
+            .properties.configuration.ingress.targetPort == 4318 and
+            any(.properties.template.containers[];
+              .name == "runtime-trace-canary" and
+              (.image | endswith("/truyn-runtime:" + $sourceSha)) and
+              any(.env[]?; .name == "TRUYN_VERSION" and .value == $sourceSha) and
+              any(.env[]?; .name == "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" and .value == "http://127.0.0.1:4318/v1/traces")
+            )
+          ' <<<"$app_json" >/dev/null
+
+          trace_region="$(jq -r '.location' <<<"$app_json")"
+          [[ -n "$trace_region" && "$trace_region" != null ]] || { echo '::error::Trace runtime region is unavailable.'; exit 1; }
+          opaque_region="region-$(printf '%s' "${DEPLOYMENT_ID}:${trace_region}" | sha256sum | cut -c1-8)"
+          printf 'TRACE_APP=%s\n' "$trace_app" >> "$GITHUB_ENV"
+          printf 'TRACE_OPAQUE_REGION=%s\n' "$opaque_region" >> "$GITHUB_ENV"
+
+      - name: Prove one end-to-end correlated synthetic request
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker='TRUYN_TRACE_CORRELATION_PASS path=NEED-provider-RESULT fields=traceId,requestId,needId,resultId source=exact-main'
+          observed=false
+          for attempt in $(seq 1 120); do
+            logs="$(az containerapp logs show \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$TRACE_APP" \
+              --container runtime-trace-canary \
+              --type console \
+              --tail 250 \
+              --follow false \
+              --format text \
+              --only-show-errors 2>/dev/null || true)"
+            ids_line="$(grep -F 'TRUYN_TRACE_CORRELATION_IDS ' <<<"$logs" | tail -n 1 || true)"
+            if grep -Fq "$marker" <<<"$logs" && [[ -n "$ids_line" ]]; then
+              CORRELATION_IDS_LINE="$ids_line" EXPECTED_SOURCE_SHA="$GITHUB_SHA" python3 - <<'PY'
+          import os
+          import re
+
+          line = os.environ['CORRELATION_IDS_LINE']
+          expected_source_sha = os.environ['EXPECTED_SOURCE_SHA']
+          pairs = dict(re.findall(r'\b(traceId|requestId|needId|resultId|sourceSha)=([^\s]+)', line))
+          required = {'traceId', 'requestId', 'needId', 'resultId', 'sourceSha'}
+          if set(pairs) != required:
+              raise SystemExit('correlation field set is incomplete')
+          if re.fullmatch(r'[0-9a-f]{32}', pairs['traceId']) is None:
+              raise SystemExit('traceId is not 32 lowercase hex characters')
+          if pairs['sourceSha'] != expected_source_sha:
+              raise SystemExit('correlation proof is not bound to exact source SHA')
+          if not pairs['requestId'] or pairs['requestId'] != pairs['needId']:
+              raise SystemExit('requestId/needId correlation is invalid')
+          if not pairs['resultId'] or pairs['resultId'] == pairs['requestId']:
+              raise SystemExit('resultId must be the distinct signed RESULT envelope id')
+          PY
+              observed=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$observed" == true ]] || {
+            echo '::error::Sprint 11 did not prove one exact-main NEED -> provider -> RESULT trace with all correlation fields.'
+            exit 1
+          }
+
+      - name: Emit sanitized Sprint 11 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg deploymentId "$DEPLOYMENT_ID" \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg region "$TRACE_OPAQUE_REGION" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              schema: "truyn.production-trace-correlation-evidence/v1",
+              deploymentId: $deploymentId,
+              component: "trace-correlation",
+              requestClass: "signed-synthetic-need-result",
+              path: ["NEED", "provider.execute", "RESULT"],
+              correlationFields: ["traceId", "requestId", "needId", "resultId"],
+              oneTraceObserved: true,
+              traceIdObserved: true,
+              requestIdObserved: true,
+              needIdObserved: true,
+              resultIdObserved: true,
+              requestIdEqualsNeedId: true,
+              signedNeedObserved: true,
+              signedResultObserved: true,
+              providerSpanObserved: true,
+              exactTraceReadBackObserved: true,
+              publicEndpoint: false,
+              sourceSha: $sourceSha,
+              exactMain: true,
+              region: $region,
+              generatedAt: $generatedAt,
+              status: "PASS"
+            }' > production-trace-correlation-evidence.json
+
+      - name: Upload sanitized trace correlation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-trace-correlation-evidence
+          path: production-trace-correlation-evidence.json
+          if-no-files-found: error
+          retention-days: 30
