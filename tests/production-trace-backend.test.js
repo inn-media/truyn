@@ -57,16 +57,22 @@ test('production trace export contract still binds exact-main provider runtime t
   assert.equal(contract.acceptance.exactTraceReadBackRequired, true);
 });
 
-test('Tempo image pins 30-day normal and 90-day incident retention', async () => {
+test('Tempo 3 image pins 30-day normal and 90-day incident retention with mandatory config verification', async () => {
   const [dockerfile, config, overrides] = await Promise.all([
     readFile(DOCKERFILE, 'utf8'),
     readFile(TEMPO_CONFIG, 'utf8'),
     readFile(TEMPO_OVERRIDES, 'utf8')
   ]);
-  assert.match(dockerfile, /^FROM grafana\/tempo:3\.0\.2$/m);
-  assert.match(dockerfile, /COPY overrides\.yaml \/etc\/tempo\/overrides\.yaml/);
+  assert.match(dockerfile, /^FROM grafana\/tempo:3\.0\.2 AS config-verify$/m);
+  assert.match(dockerfile, /RUN \["\/tempo", "-config\.file=\/etc\/tempo\/tempo\.yaml", "-config\.expand-env=true", "-config\.verify"\]/);
+  assert.match(dockerfile, /COPY --from=config-verify \/etc\/tempo\/tempo\.yaml \/etc\/tempo\/tempo\.yaml/);
+  assert.match(dockerfile, /COPY --from=config-verify \/etc\/tempo\/overrides\.yaml \/etc\/tempo\/overrides\.yaml/);
   assert.match(config, /multitenancy_enabled: true/);
-  assert.match(config, /compactor:\n\s+compaction:\n\s+block_retention: 720h/);
+  assert.doesNotMatch(config, /^compactor:/m);
+  assert.match(config, /backend_scheduler:[\s\S]*provider:[\s\S]*retention:[\s\S]*interval: 1h/);
+  assert.match(config, /backend_scheduler:[\s\S]*compaction:[\s\S]*compaction:[\s\S]*block_retention: 720h/);
+  assert.match(config, /backend_worker:[\s\S]*backend_scheduler_addr: "127\.0\.0\.1:9095"/);
+  assert.match(config, /backend_worker:[\s\S]*compaction:[\s\S]*block_retention: 720h/);
   assert.match(config, /per_tenant_override_config: \/etc\/tempo\/overrides\.yaml/);
   assert.match(config, /backend: azure/);
   assert.match(overrides, /normal:[\s\S]*block_retention: 720h/);
