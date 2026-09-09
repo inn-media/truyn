@@ -9,8 +9,10 @@ RUN ["/tempo", "-config.file=/etc/tempo/tempo.yaml", "-config.expand-env=true", 
 
 FROM grafana/tempo:3.0.2
 
-COPY tempo.yaml /etc/tempo/tempo.yaml
-COPY overrides.yaml /etc/tempo/overrides.yaml
+# Copy through the verifier stage so both BuildKit and the ACR legacy builder
+# must execute Tempo's own config validation before producing the runtime image.
+COPY --from=config-verify /etc/tempo/tempo.yaml /etc/tempo/tempo.yaml
+COPY --from=config-verify /etc/tempo/overrides.yaml /etc/tempo/overrides.yaml
 
 ENTRYPOINT ["/tempo"]
 CMD ["-config.file=/etc/tempo/tempo.yaml", "-config.expand-env=true"]
