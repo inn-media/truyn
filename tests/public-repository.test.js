@@ -17,6 +17,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/publish-npm.yml',
   '.github/workflows/publish-python-alpha.yml',
   '.github/workflows/production-dr-foundation.yml',
+  '.github/workflows/production-logs-retention.yml',
   '.github/workflows/production-metrics-backend.yml',
   '.github/workflows/production-metrics-collector.yml',
   '.github/workflows/production-monitor-provider-registration.yml',
@@ -126,7 +127,7 @@ const forbiddenTopologyPatterns = [
   /https?:\/\/[A-Za-z0-9.-]+\.blob\.core\.windows\.net\b/i,
   /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.iam\.gserviceaccount\.com\b/i,
   /\/subscriptions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
-  /\bprojects\/[0-9]{6,}\b/,
+  /\bprojects\/[0-9]{6,}\b/i,
   /\bworkloadIdentityPools\/[A-Za-z0-9._-]+\/providers\/[A-Za-z0-9._-]+\b/
 ];
 
