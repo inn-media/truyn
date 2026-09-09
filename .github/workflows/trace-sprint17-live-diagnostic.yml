@@ -1,0 +1,115 @@
+name: Sprint 17 Trace Live Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/trace-sprint17-live-diagnostic.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'germanywestcentral:francecentral northeurope:swedencentral' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Resolve existing Sprint 17 trace app
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+          selected_prefix=''
+          selected_region=''
+          for pair in $REGION_PAIRS; do
+            [[ "$pair" == *:* ]] || continue
+            primary="${pair%%:*}"
+            secondary="${pair#*:}"
+            pair_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}:${primary}:${secondary}" | sha256sum | cut -c1-10)"
+            prefix="truyn${pair_suffix}"
+            environment="${prefix}-aca-env"
+            if az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --only-show-errors -o none 2>/dev/null; then
+              selected_prefix="$prefix"
+              selected_region="$primary"
+              break
+            fi
+          done
+
+          [[ -n "$selected_prefix" ]] || { echo '::error::No accepted production trace foundation found.'; exit 1; }
+          trace_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:${selected_prefix}:tempo" | sha256sum | cut -c1-10)"
+          app_name="truyn-traces-${trace_suffix}"
+          storage_name="truyntr${trace_suffix}"
+          identity_name="truyn-traces-${trace_suffix}-mi"
+          registry="${selected_prefix}acr"
+
+          identity_client_id="$(az identity show --resource-group "$RESOURCE_GROUP" --name "$identity_name" --query clientId -o tsv --only-show-errors 2>/dev/null || true)"
+          for value in "$selected_prefix" "$app_name" "$storage_name" "$identity_name" "$registry" "$identity_client_id"; do
+            [[ -n "$value" ]] && printf '::add-mask::%s\n' "$value"
+          done
+
+          printf 'TRACE_APP=%s\n' "$app_name" >> "$GITHUB_ENV"
+          printf 'TRACE_REGION=%s\n' "$selected_region" >> "$GITHUB_ENV"
+
+      - name: Inspect active revision state
+        shell: bash
+        run: |
+          set -euo pipefail
+          az containerapp revision list \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$TRACE_APP" \
+            --query "[].{active:properties.active,healthState:properties.healthState,provisioningState:properties.provisioningState,runningState:properties.runningState}" \
+            --only-show-errors -o json
+
+      - name: Dump sanitized acceptance probe logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== acceptance-probe ==='
+          az containerapp logs show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$TRACE_APP" \
+            --container acceptance-probe \
+            --type console --tail 300 --follow false --format text --only-show-errors || true
+
+      - name: Dump sanitized Tempo logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== tempo ==='
+          az containerapp logs show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$TRACE_APP" \
+            --container tempo \
+            --type console --tail 300 --follow false --format text --only-show-errors || true
+
+      - name: Dump sanitized runtime canary logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== runtime-trace-canary ==='
+          az containerapp logs show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$TRACE_APP" \
+            --container runtime-trace-canary \
+            --type console --tail 200 --follow false --format text --only-show-errors || true
