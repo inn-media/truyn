@@ -59,6 +59,7 @@ campaign_required = {
     'healed diagnostic artifact': 'class-d-200-healed-reconvergence.json',
     'healed diagnostic artifact digest': 'class-d-200-healed-reconvergence-digest.txt',
     'peer-record origin capture': 'persisted_peer_state(j,node_id)',
+    'canonical persisted peer state': "path=f'/var/lib/truyn-d1000/node-{global_index}-state.json'",
     'forced target transport reset': "control+'/faults/partition'",
     'healed diagnostic schema v3': "'schema':'truyn.d200.healed-reconvergence.v3'",
     'healed evidence transport schema': "'schema':'truyn.d200.healed-evidence-transport.v1'",
@@ -93,5 +94,21 @@ for forbidden in [
 ]:
     if forbidden in campaign_text:
         raise SystemExit(f'unsafe healed diagnostic marker remained after composition: {forbidden}')
+for forbidden_path in [
+    '/var/lib/truyqn-d1000/',
+    '/etc/truyqn-d1000/',
+    '/opt/truyqn/',
+    '/var/lib/truqyn-d1000/',
+    '/etc/truqyn-d1000/',
+    '/opt/truqyn/',
+    '/var/lib/truin-d1000/',
+    '/etc/truin-d1000/',
+    '/opt/truin/',
+    '/tmp/truyqn-',
+    '/tmp/truqyn-',
+    '/tmp/truin-',
+]:
+    if forbidden_path in campaign_text:
+        raise SystemExit(f'noncanonical D-200 generated campaign path survived composition: {forbidden_path}')
 
 print('TRUYN_D200_COMPOSED_PATCH=PASS order=local-fault-control,failure-evidence,baseline-origin,packet-partition,healed-reconvergence,healed-origin,bounded-evidence-transport,write-retention-window')
