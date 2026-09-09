@@ -300,22 +300,31 @@ test('replicated operational revocation invalidates warm decisions and produces 
     const trustEvidenceIds = new Set();
     const pair = makePair(tt, { trustEvidenceIds });
     const identities = provisionTrust(pair.consumer, pair.now(), { suffix: '-evidence' });
-    const claim = createClaim({ identity: identities.issuer, domain: 'finance.example.com', statement: 'Audited revenue was 10 units.' });
+    const evidenceNow = pair.now().toISOString();
+    const claim = createClaim({ identity: identities.issuer, domain: 'finance.example.com', statement: 'Audited revenue was 10 units.', createdAt: evidenceNow });
     const attestation = createAttestation({
       identity: identities.verifier,
       claim,
       verdict: 'support',
       evidence: [{ kind: 'source', sourceId: 'source:a' }],
-      lineage: { originIds: ['origin:a'], publisherIds: ['publisher:a'], generatorIds: [] }
+      lineage: { originIds: ['origin:a'], publisherIds: ['publisher:a'], generatorIds: [] },
+      createdAt: evidenceNow
     });
     const lineage = createLineageCertificate({
       identity: identities.sourceOwner,
       sourceId: 'source:a',
       lineage: { originIds: ['origin:a'], publisherIds: ['publisher:a'] },
+      issuedAt: evidenceNow,
       expiresAt: identities.expiresAt
     });
     trustEvidenceIds.add(attestation.attestationId);
-    const evaluate = () => pair.consumer.assessTrust({ claim, attestations: [attestation], lineageCertificates: [lineage], policy: { minIndependentSupport: 1 } });
+    const evaluate = () => pair.consumer.assessTrust({
+      claim,
+      attestations: [attestation],
+      lineageCertificates: [lineage],
+      policy: { minIndependentSupport: 1 },
+      now: pair.now().getTime()
+    });
     const cached = wireCache(pair, { kind: 'trust-evidence', targetId: attestation.attestationId, cacheKey: 'trust-evidence', evaluate });
     const before = cached.decide();
     assert.equal(before.decision.activeAttestations, 1);
