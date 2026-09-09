@@ -1,4 +1,4 @@
-name: diag-d200-bc9dc5f0-readiness-nounset-repair
+name: diag-d200-c75e2fc8-canonical-path-repair
 
 on:
   push:
@@ -12,22 +12,22 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d200-bc9dc5f0-readiness-nounset-repair-single-shot
+  group: truyn-d200-c75e2fc8-canonical-path-repair-single-shot
   cancel-in-progress: false
 
 env:
-  TESTED_COMMIT: bc9dc5f04bb8d530105c80dca582e93672cdcd7f
-  TESTED_TREE_SHA: dc1665a8f03ba616c01ae0e220e3241829479741
-  LAUNCH_PARENT: 6d4d701aec7d5f9d6a3e37c7b495873a2dd4718d
-  EXACT_MAIN_CI_RUN: '34271684037'
-  EXACT_MAIN_CODEQL_RUN: '34271680547'
+  TESTED_COMMIT: c75e2fc83da0b7e366d23b9fa1097a1d6b12f6f1
+  TESTED_TREE_SHA: 81b8e18deebcc53b31837165edcd50a233433182
+  LAUNCH_PARENT: c75e2fc83da0b7e366d23b9fa1097a1d6b12f6f1
+  EXACT_MAIN_CI_RUN: '34315740153'
+  EXACT_MAIN_CODEQL_RUN: '34315740037'
   CAMPAIGN_BLOB_SHA: 796d9d00dea3807279d8326de0a916a72b487949
   PROVISION_BLOB_SHA: c1c839943f5e02bdc716691d91226251c8e3ec00
   PREFLIGHT_BLOB_SHA: 4c14355e8c66d1eef8959d6151389f05daaed0a1
   READINESS_WINDOW_BLOB_SHA: 6ddfc11bb03d774fb38d4c265fa90867067e871b
   PEER_LEASE_PATCH_BLOB_SHA: 84b7e0211ec7685eeea96947c550831d2db727eb
-  READINESS_EVIDENCE_PATCH_BLOB_SHA: 98f140a122704f2f1f7f01ec7ba1e4dc902a7bc8
-  READINESS_EVIDENCE_TEST_BLOB_SHA: 634e1bfa28445e358b04eeefb795600a07f61383
+  READINESS_EVIDENCE_PATCH_BLOB_SHA: fd87a7db08c2040dc8df716c230227dba8d043eb
+  READINESS_EVIDENCE_TEST_BLOB_SHA: 7801e85a62fa5478b426d905e409a8062b52c0c1
   BOOTSTRAP_PLANNER_BLOB_SHA: 1dc26bf6cbcdae3b748dcadc6d0728c082240534
   PEER_DISCOVERY_BLOB_SHA: d83b0e6f02f4d6d0ee7a38f633321c75911e5323
   NODE_SERVICE_BLOB_SHA: 3cc7088420dc55e20611351b069cc927433fad8a
@@ -37,7 +37,7 @@ env:
 
 jobs:
   diagnostic-d200:
-    name: Immutable qualified D-200 on bc9dc5f0
+    name: Immutable qualified D-200 on c75e2fc8
     runs-on: ubuntu-22.04
     timeout-minutes: 300
     steps:
@@ -110,7 +110,7 @@ jobs:
           node --test tests/class-d-diagnostic-readiness-evidence.test.js
           bash scripts/class-d-200-preflight-qualification.sh
           git diff --check
-          printf 'tested_commit=%s\ntested_tree_sha=%s\nlauncher_sha=%s\nrun_id=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nacknowledged_write_count_required=100\nacknowledged_write_loss_required=0\nstrict_d1000_acceptance=false\ndiagnostic_focus=readiness-heredoc-nounset-peer-lease-freshness\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$GITHUB_SHA" "$GITHUB_RUN_ID" > class-d-200-diagnostic-input.txt
+          printf 'tested_commit=%s\ntested_tree_sha=%s\nlauncher_sha=%s\nrun_id=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nacknowledged_write_count_required=100\nacknowledged_write_loss_required=0\nstrict_d1000_acceptance=false\ndiagnostic_focus=canonical-generated-paths-readiness-heredoc-nounset-peer-lease-freshness\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$GITHUB_SHA" "$GITHUB_RUN_ID" > class-d-200-diagnostic-input.txt
 
       - name: Build immutable runtime bundle
         id: runtime
@@ -133,9 +133,9 @@ jobs:
 
       - uses: azure/login@v2
         with:
-          client-id: '${{ secrets[format(''AZURE_{0}_ID'',''CLIENT'')] }}'
-          tenant-id: '${{ secrets[format(''AZURE_{0}_ID'',''TENANT'')] }}'
-          subscription-id: '${{ secrets[format(''AZURE_{0}_ID'',''SUBSCRIPTION'')] }}'
+          client-id: '${{ secrets.AZURE_CLIENT_ID }}'
+          tenant-id: '${{ secrets.AZURE_TENANT_ID }}'
+          subscription-id: '${{ secrets.AZURE_SUBSCRIPTION_ID }}'
 
       - name: Select fail-closed 20-VM placement
         shell: bash
@@ -306,7 +306,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d200-bc9dc5f0-${{ github.run_id }}'
+          name: 'truyn-class-d200-c75e2fc8-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
