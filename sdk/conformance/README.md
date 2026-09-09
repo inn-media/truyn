@@ -35,19 +35,9 @@ node sdk/conformance/run-conformance.mjs --language=java --json
 node sdk/conformance/run-conformance.mjs --language=dotnet --json
 ```
 
-It validates:
-
-- fixture-set identity and protocol generation;
-- foundational DTO/source markers;
-- positive/negative foundational fixture coverage and required markers;
-- Agent Descriptor runtime-fixture-set linkage/identity only; this marker runner does not itself execute the Descriptor cryptographic or negotiation vectors;
-- required first-party language coverage: TypeScript, Python, Go, Java and C#/.NET;
-- required source files and language-specific markers;
-- current public-distribution boundary.
+It validates fixture-set identity and protocol generation, foundational DTO/source markers, positive/negative foundational fixture coverage, Agent Descriptor runtime-fixture-set linkage, required first-party language coverage, required source files and language-specific markers, and the current public-distribution boundary.
 
 Descriptor cryptographic/canonicalization/negotiation semantics are exercised by the dedicated reference/runtime tests and by the five-language executable Descriptor happy-path below, not by the marker runner merely loading the fixture extension.
-
-This runner remains deliberately source/fixture oriented.
 
 ## Five-language executable Developer Release gate
 
@@ -57,102 +47,41 @@ This runner remains deliberately source/fixture oriented.
 node sdk/conformance/run-five-language-e2e.mjs
 ```
 
-It starts:
+It starts one real local TRUYN relay, one HTTP Agent Descriptor fixture signed by a real ephemeral TRUYN Ed25519 identity, and an independent provider/requester pair in each required language.
 
-1. one real local TRUYN relay;
-2. one HTTP Agent Descriptor fixture signed by a real ephemeral TRUYN Ed25519 identity;
-3. an independent provider/requester pair in each required language.
+Every language first retrieves the same signed Descriptor and must prove schema/version, expiry, identity binding/signature, `TRUYN/1` protocol overlap and supported interface negotiation. Then each language independently executes register provider + requester → authorized OFFER → NEED → verified provider NEED event → RESULT → verified requester RESULT → second direct NEED → requester-owned signed cancellation.
 
-Every language first retrieves the same signed Descriptor and must prove:
-
-- `schema = truyn.agent-descriptor/v1`;
-- supported descriptor version;
-- valid expiry window;
-- descriptor identity matches the trusted Ed25519 public key-derived TRUYN identity;
-- signature verification over the canonical unsigned Descriptor;
-- `TRUYN/1` protocol overlap;
-- a supported advertised interface can be negotiated.
-
-Then each language independently executes:
-
-```text
-register provider + requester
-        ↓
-authorized OFFER
-        ↓
-NEED
-        ↓
-verified provider NEED event
-        ↓
-RESULT
-        ↓
-verified requester RESULT
-        ↓
-second direct NEED → requester-owned signed cancellation
-```
-
-This is executable network behavior, not DTO/marker parity. The cancellation step exercises a cancellation by the owning requester; dedicated runtime negative tests, not this five-language path alone, prove non-owner rejection and the full late-output/terminal invariants.
+This is executable network behavior, not DTO/marker parity. Dedicated runtime negative tests, not this five-language path alone, prove non-owner rejection and the full late-output/terminal invariants.
 
 ## Canonical signed envelope
 
-The current protocol envelope is produced by the shared protocol implementation and includes:
-
-```text
-protocol · type · id · from · to · createdAt · publicKey · payload · signature
-```
-
-`protocol` is currently `TRUYN/1`. SDKs must not fork canonical signing/correlation semantics.
+The current protocol envelope is produced by the shared protocol implementation and includes `protocol · type · id · from · to · createdAt · publicKey · payload · signature`. `protocol` is currently `TRUYN/1`. SDKs must not fork canonical signing/correlation semantics.
 
 ## Direct cancellation and PARTIAL boundary
 
-Requester-owned direct NEED cancellation is part of the Developer Release runtime contract and is exercised by an owning requester in the five-language E2E path. Chain-stage cancellation is not supported.
-
-Signed generic `PARTIAL` streaming is also implemented at the runtime/protocol surface with strict request/provider correlation, zero-based monotonic sequence, identical-retry idempotency, bounded backpressure and terminal ordering.
-
-`PARTIAL` is intentionally generic. This conformance contract does not invent a universal tokenizer, token-ID vocabulary or provider-specific token representation.
+Requester-owned direct NEED cancellation is part of the Developer Release runtime contract and is exercised by an owning requester in the five-language E2E path. Chain-stage cancellation is not supported. Signed generic `PARTIAL` streaming is also implemented with strict correlation, monotonic sequence, identical-retry idempotency, bounded backpressure and terminal ordering. `PARTIAL` intentionally does not define a universal tokenizer or token-ID vocabulary.
 
 ## Agent Descriptor signature contract
 
-For the current identity-key path:
-
-1. remove the top-level signature field(s) from the signed payload;
-2. canonicalize the remaining descriptor with the TRUYN canonicalization primitive;
-3. encode the canonical string as UTF-8;
-4. verify Ed25519 signature material;
-5. resolve/trust the participant public key outside the descriptor and require the derived node identity to match `descriptor.identity`;
-6. fail closed on tampering, wrong identity, unsupported required version/interface or expiry.
-
-A descriptor-provided key is never trusted as its own root of authenticity. Delegated Descriptor-signing keys remain outside the current alpha contract.
+For the current identity-key path: remove top-level signature fields; canonicalize the unsigned descriptor; encode as UTF-8; verify Ed25519 signature material; resolve/trust the participant public key outside the descriptor and require the derived node identity to match `descriptor.identity`; fail closed on tampering, wrong identity, unsupported required version/interface or expiry. A descriptor-provided key is never trusted as its own root of authenticity.
 
 ## Discovery and privacy boundary
 
-Provider visibility is decided by TRUYN policy before SDK data is returned. A first-party SDK MUST NOT reconstruct hidden provider state, and a public Agent Descriptor MUST NOT become an authorization bypass.
-
-The Developer Release serving path is disabled by default and advertises only the explicitly configured public subset of actual runtime capabilities.
+Provider visibility is decided by TRUYN policy before SDK data is returned. A first-party SDK MUST NOT reconstruct hidden provider state, and a public Agent Descriptor MUST NOT become an authorization bypass. The Developer Release serving path is disabled by default and advertises only the explicitly configured public subset of actual runtime capabilities.
 
 ## Version and interface negotiation
 
-Unsupported required Descriptor/protocol/interface versions fail explicitly. Clients do not guess or silently promote unknown semantics.
-
-Current v1 valid-fixture selection remains deterministic and bounded by the advertised/client-supported sets. Expired Descriptors fail by default unless an explicitly supported cache/offline policy says otherwise. Complete malformed/missing `interfaces[].endpoint` rejection and typed endpoint mapping parity across all five clients remains open and is not implied by the happy-path E2E.
+Unsupported required Descriptor/protocol/interface versions fail explicitly. Clients do not guess or silently promote unknown semantics. Current v1 valid-fixture selection remains deterministic and bounded by the advertised/client-supported sets. Expired Descriptors fail by default unless an explicitly supported cache/offline policy says otherwise. Complete malformed/missing `interfaces[].endpoint` rejection and typed endpoint mapping parity across all five clients remains open and is not implied by the happy-path E2E.
 
 ## Package and release conformance
 
 Ordinary CI builds verified distributions for npm, Python, Go, Maven and NuGet and records a source-SHA marker, coordinate/version, byte size and SHA-256 digest in the release manifest. On pull-request CI, the checkout is GitHub's synthetic merge ref while the configured `TRUYN_RELEASE_SOURCE_SHA` identifies the PR head, so the current manifest does not by itself prove exact checkout-tree provenance for PR-built bytes.
 
-Package build/digest provenance is not the same as exact release-source binding or public registry publication. `publicDistribution=false` remains a truthful boundary until native registry publication is actually observed, and exact checked-out release source/tree binding remains a publication gate.
+Package build/digest provenance is not the same as exact release-source binding or public registry publication. The machine-readable `languages.json` now distinguishes observed public prerelease distribution from protocol/package stability: npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` have accepted immutable public-release evidence and therefore advertise `publicDistribution=true`; Java/Maven Central and .NET/NuGet remain `false` until their real public publication and independent verification gates are accepted. Exact checked-out release source/tree binding remains required for any future publication acceptance.
 
 ## Golden conformance rules
 
-`v1/golden-fixtures.json` plus the Agent Descriptor runtime fixture extension form one logical `truyn.sdk-conformance/v1` dataset.
-
-- foundational DTOs retain positive and negative cases;
-- private capability/provider non-disclosure and version mismatch remain shared behavior rules;
-- Descriptor runtime cases include signature verification, canonical bytes, tamper/wrong-key rejection, expiry, malformed input and compatibility negotiation;
-- error normalization remains an SDK projection and cannot alter wire responses;
-- all required languages must converge on the same semantic/security outcome.
-
-The dataset containing those cases is broader than what `run-conformance.mjs` executes directly; dedicated tests/reference verifier and the five-language runtime path provide the executable evidence for the applicable Descriptor semantics.
+`v1/golden-fixtures.json` plus the Agent Descriptor runtime fixture extension form one logical `truyn.sdk-conformance/v1` dataset. Foundational DTOs retain positive and negative cases; private capability/provider non-disclosure and version mismatch remain shared behavior rules; Descriptor runtime cases include signature verification, canonical bytes, tamper/wrong-key rejection, expiry, malformed input and compatibility negotiation; error normalization remains an SDK projection and cannot alter wire responses; all required languages must converge on the same semantic/security outcome.
 
 ## Key files
 

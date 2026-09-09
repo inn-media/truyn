@@ -9,7 +9,7 @@ const runner = new URL('../sdk/conformance/run-conformance.mjs', import.meta.url
 const manifestUrl = new URL('../sdk/conformance/languages.json', import.meta.url);
 
 const requiredLanguages = ['typescript', 'python', 'go', 'java', 'dotnet'];
-const developerReleaseLanguages = requiredLanguages;
+const acceptedPublicDistributionLanguages = ['typescript', 'python', 'go'];
 
 async function runConformance(args = []) {
   const { stdout } = await execFileAsync(process.execPath, [runner.pathname, '--json', ...args], {
@@ -22,13 +22,17 @@ test('Developer Release conformance matrix covers all required first-party SDK l
   const manifest = JSON.parse(await readFile(manifestUrl, 'utf8'));
   assert.deepEqual(manifest.requiredFirstPartyLanguages, requiredLanguages);
   assert.deepEqual(manifest.languages.map((language) => language.id), requiredLanguages);
+  assert.deepEqual(manifest.acceptedPublicDistributionLanguages, acceptedPublicDistributionLanguages);
   assert.equal(manifest.stableSdkApiVersion, '1');
   assert.deepEqual(manifest.dx3PortablePayloadKinds, ['object', 'artifact']);
   assert.equal(manifest.developerReleaseExecutableConformance, 'sdk/conformance/run-five-language-e2e.mjs');
-  for (const language of developerReleaseLanguages) {
+
+  for (const language of requiredLanguages) {
     const entry = manifest.languages.find((candidate) => candidate.id === language);
     assert.equal(entry.status, 'implemented-developer-release-client');
-    assert.equal(entry.publicDistribution, false, `${language} must remain non-public until registry bootstrap completes`);
+    const isAcceptedPublicPrerelease = acceptedPublicDistributionLanguages.includes(language);
+    assert.equal(entry.publicDistribution, isAcceptedPublicPrerelease, `${language} public distribution state must match registry acceptance`);
+    assert.equal(entry.publicDistributionChannel ?? null, isAcceptedPublicPrerelease ? 'pre-release' : null);
   }
 });
 
@@ -43,10 +47,15 @@ test('unified SDK conformance runner validates every Developer Release SDK targe
     assert.ok(language.files > 0, `${language.id} must declare source files`);
     assert.ok(language.markers > 0, `${language.id} must declare conformance markers`);
   }
+  assert.deepEqual(
+    result.languages.filter((language) => language.publicDistribution).map((language) => language.id),
+    acceptedPublicDistributionLanguages
+  );
+  assert.ok(result.languages.filter((language) => language.publicDistribution).every((language) => language.publicDistributionChannel === 'pre-release'));
 });
 
 test('unified SDK conformance runner supports Developer Release language-scoped validation', async () => {
-  for (const language of developerReleaseLanguages) {
+  for (const language of requiredLanguages) {
     const result = await runConformance([`--language=${language}`]);
     assert.equal(result.ok, true);
     assert.deepEqual(result.languages.map((entry) => entry.id), [language]);
