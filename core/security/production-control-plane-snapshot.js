@@ -2,13 +2,23 @@ import { createHash } from 'node:crypto';
 import { closeSync, fsyncSync, mkdirSync, openSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const SNAPSHOT_KEYS = Object.freeze(['accountTenant', 'revocations', 'grants', 'entitlements', 'accounting']);
+const SNAPSHOT_KEYS = Object.freeze([
+  'accountTenant',
+  'revocations',
+  'grants',
+  'entitlements',
+  'accounting',
+  'trustAuthority',
+  'trustAuthorityAnchor'
+]);
 const FILES = Object.freeze({
   accountTenant: 'account-tenant.json',
   revocations: 'revocations.json',
   grants: 'provider-grants.json',
   entitlements: 'entitlements.json',
-  accounting: 'accounting.json'
+  accounting: 'accounting.json',
+  trustAuthority: 'trust-authority.json',
+  trustAuthorityAnchor: 'trust-authority.anchor.json'
 });
 
 function isObject(value) {
@@ -34,6 +44,7 @@ export function validateProductionControlPlaneSnapshot(snapshot) {
     if (!Array.isArray(accountTenant.accountTenant[key])) throw new Error(`production authority accountTenant.${key} must be an array`);
   }
   for (const [key, state] of Object.entries(snapshot)) {
+    if (key === 'operationalRevocationHead') continue;
     if (!Number.isSafeInteger(state.revision) || state.revision < 0) {
       throw new Error(`production authority ${key} revision must be a non-negative integer`);
     }
