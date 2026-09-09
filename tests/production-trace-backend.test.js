@@ -85,14 +85,22 @@ test('trace backend Bicep keeps storage private and injects OTLP trace export in
   assert.doesNotMatch(bicep, /storage_account_key/i);
 });
 
-test('production runtime canary emits the real provider execution span and exposes only loopback proof', async () => {
+test('production runtime canary waits for Tempo before SDK start, emits real provider span, and exposes only loopback proof', async () => {
   const canary = await readFile(CANARY, 'utf8');
-  assert.match(canary, /startProductionObservability/);
+  assert.match(canary, /http:\/\/127\.0\.0\.1:3200\/ready/);
+  assert.match(canary, /async function waitForTempoReady\(\)/);
+  assert.match(canary, /response\.status === 200/);
+  assert.match(canary, /Tempo readiness timed out before production runtime trace export/);
+  const readyIndex = canary.indexOf('await waitForTempoReady();');
+  const sdkIndex = canary.indexOf('await startProductionObservability({ role })');
+  assert.ok(readyIndex >= 0, 'Tempo readiness gate must execute');
+  assert.ok(sdkIndex > readyIndex, 'OpenTelemetry SDK must start only after Tempo readiness');
   assert.match(canary, /getObservabilityPlane/);
   assert.match(canary, /wrapProviderAdapter/);
   assert.match(canary, /trace\.getActiveSpan\(\)\?\.spanContext\(\)\?\.traceId/);
   assert.match(canary, /OTEL_EXPORTER_OTLP_TRACES_ENDPOINT/);
   assert.match(canary, /http:\/\/127\.0\.0\.1:4318\/v1\/traces/);
+  assert.match(canary, /await telemetry\.shutdown\(\)/);
   assert.match(canary, /span: 'truyn\.provider\.execute'/);
   assert.match(canary, /server\.listen\(9466, '127\.0\.0\.1'/);
   assert.doesNotMatch(canary, /0\.0\.0\.0.*9466/);
