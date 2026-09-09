@@ -1,5 +1,6 @@
 import { A2A_PROTOCOL_VERSION } from '../a2a/mapping.js';
 import { MCP_CURRENT_PROTOCOL_VERSION } from '../mcp/client.js';
+import { MCP_KNOWN_EXTENSION_IDS } from '../mcp/capabilities.js';
 import { MCP_LEGACY_VERSIONS, MCP_MODERN_VERSION, MCP_SUPPORTED_VERSIONS } from '../mcp/server.js';
 
 export const A2A_MCP_COMPATIBILITY_GENERATION = 'a2a-mcp-pre-v1/g1';
@@ -84,10 +85,49 @@ export const A2A_MCP_COMPATIBILITY = Object.freeze({
       'bounded resource subscriptions/listen invalidation -> explicit reread',
       'bounded prompt import -> immutable TRUYN OBJECT snapshot',
       'bounded promptsListChanged invalidation -> explicit list/get refresh',
-      'explicit-only prompt MRTR continuation'
+      'explicit-only prompt MRTR continuation',
+      'bounded MCP Apps UI extension import'
     ]),
     importKnownSemantics: MCP_IMPORT_SEMANTICS,
-    facadeKnownSemantics: MCP_FACADE_SEMANTICS
+    facadeKnownSemantics: MCP_FACADE_SEMANTICS,
+    importKnownExtensions: MCP_KNOWN_EXTENSION_IDS,
+    facadeKnownExtensions: Object.freeze([]),
+    apps: Object.freeze({
+      status: 'bounded-pre-v1-import-extension',
+      direction: 'import-only',
+      stableV1Declared: false,
+      transportProfile: MCP_CURRENT_PROTOCOL_VERSION,
+      extensionId: MCP_KNOWN_EXTENSION_IDS[0],
+      upstreamSource: Object.freeze({
+        package: '@modelcontextprotocol/ext-apps',
+        version: '2.0.0',
+        commit: '4cd427394755ee0964172df5760852aa053a5c99'
+      }),
+      toolMetadata: Object.freeze({
+        resourceUriScheme: 'ui://',
+        maxResourceUriBytes: 2048,
+        maxUiMetadataBytes: 4096,
+        visibility: Object.freeze(['model', 'app'])
+      }),
+      resource: Object.freeze({
+        mimeType: 'text/html;profile=mcp-app',
+        maxBytes: 512 * 1024,
+        maxContents: 32,
+        resolution: 'explicit-same-provider-only',
+        implicitArbitraryUrlFetch: false
+      }),
+      trustBoundary: Object.freeze({
+        classification: 'untrusted-presentation-data',
+        authority: Object.freeze({
+          authorization: false,
+          providerSelection: false,
+          billing: false,
+          entitlement: false,
+          execution: false
+        })
+      }),
+      hostLifecycle: 'not-promised'
+    })
   }),
   artifact: Object.freeze({
     profile: 'referenced-artifact-integrity-v1',
@@ -101,7 +141,8 @@ export const A2A_MCP_COMPATIBILITY = Object.freeze({
     'arbitrary-mcp-prompts',
     'mcp-prompt-facade-publication',
     'mcp-prompt-completion',
-    'mcp-apps-extensions',
+    'mcp-apps-host-lifecycle',
+    'mcp-apps-browser-sandbox-csp-enforcement',
     'full-a2a-streaming-semantic-parity',
     'full-a2a-push-semantic-parity'
   ])
@@ -127,20 +168,23 @@ function profileFor(protocol, direction) {
   if (protocol === 'a2a') {
     return {
       supported: A2A_MCP_COMPATIBILITY.a2a.supportedProfiles,
-      known: A2A_MCP_COMPATIBILITY.a2a.knownSemantics
+      known: A2A_MCP_COMPATIBILITY.a2a.knownSemantics,
+      knownExtensions: []
     };
   }
   if (protocol === 'mcp') {
     if (direction === 'import') {
       return {
         supported: A2A_MCP_COMPATIBILITY.mcp.importSupportedProfiles,
-        known: A2A_MCP_COMPATIBILITY.mcp.importKnownSemantics
+        known: A2A_MCP_COMPATIBILITY.mcp.importKnownSemantics,
+        knownExtensions: A2A_MCP_COMPATIBILITY.mcp.importKnownExtensions
       };
     }
     if (direction === 'facade') {
       return {
         supported: A2A_MCP_COMPATIBILITY.mcp.facadeSupportedProfiles,
-        known: A2A_MCP_COMPATIBILITY.mcp.facadeKnownSemantics
+        known: A2A_MCP_COMPATIBILITY.mcp.facadeKnownSemantics,
+        knownExtensions: A2A_MCP_COMPATIBILITY.mcp.facadeKnownExtensions
       };
     }
     throw compatibilityError('INTEROP_DIRECTION_UNSUPPORTED', `Unsupported MCP compatibility direction: ${direction}`, { protocol, direction });
@@ -153,7 +197,9 @@ export function negotiateA2aMcpCompatibility({
   direction = protocol === 'mcp' ? 'import' : 'bidirectional',
   version,
   requiredSemantics = [],
-  optionalSemantics = []
+  optionalSemantics = [],
+  requiredExtensions = [],
+  optionalExtensions = []
 } = {}) {
   const normalizedProtocol = String(protocol || '').trim().toLowerCase();
   const normalizedVersion = String(version || '').trim();
@@ -185,6 +231,18 @@ export function negotiateA2aMcpCompatibility({
     );
   }
 
+  const normalizedRequiredExtensions = normalizeSemantics(requiredExtensions, 'requiredExtensions');
+  const normalizedOptionalExtensions = normalizeSemantics(optionalExtensions, 'optionalExtensions');
+  const knownExtensions = new Set(profile.knownExtensions || []);
+  const unsupportedRequiredExtensions = normalizedRequiredExtensions.filter((extensionId) => !knownExtensions.has(extensionId));
+  if (unsupportedRequiredExtensions.length > 0) {
+    throw compatibilityError(
+      'INTEROP_REQUIRED_EXTENSION_UNSUPPORTED',
+      `Unsupported required ${normalizedProtocol.toUpperCase()} extensions: ${unsupportedRequiredExtensions.join(', ')}`,
+      { protocol: normalizedProtocol, direction, version: normalizedVersion, unsupportedRequiredExtensions }
+    );
+  }
+
   return Object.freeze({
     generation: A2A_MCP_COMPATIBILITY_GENERATION,
     status: A2A_MCP_COMPATIBILITY_STATUS,
@@ -192,7 +250,9 @@ export function negotiateA2aMcpCompatibility({
     direction,
     version: normalizedVersion,
     requiredSemantics: Object.freeze(required),
-    ignoredOptionalSemantics: Object.freeze(optional.filter((semantic) => !known.has(semantic)))
+    ignoredOptionalSemantics: Object.freeze(optional.filter((semantic) => !known.has(semantic))),
+    requiredExtensions: Object.freeze(normalizedRequiredExtensions),
+    ignoredOptionalExtensions: Object.freeze(normalizedOptionalExtensions.filter((extensionId) => !knownExtensions.has(extensionId)))
   });
 }
 
