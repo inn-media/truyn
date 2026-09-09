@@ -3,6 +3,11 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { trace } from '@opentelemetry/api';
 import { startProductionObservability } from '../observability/bootstrap.js';
 import { getObservabilityPlane } from '../observability/plane.js';
+import { createRelay } from '../network/relay/server.js';
+import { TruynNode } from '../node/client.js';
+import { createIdentity } from '../core/identity/index.js';
+import { TruynAdapterHost } from '../adapters/sdk/index.js';
+import { createProviderAccessPolicy } from '../core/security/provider-access.js';
 
 const role = 'provider';
 const endpoint = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
@@ -44,32 +49,85 @@ const observability = getObservabilityPlane({
   service: process.env.OTEL_SERVICE_NAME || 'truyn-provider-trace-canary',
   role
 });
+const tracer = trace.getTracer('io.truyn.production-trace-correlation', '1');
 
+const relay = createRelay({ localDevelopmentMode: true });
+let relayUrl = null;
 let traceId = null;
-const adapter = observability.wrapProviderAdapter({
-  name: 'production-trace-canary',
-  async execute() {
-    traceId = trace.getActiveSpan()?.spanContext()?.traceId || null;
-    return {
-      output: 'TRACE_EXPORT_OK',
-      metadata: { provider: 'production-trace-canary' }
-    };
-  }
-}, { providerId: 'production-trace-canary' });
+let requestId = null;
+let needId = null;
+let resultId = null;
 
-await adapter.execute({
-  capability: 'trace.acceptance',
-  need: {
-    id: `trace-export-${sourceSha.slice(0, 12)}`,
-    from: 'production-trace-canary'
-  },
-  input: null,
-  policy: {}
-});
+try {
+  relayUrl = await relay.listen({ host: '127.0.0.1', port: 0 });
+  const requester = new TruynNode({ relayUrl, identity: createIdentity() });
+  const provider = new TruynNode({ relayUrl, identity: createIdentity() });
+  await requester.register({ name: 'trace-correlation-requester' });
+
+  const adapter = observability.wrapProviderAdapter({
+    name: 'production-trace-canary',
+    capabilities: [{ name: 'trace.acceptance' }],
+    async execute({ need }) {
+      const active = trace.getActiveSpan();
+      if (!active) throw new Error('provider execution lost active trace context');
+      active.setAttribute('truyn.synthetic_request', true);
+      active.setAttribute('truyn.request_id', requestId || '');
+      active.setAttribute('truyn.need_id', need?.id || '');
+      return {
+        output: 'TRACE_CORRELATION_OK',
+        metadata: { provider: 'production-trace-canary' }
+      };
+    }
+  }, { providerId: provider.identity.nodeId });
+
+  const host = new TruynAdapterHost({
+    node: provider,
+    adapter,
+    accessPolicy: createProviderAccessPolicy({ mode: 'public' })
+  });
+  await host.publishCapabilities();
+
+  requestId = `request-${sourceSha.slice(0, 12)}`;
+  await tracer.startActiveSpan('truyn.synthetic.request', async (span) => {
+    traceId = span.spanContext().traceId;
+    span.setAttribute('truyn.request_id', requestId);
+    span.setAttribute('truyn.synthetic_request', true);
+    try {
+      const receipt = await requester.need('trace.acceptance', { synthetic: true, requestId });
+      needId = receipt.needId;
+      if (!needId || typeof needId !== 'string') throw new Error('synthetic NEED did not return needId');
+      span.setAttribute('truyn.need_id', needId);
+
+      const handled = await host.runOnce();
+      if (handled.handled !== 1) throw new Error(`synthetic provider handled ${handled.handled} requests instead of 1`);
+
+      const polled = await requester.poll();
+      const resultEvent = (polled.events || []).find((event) => event.kind === 'RESULT');
+      if (!resultEvent || resultEvent.verification?.ok !== true) throw new Error('synthetic RESULT was not verified end-to-end');
+      if (resultEvent.envelope?.payload?.requestId !== needId) throw new Error('synthetic RESULT requestId did not match NEED id');
+      if (resultEvent.envelope?.payload?.output !== 'TRACE_CORRELATION_OK') throw new Error('synthetic RESULT output mismatch');
+      resultId = resultEvent.envelope?.id || null;
+      if (!resultId || typeof resultId !== 'string') throw new Error('synthetic RESULT did not expose resultId');
+      span.setAttribute('truyn.result_id', resultId);
+      span.setAttribute('truyn.end_to_end', true);
+    } catch (error) {
+      span.recordException(error);
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
+} finally {
+  await relay.close().catch(() => {});
+}
 
 if (!traceId || !/^[0-9a-f]{32}$/.test(traceId)) {
   await telemetry.shutdown().catch(() => {});
-  throw new Error('truyn.provider.execute did not expose a valid trace id');
+  throw new Error('synthetic request did not expose a valid traceId');
+}
+if (![requestId, needId, resultId].every((value) => typeof value === 'string' && value.length > 0)) {
+  await telemetry.shutdown().catch(() => {});
+  throw new Error('synthetic request correlation ids are incomplete');
 }
 
 await telemetry.shutdown();
@@ -77,7 +135,12 @@ await telemetry.shutdown();
 const proof = JSON.stringify({
   ok: true,
   span: 'truyn.provider.execute',
+  correlationSpan: 'truyn.synthetic.request',
   traceId,
+  requestId,
+  needId,
+  resultId,
+  endToEnd: true,
   sourceSha,
   endpoint: 'private-loopback-otlp-http'
 });
@@ -98,3 +161,4 @@ const server = http.createServer((req, res) => {
 
 await new Promise((resolve) => server.listen(9466, '127.0.0.1', resolve));
 process.stdout.write(`TRUYN_RUNTIME_TRACE_EXPORT_SENT span=truyn.provider.execute traceId=${traceId} sourceSha=${sourceSha}\n`);
+process.stdout.write('TRUYN_TRACE_CORRELATION_SENT traceId=1 requestId=1 needId=1 resultId=1 end_to_end=1\n');

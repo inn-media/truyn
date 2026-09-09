@@ -1,0 +1,161 @@
+name: Production Trace Correlation
+
+on:
+  pull_request:
+    paths:
+      - 'runtime/trace-export-canary.js'
+      - 'operations/production-trace-correlation.json'
+      - '.github/workflows/production-trace-correlation.yml'
+      - 'tests/production-trace-correlation.test.js'
+      - 'tests/public-repository.test.js'
+  push:
+    branches: [main]
+    paths:
+      - 'runtime/trace-export-canary.js'
+      - 'operations/production-trace-correlation.json'
+      - '.github/workflows/production-trace-correlation.yml'
+      - 'tests/production-trace-correlation.test.js'
+      - 'tests/public-repository.test.js'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate correlation canary syntax
+        run: node --check runtime/trace-export-canary.js
+      - name: Validate correlation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .schema == "truyn.production-trace-correlation/v1" and
+            .environmentClass == "production" and
+            .runtimeImageBinding == "exact-main-source-sha" and
+            .syntheticRequest.protocolPath == "signed-need-provider-result" and
+            .syntheticRequest.rootSpan == "truyn.synthetic.request" and
+            .syntheticRequest.providerSpan == "truyn.provider.execute" and
+            .syntheticRequest.requiredCorrelationFields == ["traceId", "requestId", "needId", "resultId"] and
+            .syntheticRequest.singleTraceRequired == true and
+            .syntheticRequest.resultVerificationRequired == true and
+            .syntheticRequest.endToEndRequired == true and
+            .storageProof.exactTraceReadBackRequired == true and
+            .storageProof.providerSpanInSameTraceRequired == true and
+            .publicIngress == false
+          ' operations/production-trace-correlation.json >/dev/null
+      - name: Run correlation regression
+        run: node --test tests/production-trace-correlation.test.js
+
+  prove:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+      - name: Prove one exact-main request is correlated end-to-end
+        shell: bash
+        run: |
+          set -euo pipefail
+          trace_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:tempo" | sha256sum | cut -c1-10)"
+          trace_app="truyn-traces-${trace_suffix}"
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+          printf '::add-mask::%s\n' "$trace_app"
+
+          observed=false
+          for attempt in $(seq 1 180); do
+            app_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$trace_app" --only-show-errors -o json 2>/dev/null || true)"
+            if [[ -n "$app_json" ]] && jq -e --arg sourceSha "$GITHUB_SHA" '
+              .properties.provisioningState == "Succeeded" and
+              .properties.configuration.ingress.external == false and
+              .tags.sourceSha == $sourceSha and
+              any(.properties.template.containers[];
+                .name == "runtime-trace-canary" and (.image | endswith(":" + $sourceSha))
+              )
+            ' <<<"$app_json" >/dev/null 2>&1; then
+              runtime_logs="$(az containerapp logs show \
+                --resource-group "$RESOURCE_GROUP" \
+                --name "$trace_app" \
+                --container runtime-trace-canary \
+                --type console \
+                --tail 200 \
+                --follow false \
+                --format text \
+                --only-show-errors 2>/dev/null || true)"
+              probe_logs="$(az containerapp logs show \
+                --resource-group "$RESOURCE_GROUP" \
+                --name "$trace_app" \
+                --container acceptance-probe \
+                --type console \
+                --tail 200 \
+                --follow false \
+                --format text \
+                --only-show-errors 2>/dev/null || true)"
+              if grep -q 'TRUYN_TRACE_CORRELATION_SENT traceId=1 requestId=1 needId=1 resultId=1 end_to_end=1' <<<"$runtime_logs" \
+                && grep -q 'TRUYN_TRACE_EXPORT_PASS span=truyn.provider.execute runtime=production source=exact-main' <<<"$probe_logs"; then
+                observed=true
+                break
+              fi
+            fi
+            sleep 10
+          done
+
+          [[ "$observed" == true ]] || {
+            echo '::error::Exact-main synthetic request was not correlated end-to-end through Tempo.'
+            exit 1
+          }
+
+      - name: Emit sanitized Sprint 11 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg deploymentId "$DEPLOYMENT_ID" \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              schema: "truyn.production-trace-correlation-evidence/v1",
+              deploymentId: $deploymentId,
+              component: "trace-correlation",
+              sourceSha: $sourceSha,
+              exactMain: true,
+              syntheticRequest: true,
+              traceIdObserved: true,
+              requestIdObserved: true,
+              needIdObserved: true,
+              resultIdObserved: true,
+              providerSpanObservedInSameTrace: true,
+              resultSignatureVerified: true,
+              endToEndObserved: true,
+              publicIngress: false,
+              generatedAt: $generatedAt,
+              status: "PASS"
+            }' > production-trace-correlation-evidence.json
+      - name: Upload sanitized trace correlation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-trace-correlation-evidence
+          path: production-trace-correlation-evidence.json
+          if-no-files-found: error
+          retention-days: 30
