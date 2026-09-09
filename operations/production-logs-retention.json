@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "component": "production-logs-retention",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "status": "hot_30d_archive_180d_live_proof_required",
+  "source": {
+    "class": "azure-container-apps-environment",
+    "logsDestination": "azure-monitor",
+    "categories": [
+      "ContainerAppConsoleLogs",
+      "ContainerAppSystemLogs"
+    ]
+  },
+  "hot": {
+    "backendClass": "azure-monitor-log-analytics",
+    "retentionDays": 30,
+    "interactive": true
+  },
+  "archiveAudit": {
+    "backendClass": "azure-storage",
+    "retentionDays": 180,
+    "minimumRequiredDays": 90,
+    "lifecycleEnforced": true,
+    "azureServicesBypassOnly": true,
+    "publicBlobAccess": false
+  },
+  "routing": {
+    "environmentLevel": true,
+    "diagnosticSettingRequired": true,
+    "workspaceRequired": true,
+    "archiveStorageRequired": true,
+    "consoleLogsRequired": true,
+    "systemLogsRequired": true
+  },
+  "evidence": {
+    "required": true,
+    "exactMain": true,
+    "liveAzureResourceReadBack": true,
+    "mustProve": [
+      "environment logs destination is azure-monitor",
+      "Log Analytics workspace retentionInDays is 30",
+      "archive storage lifecycle deletes no earlier than 180 days",
+      "diagnostic setting routes console and system logs to both Log Analytics and archive storage"
+    ]
+  },
+  "invariant": "Sprint 16 passes only when the live production Container Apps environment routes console/system logs through Azure Monitor to a 30-day hot Log Analytics backend and an archive/audit storage backend retained for at least 90 days."
+}
