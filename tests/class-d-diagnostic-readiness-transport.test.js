@@ -77,3 +77,17 @@ test('D-200 readiness evidence transport stays bounded and lossless without weak
   const second = spawnSync('python3', ['scripts/patch-class-d-diagnostic-readiness-transport.py', target], { encoding: 'utf8' });
   assert.notEqual(second.status, 0, 'transport repair must fail closed when applied twice');
 });
+
+test('D-200 preflight wires readiness transport immediately after readiness evidence', async () => {
+  const preflight = await readFile('scripts/class-d-200-preflight-qualification.sh', 'utf8');
+  const evidence = 'python3 scripts/patch-class-d-diagnostic-readiness-evidence.py "$tmp/campaign.sh"';
+  const transport = 'python3 scripts/patch-class-d-diagnostic-readiness-transport.py "$tmp/campaign.sh"';
+  const evidenceIndex = preflight.indexOf(evidence);
+  const transportIndex = preflight.indexOf(transport);
+  const baselineIndex = preflight.indexOf('python3 scripts/patch-class-d-diagnostic-baseline-parallel.py "$tmp/campaign.sh"');
+  assert.ok(evidenceIndex >= 0, 'preflight must apply readiness evidence patch');
+  assert.ok(transportIndex > evidenceIndex, 'preflight must apply transport after readiness evidence');
+  assert.ok(baselineIndex > transportIndex, 'preflight must apply transport before later campaign patches');
+  assert.equal(preflight.split(transport).length - 1, 1, 'preflight must wire transport exactly once');
+  assert.ok(preflight.includes('tests/class-d-diagnostic-readiness-transport.test.js'), 'preflight qualification must execute transport regression');
+});
