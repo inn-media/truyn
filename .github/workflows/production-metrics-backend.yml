@@ -31,6 +31,8 @@ env:
   CANONICAL_SLO_WINDOW_DAYS: '28'
   METRICS_RETENTION_DAYS: '90'
   METRICS_RETENTION_PERIOD: 90d
+  PROBE_RETENTION_DAYS: '90'
+  PROBE_RETENTION_PERIOD: 90d
 
 jobs:
   validate:
@@ -47,11 +49,14 @@ jobs:
           set -euo pipefail
           az bicep install >/dev/null
           az bicep build --file infra/production-observability/metrics-backend.bicep --stdout >/dev/null
-      - name: Validate backend contract
+      - name: Validate backend and probe retention contract
         shell: bash
         run: |
           set -euo pipefail
           [[ "$METRICS_RETENTION_DAYS" -gt "$CANONICAL_SLO_WINDOW_DAYS" ]]
+          [[ "$PROBE_RETENTION_DAYS" -gt "$CANONICAL_SLO_WINDOW_DAYS" ]]
+          [[ "$PROBE_RETENTION_DAYS" == "$METRICS_RETENTION_DAYS" ]]
+          [[ "$PROBE_RETENTION_PERIOD" == "$METRICS_RETENTION_PERIOD" ]]
           jq -e '
             .backendId == "prod-prometheus-01" and
             .deploymentId == "dc4518de-d1bf-4fce-b351-e43d7c152999" and
@@ -60,10 +65,15 @@ jobs:
             .prometheusCompatible == true and
             .publicIngress == false and
             .seriesAcceptanceMetric == "truyn_backend_acceptance_series" and
+            .syntheticProbeRetentionMetric == "truyn_synthetic_probe_retention_series" and
             .retention.canonicalSloWindowDays == 28 and
             .retention.sloBearingSeriesDays == 90 and
+            .retention.syntheticProbeSeriesDays == 90 and
             .retention.runtimePeriod == "90d" and
-            .retention.exceedsCanonicalSloWindow == true
+            .retention.syntheticProbeRuntimePeriod == "90d" and
+            .retention.exceedsCanonicalSloWindow == true and
+            .retention.probeHistoryCoversCanonicalSloWindow == true and
+            .retention.syntheticProbeSharesBackendRetention == true
           ' operations/production-metrics-backend.json >/dev/null
 
   apply-and-prove:
@@ -89,6 +99,14 @@ jobs:
           az bicep install >/dev/null
           [[ "$METRICS_RETENTION_DAYS" -gt "$CANONICAL_SLO_WINDOW_DAYS" ]] || {
             echo '::error::Metrics retention must exceed the canonical 28-day SLO window.'
+            exit 1
+          }
+          [[ "$PROBE_RETENTION_DAYS" -gt "$CANONICAL_SLO_WINDOW_DAYS" ]] || {
+            echo '::error::Synthetic probe retention must exceed the canonical 28-day SLO window.'
+            exit 1
+          }
+          [[ "$PROBE_RETENTION_DAYS" == "$METRICS_RETENTION_DAYS" && "$PROBE_RETENTION_PERIOD" == "$METRICS_RETENTION_PERIOD" ]] || {
+            echo '::error::Synthetic probe series must inherit the same production backend retention policy.'
             exit 1
           }
           printf '::add-mask::%s\n' "$RESOURCE_GROUP"
@@ -152,7 +170,7 @@ jobs:
           printf 'METRICS_REGION=%s\n' "$selected_region" >> "$GITHUB_ENV"
           printf 'METRICS_APP=%s\n' "$app_name" >> "$GITHUB_ENV"
 
-      - name: Provision private VictoriaMetrics backend with 90-day SLO retention
+      - name: Provision private VictoriaMetrics backend with 90-day SLO and probe retention
         shell: bash
         run: |
           set -euo pipefail
@@ -187,33 +205,43 @@ jobs:
           [[ -n "$app_id" ]]
           printf '::add-mask::%s\n' "$app_id"
 
-      - name: Prove Prometheus remote-write and PromQL read-back
+      - name: Prove backend and synthetic probe remote-write plus PromQL read-back
         shell: bash
         run: |
           set -euo pipefail
-          accepted=false
+          backend_accepted=false
+          probe_accepted=false
           for attempt in $(seq 1 90); do
             logs="$(az containerapp logs show \
               --resource-group "$RESOURCE_GROUP" \
               --name "$METRICS_APP" \
               --container acceptance-probe \
               --type console \
-              --tail 100 \
+              --tail 120 \
               --follow false \
               --format text \
               --only-show-errors 2>/dev/null || true)"
             if grep -q 'TRUYN_METRICS_CANARY_PASS remote_write=accepted promql=observed' <<<"$logs"; then
-              accepted=true
+              backend_accepted=true
+            fi
+            if grep -q 'TRUYN_PROBE_RETENTION_CANARY_PASS series=accepted promql=observed retention_class=synthetic-probe' <<<"$logs"; then
+              probe_accepted=true
+            fi
+            if [[ "$backend_accepted" == true && "$probe_accepted" == true ]]; then
               break
             fi
             sleep 10
           done
-          [[ "$accepted" == true ]] || {
-            echo '::error::VictoriaMetrics canary was not accepted and observed through PromQL.'
+          [[ "$backend_accepted" == true ]] || {
+            echo '::error::VictoriaMetrics backend canary was not accepted and observed through PromQL.'
+            exit 1
+          }
+          [[ "$probe_accepted" == true ]] || {
+            echo '::error::Synthetic probe retention-class series was not accepted and observed through PromQL.'
             exit 1
           }
 
-      - name: Emit sanitized metrics backend and Sprint 14 retention evidence
+      - name: Emit sanitized metrics backend and Sprint 15 probe retention evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -222,11 +250,13 @@ jobs:
             --arg sourceSha "$GITHUB_SHA" \
             --arg region "$METRICS_REGION" \
             --arg retentionPeriod "$METRICS_RETENTION_PERIOD" \
+            --arg probeRetentionPeriod "$PROBE_RETENTION_PERIOD" \
             --argjson retentionDays "$METRICS_RETENTION_DAYS" \
+            --argjson probeRetentionDays "$PROBE_RETENTION_DAYS" \
             --argjson canonicalSloWindowDays "$CANONICAL_SLO_WINDOW_DAYS" \
             --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{
-              schema: "truyn.production-metrics-backend-evidence/v2",
+              schema: "truyn.production-metrics-backend-evidence/v3",
               deploymentId: $deploymentId,
               component: "metrics-backend",
               backendClass: "azure-container-apps-victoriametrics",
@@ -241,10 +271,18 @@ jobs:
               remoteWriteAccepted: true,
               promqlReadBackObserved: true,
               acceptedSeries: "truyn_backend_acceptance_series",
+              acceptedSyntheticProbeSeries: "truyn_synthetic_probe_retention_series",
+              syntheticProbeSeriesAccepted: true,
+              syntheticProbePromqlReadBackObserved: true,
               sloMetricsRetentionPeriod: $retentionPeriod,
               sloMetricsRetentionDays: $retentionDays,
+              syntheticProbeRetentionPeriod: $probeRetentionPeriod,
+              syntheticProbeRetentionDays: $probeRetentionDays,
               canonicalSloWindowDays: $canonicalSloWindowDays,
               retentionExceedsCanonicalSloWindow: ($retentionDays > $canonicalSloWindowDays),
+              probeRetentionExceedsCanonicalSloWindow: ($probeRetentionDays > $canonicalSloWindowDays),
+              probeHistoryCoversCanonicalSloWindow: ($probeRetentionDays > $canonicalSloWindowDays),
+              syntheticProbeSharesBackendRetention: ($probeRetentionDays == $retentionDays and $probeRetentionPeriod == $retentionPeriod),
               runtimeRetentionArgumentObserved: true,
               generatedAt: $generatedAt,
               status: "PASS"

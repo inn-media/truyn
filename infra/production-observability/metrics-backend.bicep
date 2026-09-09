@@ -20,7 +20,7 @@ param sourceSha string
 ])
 param victoriaMetricsVersion string = 'v1.151.0'
 
-@description('Retention period for production SLO-bearing metric series. Must remain greater than the canonical 28-day SLO window.')
+@description('Retention period for production SLO-bearing and synthetic probe metric series. Must remain greater than the canonical 28-day SLO window.')
 @allowed([
   '90d'
 ])
@@ -40,7 +40,8 @@ import snappy
 
 WRITE_URL = 'http://127.0.0.1:8428/api/v1/write'
 QUERY_BASE = 'http://127.0.0.1:8428/api/v1/query'
-QUERY = 'truyn_backend_acceptance_series{surface="production-ops",proof="metrics-backend"}'
+BACKEND_QUERY = 'truyn_backend_acceptance_series{surface="production-ops",proof="metrics-backend"}'
+PROBE_QUERY = 'truyn_synthetic_probe_retention_series{surface="production-ops",proof="probe-retention",synthetic="true"}'
 
 
 def varint(value):
@@ -76,15 +77,25 @@ def sample(value, timestamp_ms):
     return key(1, 1) + struct.pack('<d', value) + key(2, 0) + varint(timestamp_ms)
 
 
+def timeseries(metric_name, labels):
+    all_labels = [('__name__', metric_name), *labels]
+    raw = b''.join(message_field(1, label(name, value)) for name, value in all_labels)
+    raw += message_field(2, sample(1.0, int(time.time() * 1000)))
+    return raw
+
+
 def request_bytes():
-    labels = [
-        ('__name__', 'truyn_backend_acceptance_series'),
+    backend = timeseries('truyn_backend_acceptance_series', [
         ('proof', 'metrics-backend'),
         ('surface', 'production-ops'),
-    ]
-    timeseries = b''.join(message_field(1, label(name, value)) for name, value in labels)
-    timeseries += message_field(2, sample(1.0, int(time.time() * 1000)))
-    return snappy.compress(message_field(1, timeseries))
+    ])
+    synthetic_probe = timeseries('truyn_synthetic_probe_retention_series', [
+        ('proof', 'probe-retention'),
+        ('probe_class', 'availability'),
+        ('surface', 'production-ops'),
+        ('synthetic', 'true'),
+    ])
+    return snappy.compress(message_field(1, backend) + message_field(1, synthetic_probe))
 
 
 def remote_write():
@@ -103,8 +114,8 @@ def remote_write():
         return response.status in (200, 204)
 
 
-def query_back():
-    url = QUERY_BASE + '?' + urllib.parse.urlencode({'query': QUERY})
+def query_back(query):
+    url = QUERY_BASE + '?' + urllib.parse.urlencode({'query': query})
     with urllib.request.urlopen(url, timeout=5) as response:
         if response.status != 200:
             return False
@@ -128,20 +139,25 @@ for _ in range(120):
 if not write_ok:
     raise SystemExit('remote-write acceptance timed out')
 
-query_ok = False
+backend_query_ok = False
+probe_query_ok = False
 for _ in range(120):
     try:
-        if query_back():
-            query_ok = True
+        backend_query_ok = query_back(BACKEND_QUERY)
+        probe_query_ok = query_back(PROBE_QUERY)
+        if backend_query_ok and probe_query_ok:
             break
     except Exception:
         pass
     time.sleep(2)
 
-if not query_ok:
-    raise SystemExit('PromQL read-back timed out')
+if not backend_query_ok:
+    raise SystemExit('PromQL backend read-back timed out')
+if not probe_query_ok:
+    raise SystemExit('PromQL synthetic probe retention read-back timed out')
 
 print('TRUYN_METRICS_CANARY_PASS remote_write=accepted promql=observed', flush=True)
+print('TRUYN_PROBE_RETENTION_CANARY_PASS series=accepted promql=observed retention_class=synthetic-probe', flush=True)
 while True:
     time.sleep(3600)
 PY
