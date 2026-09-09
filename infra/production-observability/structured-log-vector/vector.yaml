@@ -1,0 +1,103 @@
+data_dir: /vector-data
+
+sources:
+  aca_console:
+    type: kafka
+    bootstrap_servers: "${EVENTHUB_BOOTSTRAP:?EVENTHUB_BOOTSTRAP is required}"
+    group_id: "truyn-production-structured-log-forwarder"
+    topics:
+      - "${EVENTHUB_NAME:?EVENTHUB_NAME is required}"
+    auto_offset_reset: earliest
+    sasl:
+      enabled: true
+      mechanism: PLAIN
+      username: "$$ConnectionString"
+      password: "${EVENTHUB_CONNECTION_STRING:?EVENTHUB_CONNECTION_STRING is required}"
+    tls:
+      enabled: true
+    decoding:
+      codec: json
+
+transforms:
+  explode_records:
+    type: remap
+    inputs:
+      - aca_console
+    source: |
+      if is_array(.records) {
+        . = .records
+      } else {
+        . = [.]
+      }
+
+  normalize_platform:
+    type: remap
+    inputs:
+      - explode_records
+    source: |
+      props = if is_object(.properties) { .properties } else { {} }
+      .platform_container_app = to_string(.ContainerAppName) ?? to_string(props.ContainerAppName) ?? to_string(.containerAppName) ?? to_string(props.containerAppName) ?? ""
+      .platform_container = to_string(.ContainerName) ?? to_string(props.ContainerName) ?? to_string(.containerName) ?? to_string(props.containerName) ?? ""
+      stream = to_string(.Stream) ?? to_string(props.Stream) ?? to_string(.stream) ?? to_string(props.stream) ?? "unknown"
+      .platform_stream = downcase(stream)
+      .platform_time = to_string(.TimeGenerated) ?? to_string(props.TimeGenerated) ?? to_string(.time) ?? to_string(props.time) ?? ""
+      .raw_log = to_string(.Log) ?? to_string(props.Log) ?? to_string(.log) ?? to_string(props.log) ?? to_string(.message) ?? ""
+
+  exclude_backend_feedback:
+    type: filter
+    inputs:
+      - normalize_platform
+    condition: '.platform_container_app != "${LOG_BACKEND_APP:?LOG_BACKEND_APP is required}"'
+
+  parse_structured_json:
+    type: remap
+    inputs:
+      - exclude_backend_feedback
+    source: |
+      raw = to_string(.raw_log) ?? ""
+      parsed, err = parse_json(raw)
+
+      platform_container_app = .platform_container_app
+      platform_container = .platform_container
+      platform_stream = .platform_stream
+      platform_time = .platform_time
+
+      if err == null && is_object(parsed) {
+        . = merge!(., parsed)
+        .structured = true
+        ._msg = to_string(parsed.event) ?? "structured-log"
+        .timestamp = to_string(parsed.timestamp) ?? platform_time
+      } else {
+        .structured = false
+        ._msg = raw
+        .timestamp = platform_time
+      }
+
+      .platform_container_app = platform_container_app
+      .platform_container = platform_container
+      .platform_stream = platform_stream
+      .environment = "production"
+      .deployment = "${TRUYN_DEPLOYMENT_ID:?TRUYN_DEPLOYMENT_ID is required}"
+      del(.raw_log)
+      del(.Log)
+      del(.log)
+      del(.message)
+      del(.properties)
+      del(.records)
+
+sinks:
+  victorialogs:
+    type: elasticsearch
+    inputs:
+      - parse_structured_json
+    endpoints:
+      - "http://127.0.0.1:9428/insert/elasticsearch/"
+    mode: bulk
+    api_version: v8
+    compression: gzip
+    healthcheck:
+      enabled: false
+    query:
+      _msg_field: _msg
+      _time_field: timestamp
+      _stream_fields: environment,service,role,platform_stream

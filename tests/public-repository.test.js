@@ -20,6 +20,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/production-metrics-backend.yml',
   '.github/workflows/production-metrics-collector.yml',
   '.github/workflows/production-monitor-provider-registration.yml',
+  '.github/workflows/production-structured-log-backend.yml',
   '.github/workflows/production-trace-backend.yml'
 ]);
 const BENCHMARK_EVIDENCE_DIR = 'docs/benchmarks/';
