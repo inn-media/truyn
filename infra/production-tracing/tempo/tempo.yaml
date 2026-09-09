@@ -13,9 +13,22 @@ distributor:
         http:
           endpoint: "0.0.0.0:4318"
 
-compactor:
+# Tempo 3.x removed the legacy top-level compactor. Retention jobs are
+# scheduled by backend_scheduler and executed by backend_worker.
+backend_scheduler:
+  provider:
+    retention:
+      interval: 1h
+    compaction:
+      compaction:
+        block_retention: 720h
+        compacted_block_retention: 1h
+
+backend_worker:
+  backend_scheduler_addr: "127.0.0.1:9095"
   compaction:
     block_retention: 720h
+    compacted_block_retention: 1h
 
 overrides:
   per_tenant_override_config: /etc/tempo/overrides.yaml
