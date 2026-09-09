@@ -60,7 +60,8 @@ function policyError(code, details = null) {
 export function createOperationalRevocationController({
   revocationAuthority,
   authorize,
-  validateTarget
+  validateTarget,
+  recordTrustRevocation = null
 } = {}) {
   if (!revocationAuthority || typeof revocationAuthority.revokeWithEvent !== 'function' || typeof revocationAuthority.exportEvents !== 'function') {
     throw new Error('operational revocation controller requires ProductionRevocationAuthority');
@@ -110,6 +111,11 @@ export function createOperationalRevocationController({
       throw policyError('operational_revocation_target_not_applicable', applicability?.reason || null);
     }
 
+    const requiresTrustAnchor = operationalKind === 'authority' || operationalKind === 'delegation';
+    if (requiresTrustAnchor && typeof recordTrustRevocation !== 'function') {
+      throw policyError('operational_revocation_trust_anchor_required');
+    }
+
     const result = revocationAuthority.revokeWithEvent(canonicalTargetKind, id, {
       reason,
       scope: canonicalScope,
@@ -120,6 +126,17 @@ export function createOperationalRevocationController({
       issuerKeyId: authorityActor.keyId,
       metadata: { operationalKind }
     });
+
+    if (result.created && requiresTrustAnchor) {
+      recordTrustRevocation({
+        kind: operationalKind,
+        targetKind: canonicalTargetKind,
+        targetId: id,
+        reasonClass: reason,
+        emergency: Boolean(emergency)
+      });
+    }
+
     return Object.freeze({
       created: Boolean(result.created),
       record: structuredClone(result.record),
@@ -143,11 +160,11 @@ export function createRevocationDecisionCache({ revocationAuthority, onInvalidat
   let invalidations = 0;
 
   const unsubscribe = revocationAuthority.subscribe((event, context = {}) => {
-    for (const [key, entry] of entries) {
-      if (entry.kind !== event.kind) continue;
-      if (entry.targetId && entry.targetId !== event.targetId) continue;
-      entries.delete(key);
-    }
+    // Authorization decisions may depend on several revocation classes at once
+    // (membership + provider + provider-grant, for example). A single-kind cache
+    // epoch is therefore insufficient. Any terminal revocation advances the
+    // global authority epoch and invalidates every cached authorization.
+    entries.clear();
     invalidations += 1;
     if (typeof onInvalidate === 'function') onInvalidate({ event, context, invalidations });
   });
@@ -158,14 +175,14 @@ export function createRevocationDecisionCache({ revocationAuthority, onInvalidat
     if (typeof evaluate !== 'function') throw new Error('revocation decision evaluate function is required');
     const epoch = revocationAuthority.epochFor(operationalKind);
     const existing = entries.get(key);
-    if (existing && existing.kindEpoch === epoch.kind && existing.kind === operationalKind) {
+    if (existing && existing.globalEpoch === epoch.global && existing.kind === operationalKind) {
       return { decision: structuredClone(existing.decision), cacheHit: true, epoch };
     }
     const decision = evaluate();
     entries.set(key, {
       kind: operationalKind,
       targetId: targetId == null ? null : String(targetId),
-      kindEpoch: epoch.kind,
+      globalEpoch: epoch.global,
       decision: structuredClone(decision)
     });
     return { decision: structuredClone(decision), cacheHit: false, epoch };
