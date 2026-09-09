@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
+import { Readable } from 'node:stream';
 import { createA2aServer } from '../adapters/a2a/server.js';
 import { A2A_PROTOCOL_VERSION } from '../adapters/a2a/mapping.js';
 
@@ -48,6 +50,31 @@ async function openStream(url, body, signal, authorization = null) {
   assert.ok(response.body);
   return {
     reader: response.body.getReader(),
+    decoder: new TextDecoder(),
+    buffer: { value: '' }
+  };
+}
+
+async function openUnpooledStream(url, body, signal, authorization = null) {
+  const response = await new Promise((resolve, reject) => {
+    const request = http.request(`${url}/a2a`, {
+      method: 'POST',
+      agent: false,
+      headers: {
+        'content-type': 'application/json',
+        accept: 'text/event-stream',
+        'a2a-version': A2A_PROTOCOL_VERSION,
+        ...(authorization ? { authorization } : {})
+      },
+      signal
+    }, resolve);
+    request.once('error', reject);
+    request.end(JSON.stringify(body));
+  });
+  assert.match(response.headers['content-type'] || '', /^text\/event-stream/);
+  assert.ok(response.readable);
+  return {
+    reader: Readable.toWeb(response).getReader(),
     decoder: new TextDecoder(),
     buffer: { value: '' }
   };
@@ -229,7 +256,7 @@ test('P3-A1 reconnect is owner-scoped, resumes future events, and never redispat
   t.after(() => facade.close());
 
   const originalAbort = new AbortController();
-  const original = await openStream(url, {
+  const original = await openUnpooledStream(url, {
     jsonrpc: '2.0',
     id: 'reconnect-send-rpc',
     method: 'SendStreamingMessage',
