@@ -270,11 +270,16 @@ test('P3-A1 reconnect is owner-scoped, resumes future events, and never redispat
   assert.equal(dispatches, 1);
 
   originalAbort.abort();
-  const disconnected = await original.reader.read().then(
-    ({ done }) => done,
-    (error) => /AbortError|aborted|terminated/i.test(String(error?.name || error?.message || error))
-  );
-  assert.equal(disconnected, true, 'aborting the original transport must terminate that SSE reader');
+  await original.reader.read().catch(() => {});
+  const disconnectDeadline = Date.now() + 2_000;
+  while (true) {
+    const openConnections = await new Promise((resolve, reject) => {
+      facade.server.getConnections((error, count) => error ? reject(error) : resolve(count));
+    });
+    if (openConnections === 0) break;
+    assert.ok(Date.now() < disconnectDeadline, 'aborting the original transport must close its unpooled SSE socket');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 
   const denied = await rpc(url, {
     jsonrpc: '2.0',
