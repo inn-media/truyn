@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { setTimeout as delay } from 'node:timers/promises';
 import { trace } from '@opentelemetry/api';
 import { startProductionObservability } from '../observability/bootstrap.js';
 import { getObservabilityPlane } from '../observability/plane.js';
@@ -6,6 +7,7 @@ import { getObservabilityPlane } from '../observability/plane.js';
 const role = 'provider';
 const endpoint = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
 const sourceSha = process.env.TRUYN_VERSION || '';
+const tempoReadyUrl = 'http://127.0.0.1:3200/ready';
 
 if (!endpoint) throw new Error('OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is required');
 if (endpoint !== 'http://127.0.0.1:4318/v1/traces') {
@@ -16,6 +18,25 @@ if (!/^[0-9a-f]{40}$/.test(sourceSha)) throw new Error('TRUYN_VERSION must be th
 process.env.TRUYN_ROLE = role;
 process.env.TRUYN_OBSERVABILITY = '1';
 process.env.OTEL_TRACES_SAMPLER = 'always_on';
+
+async function waitForTempoReady() {
+  for (let attempt = 1; attempt <= 120; attempt += 1) {
+    try {
+      const response = await fetch(tempoReadyUrl, { signal: AbortSignal.timeout(5_000) });
+      await response.body?.cancel();
+      if (response.status === 200) {
+        process.stdout.write('TRUYN_RUNTIME_TRACE_BACKEND_READY endpoint=private-loopback\n');
+        return;
+      }
+    } catch {
+      // Tempo and the runtime sidecar start concurrently; retry until the private receiver is ready.
+    }
+    await delay(2_000);
+  }
+  throw new Error('Tempo readiness timed out before production runtime trace export');
+}
+
+await waitForTempoReady();
 
 const telemetry = await startProductionObservability({ role });
 const observability = getObservabilityPlane({
