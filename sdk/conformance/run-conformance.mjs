@@ -32,11 +32,12 @@ async function readSources(paths) {
   return chunks.join('\n');
 }
 
-const [manifest, schema, fixtures, descriptorFixtures] = await Promise.all([
+const [manifest, schema, fixtures, descriptorFixtures, publicCoordinates] = await Promise.all([
   readJson('sdk/conformance/languages.json'),
   readJson('sdk/conformance/v1/sdk-contract.schema.json'),
   readJson('sdk/conformance/v1/golden-fixtures.json'),
-  readJson('sdk/conformance/v1/agent-descriptor-runtime-fixtures.json')
+  readJson('sdk/conformance/v1/agent-descriptor-runtime-fixtures.json'),
+  readJson('sdk/release/public-coordinates.json')
 ]);
 
 if (manifest.fixtureSet !== fixtures.fixtureSet) {
@@ -61,6 +62,49 @@ for (const required of manifest.requiredFirstPartyLanguages) {
   if (!languageIds.has(required)) fail(`required first-party language missing from matrix: ${required}`);
 }
 
+const coordinateToLanguage = new Map([
+  ['npm', 'typescript'],
+  ['pypi', 'python'],
+  ['go', 'go'],
+  ['maven', 'java'],
+  ['nuget', 'dotnet']
+]);
+const ledgerAcceptedLanguages = new Set();
+for (const [coordinateId, languageId] of coordinateToLanguage) {
+  const coordinate = publicCoordinates.coordinates?.[coordinateId];
+  if (!coordinate) fail(`public coordinate ledger is missing ${coordinateId}`);
+  if (coordinate.publicationState === 'accepted') {
+    ledgerAcceptedLanguages.add(languageId);
+  } else if (coordinate.publicationState !== 'open') {
+    fail(`${coordinateId} has unsupported publicationState ${coordinate.publicationState}`);
+  }
+}
+
+const acceptedPublicDistributionLanguages = new Set(manifest.acceptedPublicDistributionLanguages || []);
+for (const languageId of ledgerAcceptedLanguages) {
+  if (!acceptedPublicDistributionLanguages.has(languageId)) {
+    fail(`${languageId} is accepted in public-coordinates.json but missing from acceptedPublicDistributionLanguages`);
+  }
+}
+for (const languageId of acceptedPublicDistributionLanguages) {
+  if (!ledgerAcceptedLanguages.has(languageId)) {
+    fail(`${languageId} is marked accepted in languages.json but not accepted in public-coordinates.json`);
+  }
+}
+
+for (const language of manifest.languages) {
+  const expectedPublic = acceptedPublicDistributionLanguages.has(language.id);
+  if (language.publicDistribution !== expectedPublic) {
+    fail(`${language.id} publicDistribution must match acceptedPublicDistributionLanguages`);
+  }
+  if (expectedPublic && language.publicDistributionChannel !== 'pre-release') {
+    fail(`${language.id} accepted public alpha must declare publicDistributionChannel=pre-release`);
+  }
+  if (!expectedPublic && language.publicDistributionChannel !== undefined) {
+    fail(`${language.id} must not declare a public distribution channel before registry acceptance`);
+  }
+}
+
 const selected = targetLanguage
   ? manifest.languages.filter((language) => language.id === targetLanguage)
   : manifest.languages;
@@ -76,13 +120,12 @@ for (const language of selected) {
       fail(`${language.id} is missing required marker: ${marker}`);
     }
   }
-  if (language.publicDistribution !== false) {
-    fail(`${language.id} must remain non-public until the stable package release gate`);
-  }
   results.push({
     id: language.id,
     name: language.name,
     status: language.status,
+    publicDistribution: language.publicDistribution,
+    publicDistributionChannel: language.publicDistributionChannel ?? null,
     files: language.sourceFiles.length,
     markers: language.requiredMarkers.length
   });

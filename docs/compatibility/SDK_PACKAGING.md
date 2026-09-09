@@ -1,12 +1,12 @@
 # TRUYN SDK Packaging and Versioning Policy
 
-**Status:** Developer Release package/build verification is implemented. The release family is split after the npm packaging repair: TypeScript/JavaScript uses `0.1.0-alpha.2`, Python uses `0.1.0a1`, and Go/Java/.NET remain on `0.1.0-alpha.1`. Native public registry state remains evidence-gated.  
+**Status:** Developer Release package/build verification is implemented. The release family is split after the npm packaging repair: TypeScript/JavaScript uses `0.1.0-alpha.2`, Python uses `0.1.0a1`, and Go/Java/.NET remain on `0.1.0-alpha.1`. npm, PyPI and Go have accepted immutable public release evidence; Maven Central and NuGet remain open.  
 **Protocol:** `TRUYN/1` draft.  
 **Stable SDK API contract:** `1` (separate from protocol stability).
 
 This document defines the packaging and publication boundary for the five required first-party SDKs. The old DX-1/DX-2 scaffold-only description is obsolete: all five required clients are implemented and ordinary CI builds/verifies package artifacts.
 
-The npm `@truyn/sdk@0.1.0-alpha.1` artifact is immutable but superseded for installation because a required clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. The repair therefore uses the distinct immutable coordinate `@truyn/sdk@0.1.0-alpha.2`; the other ecosystem coordinates are not bumped merely because npm packaging changed.
+The npm `@truyn/sdk@0.1.0-alpha.1` artifact is immutable but superseded for installation because a required clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. The repair therefore uses the distinct immutable coordinate `@truyn/sdk@0.1.0-alpha.2`; that repair is now an accepted public release. The other ecosystem coordinates are not bumped merely because npm packaging changed.
 
 This is a packaging policy, not a protocol change. It does not alter `TRUYN/1`, Agent Descriptor semantics, relay behavior, authorization, routing, QUIC/Kademlia behavior, D-1000 evaluator logic or runtime thresholds.
 
@@ -14,9 +14,9 @@ This is a packaging policy, not a protocol change. It does not alter `TRUYN/1`, 
 
 | Language | Repository path | Public distribution target | Developer Release coordinate | Current state |
 |---|---|---|---|---|
-| JavaScript / TypeScript | `sdk/typescript/` | npm | `@truyn/sdk@0.1.0-alpha.2` | implemented client; packed clean-room import is CI-proven; immutable alpha.2 registry evidence is the repair gate |
-| Python | `sdk/python/` | PyPI | `truyn-sdk==0.1.0a1` / import `truyn` | implemented client; immutable public artifact/provenance is independently verified by the release gate |
-| Go | `sdk/go/` | Go module | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | implemented client; immutable tag/module evidence is separate from npm repair |
+| JavaScript / TypeScript | `sdk/typescript/` | npm | `@truyn/sdk@0.1.0-alpha.2` | implemented client; accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import |
+| Python | `sdk/python/` | PyPI | `truyn-sdk==0.1.0a1` / import `truyn` | implemented client; accepted immutable public artifact/provenance evidence |
+| Go | `sdk/go/` | Go module | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | implemented client; accepted immutable public tag/module evidence |
 | Java | `sdk/java/` | Maven Central target | `org.truyn:truyn-sdk:0.1.0-alpha.1` | implemented client; Maven verification build CI-proven; public registry publication remains evidence-gated |
 | C# / .NET | `sdk/dotnet/` | NuGet | `Truyn.Sdk 0.1.0-alpha.1` | implemented client; NuGet verification build CI-proven; public registry publication remains evidence-gated |
 | Rust | `sdk/rust/` | crates.io-compatible if maintained | optional | secondary track; does not replace any required first-party language |
@@ -35,7 +35,7 @@ The repository-side Developer Release gate includes:
 - packed-tarball clean-room installation/import for the TypeScript SDK;
 - pre-stable semantic-versioning, compatibility, migration and deprecation policy.
 
-Ordinary CI is still a verification system, not a registry publication path. A public release must select one exact accepted source and one exact CI artifact for that source. For the npm alpha.2 repair, the temporary tag-only release workflow downloads the exact successful main-CI artifact, verifies its manifest against the immutable tagged source, and publishes that artifact rather than rebuilding it with independently resolved dependencies.
+Ordinary CI is still a verification system, not a registry publication path. A public release must select one exact accepted source and one exact CI artifact for that source. npm alpha.2 has completed that separate publication/verification path; Maven Central and NuGet have not.
 
 `verify-release.mjs` verifies expected artifacts/digests and inspects archive **entry names** for forbidden paths/names. It does not recursively scan all archived bytes with the source-tree credential/private-topology patterns. Full generated-package byte-content leakage review therefore remains a publication/release-security requirement.
 
@@ -56,7 +56,7 @@ stable SDK API: 1
 channel:        pre-release
 ```
 
-`@truyn/sdk@0.1.0-alpha.1` remains immutable historical evidence and must never be overwritten. Its clean-room import failure is repaired only by a new version. Once alpha.2 is accepted, both npm `alpha` and the default `latest` dist-tags must resolve to alpha.2 so normal/unqualified installation does not continue selecting the broken artifact.
+`@truyn/sdk@0.1.0-alpha.1` remains immutable historical evidence and must never be overwritten. Its clean-room import failure is repaired only by the new alpha.2 version. The accepted alpha.2 public release is permanently bound to its published bytes/source/provenance evidence; both npm `alpha` and default `latest` resolve to alpha.2 as recorded in the npm closure evidence.
 
 For an accepted/public release, rebuilding the same published package version from different source is forbidden. The release path must either:
 
@@ -82,6 +82,8 @@ Before a native public registry/tag publication is claimed, the release operatio
 13. clean-room installation from the public registry.
 
 A source workflow describing how publication should happen is not itself registry publication evidence.
+
+npm alpha.2 satisfies the public publication evidence boundary. Maven Central and NuGet still must satisfy the same class of immutable source, registry byte identity, provenance/signature and clean-room requirements before acceptance.
 
 ## 5. Versioning policy
 
@@ -130,7 +132,7 @@ implemented source
   -> stable public package
 ```
 
-The current npm repair is accepted only at the fourth stage after exact public registry evidence. Other ecosystems retain their own publication state; an npm-only repair does not imply Java/.NET publication.
+npm alpha.2, PyPI alpha and Go alpha are accepted at the fourth stage. Java/Maven Central and .NET/NuGet remain below that publication stage. Acceptance in one ecosystem does not imply another ecosystem's publication.
 
 ## 7. Non-goals
 

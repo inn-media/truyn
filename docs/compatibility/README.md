@@ -13,8 +13,8 @@ Compatibility is tracked separately for protocol/node behavior, adapters/externa
 - A2A/MCP C1–C8 and P2-E1/P2-E2/P2-E3 are accepted as a bounded pre-v1 profile.
 - **Stable A2A/MCP v1 is not declared.**
 - SDK API-v1 bounded primitives are implemented across five first-party clients.
-- PyPI and Go alphas have accepted immutable public evidence.
-- npm alpha.1 remains immutable historical evidence whose required clean-room ESM import failed; the distinct alpha.2 packaging repair is merged in `#448`, with public registry/provenance/clean-room evidence still gated.
+- PyPI, Go and npm alpha.2 have accepted immutable public evidence.
+- npm alpha.1 remains immutable historical evidence whose required clean-room ESM import failed and is superseded without overwrite.
 - Maven Central and NuGet remain open.
 
 External evidence names concrete tested versions/source. Per-build provenance, immutable publication, clean-room usability and stable compatibility are separate concepts.
