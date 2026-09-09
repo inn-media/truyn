@@ -39,6 +39,16 @@ function mutationResult(value, changed = true) {
   return { value, changed };
 }
 
+function managedRevoke(control, input = {}) {
+  const kind = required(input.kind, 'revocation kind').toLowerCase();
+  const id = required(input.id, 'revocation id');
+  const options = { reason: input.reason };
+  if (kind === 'authority-root') return control.trustAuthority.revokeRoot(id, options);
+  if (kind === 'authority-key') return control.trustAuthority.emergencyRevokeKey(id, options);
+  if (kind === 'authority-certificate') return control.trustAuthority.revokeCertificate(id, options);
+  return control.revocationAuthority.revoke(kind, id, options);
+}
+
 export function createManagedProductionAuthority({
   checkpointStore,
   sourceSha: deployedSourceSha,
@@ -223,7 +233,7 @@ export function createManagedProductionAuthority({
         case 'entitlement.suspend': result = control.entitlementAuthority.suspendEntitlement(input.entitlementId); break;
         case 'entitlement.resume': result = control.entitlementAuthority.resumeEntitlement(input.entitlementId); break;
         case 'entitlement.revoke': result = control.entitlementAuthority.revokeEntitlement(input.entitlementId, { reason: input.reason }); break;
-        case 'revoke': result = control.revocationAuthority.revoke(input.kind, input.id, { reason: input.reason }); break;
+        case 'revoke': result = managedRevoke(control, input); break;
         default: throw new Error('unsupported_authority_admin_operation');
       }
       return mutationResult(safeResult(result), true);
