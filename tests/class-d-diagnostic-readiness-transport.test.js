@@ -41,7 +41,11 @@ test('D-200 readiness evidence transport stays bounded and lossless while recove
   assert.equal(block.split('deadline=\\$((\\$(date +%s) + 120))').length - 1, 1);
   assert.ok(block.includes('"\\$hosts" -eq ${HOST_COUNT}'));
   assert.ok(block.includes('"\\$valid" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE}'));
+  assert.ok(block.includes('/var/lib/truqn-d1000/records-by-host.json') === false);
   assert.ok(block.includes('/var/lib/truyn-d1000/records-by-host.json'));
+  assert.ok(block.includes('select(.nodeId != \\$self)'));
+  assert.ok(block.includes('readiness_refresh_remaining=\\$(( deadline - \\$(date +%s) ))'));
+  assert.ok(block.includes('if [[ "\\$readiness_refresh_remaining" -gt 0 ]]'));
   assert.ok(block.includes('"\\${control_url}/dht/refresh"'));
   assert.ok(block.includes('"\\$readiness_recovery_target_count" -le ${HOST_COUNT}'));
   assert.ok(block.includes('"\\$readiness_recovery_target_count" -le ${BOOTSTRAP_MAX_PEERS_PER_NODE}'));
