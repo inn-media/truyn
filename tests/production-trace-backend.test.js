@@ -64,7 +64,8 @@ test('Tempo 3 image pins 30-day normal and 90-day incident retention with mandat
     readFile(TEMPO_OVERRIDES, 'utf8')
   ]);
   assert.match(dockerfile, /^FROM grafana\/tempo:3\.0\.2 AS config-verify$/m);
-  assert.match(dockerfile, /RUN \["\/tempo", "-config\.file=\/etc\/tempo\/tempo\.yaml", "-config\.expand-env=true", "-config\.verify"\]/);
+  assert.match(dockerfile, /RUN \["\/tempo", "-config\.file=\/etc\/tempo\/tempo\.yaml", "-config\.expand-env=true", "-config\.verify=true"\]/);
+  assert.doesNotMatch(dockerfile, /"-config\.verify"\]/);
   assert.match(dockerfile, /COPY --from=config-verify \/etc\/tempo\/tempo\.yaml \/etc\/tempo\/tempo\.yaml/);
   assert.match(dockerfile, /COPY --from=config-verify \/etc\/tempo\/overrides\.yaml \/etc\/tempo\/overrides\.yaml/);
   assert.match(config, /multitenancy_enabled: true/);
