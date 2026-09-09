@@ -50,6 +50,23 @@ test('D-200 composed heal diagnostics apply bounded local controls and preserve 
   assert.ok(campaignAfter.includes('class-d-200-healed-reconvergence.json'), 'healed classifier artifact must be retained');
   assert.ok(campaignAfter.includes('class-d-200-healed-reconvergence-digest.txt'), 'persisted healed evidence must have a SHA-256 digest sidecar');
   assert.ok(campaignAfter.includes('persisted_peer_state(j,node_id)'), 'peer-record origin diagnostics must be installed');
+  assert.ok(campaignAfter.includes("path=f'/var/lib/truwyn-d1000/node-{global_index}-state.json'".replace('truwyn','truyn')), 'healed diagnostics must use the canonical persisted peer-state path');
+  for (const forbiddenPath of [
+    '/var/lib/truyqn-d1000/',
+    '/etc/truyqn-d1000/',
+    '/opt/truyqn/',
+    '/var/lib/truqyn-d1000/',
+    '/etc/truqyn-d1000/',
+    '/opt/truqyn/',
+    '/var/lib/truin-d1000/',
+    '/etc/truin-d1000/',
+    '/opt/truin/',
+    '/tmp/truyqn-',
+    '/tmp/truqyn-',
+    '/tmp/truin-',
+  ]) {
+    assert.equal(campaignAfter.includes(forbiddenPath), false, `noncanonical generated D-200 path must never survive composition: ${forbiddenPath}`);
+  }
   assert.ok(campaignAfter.includes("control+'/faults/partition'"), 'bounded cached-target transport reset must be installed');
   assert.ok(campaignAfter.includes("'schema':'truyn.d200.healed-reconvergence.v3'"), 'bounded evidence artifact schema must be explicit');
   assert.ok(campaignAfter.includes("'schema':'truyn.d200.healed-evidence-transport.v1'"), 'transport schema must be explicit');
