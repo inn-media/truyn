@@ -106,7 +106,10 @@ function verifyEvent(event, expectedSequence, expectedPreviousHash) {
   requiredString(event.reasonClass, 'revocation event reasonClass');
   requiredString(event.issuerAuthorityId, 'revocation event issuerAuthorityId');
   if (event.issuerKeyId != null) requiredString(event.issuerKeyId, 'revocation event issuerKeyId');
-  if (!Number.isFinite(Date.parse(event.issuedAt)) || !Number.isFinite(Date.parse(event.effectiveAt))) throw new Error('revocation_event_time_invalid');
+  const issuedMs = Date.parse(event.issuedAt);
+  const effectiveMs = Date.parse(event.effectiveAt);
+  if (!Number.isFinite(issuedMs) || !Number.isFinite(effectiveMs)) throw new Error('revocation_event_time_invalid');
+  if (effectiveMs > issuedMs) throw new Error('revocation_event_future_effective_unsupported');
   if (event.eventId !== eventIdFor(event)) throw new Error('revocation_event_id_invalid');
   if (event.eventHash !== eventHashFor(event)) throw new Error('revocation_event_hash_invalid');
   return true;
@@ -207,12 +210,13 @@ export function createProductionRevocationAuthority({
       });
       state.revocations ||= {};
       for (const [key, record] of legacyRevocations) {
+        const legacyAt = record.revokedAt || now();
         const event = appendEvent(state, {
           targetKind: record.kind,
           targetId: record.id,
           reasonClass: record.reason || 'legacy_revocation',
-          issuedAt: record.revokedAt || now(),
-          effectiveAt: record.revokedAt || now(),
+          issuedAt: legacyAt,
+          effectiveAt: legacyAt,
           issuerAuthorityId: 'legacy-import'
         });
         record.eventId = event.eventId;
@@ -250,8 +254,11 @@ export function createProductionRevocationAuthority({
     if (replicaMode) throw new Error('revocation_replica_read_only');
     const subject = normalize(kind, id);
     const issuedAt = now();
+    const issuedMs = Date.parse(issuedAt);
     const effective = effectiveAt || issuedAt;
-    if (!Number.isFinite(Date.parse(effective))) throw new Error('revocation effectiveAt is invalid');
+    const effectiveMs = Date.parse(effective);
+    if (!Number.isFinite(issuedMs) || !Number.isFinite(effectiveMs)) throw new Error('revocation effectiveAt is invalid');
+    if (effectiveMs > issuedMs) throw new Error('revocation_future_effective_unsupported');
     const transaction = store.transaction((state) => {
       verifyState(state);
       state.revocations ||= {};
