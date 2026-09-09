@@ -6,6 +6,10 @@
   "runtimeRole": "provider",
   "runtimeImageBinding": "exact-main-source-sha",
   "environmentVariable": "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+  "retentionClassEnvironmentVariable": "TRUYN_TRACE_RETENTION_CLASS",
+  "defaultRetentionClass": "normal",
+  "allowedRetentionClasses": ["normal", "incident"],
+  "tenantHeader": "X-Scope-OrgID",
   "protocol": "otlp/http-protobuf",
   "traceBackendRef": "operations/production-trace-backend.json",
   "endpointScope": "private-loopback-sidecar",
@@ -14,10 +18,11 @@
   "sampling": "always_on_for_acceptance_canary",
   "acceptance": {
     "spanName": "truyn.provider.execute",
+    "retentionClass": "normal",
     "exactTraceReadBackRequired": true,
     "sourceShaBindingRequired": true,
-    "marker": "TRUYN_TRACE_EXPORT_PASS span=truyn.provider.execute runtime=production source=exact-main"
+    "marker": "TRUYN_TRACE_EXPORT_PASS span=truyn.provider.execute runtime=production source=exact-main retention_class=normal"
   },
-  "status": "live_proof_required",
-  "invariant": "Sprint 10 is accepted only when an exact-main production runtime image receives OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, emits truyn.provider.execute through the production OpenTelemetry SDK, and Tempo returns that exact trace by its runtime-produced trace id."
+  "status": "retention_class_live_proof_required",
+  "invariant": "Production trace export is fail-closed to the normal or incident retention class. The exact-main acceptance runtime uses normal, and incident-class exporters select the longer-retention Tempo tenant with X-Scope-OrgID."
 }

@@ -5,12 +5,21 @@ import { resourceFromAttributes } from '@opentelemetry/resources';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
+const TRACE_RETENTION_CLASSES = new Set(['normal', 'incident']);
 
 export function assertPrivateMetricsHost(host) {
   if (!LOOPBACK_HOSTS.has(host)) {
     throw new Error('TRUYN metrics listener must bind to loopback; use a local collector/sidecar for remote export');
   }
   return host;
+}
+
+export function assertTraceRetentionClass(value = 'normal') {
+  const retentionClass = String(value || 'normal').trim().toLowerCase();
+  if (!TRACE_RETENTION_CLASSES.has(retentionClass)) {
+    throw new Error('TRUYN_TRACE_RETENTION_CLASS must be normal or incident');
+  }
+  return retentionClass;
 }
 
 function traceEndpoint(env) {
@@ -29,13 +38,15 @@ export async function startProductionObservability({ env = process.env, role = e
   env.TRUYN_OBSERVABILITY = '1';
   const serviceName = env.OTEL_SERVICE_NAME || `truyn-${role}`;
   const endpoint = traceEndpoint(env);
+  const traceRetentionClass = assertTraceRetentionClass(env.TRUYN_TRACE_RETENTION_CLASS || 'normal');
   if (!endpoint && !process.env.OTEL_TRACES_EXPORTER) process.env.OTEL_TRACES_EXPORTER = 'none';
   const prometheus = new PrometheusExporter({ host: metricsHost, port: metricsPort, endpoint: '/metrics' });
   const resource = resourceFromAttributes({
     'service.name': serviceName,
     'service.version': env.TRUYN_VERSION || '0.1.0-dev',
     'deployment.environment.name': env.TRUYN_ENVIRONMENT || env.NODE_ENV || 'production',
-    'truyn.role': role
+    'truyn.role': role,
+    'truyn.trace.retention_class': traceRetentionClass
   });
 
   const options = {
@@ -45,7 +56,12 @@ export async function startProductionObservability({ env = process.env, role = e
       '@opentelemetry/instrumentation-fs': { enabled: false }
     })]
   };
-  if (endpoint) options.traceExporter = new OTLPTraceExporter({ url: endpoint });
+  if (endpoint) {
+    options.traceExporter = new OTLPTraceExporter({
+      url: endpoint,
+      headers: { 'X-Scope-OrgID': traceRetentionClass }
+    });
+  }
 
   const sdk = new NodeSDK(options);
   await sdk.start();
@@ -54,6 +70,7 @@ export async function startProductionObservability({ env = process.env, role = e
     serviceName,
     metricsHost,
     metricsPort,
+    traceRetentionClass,
     async shutdown() { await sdk.shutdown(); }
   };
 }
