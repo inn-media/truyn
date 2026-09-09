@@ -1,0 +1,225 @@
+name: autopilot-d200-launch-c75e2fc8-71b1df-v2
+
+on:
+  push:
+    branches:
+      - autopilot/d200-launch-c75e2fc8-71b1df
+    paths:
+      - '.github/workflows/autopilot-d200-launch-c75e2fc8-71b1df-v2.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: autopilot-d200-launch-c75e2fc8-71b1df-v2
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE: c75e2fc83da0b7e366d23b9fa1097a1d6b12f6f1
+  EXPECTED_TREE: 81b8e18deebcc53b31837165edcd50a233433182
+  EXACT_MAIN_CI_RUN: '34315740153'
+  EXACT_MAIN_CODEQL_RUN: '34315740037'
+  LAUNCHER: .github/workflows/diag-d200-850fff25-qualified.yml
+
+jobs:
+  prepare-and-publish:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Enforce helper one-shot and unchanged main
+        env:
+          GH_TOKEN: '${{ github.token }}'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
+          [[ "$GITHUB_EVENT_NAME" == push ]]
+          [[ "$GITHUB_REF" == refs/heads/autopilot/d200-launch-c75e2fc8-71b1df ]]
+          current="$(gh api "repos/${GITHUB_REPOSITORY}/branches/main" --jq '.commit.sha')"
+          [[ "$current" == "$EXPECTED_BASE" ]]
+          ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
+          cq="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}")"
+          jq -e --arg sha "$EXPECTED_BASE" '.name=="CI" and .head_branch=="main" and .head_sha==$sha and .event=="push" and .status=="completed" and .conclusion=="success"' <<<"$ci" >/dev/null
+          jq -e --arg sha "$EXPECTED_BASE" '.head_branch=="main" and .head_sha==$sha and .status=="completed" and .conclusion=="success"' <<<"$cq" >/dev/null
+          runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/diag-d200-850fff25-qualified.yml/runs?per_page=100")"
+          [[ "$(jq '[.workflow_runs[] | select(.status != "completed") ] | length' <<<"$runs")" == 0 ]]
+
+      - uses: actions/checkout@v4
+        with:
+          ref: '${{ env.EXPECTED_BASE }}'
+          fetch-depth: 2
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate exact source and D-200 preflight
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_BASE" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$EXPECTED_TREE" ]]
+          npm install --ignore-scripts --no-audit --no-fund
+          node --test \
+            tests/class-d-diagnostic-readiness-evidence.test.js \
+            tests/class-d-diagnostic-healed-origin.test.js \
+            tests/class-d-diagnostic-composed-heal-evidence.test.js
+          bash scripts/class-d-200-preflight-qualification.sh
+          git diff --check
+
+      - name: Rebuild immutable D-200 launcher
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - "$LAUNCHER" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          s = path.read_text()
+
+          def rep(old: str, new: str, expected: int = 1):
+              global s
+              count = s.count(old)
+              if count != expected:
+                  raise SystemExit(f"replacement count mismatch for {old!r}: {count} != {expected}")
+              s = s.replace(old, new)
+
+          rep('name: diag-d200-bc9dc5f0-readiness-nounset-repair', 'name: diag-d200-c75e2fc8-canonical-path-qualified')
+          rep('group: truyn-d200-bc9dc5f0-readiness-nounset-repair-single-shot', 'group: truyn-d200-c75e2fc8-canonical-path-qualified-single-shot')
+          rep('TESTED_COMMIT: bc9dc5f04bb8d530105c80dca582e93672cdcd7f', 'TESTED_COMMIT: c75e2fc83da0b7e366d23b9fa1097a1d6b12f6f1')
+          rep('TESTED_TREE_SHA: dc1665a8f03ba616c01ae0e220e3241829479741', 'TESTED_TREE_SHA: 81b8e18deebcc53b31837165edcd50a233433182')
+          rep('LAUNCH_PARENT: 6d4d701aec7d5f9d6a3e37c7b495873a2dd4718d', 'LAUNCH_PARENT: c75e2fc83da0b7e366d23b9fa1097a1d6b12f6f1')
+          rep("EXACT_MAIN_CI_RUN: '34271684037'", "EXACT_MAIN_CI_RUN: '34315740153'")
+          rep("EXACT_MAIN_CODEQL_RUN: '34271680547'", "EXACT_MAIN_CODEQL_RUN: '34315740037'")
+          rep('READINESS_EVIDENCE_PATCH_BLOB_SHA: 98f140a122704f2f1f7f01ec7ba1e4dc902a7bc8', 'READINESS_EVIDENCE_PATCH_BLOB_SHA: fd87a7db08c2040dc8df716c230227dba8d043eb')
+          rep('READINESS_EVIDENCE_TEST_BLOB_SHA: 634e1bfa28445e358b04eeefb795600a07f61383', 'READINESS_EVIDENCE_TEST_BLOB_SHA: 7801e85a62fa5478b426d905e409a8062b52c0c1')
+          rep(
+              'READINESS_EVIDENCE_TEST_BLOB_SHA: 7801e85a62fa5478b426d905e409a8062b52c0c1\n',
+              'READINESS_EVIDENCE_TEST_BLOB_SHA: 7801e85a62fa5478b426d905e409a8062b52c0c1\n'
+              '  COMPOSED_HEAL_EVIDENCE_PATCH_BLOB_SHA: c91093b953a60c342e6f71949c9fef3eeb94d245\n'
+              '  HEALED_ORIGIN_PATCH_BLOB_SHA: 9f22133f88551807f7eb0a847f9480b2c40a0ce8\n'
+              '  COMPOSED_HEAL_EVIDENCE_TEST_BLOB_SHA: 178aa0995d21a69ce1adc9f8f598adf36484508c\n'
+              '  HEALED_ORIGIN_TEST_BLOB_SHA: 46690be02b26304c716925f694365bff2d9a9c2a\n'
+          )
+          rep('name: Immutable qualified D-200 on bc9dc5f0', 'name: Immutable qualified D-200 on c75e2fc8')
+          rep(
+              '          [[ "$(jq -r \' .parents[0].sha\' <<<"$j")" == "$LAUNCH_PARENT" ]]\n'.replace("' .parents", "'.parents"),
+              '          [[ "$(jq -r \'.parents[0].sha\' <<<"$j")" == "$LAUNCH_PARENT" ]]\n'
+              '          [[ "$TESTED_COMMIT" == "$LAUNCH_PARENT" ]]\n'
+              '          jq -e \'.commit.message | contains("Signed-off-by:")\' <<<"$j" >/dev/null\n'
+          )
+          rep(
+              '          jq -e \'.commit.message | contains("Signed-off-by:")\' <<<"$t" >/dev/null\n'
+              '          jq -e \'.commit.verification.verified == true\' <<<"$t" >/dev/null\n',
+              '          jq -e \'.commit.verification.verified == true\' <<<"$t" >/dev/null\n'
+          )
+          rep(
+              '          [[ "$(git rev-parse "${TESTED_COMMIT}:tests/class-d-diagnostic-readiness-evidence.test.js")" == "$READINESS_EVIDENCE_TEST_BLOB_SHA" ]]\n',
+              '          [[ "$(git rev-parse "${TESTED_COMMIT}:tests/class-d-diagnostic-readiness-evidence.test.js")" == "$READINESS_EVIDENCE_TEST_BLOB_SHA" ]]\n'
+              '          [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-composed-heal-evidence.py")" == "$COMPOSED_HEAL_EVIDENCE_PATCH_BLOB_SHA" ]]\n'
+              '          [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-healed-origin.py")" == "$HEALED_ORIGIN_PATCH_BLOB_SHA" ]]\n'
+              '          [[ "$(git rev-parse "${TESTED_COMMIT}:tests/class-d-diagnostic-composed-heal-evidence.test.js")" == "$COMPOSED_HEAL_EVIDENCE_TEST_BLOB_SHA" ]]\n'
+              '          [[ "$(git rev-parse "${TESTED_COMMIT}:tests/class-d-diagnostic-healed-origin.test.js")" == "$HEALED_ORIGIN_TEST_BLOB_SHA" ]]\n'
+          )
+          rep(
+              '          node --test tests/class-d-diagnostic-readiness-evidence.test.js\n',
+              '          node --test \\\n'
+              '            tests/class-d-diagnostic-readiness-evidence.test.js \\\n'
+              '            tests/class-d-diagnostic-healed-origin.test.js \\\n'
+              '            tests/class-d-diagnostic-composed-heal-evidence.test.js\n'
+          )
+          rep('diagnostic_focus=readiness-heredoc-nounset-peer-lease-freshness', 'diagnostic_focus=canonical-path-readiness-healed-origin-peer-lease-freshness')
+          expr = '$' + '{{ github.run_id }}'
+          rep(f"name: 'truyn-class-d200-bc9dc5f0-{expr}'", f"name: 'truyn-class-d200-c75e2fc8-{expr}'")
+
+          forbidden = [
+              'bc9dc5f04bb8d530105c80dca582e93672cdcd7f',
+              '6d4d701aec7d5f9d6a3e37c7b495873a2dd4718d',
+              '34271684037',
+              '34271680547',
+              '98f140a122704f2f1f7f01ec7ba1e4dc902a7bc8',
+              '634e1bfa28445e358b04eeefb795600a07f61383',
+          ]
+          for value in forbidden:
+              if value in s:
+                  raise SystemExit(f'stale launcher pin survived: {value}')
+
+          required = [
+              'hostCount==20',
+              'nodeCount==200',
+              '.routing.baselineSuccessRatio>=.99',
+              '.routing.healedSuccessRatio>=.99',
+              '.convergence.latencyMs.p95<=120000',
+              '.recovery.latencyMs.p95<=120000',
+              '.safety.acknowledgedWriteCount==100',
+              '.safety.acknowledgedWriteLossCount==0',
+              '.cleanup.confirmed==true',
+              '.cleanup.remainingResources==0',
+              '[[ "$GITHUB_RUN_ATTEMPT" == 1 ]]',
+          ]
+          for value in required:
+              if value not in s:
+                  raise SystemExit(f'strict D-200 invariant missing: {value}')
+
+          path.write_text(s)
+          PY
+
+          git diff --check
+          mapfile -t changed < <(git diff --name-only)
+          [[ ${#changed[@]} -eq 1 ]]
+          [[ "${changed[0]}" == "$LAUNCHER" ]]
+          grep -F 'TESTED_COMMIT: c75e2fc83da0b7e366d23b9fa1097a1d6b12f6f1' "$LAUNCHER" >/dev/null
+          grep -F 'TESTED_TREE_SHA: 81b8e18deebcc53b31837165edcd50a233433182' "$LAUNCHER" >/dev/null
+          grep -F "EXACT_MAIN_CI_RUN: '34315740153'" "$LAUNCHER" >/dev/null
+          grep -F "EXACT_MAIN_CODEQL_RUN: '34315740037'" "$LAUNCHER" >/dev/null
+          ! grep -Eq '/(var/lib|etc)/truyqn-d1000|/opt/truyqn|/(var/lib|etc)/truqyn-d1000|/opt/truqyn|/(var/lib|etc)/truin-d1000|/opt/truin' "$LAUNCHER"
+
+      - name: Commit and atomically publish launcher
+        env:
+          GH_TOKEN: '${{ github.token }}'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          current="$(gh api "repos/${GITHUB_REPOSITORY}/branches/main" --jq '.commit.sha')"
+          [[ "$current" == "$EXPECTED_BASE" ]]
+          remote="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          [[ "$remote" == "$EXPECTED_BASE" ]]
+
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add "$LAUNCHER"
+          git commit -s -m 'chore(d200): launch qualified c75e2fc8'
+          launch_sha="$(git rev-parse HEAD)"
+          parent="$(git rev-parse HEAD^)"
+          [[ "$parent" == "$EXPECTED_BASE" ]]
+          [[ "$(git rev-list --parents -n 1 HEAD | wc -w)" == 2 ]]
+          mapfile -t committed < <(git diff-tree --no-commit-id --name-only -r HEAD)
+          [[ ${#committed[@]} -eq 1 ]]
+          [[ "${committed[0]}" == "$LAUNCHER" ]]
+          git log -1 --format=%B | grep -F 'Signed-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>' >/dev/null
+
+          current="$(gh api "repos/${GITHUB_REPOSITORY}/branches/main" --jq '.commit.sha')"
+          [[ "$current" == "$EXPECTED_BASE" ]]
+          git push origin HEAD:refs/heads/main
+          echo "TRUYN_D200_LAUNCH_COMMIT=$launch_sha"
+
+          found=''
+          for _ in $(seq 1 30); do
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${launch_sha}&event=push&per_page=100")"
+            count="$(jq '[.workflow_runs[] | select(.path==".github/workflows/diag-d200-850fff25-qualified.yml") ] | length' <<<"$runs")"
+            if [[ "$count" == 1 ]]; then
+              found="$(jq -r '[.workflow_runs[] | select(.path==".github/workflows/diag-d200-850fff25-qualified.yml")][0].id' <<<"$runs")"
+              attempt="$(jq -r '[.workflow_runs[] | select(.path==".github/workflows/diag-d200-850fff25-qualified.yml")][0].run_attempt' <<<"$runs")"
+              [[ "$attempt" == 1 ]]
+              break
+            elif [[ "$count" != 0 ]]; then
+              echo "unexpected duplicate D-200 runs for $launch_sha: $count" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          [[ -n "$found" ]]
+          echo "TRUYN_D200_RUN_ID=$found"
