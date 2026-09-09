@@ -1,5 +1,5 @@
 {
-  "schema": "truyn.production-trace-backend/v1",
+  "schema": "truyn.production-trace-backend/v2",
   "backendId": "prod-traces-01",
   "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
   "backendClass": "azure-container-apps-tempo",
@@ -22,12 +22,32 @@
     "privateEndpointRequired": true,
     "sharedKeyAccess": false
   },
+  "retention": {
+    "mechanism": "tempo-per-tenant-compaction",
+    "multitenancyRequired": true,
+    "tenantHeader": "X-Scope-OrgID",
+    "normal": {
+      "tenant": "normal",
+      "retentionHours": 720,
+      "retentionDays": 30
+    },
+    "incident": {
+      "tenant": "incident",
+      "retentionHours": 2160,
+      "retentionDays": 90
+    },
+    "incidentLongerThanNormal": true,
+    "failClosedRetentionClass": true
+  },
   "publicIngress": false,
   "acceptance": {
     "readyEndpoint": "/ready",
     "otlpHttpMustAcceptTrace": true,
     "traceReadBackRequired": true,
-    "marker": "TRUYN_TRACE_CANARY_PASS otlp_http=accepted trace_readback=observed storage=azure-blob"
+    "normalRetentionConfigReadBackRequired": true,
+    "incidentRetentionConfigReadBackRequired": true,
+    "normalAndIncidentTenantReadBackRequired": true,
+    "marker": "TRUYN_TRACE_RETENTION_PASS normal_days=30 incident_days=90 normal_readback=1 incident_readback=1"
   },
-  "status": "awaiting_exact_main_live_apply"
+  "status": "trace_retention_30d_incident_90d_live_proof_required"
 }
