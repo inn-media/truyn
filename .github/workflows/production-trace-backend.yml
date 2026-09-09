@@ -4,22 +4,32 @@ on:
   pull_request:
     paths:
       - 'infra/production-tracing/**'
+      - 'observability/bootstrap.js'
       - 'runtime/trace-export-canary.js'
       - 'operations/production-trace-backend.json'
       - 'operations/production-trace-export.json'
       - '.github/workflows/production-trace-backend.yml'
       - 'tests/production-trace-backend.test.js'
+      - 'tests/production-trace-retention.test.js'
+      - 'tests/observability.test.js'
       - 'tests/public-repository.test.js'
+      - 'infra/production-dr/**'
+      - '.github/workflows/production-dr-foundation.yml'
   push:
     branches: [main]
     paths:
       - 'infra/production-tracing/**'
+      - 'observability/bootstrap.js'
       - 'runtime/trace-export-canary.js'
       - 'operations/production-trace-backend.json'
       - 'operations/production-trace-export.json'
       - '.github/workflows/production-trace-backend.yml'
       - 'tests/production-trace-backend.test.js'
+      - 'tests/production-trace-retention.test.js'
+      - 'tests/observability.test.js'
       - 'tests/public-repository.test.js'
+      - 'infra/production-dr/**'
+      - '.github/workflows/production-dr-foundation.yml'
 
 permissions:
   contents: read
@@ -28,10 +38,12 @@ permissions:
 env:
   DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
   RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
-  REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'northeurope:swedencentral germanywestcentral:francecentral' }}
+  REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'germanywestcentral:francecentral northeurope:swedencentral' }}
   AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
   AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
   AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+  NORMAL_TRACE_RETENTION_DAYS: '30'
+  INCIDENT_TRACE_RETENTION_DAYS: '90'
 
 jobs:
   validate:
@@ -53,16 +65,21 @@ jobs:
         run: |
           set -euo pipefail
           docker build --pull --tag truyn-trace-backend:validate infra/production-tracing/tempo >/dev/null
-      - name: Validate runtime trace canary syntax
+      - name: Validate trace runtime syntax
         shell: bash
         run: |
           set -euo pipefail
+          node --check observability/bootstrap.js
           node --check runtime/trace-export-canary.js
-      - name: Validate trace backend contract
+          python -m py_compile infra/production-tracing/trace-retention-probe.py
+      - name: Validate trace backend and retention contract
         shell: bash
         run: |
           set -euo pipefail
+          [[ "$NORMAL_TRACE_RETENTION_DAYS" -ge 14 && "$NORMAL_TRACE_RETENTION_DAYS" -le 30 ]]
+          [[ "$INCIDENT_TRACE_RETENTION_DAYS" -gt "$NORMAL_TRACE_RETENTION_DAYS" ]]
           jq -e '
+            .schema == "truyn.production-trace-backend/v2" and
             .backendId == "prod-traces-01" and
             .deploymentId == "dc4518de-d1bf-4fce-b351-e43d7c152999" and
             .backendClass == "azure-container-apps-tempo" and
@@ -75,8 +92,19 @@ jobs:
             .storage.backend == "azure-blob" and
             .storage.authentication == "managed-identity" and
             .storage.publicNetworkAccess == false and
+            .retention.mechanism == "tempo-per-tenant-compaction" and
+            .retention.multitenancyRequired == true and
+            .retention.tenantHeader == "X-Scope-OrgID" and
+            .retention.normal.tenant == "normal" and
+            .retention.normal.retentionDays == 30 and
+            .retention.incident.tenant == "incident" and
+            .retention.incident.retentionDays == 90 and
+            .retention.incidentLongerThanNormal == true and
+            .retention.failClosedRetentionClass == true and
             .publicIngress == false and
-            .acceptance.traceReadBackRequired == true
+            .acceptance.traceReadBackRequired == true and
+            .acceptance.normalRetentionConfigReadBackRequired == true and
+            .acceptance.incidentRetentionConfigReadBackRequired == true
           ' operations/production-trace-backend.json >/dev/null
       - name: Validate production trace export contract
         shell: bash
@@ -119,6 +147,8 @@ jobs:
           set -euo pipefail
           az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
           az bicep install >/dev/null
+          [[ "$NORMAL_TRACE_RETENTION_DAYS" -eq 30 ]]
+          [[ "$INCIDENT_TRACE_RETENTION_DAYS" -eq 90 ]]
           printf '::add-mask::%s\n' "$RESOURCE_GROUP"
 
           selected_environment=''
@@ -144,35 +174,21 @@ jobs:
             registry="${prefix}acr"
             for value in "$prefix" "$environment" "$cosmos" "$vnet" "$registry"; do printf '::add-mask::%s\n' "$value"; done
 
-            if ! environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --only-show-errors -o json 2>/dev/null)"; then
-              continue
-            fi
-            if ! cosmos_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json 2>/dev/null)"; then
-              continue
-            fi
-            if ! vnet_id="$(az network vnet show --resource-group "$RESOURCE_GROUP" --name "$vnet" --query id -o tsv --only-show-errors 2>/dev/null)"; then
-              continue
-            fi
-            if ! pe_subnet_id="$(az network vnet subnet show --resource-group "$RESOURCE_GROUP" --vnet-name "$vnet" --name private-endpoints --query id -o tsv --only-show-errors 2>/dev/null)"; then
-              continue
-            fi
-            if ! az acr show --resource-group "$RESOURCE_GROUP" --name "$registry" --only-show-errors -o none 2>/dev/null; then
-              continue
-            fi
+            if ! environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --only-show-errors -o json 2>/dev/null)"; then continue; fi
+            if ! cosmos_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json 2>/dev/null)"; then continue; fi
+            if ! vnet_id="$(az network vnet show --resource-group "$RESOURCE_GROUP" --name "$vnet" --query id -o tsv --only-show-errors 2>/dev/null)"; then continue; fi
+            if ! pe_subnet_id="$(az network vnet subnet show --resource-group "$RESOURCE_GROUP" --vnet-name "$vnet" --name private-endpoints --query id -o tsv --only-show-errors 2>/dev/null)"; then continue; fi
+            if ! az acr show --resource-group "$RESOURCE_GROUP" --name "$registry" --only-show-errors -o none 2>/dev/null; then continue; fi
 
             if ! jq -e '
               .properties.vnetConfiguration.internal == true and
               (.properties.publicNetworkAccess | ascii_downcase) == "disabled" and
               .properties.provisioningState == "Succeeded"
-            ' <<<"$environment_json" >/dev/null; then
-              continue
-            fi
+            ' <<<"$environment_json" >/dev/null; then continue; fi
             if ! jq -e --arg primary "$primary" --arg secondary "$secondary" '
               .provisioningState == "Succeeded" and
               ([.locations[].locationName | gsub(" "; "") | ascii_downcase] | sort) == ([$primary, $secondary] | sort)
-            ' <<<"$cosmos_json" >/dev/null; then
-              continue
-            fi
+            ' <<<"$cosmos_json" >/dev/null; then continue; fi
 
             selected_environment="$environment"
             selected_environment_id="$(jq -r '.id' <<<"$environment_json")"
@@ -184,12 +200,12 @@ jobs:
             break
           done
 
-          [[ -n "$selected_environment" && -n "$selected_environment_id" && -n "$selected_region" && -n "$selected_vnet_id" && -n "$selected_private_endpoint_subnet_id" && -n "$selected_registry" ]] || {
+          [[ -n "$selected_environment" && -n "$selected_environment_id" && -n "$selected_region" && -n "$selected_prefix" && -n "$selected_vnet_id" && -n "$selected_private_endpoint_subnet_id" && -n "$selected_registry" ]] || {
             echo '::error::No accepted internal production Container Apps foundation is available.'
             exit 1
           }
 
-          trace_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:tempo" | sha256sum | cut -c1-10)"
+          trace_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:${selected_prefix}:tempo" | sha256sum | cut -c1-10)"
           app_name="truyn-traces-${trace_suffix}"
           storage_name="truyntr${trace_suffix}"
           identity_name="truyn-traces-${trace_suffix}-mi"
@@ -198,9 +214,7 @@ jobs:
           runtime_image="${selected_registry}.azurecr.io/truyn-runtime:${GITHUB_SHA}"
           opaque_region="region-$(printf '%s' "${DEPLOYMENT_ID}:${selected_region}" | sha256sum | cut -c1-8)"
 
-          for value in "$selected_environment" "$selected_environment_id" "$selected_prefix" "$selected_vnet_id" "$selected_private_endpoint_subnet_id" "$selected_registry" "$app_name" "$storage_name" "$identity_name" "$image_name" "$runtime_image"; do
-            printf '::add-mask::%s\n' "$value"
-          done
+          for value in "$selected_environment" "$selected_environment_id" "$selected_prefix" "$selected_vnet_id" "$selected_private_endpoint_subnet_id" "$selected_registry" "$app_name" "$storage_name" "$identity_name" "$image_name" "$runtime_image"; do printf '::add-mask::%s\n' "$value"; done
 
           printf 'ACA_ENVIRONMENT=%s\n' "$selected_environment" >> "$GITHUB_ENV"
           printf 'ACA_ENVIRONMENT_ID=%s\n' "$selected_environment_id" >> "$GITHUB_ENV"
@@ -219,25 +233,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          az acr build \
-            --registry "$TRACE_REGISTRY" \
-            --image "truyn-trace-backend:${GITHUB_SHA}" \
-            --file infra/production-tracing/tempo/Dockerfile \
-            infra/production-tracing/tempo \
-            --only-show-errors \
-            -o none
+          az acr build --registry "$TRACE_REGISTRY" --image "truyn-trace-backend:${GITHUB_SHA}" --file infra/production-tracing/tempo/Dockerfile infra/production-tracing/tempo --only-show-errors -o none
 
       - name: Build exact-main production runtime image
         shell: bash
         run: |
           set -euo pipefail
-          az acr build \
-            --registry "$TRACE_REGISTRY" \
-            --image "truyn-runtime:${GITHUB_SHA}" \
-            --file Dockerfile \
-            . \
-            --only-show-errors \
-            -o none
+          az acr build --registry "$TRACE_REGISTRY" --image "truyn-runtime:${GITHUB_SHA}" --file Dockerfile . --only-show-errors -o none
 
       - name: Provision private OTLP trace storage and runtime export canary
         shell: bash
@@ -263,8 +265,7 @@ jobs:
               deploymentId="$DEPLOYMENT_ID" \
               sourceSha="$GITHUB_SHA" \
               tempoVersion='3.0.2' \
-            --only-show-errors \
-            -o none
+            --only-show-errors -o none
 
           app_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$TRACE_APP" --only-show-errors -o json)"
           storage_json="$(az storage account show --resource-group "$RESOURCE_GROUP" --name "$TRACE_STORAGE" --only-show-errors -o json)"
@@ -279,6 +280,7 @@ jobs:
               .name == "runtime-trace-canary" and
               .image == $runtimeImage and
               any(.env[]; .name == "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" and .value == "http://127.0.0.1:4318/v1/traces") and
+              any(.env[]; .name == "TRUYN_TRACE_RETENTION_CLASS" and .value == "normal") and
               any(.env[]; .name == "TRUYN_VERSION" and .value == $sourceSha)
             )
           ' <<<"$app_json" >/dev/null
@@ -292,29 +294,22 @@ jobs:
           ' <<<"$storage_json" >/dev/null
           jq -e '.principalId != null and .clientId != null' <<<"$identity_json" >/dev/null
 
-      - name: Prove OTLP endpoint and trace read-back
+      - name: Prove OTLP endpoint, retention classes and trace read-back
         shell: bash
         run: |
           set -euo pipefail
           accepted=false
           for attempt in $(seq 1 120); do
-            logs="$(az containerapp logs show \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "$TRACE_APP" \
-              --container acceptance-probe \
-              --type console \
-              --tail 100 \
-              --follow false \
-              --format text \
-              --only-show-errors 2>/dev/null || true)"
-            if grep -q 'TRUYN_TRACE_CANARY_PASS otlp_http=accepted trace_readback=observed storage=azure-blob' <<<"$logs"; then
+            logs="$(az containerapp logs show --resource-group "$RESOURCE_GROUP" --name "$TRACE_APP" --container acceptance-probe --type console --tail 200 --follow false --format text --only-show-errors 2>/dev/null || true)"
+            if grep -q 'TRUYN_TRACE_CANARY_PASS otlp_http=accepted trace_readback=observed storage=azure-blob' <<<"$logs" && \
+               grep -q 'TRUYN_TRACE_RETENTION_PASS normal_days=30 incident_days=90 normal_readback=1 incident_readback=1' <<<"$logs"; then
               accepted=true
               break
             fi
             sleep 10
           done
           [[ "$accepted" == true ]] || {
-            echo '::error::Tempo OTLP endpoint did not accept and return the trace canary.'
+            echo '::error::Tempo retention classes were not active and readable.'
             exit 1
           }
 
@@ -324,27 +319,19 @@ jobs:
           set -euo pipefail
           observed=false
           for attempt in $(seq 1 120); do
-            logs="$(az containerapp logs show \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "$TRACE_APP" \
-              --container acceptance-probe \
-              --type console \
-              --tail 150 \
-              --follow false \
-              --format text \
-              --only-show-errors 2>/dev/null || true)"
-            if grep -q 'TRUYN_TRACE_EXPORT_PASS span=truyn.provider.execute runtime=production source=exact-main' <<<"$logs"; then
+            logs="$(az containerapp logs show --resource-group "$RESOURCE_GROUP" --name "$TRACE_APP" --container acceptance-probe --type console --tail 200 --follow false --format text --only-show-errors 2>/dev/null || true)"
+            if grep -q 'TRUYN_TRACE_EXPORT_PASS span=truyn.provider.execute runtime=production source=exact-main retention_class=normal' <<<"$logs"; then
               observed=true
               break
             fi
             sleep 10
           done
           [[ "$observed" == true ]] || {
-            echo '::error::Production runtime did not export a readable truyn.provider.execute trace.'
+            echo '::error::Production runtime did not export a readable normal-retention truyn.provider.execute trace.'
             exit 1
           }
 
-      - name: Emit sanitized Sprint 9 evidence
+      - name: Emit sanitized trace backend and Sprint 17 retention evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -352,30 +339,40 @@ jobs:
             --arg deploymentId "$DEPLOYMENT_ID" \
             --arg sourceSha "$GITHUB_SHA" \
             --arg region "$TRACE_OPAQUE_REGION" \
+            --argjson normalRetentionDays "$NORMAL_TRACE_RETENTION_DAYS" \
+            --argjson incidentRetentionDays "$INCIDENT_TRACE_RETENTION_DAYS" \
             --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{
-              schema: "truyn.production-trace-backend-evidence/v1",
+              schema: "truyn.production-trace-backend-evidence/v2",
               deploymentId: $deploymentId,
               component: "trace-backend",
               backendClass: "azure-container-apps-tempo",
               backendVersion: "3.0.2",
               protocols: { otlpHttp: true, otlpGrpc: true },
-              otlpHttpPort: 4318,
               storageBackend: "azure-blob",
               storageAuthentication: "managed-identity",
               storagePublicNetworkDisabled: true,
               privateEndpoint: true,
               publicIngress: false,
+              retentionMechanism: "tempo-per-tenant-compaction",
+              multitenancyEnabled: true,
+              tenantHeader: "X-Scope-OrgID",
+              normalRetentionDays: $normalRetentionDays,
+              incidentRetentionDays: $incidentRetentionDays,
+              incidentRetentionLonger: ($incidentRetentionDays > $normalRetentionDays),
+              normalRetentionConfigObserved: true,
+              incidentRetentionConfigObserved: true,
+              normalTraceReadBackObserved: true,
+              incidentTraceReadBackObserved: true,
+              runtimeRetentionClass: "normal",
               region: $region,
               sourceSha: $sourceSha,
               exactMain: true,
-              otlpEndpointAccepted: true,
-              traceReadBackObserved: true,
               generatedAt: $generatedAt,
               status: "PASS"
             }' > production-trace-backend-evidence.json
 
-      - name: Emit sanitized Sprint 10 evidence
+      - name: Emit sanitized trace export evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -385,12 +382,14 @@ jobs:
             --arg region "$TRACE_OPAQUE_REGION" \
             --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{
-              schema: "truyn.production-trace-export-evidence/v1",
+              schema: "truyn.production-trace-export-evidence/v2",
               deploymentId: $deploymentId,
               component: "trace-export",
               runtimeRole: "provider",
               runtimeImageBoundToExactMain: true,
               environmentVariable: "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+              retentionClassEnvironmentVariable: "TRUYN_TRACE_RETENTION_CLASS",
+              retentionClass: "normal",
               endpointScope: "private-loopback-sidecar",
               protocol: "otlp/http-protobuf",
               spanName: "truyn.provider.execute",
