@@ -7,17 +7,27 @@
   "prometheusCompatible": true,
   "publicIngress": false,
   "productionPlane": "existing-internal-azure-container-apps",
-  "status": "deployment_pending_live_series_proof",
+  "status": "retention_90d_configured_live_proof_required",
   "seriesAcceptanceMetric": "truyn_backend_acceptance_series",
   "liveSeriesAccepted": false,
   "acceptedSourceSha": null,
   "publicResourceIdentity": false,
   "manifestIntegrationStatus": "pending_phase_a_merge",
-  "retentionDurabilityStatus": "separate_operations_gate",
+  "retentionDurabilityStatus": "runtime_policy_90d_live_proof_required",
+  "retention": {
+    "scope": "all-production-metrics-including-slo-bearing-series",
+    "canonicalSloWindowDays": 28,
+    "sloBearingSeriesDays": 90,
+    "runtimePeriod": "90d",
+    "exceedsCanonicalSloWindow": true,
+    "enforcement": "victoriametrics-retentionPeriod"
+  },
   "evidenceContract": {
     "required": [
       "existing production Container Apps environment is internal and public network disabled",
       "VictoriaMetrics Container App provisioning state Succeeded with no public ingress",
+      "VictoriaMetrics runtime contains -retentionPeriod=90d",
+      "configured SLO metrics retention is strictly greater than the canonical 28-day SLO window",
       "Prometheus remote-write accepted the canary series",
       "PromQL query independently observed the canary series",
       "sanitized evidence artifact status PASS"
@@ -30,5 +40,5 @@
       "credentials"
     ]
   },
-  "invariant": "liveSeriesAccepted may become true only after one live write of truyn_backend_acceptance_series is accepted by the production backend and independently observed through the Prometheus query API."
+  "invariant": "Production SLO-bearing series retention must be configured to 90 days, remain strictly greater than the canonical 28-day SLO window, and be observed in the deployed VictoriaMetrics runtime before Sprint 14 can pass."
 }
