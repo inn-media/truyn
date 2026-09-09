@@ -28,6 +28,9 @@ env:
   AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
   AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
   AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+  CANONICAL_SLO_WINDOW_DAYS: '28'
+  METRICS_RETENTION_DAYS: '90'
+  METRICS_RETENTION_PERIOD: 90d
 
 jobs:
   validate:
@@ -48,6 +51,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          [[ "$METRICS_RETENTION_DAYS" -gt "$CANONICAL_SLO_WINDOW_DAYS" ]]
           jq -e '
             .backendId == "prod-prometheus-01" and
             .deploymentId == "dc4518de-d1bf-4fce-b351-e43d7c152999" and
@@ -55,7 +59,11 @@ jobs:
             .backendVersion == "v1.151.0" and
             .prometheusCompatible == true and
             .publicIngress == false and
-            .seriesAcceptanceMetric == "truyn_backend_acceptance_series"
+            .seriesAcceptanceMetric == "truyn_backend_acceptance_series" and
+            .retention.canonicalSloWindowDays == 28 and
+            .retention.sloBearingSeriesDays == 90 and
+            .retention.runtimePeriod == "90d" and
+            .retention.exceedsCanonicalSloWindow == true
           ' operations/production-metrics-backend.json >/dev/null
 
   apply-and-prove:
@@ -79,6 +87,10 @@ jobs:
           set -euo pipefail
           az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
           az bicep install >/dev/null
+          [[ "$METRICS_RETENTION_DAYS" -gt "$CANONICAL_SLO_WINDOW_DAYS" ]] || {
+            echo '::error::Metrics retention must exceed the canonical 28-day SLO window.'
+            exit 1
+          }
           printf '::add-mask::%s\n' "$RESOURCE_GROUP"
 
           selected_environment=''
@@ -140,7 +152,7 @@ jobs:
           printf 'METRICS_REGION=%s\n' "$selected_region" >> "$GITHUB_ENV"
           printf 'METRICS_APP=%s\n' "$app_name" >> "$GITHUB_ENV"
 
-      - name: Provision private VictoriaMetrics backend
+      - name: Provision private VictoriaMetrics backend with 90-day SLO retention
         shell: bash
         run: |
           set -euo pipefail
@@ -157,13 +169,19 @@ jobs:
               deploymentId="$DEPLOYMENT_ID" \
               sourceSha="$GITHUB_SHA" \
               victoriaMetricsVersion='v1.151.0' \
+              sloMetricsRetentionPeriod="$METRICS_RETENTION_PERIOD" \
             --only-show-errors \
             -o none
 
           app_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$METRICS_APP" --only-show-errors -o json)"
-          jq -e '
+          jq -e --arg retention "$METRICS_RETENTION_PERIOD" '
             .properties.provisioningState == "Succeeded" and
-            (.properties.configuration.ingress == null or .properties.configuration.ingress.external == false)
+            (.properties.configuration.ingress == null or .properties.configuration.ingress.external == false) and
+            .tags.retentionPeriod == $retention and
+            any(.properties.template.containers[];
+              .name == "victoriametrics" and
+              any(.args[]; . == ("-retentionPeriod=" + $retention))
+            )
           ' <<<"$app_json" >/dev/null
           app_id="$(jq -r '.id' <<<"$app_json")"
           [[ -n "$app_id" ]]
@@ -195,7 +213,7 @@ jobs:
             exit 1
           }
 
-      - name: Emit sanitized Sprint 6 evidence
+      - name: Emit sanitized metrics backend and Sprint 14 retention evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -203,9 +221,12 @@ jobs:
             --arg deploymentId "$DEPLOYMENT_ID" \
             --arg sourceSha "$GITHUB_SHA" \
             --arg region "$METRICS_REGION" \
+            --arg retentionPeriod "$METRICS_RETENTION_PERIOD" \
+            --argjson retentionDays "$METRICS_RETENTION_DAYS" \
+            --argjson canonicalSloWindowDays "$CANONICAL_SLO_WINDOW_DAYS" \
             --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{
-              schema: "truyn.production-metrics-backend-evidence/v1",
+              schema: "truyn.production-metrics-backend-evidence/v2",
               deploymentId: $deploymentId,
               component: "metrics-backend",
               backendClass: "azure-container-apps-victoriametrics",
@@ -220,6 +241,11 @@ jobs:
               remoteWriteAccepted: true,
               promqlReadBackObserved: true,
               acceptedSeries: "truyn_backend_acceptance_series",
+              sloMetricsRetentionPeriod: $retentionPeriod,
+              sloMetricsRetentionDays: $retentionDays,
+              canonicalSloWindowDays: $canonicalSloWindowDays,
+              retentionExceedsCanonicalSloWindow: ($retentionDays > $canonicalSloWindowDays),
+              runtimeRetentionArgumentObserved: true,
               generatedAt: $generatedAt,
               status: "PASS"
             }' > production-metrics-backend-evidence.json
