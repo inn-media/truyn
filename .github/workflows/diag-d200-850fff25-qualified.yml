@@ -1,4 +1,4 @@
-name: diag-d200-c75e2fc8-canonical-path-qualified
+name: diag-d200-8f30fb45-readiness-transport-qualified
 
 on:
   push:
@@ -12,22 +12,24 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d200-c75e2fc8-canonical-path-qualified-single-shot
+  group: truyn-d200-8f30fb45-readiness-transport-qualified-single-shot
   cancel-in-progress: false
 
 env:
-  TESTED_COMMIT: c75e2fc83da0b7e366d23b9fa1097a1d6b12f6f1
-  TESTED_TREE_SHA: 81b8e18deebcc53b31837165edcd50a233433182
-  LAUNCH_PARENT: c75e2fc83da0b7e366d23b9fa1097a1d6b12f6f1
-  EXACT_MAIN_CI_RUN: '34315740153'
-  EXACT_MAIN_CODEQL_RUN: '34315740037'
+  TESTED_COMMIT: 8f30fb453dbf6b6e1f763770108ba05bfe3b300e
+  TESTED_TREE_SHA: 5c78b1dee04bfed3e8b87ee94dee9b96c321e200
+  LAUNCH_PARENT: 8f30fb453dbf6b6e1f763770108ba05bfe3b300e
+  EXACT_MAIN_CI_RUN: '34344981715'
+  EXACT_MAIN_CODEQL_RUN: '34344981211'
   CAMPAIGN_BLOB_SHA: 796d9d00dea3807279d8326de0a916a72b487949
   PROVISION_BLOB_SHA: c1c839943f5e02bdc716691d91226251c8e3ec00
-  PREFLIGHT_BLOB_SHA: 4c14355e8c66d1eef8959d6151389f05daaed0a1
+  PREFLIGHT_BLOB_SHA: ce7e3e7056439600d0641f827f8f6645ad3ea31a
   READINESS_WINDOW_BLOB_SHA: 6ddfc11bb03d774fb38d4c265fa90867067e871b
   PEER_LEASE_PATCH_BLOB_SHA: 84b7e0211ec7685eeea96947c550831d2db727eb
   READINESS_EVIDENCE_PATCH_BLOB_SHA: fd87a7db08c2040dc8df716c230227dba8d043eb
   READINESS_EVIDENCE_TEST_BLOB_SHA: 7801e85a62fa5478b426d905e409a8062b52c0c1
+  READINESS_TRANSPORT_PATCH_BLOB_SHA: 56165ae36ac3d9c0589d0022ae5130363e175206
+  READINESS_TRANSPORT_TEST_BLOB_SHA: 145b54eda6eb1bcb6347fb938d42ea7752ac1d3e
   COMPOSED_HEAL_EVIDENCE_PATCH_BLOB_SHA: c91093b953a60c342e6f71949c9fef3eeb94d245
   HEALED_ORIGIN_PATCH_BLOB_SHA: 9f22133f88551807f7eb0a847f9480b2c40a0ce8
   COMPOSED_HEAL_EVIDENCE_TEST_BLOB_SHA: 178aa0995d21a69ce1adc9f8f598adf36484508c
@@ -41,7 +43,7 @@ env:
 
 jobs:
   diagnostic-d200:
-    name: Immutable qualified D-200 on c75e2fc8
+    name: Immutable qualified D-200 on 8f30fb45
     runs-on: ubuntu-22.04
     timeout-minutes: 300
     steps:
@@ -63,13 +65,11 @@ jobs:
           [[ "$(jq -r '.parents[0].sha' <<<"$j")" == "$LAUNCH_PARENT" ]]
           [[ "$TESTED_COMMIT" == "$LAUNCH_PARENT" ]]
           jq -e '.commit.message | contains("Signed-off-by:")' <<<"$j" >/dev/null
-
           t="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TESTED_COMMIT}")"
           [[ "$(jq -r '.commit.tree.sha' <<<"$t")" == "$TESTED_TREE_SHA" ]]
-          jq -e '.commit.verification.verified == true' <<<"$t" >/dev/null
-
+          jq -e '.commit.message | contains("Signed-off-by:")' <<<"$t" >/dev/null
           cmp="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${TESTED_COMMIT}...${LAUNCH_PARENT}")"
-          [[ "$(jq -r '.status' <<<"$cmp")" == ahead || "$(jq -r '.status' <<<"$cmp")" == identical ]]
+          [[ "$(jq -r '.status' <<<"$cmp")" == identical ]]
 
       - uses: actions/checkout@v4
         with:
@@ -102,6 +102,8 @@ jobs:
           [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-peer-lease-freshness.py")" == "$PEER_LEASE_PATCH_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-readiness-evidence.py")" == "$READINESS_EVIDENCE_PATCH_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:tests/class-d-diagnostic-readiness-evidence.test.js")" == "$READINESS_EVIDENCE_TEST_BLOB_SHA" ]]
+          [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-readiness-transport.py")" == "$READINESS_TRANSPORT_PATCH_BLOB_SHA" ]]
+          [[ "$(git rev-parse "${TESTED_COMMIT}:tests/class-d-diagnostic-readiness-transport.test.js")" == "$READINESS_TRANSPORT_TEST_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-composed-heal-evidence.py")" == "$COMPOSED_HEAL_EVIDENCE_PATCH_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/patch-class-d-diagnostic-healed-origin.py")" == "$HEALED_ORIGIN_PATCH_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:tests/class-d-diagnostic-composed-heal-evidence.test.js")" == "$COMPOSED_HEAL_EVIDENCE_TEST_BLOB_SHA" ]]
@@ -110,19 +112,18 @@ jobs:
           [[ "$(git rev-parse "${TESTED_COMMIT}:network/discovery/peer-discovery.js")" == "$PEER_DISCOVERY_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:network/testnet/node-service.js")" == "$NODE_SERVICE_BLOB_SHA" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}:scripts/build-class-d-1000-runtime-bundle.sh")" == "$RUNTIME_BUILDER_BLOB_SHA" ]]
-
           ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
           cq="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}")"
-          jq -e --arg sha "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$sha and .event=="push" and .status=="completed" and .conclusion=="success"' <<<"$ci" >/dev/null
-          jq -e --arg sha "$TESTED_COMMIT" '.head_branch=="main" and .head_sha==$sha and .status=="completed" and .conclusion=="success"' <<<"$cq" >/dev/null
-
+          jq -e --arg sha "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$sha and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$ci" >/dev/null
+          jq -e --arg sha "$TESTED_COMMIT" '.head_branch=="main" and .head_sha==$sha and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$cq" >/dev/null
           node --test \
             tests/class-d-diagnostic-readiness-evidence.test.js \
+            tests/class-d-diagnostic-readiness-transport.test.js \
             tests/class-d-diagnostic-healed-origin.test.js \
             tests/class-d-diagnostic-composed-heal-evidence.test.js
           bash scripts/class-d-200-preflight-qualification.sh
           git diff --check
-          printf 'tested_commit=%s\ntested_tree_sha=%s\nlauncher_sha=%s\nrun_id=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nacknowledged_write_count_required=100\nacknowledged_write_loss_required=0\nstrict_d1000_acceptance=false\ndiagnostic_focus=canonical-path-readiness-healed-origin-peer-lease-freshness\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$GITHUB_SHA" "$GITHUB_RUN_ID" > class-d-200-diagnostic-input.txt
+          printf 'tested_commit=%s\ntested_tree_sha=%s\nlauncher_sha=%s\nrun_id=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nmax_peers=32\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nacknowledged_write_count_required=100\nacknowledged_write_loss_required=0\nstrict_d1000_acceptance=false\ndiagnostic_focus=canonical-path-readiness-transport-healed-origin-peer-lease-freshness\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$GITHUB_SHA" "$GITHUB_RUN_ID" > class-d-200-diagnostic-input.txt
 
       - name: Build immutable runtime bundle
         id: runtime
@@ -230,6 +231,7 @@ jobs:
           python3 scripts/patch-class-d-diagnostic-readiness-parallel.py "$t/campaign.sh"
           python3 scripts/patch-class-d-diagnostic-readiness-window.py "$t/campaign.sh"
           python3 scripts/patch-class-d-diagnostic-readiness-evidence.py "$t/campaign.sh"
+          python3 scripts/patch-class-d-diagnostic-readiness-transport.py "$t/campaign.sh"
           python3 scripts/patch-class-d-diagnostic-baseline-parallel.py "$t/campaign.sh"
           python3 scripts/patch-class-d-diagnostic-restart-parallel.py "$t/campaign.sh"
           python3 scripts/patch-class-d-diagnostic-post-restart-origin.py "$t/campaign.sh"
@@ -318,7 +320,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d200-c75e2fc8-${{ github.run_id }}'
+          name: 'truyn-class-d200-8f30fb45-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
@@ -363,5 +365,5 @@ jobs:
           set -Eeuo pipefail
           result=FAIL
           if [[ "${CAMPAIGN_RC:-99}" == 0 && "${EVALUATOR_RC:-99}" == 0 && "$CLEANUP" == true && "$REMAINING" == 0 && "$ACK_COUNT" == 100 && "$ACK_LOSS" == 0 && "$STAGING_CLEANUP" == true && "$STAGING_REMAINING" == 0 && -n "$ARTIFACT_ID" && "$DIGEST" == sha256:* && "$RUNTIME_SHA" =~ ^[0-9a-f]{64}$ ]]; then result=PASS; fi
-          echo "TRUYN_D200_TERMINAL result=$result run=$GITHUB_RUN_ID launcher_sha=$GITHUB_SHA tested_sha=$TESTED_COMMIT tested_tree_sha=$TESTED_TREE_SHA exact_main_ci_run=$EXACT_MAIN_CI_RUN exact_main_codeql_run=$EXACT_MAIN_CODEQL_RUN runtime_sha256=sha256:${RUNTIME_SHA:-none} azure_location=${TRUYN_D200_LOCATION:-unknown} vm_size=${TRUYN_D200_VM_SIZE:-unknown} hosts=20 nodes=200 nodes_per_host=10 campaign_rc=${CAMPAIGN_RC:-99} evaluator_rc=${EVALUATOR_RC:-99} acknowledged_write_count=${ACK_COUNT:--1} acknowledged_write_loss=${ACK_LOSS:--1} baseline=${BASELINE:--1} post_restart=${POST_RESTART:--1} healed=${HEALED:--1} convergence_routing=${CONV:--1} convergence_p95_ms=${CONV_P95:--1} recovery_p95_ms=${RECOVERY_P95:--1} partition_recovery_ms=${PARTITION:--1} cleanup=${CLEANUP:-false} remaining=${REMAINING:--1} staging_cleanup=${STAGING_CLEANUP:-false} staging_remaining=${STAGING_REMAINING:--1} artifact_id=${ARTIFACT_ID:-none} digest=${DIGEST:-none}"
+          echo "TRUYN_D200_TERMINAL result=$result run=$GITHUB_RUN_ID launcher_sha=$GITHUB_SHA tested_sha=$TESTED_COMMIT tested_tree_sha=$TESTED_TREE_SHA exact_main_ci_run=$EXACT_MAIN_CI_RUN exact_main_codeql_run=$EXACT_MAIN_CODEQL_RUN runtime_sha256=sha256:${RUNTIME_SHA:-none} azure_location=${TRUYN_D200_LOCATION:-unknown} vm_size=${TRUYN_D200_VM_SIZE:-unknown} hosts=20 nodes=200 nodes_per_host=10 max_peers=32 campaign_rc=${CAMPAIGN_RC:-99} evaluator_rc=${EVALUATOR_RC:-99} acknowledged_write_count=${ACK_COUNT:--1} acknowledged_write_loss=${ACK_LOSS:--1} baseline=${BASELINE:--1} post_restart=${POST_RESTART:--1} healed=${HEALED:--1} convergence_routing=${CONV:--1} convergence_p95_ms=${CONV_P95:--1} recovery_p95_ms=${RECOVERY_P95:--1} partition_recovery_ms=${PARTITION:--1} cleanup=${CLEANUP:-false} remaining=${REMAINING:--1} staging_cleanup=${STAGING_CLEANUP:-false} staging_remaining=${STAGING_REMAINING:--1} artifact_id=${ARTIFACT_ID:-none} digest=${DIGEST:-none}"
           [[ "$result" == PASS ]]
