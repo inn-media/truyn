@@ -87,6 +87,9 @@ export function createProductionControlPlane({
       }
       if (input.kind === 'provider') {
         if (providerGrantAuthority.getProviderPolicy(input.targetId)) return { ok: true };
+        const durableProviderExists = (accountTenantAuthority.snapshot().providerBindings || [])
+          .some((record) => record.providerNodeId === input.targetId);
+        if (durableProviderExists) return { ok: true };
         const provider = accountTenantAuthority.resolveProvider(input.targetId);
         return provider?.ok ? { ok: true } : { ok: false, reason: provider?.reason || 'provider_not_found' };
       }
