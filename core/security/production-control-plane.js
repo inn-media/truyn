@@ -119,12 +119,21 @@ export function createProductionControlPlane({
     return external?.ok === true ? { ok: true } : { ok: false, reason: external?.reason || 'operational_revocation_target_policy_denied' };
   }
 
+  function recordOperationalTrustRevocation({ targetKind, targetId, reasonClass }) {
+    const options = { reason: reasonClass };
+    if (targetKind === 'authority-root') return trustAuthority.revokeRoot(targetId, options);
+    if (targetKind === 'authority-key') return trustAuthority.emergencyRevokeKey(targetId, options);
+    if (targetKind === 'authority-certificate') return trustAuthority.revokeCertificate(targetId, options);
+    throw new Error(`Unsupported trust revocation targetKind: ${targetKind}`);
+  }
+
   const operationalRevocation = revocationAuthority.replicaMode
     ? null
     : createOperationalRevocationController({
         revocationAuthority,
         authorize: operationalRevocationAuthorize,
-        validateTarget: validateOperationalTarget
+        validateTarget: validateOperationalTarget,
+        recordTrustRevocation: recordOperationalTrustRevocation
       });
 
   function configureRelay() {
