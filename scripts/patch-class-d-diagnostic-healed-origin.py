@@ -43,7 +43,7 @@ D200_HEALED_DRAIN_SECONDS=105
 
 def persisted_peer_state(j,node_id):
     global_index=host*N+j
-    path=f'/var/lib/truyqn-d1000/node-{global_index}-state.json'
+    path=f'/var/lib/truyn-d1000/node-{global_index}-state.json'
     result={'path':path,'present':False,'validNow':False,'expired':None,'readOk':False}
     try:
         value=json.load(open(path))
@@ -205,6 +205,7 @@ for forbidden in [
 for marker in [
     'D200_HEALED_DRAIN_SECONDS=105',
     'peer_before=persisted_peer_state(j,node_id)',
+    "path=f'/var/lib/truyn-d1000/node-{global_index}-state.json'",
     "'peerRecordBeforeFirstAttempt':peer_before",
     "'peerRecordAfterFirstAttempt':peer_after_timeout",
     "record_transition='became-valid-during-first-attempt'",
@@ -220,6 +221,19 @@ for marker in [
 ]:
     if marker not in block:
         raise SystemExit(f'healed origin diagnostic marker missing after patch: {marker}')
+for forbidden_path in (
+    '/var/lib/truyqn-d1000/',
+    '/etc/truyqn-d1000/',
+    '/opt/truyqn/',
+    '/var/lib/truqyn-d1000/',
+    '/etc/truqyn-d1000/',
+    '/opt/truqyn/',
+    '/var/lib/truin-d1000/',
+    '/etc/truin-d1000/',
+    '/opt/truin/',
+):
+    if forbidden_path in block:
+        raise SystemExit(f'healed origin diagnostics contain noncanonical runtime path: {forbidden_path}')
 
 text = text[:start] + block + text[end:]
 path.write_text(text)
