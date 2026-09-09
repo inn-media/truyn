@@ -14,8 +14,8 @@ param identityName string
 @description('Existing internal production Container Apps environment resource ID.')
 param environmentId string
 
-@description('Existing shared Blob private DNS zone resource ID whose link to the selected production VNet was verified by the deployment workflow.')
-param blobPrivateDnsZoneId string
+@description('Existing production VNet resource ID retained as a compatibility-bound deployment parameter. Blob private DNS linkage is shared and pre-existing.')
+param vnetId string
 
 @description('Existing production private-endpoint subnet resource ID.')
 param privateEndpointSubnetId string
@@ -48,6 +48,7 @@ param tempoVersion string = '3.0.2'
 var traceContainerName = 'traces'
 var blobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+var blobPrivateDnsZoneName = 'privatelink.blob.core.windows.net'
 var tags = {
   component: 'production-trace-backend'
   deploymentId: deploymentId
@@ -108,6 +109,13 @@ resource traceContainer 'Microsoft.Storage/storageAccounts/blobServices/containe
   }
 }
 
+// The Blob private DNS zone and its VNet link are shared production-network
+// resources. Tracing consumes the existing zone instead of trying to create a
+// second link to the same VNet, which Azure correctly rejects as a conflict.
+resource blobPrivateDns 'Microsoft.Network/privateDnsZones@2024-06-01' existing = {
+  name: blobPrivateDnsZoneName
+}
+
 resource blobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
   name: '${appName}-blob-pe'
   location: location
@@ -138,7 +146,7 @@ resource blobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZ
       {
         name: 'blob'
         properties: {
-          privateDnsZoneId: blobPrivateDnsZoneId
+          privateDnsZoneId: blobPrivateDns.id
         }
       }
     ]
