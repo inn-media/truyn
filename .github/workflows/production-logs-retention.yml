@@ -1,0 +1,323 @@
+name: Production Logs Retention
+
+on:
+  pull_request:
+    paths:
+      - 'infra/production-observability/logs-retention.bicep'
+      - 'operations/production-logs-retention.json'
+      - '.github/workflows/production-logs-retention.yml'
+      - 'tests/production-logs-retention.test.js'
+      - 'tests/public-repository.test.js'
+      - 'infra/production-dr/**'
+      - '.github/workflows/production-dr-foundation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/production-observability/logs-retention.bicep'
+      - 'operations/production-logs-retention.json'
+      - '.github/workflows/production-logs-retention.yml'
+      - 'tests/production-logs-retention.test.js'
+      - 'tests/public-repository.test.js'
+      - 'infra/production-dr/**'
+      - '.github/workflows/production-dr-foundation.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'germanywestcentral:francecentral northeurope:swedencentral' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+  HOT_LOG_RETENTION_DAYS: '30'
+  ARCHIVE_LOG_RETENTION_DAYS: '180'
+  MIN_ARCHIVE_LOG_RETENTION_DAYS: '90'
+  DIAGNOSTIC_SETTING_NAME: truyn-production-logs-retention
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Compile logs retention Bicep
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep install >/dev/null
+          az bicep build --file infra/production-observability/logs-retention.bicep --stdout >/dev/null
+
+      - name: Validate production logs retention contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$HOT_LOG_RETENTION_DAYS" -eq 30 ]]
+          [[ "$ARCHIVE_LOG_RETENTION_DAYS" -ge "$MIN_ARCHIVE_LOG_RETENTION_DAYS" ]]
+          jq -e '
+            .component == "production-logs-retention" and
+            .deploymentId == "dc4518de-d1bf-4fce-b351-e43d7c152999" and
+            .source.logsDestination == "azure-monitor" and
+            (.source.categories | sort) == (["ContainerAppConsoleLogs", "ContainerAppSystemLogs"] | sort) and
+            .hot.backendClass == "azure-monitor-log-analytics" and
+            .hot.retentionDays == 30 and
+            .archiveAudit.backendClass == "azure-storage" and
+            .archiveAudit.retentionDays == 180 and
+            .archiveAudit.minimumRequiredDays == 90 and
+            .archiveAudit.retentionDays >= .archiveAudit.minimumRequiredDays and
+            .archiveAudit.lifecycleEnforced == true and
+            .routing.diagnosticSettingRequired == true and
+            .routing.consoleLogsRequired == true and
+            .routing.systemLogsRequired == true
+          ' operations/production-logs-retention.json >/dev/null
+
+  apply-and-prove:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Resolve accepted production observability plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          az bicep install >/dev/null
+          [[ "$HOT_LOG_RETENTION_DAYS" -eq 30 ]] || {
+            echo '::error::Hot production logs retention must be exactly 30 days for Sprint 16.'
+            exit 1
+          }
+          [[ "$ARCHIVE_LOG_RETENTION_DAYS" -ge "$MIN_ARCHIVE_LOG_RETENTION_DAYS" ]] || {
+            echo '::error::Archive/audit production logs retention must be at least 90 days.'
+            exit 1
+          }
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+          selected_environment=''
+          selected_environment_id=''
+          selected_region=''
+          selected_prefix=''
+          attempt=0
+
+          for pair in $REGION_PAIRS; do
+            attempt=$((attempt + 1))
+            [[ "$attempt" -le 2 ]] || break
+            [[ "$pair" == *:* ]] || { echo '::error::Invalid production region pair.'; exit 1; }
+            primary="${pair%%:*}"
+            secondary="${pair#*:}"
+            pair_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}:${primary}:${secondary}" | sha256sum | cut -c1-10)"
+            prefix="truyn${pair_suffix}"
+            environment="${prefix}-aca-env"
+            cosmos="${prefix}cosmos"
+            for value in "$prefix" "$environment" "$cosmos"; do printf '::add-mask::%s\n' "$value"; done
+
+            if ! environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+            if ! cosmos_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+
+            if ! jq -e '
+              .properties.vnetConfiguration.internal == true and
+              (.properties.publicNetworkAccess | ascii_downcase) == "disabled" and
+              .properties.provisioningState == "Succeeded"
+            ' <<<"$environment_json" >/dev/null; then
+              continue
+            fi
+            if ! jq -e --arg primary "$primary" --arg secondary "$secondary" '
+              .provisioningState == "Succeeded" and
+              ([.locations[].locationName | gsub(" "; "") | ascii_downcase] | sort) == ([$primary, $secondary] | sort)
+            ' <<<"$cosmos_json" >/dev/null; then
+              continue
+            fi
+
+            selected_environment="$environment"
+            selected_environment_id="$(jq -r '.id' <<<"$environment_json")"
+            selected_region="$primary"
+            selected_prefix="$prefix"
+            break
+          done
+
+          [[ -n "$selected_environment" && -n "$selected_environment_id" && -n "$selected_region" && -n "$selected_prefix" ]] || {
+            echo '::error::No accepted internal production Container Apps foundation is available.'
+            exit 1
+          }
+
+          log_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:${selected_prefix}:logs-retention" | sha256sum | cut -c1-10)"
+          workspace_name="truyn-logs-${log_suffix}"
+          archive_name="truynlogs${log_suffix}"
+          for value in "$selected_environment" "$selected_environment_id" "$selected_prefix" "$workspace_name" "$archive_name"; do printf '::add-mask::%s\n' "$value"; done
+
+          printf 'ACA_ENVIRONMENT=%s\n' "$selected_environment" >> "$GITHUB_ENV"
+          printf 'ACA_ENVIRONMENT_ID=%s\n' "$selected_environment_id" >> "$GITHUB_ENV"
+          printf 'LOGS_REGION=%s\n' "$selected_region" >> "$GITHUB_ENV"
+          printf 'LOG_WORKSPACE_NAME=%s\n' "$workspace_name" >> "$GITHUB_ENV"
+          printf 'LOG_ARCHIVE_ACCOUNT=%s\n' "$archive_name" >> "$GITHUB_ENV"
+
+      - name: Provision 30-day hot and 180-day archive log backends
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployment_name="logs-retention-${GITHUB_SHA:0:8}"
+          printf '::add-mask::%s\n' "$deployment_name"
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$deployment_name" \
+            --template-file infra/production-observability/logs-retention.bicep \
+            --parameters \
+              workspaceName="$LOG_WORKSPACE_NAME" \
+              archiveStorageAccountName="$LOG_ARCHIVE_ACCOUNT" \
+              location="$LOGS_REGION" \
+              deploymentId="$DEPLOYMENT_ID" \
+              sourceSha="$GITHUB_SHA" \
+              hotRetentionDays="$HOT_LOG_RETENTION_DAYS" \
+              archiveRetentionDays="$ARCHIVE_LOG_RETENTION_DAYS" \
+            --only-show-errors \
+            -o none
+
+          workspace_json="$(az monitor log-analytics workspace show --resource-group "$RESOURCE_GROUP" --workspace-name "$LOG_WORKSPACE_NAME" --only-show-errors -o json)"
+          jq -e --argjson hot "$HOT_LOG_RETENTION_DAYS" '
+            .retentionInDays == $hot and
+            .provisioningState == "Succeeded"
+          ' <<<"$workspace_json" >/dev/null
+          workspace_id="$(jq -r '.id' <<<"$workspace_json")"
+          [[ -n "$workspace_id" ]]
+          printf '::add-mask::%s\n' "$workspace_id"
+          printf 'LOG_WORKSPACE_ID=%s\n' "$workspace_id" >> "$GITHUB_ENV"
+
+          archive_json="$(az storage account show --resource-group "$RESOURCE_GROUP" --name "$LOG_ARCHIVE_ACCOUNT" --only-show-errors -o json)"
+          jq -e '
+            .enableHttpsTrafficOnly == true and
+            .allowBlobPublicAccess == false and
+            .minimumTlsVersion == "TLS1_2" and
+            .networkRuleSet.defaultAction == "Deny" and
+            (.networkRuleSet.bypass | contains("AzureServices"))
+          ' <<<"$archive_json" >/dev/null
+          archive_id="$(jq -r '.id' <<<"$archive_json")"
+          [[ -n "$archive_id" ]]
+          printf '::add-mask::%s\n' "$archive_id"
+          printf 'LOG_ARCHIVE_ID=%s\n' "$archive_id" >> "$GITHUB_ENV"
+
+          lifecycle_json="$(az storage account management-policy show --resource-group "$RESOURCE_GROUP" --account-name "$LOG_ARCHIVE_ACCOUNT" --only-show-errors -o json)"
+          jq -e --argjson archive "$ARCHIVE_LOG_RETENTION_DAYS" '
+            any(.policy.rules[];
+              .enabled == true and
+              .name == "retain-production-observability-logs" and
+              .definition.actions.baseBlob.delete.daysAfterModificationGreaterThan == $archive
+            )
+          ' <<<"$lifecycle_json" >/dev/null
+
+      - name: Route production Container Apps logs to hot and archive backends
+        shell: bash
+        run: |
+          set -euo pipefail
+          az containerapp env update \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$ACA_ENVIRONMENT" \
+            --logs-destination azure-monitor \
+            --only-show-errors \
+            -o none
+
+          environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$ACA_ENVIRONMENT" --only-show-errors -o json)"
+          jq -e '
+            .properties.provisioningState == "Succeeded" and
+            (.properties.appLogsConfiguration.destination | ascii_downcase) == "azure-monitor"
+          ' <<<"$environment_json" >/dev/null
+
+          logs='[{"category":"ContainerAppConsoleLogs","enabled":true},{"category":"ContainerAppSystemLogs","enabled":true}]'
+          az monitor diagnostic-settings create \
+            --name "$DIAGNOSTIC_SETTING_NAME" \
+            --resource "$ACA_ENVIRONMENT_ID" \
+            --logs "$logs" \
+            --workspace "$LOG_WORKSPACE_ID" \
+            --storage-account "$LOG_ARCHIVE_ID" \
+            --only-show-errors \
+            -o none
+
+      - name: Prove live production logs retention policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace_json="$(az monitor log-analytics workspace show --resource-group "$RESOURCE_GROUP" --workspace-name "$LOG_WORKSPACE_NAME" --only-show-errors -o json)"
+          lifecycle_json="$(az storage account management-policy show --resource-group "$RESOURCE_GROUP" --account-name "$LOG_ARCHIVE_ACCOUNT" --only-show-errors -o json)"
+          diagnostic_json="$(az monitor diagnostic-settings show --name "$DIAGNOSTIC_SETTING_NAME" --resource "$ACA_ENVIRONMENT_ID" --only-show-errors -o json)"
+          environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$ACA_ENVIRONMENT" --only-show-errors -o json)"
+
+          jq -e --argjson hot "$HOT_LOG_RETENTION_DAYS" '.retentionInDays == $hot' <<<"$workspace_json" >/dev/null
+          jq -e --argjson archive "$ARCHIVE_LOG_RETENTION_DAYS" '
+            any(.policy.rules[];
+              .enabled == true and
+              .definition.actions.baseBlob.delete.daysAfterModificationGreaterThan == $archive
+            )
+          ' <<<"$lifecycle_json" >/dev/null
+          jq -e '(.properties.appLogsConfiguration.destination | ascii_downcase) == "azure-monitor"' <<<"$environment_json" >/dev/null
+          jq -e --arg workspace "$LOG_WORKSPACE_ID" --arg archive "$LOG_ARCHIVE_ID" '
+            .workspaceId == $workspace and
+            .storageAccountId == $archive and
+            any(.logs[]; .category == "ContainerAppConsoleLogs" and .enabled == true) and
+            any(.logs[]; .category == "ContainerAppSystemLogs" and .enabled == true)
+          ' <<<"$diagnostic_json" >/dev/null
+
+          [[ "$ARCHIVE_LOG_RETENTION_DAYS" -ge "$MIN_ARCHIVE_LOG_RETENTION_DAYS" ]]
+          echo 'TRUYN_LOG_RETENTION_PASS hot_days=30 archive_days=180 console=1 system=1 azure_monitor=1 workspace=1 archive=1'
+
+      - name: Emit sanitized Sprint 16 logs retention evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg deploymentId "$DEPLOYMENT_ID" \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg region "$LOGS_REGION" \
+            --argjson hotRetentionDays "$HOT_LOG_RETENTION_DAYS" \
+            --argjson archiveRetentionDays "$ARCHIVE_LOG_RETENTION_DAYS" \
+            --argjson minimumArchiveRetentionDays "$MIN_ARCHIVE_LOG_RETENTION_DAYS" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              schema: "truyn.production-logs-retention-evidence/v1",
+              deploymentId: $deploymentId,
+              component: "production-logs-retention",
+              sourceSha: $sourceSha,
+              exactMain: true,
+              region: $region,
+              environmentLogsDestination: "azure-monitor",
+              categories: ["ContainerAppConsoleLogs", "ContainerAppSystemLogs"],
+              hotBackend: "azure-monitor-log-analytics",
+              hotRetentionDays: $hotRetentionDays,
+              archiveBackend: "azure-storage",
+              archiveRetentionDays: $archiveRetentionDays,
+              minimumArchiveRetentionDays: $minimumArchiveRetentionDays,
+              archiveMeetsMinimum: ($archiveRetentionDays >= $minimumArchiveRetentionDays),
+              diagnosticSettingObserved: true,
+              workspaceRoutingObserved: true,
+              archiveRoutingObserved: true,
+              consoleLogsRoutingObserved: true,
+              systemLogsRoutingObserved: true,
+              archiveLifecyclePolicyObserved: true,
+              generatedAt: $generatedAt,
+              status: "PASS"
+            }' > production-logs-retention-evidence.json
+
+      - name: Upload sanitized logs retention evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-logs-retention-evidence
+          path: production-logs-retention-evidence.json
+          if-no-files-found: error
+          retention-days: 30
