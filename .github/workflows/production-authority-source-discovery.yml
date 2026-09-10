@@ -68,7 +68,6 @@ jobs:
 
           candidate_count="$(jq 'length' <<<"$candidates")"
           type_summary="$(jq '[.[].type] | group_by(.) | map({type:.[0], count:length})' <<<"$candidates")"
-
           [[ "$candidate_count" -gt 0 ]] || {
             echo '::error::No plausible production authority state-hosting resource found in subscription-wide read-only inventory'
             exit 1
@@ -76,12 +75,35 @@ jobs:
 
           tagged="$(jq '[.[] | select((.tags["truyn-component"] // "" | ascii_downcase) == "production-authority")]' <<<"$candidates")"
           tagged_count="$(jq 'length' <<<"$tagged")"
+          primary="$(jq '[.[] | select(.haystack | test("production[-_ ]?authority|authority|control[-_ ]?plane|account[-_ ]?tenant|provider[-_ ]?grant|entitlement|revocation|accounting"))]' <<<"$candidates")"
+          primary_count="$(jq 'length' <<<"$primary")"
+          secondary="$(jq '[.[] | select(.haystack | test("state[-_ ]?(dir|store)?|bootstrap|checkpoint"))]' <<<"$candidates")"
+          secondary_count="$(jq 'length' <<<"$secondary")"
+
+          selection_reason=''
           if [[ "$tagged_count" -eq 1 ]]; then
             selected="$(jq '.[0]' <<<"$tagged")"
+            selection_reason='canonical-tag'
+          elif [[ "$tagged_count" -gt 1 ]]; then
+            echo "::error::Ambiguous production authority source inventory: candidateCount=$candidate_count taggedAuthorityCount=$tagged_count primaryStrongCount=$primary_count secondaryStateCount=$secondary_count"
+            exit 1
+          elif [[ "$primary_count" -eq 1 ]]; then
+            selected="$(jq '.[0]' <<<"$primary")"
+            selection_reason='strong-authority-signal'
+          elif [[ "$primary_count" -gt 1 ]]; then
+            echo "::error::Ambiguous production authority source inventory: candidateCount=$candidate_count taggedAuthorityCount=$tagged_count primaryStrongCount=$primary_count secondaryStateCount=$secondary_count"
+            exit 1
+          elif [[ "$secondary_count" -eq 1 ]]; then
+            selected="$(jq '.[0]' <<<"$secondary")"
+            selection_reason='strong-state-signal'
+          elif [[ "$secondary_count" -gt 1 ]]; then
+            echo "::error::Ambiguous production authority source inventory: candidateCount=$candidate_count taggedAuthorityCount=$tagged_count primaryStrongCount=$primary_count secondaryStateCount=$secondary_count"
+            exit 1
           elif [[ "$candidate_count" -eq 1 ]]; then
             selected="$(jq '.[0]' <<<"$candidates")"
+            selection_reason='single-candidate'
           else
-            echo "::error::Ambiguous production authority source inventory: candidateCount=$candidate_count taggedAuthorityCount=$tagged_count"
+            echo "::error::Ambiguous production authority source inventory: candidateCount=$candidate_count taggedAuthorityCount=$tagged_count primaryStrongCount=$primary_count secondaryStateCount=$secondary_count"
             exit 1
           fi
 
@@ -100,16 +122,17 @@ jobs:
             (.name // empty),
             (.type // empty),
             ((.tags // {}) | to_entries[]? | (.key + "=" + (.value|tostring)))
-          ] | map(ascii_downcase) | any(test("authority|control|state|bootstrap|checkpoint|production-authority"))' <<<"$metadata")"
+          ] | map(ascii_downcase) | any(test("authority|control|state|bootstrap|checkpoint|production-authority|account[-_ ]?tenant|provider[-_ ]?grant|entitlement|revocation|accounting"))' <<<"$metadata")"
           [[ "$state_signal" == true ]] || { echo '::error::Selected resource lacks authoritative production state signal'; exit 1; }
 
           jq -n \
             --arg sourceSha "$GITHUB_SHA" \
             --arg sourceType "$selected_type" \
+            --arg selectionReason "$selection_reason" \
             --argjson candidateCount "$candidate_count" \
             --argjson typeSummary "$type_summary" \
             --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{schemaVersion:2, component:"production-authority-source-discovery", sourceSha:$sourceSha, generatedAt:$generatedAt, status:"PASS", candidateCount:$candidateCount, selectedSourceType:$sourceType, candidateTypeSummary:$typeSummary, stateSignalPresent:true, subscriptionWide:true, resourceMetadataOnly:true, secretValuesRead:false, dataPlaneRead:false, cosmosMutated:false, topologyPublished:false}' \
+            '{schemaVersion:3, component:"production-authority-source-discovery", sourceSha:$sourceSha, generatedAt:$generatedAt, status:"PASS", candidateCount:$candidateCount, selectedSourceType:$sourceType, selectionReason:$selectionReason, candidateTypeSummary:$typeSummary, stateSignalPresent:true, subscriptionWide:true, resourceMetadataOnly:true, secretValuesRead:false, dataPlaneRead:false, cosmosMutated:false, topologyPublished:false}' \
             > production-authority-source-discovery-evidence.json
 
       - name: Upload sanitized discovery evidence
