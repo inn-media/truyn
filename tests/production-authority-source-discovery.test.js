@@ -15,6 +15,12 @@ test('push trigger is path-scoped to the S15 discovery contract', () => {
   assert.match(workflow, /push:[\s\S]*branches: \[main\][\s\S]*production-authority-source-discovery\.yml[\s\S]*production-authority-source-discovery\.test\.js/);
 });
 
+test('embedded KQL heredocs remain inside the YAML run block', () => {
+  assert.match(workflow, /\n\s{10}Resources\n\s{10}\| where type =~ 'microsoft\.app\/containerapps'/);
+  assert.match(workflow, /\n\s{10}KQL\n\s{10}\)/);
+  assert.doesNotMatch(workflow, /\n(?:Resources|\| (?:where|mv-expand|summarize|project|extend)|KQL)\n/);
+});
+
 test('discovery uses subscription-wide read-only control-plane inventory', () => {
   assert.match(workflow, /az resource list --only-show-errors -o json/);
   assert.match(workflow, /az resource show --ids/);
