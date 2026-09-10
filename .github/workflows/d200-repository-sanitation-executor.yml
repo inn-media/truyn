@@ -1,5 +1,5 @@
 # TASK_ID: truyn-d200-repository-sanitation-2609102033-8f2c
-# qualification-repair: route-recovery-acceptance-marker-v2
+# qualification-repair: bounded-failure-summary-v1
 name: D-200 repository sanitation executor
 
 on:
@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: truyn-d200-repository-sanitation-2609102033-8f2c
@@ -77,6 +78,22 @@ jobs:
           path: /tmp/truyn-sanitation.log
           if-no-files-found: error
           retention-days: 7
+      - name: Publish bounded failure summary
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          {
+            printf '%s\n' '[CHATGPT_SANITATION_FAILURE]'
+            printf 'TASK_ID=%s\n' 'truyn-d200-repository-sanitation-2609102033-8f2c'
+            printf 'SHA=%s\n' "$GITHUB_SHA"
+            printf 'RUN_ID=%s\n' "$GITHUB_RUN_ID"
+            printf '%s\n' 'SANITIZED_FAILURE_LINES:'
+            grep -E '^(not ok|# Subtest:|# fail |# error |# tests |# pass |AssertionError|Error:|TRUYN_[A-Z0-9_]+=(?:FAIL|DENY)|Repository hygiene violations|D-200 safety floor violation|.*ERR_ASSERTION|.*expected:|.*actual:)' /tmp/truyn-sanitation.log | tail -n 100 || true
+          } > /tmp/sanitation-summary.txt
+          gh issue comment 601 --repo inn-media/truyn --body-file /tmp/sanitation-summary.txt
       - name: Commit one exact sanitation candidate
         shell: bash
         run: |
