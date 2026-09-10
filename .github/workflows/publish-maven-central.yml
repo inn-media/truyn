@@ -1,0 +1,117 @@
+name: Publish Maven Central alpha
+
+on:
+  push:
+    tags:
+      - 'sdk/java/v0.1.0-alpha.1'
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: truyn-maven-central-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish org.truyn:truyn-sdk
+    if: github.repository == 'inn-media/truyn'
+    runs-on: ubuntu-24.04
+    environment: sdk-release
+    env:
+      MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+      MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      TRUYN_MAVEN_RELEASE_TAG: sdk/java/v0.1.0-alpha.1
+      TRUYN_MAVEN_SIGNING_FINGERPRINT: CA6D3B7C71B66647C22219D2AF546A33EA38ADD8
+    steps:
+      - name: Checkout immutable Maven release source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Enforce exact immutable Maven tag and coordinate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_REF" = 'refs/tags/sdk/java/v0.1.0-alpha.1'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git tag --points-at HEAD | grep -Fx 'sdk/java/v0.1.0-alpha.1' | wc -l)" = '1'
+          grep -F '<groupId>org.truyn</groupId>' sdk/java/pom.xml >/dev/null
+          grep -F '<artifactId>truyn-sdk</artifactId>' sdk/java/pom.xml >/dev/null
+          grep -F '<version>0.1.0-alpha.1</version>' sdk/java/pom.xml >/dev/null
+
+      - name: Configure Java, Central credentials, and release signing key
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          server-id: central
+          server-username: MAVEN_CENTRAL_USERNAME
+          server-password: MAVEN_CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      - name: Bind the production signing identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          actual="$(gpg --batch --with-colons --fingerprint --list-secret-keys | awk -F: '$1 == "fpr" { print toupper($10); exit }')"
+          test -n "$actual"
+          test "$actual" = "$TRUYN_MAVEN_SIGNING_FINGERPRINT"
+
+      - name: Build and scan Maven release artifacts before publication
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mvn -B -f sdk/java/pom.xml clean package
+          for artifact in \
+            sdk/java/target/truyn-sdk-0.1.0-alpha.1.jar \
+            sdk/java/target/truyn-sdk-0.1.0-alpha.1-sources.jar \
+            sdk/java/target/truyn-sdk-0.1.0-alpha.1-javadoc.jar
+          do
+            test -s "$artifact"
+            destination="$(mktemp -d)"
+            python sdk/release/safe-extract.py "$artifact" "$destination"
+            rm -rf "$destination"
+          done
+
+      - name: Publish exact Maven Central bundle
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mvn -B -f sdk/java/pom.xml -Pcentral-release clean deploy
+
+      - name: Record exact-source Maven publication evidence
+        env:
+          TRUYN_RELEASE_SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node sdk/release/write-maven-manifest.mjs sdk/release/maven-publication-evidence.json
+          node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('sdk/release/maven-publication-evidence.json','utf8'));if(m.sourceSha!==process.env.GITHUB_SHA)throw new Error('Maven evidence source SHA mismatch');if(m.releaseTag!=='sdk/java/v0.1.0-alpha.1')throw new Error('Maven evidence tag mismatch');if(m.signingFingerprint!=='CA6D3B7C71B66647C22219D2AF546A33EA38ADD8')throw new Error('Maven signing fingerprint mismatch')"
+
+      - name: Attest Maven release artifacts
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: |
+            sdk/java/target/truyn-sdk-0.1.0-alpha.1.jar
+            sdk/java/target/truyn-sdk-0.1.0-alpha.1-sources.jar
+            sdk/java/target/truyn-sdk-0.1.0-alpha.1-javadoc.jar
+            sdk/java/target/central-publishing/truyn-sdk-0.1.0-alpha.1-central-bundle.zip
+
+      - name: Upload Maven publication evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-maven-central-0.1.0-alpha.1-${{ github.sha }}
+          path: |
+            sdk/release/maven-publication-evidence.json
+            sdk/java/target/central-publishing/truyn-sdk-0.1.0-alpha.1-central-bundle.zip
+            sdk/java/target/gpg/
+          if-no-files-found: error
+          retention-days: 90
