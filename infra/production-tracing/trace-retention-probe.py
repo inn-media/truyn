@@ -1,12 +1,8 @@
 import json
+import re
 import time
 import urllib.error
 import urllib.request
-
-from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
-from opentelemetry.proto.common.v1.common_pb2 import AnyValue, InstrumentationScope, KeyValue
-from opentelemetry.proto.resource.v1.resource_pb2 import Resource
-from opentelemetry.proto.trace.v1.trace_pb2 import ResourceSpans, ScopeSpans, Span
 
 READY_URL = 'http://127.0.0.1:3200/ready'
 OTLP_URL = 'http://127.0.0.1:4318/v1/traces'
@@ -17,13 +13,29 @@ TENANTS = {
         'trace_id': '6e6f726d616c2d747275796e2d70726f',
         'span_id': '6e6f726d616c3031',
         'retention': '720h',
+        'retention_hours': 720,
     },
     'incident': {
         'trace_id': '696e636964656e742d747275796e2d31',
         'span_id': '696e636964656e74',
         'retention': '2160h',
+        'retention_hours': 2160,
     },
 }
+
+
+def marker(stage, result, tenant=None, **fields):
+    parts = ['TRUYN_TRACE_PROBE_STAGE', f'stage={stage}', f'result={result}']
+    if tenant:
+        parts.append(f'tenant={tenant}')
+    for key, value in fields.items():
+        parts.append(f'{key}={value}')
+    print(' '.join(parts), flush=True)
+
+
+def fail(stage, tenant=None):
+    marker(stage, 'fail', tenant)
+    raise SystemExit(f'trace retention acceptance failed at {stage}' + (f' for {tenant}' if tenant else ''))
 
 
 def request_headers(tenant, extra=None):
@@ -47,6 +59,7 @@ def wait_ready():
         try:
             status, _ = fetch(READY_URL, 'normal', timeout=5)
             if status == 200:
+                marker('tempo_ready', 'pass')
                 return True
         except Exception:
             pass
@@ -57,34 +70,43 @@ def wait_ready():
 def trace_request(tenant):
     cfg = TENANTS[tenant]
     now = time.time_ns()
-    resource = Resource(attributes=[
-        KeyValue(key='service.name', value=AnyValue(string_value='truyn-trace-retention-acceptance')),
-        KeyValue(key='deployment.environment.name', value=AnyValue(string_value='production')),
-        KeyValue(key='truyn.trace.retention_class', value=AnyValue(string_value=tenant)),
-    ])
-    span = Span(
-        trace_id=bytes.fromhex(cfg['trace_id']),
-        span_id=bytes.fromhex(cfg['span_id']),
-        name=f'truyn.trace.retention.{tenant}',
-        kind=1,
-        start_time_unix_nano=now,
-        end_time_unix_nano=now + 1_000_000,
-        attributes=[KeyValue(key='truyn.proof', value=AnyValue(string_value='trace-retention'))],
-    )
-    scope = ScopeSpans(
-        scope=InstrumentationScope(name='truyn.production-ops', version='1'),
-        spans=[span],
-    )
-    return ExportTraceServiceRequest(resource_spans=[ResourceSpans(resource=resource, scope_spans=[scope])])
+    return {
+        'resourceSpans': [{
+            'resource': {
+                'attributes': [
+                    {'key': 'service.name', 'value': {'stringValue': 'truyn-trace-retention-acceptance'}},
+                    {'key': 'deployment.environment.name', 'value': {'stringValue': 'production'}},
+                    {'key': 'truyn.trace.retention_class', 'value': {'stringValue': tenant}},
+                ]
+            },
+            'scopeSpans': [{
+                'scope': {'name': 'truyn.production-ops', 'version': '1'},
+                'spans': [{
+                    'traceId': cfg['trace_id'],
+                    'spanId': cfg['span_id'],
+                    'name': f'truyn.trace.retention.{tenant}',
+                    'kind': 1,
+                    'startTimeUnixNano': str(now),
+                    'endTimeUnixNano': str(now + 1_000_000),
+                    'attributes': [
+                        {'key': 'truyn.proof', 'value': {'stringValue': 'trace-retention'}}
+                    ],
+                }],
+            }],
+        }]
+    }
 
 
 def export_trace(tenant):
-    payload = trace_request(tenant).SerializeToString()
+    payload = json.dumps(trace_request(tenant), separators=(',', ':')).encode('utf-8')
     request = urllib.request.Request(
         OTLP_URL,
         data=payload,
         method='POST',
-        headers=request_headers(tenant, {'Content-Type': 'application/x-protobuf'}),
+        headers=request_headers(tenant, {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        }),
     )
     with urllib.request.urlopen(request, timeout=10) as response:
         return response.status == 200
@@ -98,8 +120,62 @@ def trace_observed(tenant, trace_id=None):
 
 def override_observed(tenant):
     status, body = fetch(f'http://127.0.0.1:3200/status/overrides/{tenant}', tenant)
-    text = body.decode('utf-8', errors='replace')
-    return status == 200 and 'block_retention' in text and TENANTS[tenant]['retention'] in text
+    if status != 200:
+        return False
+    try:
+        payload = json.loads(body.decode('utf-8'))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    runtime_overrides = str(payload.get('runtime_overrides') or '')
+    source = str(payload.get('using_default_or_wildcard_runtime_overrides') or '')
+    expected = TENANTS[tenant]['retention']
+    return (
+        source == tenant
+        and re.search(r'(?m)^\s*block_retention:\s*' + re.escape(expected), runtime_overrides) is not None
+        and re.search(r'(?m)^\s*compaction_disabled:\s*false\s*$', runtime_overrides) is not None
+    )
+
+
+def wait_override(tenant):
+    for _ in range(90):
+        try:
+            if override_observed(tenant):
+                marker(
+                    'retention_override',
+                    'pass',
+                    tenant,
+                    retention_hours=TENANTS[tenant]['retention_hours'],
+                )
+                return True
+        except Exception:
+            pass
+        time.sleep(2)
+    return False
+
+
+def wait_export(tenant):
+    for _ in range(60):
+        try:
+            if export_trace(tenant):
+                marker('otlp_export', 'pass', tenant)
+                return True
+        except Exception:
+            pass
+        time.sleep(2)
+    return False
+
+
+def wait_readback(tenant, trace_id=None, attempts=180):
+    for _ in range(attempts):
+        try:
+            observed, body = trace_observed(tenant, trace_id)
+            if observed:
+                marker('trace_readback', 'pass', tenant)
+                return body
+        except Exception:
+            pass
+        time.sleep(2)
+    return None
 
 
 def runtime_trace_proof():
@@ -136,36 +212,21 @@ def contains_provider_span(value):
 
 
 if not wait_ready():
-    raise SystemExit('Tempo readiness timed out')
+    fail('tempo_ready')
+
+# Prove the retention policy is loaded before using either acceptance tenant.
+# This keeps the DoD fail-closed: a trace is never accepted as evidence merely
+# because ingestion works while the per-tenant retention override is absent.
+for tenant in ('normal', 'incident'):
+    if not wait_override(tenant):
+        fail('retention_override', tenant)
 
 for tenant in ('normal', 'incident'):
-    accepted = False
-    for _ in range(60):
-        try:
-            if export_trace(tenant):
-                accepted = True
-                break
-        except Exception:
-            pass
-        time.sleep(2)
-    if not accepted:
-        raise SystemExit(f'{tenant} OTLP/HTTP trace export timed out')
-
-    observed = False
-    for _ in range(180):
-        try:
-            observed, _ = trace_observed(tenant)
-            if observed:
-                break
-        except Exception:
-            pass
-        time.sleep(2)
-    if not observed:
-        raise SystemExit(f'{tenant} trace read-back timed out')
-
-for tenant in ('normal', 'incident'):
-    if not override_observed(tenant):
-        raise SystemExit(f'{tenant} retention override was not active')
+    if not wait_export(tenant):
+        fail('otlp_export', tenant)
+    body = wait_readback(tenant)
+    if body is None:
+        fail('trace_readback', tenant)
 
 print('TRUYN_TRACE_CANARY_PASS otlp_http=accepted trace_readback=observed storage=azure-blob', flush=True)
 print('TRUYN_TRACE_RETENTION_PASS normal_days=30 incident_days=90 normal_readback=1 incident_readback=1', flush=True)
@@ -174,25 +235,21 @@ runtime_trace_id = None
 for _ in range(120):
     runtime_trace_id = runtime_trace_proof()
     if runtime_trace_id:
+        marker('runtime_trace_id', 'pass', 'normal')
         break
     time.sleep(2)
 if not runtime_trace_id:
-    raise SystemExit('production runtime trace export proof did not expose an exact normal-retention trace id')
+    fail('runtime_trace_id', 'normal')
 
-runtime_observed = False
-for _ in range(180):
-    try:
-        observed, body = trace_observed('normal', runtime_trace_id)
-        if observed:
-            decoded = json.loads(body.decode('utf-8'))
-            if contains_provider_span(decoded):
-                runtime_observed = True
-                break
-    except Exception:
-        pass
-    time.sleep(2)
-if not runtime_observed:
-    raise SystemExit('truyn.provider.execute normal-retention trace was not returned by Tempo')
+runtime_body = wait_readback('normal', runtime_trace_id)
+if runtime_body is None:
+    fail('runtime_trace_readback', 'normal')
+try:
+    decoded = json.loads(runtime_body.decode('utf-8'))
+except (UnicodeDecodeError, json.JSONDecodeError):
+    fail('runtime_trace_decode', 'normal')
+if not contains_provider_span(decoded):
+    fail('runtime_provider_span', 'normal')
 
 print('TRUYN_TRACE_EXPORT_PASS span=truyn.provider.execute runtime=production source=exact-main retention_class=normal', flush=True)
 while True:
