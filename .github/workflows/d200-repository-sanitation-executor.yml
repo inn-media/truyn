@@ -1,0 +1,82 @@
+name: D-200 repository sanitation executor
+
+on:
+  push:
+    branches:
+      - automation/d200-repository-sanitation-260910
+    paths:
+      - .github/workflows/d200-repository-sanitation-executor.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: truyn-d200-repository-sanitation-2609102033-8f2c
+  cancel-in-progress: false
+
+jobs:
+  sanitize:
+    if: contains(github.event.head_commit.message, 'arm bounded sanitation executor')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Verify bounded source and prepare dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF_NAME" == 'automation/d200-repository-sanitation-260910' ]]
+          git merge-base --is-ancestor bae2a3ac4776bc4c89bdb53eb835d6b9d49cab37 HEAD
+          test -f scripts/apply-d200-repository-sanitation.sh
+          npm install --ignore-scripts --no-audit --no-fund
+      - name: Apply one-pass canonical sanitation and qualify working tree
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/apply-d200-repository-sanitation.sh')
+          s=p.read_text()
+          s=s.replace("# Exact sanitation smoke/full qualification on the same working tree; no cloud/D-200 execution.\n", "git add -A\n\n# Exact sanitation smoke/full qualification on the same working tree; no cloud/D-200 execution.\n")
+          s=s.replace("go test ./... --count=1\n", "")
+          s=s.replace("TRUYN_RELEASE_SOURCE_SHA=\"$(git rev-parse HEAD)\" sdk/release/build-release.sh\nrm -rf sdk/release/dist\n", "")
+          s=s.replace("git diff --check\n\n# Final fail-closed scans", "git diff --cached --check\n\n# Final fail-closed scans")
+          p.write_text(s)
+          PY
+          bash scripts/apply-d200-repository-sanitation.sh
+      - name: Commit one exact sanitation candidate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git clean -fdX
+          if git status --porcelain | grep '^??'; then
+            echo 'unexpected untracked build residue after sanitation qualification' >&2
+            exit 1
+          fi
+          git add -A
+          git diff --cached --check
+          test ! -e .github/workflows/d200-repository-sanitation-executor.yml
+          test ! -e scripts/apply-d200-repository-sanitation.sh
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git commit -m 'refactor(d200): sanitize repository execution surface' -m 'TASK_ID=truyn-d200-repository-sanitation-2609102033-8f2c' -m 'Materialize accepted D-200 behavior into canonical maintained source, preserve permanent regressions/evidence, remove obsolete patchers and launchers, and introduce parallel fail-closed verification without launching D-200.' -m 'Signed-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
+          git push origin HEAD:automation/d200-repository-sanitation-260910
+          printf 'TRUYN_SANITATION_CANDIDATE_SHA=%s\n' "$(git rev-parse HEAD)"
