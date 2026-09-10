@@ -61,7 +61,6 @@ var tags = {
 var probePython = replace(loadTextContent('trace-retention-probe.py'), '__SOURCE_SHA__', sourceSha)
 var probeScript = '''
 set -eu
-python -m pip install --disable-pip-version-check --no-cache-dir --quiet opentelemetry-proto==1.44.0
 cat > /tmp/trace-retention-probe.py <<'PY'
 ${probePython}
 PY
