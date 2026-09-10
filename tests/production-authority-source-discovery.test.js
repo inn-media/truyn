@@ -4,10 +4,15 @@ import { readFile } from 'node:fs/promises';
 
 const workflow = await readFile(new URL('../.github/workflows/production-authority-source-discovery.yml', import.meta.url), 'utf8');
 
-test('production authority source discovery is manual-only for Azure read', () => {
+test('production authority source discovery is main-only and can auto-run once on adoption', () => {
   assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /if: github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /push:\n\s+branches: \[main\]/);
+  assert.match(workflow, /if: \(github\.event_name == 'workflow_dispatch' \|\| github\.event_name == 'push'\) && github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /azure\/login@v2/);
+});
+
+test('push trigger is path-scoped to the S15 discovery contract', () => {
+  assert.match(workflow, /push:[\s\S]*branches: \[main\][\s\S]*production-authority-source-discovery\.yml[\s\S]*production-authority-source-discovery\.test\.js/);
 });
 
 test('discovery is bounded to read-only resource inspection', () => {
