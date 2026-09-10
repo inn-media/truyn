@@ -67,7 +67,15 @@ jobs:
           s=s.replace(old,new)
           p.write_text(s)
           PY
-          bash scripts/apply-d200-repository-sanitation.sh
+          bash scripts/apply-d200-repository-sanitation.sh 2>&1 | tee /tmp/truyn-sanitation.log
+      - name: Upload qualification failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-sanitation-failure-${{ github.run_id }}
+          path: /tmp/truyn-sanitation.log
+          if-no-files-found: error
+          retention-days: 7
       - name: Commit one exact sanitation candidate
         shell: bash
         run: |
