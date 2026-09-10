@@ -1,5 +1,5 @@
 # TASK_ID: truyn-d200-repository-sanitation-2609102033-8f2c
-# qualification-repair: sdk-contract-preservation-v1
+# qualification-repair: sdk-contract-preservation-v2
 name: D-200 repository sanitation executor
 
 on:
@@ -66,23 +66,8 @@ jobs:
           s=s.replace("run('empty-sas','2')", "run('empty-sas','4')")
           s=s.replace("s['test']='npm run test:full'", "s['test']='node --test tests/*.test.js'")
           needle="      - run: node sdk/conformance/run-five-language-e2e.mjs\n      - run: sdk/release/build-release.sh\n"
-          replacement="""      - run: node sdk/conformance/run-five-language-e2e.mjs
-      - name: Verify SDK release scanner wiring
-        run: node --test tests/sdk-release-ci-contract.test.js
-      - name: Build and verify SDK release packages
-        run: sdk/release/build-release.sh
-      - name: Clean-room import packed TypeScript SDK
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          package=\"$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-0.1.0-alpha.2.tgz\"
-          test -f \"$package\"
-          cleanroom=\"$(mktemp -d)\"
-          cd \"$cleanroom\"
-          npm init --yes >/dev/null
-          npm install --ignore-scripts --no-audit --no-fund \"$package\"
-          node --input-type=module -e \"import('@truyn/sdk').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.TruynLocalNodeClient !== 'function') throw new Error('TruynLocalNodeClient export missing'); })\"
-"""
+          lines=["      - run: node sdk/conformance/run-five-language-e2e.mjs","      - name: Verify SDK release scanner wiring","        run: node --test tests/sdk-release-ci-contract.test.js","      - name: Build and verify SDK release packages","        run: sdk/release/build-release.sh","      - name: Clean-room import packed TypeScript SDK","        shell: bash","        run: |","          set -Eeuo pipefail","          package=\"$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-0.1.0-alpha.2.tgz\"","          test -f \"$package\"","          cleanroom=\"$(mktemp -d)\"","          cd \"$cleanroom\"","          npm init --yes >/dev/null","          npm install --ignore-scripts --no-audit --no-fund \"$package\"","          node --input-type=module -e \"import('@truyn/sdk').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.TruynLocalNodeClient !== 'function') throw new Error('TruynLocalNodeClient export missing'); })\""]
+          replacement="\n".join(lines)+"\n"
           if needle not in s: raise SystemExit('SDK release CI insertion point missing')
           s=s.replace(needle,replacement)
           old="rm -f .github/pull_request_template.md .github/workflows/.gitkeep\nrm -rf _tmp_parts\n"
