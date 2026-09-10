@@ -24,5 +24,6 @@ test('D-200 route repair preserves canonical routing, recovery, and write-loss a
   assert.ok(baseline.includes("'maxRounds':2"), 'production refresh must remain bounded to two rounds');
   assert.ok(baseline.includes("retry=attempt('recovered')"), 'one recovered NEED attempt must remain available after first-attempt failure');
   assert.equal((baseline.match(/retry=attempt\('recovered'\)/g) || []).length, 1, 'baseline production recovery must permit exactly one recovered NEED attempt');
-  assert.ok(baseline.includes('Separate diagnostic retries later in this stage remain evidence-only'), 'diagnostic retries must remain excluded from baseline acceptance');
+  assert.ok(baseline.includes('diagnostic retries later in this stage remain evidence-only'), 'diagnostic retries must remain evidence-only');
+  assert.ok(baseline.includes('counted in baseline acceptance.'), 'diagnostic retries must remain excluded from baseline acceptance');
 });
