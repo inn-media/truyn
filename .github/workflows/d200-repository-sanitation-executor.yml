@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   sanitize:
-    if: contains(github.event.head_commit.message, 'arm bounded sanitation executor')
+    if: contains(github.event.head_commit.message, 'sanitation')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -59,6 +59,18 @@ jobs:
           s=s.replace("go test ./... --count=1\n", "")
           s=s.replace("TRUYN_RELEASE_SOURCE_SHA=\"$(git rev-parse HEAD)\" sdk/release/build-release.sh\nrm -rf sdk/release/dist\n", "")
           s=s.replace("git diff --check\n\n# Final fail-closed scans", "git diff --cached --check\n\n# Final fail-closed scans")
+          old="rm -f .github/pull_request_template.md .github/workflows/.gitkeep\nrm -rf _tmp_parts\n"
+          new="""rm -f .github/pull_request_template.md .github/workflows/.gitkeep
+while IFS= read -r -d '' keep; do
+  dir=\"$(dirname \"$keep\")\"
+  if find \"$dir\" -mindepth 1 -maxdepth 1 ! -name .gitkeep -print -quit | grep -q .; then
+    rm -f \"$keep\"
+  fi
+done < <(find . -name .gitkeep -not -path './.git/*' -print0)
+rm -rf _tmp_parts
+"""
+          if old not in s: raise SystemExit('gitkeep sanitation insertion point missing')
+          s=s.replace(old,new)
           p.write_text(s)
           PY
           bash scripts/apply-d200-repository-sanitation.sh
