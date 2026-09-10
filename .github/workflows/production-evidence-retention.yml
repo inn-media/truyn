@@ -279,7 +279,7 @@ jobs:
           ' <<<"$locked_json" >/dev/null
           printf 'TRUYN_EVIDENCE_POLICY_LOCKED retention_days=%s state=Locked versioning=1 immutable_storage=1\n' "$period"
 
-      - name: Prove immutable evidence writes and delete denial
+      - name: Prove immutable evidence writes and exact-version delete denial
         shell: bash
         run: |
           set -euo pipefail
@@ -298,8 +298,8 @@ jobs:
           fi
           rm -f "$role_error"
 
-          runner_ip="$(curl -fsSL https://api.ipify.org)"
-          [[ "$runner_ip" =~ ^[0-9a-fA-F:.]+$ ]] || { echo '::error::Unable to resolve GitHub runner egress address.'; exit 1; }
+          runner_ip="$(curl -4 -fsSL https://api.ipify.org)"
+          [[ "$runner_ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo '::error::Unable to resolve GitHub runner IPv4 egress address.'; exit 1; }
           printf '::add-mask::%s\n' "$runner_ip"
           cleanup() {
             az storage account network-rule remove \
@@ -355,21 +355,44 @@ jobs:
             az storage blob show --account-name "$EVIDENCE_STORAGE_ACCOUNT" --container-name "$EVIDENCE_CONTAINER" --name "$blob" --auth-mode login --only-show-errors -o none
           done
 
+          drill_version_id="$(az storage blob list \
+            --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+            --container-name "$EVIDENCE_CONTAINER" \
+            --prefix "$drill_blob" \
+            --include v \
+            --auth-mode login \
+            --query "[?name=='${drill_blob}'].versionId | [0]" \
+            --only-show-errors -o tsv)"
+          [[ -n "$drill_version_id" && "$drill_version_id" != 'null' ]] || {
+            echo '::error::Versioned WORM proof requires the exact protected drill blob version ID.'
+            exit 1
+          }
+          printf '::add-mask::%s\n' "$drill_version_id"
+
           delete_error="$(mktemp)"
           if az storage blob delete \
             --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
             --container-name "$EVIDENCE_CONTAINER" \
             --name "$drill_blob" \
+            --version-id "$drill_version_id" \
             --auth-mode login \
             --only-show-errors -o none 2>"$delete_error"; then
-            echo '::error::Immutable retention breach: protected evidence blob was deletable.'
+            echo '::error::Immutable retention breach: protected evidence blob version was deletable.'
             exit 1
           fi
           grep -Eqi 'BlobImmutableDueToPolicy|immutable due to (a )?policy' "$delete_error" || {
-            echo '::error::Delete failed, but Azure did not prove immutability-policy enforcement.'
+            echo '::error::Exact-version delete failed, but Azure did not prove immutability-policy enforcement.'
             exit 1
           }
           rm -f "$delete_error"
+
+          az storage blob show \
+            --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+            --container-name "$EVIDENCE_CONTAINER" \
+            --name "$drill_blob" \
+            --version-id "$drill_version_id" \
+            --auth-mode login \
+            --only-show-errors -o none
 
           jq -n \
             --arg deploymentId "$DEPLOYMENT_ID" \
@@ -400,7 +423,9 @@ jobs:
               drillEvidenceWriteObserved:true,
               pagerEvidenceWriteObserved:true,
               sloEvidenceWriteObserved:true,
+              immutableExactVersionDeleteDenialObserved:true,
               immutableDeleteDenialObserved:true,
+              protectedVersionReadBackObserved:true,
               sanitized:true,
               generatedAt:$generatedAt,
               status:"PASS"
@@ -417,7 +442,7 @@ jobs:
             --only-show-errors -o none
           az storage blob show --account-name "$EVIDENCE_STORAGE_ACCOUNT" --container-name "$EVIDENCE_CONTAINER" --name "$evidence_blob" --auth-mode login --only-show-errors -o none
 
-          echo 'TRUYN_EVIDENCE_RETENTION_PASS retention_days=365 state=Locked drill=1 pager=1 slo=1 immutable_delete_denied=1 entra_write=1'
+          echo 'TRUYN_EVIDENCE_RETENTION_PASS retention_days=365 state=Locked drill=1 pager=1 slo=1 exact_version_delete_denied=1 immutable_delete_denied=1 entra_write=1'
 
       - name: Upload sanitized Sprint 18 convenience evidence
         uses: actions/upload-artifact@v4
