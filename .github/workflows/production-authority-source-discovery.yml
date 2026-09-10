@@ -6,6 +6,11 @@ on:
       - '.github/workflows/production-authority-source-discovery.yml'
       - 'tests/production-authority-source-discovery.test.js'
       - 'tests/public-repository.test.js'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/production-authority-source-discovery.yml'
+      - 'tests/production-authority-source-discovery.test.js'
   workflow_dispatch:
 
 permissions:
@@ -28,7 +33,7 @@ jobs:
           node --test tests/production-authority-source-discovery.test.js
 
   discover:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
