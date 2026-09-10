@@ -77,7 +77,7 @@ test('immutable storage with versioning and locked WORM are mandatory', async ()
   assert.match(workflow, /allowProtectedAppendWrites/);
 });
 
-test('live acceptance proves all evidence classes can be written and protected data cannot be deleted', async () => {
+test('live acceptance proves all evidence classes can be written and the exact protected version cannot be deleted', async () => {
   const workflow = await read(workflowPath);
 
   assert.match(workflow, /for class in drill pager slo/);
@@ -86,10 +86,14 @@ test('live acceptance proves all evidence classes can be written and protected d
   assert.match(workflow, /slo\/retention-canary/);
   assert.match(workflow, /az storage blob upload/);
   assert.match(workflow, /az storage blob show/);
-  assert.match(workflow, /az storage blob delete/);
+  assert.match(workflow, /az storage blob list[\s\S]*--include v/);
+  assert.match(workflow, /drill_version_id=/);
+  assert.match(workflow, /az storage blob delete[\s\S]*--version-id "\$drill_version_id"/);
+  assert.match(workflow, /az storage blob show[\s\S]*--version-id "\$drill_version_id"/);
   assert.match(workflow, /BlobImmutableDueToPolicy/);
-  assert.match(workflow, /immutableDeleteDenialObserved:true/);
-  assert.match(workflow, /TRUYN_EVIDENCE_RETENTION_PASS retention_days=365 state=Locked drill=1 pager=1 slo=1 immutable_delete_denied=1 entra_write=1/);
+  assert.match(workflow, /immutableExactVersionDeleteDenialObserved:true/);
+  assert.match(workflow, /protectedVersionReadBackObserved:true/);
+  assert.match(workflow, /TRUYN_EVIDENCE_RETENTION_PASS retention_days=365 state=Locked drill=1 pager=1 slo=1 exact_version_delete_denied=1 immutable_delete_denied=1 entra_write=1/);
 });
 
 test('Sprint 18 live mutation is exact-main guarded and evidence is sanitized', async () => {
@@ -108,7 +112,7 @@ test('Sprint 18 live mutation is exact-main guarded and evidence is sanitized', 
   const end = workflow.indexOf("}' > production-evidence-retention-evidence.json", start);
   assert.ok(end > start, 'sanitized Sprint 18 evidence block terminator is missing');
   const evidenceBlock = workflow.slice(start, end);
-  for (const forbidden of ['RESOURCE_GROUP', 'EVIDENCE_STORAGE_ACCOUNT', 'EVIDENCE_STORAGE_ACCOUNT_ID', 'EVIDENCE_CONTAINER_ID', 'runner_ip']) {
+  for (const forbidden of ['RESOURCE_GROUP', 'EVIDENCE_STORAGE_ACCOUNT', 'EVIDENCE_STORAGE_ACCOUNT_ID', 'EVIDENCE_CONTAINER_ID', 'runner_ip', 'drill_version_id']) {
     assert.equal(evidenceBlock.includes(forbidden), false, `${forbidden} leaked into sanitized evidence`);
   }
 });
