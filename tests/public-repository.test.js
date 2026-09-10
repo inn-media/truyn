@@ -16,6 +16,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/diag-d200-850fff25-qualified.yml',
   '.github/workflows/publish-npm.yml',
   '.github/workflows/publish-python-alpha.yml',
+  '.github/workflows/production-authority-image.yml',
   '.github/workflows/production-dr-foundation.yml',
   '.github/workflows/production-logs-retention.yml',
   '.github/workflows/production-metrics-backend.yml',

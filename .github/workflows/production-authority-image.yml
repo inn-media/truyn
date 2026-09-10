@@ -1,0 +1,246 @@
+name: Production Authority Image
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/production-authority-image.yml'
+      - 'tests/production-authority-image.test.js'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/production-authority-image.yml'
+      - 'tests/production-authority-image.test.js'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-authority-image-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SOURCE_SHA: 37144e03eaba714be26d106b3b0d396f0801f7d6
+  IMAGE_REPOSITORY: truyn-authority
+  SOURCE_DOCKERFILE_BLOB: e56b6ad46e7ee1e7963a0e039299d0da98a303ba
+  SOURCE_PACKAGE_JSON_BLOB: 24f660c5238f49dce468647684074f63d1a3adc7
+  BASE_IMAGE: node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+  NPM_BEFORE: '2026-09-08T18:53:08Z'
+  PROVENANCE_TYPE: https://truyn.org/attestations/production-authority-image/v1
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate immutable authority image contract
+        run: node --test tests/production-authority-image.test.js
+
+  build-and-record:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+      REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'germanywestcentral:francecentral northeurope:swedencentral' }}
+      AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+      AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact accepted authority source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+
+      - name: Verify and freeze accepted build inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          [[ "$actual_sha" == "$SOURCE_SHA" ]] || {
+            echo '::error::Authority image source checkout is not the accepted SHA.'
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD:Dockerfile)" == "$SOURCE_DOCKERFILE_BLOB" ]] || {
+            echo '::error::Accepted Dockerfile blob changed.'
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD:package.json)" == "$SOURCE_PACKAGE_JSON_BLOB" ]] || {
+            echo '::error::Accepted package.json blob changed.'
+            exit 1
+          }
+          grep -Fx 'FROM node:22-bookworm-slim' Dockerfile >/dev/null || {
+            echo '::error::Accepted Dockerfile base contract changed.'
+            exit 1
+          }
+          cp Dockerfile Dockerfile.authority
+          sed -i "s#^FROM node:22-bookworm-slim$#FROM ${BASE_IMAGE}#" Dockerfile.authority
+          sed -i "s#RUN npm install --omit=dev --no-audit --no-fund#RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund --before=${NPM_BEFORE} \&\& npm ls --all --omit=dev --json > /app/dependency-tree.json#" Dockerfile.authority
+          grep -Fx "FROM ${BASE_IMAGE}" Dockerfile.authority >/dev/null
+          grep -F -- "--before=${NPM_BEFORE}" Dockerfile.authority >/dev/null
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Ensure Container Apps CLI extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          az extension add --name containerapp --upgrade --only-show-errors >/dev/null
+
+      - name: Resolve accepted production registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+          registry=''
+          registry_login=''
+          attempt=0
+          for pair in $REGION_PAIRS; do
+            attempt=$((attempt + 1))
+            [[ "$attempt" -le 2 ]] || break
+            [[ "$pair" == *:* ]] || { echo '::error::Invalid production region pair.'; exit 1; }
+            primary="${pair%%:*}"
+            secondary="${pair#*:}"
+            pair_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}:${primary}:${secondary}" | sha256sum | cut -c1-10)"
+            prefix="truyn${pair_suffix}"
+            environment="${prefix}-aca-env"
+            cosmos="${prefix}cosmos"
+            candidate_registry="${prefix}acr"
+            for value in "$prefix" "$environment" "$cosmos" "$candidate_registry"; do printf '::add-mask::%s\n' "$value"; done
+            if ! environment_id="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --query id -o tsv --only-show-errors 2>/dev/null)"; then continue; fi
+            [[ -n "$environment_id" ]] || continue
+            printf '::add-mask::%s\n' "$environment_id"
+            environment_json="$(az resource show --ids "$environment_id" --api-version 2025-07-01 --only-show-errors -o json 2>/dev/null)" || continue
+            cosmos_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json 2>/dev/null)" || continue
+            registry_json="$(az acr show --resource-group "$RESOURCE_GROUP" --name "$candidate_registry" --only-show-errors -o json 2>/dev/null)" || continue
+            jq -e '(.properties.vnetConfiguration.internal // false) == true and ((.properties.publicNetworkAccess // "") | ascii_downcase) == "disabled" and (.properties.provisioningState // "") == "Succeeded"' <<<"$environment_json" >/dev/null || continue
+            jq -e --arg primary "$primary" --arg secondary "$secondary" '.provisioningState == "Succeeded" and ([.locations[].locationName | gsub(" "; "") | ascii_downcase] | sort) == ([$primary, $secondary] | sort)' <<<"$cosmos_json" >/dev/null || continue
+            jq -e '.provisioningState == "Succeeded"' <<<"$registry_json" >/dev/null || continue
+            registry="$candidate_registry"
+            registry_login="$(jq -r '.loginServer // empty' <<<"$registry_json")"
+            [[ -n "$registry_login" ]] || continue
+            printf '::add-mask::%s\n' "$registry_login"
+            break
+          done
+          [[ -n "$registry" && -n "$registry_login" ]] || {
+            echo '::error::No accepted production registry is available.'
+            exit 1
+          }
+          printf 'REGISTRY_NAME=%s\nREGISTRY_LOGIN=%s\n' "$registry" "$registry_login" >> "$GITHUB_ENV"
+
+      - name: Authenticate OCI tooling to accepted registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr login --name "$REGISTRY_NAME" --only-show-errors >/dev/null
+
+      - name: Build or select immutable authority image
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_name="${IMAGE_REPOSITORY}:${SOURCE_SHA}"
+          existing_digest="$(az acr manifest show-metadata --registry "$REGISTRY_NAME" --name "$image_name" --query digest -o tsv --only-show-errors 2>/dev/null || true)"
+          verify_locked() {
+            local digest="$1" tag_json manifest_json
+            tag_json="$(az acr repository show-tags --name "$REGISTRY_NAME" --repository "$IMAGE_REPOSITORY" --detail --only-show-errors -o json)"
+            jq -e --arg tag "$SOURCE_SHA" 'any(.[]; .name == $tag and .changeableAttributes.writeEnabled == false and .changeableAttributes.deleteEnabled == false)' <<<"$tag_json" >/dev/null || return 1
+            manifest_json="$(az acr manifest show-metadata --registry "$REGISTRY_NAME" --name "${IMAGE_REPOSITORY}@${digest}" --only-show-errors -o json)"
+            jq -e '.changeableAttributes.writeEnabled == false and .changeableAttributes.deleteEnabled == false' <<<"$manifest_json" >/dev/null
+          }
+          if [[ "$existing_digest" =~ ^sha256:[0-9a-f]{64}$ ]] && verify_locked "$existing_digest"; then
+            digest="$existing_digest"
+            reused=true
+          else
+            if [[ "$existing_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo '::notice::Recovering an interrupted unlocked authority image by deterministic rebuild.'
+            fi
+            az acr build --resource-group "$RESOURCE_GROUP" --registry "$REGISTRY_NAME" --image "$image_name" --file Dockerfile.authority --only-show-errors . >/dev/null
+            digest="$(az acr manifest show-metadata --registry "$REGISTRY_NAME" --name "$image_name" --query digest -o tsv --only-show-errors)"
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+              echo '::error::Authority image digest is missing or malformed.'
+              exit 1
+            }
+            reused=false
+          fi
+          printf 'digest=%s\nreused=%s\nsubject_name=%s/%s\n' "$digest" "$reused" "$REGISTRY_LOGIN" "$IMAGE_REPOSITORY" >> "$GITHUB_OUTPUT"
+          printf 'AUTHORITY_IMAGE_DIGEST=%s\nAUTHORITY_IMAGE_REUSED=%s\n' "$digest" "$reused" >> "$GITHUB_ENV"
+
+      - name: Prepare source-bound provenance predicate
+        if: steps.image.outputs.reused == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n --arg sourceSha "$SOURCE_SHA" --arg dockerfileBlob "$SOURCE_DOCKERFILE_BLOB" --arg packageJsonBlob "$SOURCE_PACKAGE_JSON_BLOB" --arg baseImage "$BASE_IMAGE" --arg npmBefore "$NPM_BEFORE" --arg digest "${{ steps.image.outputs.digest }}" '{sourceSha:$sourceSha,dockerfileBlob:$dockerfileBlob,packageJsonBlob:$packageJsonBlob,baseImage:$baseImage,npmBefore:$npmBefore,imageDigest:$digest}' > authority-image-provenance.json
+
+      - name: Attest exact source and frozen build inputs
+        if: steps.image.outputs.reused == 'false'
+        uses: actions/attest@v2
+        with:
+          subject-name: ${{ steps.image.outputs.subject_name }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          predicate-type: ${{ env.PROVENANCE_TYPE }}
+          predicate-path: authority-image-provenance.json
+
+      - name: Verify source-bound provenance before acceptance or reuse
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh attestation verify "oci://${REGISTRY_LOGIN}/${IMAGE_REPOSITORY}@${AUTHORITY_IMAGE_DIGEST}" --repo "$GITHUB_REPOSITORY" --predicate-type "$PROVENANCE_TYPE" --deny-self-hosted-runners --format json > verified-attestation.json
+          jq -e --arg sourceSha "$SOURCE_SHA" --arg dockerfileBlob "$SOURCE_DOCKERFILE_BLOB" --arg packageJsonBlob "$SOURCE_PACKAGE_JSON_BLOB" --arg baseImage "$BASE_IMAGE" --arg npmBefore "$NPM_BEFORE" --arg digest "$AUTHORITY_IMAGE_DIGEST" 'any(.[]; .verificationResult.statement.predicate.sourceSha == $sourceSha and .verificationResult.statement.predicate.dockerfileBlob == $dockerfileBlob and .verificationResult.statement.predicate.packageJsonBlob == $packageJsonBlob and .verificationResult.statement.predicate.baseImage == $baseImage and .verificationResult.statement.predicate.npmBefore == $npmBefore and .verificationResult.statement.predicate.imageDigest == $digest)' verified-attestation.json >/dev/null || {
+            echo '::error::Authority image provenance is not bound to the accepted source/build inputs.'
+            exit 1
+          }
+
+      - name: Terminally lock a newly attested image and verify both locks
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$AUTHORITY_IMAGE_REUSED" == "false" ]]; then
+            az acr repository update --name "$REGISTRY_NAME" --image "${IMAGE_REPOSITORY}:${SOURCE_SHA}" --write-enabled false --delete-enabled false --only-show-errors >/dev/null
+            az acr repository update --name "$REGISTRY_NAME" --image "${IMAGE_REPOSITORY}@${AUTHORITY_IMAGE_DIGEST}" --write-enabled false --delete-enabled false --only-show-errors >/dev/null
+          fi
+          tag_json="$(az acr repository show-tags --name "$REGISTRY_NAME" --repository "$IMAGE_REPOSITORY" --detail --only-show-errors -o json)"
+          jq -e --arg tag "$SOURCE_SHA" 'any(.[]; .name == $tag and .changeableAttributes.writeEnabled == false and .changeableAttributes.deleteEnabled == false)' <<<"$tag_json" >/dev/null || {
+            echo '::error::Authority SHA tag is not locked against rewrite and delete.'
+            exit 1
+          }
+          manifest_json="$(az acr manifest show-metadata --registry "$REGISTRY_NAME" --name "${IMAGE_REPOSITORY}@${AUTHORITY_IMAGE_DIGEST}" --only-show-errors -o json)"
+          jq -e '.changeableAttributes.writeEnabled == false and .changeableAttributes.deleteEnabled == false' <<<"$manifest_json" >/dev/null || {
+            echo '::error::Authority manifest is not locked against rewrite and delete.'
+            exit 1
+          }
+
+      - name: Emit sanitized immutable image evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n --arg sourceSha "$SOURCE_SHA" --arg repository "$IMAGE_REPOSITORY" --arg tag "$SOURCE_SHA" --arg digest "$AUTHORITY_IMAGE_DIGEST" --arg reused "$AUTHORITY_IMAGE_REUSED" --arg baseImage "$BASE_IMAGE" --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{schema:"truyn.production-authority-image-evidence/v2",component:"production-authority-image",sourceSha:$sourceSha,sourceCheckoutVerified:true,provenanceVerified:true,buildInputs:{baseImage:$baseImage,npmResolutionCutoffPinned:true},image:{repository:$repository,tag:$tag,digest:$digest,immutableReference:($repository+"@"+$digest),writeLocked:true,deleteLocked:true,reusedLockedArtifact:($reused=="true")},mutableTagUsed:false,generatedAt:$generatedAt,status:"PASS"}' > production-authority-image-evidence.json
+
+      - name: Upload sanitized authority image evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-authority-image-evidence
+          path: production-authority-image-evidence.json
+          if-no-files-found: error
+          retention-days: 30
