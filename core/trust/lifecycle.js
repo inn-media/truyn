@@ -212,13 +212,21 @@ function lineageSignerAuthorized(authorityRegistry, certificate, sourceId, now) 
 }
 
 function declaredLineageIsCertified(attestation, certs, authorityRegistry, now) {
-  const evidenceWithCerts = (attestation.body.evidence || []).map((evidence) => {
-    const candidates = certs.get(sourceLineageCommitment(evidence.sourceId)) || [];
-    const authorized = authorityRegistry ? candidates.filter((certificate) => lineageSignerAuthorized(authorityRegistry, certificate, evidence.sourceId, now)) : candidates;
-    return { evidence, certificates: authorized };
-  }).filter((entry) => entry.certificates.length > 0);
+  const evidenceWithCerts = (attestation.body.evidence || []).map((evidence) => ({
+    evidence,
+    certificates: certs.get(sourceLineageCommitment(evidence.sourceId)) || []
+  })).filter((entry) => entry.certificates.length > 0);
   if (evidenceWithCerts.length === 0) return false;
-  const sourceCerts = evidenceWithCerts.flatMap((entry) => entry.certificates);
+
+  const authorizedEvidence = evidenceWithCerts.map((entry) => ({
+    evidence: entry.evidence,
+    certificates: authorityRegistry
+      ? entry.certificates.filter((certificate) => lineageSignerAuthorized(authorityRegistry, certificate, entry.evidence.sourceId, now))
+      : entry.certificates
+  }));
+  if (authorizedEvidence.some((entry) => entry.certificates.length === 0)) return false;
+
+  const sourceCerts = authorizedEvidence.flatMap((entry) => entry.certificates);
   const certified = {
     originIds: new Set(sourceCerts.flatMap((cert) => cert.body.originCommitments)),
     publisherIds: new Set(sourceCerts.flatMap((cert) => cert.body.publisherCommitments)),
