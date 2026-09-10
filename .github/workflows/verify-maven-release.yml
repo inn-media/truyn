@@ -1,0 +1,197 @@
+name: Verify Maven release candidate
+
+on:
+  push:
+    branches:
+      - 'release/maven-central-*'
+    paths:
+      - 'sdk/java/**'
+      - 'sdk/release/**'
+      - '.github/workflows/publish-maven-central.yml'
+      - '.github/workflows/verify-maven-release.yml'
+      - 'tests/maven-release-workflows.test.js'
+  pull_request:
+    paths:
+      - 'sdk/java/**'
+      - 'sdk/release/**'
+      - '.github/workflows/publish-maven-central.yml'
+      - '.github/workflows/verify-maven-release.yml'
+      - 'tests/maven-release-workflows.test.js'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Maven candidate bundle
+    if: github.repository == 'inn-media/truyn'
+    runs-on: ubuntu-24.04
+    env:
+      MAVEN_GPG_PASSPHRASE: truyn-ci-only-release-key
+      MAVEN_CANDIDATE_USERNAME: candidate-only-no-upload
+      MAVEN_CANDIDATE_PASSWORD: candidate-only-no-upload
+    steps:
+      - name: Checkout exact candidate source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure Java 17 and non-production Central server entry
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          server-id: central
+          server-username: MAVEN_CANDIDATE_USERNAME
+          server-password: MAVEN_CANDIDATE_PASSWORD
+
+      - name: Create ephemeral non-production signing key
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          GNUPGHOME="$RUNNER_TEMP/truyn-maven-ci-gpg"
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          gpg --batch --homedir "$GNUPGHOME" --pinentry-mode loopback \
+            --passphrase "$MAVEN_GPG_PASSPHRASE" \
+            --quick-gen-key 'TRUYN Maven CI Candidate <ci-maven@truyn.org>' rsa3072 sign 1d
+
+      - name: Build signed Maven artifacts without publishing
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          mvn -B -f sdk/java/pom.xml -Pcentral-release -DskipPublishing=true clean deploy
+
+      - name: Assemble, verify and scan non-publishing candidate bundle
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          version='0.1.0-alpha.1'
+          target='sdk/java/target'
+          staging="$RUNNER_TEMP/truyn-maven-candidate/org/truyn/truyn-sdk/$version"
+          bundle="$target/central-publishing/truyn-sdk-$version-central-bundle.zip"
+          diagnostics='sdk/release/maven-scan-diagnostics.txt'
+          mkdir -p "$staging" "$(dirname "$bundle")"
+          : > "$diagnostics"
+          failed=0
+
+          required=(
+            "truyn-sdk-$version.jar"
+            "truyn-sdk-$version-sources.jar"
+            "truyn-sdk-$version-javadoc.jar"
+            "truyn-sdk-$version.pom"
+            "truyn-sdk-$version.jar.asc"
+            "truyn-sdk-$version-sources.jar.asc"
+            "truyn-sdk-$version-javadoc.jar.asc"
+            "truyn-sdk-$version.pom.asc"
+          )
+
+          for name in "${required[@]}"; do
+            case "$name" in
+              "truyn-sdk-$version.pom") src='sdk/java/pom.xml' ;;
+              *) src="$target/$name" ;;
+            esac
+            if [ ! -s "$src" ]; then
+              printf '%s result=MISSING\n' "$name" >> "$diagnostics"
+              failed=1
+            else
+              cp "$src" "$staging/$name"
+              printf '%s result=PRESENT\n' "$name" >> "$diagnostics"
+            fi
+          done
+
+          if [ "$failed" -eq 0 ]; then
+            (
+              cd "$RUNNER_TEMP/truyn-maven-candidate"
+              zip -q -r "$GITHUB_WORKSPACE/$bundle" org
+            )
+          fi
+
+          if [ ! -s "$bundle" ]; then
+            printf 'bundle=%s result=MISSING\n' "$bundle" >> "$diagnostics"
+            failed=1
+          else
+            listing="$(unzip -Z1 "$bundle")"
+            printf 'source_sha=%s\nbundle=%s\n--- bundle listing ---\n%s\n--- required basenames ---\n' "$GITHUB_SHA" "$bundle" "$listing" >> "$diagnostics"
+            for name in "${required[@]}"; do
+              count="$(printf '%s\n' "$listing" | awk -F/ -v required="$name" '$NF == required { count += 1 } END { print count + 0 }')"
+              printf '%s count=%s\n' "$name" "$count" >> "$diagnostics"
+              if [ "$count" -ne 1 ]; then failed=1; fi
+            done
+          fi
+
+          printf '%s\n' '--- signature verification ---' >> "$diagnostics"
+          for unsigned in \
+            "$target/truyn-sdk-$version.jar" \
+            "$target/truyn-sdk-$version-sources.jar" \
+            "$target/truyn-sdk-$version-javadoc.jar" \
+            'sdk/java/pom.xml'
+          do
+            case "$unsigned" in
+              'sdk/java/pom.xml') signature="$target/truyn-sdk-$version.pom.asc" ;;
+              *) signature="$unsigned.asc" ;;
+            esac
+            if gpg --batch --homedir "$GNUPGHOME" --verify "$signature" "$unsigned" >> "$diagnostics" 2>&1; then
+              printf 'artifact=%s signature=PASS\n' "$unsigned" >> "$diagnostics"
+            else
+              printf 'artifact=%s signature=FAIL\n' "$unsigned" >> "$diagnostics"
+              failed=1
+            fi
+          done
+
+          printf '%s\n' '--- package scanner ---' >> "$diagnostics"
+          for artifact in \
+            "$target/truyn-sdk-$version.jar" \
+            "$target/truyn-sdk-$version-sources.jar" \
+            "$target/truyn-sdk-$version-javadoc.jar"
+          do
+            destination="$(mktemp -d)"
+            if python sdk/release/safe-extract.py "$artifact" "$destination" >> "$diagnostics" 2>&1; then
+              printf 'artifact=%s result=PASS\n' "$artifact" >> "$diagnostics"
+            else
+              printf 'artifact=%s result=FAIL\n' "$artifact" >> "$diagnostics"
+              failed=1
+            fi
+            rm -rf "$destination"
+          done
+
+          cat "$diagnostics"
+          test "$failed" -eq 0
+
+      - name: Upload Maven scanner diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-maven-scan-diagnostics-${{ github.sha }}
+          path: sdk/release/maven-scan-diagnostics.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Generate exact-source candidate hashes and provenance manifest
+        env:
+          TRUYN_RELEASE_SOURCE_SHA: ${{ github.sha }}
+          TRUYN_MAVEN_RELEASE_TAG: candidate-only-no-publication
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          fingerprint="$(gpg --batch --homedir "$GNUPGHOME" --with-colons --fingerprint --list-secret-keys | awk -F: '$1 == "fpr" { print toupper($10); exit }')"
+          test -n "$fingerprint"
+          export TRUYN_MAVEN_SIGNING_FINGERPRINT="$fingerprint"
+          node sdk/release/write-maven-manifest.mjs sdk/release/maven-candidate-evidence.json
+          node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('sdk/release/maven-candidate-evidence.json','utf8'));if(m.sourceSha!==process.env.TRUYN_RELEASE_SOURCE_SHA)throw new Error('Maven candidate source SHA mismatch');if(m.coordinate!=='org.truyn:truyn-sdk:0.1.0-alpha.1')throw new Error('Maven coordinate mismatch')"
+
+      - name: Upload non-publication Maven candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-maven-candidate-${{ github.sha }}
+          path: |
+            sdk/release/maven-candidate-evidence.json
+            sdk/release/maven-scan-diagnostics.txt
+            sdk/java/target/central-publishing/truyn-sdk-0.1.0-alpha.1-central-bundle.zip
+          if-no-files-found: error
+          retention-days: 30
