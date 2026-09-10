@@ -60,15 +60,7 @@ jobs:
           s=s.replace("TRUYN_RELEASE_SOURCE_SHA=\"$(git rev-parse HEAD)\" sdk/release/build-release.sh\nrm -rf sdk/release/dist\n", "")
           s=s.replace("git diff --check\n\n# Final fail-closed scans", "git diff --cached --check\n\n# Final fail-closed scans")
           old="rm -f .github/pull_request_template.md .github/workflows/.gitkeep\nrm -rf _tmp_parts\n"
-          new="""rm -f .github/pull_request_template.md .github/workflows/.gitkeep
-while IFS= read -r -d '' keep; do
-  dir=\"$(dirname \"$keep\")\"
-  if find \"$dir\" -mindepth 1 -maxdepth 1 ! -name .gitkeep -print -quit | grep -q .; then
-    rm -f \"$keep\"
-  fi
-done < <(find . -name .gitkeep -not -path './.git/*' -print0)
-rm -rf _tmp_parts
-"""
+          new="rm -f .github/pull_request_template.md .github/workflows/.gitkeep\nwhile IFS= read -r -d '' keep; do\n  dir=\"$(dirname \"$keep\")\"\n  if find \"$dir\" -mindepth 1 -maxdepth 1 ! -name .gitkeep -print -quit | grep -q .; then\n    rm -f \"$keep\"\n  fi\ndone < <(find . -name .gitkeep -not -path './.git/*' -print0)\nrm -rf _tmp_parts\n"
           if old not in s: raise SystemExit('gitkeep sanitation insertion point missing')
           s=s.replace(old,new)
           p.write_text(s)
