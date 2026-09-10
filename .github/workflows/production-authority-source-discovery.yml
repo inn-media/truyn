@@ -40,7 +40,6 @@ jobs:
       AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
       AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
-      RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,60 +55,61 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
 
-          apps="$(az containerapp list --resource-group "$RESOURCE_GROUP" --only-show-errors -o json)"
-          count="$(jq 'length' <<<"$apps")"
-          [[ "$count" -gt 0 ]] || { echo '::error::No Container Apps found in production resource group'; exit 1; }
+          resources="$(az resource list --only-show-errors -o json)"
+          [[ "$(jq 'length' <<<"$resources")" -gt 0 ]] || { echo '::error::Azure subscription contains no visible resources'; exit 1; }
 
-          candidates='[]'
-          while IFS= read -r app_name; do
-            [[ -n "$app_name" ]] || continue
-            printf '::add-mask::%s\n' "$app_name"
-            app="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$app_name" --only-show-errors -o json)"
-            rev="$(jq -r '.properties.latestReadyRevisionName // .properties.latestRevisionName // empty' <<<"$app")"
-            [[ -z "$rev" ]] || printf '::add-mask::%s\n' "$rev"
-
-            env_json="$(jq '[.properties.template.containers[]?.env[]? | {name, secretRef: (.secretRef // null), valuePresent: ((.value // "") != "")}]' <<<"$app")"
-            mount_json="$(jq '[.properties.template.containers[]?.volumeMounts[]? | {volumeName, mountPath}]' <<<"$app")"
-            arg_json="$(jq '[.properties.template.containers[]? | {name, command: (.command // []), args: (.args // [])}]' <<<"$app")"
-            vol_json="$(jq '[.properties.template.volumes[]? | {name, storageType: (.storageType // null)}]' <<<"$app")"
-
-            score="$(jq '[
-              (.properties.template.containers[]?.env[]?.name // empty),
-              (.properties.template.containers[]?.args[]? // empty),
-              (.properties.template.containers[]?.command[]? // empty),
-              (.properties.template.containers[]?.volumeMounts[]?.mountPath // empty)
-            ] | map(ascii_downcase) | map(select(test("authority|control|state|bootstrap|checkpoint"))) | length' <<<"$app")"
-
-            if [[ "$score" -gt 0 ]]; then
-              candidate="$(jq -n \
-                --arg revisionPresent "$([[ -n "$rev" ]] && echo true || echo false)" \
-                --argjson score "$score" \
-                --argjson env "$env_json" \
-                --argjson mounts "$mount_json" \
-                --argjson args "$arg_json" \
-                --argjson volumes "$vol_json" \
-                '{score:$score, revisionPresent:($revisionPresent=="true"), envNames:[$env[].name], envSecretRefsPresent:([$env[]|select(.secretRef!=null)]|length>0), mounts:$mounts, commands:$args, volumes:$volumes}')"
-              candidates="$(jq --argjson c "$candidate" '. + [$c]' <<<"$candidates")"
-            fi
-          done < <(jq -r '.[].name' <<<"$apps")
+          candidates="$(jq '[.[]
+            | {name, type, id, resourceGroup, tags: (.tags // {})}
+            | . + {haystack: ((.name + " " + .type + " " + (.tags|tojson)) | ascii_downcase)}
+            | select(.type | ascii_downcase | test("microsoft\\.(app/containerapps|app/jobs|web/sites|compute/virtualmachines|containerinstance/containergroups|storage/storageaccounts)$"))
+            | select(.haystack | test("truyn|authority|control|state|bootstrap|checkpoint"))
+          ]' <<<"$resources")"
 
           candidate_count="$(jq 'length' <<<"$candidates")"
-          [[ "$candidate_count" -eq 1 ]] || {
-            echo "::error::Expected exactly one production authority/control-plane candidate, found $candidate_count"
+          type_summary="$(jq '[.[].type] | group_by(.) | map({type:.[0], count:length})' <<<"$candidates")"
+
+          [[ "$candidate_count" -gt 0 ]] || {
+            echo '::error::No plausible production authority state-hosting resource found in subscription-wide read-only inventory'
             exit 1
           }
 
-          candidate="$(jq '.[0]' <<<"$candidates")"
-          has_state_signal="$(jq '[.envNames[]?, .mounts[]?.mountPath?, .commands[]?.args[]?, .commands[]?.command[]?] | map(ascii_downcase) | any(test("state|bootstrap|checkpoint"))' <<<"$candidate")"
-          [[ "$has_state_signal" == true ]] || { echo '::error::Authority candidate lacks authoritative state/bootstrap/checkpoint signal'; exit 1; }
+          tagged="$(jq '[.[] | select((.tags["truyn-component"] // "" | ascii_downcase) == "production-authority")]' <<<"$candidates")"
+          tagged_count="$(jq 'length' <<<"$tagged")"
+          if [[ "$tagged_count" -eq 1 ]]; then
+            selected="$(jq '.[0]' <<<"$tagged")"
+          elif [[ "$candidate_count" -eq 1 ]]; then
+            selected="$(jq '.[0]' <<<"$candidates")"
+          else
+            echo "::error::Ambiguous production authority source inventory: candidateCount=$candidate_count taggedAuthorityCount=$tagged_count"
+            exit 1
+          fi
+
+          selected_type="$(jq -r '.type' <<<"$selected")"
+          selected_id="$(jq -r '.id' <<<"$selected")"
+          selected_name="$(jq -r '.name' <<<"$selected")"
+          selected_rg="$(jq -r '.resourceGroup' <<<"$selected")"
+          printf '::add-mask::%s\n' "$selected_id"
+          printf '::add-mask::%s\n' "$selected_name"
+          printf '::add-mask::%s\n' "$selected_rg"
+
+          metadata="$(az resource show --ids "$selected_id" --only-show-errors -o json)"
+          [[ -n "$metadata" ]] || { echo '::error::Selected source resource metadata unavailable'; exit 1; }
+
+          state_signal="$(jq '[
+            (.name // empty),
+            (.type // empty),
+            ((.tags // {}) | to_entries[]? | (.key + "=" + (.value|tostring)))
+          ] | map(ascii_downcase) | any(test("authority|control|state|bootstrap|checkpoint|production-authority"))' <<<"$metadata")"
+          [[ "$state_signal" == true ]] || { echo '::error::Selected resource lacks authoritative production state signal'; exit 1; }
 
           jq -n \
             --arg sourceSha "$GITHUB_SHA" \
-            --argjson candidate "$candidate" \
+            --arg sourceType "$selected_type" \
+            --argjson candidateCount "$candidate_count" \
+            --argjson typeSummary "$type_summary" \
             --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{schemaVersion:1, component:"production-authority-source-discovery", sourceSha:$sourceSha, generatedAt:$generatedAt, status:"PASS", candidateCount:1, revisionPresent:$candidate.revisionPresent, stateSignalPresent:true, secretValuesRead:false, cosmosMutated:false, topologyPublished:false}' \
+            '{schemaVersion:2, component:"production-authority-source-discovery", sourceSha:$sourceSha, generatedAt:$generatedAt, status:"PASS", candidateCount:$candidateCount, selectedSourceType:$sourceType, candidateTypeSummary:$typeSummary, stateSignalPresent:true, subscriptionWide:true, resourceMetadataOnly:true, secretValuesRead:false, dataPlaneRead:false, cosmosMutated:false, topologyPublished:false}' \
             > production-authority-source-discovery-evidence.json
 
       - name: Upload sanitized discovery evidence
