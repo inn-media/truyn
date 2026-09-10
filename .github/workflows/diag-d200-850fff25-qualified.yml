@@ -1,4 +1,4 @@
-name: diag-d200-c44a7a47-qualified
+name: diag-d200-6dd62abf-qualified
 
 on:
   push:
@@ -11,15 +11,15 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d200-c44a7a47-qualified-single-shot
+  group: truyn-d200-6dd62abf-qualified-single-shot
   cancel-in-progress: false
 
 env:
-  TESTED_COMMIT: c44a7a47f99b531188313dc8459ebfb0db084a56
-  TESTED_TREE_SHA: dfa853009aeee2d24666940cdfde05f009e3f1bc
-  LAUNCH_PARENT: c44a7a47f99b531188313dc8459ebfb0db084a56
-  EXACT_MAIN_CI_RUN: '34406902081'
-  EXACT_MAIN_CODEQL_RUN: '34406902151'
+  TESTED_COMMIT: 6dd62abf5254b7abff920939c920d04cf14dd418
+  TESTED_TREE_SHA: e00ba303e71673260166960987b87a39243f726d
+  LAUNCH_PARENT: 6dd62abf5254b7abff920939c920d04cf14dd418
+  EXACT_MAIN_CI_RUN: '34435617000'
+  EXACT_MAIN_CODEQL_RUN: '34435616941'
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '10'
 
@@ -36,8 +36,10 @@ jobs:
           w='.github/workflows/diag-d200-850fff25-qualified.yml'
           [[ "$GITHUB_RUN_ATTEMPT" == 1 && "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]
           j="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}")"
-          [[ "$(jq '.files|length' <<<"$j")" == 1 && "$(jq -r '.files[0].filename' <<<"$j")" == "$w" && "$(jq -r '.files[0].status' <<<"$j")" == modified ]]
-          [[ "$(jq '.parents|length' <<<"$j")" == 1 && "$(jq -r '.parents[0].sha' <<<"$j")" == "$LAUNCH_PARENT" && "$TESTED_COMMIT" == "$LAUNCH_PARENT" ]]
+          [[ "$(jq '.files|length' <<<"$j")" == 1 ]]
+          [[ "$(jq -r '.files[0].filename' <<<"$j")" == "$w" && "$(jq -r '.files[0].status' <<<"$j")" == modified ]]
+          [[ "$(jq '.parents|length' <<<"$j")" == 1 && "$(jq -r '.parents[0].sha' <<<"$j")" == "$LAUNCH_PARENT" ]]
+          [[ "$TESTED_COMMIT" == "$LAUNCH_PARENT" ]]
           jq -e '.commit.message|contains("Signed-off-by:")' <<<"$j" >/dev/null
           [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TESTED_COMMIT}" --jq .commit.tree.sha)" == "$TESTED_TREE_SHA" ]]
 
@@ -46,28 +48,26 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
 
-      - name: Verify frozen source, DCO, qualification and regressions
+      - name: Verify frozen source, qualification and regressions
         env: { GH_TOKEN: '${{ github.token }}' }
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" && "$(git rev-parse "${TESTED_COMMIT}^{tree}")" == "$TESTED_TREE_SHA" ]]
+          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+          [[ "$(git rev-parse "${TESTED_COMMIT}^{tree}")" == "$TESTED_TREE_SHA" ]]
           cat >"$RUNNER_TEMP/frozen.manifest" <<'MANIFEST'
           benchmarks/scale/class-d-azure-1000-campaign.sh 796d9d00dea3807279d8326de0a916a72b487949
           benchmarks/scale/class-d-azure-1000-provision.sh c1c839943f5e02bdc716691d91226251c8e3ec00
           benchmarks/scale/class-d-1000-bootstrap.js 1dc26bf6cbcdae3b748dcadc6d0728c082240534
+          network/runtime.js 7c075b3379ba4f1bc7afc4ff9839d6f7aa3e2ca9
           network/discovery/peer-discovery.js d83b0e6f02f4d6d0ee7a38f633321c75911e5323
           network/testnet/node-service.js 3cc7088420dc55e20611351b069cc927433fad8a
           scripts/class-d-200-preflight-qualification.sh ce7e3e7056439600d0641f827f8f6645ad3ea31a
           scripts/build-class-d-1000-runtime-bundle.sh a49bbc7c700a277ca9ed3cc26e905b51ea4b6baf
-          scripts/patch-class-d-diagnostic-readiness-window.py 6ddfc11bb03d774fb38d4c265fa90867067e871b
-          scripts/patch-class-d-diagnostic-peer-lease-freshness.py 84b7e0211ec7685eeea96947c550831d2db727eb
-          scripts/patch-class-d-diagnostic-readiness-evidence.py fd87a7db08c2040dc8df716c230227dba8d043eb
-          scripts/patch-class-d-diagnostic-readiness-transport.py 865fca2b083b841317a0f09c41f1a0d40c1f1d46
-          scripts/patch-class-d-diagnostic-composed-heal-evidence.py c91093b953a60c342e6f71949c9fef3eeb94d245
-          scripts/patch-class-d-diagnostic-healed-origin.py 9f22133f88551807f7eb0a847f9480b2c40a0ce8
+          scripts/patch-d200-recovery-budget.py fc526cdf29adf437a47e482cbb26d036d09baf3d
           scripts/validate-d200-tested-source-dco.mjs c925477fde12510d2e17c27ed6d48d78eab668a7
           scripts/check-dco.mjs 5c89920206fbc98328842486fb404d6fc98b0027
+          tests/d200-recovery-budget.test.js 434d8342db0d77aaae96304888292d6b924f3420
           tests/d200-tested-source-dco.test.js f3cbbfe6484bd4971f89bed4df9ae6e732a79fcf
           tests/class-d-200-preflight-qualification.test.js b73d387abb50b87ffced4e44381324954dde1ae3
           tests/class-d-canonical-pin-regression.test.js 50b20d9f55d6b579af21981041c0f859bcae2c82
@@ -80,25 +80,44 @@ jobs:
           if [[ "$(jq '.parents|length' <<<"$t")" == 2 ]]; then
             h="$(gh api "repos/${GITHUB_REPOSITORY}/commits/$(jq -r '.parents[1].sha' <<<"$t")")"; printf '%s\n' "$h" >"$RUNNER_TEMP/head.json"
             node scripts/validate-d200-tested-source-dco.mjs "$RUNNER_TEMP/tested.json" "$RUNNER_TEMP/head.json"
-          else node scripts/validate-d200-tested-source-dco.mjs "$RUNNER_TEMP/tested.json"; fi
-          ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"; cq="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}")"
+          else
+            node scripts/validate-d200-tested-source-dco.mjs "$RUNNER_TEMP/tested.json"
+          fi
+          ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
+          cq="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}")"
           jq -e --arg s "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$ci" >/dev/null
           jq -e --arg s "$TESTED_COMMIT" '.head_branch=="main" and .head_sha==$s and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$cq" >/dev/null
           npm install --ignore-scripts --no-audit --no-fund
-          node --test tests/d200-tested-source-dco.test.js tests/class-d-200-preflight-qualification.test.js tests/class-d-canonical-pin-regression.test.js tests/class-d-accepted-entrypoint-regression.test.js tests/d200-peer-propagation-readiness-barrier.test.js tests/d200-route-repair-acceptance-invariants.test.js tests/class-d-diagnostic-readiness-evidence.test.js tests/class-d-diagnostic-readiness-transport.test.js tests/class-d-diagnostic-healed-origin.test.js tests/class-d-diagnostic-composed-heal-evidence.test.js
+          node --test tests/d200-recovery-budget.test.js tests/d200-tested-source-dco.test.js tests/class-d-200-preflight-qualification.test.js tests/class-d-canonical-pin-regression.test.js tests/class-d-accepted-entrypoint-regression.test.js tests/d200-peer-propagation-readiness-barrier.test.js tests/d200-route-repair-acceptance-invariants.test.js tests/class-d-diagnostic-readiness-evidence.test.js tests/class-d-diagnostic-readiness-transport.test.js tests/class-d-diagnostic-healed-origin.test.js tests/class-d-diagnostic-composed-heal-evidence.test.js
           bash scripts/class-d-200-preflight-qualification.sh
           git diff --check
           printf 'tested_commit=%s\ntested_tree_sha=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nmax_peers=32\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nacknowledged_write_count_required=100\nacknowledged_write_loss_required=0\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" > class-d-200-diagnostic-input.txt
+
+      - name: Apply qualified recovery budget patch before bundle and provisioner
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cp benchmarks/scale/class-d-azure-1000-provision.sh "$RUNNER_TEMP/d200-qualified-provision.sh"
+          python3 scripts/patch-d200-recovery-budget.py network/runtime.js "$RUNNER_TEMP/d200-qualified-provision.sh"
+          grep -F 'this.peerRecordRecoveryRetryDelaysMs = [500, 1_500, 5_000, 10_000, 20_000];' network/runtime.js >/dev/null
+          grep -F 'TimeoutStopSec=15s' "$RUNNER_TEMP/d200-qualified-provision.sh" >/dev/null
+          node --check network/runtime.js
+          bash -n "$RUNNER_TEMP/d200-qualified-provision.sh"
 
       - name: Build immutable runtime bundle
         id: runtime
         shell: bash
         run: |
           set -Eeuo pipefail
-          b="$RUNNER_TEMP/truyn-d200-runtime.tgz"; TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh "$b"
-          s="$(awk '{print $1}' "${b}.sha256")"; [[ "$s" =~ ^[0-9a-f]{64}$ ]]; printf '%s  %s\n' "$s" "$b"|sha256sum -c -
-          d="$(mktemp -d)"; tar -xzf "$b" -C "$d"; jq -e --arg s "$TESTED_COMMIT" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$s' "$d/manifest.json" >/dev/null
-          cp "$d/manifest.json" class-d-200-runtime-manifest.json; printf 'sha256:%s\n' "$s" > class-d-200-runtime-bundle-digest.txt
+          b="$RUNNER_TEMP/truyn-d200-runtime.tgz"
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh "$b"
+          s="$(awk '{print $1}' "${b}.sha256")"
+          [[ "$s" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s  %s\n' "$s" "$b" | sha256sum -c -
+          d="$(mktemp -d)"; tar -xzf "$b" -C "$d"
+          jq -e --arg s "$TESTED_COMMIT" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$s' "$d/manifest.json" >/dev/null
+          cp "$d/manifest.json" class-d-200-runtime-manifest.json
+          printf 'sha256:%s\n' "$s" > class-d-200-runtime-bundle-digest.txt
           echo "path=$b" >>"$GITHUB_OUTPUT"; echo "sha=$s" >>"$GITHUB_OUTPUT"; rm -rf "$d"
 
       - uses: azure/login@v2
@@ -143,7 +162,7 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          set -Eeuo pipefail; t="$(mktemp -d)"; cp benchmarks/scale/class-d-azure-1000-provision.sh "$t/provision.sh"; cp benchmarks/scale/class-d-azure-1000-campaign.sh "$t/campaign.sh"
+          set -Eeuo pipefail; t="$(mktemp -d)"; cp "$RUNNER_TEMP/d200-qualified-provision.sh" "$t/provision.sh"; cp benchmarks/scale/class-d-azure-1000-campaign.sh "$t/campaign.sh"
           for x in bootstrap-timeout bootstrap-parallel peer-lease-freshness bandwidth-meter-parallel; do python3 "scripts/patch-class-d-diagnostic-$x.py" "$t/provision.sh"; done
           for x in readiness-parallel readiness-window readiness-evidence readiness-transport baseline-parallel restart-parallel post-restart-origin; do python3 "scripts/patch-class-d-diagnostic-$x.py" "$t/campaign.sh"; done
           python3 - "$t/campaign.sh" <<'PY'
@@ -183,7 +202,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d200-c44a7a47-${{ github.run_id }}'
+          name: 'truyn-class-d200-6dd62abf-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
