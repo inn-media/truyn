@@ -52,12 +52,20 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
 
       - name: Read-only production source discovery
+        id: discover
         shell: bash
         run: |
           set -euo pipefail
+          evidence=production-authority-source-discovery-evidence.json
+          fail_marker=.production-authority-source-discovery-failed
 
           resources="$(az resource list --only-show-errors -o json)"
-          [[ "$(jq 'length' <<<"$resources")" -gt 0 ]] || { echo '::error::Azure subscription contains no visible resources'; exit 1; }
+          [[ "$(jq 'length' <<<"$resources")" -gt 0 ]] || {
+            jq -n --arg sourceSha "$GITHUB_SHA" --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              '{schemaVersion:4,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:"no-visible-resources",topologyPublished:false,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false}' > "$evidence"
+            touch "$fail_marker"
+            exit 0
+          }
 
           candidates="$(jq '[.[]
             | {name, type, id, resourceGroup, tags: (.tags // {})}
@@ -67,44 +75,93 @@ jobs:
           ]' <<<"$resources")"
 
           candidate_count="$(jq 'length' <<<"$candidates")"
-          type_summary="$(jq '[.[].type] | group_by(.) | map({type:.[0], count:length})' <<<"$candidates")"
-          [[ "$candidate_count" -gt 0 ]] || {
-            echo '::error::No plausible production authority state-hosting resource found in subscription-wide read-only inventory'
-            exit 1
-          }
+          type_summary="$(jq '[.[].type] | sort | group_by(.) | map({type:.[0], count:length})' <<<"$candidates")"
 
           tagged="$(jq '[.[] | select((.tags["truyn-component"] // "" | ascii_downcase) == "production-authority")]' <<<"$candidates")"
           tagged_count="$(jq 'length' <<<"$tagged")"
+
+          config_ids='[]'
+          if az extension show --name resource-graph --only-show-errors >/dev/null 2>&1 || az extension add --name resource-graph --only-show-errors >/dev/null 2>&1; then
+            query=$(cat <<'KQL'
+Resources
+| where type =~ 'microsoft.app/containerapps'
+| mv-expand c = properties.template.containers
+| mv-expand e = c.env
+| where tostring(e.name) in~ ('TRUYN_ROLE','TRUYN_AUTHORITY_BOOTSTRAP_B64','TRUYN_AUTHORITY_BOOTSTRAP_DIGEST','TRUYN_COSMOS_ENDPOINT','TRUYN_COSMOS_DATABASE','TRUYN_COSMOS_CONTAINER','TRUYN_SOURCE_SHA','TRUYN_AUTHORITY_CACHE_DIR')
+| summarize signalCount=count() by id
+| where signalCount >= 2
+| project id
+KQL
+)
+            graph="$(az graph query -q "$query" --first 1000 --only-show-errors -o json 2>/dev/null || echo '[]')"
+            config_ids="$(jq 'if type=="array" then . else (.data // []) end | map(.id) | map(select(type=="string")) | unique' <<<"$graph")"
+
+            vm_query=$(cat <<'KQL'
+Resources
+| where type =~ 'microsoft.compute/virtualmachines/extensions'
+| where tostring(properties.settings) has_any ('TRUYN_ROLE','TRUYN_AUTHORITY','TRUYN_COSMOS','account-tenant.json','provider-grants.json','entitlements.json','revocations.json','accounting.json')
+| extend marker='/extensions/'
+| extend cut=indexof(id, marker)
+| where cut > 0
+| project id=substring(id, 0, cut)
+KQL
+)
+            vm_graph="$(az graph query -q "$vm_query" --first 1000 --only-show-errors -o json 2>/dev/null || echo '[]')"
+            vm_ids="$(jq 'if type=="array" then . else (.data // []) end | map(.id) | map(select(type=="string")) | unique' <<<"$vm_graph")"
+            config_ids="$(jq -n --argjson a "$config_ids" --argjson b "$vm_ids" '$a + $b | unique')"
+          fi
+
+          config_candidates="$(jq --argjson ids "$config_ids" '[.[] | select(.id as $id | $ids | index($id))]' <<<"$candidates")"
+          config_count="$(jq 'length' <<<"$config_candidates")"
+
           primary="$(jq '[.[] | select(.haystack | test("production[-_ ]?authority|authority|control[-_ ]?plane|account[-_ ]?tenant|provider[-_ ]?grant|entitlement|revocation|accounting"))]' <<<"$candidates")"
           primary_count="$(jq 'length' <<<"$primary")"
           secondary="$(jq '[.[] | select(.haystack | test("state[-_ ]?(dir|store)?|bootstrap|checkpoint"))]' <<<"$candidates")"
           secondary_count="$(jq 'length' <<<"$secondary")"
 
+          selected=''
           selection_reason=''
           if [[ "$tagged_count" -eq 1 ]]; then
             selected="$(jq '.[0]' <<<"$tagged")"
             selection_reason='canonical-tag'
           elif [[ "$tagged_count" -gt 1 ]]; then
-            echo "::error::Ambiguous production authority source inventory: candidateCount=$candidate_count taggedAuthorityCount=$tagged_count primaryStrongCount=$primary_count secondaryStateCount=$secondary_count"
-            exit 1
+            selection_reason='ambiguous-canonical-tag'
+          elif [[ "$config_count" -eq 1 ]]; then
+            selected="$(jq '.[0]' <<<"$config_candidates")"
+            selection_reason='runtime-config-signal'
+          elif [[ "$config_count" -gt 1 ]]; then
+            selection_reason='ambiguous-runtime-config'
           elif [[ "$primary_count" -eq 1 ]]; then
             selected="$(jq '.[0]' <<<"$primary")"
             selection_reason='strong-authority-signal'
           elif [[ "$primary_count" -gt 1 ]]; then
-            echo "::error::Ambiguous production authority source inventory: candidateCount=$candidate_count taggedAuthorityCount=$tagged_count primaryStrongCount=$primary_count secondaryStateCount=$secondary_count"
-            exit 1
+            selection_reason='ambiguous-authority-signal'
           elif [[ "$secondary_count" -eq 1 ]]; then
             selected="$(jq '.[0]' <<<"$secondary")"
             selection_reason='strong-state-signal'
           elif [[ "$secondary_count" -gt 1 ]]; then
-            echo "::error::Ambiguous production authority source inventory: candidateCount=$candidate_count taggedAuthorityCount=$tagged_count primaryStrongCount=$primary_count secondaryStateCount=$secondary_count"
-            exit 1
+            selection_reason='ambiguous-state-signal'
           elif [[ "$candidate_count" -eq 1 ]]; then
             selected="$(jq '.[0]' <<<"$candidates")"
             selection_reason='single-candidate'
           else
-            echo "::error::Ambiguous production authority source inventory: candidateCount=$candidate_count taggedAuthorityCount=$tagged_count primaryStrongCount=$primary_count secondaryStateCount=$secondary_count"
-            exit 1
+            selection_reason='ambiguous-no-strong-signal'
+          fi
+
+          if [[ -z "$selected" ]]; then
+            jq -n \
+              --arg sourceSha "$GITHUB_SHA" \
+              --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              --arg reason "$selection_reason" \
+              --argjson candidateCount "$candidate_count" \
+              --argjson taggedCount "$tagged_count" \
+              --argjson configSignalCount "$config_count" \
+              --argjson primaryStrongCount "$primary_count" \
+              --argjson secondaryStateCount "$secondary_count" \
+              --argjson typeSummary "$type_summary" \
+              '{schemaVersion:4,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:$reason,candidateCount:$candidateCount,taggedAuthorityCount:$taggedCount,runtimeConfigSignalCount:$configSignalCount,primaryStrongCount:$primaryStrongCount,secondaryStateCount:$secondaryStateCount,candidateTypeSummary:$typeSummary,subscriptionWide:true,resourceMetadataOnly:true,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
+            touch "$fail_marker"
+            exit 0
           fi
 
           selected_type="$(jq -r '.type' <<<"$selected")"
@@ -116,14 +173,21 @@ jobs:
           printf '::add-mask::%s\n' "$selected_rg"
 
           metadata="$(az resource show --ids "$selected_id" --only-show-errors -o json)"
-          [[ -n "$metadata" ]] || { echo '::error::Selected source resource metadata unavailable'; exit 1; }
+          [[ -n "$metadata" ]] || { touch "$fail_marker"; exit 0; }
 
           state_signal="$(jq '[
             (.name // empty),
             (.type // empty),
             ((.tags // {}) | to_entries[]? | (.key + "=" + (.value|tostring)))
           ] | map(ascii_downcase) | any(test("authority|control|state|bootstrap|checkpoint|production-authority|account[-_ ]?tenant|provider[-_ ]?grant|entitlement|revocation|accounting"))' <<<"$metadata")"
-          [[ "$state_signal" == true ]] || { echo '::error::Selected resource lacks authoritative production state signal'; exit 1; }
+          if [[ "$selection_reason" == runtime-config-signal ]]; then state_signal=true; fi
+
+          if [[ "$state_signal" != true ]]; then
+            jq -n --arg sourceSha "$GITHUB_SHA" --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg sourceType "$selected_type" --arg selectionReason "$selection_reason" \
+              '{schemaVersion:4,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:"selected-resource-lacks-state-signal",selectedSourceType:$sourceType,selectionReason:$selectionReason,stateSignalPresent:false,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
+            touch "$fail_marker"
+            exit 0
+          fi
 
           jq -n \
             --arg sourceSha "$GITHUB_SHA" \
@@ -131,14 +195,25 @@ jobs:
             --arg selectionReason "$selection_reason" \
             --argjson candidateCount "$candidate_count" \
             --argjson typeSummary "$type_summary" \
+            --argjson configSignalCount "$config_count" \
             --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{schemaVersion:3, component:"production-authority-source-discovery", sourceSha:$sourceSha, generatedAt:$generatedAt, status:"PASS", candidateCount:$candidateCount, selectedSourceType:$sourceType, selectionReason:$selectionReason, candidateTypeSummary:$typeSummary, stateSignalPresent:true, subscriptionWide:true, resourceMetadataOnly:true, secretValuesRead:false, dataPlaneRead:false, cosmosMutated:false, topologyPublished:false}' \
-            > production-authority-source-discovery-evidence.json
+            '{schemaVersion:4,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"PASS",candidateCount:$candidateCount,selectedSourceType:$sourceType,selectionReason:$selectionReason,runtimeConfigSignalCount:$configSignalCount,candidateTypeSummary:$typeSummary,stateSignalPresent:true,subscriptionWide:true,resourceMetadataOnly:true,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
 
       - name: Upload sanitized discovery evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: production-authority-source-discovery-evidence
           path: production-authority-source-discovery-evidence.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Enforce fail-closed discovery result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ ! -e .production-authority-source-discovery-failed ]] || {
+            echo '::error::Production authority source remains ambiguous or unqualified; inspect sanitized evidence artifact'
+            exit 1
+          }
