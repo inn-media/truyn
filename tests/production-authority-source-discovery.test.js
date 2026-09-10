@@ -30,6 +30,18 @@ test('discovery uses subscription-wide read-only control-plane inventory', () =>
   assert.doesNotMatch(workflow, /az\s+containerapp\s+(?:exec|update|revision\s+restart)\b/i);
 });
 
+test('runtime configuration discovery evaluates all plausible hosts before name heuristics', () => {
+  assert.match(workflow, /hosts="\$\(jq/);
+  assert.match(workflow, /candidates="\$\(jq[\s\S]*<<<"\$hosts"/);
+  assert.match(workflow, /tagged="\$\(jq[\s\S]*<<<"\$hosts"/);
+  assert.match(workflow, /config_candidates="\$\(jq[\s\S]*<<<"\$hosts"/);
+  assert.doesNotMatch(workflow, /config_candidates="\$\(jq[^\n]*<<<"\$candidates"/);
+  assert.match(workflow, /runtime-config-signal/);
+  assert.match(workflow, /runtimeConfigSignalCount/);
+  assert.match(workflow, /hostCount/);
+  assert.match(workflow, /runtimeConfigTypeSummary/);
+});
+
 test('runtime configuration discovery uses names and server-side predicates, not secret values', () => {
   assert.match(workflow, /az graph query/);
   assert.match(workflow, /TRUYN_ROLE/);
@@ -43,6 +55,7 @@ test('runtime configuration discovery uses names and server-side predicates, not
 test('failed ambiguity still uploads sanitized aggregate evidence before failing closed', () => {
   assert.match(workflow, /status:\"FAIL\"/);
   assert.match(workflow, /candidateTypeSummary/);
+  assert.match(workflow, /hostTypeSummary/);
   assert.match(workflow, /runtimeConfigSignalCount/);
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /Production authority source remains ambiguous or unqualified/);

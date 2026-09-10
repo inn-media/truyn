@@ -62,22 +62,27 @@ jobs:
           resources="$(az resource list --only-show-errors -o json)"
           [[ "$(jq 'length' <<<"$resources")" -gt 0 ]] || {
             jq -n --arg sourceSha "$GITHUB_SHA" --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-              '{schemaVersion:4,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:"no-visible-resources",topologyPublished:false,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false}' > "$evidence"
+              '{schemaVersion:5,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:"no-visible-resources",topologyPublished:false,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false}' > "$evidence"
             touch "$fail_marker"
             exit 0
           }
 
-          candidates="$(jq '[.[]
+          hosts="$(jq '[.[]
             | {name, type, id, resourceGroup, tags: (.tags // {})}
             | . + {haystack: ((.name + " " + .type + " " + (.tags|tojson)) | ascii_downcase)}
             | select(.type | ascii_downcase | test("microsoft\\.(app/containerapps|app/jobs|web/sites|compute/virtualmachines|containerinstance/containergroups|storage/storageaccounts)$"))
-            | select(.haystack | test("truyn|authority|control|state|bootstrap|checkpoint"))
           ]' <<<"$resources")"
+          host_count="$(jq 'length' <<<"$hosts")"
+
+          candidates="$(jq '[.[]
+            | select(.haystack | test("truyn|authority|control|state|bootstrap|checkpoint"))
+          ]' <<<"$hosts")"
 
           candidate_count="$(jq 'length' <<<"$candidates")"
           type_summary="$(jq '[.[].type] | sort | group_by(.) | map({type:.[0], count:length})' <<<"$candidates")"
+          host_type_summary="$(jq '[.[].type] | sort | group_by(.) | map({type:.[0], count:length})' <<<"$hosts")"
 
-          tagged="$(jq '[.[] | select((.tags["truyn-component"] // "" | ascii_downcase) == "production-authority")]' <<<"$candidates")"
+          tagged="$(jq '[.[] | select((.tags["truyn-component"] // "" | ascii_downcase) == "production-authority")]' <<<"$hosts")"
           tagged_count="$(jq 'length' <<<"$tagged")"
 
           config_ids='[]'
@@ -111,8 +116,9 @@ jobs:
             config_ids="$(jq -n --argjson a "$config_ids" --argjson b "$vm_ids" '$a + $b | unique')"
           fi
 
-          config_candidates="$(jq --argjson ids "$config_ids" '[.[] | select(.id as $id | $ids | index($id))]' <<<"$candidates")"
+          config_candidates="$(jq --argjson ids "$config_ids" '[.[] | select(.id as $id | $ids | index($id))]' <<<"$hosts")"
           config_count="$(jq 'length' <<<"$config_candidates")"
+          config_type_summary="$(jq '[.[].type] | sort | group_by(.) | map({type:.[0], count:length})' <<<"$config_candidates")"
 
           primary="$(jq '[.[] | select(.haystack | test("production[-_ ]?authority|authority|control[-_ ]?plane|account[-_ ]?tenant|provider[-_ ]?grant|entitlement|revocation|accounting"))]' <<<"$candidates")"
           primary_count="$(jq 'length' <<<"$primary")"
@@ -153,13 +159,16 @@ jobs:
               --arg sourceSha "$GITHUB_SHA" \
               --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
               --arg reason "$selection_reason" \
+              --argjson hostCount "$host_count" \
               --argjson candidateCount "$candidate_count" \
               --argjson taggedCount "$tagged_count" \
               --argjson configSignalCount "$config_count" \
               --argjson primaryStrongCount "$primary_count" \
               --argjson secondaryStateCount "$secondary_count" \
+              --argjson hostTypeSummary "$host_type_summary" \
               --argjson typeSummary "$type_summary" \
-              '{schemaVersion:4,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:$reason,candidateCount:$candidateCount,taggedAuthorityCount:$taggedCount,runtimeConfigSignalCount:$configSignalCount,primaryStrongCount:$primaryStrongCount,secondaryStateCount:$secondaryStateCount,candidateTypeSummary:$typeSummary,subscriptionWide:true,resourceMetadataOnly:true,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
+              --argjson configTypeSummary "$config_type_summary" \
+              '{schemaVersion:5,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:$reason,hostCount:$hostCount,candidateCount:$candidateCount,taggedAuthorityCount:$taggedCount,runtimeConfigSignalCount:$configSignalCount,primaryStrongCount:$primaryStrongCount,secondaryStateCount:$secondaryStateCount,hostTypeSummary:$hostTypeSummary,candidateTypeSummary:$typeSummary,runtimeConfigTypeSummary:$configTypeSummary,subscriptionWide:true,resourceMetadataOnly:true,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
             touch "$fail_marker"
             exit 0
           fi
@@ -184,7 +193,7 @@ jobs:
 
           if [[ "$state_signal" != true ]]; then
             jq -n --arg sourceSha "$GITHUB_SHA" --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg sourceType "$selected_type" --arg selectionReason "$selection_reason" \
-              '{schemaVersion:4,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:"selected-resource-lacks-state-signal",selectedSourceType:$sourceType,selectionReason:$selectionReason,stateSignalPresent:false,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
+              '{schemaVersion:5,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:"selected-resource-lacks-state-signal",selectedSourceType:$sourceType,selectionReason:$selectionReason,stateSignalPresent:false,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
             touch "$fail_marker"
             exit 0
           fi
@@ -193,11 +202,14 @@ jobs:
             --arg sourceSha "$GITHUB_SHA" \
             --arg sourceType "$selected_type" \
             --arg selectionReason "$selection_reason" \
+            --argjson hostCount "$host_count" \
             --argjson candidateCount "$candidate_count" \
+            --argjson hostTypeSummary "$host_type_summary" \
             --argjson typeSummary "$type_summary" \
             --argjson configSignalCount "$config_count" \
+            --argjson configTypeSummary "$config_type_summary" \
             --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{schemaVersion:4,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"PASS",candidateCount:$candidateCount,selectedSourceType:$sourceType,selectionReason:$selectionReason,runtimeConfigSignalCount:$configSignalCount,candidateTypeSummary:$typeSummary,stateSignalPresent:true,subscriptionWide:true,resourceMetadataOnly:true,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
+            '{schemaVersion:5,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"PASS",hostCount:$hostCount,candidateCount:$candidateCount,selectedSourceType:$sourceType,selectionReason:$selectionReason,runtimeConfigSignalCount:$configSignalCount,hostTypeSummary:$hostTypeSummary,candidateTypeSummary:$typeSummary,runtimeConfigTypeSummary:$configTypeSummary,stateSignalPresent:true,subscriptionWide:true,resourceMetadataOnly:true,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
 
       - name: Upload sanitized discovery evidence
         if: always()
