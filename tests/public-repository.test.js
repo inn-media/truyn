@@ -14,6 +14,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/diag-d200-b0da2963-route-repair.yml',
   '.github/workflows/diag-d200-aa43e0e4-readiness-collection.yml',
   '.github/workflows/diag-d200-850fff25-qualified.yml',
+  '.github/workflows/publish-maven-central.yml',
   '.github/workflows/publish-npm.yml',
   '.github/workflows/publish-python-alpha.yml',
   '.github/workflows/production-authority-image.yml',
@@ -24,7 +25,8 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/production-metrics-collector.yml',
   '.github/workflows/production-monitor-provider-registration.yml',
   '.github/workflows/production-trace-backend.yml',
-  '.github/workflows/production-telemetry-redaction.yml'
+  '.github/workflows/production-telemetry-redaction.yml',
+  '.github/workflows/verify-maven-release.yml'
 ]);
 const BENCHMARK_EVIDENCE_DIR = 'docs/benchmarks/';
 
