@@ -1,4 +1,4 @@
-name: diag-d200-6dd62abf-qualified
+name: diag-d200-35141c77-qualified
 
 on:
   push:
@@ -11,15 +11,15 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d200-6dd62abf-qualified-single-shot
+  group: truyn-d200-35141c77-qualified-single-shot
   cancel-in-progress: false
 
 env:
-  TESTED_COMMIT: 6dd62abf5254b7abff920939c920d04cf14dd418
-  TESTED_TREE_SHA: e00ba303e71673260166960987b87a39243f726d
-  LAUNCH_PARENT: 6dd62abf5254b7abff920939c920d04cf14dd418
-  EXACT_MAIN_CI_RUN: '34435617000'
-  EXACT_MAIN_CODEQL_RUN: '34435616941'
+  TESTED_COMMIT: 35141c77adde53644c172279d5f656d1d1fc6cf6
+  TESTED_TREE_SHA: e1ede30048cad317fdb44568bde0bbbab0406381
+  LAUNCH_PARENT: 35141c77adde53644c172279d5f656d1d1fc6cf6
+  EXACT_MAIN_CI_RUN: '34445219793'
+  EXACT_MAIN_CODEQL_RUN: '34445219716'
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '10'
 
@@ -65,9 +65,11 @@ jobs:
           scripts/class-d-200-preflight-qualification.sh ce7e3e7056439600d0641f827f8f6645ad3ea31a
           scripts/build-class-d-1000-runtime-bundle.sh a49bbc7c700a277ca9ed3cc26e905b51ea4b6baf
           scripts/patch-d200-recovery-budget.py fc526cdf29adf437a47e482cbb26d036d09baf3d
+          scripts/patch-d200-baseline-production-recovery.py 187f25f49f3a9c69bf5bc16c27e6679cd2b4a2cc
           scripts/validate-d200-tested-source-dco.mjs c925477fde12510d2e17c27ed6d48d78eab668a7
           scripts/check-dco.mjs 5c89920206fbc98328842486fb404d6fc98b0027
           tests/d200-recovery-budget.test.js 434d8342db0d77aaae96304888292d6b924f3420
+          tests/d200-baseline-production-recovery.test.js 2e83be69a01e174ac1fe05c02f72400b720c48a5
           tests/d200-tested-source-dco.test.js f3cbbfe6484bd4971f89bed4df9ae6e732a79fcf
           tests/class-d-200-preflight-qualification.test.js b73d387abb50b87ffced4e44381324954dde1ae3
           tests/class-d-canonical-pin-regression.test.js 50b20d9f55d6b579af21981041c0f859bcae2c82
@@ -88,7 +90,7 @@ jobs:
           jq -e --arg s "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$ci" >/dev/null
           jq -e --arg s "$TESTED_COMMIT" '.head_branch=="main" and .head_sha==$s and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$cq" >/dev/null
           npm install --ignore-scripts --no-audit --no-fund
-          node --test tests/d200-recovery-budget.test.js tests/d200-tested-source-dco.test.js tests/class-d-200-preflight-qualification.test.js tests/class-d-canonical-pin-regression.test.js tests/class-d-accepted-entrypoint-regression.test.js tests/d200-peer-propagation-readiness-barrier.test.js tests/d200-route-repair-acceptance-invariants.test.js tests/class-d-diagnostic-readiness-evidence.test.js tests/class-d-diagnostic-readiness-transport.test.js tests/class-d-diagnostic-healed-origin.test.js tests/class-d-diagnostic-composed-heal-evidence.test.js
+          node --test tests/d200-recovery-budget.test.js tests/d200-baseline-production-recovery.test.js tests/d200-tested-source-dco.test.js tests/class-d-200-preflight-qualification.test.js tests/class-d-canonical-pin-regression.test.js tests/class-d-accepted-entrypoint-regression.test.js tests/d200-peer-propagation-readiness-barrier.test.js tests/d200-route-repair-acceptance-invariants.test.js tests/class-d-diagnostic-readiness-evidence.test.js tests/class-d-diagnostic-readiness-transport.test.js tests/class-d-diagnostic-healed-origin.test.js tests/class-d-diagnostic-composed-heal-evidence.test.js
           bash scripts/class-d-200-preflight-qualification.sh
           git diff --check
           printf 'tested_commit=%s\ntested_tree_sha=%s\nhost_count=20\nnode_count=200\nnodes_per_host=10\nmax_peers=32\nrouting_threshold=0.99\nconvergence_p95_limit_ms=120000\nrecovery_p95_limit_ms=120000\nacknowledged_write_count_required=100\nacknowledged_write_loss_required=0\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" > class-d-200-diagnostic-input.txt
@@ -172,7 +174,13 @@ jobs:
           if s.count('seq 10 14')!=3 or s.count('range(10,15)')!=1: raise SystemExit('unexpected restart range')
           p.write_text(s.replace('seq 10 14','seq 5 9').replace('range(10,15)','range(5,10)'))
           PY
-          python3 scripts/patch-class-d-diagnostic-composed-heal-evidence.py "$t/provision.sh" "$t/campaign.sh"; bash -n "$t/provision.sh"; bash -n "$t/campaign.sh"
+          python3 scripts/patch-class-d-diagnostic-composed-heal-evidence.py "$t/provision.sh" "$t/campaign.sh"
+          python3 scripts/patch-d200-baseline-production-recovery.py "$t/campaign.sh"
+          grep -F 'D200_BASELINE_PRODUCTION_RECOVERY=1' "$t/campaign.sh" >/dev/null
+          grep -F "'targetCount':32" "$t/campaign.sh" >/dev/null
+          grep -F "'maxRounds':2" "$t/campaign.sh" >/dev/null
+          grep -F "assert float('$base_rate') >= .99, '$base_rate'" "$t/campaign.sh" >/dev/null
+          bash -n "$t/provision.sh"; bash -n "$t/campaign.sh"
           set +e; PROVISION="$t/provision.sh" CAMPAIGN="$t/campaign.sh" GITHUB_SHA="$TESTED_COMMIT" TRUYN_AZURE_RESOURCE_GROUP="$AZURE_RESOURCE_GROUP" TRUYN_CLASS_D1000_LOCATION="$TRUYN_D200_LOCATION" TRUYN_CLASS_D1000_VM_SIZE="$TRUYN_D200_VM_SIZE" TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" bash -c 'set -Eeuo pipefail; source "$PROVISION"; source "$CAMPAIGN"' 2>&1|tee class-d-200-diagnostic.log; rc=${PIPESTATUS[0]}; set -e; echo "campaign_rc=$rc" >>"$GITHUB_OUTPUT"; rm -rf "$t"; exit "$rc"
 
       - name: Evaluate strict D-200 evidence
@@ -202,7 +210,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d200-6dd62abf-${{ github.run_id }}'
+          name: 'truyn-class-d200-35141c77-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
