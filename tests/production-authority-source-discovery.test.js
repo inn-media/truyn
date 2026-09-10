@@ -15,24 +15,29 @@ test('push trigger is path-scoped to the S15 discovery contract', () => {
   assert.match(workflow, /push:[\s\S]*branches: \[main\][\s\S]*production-authority-source-discovery\.yml[\s\S]*production-authority-source-discovery\.test\.js/);
 });
 
-test('discovery is bounded to read-only resource inspection', () => {
-  assert.match(workflow, /az containerapp list/);
-  assert.match(workflow, /az containerapp show/);
-  assert.doesNotMatch(workflow, /az\s+(?:cosmosdb|containerapp|resource|deployment)\s+(?:create|update|delete|replace|restore|failover|patch)\b/i);
+test('discovery uses subscription-wide read-only control-plane inventory', () => {
+  assert.match(workflow, /az resource list --only-show-errors -o json/);
+  assert.match(workflow, /az resource show --ids/);
+  assert.match(workflow, /subscriptionWide:true/);
+  assert.match(workflow, /resourceMetadataOnly:true/);
+  assert.doesNotMatch(workflow, /az\s+(?:cosmosdb|containerapp|resource|deployment|storage)\s+(?:create|update|delete|replace|restore|failover|patch)\b/i);
   assert.doesNotMatch(workflow, /az\s+containerapp\s+(?:exec|update|revision\s+restart)\b/i);
 });
 
-test('discovery never asks Azure for secret values or Cosmos data', () => {
+test('discovery never asks Azure for secret values or data-plane contents', () => {
   assert.doesNotMatch(workflow, /secret\s+(?:list|show)/i);
   assert.doesNotMatch(workflow, /show-secrets/i);
   assert.doesNotMatch(workflow, /cosmosdb\s+sql\s+(?:query|container\s+item)/i);
+  assert.doesNotMatch(workflow, /storage\s+(?:blob|file)\s+(?:download|list|show)/i);
   assert.match(workflow, /secretValuesRead:false/);
+  assert.match(workflow, /dataPlaneRead:false/);
   assert.match(workflow, /cosmosMutated:false/);
 });
 
-test('public evidence is sanitized and fail-closed', () => {
-  assert.match(workflow, /candidate_count.*-eq 1/);
+test('public evidence is sanitized and ambiguity fails closed', () => {
+  assert.match(workflow, /candidate_count.*-gt 0/);
+  assert.match(workflow, /Ambiguous production authority source inventory/);
   assert.match(workflow, /stateSignalPresent:true/);
   assert.match(workflow, /topologyPublished:false/);
-  assert.doesNotMatch(workflow, /production-authority-source-discovery-evidence\.json[\s\S]*envNames:/);
+  assert.doesNotMatch(workflow, /production-authority-source-discovery-evidence\.json[\s\S]*(selected_id|selected_name|selected_rg)/);
 });
