@@ -24,6 +24,15 @@ test('discovery uses subscription-wide read-only control-plane inventory', () =>
   assert.doesNotMatch(workflow, /az\s+containerapp\s+(?:exec|update|revision\s+restart)\b/i);
 });
 
+test('generic truyn matches cannot win over a unique strong authority signal', () => {
+  assert.match(workflow, /primaryStrongCount/);
+  assert.match(workflow, /strong-authority-signal/);
+  assert.match(workflow, /strong-state-signal/);
+  assert.match(workflow, /production\[-_ \]\?authority\|authority\|control/);
+  assert.match(workflow, /primary_count.*-eq 1/);
+  assert.match(workflow, /secondary_count.*-eq 1/);
+});
+
 test('discovery never asks Azure for secret values or data-plane contents', () => {
   assert.doesNotMatch(workflow, /secret\s+(?:list|show)/i);
   assert.doesNotMatch(workflow, /show-secrets/i);
@@ -37,6 +46,7 @@ test('discovery never asks Azure for secret values or data-plane contents', () =
 test('public evidence is sanitized and ambiguity fails closed', () => {
   assert.match(workflow, /candidate_count.*-gt 0/);
   assert.match(workflow, /Ambiguous production authority source inventory/);
+  assert.match(workflow, /selectionReason/);
   assert.match(workflow, /stateSignalPresent:true/);
   assert.match(workflow, /topologyPublished:false/);
   assert.doesNotMatch(workflow, /production-authority-source-discovery-evidence\.json[\s\S]*(selected_id|selected_name|selected_rg)/);
