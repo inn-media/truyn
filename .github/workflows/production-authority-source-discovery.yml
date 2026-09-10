@@ -1,0 +1,116 @@
+name: Production Authority Source Discovery
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/production-authority-source-discovery.yml'
+      - 'tests/production-authority-source-discovery.test.js'
+      - 'tests/public-repository.test.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate discovery contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/production-authority-source-discovery.test.js
+
+  discover:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+      AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+      RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Read-only production source discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+          apps="$(az containerapp list --resource-group "$RESOURCE_GROUP" --only-show-errors -o json)"
+          count="$(jq 'length' <<<"$apps")"
+          [[ "$count" -gt 0 ]] || { echo '::error::No Container Apps found in production resource group'; exit 1; }
+
+          candidates='[]'
+          while IFS= read -r app_name; do
+            [[ -n "$app_name" ]] || continue
+            printf '::add-mask::%s\n' "$app_name"
+            app="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$app_name" --only-show-errors -o json)"
+            rev="$(jq -r '.properties.latestReadyRevisionName // .properties.latestRevisionName // empty' <<<"$app")"
+            [[ -z "$rev" ]] || printf '::add-mask::%s\n' "$rev"
+
+            env_json="$(jq '[.properties.template.containers[]?.env[]? | {name, secretRef: (.secretRef // null), valuePresent: ((.value // "") != "")}]' <<<"$app")"
+            mount_json="$(jq '[.properties.template.containers[]?.volumeMounts[]? | {volumeName, mountPath}]' <<<"$app")"
+            arg_json="$(jq '[.properties.template.containers[]? | {name, command: (.command // []), args: (.args // [])}]' <<<"$app")"
+            vol_json="$(jq '[.properties.template.volumes[]? | {name, storageType: (.storageType // null)}]' <<<"$app")"
+
+            score="$(jq '[
+              (.properties.template.containers[]?.env[]?.name // empty),
+              (.properties.template.containers[]?.args[]? // empty),
+              (.properties.template.containers[]?.command[]? // empty),
+              (.properties.template.containers[]?.volumeMounts[]?.mountPath // empty)
+            ] | map(ascii_downcase) | map(select(test("authority|control|state|bootstrap|checkpoint"))) | length' <<<"$app")"
+
+            if [[ "$score" -gt 0 ]]; then
+              candidate="$(jq -n \
+                --arg revisionPresent "$([[ -n "$rev" ]] && echo true || echo false)" \
+                --argjson score "$score" \
+                --argjson env "$env_json" \
+                --argjson mounts "$mount_json" \
+                --argjson args "$arg_json" \
+                --argjson volumes "$vol_json" \
+                '{score:$score, revisionPresent:($revisionPresent=="true"), envNames:[$env[].name], envSecretRefsPresent:([$env[]|select(.secretRef!=null)]|length>0), mounts:$mounts, commands:$args, volumes:$volumes}')"
+              candidates="$(jq --argjson c "$candidate" '. + [$c]' <<<"$candidates")"
+            fi
+          done < <(jq -r '.[].name' <<<"$apps")
+
+          candidate_count="$(jq 'length' <<<"$candidates")"
+          [[ "$candidate_count" -eq 1 ]] || {
+            echo "::error::Expected exactly one production authority/control-plane candidate, found $candidate_count"
+            exit 1
+          }
+
+          candidate="$(jq '.[0]' <<<"$candidates")"
+          has_state_signal="$(jq '[.envNames[]?, .mounts[]?.mountPath?, .commands[]?.args[]?, .commands[]?.command[]?] | map(ascii_downcase) | any(test("state|bootstrap|checkpoint"))' <<<"$candidate")"
+          [[ "$has_state_signal" == true ]] || { echo '::error::Authority candidate lacks authoritative state/bootstrap/checkpoint signal'; exit 1; }
+
+          jq -n \
+            --arg sourceSha "$GITHUB_SHA" \
+            --argjson candidate "$candidate" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{schemaVersion:1, component:"production-authority-source-discovery", sourceSha:$sourceSha, generatedAt:$generatedAt, status:"PASS", candidateCount:1, revisionPresent:$candidate.revisionPresent, stateSignalPresent:true, secretValuesRead:false, cosmosMutated:false, topologyPublished:false}' \
+            > production-authority-source-discovery-evidence.json
+
+      - name: Upload sanitized discovery evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-authority-source-discovery-evidence
+          path: production-authority-source-discovery-evidence.json
+          if-no-files-found: error
+          retention-days: 30
