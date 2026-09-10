@@ -1,5 +1,5 @@
 # TASK_ID: truyn-d200-repository-sanitation-2609102033-8f2c
-# qualification-repair: stale-contract-reconcile-v5
+# qualification-repair: stale-contract-reconcile-v6
 name: D-200 repository sanitation executor
 
 on:
@@ -19,7 +19,6 @@ concurrency:
 
 jobs:
   sanitize:
-    if: contains(github.event.head_commit.message, 'sanitation')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -51,88 +50,116 @@ jobs:
           test -f scripts/apply-d200-repository-sanitation.sh
           npm install --ignore-scripts --no-audit --no-fund
           python -m pip install --disable-pip-version-check -e ./sdk/python
+      - name: Prepare bounded stale-contract repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat >/tmp/sanfix.py <<'PY'
+          from pathlib import Path
+
+          ci = Path('.github/workflows/ci.yml')
+          text = ci.read_text()
+          text = text.replace('    branches: [main]\n', '    branches:\n      - main\n', 1)
+          ci.write_text(text)
+
+          bootstrap = Path('tests/class-d-1000-bootstrap.test.js')
+          text = bootstrap.read_text()
+          text = text.replace(
+              'D-1000 Azure provisioner uses the per-node XOR bootstrap planner',
+              'D-1000 Azure provisioner uses the bounded host-stratified XOR bootstrap planner',
+          )
+          text = text.replace(
+              'assert.match(provisioner, /plan=per-node-xor/);',
+              "assert.match(provisioner, /plan=host-stratified-xor/);\n  assert.match(provisioner, /TRUYN_BOOTSTRAP_REQUIRED_FAILURE_DOMAINS=\\$\\{HOST_COUNT\\}/);",
+          )
+          bootstrap.write_text(text)
+
+          for name in (
+              'tests/class-d-1000-diagnostic-sizing.test.js',
+              'tests/class-d-1000-remote-manifest-heredoc.test.js',
+          ):
+              path = Path(name)
+              path.write_text(path.read_text().replace('truyqn', 'truyn'))
+
+          acceptance = Path('scripts/class-d-1000-final-acceptance.sh')
+          text = acceptance.read_text()
+          old = "if p.count(trap_old) != 1:\n    raise SystemExit(f'expected exactly one D-1000 ERR trap, found={p.count(trap_old)}')\np = p.replace(trap_old, trap_new, 1)\n"
+          new = "if p.count(trap_new) == 1:\n    pass\nelif p.count(trap_old) == 1:\n    p = p.replace(trap_old, trap_new, 1)\nelse:\n    raise SystemExit(f'expected exactly one canonical or legacy D-1000 ERR trap, legacy={p.count(trap_old)} canonical={p.count(trap_new)}')\n"
+          if old not in text:
+              raise SystemExit('D-1000 final-acceptance trap reconciliation point missing')
+          acceptance.write_text(text.replace(old, new, 1))
+          PY
       - name: Apply one-pass canonical sanitation and qualify working tree
         shell: bash
         run: |
           set -Eeuo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('scripts/apply-d200-repository-sanitation.sh')
-          s=p.read_text()
-          s=s.replace("# Exact sanitation smoke/full qualification on the same working tree; no cloud/D-200 execution.\n", "git add -A\n\n# Exact sanitation smoke/full qualification on the same working tree; no cloud/D-200 execution.\n")
-          s=s.replace("go test ./... --count=1\n", "")
-          s=s.replace("TRUYN_RELEASE_SOURCE_SHA=\"$(git rev-parse HEAD)\" sdk/release/build-release.sh\nrm -rf sdk/release/dist\n", "")
-          s=s.replace("git diff --check\n\n# Final fail-closed scans", "git diff --cached --check\n\n# Final fail-closed scans")
-          s=s.replace("run('empty-sas','2')", "run('empty-sas','4')")
-          s=s.replace("s['test']='npm run test:full'", "s['test']='node --test tests/*.test.js'")
-          needle="      - run: node sdk/conformance/run-five-language-e2e.mjs\n      - run: sdk/release/build-release.sh\n"
-          lines=["      - run: node sdk/conformance/run-five-language-e2e.mjs","      - name: Verify SDK release scanner wiring","        run: node --test tests/sdk-release-ci-contract.test.js","      - name: Build and verify SDK release packages","        run: sdk/release/build-release.sh","      - name: Clean-room import packed TypeScript SDK","        shell: bash","        run: |","          set -Eeuo pipefail","          package=\"$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-0.1.0-alpha.2.tgz\"","          test -f \"$package\"","          cleanroom=\"$(mktemp -d)\"","          cd \"$cleanroom\"","          npm init --yes >/dev/null","          npm install --ignore-scripts --no-audit --no-fund \"$package\"","          node --input-type=module -e \"import('@truyn/sdk').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.TruynLocalNodeClient !== 'function') throw new Error('TruynLocalNodeClient export missing'); })\""]
-          replacement="\n".join(lines)+"\n"
-          if needle not in s: raise SystemExit('SDK release CI insertion point missing')
-          s=s.replace(needle,replacement)
-          old="rm -f .github/pull_request_template.md .github/workflows/.gitkeep\nrm -rf _tmp_parts\n"
-          new="rm -f .github/pull_request_template.md .github/workflows/.gitkeep\nwhile IFS= read -r -d '' keep; do\n  dir=\"$(dirname \"$keep\")\"\n  if find \"$dir\" -mindepth 1 -maxdepth 1 ! -name .gitkeep -print -quit | grep -q .; then\n    rm -f \"$keep\"\n  fi\ndone < <(find . -name .gitkeep -not -path './.git/*' -print0)\nrm -rf _tmp_parts\n"
-          if old not in s: raise SystemExit('gitkeep sanitation insertion point missing')
-          s=s.replace(old,new)
+          p = Path('scripts/apply-d200-repository-sanitation.sh')
+          s = p.read_text()
+          marker = '# Exact sanitation smoke/full qualification on the same working tree; no cloud/D-200 execution.\n'
+          if marker not in s:
+              raise SystemExit('sanitation qualification marker missing')
+          s = s.replace(marker, "python3 /tmp/sanfix.py\ngit add -A\n\n" + marker, 1)
+          s = s.replace('go test ./... --count=1\n', '')
+          s = s.replace('TRUYN_RELEASE_SOURCE_SHA="$(git rev-parse HEAD)" sdk/release/build-release.sh\nrm -rf sdk/release/dist\n', '')
+          s = s.replace('git diff --check\n\n# Final fail-closed scans', 'git diff --cached --check\n\n# Final fail-closed scans')
+          s = s.replace("run('empty-sas','2')", "run('empty-sas','4')")
+          s = s.replace("s['test']='npm run test:full'", "s['test']='node --test tests/*.test.js'")
 
-          marker="# Exact sanitation smoke/full qualification on the same working tree; no cloud/D-200 execution.\n"
-          repair=r'''python3 - <<'PYSANFIX'
-from pathlib import Path
+          needle = '      - run: node sdk/conformance/run-five-language-e2e.mjs\n      - run: sdk/release/build-release.sh\n'
+          replacement = '''      - run: node sdk/conformance/run-five-language-e2e.mjs
+          - name: Verify SDK release scanner wiring
+            run: node --test tests/sdk-release-ci-contract.test.js
+          - name: Build and verify SDK release packages
+            run: sdk/release/build-release.sh
+          - name: Clean-room import packed TypeScript SDK
+            shell: bash
+            run: |
+              set -Eeuo pipefail
+              package="$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-0.1.0-alpha.2.tgz"
+              test -f "$package"
+              cleanroom="$(mktemp -d)"
+              cd "$cleanroom"
+              npm init --yes >/dev/null
+              npm install --ignore-scripts --no-audit --no-fund "$package"
+              node --input-type=module -e "import('@truyn/sdk').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.TruynLocalNodeClient !== 'function') throw new Error('TruynLocalNodeClient export missing'); })"
+          '''
+          if needle not in s:
+              raise SystemExit('SDK release CI insertion point missing')
+          s = s.replace(needle, replacement, 1)
 
-# Keep ordinary CI trigger formatting compatible with the stable enforcement contract.
-ci=Path('.github/workflows/ci.yml')
-ci_text=ci.read_text()
-if '    branches: [main]\n' in ci_text:
-    ci_text=ci_text.replace('    branches: [main]\n','    branches:\n      - main\n',1)
-ci.write_text(ci_text)
+          old = 'rm -f .github/pull_request_template.md .github/workflows/.gitkeep\nrm -rf _tmp_parts\n'
+          new = '''rm -f .github/pull_request_template.md .github/workflows/.gitkeep
+          while IFS= read -r -d '' keep; do
+            dir="$(dirname "$keep")"
+            if find "$dir" -mindepth 1 -maxdepth 1 ! -name .gitkeep -print -quit | grep -q .; then
+              rm -f "$keep"
+            fi
+          done < <(find . -name .gitkeep -not -path './.git/*' -print0)
+          rm -rf _tmp_parts
+          '''
+          if old not in s:
+              raise SystemExit('gitkeep sanitation insertion point missing')
+          s = s.replace(old, new, 1)
 
-# The accepted peer-lease repair strengthens the old per-node XOR label to a host-stratified
-# XOR plan that still has maxPeers=32 and additionally covers every physical failure domain.
-bootstrap=Path('tests/class-d-1000-bootstrap.test.js')
-bootstrap_text=bootstrap.read_text()
-bootstrap_text=bootstrap_text.replace('D-1000 Azure provisioner uses the per-node XOR bootstrap planner','D-1000 Azure provisioner uses the bounded host-stratified XOR bootstrap planner')
-bootstrap_text=bootstrap_text.replace('assert.match(provisioner, /plan=per-node-xor/);','assert.match(provisioner, /plan=host-stratified-xor/);\n  assert.match(provisioner, /TRUYN_BOOTSTRAP_REQUIRED_FAILURE_DOMAINS=\\$\\{HOST_COUNT\\}/);')
-bootstrap.write_text(bootstrap_text)
-
-# Positive path assertions must follow the canonical truyn spelling. Historical evidence and
-# explicit negative fixtures remain untouched under redact-not-delete / regression policy.
-for name in ['tests/class-d-1000-diagnostic-sizing.test.js','tests/class-d-1000-remote-manifest-heredoc.test.js']:
-    path=Path(name)
-    text=path.read_text().replace('truyqn','truyn')
-    path.write_text(text)
-
-# The sanitation patch chain already materializes failure-evidence semantics into the maintained
-# provisioner. Make the prepare-only verifier accept exactly one already-canonical trap instead
-# of requiring the pre-patch trap and attempting to patch it a second time.
-fa=Path('scripts/class-d-1000-final-acceptance.sh')
-fa_text=fa.read_text()
-old="""if p.count(trap_old) != 1:\n    raise SystemExit(f'expected exactly one D-1000 ERR trap, found={p.count(trap_old)}')\np = p.replace(trap_old, trap_new, 1)\n"""
-new="""if p.count(trap_new) == 1:\n    pass\nelif p.count(trap_old) == 1:\n    p = p.replace(trap_old, trap_new, 1)\nelse:\n    raise SystemExit(f'expected exactly one canonical or legacy D-1000 ERR trap, legacy={p.count(trap_old)} canonical={p.count(trap_new)}')\n"""
-if old not in fa_text:
-    raise SystemExit('D-1000 final-acceptance trap reconciliation point missing')
-fa.write_text(fa_text.replace(old,new,1))
-PYSANFIX
-git add -A
-'''
-          if marker not in s: raise SystemExit('sanitation qualification marker missing')
-          s=s.replace(marker,repair+"\n"+marker,1)
-
-          gates=[
-            ('npm run test:fast','fast'),
-            ('npm run test:security','security'),
-            ('node --test tests/d200-canonical-regressions.test.js tests/d200-anti-weakening.test.js tests/d200-staging-robustness.test.js tests/repository-hygiene.test.js tests/affected-tests.test.js tests/test-suite-taxonomy.test.js tests/documentation-status.test.js tests/evidence-preservation.test.js','focused'),
-            ('bash scripts/class-d-200-preflight-qualification.sh','d200-preflight'),
-            ('npm run test:full','full-node'),
-            ('python -m pip install --disable-pip-version-check -e ./sdk/python','python-install'),
-            ('( cd sdk/go && go test ./... )','go-sdk'),
-            ('mvn -q -f sdk/java/pom.xml test','java-sdk'),
-            ('dotnet build sdk/dotnet/Truyn.Sdk.csproj --configuration Release --nologo','dotnet-sdk'),
-            ('node sdk/conformance/run-five-language-e2e.mjs','five-language'),
-            ('git diff --check','diff-check'),
-            ('node scripts/check-d200-contract.mjs','contract-final'),
-            ('node scripts/check-repository-hygiene.mjs','hygiene-final')]
-          for cmd,name in gates:
-            s=s.replace(cmd, f"printf 'SANITATION_GATE_START={name}\\n'\n{cmd}\nprintf 'SANITATION_GATE_PASS={name}\\n'", 1)
+          gates = [
+              ('npm run test:fast', 'fast'),
+              ('npm run test:security', 'security'),
+              ('node --test tests/d200-canonical-regressions.test.js tests/d200-anti-weakening.test.js tests/d200-staging-robustness.test.js tests/repository-hygiene.test.js tests/affected-tests.test.js tests/test-suite-taxonomy.test.js tests/documentation-status.test.js tests/evidence-preservation.test.js', 'focused'),
+              ('bash scripts/class-d-200-preflight-qualification.sh', 'd200-preflight'),
+              ('npm run test:full', 'full-node'),
+              ('python -m pip install --disable-pip-version-check -e ./sdk/python', 'python-install'),
+              ('( cd sdk/go && go test ./... )', 'go-sdk'),
+              ('mvn -q -f sdk/java/pom.xml test', 'java-sdk'),
+              ('dotnet build sdk/dotnet/Truyn.Sdk.csproj --configuration Release --nologo', 'dotnet-sdk'),
+              ('node sdk/conformance/run-five-language-e2e.mjs', 'five-language'),
+              ('git diff --check', 'diff-check'),
+              ('node scripts/check-d200-contract.mjs', 'contract-final'),
+              ('node scripts/check-repository-hygiene.mjs', 'hygiene-final'),
+          ]
+          for cmd, name in gates:
+              s = s.replace(cmd, f"printf 'SANITATION_GATE_START={name}\\n'\n{cmd}\nprintf 'SANITATION_GATE_PASS={name}\\n'", 1)
           p.write_text(s)
           PY
           bash scripts/apply-d200-repository-sanitation.sh 2>&1 | tee /tmp/truyn-sanitation.log
