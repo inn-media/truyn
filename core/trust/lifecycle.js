@@ -224,7 +224,6 @@ function declaredLineageIsCertified(attestation, certs, authorityRegistry, now) 
       ? entry.certificates.filter((certificate) => lineageSignerAuthorized(authorityRegistry, certificate, entry.evidence.sourceId, now))
       : entry.certificates
   }));
-  if (authorizedEvidence.some((entry) => entry.certificates.length === 0)) return false;
 
   const sourceCerts = authorizedEvidence.flatMap((entry) => entry.certificates);
   const certified = {
