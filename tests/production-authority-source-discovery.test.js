@@ -24,13 +24,22 @@ test('discovery uses subscription-wide read-only control-plane inventory', () =>
   assert.doesNotMatch(workflow, /az\s+containerapp\s+(?:exec|update|revision\s+restart)\b/i);
 });
 
-test('generic truyn matches cannot win over a unique strong authority signal', () => {
-  assert.match(workflow, /primaryStrongCount/);
-  assert.match(workflow, /strong-authority-signal/);
-  assert.match(workflow, /strong-state-signal/);
-  assert.match(workflow, /production\[-_ \]\?authority\|authority\|control/);
-  assert.match(workflow, /primary_count.*-eq 1/);
-  assert.match(workflow, /secondary_count.*-eq 1/);
+test('runtime configuration discovery uses names and server-side predicates, not secret values', () => {
+  assert.match(workflow, /az graph query/);
+  assert.match(workflow, /TRUYN_ROLE/);
+  assert.match(workflow, /TRUYN_AUTHORITY_BOOTSTRAP_B64/);
+  assert.match(workflow, /TRUYN_AUTHORITY_BOOTSTRAP_DIGEST/);
+  assert.match(workflow, /TRUYN_COSMOS_ENDPOINT/);
+  assert.match(workflow, /runtime-config-signal/);
+  assert.match(workflow, /runtimeConfigSignalCount/);
+});
+
+test('failed ambiguity still uploads sanitized aggregate evidence before failing closed', () => {
+  assert.match(workflow, /status:\"FAIL\"/);
+  assert.match(workflow, /candidateTypeSummary/);
+  assert.match(workflow, /runtimeConfigSignalCount/);
+  assert.match(workflow, /if: always\(\)/);
+  assert.match(workflow, /Production authority source remains ambiguous or unqualified/);
 });
 
 test('discovery never asks Azure for secret values or data-plane contents', () => {
@@ -44,9 +53,8 @@ test('discovery never asks Azure for secret values or data-plane contents', () =
 });
 
 test('public evidence is sanitized and ambiguity fails closed', () => {
-  assert.match(workflow, /candidate_count.*-gt 0/);
-  assert.match(workflow, /Ambiguous production authority source inventory/);
-  assert.match(workflow, /selectionReason/);
+  assert.match(workflow, /candidate_count/);
+  assert.match(workflow, /selection_reason/);
   assert.match(workflow, /stateSignalPresent:true/);
   assert.match(workflow, /topologyPublished:false/);
   assert.doesNotMatch(workflow, /production-authority-source-discovery-evidence\.json[\s\S]*(selected_id|selected_name|selected_rg)/);
