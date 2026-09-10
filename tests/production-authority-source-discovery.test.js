@@ -57,5 +57,6 @@ test('public evidence is sanitized and ambiguity fails closed', () => {
   assert.match(workflow, /selection_reason/);
   assert.match(workflow, /stateSignalPresent:true/);
   assert.match(workflow, /topologyPublished:false/);
-  assert.doesNotMatch(workflow, /production-authority-source-discovery-evidence\.json[\s\S]*(selected_id|selected_name|selected_rg)/);
+  assert.match(workflow, /::add-mask::%s/);
+  assert.doesNotMatch(workflow, /selectedResource(?:Id|Name|Group)|resourceGroupName|resourceId|resourceName/);
 });
