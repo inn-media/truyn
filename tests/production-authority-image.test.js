@@ -28,6 +28,12 @@ test('build inputs eliminate mutable base tags and time-unbounded npm resolution
   assert.doesNotMatch(workflow, /--image\s+["']?[^"'\\n]*:latest\b/i);
 });
 
+test('base-image sed end anchor is escaped from shell positional-parameter expansion', async () => {
+  const workflow = await workflowText();
+  assert.match(workflow, /sed -i "s#\^FROM node:22-bookworm-slim\\\$#FROM \$\{BASE_IMAGE\}#" Dockerfile\.authority/);
+  assert.doesNotMatch(workflow, /sed -i "s#\^FROM node:22-bookworm-slim\$#FROM \$\{BASE_IMAGE\}#" Dockerfile\.authority/);
+});
+
 test('OIDC, attestation and production identity values are scoped away from PR-controlled validation', async () => {
   const workflow = await workflowText();
   const jobsIndex = workflow.indexOf('jobs:');
