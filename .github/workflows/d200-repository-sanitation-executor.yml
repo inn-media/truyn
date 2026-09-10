@@ -1,5 +1,5 @@
 # TASK_ID: truyn-d200-repository-sanitation-2609102033-8f2c
-# qualification-repair: bounded-failure-summary-v1
+# qualification-repair: sdk-contract-preservation-v1
 name: D-200 repository sanitation executor
 
 on:
@@ -50,6 +50,7 @@ jobs:
           git merge-base --is-ancestor bae2a3ac4776bc4c89bdb53eb835d6b9d49cab37 HEAD
           test -f scripts/apply-d200-repository-sanitation.sh
           npm install --ignore-scripts --no-audit --no-fund
+          python -m pip install --disable-pip-version-check -e ./sdk/python
       - name: Apply one-pass canonical sanitation and qualify working tree
         shell: bash
         run: |
@@ -63,6 +64,27 @@ jobs:
           s=s.replace("TRUYN_RELEASE_SOURCE_SHA=\"$(git rev-parse HEAD)\" sdk/release/build-release.sh\nrm -rf sdk/release/dist\n", "")
           s=s.replace("git diff --check\n\n# Final fail-closed scans", "git diff --cached --check\n\n# Final fail-closed scans")
           s=s.replace("run('empty-sas','2')", "run('empty-sas','4')")
+          s=s.replace("s['test']='npm run test:full'", "s['test']='node --test tests/*.test.js'")
+          needle="      - run: node sdk/conformance/run-five-language-e2e.mjs\n      - run: sdk/release/build-release.sh\n"
+          replacement="""      - run: node sdk/conformance/run-five-language-e2e.mjs
+      - name: Verify SDK release scanner wiring
+        run: node --test tests/sdk-release-ci-contract.test.js
+      - name: Build and verify SDK release packages
+        run: sdk/release/build-release.sh
+      - name: Clean-room import packed TypeScript SDK
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          package=\"$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-0.1.0-alpha.2.tgz\"
+          test -f \"$package\"
+          cleanroom=\"$(mktemp -d)\"
+          cd \"$cleanroom\"
+          npm init --yes >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund \"$package\"
+          node --input-type=module -e \"import('@truyn/sdk').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.TruynLocalNodeClient !== 'function') throw new Error('TruynLocalNodeClient export missing'); })\"
+"""
+          if needle not in s: raise SystemExit('SDK release CI insertion point missing')
+          s=s.replace(needle,replacement)
           old="rm -f .github/pull_request_template.md .github/workflows/.gitkeep\nrm -rf _tmp_parts\n"
           new="rm -f .github/pull_request_template.md .github/workflows/.gitkeep\nwhile IFS= read -r -d '' keep; do\n  dir=\"$(dirname \"$keep\")\"\n  if find \"$dir\" -mindepth 1 -maxdepth 1 ! -name .gitkeep -print -quit | grep -q .; then\n    rm -f \"$keep\"\n  fi\ndone < <(find . -name .gitkeep -not -path './.git/*' -print0)\nrm -rf _tmp_parts\n"
           if old not in s: raise SystemExit('gitkeep sanitation insertion point missing')
@@ -91,7 +113,7 @@ jobs:
             printf 'SHA=%s\n' "$GITHUB_SHA"
             printf 'RUN_ID=%s\n' "$GITHUB_RUN_ID"
             printf '%s\n' 'SANITIZED_FAILURE_LINES:'
-            grep -E '^(not ok|# Subtest:|# fail |# error |# tests |# pass |AssertionError|Error:|TRUYN_[A-Z0-9_]+=(?:FAIL|DENY)|Repository hygiene violations|D-200 safety floor violation|.*ERR_ASSERTION|.*expected:|.*actual:)' /tmp/truyn-sanitation.log | tail -n 100 || true
+            grep -E '^(not ok|# Subtest:|# fail |# error |# tests |# pass |AssertionError|Error:|TRUYN_[A-Z0-9_]+=(?:FAIL|DENY)|Repository hygiene violations|D-200 safety floor violation|.*ERR_ASSERTION|.*expected:|.*actual:)' /tmp/truyn-sanitation.log | tail -n 160 || true
           } > /tmp/sanitation-summary.txt
           gh issue comment 601 --repo inn-media/truyn --body-file /tmp/sanitation-summary.txt
       - name: Commit one exact sanitation candidate
