@@ -1,5 +1,5 @@
 # TASK_ID: truyn-d200-repository-sanitation-2609102033-8f2c
-# qualification-repair: sdk-contract-preservation-v2
+# qualification-repair: sdk-contract-preservation-v3
 name: D-200 repository sanitation executor
 
 on:
@@ -92,13 +92,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
+          awk '
+            /^not ok / {capture=18; failures++; print; next}
+            capture > 0 {print; capture--; next}
+            /^# (tests|pass|fail|cancelled|skipped|todo|duration_ms) / {print}
+            END {printf "SANITIZED_FAILURE_COUNT=%d\n", failures}
+          ' /tmp/truyn-sanitation.log \
+            | sed -E '/(token|secret|password|authorization|sas|sig=|https?:\/\/|subscriptions\/|resourceGroups\/)/Id' \
+            | tail -n 220 > /tmp/sanitation-failure-context.txt
           {
             printf '%s\n' '[CHATGPT_SANITATION_FAILURE]'
             printf 'TASK_ID=%s\n' 'truyn-d200-repository-sanitation-2609102033-8f2c'
             printf 'SHA=%s\n' "$GITHUB_SHA"
             printf 'RUN_ID=%s\n' "$GITHUB_RUN_ID"
-            printf '%s\n' 'SANITIZED_FAILURE_LINES:'
-            grep -E '^(not ok|# Subtest:|# fail |# error |# tests |# pass |AssertionError|Error:|TRUYN_[A-Z0-9_]+=(?:FAIL|DENY)|Repository hygiene violations|D-200 safety floor violation|.*ERR_ASSERTION|.*expected:|.*actual:)' /tmp/truyn-sanitation.log | tail -n 160 || true
+            printf '%s\n' 'SANITIZED_FAILURE_CONTEXT:'
+            cat /tmp/sanitation-failure-context.txt
           } > /tmp/sanitation-summary.txt
           gh issue comment 601 --repo inn-media/truyn --body-file /tmp/sanitation-summary.txt
       - name: Commit one exact sanitation candidate
