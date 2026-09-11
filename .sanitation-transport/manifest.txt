@@ -1,4 +1,0 @@
-TASK_ID=truyn-d200-repository-sanitation-2609102033-8f2c
-CI_SHA256=d00224f55279f793f0f2f53b0bf0da1c2615e8b448c30ffaa5e3edb41f7ed010
-DELETE=.github/workflows/d200-repository-sanitation-executor.yml
-DELETE=.github/workflows/diag-d200-850fff25-qualified.yml
