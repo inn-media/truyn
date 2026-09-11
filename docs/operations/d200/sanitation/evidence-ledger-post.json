@@ -1,0 +1,170 @@
+{
+  "policy": "redact-not-delete",
+  "entries": [
+    {
+      "path": "docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md",
+      "bytes": 5705,
+      "sha256": "90308e403f60d9dbcc277a5d8d94046d017e95988ded276b3491a05ce51f31db"
+    },
+    {
+      "path": "docs/benchmarks/CLAIM_TRUSTABILITY_V1_2026-08-16.md",
+      "bytes": 12211,
+      "sha256": "1f7bb3a630a7e9efa3c901d11b9e88f60dcd8a039127de8ddee7e80227d01ed9"
+    },
+    {
+      "path": "docs/benchmarks/CLASS_C_HETEROGENEOUS_WAN_2026-08-18.md",
+      "bytes": 7882,
+      "sha256": "12a75319808dd120e8fc0020fde210d2f2d9bfc53d7b130d1a3c877ce748d1e5"
+    },
+    {
+      "path": "docs/benchmarks/CLASS_D_100_2026-08-22.md",
+      "bytes": 8278,
+      "sha256": "18471a32a2c1843167c4f55a296e65941303bfe64b200f7298b3faea3cf50e84"
+    },
+    {
+      "path": "docs/benchmarks/CLASS_D_100_ATTEMPT_2026-08-17.md",
+      "bytes": 3481,
+      "sha256": "b2a806d109c952a261f195275503757170549cb8320f5b1933b35c856be51651"
+    },
+    {
+      "path": "docs/benchmarks/CONTEXT_EFFICIENCY_2026-08-15.md",
+      "bytes": 8394,
+      "sha256": "9349a18e74793582115fa5123379e65ec8e33f0b019c0171c2199949d3b5b744"
+    },
+    {
+      "path": "docs/benchmarks/CROSS_CLOUD_8X_OPTIMIZATION_2026-08-15.md",
+      "bytes": 4680,
+      "sha256": "c2b91ab750671881056f098e6e88aadbd932004029d0e301cb60642970405f77"
+    },
+    {
+      "path": "docs/benchmarks/CROSS_CLOUD_AB_2026-08-15.md",
+      "bytes": 7835,
+      "sha256": "df90e5c66e96abbf1b0535b360568ef5f2f815c2e34491284567327f0ecdbf30"
+    },
+    {
+      "path": "docs/benchmarks/DISTRIBUTED_SEMANTIC_RETRIEVAL_2026-08-16.md",
+      "bytes": 12848,
+      "sha256": "ee92a236de12fc46ceb331452deebbdcc0991cec48666206ca42e659dc35b6b7"
+    },
+    {
+      "path": "docs/benchmarks/KADEMLIA_QUIC_TRUST_TESTNET_2026-08-17.md",
+      "bytes": 6151,
+      "sha256": "d84105f750c0c41f7eadd021836da3386be1938460a4a10c293873a8943ff4d6"
+    },
+    {
+      "path": "docs/benchmarks/MAIN_SECURITY_GREEN_2026-08-23.md",
+      "bytes": 5548,
+      "sha256": "c219975009c0103124e879236aab09f7284e40a83a78e34367f580eeba58fe96"
+    },
+    {
+      "path": "docs/benchmarks/MAIN_SECURITY_GREEN_2026-08-24.md",
+      "bytes": 6441,
+      "sha256": "0b29df2f841b02936455bd6aade09b22438ef263a7010ab5f3dcd2b889a40d94"
+    },
+    {
+      "path": "docs/benchmarks/MULTIMODAL_PROVIDER_PARITY.md",
+      "bytes": 7011,
+      "sha256": "f63fadb8cce097f7825628a06a3d74915c58b46db4520df8eb3e348701c44e9e"
+    },
+    {
+      "path": "docs/benchmarks/NETWORK_PRODUCTIONIZATION_AZURE_4HOST_2026-08-17.md",
+      "bytes": 9700,
+      "sha256": "abed3affba47b95a368453f14c07ee7bf9bc4d4148fb78e871bc2b1c3dce8587"
+    },
+    {
+      "path": "docs/benchmarks/ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md",
+      "bytes": 9757,
+      "sha256": "6ad00e9630b2721171ff71193c6f53e6e950d9bba6b45473011b020905373b36"
+    },
+    {
+      "path": "docs/benchmarks/README.md",
+      "bytes": 8792,
+      "sha256": "1871ae80a9014d062b00b4b9173f725e9d2fdff79f4189c9899b1dea0df30966"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_CONCURRENT_LOAD_2026-08-16.md",
+      "bytes": 10491,
+      "sha256": "79082bc86468e41c391c9d47bcfa36404eca009a3147e01be5e8451fa72226d5"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_INDEX_LIFECYCLE_2026-08-16.md",
+      "bytes": 9079,
+      "sha256": "701c85334abdee8320d3bb296fe6b416a44d9eafdb1587e4d869a528fd2d1c82"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_RETRIEVAL_GATE_2026-08-15.md",
+      "bytes": 6630,
+      "sha256": "e9d3c1864a144676cf43d7aed99e2594dae40ac9f1b37fc2295787d5ce52da93"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_RETRIEVAL_MULTI_ACTOR_2026-08-15.md",
+      "bytes": 7635,
+      "sha256": "7dda4165b6805307912b01a3efc811167a5fd07210528622bd9b278a7f662ab5"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_RETRIEVAL_V2_CONFIDENCE_GATE_2026-08-16.md",
+      "bytes": 14608,
+      "sha256": "192b229c007db82b4671bc95a1fcde3cecfd0eccf48c070a5dc3defd4e154463"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_SCALE_GATE_V3_2026-08-16.md",
+      "bytes": 11837,
+      "sha256": "356a4e41f9666a1cee21b989ba59d847cf60910146afa76a16ff01a7b34eb6f6"
+    },
+    {
+      "path": "docs/benchmarks/TRUST_NETWORK_V2_2026-08-16.md",
+      "bytes": 12049,
+      "sha256": "82049a6f4e171bd57323af951e37e4750cc58709a0c2768e965773435c3f21cd"
+    },
+    {
+      "path": "docs/benchmarks/V01_CONNECT_GATE_2026-08-17.md",
+      "bytes": 7667,
+      "sha256": "7619dd698e07bf8dce51a173ba2611d9ee1a18912013e32517e908f5b28aaa7c"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-bge-aligned-facet-coverage-hard-run-31929311063.json",
+      "bytes": 1954,
+      "sha256": "c96cc3f451febc2d54ea9ce37bde5e877751bcc9f2c4b3e71db6b88f66dc1129"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-bge-hard-pairs-run-31945516473.json",
+      "bytes": 2226,
+      "sha256": "d8d257cc23a03abe55ea8460501f6ae20180303320b3ad573adc5f9fc3e69d4e"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-bge-reranker-v2-m3-hard-pairs-run-31929161785.json",
+      "bytes": 2880,
+      "sha256": "eb8c8d8f4c309f2738287710794245290fe1347594fe3ed97d66ea0e36191eb3"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-cohere-rerank-v4-fast-hard-pairs-run-31928683728.json",
+      "bytes": 2248,
+      "sha256": "ebb773f27ec63bac660c8be52a9b978b7918b11c2cb4df0f58f85cd909395951"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-cohere-rerank-v4-pro-capacity1-run-31928786924.json",
+      "bytes": 1109,
+      "sha256": "180af6a54cf4ed95a725983ff5d269b7976aa1afdca5026b12d32dbc5f238976"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-cohere-rerank-v4-pro-capacity500-run-31928914133.json",
+      "bytes": 1306,
+      "sha256": "8a0f74977b7571dd9cf99e9f1c329b9b23d376f67788c0f6ba0b4968a03062f5"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-dual-compiler-hard-pairs-run-31929634022.json",
+      "bytes": 6096,
+      "sha256": "70db470a3a50fae9aa1932581c01e101e0aaa384fb879c46fa476eb4caa24ff9"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-evidence-backed-facet-diagnostic-run-31927531010.json",
+      "bytes": 2452,
+      "sha256": "46a93ba898b17cb4c8b4fa194e2410e808249c3b66c1ad3d40a0776ed733bed1"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-qwen3-reranker-0.6b-hard-run-31929412830.json",
+      "bytes": 2443,
+      "sha256": "36bf38a9b9169cb2a216b32dddade73b43335f5d380b395173b90112e53595cb"
+    }
+  ]
+}

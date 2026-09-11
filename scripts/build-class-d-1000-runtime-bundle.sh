@@ -19,7 +19,7 @@ mkdir -p "$STAGE/app" "$STAGE/runtime/bin" "$STAGE/runtime/tool-bin" "$STAGE/run
 # are the already-resolved CI node_modules tree; VMs never contact npm.
 git archive "$SOURCE_SHA" | tar -xf - -C "$STAGE/app"
 cp -a node_modules "$STAGE/app/node_modules"
-# The remote bootstrap phase imports benchmark helpers from /opt/truyqn/benchmarks.
+# The remote bootstrap phase imports benchmark helpers from /opt/truyn/benchmarks.
 # Keep that stable absolute contract without duplicating tracked source in the bundle.
 ln -s app/benchmarks "$STAGE/benchmarks"
 

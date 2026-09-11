@@ -165,9 +165,20 @@ PYFAIL
   echo "TRUYN_CLASS_D_1000_FAIL_EVIDENCE finalized=true stage=${failed_stage} exit=${rc} path=${EVIDENCE}"
 }
 '''
-if p.count(marker_anchor) != 1:
-    raise SystemExit(f'expected exactly one D-1000 marker helper, found={p.count(marker_anchor)}')
-p = p.replace(marker_anchor, marker_anchor + failure_helpers, 1)
+d200_failure_marker = 'd200_failure_evidence_checkpoint() {'
+d200_trap_helper_marker = 'd200_err_trap() {'
+d200_trap_line = """trap 'd200_err_trap "$?" "$STAGE" "$LINENO"' ERR"""
+canonical_d200_failure = (
+    p.count(d200_failure_marker) == 1
+    and p.count(d200_trap_helper_marker) == 1
+    and p.count(d200_trap_line) == 1
+)
+if canonical_d200_failure:
+    pass
+else:
+    if p.count(marker_anchor) != 1:
+        raise SystemExit(f'expected exactly one D-1000 marker helper, found={p.count(marker_anchor)}')
+    p = p.replace(marker_anchor, marker_anchor + failure_helpers, 1)
 
 cleanup_old = '''jq --argjson confirmed "$CLEANUP_CONFIRMED" --argjson remaining "$left" '.cleanup.confirmed=$confirmed | .cleanup.remainingResources=$remaining' "$EVIDENCE" >"$tmp" && mv "$tmp" "$EVIDENCE"'''
 cleanup_new = '''jq --argjson confirmed "$CLEANUP_CONFIRMED" --argjson remaining "$left" --argjson after_exit_trap true '.cleanup.confirmed=$confirmed | .cleanup.remainingResources=$remaining | .cleanup.finalizedAfterExitTrap=$after_exit_trap' "$EVIDENCE" >"$tmp" && mv "$tmp" "$EVIDENCE"'''
@@ -177,9 +188,14 @@ p = p.replace(cleanup_old, cleanup_new, 1)
 
 trap_old = '''trap 'rc=$?; echo "::error title=TRUYN Class D-1000 failure::stage=$STAGE exit=$rc line=$LINENO"; exit $rc' ERR'''
 trap_new = '''trap 'rc=$?; failed_stage="$STAGE"; failed_line="$LINENO"; echo "::error title=TRUYN Class D-1000 failure::stage=$failed_stage exit=$rc line=$failed_line"; finalize_failure_evidence "$rc" "$failed_stage" "$failed_line"; exit "$rc"' ERR'''
-if p.count(trap_old) != 1:
-    raise SystemExit(f'expected exactly one D-1000 ERR trap, found={p.count(trap_old)}')
-p = p.replace(trap_old, trap_new, 1)
+if canonical_d200_failure:
+    pass
+elif p.count(trap_new) == 1:
+    pass
+elif p.count(trap_old) == 1:
+    p = p.replace(trap_old, trap_new, 1)
+else:
+    raise SystemExit(f'expected exactly one canonical D-200, canonical D-1000, or legacy D-1000 ERR trap, legacy={p.count(trap_old)} canonical_d1000={p.count(trap_new)} canonical_d200={p.count(d200_trap_line)}')
 
 bootstrap_pattern = re.compile(
     r'export DEBIAN_FRONTEND=noninteractive\n'
@@ -340,12 +356,18 @@ fi
 grep -Fq -- "--query 'value[].message'" scripts/lib/class-d-run-command.sh
 grep -Fq 'TRUYN_GUEST_EXECUTION_ADMITTED=1' scripts/lib/class-d-run-command.sh
 grep -Fq 'missing_ready expected=$NODES_PER_HOST' "$TMP/provision.sh"
-grep -Fq 'finalize_failure_evidence()' "$TMP/provision.sh"
-grep -Fq 'finalize_failure_evidence "$rc" "$failed_stage" "$failed_line"' "$TMP/provision.sh"
-grep -Fq 'TRUYN_CLASS_D_1000_FAIL_EVIDENCE finalized=true' "$TMP/provision.sh"
-grep -Fq 'TRUYN_CONV_RATE="${conv_rate:-}"' "$TMP/provision.sh"
-grep -Fq '"status": "FAIL"' "$TMP/provision.sh"
-grep -Fq '"evidenceFinalizedOnFail": True' "$TMP/provision.sh"
+if grep -Fq 'd200_failure_evidence_checkpoint() {' "$TMP/provision.sh"; then
+  grep -Fq 'd200_err_trap() {' "$TMP/provision.sh"
+  grep -Fq 'TRUYN_D200_FAILURE_EVIDENCE=CHECKPOINT' "$TMP/provision.sh"
+  grep -Fq "'cleanup': {'confirmed': False, 'remainingResources': None, 'finalizedByExitTrap': True}" "$TMP/provision.sh"
+else
+  grep -Fq 'finalize_failure_evidence()' "$TMP/provision.sh"
+  grep -Fq 'finalize_failure_evidence "$rc" "$failed_stage" "$failed_line"' "$TMP/provision.sh"
+  grep -Fq 'TRUYN_CLASS_D_1000_FAIL_EVIDENCE finalized=true' "$TMP/provision.sh"
+  grep -Fq 'TRUYN_CONV_RATE="${conv_rate:-}"' "$TMP/provision.sh"
+  grep -Fq '"status": "FAIL"' "$TMP/provision.sh"
+  grep -Fq '"evidenceFinalizedOnFail": True' "$TMP/provision.sh"
+fi
 grep -Fq '.cleanup.finalizedAfterExitTrap=$after_exit_trap' "$TMP/provision.sh"
 
 echo "TRUYN_CLASS_D1000_PREPARED_HARNESS=PASS safetyContract=v2 remoteDht=target-side-quic paths=canonical runCommandBoundary=accepted-d100 runtimeBundle=sha256-pinned strictNodesPerHost=${TRUYN_CLASS_D1000_NODES_PER_HOST}"
