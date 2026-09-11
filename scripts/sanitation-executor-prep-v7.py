@@ -55,6 +55,9 @@ if old not in s:
     raise SystemExit('gitkeep sanitation insertion point missing')
 s = s.replace(old, new, 1)
 
+# Instrument only the final qualification tail. Previous versions replaced the first
+# textual occurrence across the whole generator, which could land inside heredocs.
+prefix, tail = s.split(marker, 1)
 gates = [
     ('npm run test:fast', 'fast'),
     ('npm run test:security', 'security'),
@@ -66,15 +69,31 @@ gates = [
     ('mvn -q -f sdk/java/pom.xml test', 'java-sdk'),
     ('dotnet build sdk/dotnet/Truyn.Sdk.csproj --configuration Release --nologo', 'dotnet-sdk'),
     ('node sdk/conformance/run-five-language-e2e.mjs', 'five-language'),
-    ('git diff --check', 'diff-check'),
+    ('git diff --cached --check', 'diff-check'),
     ('node scripts/check-d200-contract.mjs', 'contract-final'),
     ('node scripts/check-repository-hygiene.mjs', 'hygiene-final'),
 ]
 for cmd, name in gates:
-    s = s.replace(
+    if cmd not in tail:
+        raise SystemExit(f'final qualification command missing: {name}')
+    tail = tail.replace(
         cmd,
         f"printf 'SANITATION_GATE_START={name}\\n'\n{cmd}\nprintf 'SANITATION_GATE_PASS={name}\\n'",
         1,
     )
 
-p.write_text(s)
+scan = "if grep -RIl --exclude-dir=.git -E 'scripts/patch-(class-d-diagnostic|d200)-' scripts benchmarks network .github 2>/dev/null | grep -v 'docs/operations/d200/sanitation/patcher-disposition.json'; then\n"
+if scan not in tail:
+    raise SystemExit('superseded reference scan missing')
+tail = tail.replace(
+    scan,
+    "printf 'SANITATION_GATE_START=superseded-ref-scan\\n'\n" + scan,
+    1,
+)
+tail = tail.replace(
+    "  echo 'superseded patcher reference survived in maintained execution source' >&2; exit 1\nfi\nprintf 'TRUYN_D200_SANITATION_LOCAL_QUALIFICATION=PASS task=%s\\n' \"$TASK_ID\"",
+    "  echo 'superseded patcher reference survived in maintained execution source' >&2; exit 1\nfi\nprintf 'SANITATION_GATE_PASS=superseded-ref-scan\\n'\nprintf 'TRUYN_D200_SANITATION_LOCAL_QUALIFICATION=PASS task=%s\\n' \"$TASK_ID\"",
+    1,
+)
+
+p.write_text(prefix + marker + tail)
