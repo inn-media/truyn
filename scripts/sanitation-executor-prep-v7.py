@@ -7,6 +7,22 @@ s = p.read_text()
 marker = '# Exact sanitation smoke/full qualification on the same working tree; no cloud/D-200 execution.\n'
 if marker not in s:
     raise SystemExit('sanitation qualification marker missing')
+
+# npm install runs before candidate staging. node_modules was not ignored in the
+# legacy repository, so git add -A could accidentally stage dependency-install
+# residue and make diff-check inspect third-party whitespace. Make dependency
+# isolation a permanent repository property rather than weakening diff-check.
+ignore_guard = '''python3 - <<'PYIGNORE'
+from pathlib import Path
+p = Path('.gitignore')
+text = p.read_text() if p.exists() else ''
+lines = text.splitlines()
+if 'node_modules/' not in lines:
+    text = text.rstrip() + ('\\n' if text.strip() else '') + 'node_modules/\\n'
+    p.write_text(text)
+PYIGNORE
+'''
+s = s.replace(marker, ignore_guard + marker, 1)
 s = s.replace(
     marker,
     "python3 scripts/sanitation-repair-v7.py\nrm -f scripts/sanitation-repair-v7.py scripts/sanitation-executor-prep-v7.py\ngit add -A\n\n" + marker,
