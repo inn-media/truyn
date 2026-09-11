@@ -1,0 +1,18 @@
+{
+  "schema": "truyn.d200.contract.v1",
+  "hostsRequired": 20,
+  "processTarget": 200,
+  "nodesPerHost": 10,
+  "maxPeers": 32,
+  "allToAllForbidden": true,
+  "routingAcceptanceMinimum": 0.99,
+  "convergenceMaximumMs": 120000,
+  "recoveryMaximumMs": 120000,
+  "acknowledgedWritesRequired": 100,
+  "acknowledgedWriteLossAllowed": 0,
+  "safetyViolationsAllowed": 0,
+  "cleanupRemainingAllowed": 0,
+  "stagingCleanupRemainingAllowed": 0,
+  "peerRecordTtlMs": 1800000,
+  "bootstrapMinPeerLeaseRemainingMs": 900000
+}

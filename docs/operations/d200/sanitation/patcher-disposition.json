@@ -1,0 +1,183 @@
+{
+  "taskId": "truyn-d200-repository-sanitation-2609102033-8f2c",
+  "patchers": [
+    {
+      "path": "scripts/patch-class-d-diagnostic-bandwidth-meter-parallel.py",
+      "sha256": "0caea81c0dedaac133016127bdb51037888101effdf7588d58c02a212e5f9cf0",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-provision.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-baseline-origin.py",
+      "sha256": "7ac525a7cd6c964de57873c6987afd334f92dccaafc0a8d8b2ff985b8d7f113a",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-baseline-parallel.py",
+      "sha256": "00e97c3e03b23a3bcc66f5b529f9809e80406ae09cdfafe744bf7b82295fe297",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-bootstrap-parallel.py",
+      "sha256": "3da0c49c6a4ddc7d72247bd2657208dd3a191c6c2d8ea0b134eae7f7e4b85058",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-provision.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-bootstrap-timeout.py",
+      "sha256": "f75438c58bc16cd0841c945dc4fae50d8a93c8a373c576c5720a359e21423735",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-provision.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-composed-heal-evidence.py",
+      "sha256": "f1feaecc6041ba271826fae077856fb575018b6c6c21067495ea14e0fb9393d6",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-provision.sh",
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-failure-evidence.py",
+      "sha256": "0904651b78c40886cd4d1297290783709072413ca6c1f19873fb3c973ce6d477",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-provision.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-healed-evidence-transport.py",
+      "sha256": "408f8281b12b4758e52b1e442f89e773ff7d14b05aff3e611055c770642a1d71",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-healed-origin.py",
+      "sha256": "68bce272ccbb89a73f6093f8504de4e363bdbd3e1ef2a4492d9e5ee0c79f1627",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-healed-reconvergence.py",
+      "sha256": "65afd61d445b0118d37d27a0d31a98bc07ccc9fe8d942588967b1f788210efd9",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-local-fault-control.py",
+      "sha256": "01ebaaa64a6e62a26dfd425e5b33cea0f36266091e6f4f1590ba5a80f6b9f738",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-provision.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-packet-partition.py",
+      "sha256": "5a2e29e4cfc61d69cc0421551c5e269ad0a2c21ded110fbff71912fc0c350ec8",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-peer-lease-freshness.py",
+      "sha256": "42375329cd1bb2711a94cd9bc4d5ccfc0c6ab8b5497a0f140527049839901a85",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-provision.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-post-restart-origin.py",
+      "sha256": "e4dbe75cbe6784661005dbda0c9ff42e366e20b7673c2eec2530f4e78ef7998a",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-readiness-evidence.py",
+      "sha256": "e4a0d79ddd6499a1173b5f7abe977765c6780836ca4b59954cc8cffd0993a795",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-readiness-parallel.py",
+      "sha256": "ef05552f0e5dad58f4372f64cec6603452a86e7e4062e6cdb06b41820dfe8114",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-readiness-transport.py",
+      "sha256": "e220f6179f21808b3004498b30170ddf9d7d325c56aaf9b2f8f8cf301a66ad09",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-readiness-window.py",
+      "sha256": "09b5623e6443662ca2948278ac4e7bd8531373f041d07faa64abf456acc245f5",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-restart-parallel.py",
+      "sha256": "09f910d7299504be97436b0d843ea57ac28d39476e8d90cd3e7f7276b80c1c3b",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-write-retention.py",
+      "sha256": "426cc2a01e1350d252aea5e6fff13280d15dc664a5f751af004bf191190d2ec0",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-d200-baseline-production-recovery.py",
+      "sha256": "c61c66deb329c4b97b4123027023a800fa490ffd03d8cb0b354206d5f00cf3fb",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "benchmarks/scale/class-d-azure-1000-campaign.sh"
+      ]
+    },
+    {
+      "path": "scripts/patch-d200-recovery-budget.py",
+      "sha256": "0cf544c2854a362c8c72362328ef4dbeba15816a7aa2acad56c65a429d468875",
+      "disposition": "CANONICALIZE_THEN_DELETE",
+      "canonicalTargets": [
+        "network/runtime.js",
+        "benchmarks/scale/class-d-azure-1000-provision.sh"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+import assert from 'node:assert/strict'; import fs from 'node:fs'; import test from 'node:test';
+test('sanitation preserves benchmark evidence byte-for-byte',()=>{const a=JSON.parse(fs.readFileSync('docs/operations/d200/sanitation/evidence-ledger-pre.json','utf8')),b=JSON.parse(fs.readFileSync('docs/operations/d200/sanitation/evidence-ledger-post.json','utf8'));assert.deepEqual(b.entries,a.entries);assert.ok(a.entries.length>0);});

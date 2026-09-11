@@ -34,8 +34,8 @@ test('D-1000 provisioner makes remote install failures actionable and reduces fr
   assert.match(provision, /sha256sum -c/);
   assert.match(provision, /install_stage=runtime-manifest/);
   assert.match(provision, /sourceSha == \\\$sha/);
-  assert.match(provision, /WorkingDirectory=\/opt\/truyqn\/app/);
-  assert.match(provision, /ExecStart=\/opt\/truyqn\/runtime\/bin\/node \/opt\/truyqn\/app\/network\/testnet\/node-service\.js/);
+  assert.match(provision, /WorkingDirectory=\/opt\/truyn\/app/);
+  assert.match(provision, /ExecStart=\/opt\/truyn\/runtime\/bin\/node \/opt\/truyn\/app\/network\/testnet\/node-service\.js/);
   assert.match(provision, /--service-endpoints Microsoft\.Storage/);
   assert.doesNotMatch(provision, /apt-get/);
   assert.doesNotMatch(provision, /deb\.nodesource\.com/);

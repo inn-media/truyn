@@ -68,7 +68,7 @@ export class TruynNetworkNode {
     // Peer-record propagation is control-plane recovery. The complete retry
     // schedule remains comfortably inside the unchanged 120s network recovery
     // contract and never retries an application NEED envelope.
-    this.peerRecordRecoveryRetryDelaysMs = [1_000, 3_000, 10_000, 30_000, 45_000];
+    this.peerRecordRecoveryRetryDelaysMs = [500, 1_500, 5_000, 10_000, 20_000];
     this.peerRecordLifecycle = {
       autoRenew: this.peerRecordAutoRenew,
       ttlMs: this.peerRecordTtlMs,
