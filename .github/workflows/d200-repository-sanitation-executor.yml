@@ -64,6 +64,26 @@ jobs:
           path: /tmp/truyn-sanitation.log
           if-no-files-found: warn
           retention-days: 7
+      - name: Publish safe gate-only failure marker
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          {
+            printf '%s\n' '[CHATGPT_SANITATION_GATE_FAILURE]'
+            printf 'TASK_ID=%s\n' 'truyn-d200-repository-sanitation-2609102033-8f2c'
+            printf 'SHA=%s\n' "$GITHUB_SHA"
+            printf 'RUN_ID=%s\n' "$GITHUB_RUN_ID"
+            if [[ -f /tmp/truyn-sanitation.log ]]; then
+              grep -E '^SANITATION_GATE_(START|PASS)=' /tmp/truyn-sanitation.log | tail -n 80 || true
+              grep -E '^# (tests|pass|fail|cancelled|skipped|todo) ' /tmp/truyn-sanitation.log | tail -n 12 || true
+            else
+              printf 'SANITATION_LOG=missing\n'
+            fi
+          } > /tmp/sanitation-gates.txt
+          gh issue comment 601 --repo inn-media/truyn --body-file /tmp/sanitation-gates.txt
       - name: Commit exact sanitation candidate
         shell: bash
         run: |
