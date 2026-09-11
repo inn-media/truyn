@@ -1,5 +1,5 @@
 # TASK_ID: truyn-d200-repository-sanitation-2609102033-8f2c
-# qualification-marker-scope: final-tail-v9
+# qualification-marker-scope: final-tail-v10
 name: D-200 repository sanitation executor
 
 on:
@@ -133,6 +133,8 @@ jobs:
           test ! -e scripts/sanitation-executor-prep-v7.py
           finalizer_stage=repair-helper-absent
           test ! -e scripts/sanitation-repair-v7.py
+          finalizer_stage=restore-executor-for-transport
+          git restore --source="$GITHUB_SHA" --staged --worktree -- .github/workflows/d200-repository-sanitation-executor.yml
           finalizer_stage=configure-author
           git config user.name 'Iluco Mutcnas'
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
