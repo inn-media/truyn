@@ -20,10 +20,13 @@ s = s.replace("run('empty-sas','2')", "run('empty-sas','4')")
 s = s.replace("s['test']='npm run test:full'", "s['test']='node --test tests/*.test.js'")
 
 needle = '      - run: node sdk/conformance/run-five-language-e2e.mjs\n      - run: sdk/release/build-release.sh\n'
-replacement = '''      - run: node sdk/conformance/run-five-language-e2e.mjs
+replacement = '''      - name: Five-language executable SDK conformance
+        run: node sdk/conformance/run-five-language-e2e.mjs
       - name: Verify SDK release scanner wiring
         run: node --test tests/sdk-release-ci-contract.test.js
       - name: Build and verify SDK release packages
+        env:
+          TRUYN_RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: sdk/release/build-release.sh
       - name: Clean-room import packed TypeScript SDK
         shell: bash
@@ -36,6 +39,13 @@ replacement = '''      - run: node sdk/conformance/run-five-language-e2e.mjs
           npm init --yes >/dev/null
           npm install --ignore-scripts --no-audit --no-fund "$package"
           node --input-type=module -e "import('@truyn/sdk').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.TruynLocalNodeClient !== 'function') throw new Error('TruynLocalNodeClient export missing'); })"
+      - name: Upload SDK release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-sdk-release-${{ github.run_id }}
+          path: sdk/release/dist
+          if-no-files-found: error
+          retention-days: 30
 '''
 if needle not in s:
     raise SystemExit('SDK release CI insertion point missing')
