@@ -106,3 +106,5 @@ Historical issues/PRs/docs remain audit history and do not override later accept
 ## License
 
 Apache License 2.0 (`Apache-2.0`). See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+Operational network-scale status: [docs/operations/NETWORK_SCALE_STATUS.md](docs/operations/NETWORK_SCALE_STATUS.md).

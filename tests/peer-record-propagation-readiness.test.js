@@ -138,6 +138,6 @@ test('production propagation: retry schedule stays bounded below the unchanged 1
   const match = source.match(/peerRecordRecoveryRetryDelaysMs\s*=\s*\[([^\]]+)\]/);
   assert.ok(match, 'peer-record recovery retry schedule must remain explicit');
   const delays = [...match[1].matchAll(/([0-9_]+)/g)].map((entry) => Number(entry[1].replaceAll('_', '')));
-  assert.deepEqual(delays, [1_000, 3_000, 10_000, 30_000, 45_000]);
+  assert.deepEqual(delays, [500, 1_500, 5_000, 10_000, 20_000]);
   assert.ok(delays.reduce((sum, value) => sum + value, 0) + 5_000 < 120_000, 'bounded propagation recovery plus canonical 5s DHT RPC attempt must remain below 120s');
 });

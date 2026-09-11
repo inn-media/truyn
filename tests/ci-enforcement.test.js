@@ -22,6 +22,7 @@ test('CI enforces full-range DCO and release-package verification without regist
   const triggerBlock = workflow.slice(0, permissionsStart);
   const dcoJob = jobBlock(workflow, 'dco');
   const testJob = jobBlock(workflow, 'test');
+  const sdkReleaseJob = jobBlock(workflow, 'sdk-release');
 
   assert.match(triggerBlock, /^  push:\n    branches:\n      - main$/m);
   assert.match(triggerBlock, /^  pull_request: \{\}$/m);
@@ -30,8 +31,8 @@ test('CI enforces full-range DCO and release-package verification without regist
 
   assert.match(dcoJob, /^    name: DCO$/m);
   assert.match(dcoJob, /^    if: github\.event_name == 'pull_request'$/m);
-  assert.match(dcoJob, /DCO_BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/);
-  assert.match(dcoJob, /DCO_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
+  assert.match(dcoJob, /DCO_BASE_SHA: ['"]?\$\{\{ github\.event\.pull_request\.base\.sha \}\}['"]?/);
+  assert.match(dcoJob, /DCO_HEAD_SHA: ['"]?\$\{\{ github\.event\.pull_request\.head\.sha \}\}['"]?/);
   assert.match(dcoJob, /node scripts\/check-dco\.mjs "\$DCO_BASE_SHA" "\$DCO_HEAD_SHA"/);
   assert.doesNotMatch(dcoJob, /github\.event\.before/);
   assert.doesNotMatch(dcoJob, /github\.sha/);
@@ -41,11 +42,16 @@ test('CI enforces full-range DCO and release-package verification without regist
   assert.doesNotMatch(dcoJob, /\$\{DCO_HEAD_SHA\}\^/);
 
   assert.match(testJob, /^    name: test$/m);
-  assert.doesNotMatch(testJob, /^    if:/m, 'test must run for both configured events');
+  assert.match(testJob, /^    if: always\(\)$/m, 'test aggregator must evaluate all parallel lane results');
+  assert.match(testJob, /^    needs: \[mandatory, regression, component, integration, network, sdk-release, full-qualification\]$/m);
+  assert.match(testJob, /\.mandatory\.result == "success"/, 'mandatory fail-closed lane must be required');
   assert.doesNotMatch(testJob, /scripts\/check-dco\.mjs/);
-  assert.match(testJob, /Five-language executable SDK conformance/);
-  assert.match(testJob, /Build and verify SDK release packages/);
-  assert.match(testJob, /Upload SDK release bundle/);
+  assert.match(sdkReleaseJob, /Five-language executable SDK conformance/);
+  assert.match(sdkReleaseJob, /Build and verify SDK release packages/);
+  assert.match(sdkReleaseJob, /Verify SDK release scanner wiring/);
+  assert.match(sdkReleaseJob, /TRUYN_RELEASE_SOURCE_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+  assert.match(sdkReleaseJob, /Clean-room import packed TypeScript SDK/);
+  assert.match(sdkReleaseJob, /Upload SDK release bundle/);
 
   assert.doesNotMatch(workflow, /^  publish-(?:npm|pypi|nuget|maven):/m);
   assert.doesNotMatch(workflow, /npm publish/);

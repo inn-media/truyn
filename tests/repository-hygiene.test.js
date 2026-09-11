@@ -1,0 +1,3 @@
+import assert from 'node:assert/strict'; import {spawnSync} from 'node:child_process'; import test from 'node:test'; import {violationsForPaths} from '../scripts/check-repository-hygiene.mjs';
+test('live repository hygiene passes',()=>{const r=spawnSync(process.execPath,['scripts/check-repository-hygiene.mjs'],{encoding:'utf8'});assert.equal(r.status,0,r.stderr||r.stdout);});
+test('hygiene rejects temporary, obsolete, duplicate and reject artifacts',()=>{const v=violationsForPaths(['.github/PULL_REQUEST_TEMPLATE.md','.github/pull_request_template.md','.github/workflows/diag-d200-old.yml','_tmp_parts/x','foo.rej']);assert.ok(v.length>=4);});

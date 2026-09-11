@@ -65,3 +65,5 @@ Current governance is G1 public-process/bootstrap Founding Stewardship. Neutral-
 ## Status update discipline
 
 A material accepted subsystem change should update current-status prose in the same release window. Open PRs remain candidates; merged repository/runtime support must not be overstated as live production evidence; historical benchmark/changelog/acceptance records remain audit history.
+
+Operational network-scale status: [../operations/NETWORK_SCALE_STATUS.md](../operations/NETWORK_SCALE_STATUS.md).
