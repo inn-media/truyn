@@ -90,17 +90,48 @@ jobs:
           gh issue comment 601 --repo inn-media/truyn --body-file /tmp/sanitation-gates.txt
       - name: Commit exact sanitation candidate
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
+          finalizer_stage=init
+          report_finalizer_failure() {
+            rc=$?
+            {
+              printf '%s\n' '[CHATGPT_SANITATION_FINALIZER_FAILURE]'
+              printf 'TASK_ID=%s\n' 'truyn-d200-repository-sanitation-2609102033-8f2c'
+              printf 'SHA=%s\n' "$GITHUB_SHA"
+              printf 'RUN_ID=%s\n' "$GITHUB_RUN_ID"
+              printf 'FINALIZER_STAGE=%s\n' "$finalizer_stage"
+              printf 'EXIT_CODE=%s\n' "$rc"
+              printf 'CANDIDATE_STATUS_BEGIN\n'
+              git status --short | head -n 80 || true
+              printf 'CANDIDATE_STATUS_END\n'
+            } > /tmp/sanitation-finalizer.txt
+            gh issue comment 601 --repo inn-media/truyn --body-file /tmp/sanitation-finalizer.txt || true
+            exit "$rc"
+          }
+          trap report_finalizer_failure ERR
+          finalizer_stage=clean-ignored
           git clean -fdX
+          finalizer_stage=stage-candidate
           git add -A
+          finalizer_stage=diff-check
           git diff --cached --check
+          finalizer_stage=executor-absent
           test ! -e .github/workflows/d200-repository-sanitation-executor.yml
+          finalizer_stage=apply-helper-absent
           test ! -e scripts/apply-d200-repository-sanitation.sh
+          finalizer_stage=prep-helper-absent
           test ! -e scripts/sanitation-executor-prep-v7.py
+          finalizer_stage=repair-helper-absent
           test ! -e scripts/sanitation-repair-v7.py
+          finalizer_stage=configure-author
           git config user.name 'Iluco Mutcnas'
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          finalizer_stage=commit-candidate
           git commit -m 'refactor(d200): sanitize repository execution surface' -m 'TASK_ID=truyn-d200-repository-sanitation-2609102033-8f2c' -m 'Materialize accepted D-200 behavior into canonical maintained source, preserve permanent regressions/evidence, remove obsolete patchers and launchers, and introduce parallel fail-closed verification without launching D-200.' -m 'Signed-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
+          finalizer_stage=push-candidate
           git push origin HEAD:automation/d200-repository-sanitation-260910
+          finalizer_stage=complete
           printf 'TRUYN_SANITATION_CANDIDATE_SHA=%s\n' "$(git rev-parse HEAD)"
