@@ -19,7 +19,45 @@ for i, line in enumerate(lines):
         head_hits += 1
 if base_hits != 1 or head_hits != 1:
     raise SystemExit(f'CI DCO exact-SHA assertion reconciliation mismatch base={base_hits} head={head_hits}')
-ci_test.write_text('\n'.join(lines) + '\n')
+text = '\n'.join(lines) + '\n'
+
+# The sanitation CI intentionally replaces the legacy monolithic test job with
+# fail-closed parallel lanes plus an always-running aggregate job. Preserve the
+# old DCO/release guarantees at their new canonical locations rather than
+# weakening or deleting them.
+test_decl = "  const testJob = jobBlock(workflow, 'test');\n"
+if text.count(test_decl) != 1:
+    raise SystemExit(f'CI test aggregator declaration count={text.count(test_decl)}')
+text = text.replace(
+    test_decl,
+    test_decl + "  const sdkReleaseJob = jobBlock(workflow, 'sdk-release');\n",
+    1,
+)
+legacy_if = "  assert.doesNotMatch(testJob, /^    if:/m, 'test must run for both configured events');\n"
+parallel_if = '''  assert.match(testJob, /^    if: always\\(\\)$/m, 'test aggregator must evaluate all parallel lane results');
+  assert.match(testJob, /^    needs: \\[mandatory, regression, component, integration, network, sdk-release, full-qualification\\]$/m);
+  assert.match(testJob, /\\.mandatory\\.result == "success"/, 'mandatory fail-closed lane must be required');
+'''
+if text.count(legacy_if) != 1:
+    raise SystemExit(f'legacy monolithic test-job assertion count={text.count(legacy_if)}')
+text = text.replace(legacy_if, parallel_if, 1)
+for old, new in (
+    ('  assert.match(testJob, /Five-language executable SDK conformance/);\n', '  assert.match(sdkReleaseJob, /Five-language executable SDK conformance/);\n'),
+    ('  assert.match(testJob, /Build and verify SDK release packages/);\n', '  assert.match(sdkReleaseJob, /Build and verify SDK release packages/);\n'),
+    ('  assert.match(testJob, /Upload SDK release bundle/);\n', '  assert.match(sdkReleaseJob, /Upload SDK release bundle/);\n'),
+):
+    if text.count(old) != 1:
+        raise SystemExit(f'legacy SDK release CI assertion count={text.count(old)} for {old.strip()}')
+    text = text.replace(old, new, 1)
+release_anchor = '  assert.match(sdkReleaseJob, /Build and verify SDK release packages/);\n'
+release_guards = '''  assert.match(sdkReleaseJob, /Verify SDK release scanner wiring/);
+  assert.match(sdkReleaseJob, /TRUYN_RELEASE_SOURCE_SHA: \\$\\{\\{ github\\.event\\.pull_request\\.head\\.sha \\|\\| github\\.sha \\}\\}/);
+  assert.match(sdkReleaseJob, /Clean-room import packed TypeScript SDK/);
+'''
+if text.count(release_anchor) != 1:
+    raise SystemExit('SDK release assertion anchor missing')
+text = text.replace(release_anchor, release_anchor + release_guards, 1)
+ci_test.write_text(text)
 
 bootstrap = Path('tests/class-d-1000-bootstrap.test.js')
 text = bootstrap.read_text()
