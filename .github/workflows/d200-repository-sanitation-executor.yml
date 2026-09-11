@@ -1,5 +1,5 @@
 # TASK_ID: truyn-d200-repository-sanitation-2609102033-8f2c
-# qualification-marker-scope: final-tail-v8
+# qualification-marker-scope: final-tail-v9
 name: D-200 repository sanitation executor
 
 on:
@@ -119,6 +119,8 @@ jobs:
           trap report_finalizer_failure ERR
           finalizer_stage=clean-ignored
           git clean -fdX
+          finalizer_stage=clean-dotnet-generated
+          git clean -fd -- sdk/dotnet/obj sdk/dotnet/conformance/obj
           finalizer_stage=stage-candidate
           git add -A
           finalizer_stage=diff-check
