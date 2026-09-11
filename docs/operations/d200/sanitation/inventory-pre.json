@@ -1,0 +1,3922 @@
+{
+  "taskId": "truyn-d200-repository-sanitation-2609102033-8f2c",
+  "baseSha": "bae2a3ac4776bc4c89bdb53eb835d6b9d49cab37",
+  "files": [
+    {
+      "path": ".github/CODEOWNERS",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/PULL_REQUEST_TEMPLATE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "classification": "DELETE"
+    },
+    {
+      "path": ".github/workflows/.gitkeep",
+      "classification": "DELETE"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/workflows/d200-repository-sanitation-executor.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/workflows/diag-d200-850fff25-qualified.yml",
+      "classification": "DELETE"
+    },
+    {
+      "path": ".github/workflows/diag-d200-aa43e0e4-readiness-collection.yml",
+      "classification": "DELETE"
+    },
+    {
+      "path": ".github/workflows/diag-d200-b0da2963-route-repair.yml",
+      "classification": "DELETE"
+    },
+    {
+      "path": ".github/workflows/production-authority-image.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/workflows/production-authority-source-discovery.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/workflows/production-dr-foundation.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/workflows/production-logs-retention.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/workflows/production-metrics-backend.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/workflows/production-metrics-collector.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/workflows/production-monitor-provider-registration.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/workflows/production-telemetry-redaction.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/workflows/production-trace-backend.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".github/workflows/publish-npm.yml",
+      "classification": "KEEP"
+    },
+    {
+      "path": ".gitignore",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "DCO",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "Dockerfile",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "GOVERNANCE.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "LICENSE",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "MAINTAINERS.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "MANIFESTO.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "NOTICE",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "ROADMAP.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "SECURITY.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "STRUCTURE.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "VERSION",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "WHITEPAPER.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "_tmp_parts/p00",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/p00a",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/p00b",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/p00c",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/p00d",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/p01",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/p02",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/p03",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/p04",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/p05",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/p06",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/p07",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_parts/trigger",
+      "classification": "DELETE"
+    },
+    {
+      "path": "_tmp_public_site/assets/css/styles.css",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "_tmp_public_site/assets/js/app.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "_tmp_public_site/assets/js/translations.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "_tmp_public_site/index.html",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "_tmp_site.zip.b64",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/a2a/artifact-integrity.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/a2a/client.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/a2a/lifecycle-client.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/a2a/mapping.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/a2a/push-notification-store.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/a2a/server.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/a2a/task-store.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/amazon-q/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/anthropic/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/autogen/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/cohere/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/compatibility/a2a-mcp.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/crewai/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/cursor/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/deepseek/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/gemini/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/github-copilot/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/grok/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/grpc/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/http/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/http/server.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/langgraph/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/llama-cpp/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/llama/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/apps-metadata.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/apps-resource.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/capabilities.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/client.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/http-headers.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/prompt-runtime.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/prompt-selection.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/prompts-client.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/resource-runtime.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/resources-client.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mcp/server.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/microsoft/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/mistral/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/nvidia/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/ollama/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/openai/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/perplexity/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/a2a-discovery.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/anthropic.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/azure-flux.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/azure-foundry.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/azure-openai-image.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/azure-openai-video.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/azure-openai.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/common/artifacts.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/common/azure-auth.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/common/azure-blob-artifact-store.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/common/gcs-artifact-store.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/common/google-auth.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/custom-http.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/index.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/mcp-discovery.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/mcp-http-tool.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/openai.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/vertex-embedding.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/vertex-gemini.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/vertex-image.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/providers/vertex-veo.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/qwen/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/sdk/index.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/semantic-kernel/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/vllm/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/websocket/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "adapters/windsurf/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/bandwidth/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/claim-trustability-v1.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/distributed-semantic-retrieval.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/inference-cost/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/latency/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/mvp-handoff.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/scale/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-c-relay-client.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d-1000-bootstrap.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d-1000-evidence.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d-1000-partial-evidence-from-log.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d-1000-placement.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d-1000-remote-dht-probe.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d-1000-safety-probes.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d-azure-100-campaign.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d-azure-100-provision.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d-azure-1000-campaign.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d-azure-1000-provision.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d-evidence.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/class-d.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/evaluate-class-d-1000-evidence.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/evaluate-class-d-evidence.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/randomized-adversarial.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/render-class-d-100-report.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/render-class-d-1000-report.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/verify-class-d-1000-terminal.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/scale/verify-class-d-terminal.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "benchmarks/semantic-concurrent-load.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/semantic-scale-v3.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/semantic-v2-stability-full.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/throughput/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/tokens/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/trust-network-v2.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "benchmarks/trust/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "bootstrap/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "bootstrap/discovery/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "bootstrap/nodes/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "bootstrap/testnet/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "bootstrap/testnet/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "cli/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "cli/byok-profile.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "cli/index.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "cli/truyn/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "compute/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "compute/executor/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "compute/placement/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "compute/policies/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "compute/sandbox/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "config/README.md",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "config/defaults/truyn.toml",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "config/local/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "config/local/truyn.toml",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "config/mainnet/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "config/testnet/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "config/testnet/truyn.toml",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "core/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/capability/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/claims/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/claims/index.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/context/byzantine-retrieval.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/context/confidence-gated-semantic-reranker.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/context/distributed-retrieval.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/context/index.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/context/production-semantic-index.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/context/provider-semantic-projector.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/context/provider-semantic-reranker.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/context/semantic-index-store.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/context/semantic-router-v2.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/context/sharded-semantic-index-store.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/context/singleflight-semantic-router.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/crypto/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/identity/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/identity/index.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/intent/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/network/placement-discovery.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/object/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/policy/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/protocol/index.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/provenance/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/provenance/index.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/routing/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/account-tenant-authority.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/accounted-execution.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/cosmos-authority-checkpoint.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/durable-account-tenant-authority.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/durable-accounting-authority.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/durable-json-store.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/entitlement-authority.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/managed-production-authority.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/node-backchannel.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/production-control-plane-snapshot.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/production-control-plane.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/production-revocation-authority.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/provider-access.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/provider-billing.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/provider-grant-authority.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/relay-provider-policy.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/security/sponsored-entitlement.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/state/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/trust/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/trust/claim-verification.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/trust/index.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/trust/lifecycle.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/trust/network.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/trust/receipt-v2.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/trust/source-owner-pki.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "core/trust/transparency-log.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "docs/.nojekyll",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/A2A_MCP_INTEROPERABILITY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/ACCOUNT_TENANT_AUTHORITY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/ARCHITECTURE_CONTRACT.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/AUTHORIZATION_MODEL.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/BILLING_BOUNDARY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/BYOK_ARCHITECTURE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/DECENTRALIZED_PLACEMENT_BYZANTINE_RETRIEVAL.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/DISTRIBUTED_SEMANTIC_RETRIEVAL.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/GOVERNANCE_ARCHITECTURE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/IMPLEMENTATION_STATUS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/KADEMLIA_QUIC_TRUST_TESTNET.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/MULTI_CLOUD_PROVIDER_ARCHITECTURE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/NETWORK_PRODUCTIONIZATION_GATE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/NETWORK_UNDERLAY_V01.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/PRODUCTION_AUTHORITY_CONTROL_PLANE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/PROVIDER_OWNERSHIP.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/PUBLIC_EDGE_DOMAINS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/PUBLIC_PRIVATE_BOUNDARY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/RELAY_SECURITY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/SDK_DEVELOPER_EXPERIENCE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/SEMANTIC_INDEX_LIFECYCLE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/SEMANTIC_SCALE_GATE_V3.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/SETTLEMENT_ADAPTERS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/architecture/THREAT_MODEL.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/CLAIM_TRUSTABILITY_V1_2026-08-16.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/CLASS_C_HETEROGENEOUS_WAN_2026-08-18.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/CLASS_D_100_2026-08-22.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/CLASS_D_100_ATTEMPT_2026-08-17.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/CONTEXT_EFFICIENCY_2026-08-15.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/CROSS_CLOUD_8X_OPTIMIZATION_2026-08-15.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/CROSS_CLOUD_AB_2026-08-15.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/DISTRIBUTED_SEMANTIC_RETRIEVAL_2026-08-16.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/KADEMLIA_QUIC_TRUST_TESTNET_2026-08-17.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/MAIN_SECURITY_GREEN_2026-08-23.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/MAIN_SECURITY_GREEN_2026-08-24.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/MULTIMODAL_PROVIDER_PARITY.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/NETWORK_PRODUCTIONIZATION_AZURE_4HOST_2026-08-17.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/README.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_CONCURRENT_LOAD_2026-08-16.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_INDEX_LIFECYCLE_2026-08-16.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_RETRIEVAL_GATE_2026-08-15.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_RETRIEVAL_MULTI_ACTOR_2026-08-15.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_RETRIEVAL_V2_CONFIDENCE_GATE_2026-08-16.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_SCALE_GATE_V3_2026-08-16.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/TRUST_NETWORK_V2_2026-08-16.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/V01_CONNECT_GATE_2026-08-17.md",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-bge-aligned-facet-coverage-hard-run-31929311063.json",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-bge-hard-pairs-run-31945516473.json",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-bge-reranker-v2-m3-hard-pairs-run-31929161785.json",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-cohere-rerank-v4-fast-hard-pairs-run-31928683728.json",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-cohere-rerank-v4-pro-capacity1-run-31928786924.json",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-cohere-rerank-v4-pro-capacity500-run-31928914133.json",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-dual-compiler-hard-pairs-run-31929634022.json",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-evidence-backed-facet-diagnostic-run-31927531010.json",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/benchmarks/semantic-v2-qwen3-reranker-0.6b-hard-run-31929412830.json",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "docs/compatibility/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_C5_ASYNC_TASK_LIFECYCLE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_C6_ARTIFACT_INTEGRITY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_MCP_C7_BIDIRECTIONAL_BRIDGE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_MCP_C8_SECURITY_EVIDENCE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_MCP_C8_SECURITY_MATRIX.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_MCP_COMPATIBILITY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_MCP_EXTERNAL_ARTIFACT_BLACK_BOX.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_MCP_INDEPENDENT_A2A_BLACK_BOX.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_MCP_INDEPENDENT_MCP_BLACK_BOX.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_MCP_STABILITY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/A2A_P3_A1_LIFECYCLE_PROFILE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/ADAPTER_COMPATIBILITY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/MCP_APPS_EXTENSION_SEMANTICS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/MCP_APPS_P3_M3_EVIDENCE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/MCP_APPS_UPSTREAM_PIN.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/MCP_GENERAL_RESOURCE_SEMANTICS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/MCP_PROMPT_SEMANTICS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/MCP_STABLE_V1_INTEROPERABILITY_MATRIX.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/PROTOCOL_AND_NODE_COMPATIBILITY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/SDK_COMPATIBILITY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/compatibility/SDK_PACKAGING.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/concepts/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/concepts/CAPABILITY_ECONOMY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/decisions/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/decisions/0001-truyn1-primitives.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/decisions/0002-network-modes.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/decisions/0003-versioning.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/developer-site/DEPLOYMENT.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/developer-site/index.html",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/getting-started/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/getting-started/BYOK.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/getting-started/DX3_SDK.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/getting-started/MVP_AI_INTEROP.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/getting-started/MVP_QUICKSTART.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/getting-started/NODE_LIFECYCLE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/getting-started/SDK_QUICKSTART.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/governance/CONTRIBUTION_IP_POLICY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/governance/DECISION_PROCESS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/governance/DECISION_RECORD_TEMPLATE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/governance/EXTENSIONS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/governance/EXTENSION_REGISTRY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/governance/EXTENSION_TEMPLATE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/governance/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/governance/RFC_PROCESS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/governance/RFC_TEMPLATE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/governance/decisions/2026-08-23-mandatory-dco-1.1.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/index.html",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/ALERTING.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/BILLING_OPERATIONS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/MANAGED_AUTHORITY_RUNTIME.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/NODE_OPERATIONS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/OBSERVABILITY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/ON_CALL.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/PRODUCTION_PERSISTENCE_DR.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/PRODUCTION_SLO.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/RECOVERY_DR.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/ROTATION_LIFECYCLE.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/operations/TESTNET_OPERATIONS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/security/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/security/OPERATIONAL_SECURITY.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/security/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/security/SECURITY_ARCHITECTURE_STATUS.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/trustability/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/trustability/ACTIVE_TRUST_LIFECYCLE_V2.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/trustability/CLAIM_TRUSTABILITY_V1.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "docs/trustability/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "economics/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/ai-mvp-demo.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/codex-claude/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/gemini-llama/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/live-ai-demo.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/local-network/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/mvp-demo.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/sdk/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/sdk/hello-need-result.ts",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/sdk/hello_need_result.py",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/trust-verification/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/two-agents/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/two-nodes/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "examples/weather/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "gateways/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "gateways/http/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "gateways/legacy/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "gateways/rest/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "gateways/webhook/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "infra/production-dr/foundation.bicep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "infra/production-observability/logs-retention.bicep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "infra/production-observability/metrics-backend.bicep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "infra/production-observability/metrics-collector.bicep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "infra/production-tracing/tempo/Dockerfile",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "infra/production-tracing/tempo/overrides.yaml",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "infra/production-tracing/tempo/tempo.yaml",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "infra/production-tracing/trace-backend.bicep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "infra/production-tracing/trace-retention-probe.py",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "installers/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "installers/docker/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "installers/linux/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "installers/macos/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "installers/uninstall/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "installers/windows/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "migrations/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "migrations/config/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "migrations/protocol/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "migrations/storage/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "network/README.md",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/admission/bounded-queue.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/admission/durable-inbox.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/cache/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/dht/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/dht/kademlia.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/discovery/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/discovery/peer-discovery.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/discovery/quic-rpc.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/discovery/verifier-dht.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/faults/controller.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/nat/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/nat/hole-punch.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/nat/stun.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/pubsub/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/relay/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/relay/server.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/replication/dht-replication.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/replication/transparency-replication.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/runtime.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/sessions/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/sessions/authenticated-session.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/state/persistent-state.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/testnet/node-service.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/testnet/operator.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/testnet/relay-service.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/transport/.gitkeep",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/transport/http-relay.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/transport/json-stream.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/transport/p2p.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/transport/quic-kademlia.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "network/transport/quic.js",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "node/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/active-trust-network.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/client.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/config/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/distributed-context.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/federated-context.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/health/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/index.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/placement-directory.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/revoke.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/runtime/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/scheduler/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/semantic-client.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/service/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/storage/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/telemetry/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "node/trust-verification.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/alert-signals.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/bootstrap.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/grafana/dashboards/authorization.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/grafana/dashboards/billing-entitlement.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/grafana/dashboards/external-a2a-mcp.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/grafana/dashboards/infrastructure.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/grafana/dashboards/network-dht.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/grafana/dashboards/provider-runtimes.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/grafana/dashboards/relay.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/grafana/dashboards/semantic-retrieval.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/plane.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/prometheus/error-budget-rules.yml",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "observability/prometheus/slo-alerts.yml",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "operations/on-call.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "operations/production-logs-retention.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "operations/production-metrics-backend.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "operations/production-metrics-collector.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "operations/production-telemetry-redaction.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "operations/production-trace-backend.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "operations/production-trace-export.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "operations/recovery-dr.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "operations/rotation-lifecycle.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "package.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "packaging/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "packaging/checksums/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "packaging/deb/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "packaging/docker/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "packaging/homebrew/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "packaging/rpm/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "packaging/winget/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/attest.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/capability.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/claim.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/common.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/compute.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/delta.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/envelope.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/identity.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/need.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/object.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/offer.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/result.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/revoke.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/state.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/subscribe.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/trust.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v1/trust_receipt.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v2/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "proto/v2/trust_receipt.proto",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/agent-descriptor.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/authority-client.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/authority-service.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/backchannel-config.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/billing-config.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/cloudflare-origin-proxy.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/managed-billing-policy.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/origin-guard-contract.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/origin-guard.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/owner-provider-lock.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/production.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/provider-backchannel-guard.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/provider-node.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/relay-authority-runtime.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/relay-readiness.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/relay-security-config.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/security-config.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/service.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "runtime/trace-export-canary.js",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "scripts/README.md",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/apply-d200-repository-sanitation.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/assert-security-clean-tested-commit.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/benchmark.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/build-class-d-1000-runtime-bundle.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/check-dco.mjs",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-c-final-acceptance-resilient.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-c-final-acceptance.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-100-accepted-entrypoint.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-100-final-acceptance.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-100-v10-acceptance.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-100-v11-acceptance.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-100-v12-acceptance.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-100-v13-acceptance.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-100-v7-acceptance.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-100-v8-acceptance.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-100-v9-acceptance.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-1000-final-acceptance.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-1000-normalize-artifact-digest.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-1000-strict-acceptance.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-1000-vm-smoke-preflight.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/class-d-200-preflight-qualification.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/dev.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/install.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/lib/class-d-run-command.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/lib/sha256-digest.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-bandwidth-meter-parallel.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-baseline-origin.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-baseline-parallel.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-bootstrap-parallel.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-bootstrap-timeout.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-composed-heal-evidence.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-failure-evidence.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-healed-evidence-transport.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-healed-origin.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-healed-reconvergence.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-local-fault-control.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-packet-partition.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-peer-lease-freshness.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-post-restart-origin.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-readiness-evidence.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-readiness-parallel.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-readiness-transport.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-readiness-window.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-restart-parallel.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-class-d-diagnostic-write-retention.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-d200-baseline-production-recovery.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/patch-d200-recovery-budget.py",
+      "classification": "CANONICALIZE_THEN_DELETE"
+    },
+    {
+      "path": "scripts/release.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/sanitation-executor-prep-v7.py",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/sanitation-repair-v7.py",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/summarize-class-d200-healed-origin.py",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/test.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/uninstall.sh",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "scripts/validate-d200-tested-source-dco.mjs",
+      "classification": "CANONICAL"
+    },
+    {
+      "path": "sdk/LICENSE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/NOTICE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/conformance/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/conformance/languages.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/conformance/reference/agent-descriptor.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/conformance/run-conformance.mjs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/conformance/run-five-language-e2e.mjs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/conformance/v1/agent-descriptor-runtime-fixtures.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/conformance/v1/golden-fixtures.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/conformance/v1/local-node-e2e.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/conformance/v1/sdk-contract.schema.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/dotnet/AgentDescriptors.cs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/dotnet/Client.cs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/dotnet/Crypto.cs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/dotnet/LICENSE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/dotnet/Models.cs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/dotnet/NOTICE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/dotnet/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/dotnet/Truyn.Sdk.csproj",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/dotnet/TruynException.cs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/dotnet/conformance/Program.cs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/dotnet/conformance/Truyn.Sdk.Conformance.csproj",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/go/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/go/LICENSE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/go/NOTICE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/go/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/go/descriptor.go",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/go/go.mod",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/go/truyn.go",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/go/truyn_test.go",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/java/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/java/pom.xml",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/java/src/main/java/org/truyn/sdk/AgentDescriptors.java",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/java/src/main/java/org/truyn/sdk/Json.java",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/java/src/main/java/org/truyn/sdk/TruynClient.java",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/java/src/main/java/org/truyn/sdk/TruynException.java",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/java/src/main/java/org/truyn/sdk/TruynModels.java",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/java/src/main/resources/META-INF/LICENSE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/java/src/main/resources/META-INF/NOTICE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/java/src/test/java/org/truyn/sdk/ConformanceMain.java",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/LICENSE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/NOTICE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/pyproject.toml",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/src/truyn/__init__.py",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/src/truyn/client.py",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/src/truyn/descriptor.py",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/src/truyn/errors.py",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/src/truyn/local_node.py",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/src/truyn/stable_api.py",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/tests/local_node_e2e.py",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/tests/release_conformance.py",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/python/tests/test_core.py",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/release/PUBLISHING.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/release/build-release.sh",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/release/evidence/developer-release-closure-baseline-2026-09-08.json",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "sdk/release/evidence/npm-alpha2-2026-09-05.json",
+      "classification": "EVIDENCE_KEEP"
+    },
+    {
+      "path": "sdk/release/go-alpha-release.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/release/npm-alpha-bootstrap.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/release/public-coordinates.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/release/pypi-alpha-bootstrap.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/release/safe-extract.py",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/release/verify-release.mjs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/release/version.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/release/write-manifest.mjs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/rust/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/rust/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/LICENSE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/NOTICE",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/package.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/src/client.ts",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/src/descriptor.ts",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/src/errors.ts",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/src/index.ts",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/src/local-node.ts",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/src/stable-api.ts",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/src/types.ts",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/test/core.test.ts",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/test/dx3.test.ts",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/test/local-node-e2e.test.ts",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/test/release-conformance.ts",
+      "classification": "KEEP"
+    },
+    {
+      "path": "sdk/typescript/tsconfig.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "simulations/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "simulations/network-failure/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "simulations/nodes-10/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "simulations/nodes-100/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "simulations/nodes-1000/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "simulations/sybil/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "simulations/trust-scale/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/LICENSE",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/NOTICE",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/compatibility/matrix.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/compatibility/mcp-stable-v1.json",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/compatibility/migration-v1-v2.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/agent-descriptor.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/attest.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/capability.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/claim.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/compute.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/core.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/delta.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/discovery.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/economics.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/identity.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/need.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/object.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/offer.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/provider-policy.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/result.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/revoke.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/routing.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/security.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/state.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/subscribe.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/trust-receipt.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/trustability.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v1/verification.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/protocol/v2/trust-receipt.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/schemas/v1/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "spec/schemas/v2/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "storage/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "storage/cache/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "storage/claims/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "storage/identity/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "storage/migrations/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "storage/objects/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "storage/state/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "tests/README.md",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-artifact-integrity-final-bounds.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-artifact-integrity-hardening.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-artifact-integrity.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-async-integration.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-async-lifecycle.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-discovery-import.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-lifecycle-official-sdk.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-lifecycle-profile.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-lifecycle-security-matrix.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-lifecycle-server-negatives.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-mcp-compatibility-promise.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-mcp-p2-documentation-status.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-relay-authorized-visibility.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-server.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-streaming-disconnect.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-streaming-ordering.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-subscribe-happy-path.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/a2a-wrong-provider-result-c8.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/account-tenant-authority.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/account-tenant-cascade.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/accounted-execution.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/active-trust-network.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/adapters.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/adversarial/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/alerting.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/azure-flux-provider.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/benchmark-evidence.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/byok-cli.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/byok-custom-mcp-cli.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/byok-custom-mcp.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/byok-custom-providers.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/byok-file-permissions.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/byok-network-gate.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/byok-private-provider.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/c8-review-hardening.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/ci-enforcement.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/claim-trustability.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/class-c-cli-resilience.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/class-d-1000-bootstrap.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-1000-diagnostic-sizing.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-1000-evidence.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-1000-fail-evidence.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-1000-hermetic-bootstrap.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-1000-partial-evidence.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-1000-placement.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-1000-remote-manifest-heredoc.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-1000-run-command-boundary.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-1000-safety-probes.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-1000-simultaneous-convergence.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-1000-terminal-verifier.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-200-preflight-qualification.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-accepted-entrypoint-regression.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-attempt-evidence.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-canonical-pin-regression.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-bandwidth-meter-parallel.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-baseline-origin.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-baseline-parallel.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-bootstrap-parallel.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-bootstrap-timeout.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-composed-heal-evidence.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-failure-evidence.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-healed-evidence-transport.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-healed-origin.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-healed-reconvergence.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-local-fault-control.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-packet-partition.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-peer-lease-freshness.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-post-restart-origin.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-readiness-evidence.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-readiness-parallel.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-readiness-transport.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-readiness-window.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-diagnostic-restart-parallel.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-evidence.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-run-command-regression.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-scale.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-shell-harness.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-terminal-verifier.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-v11-harness.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-v12-harness.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d-v13-harness.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/class-d200-healed-origin-summary.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/cloud-providers.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/cloudflare-origin-proxy.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/compute/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/confidence-gated-semantic-reranker-stability.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/confidence-gated-semantic-reranker-tiers.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/confidence-gated-semantic-reranker.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/context.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/d200-baseline-production-recovery.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/d200-peer-propagation-readiness-barrier.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/d200-recovery-budget.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/d200-route-repair-acceptance-invariants.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/d200-tested-source-dco.test.js",
+      "classification": "REGRESSION"
+    },
+    {
+      "path": "tests/dco.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/decentralized-placement.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dht-readiness-testnet-endpoint.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dht-refresh-testnet-endpoint.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dht-replication-keyspace.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/distributed-context.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/durable-inbox-productionization.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dx3-bounded-shutdown.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dx3-cancellation-final-blockers.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dx3-final-lifecycle.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dx3-reconnect-backpressure.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dx3-revoke-api.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dx3-runtime-hardening.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dx3-runtime-lifecycle.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dx3-runtime-ordering.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/dx3-runtime-review-hardening.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/fixtures/official-a2a-sdk-artifact-server.mjs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/fixtures/official-a2a-sdk-server.mjs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/fixtures/official-mcp-sdk-artifact-server.mjs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/fixtures/official-mcp-sdk-prompt-server.mjs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/fixtures/official-mcp-sdk-resource-server.mjs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/fixtures/official-mcp-sdk-server.mjs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/fixtures/pinned-ext-apps-v2-server.mjs",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/fixtures/pinned-ext-apps-v2.provenance.json",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/integration/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/interoperability-bidirectional.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/interoperability-external-artifact-fixture-contract.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/interoperability-external-artifact.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/interoperability-independent-a2a.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/interoperability-independent-mcp.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/interoperability-security-matrix.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/interoperability/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/kademlia-quic-testnet.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/license.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/managed-authority-readiness-regressions.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/managed-authority-runtime.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/managed-provider-accounting.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-black-box-pinned.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-capability.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-cross-provider-isolation.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-metadata.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-negative-matrix-a.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-negative-matrix-b.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-negative-matrix-c.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-no-apps-fallback.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-optional-fallback.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-required-fail-closed.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-resource-bounds.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-tool-result-linkage.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-ui-mime.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-ui-resolution.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-untrusted-ui.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-upstream-fixture.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-version-matrix.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-apps-visibility.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-current.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-discovery-import.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-general-resources-compatibility.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-general-resources-official.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-general-resources-security.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-general-resources.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-prompts-arguments.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-prompts-compatibility.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-prompts-official.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-prompts-security.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-prompts.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mcp-stable-v1-promotion.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/media-providers.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/multicloud-provider-core.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/mvp.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/network-admission-productionization.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/network-claim-trustability.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/network-connect-v01.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/network-durability-productionization.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/network-fault-productionization.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/network-relay-productionization.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/network-runtime-v01.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/network/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/node-backchannel.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/npm-trusted-publishing-workflow.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/observability-bootstrap.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/observability.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/on-call.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/origin-guard.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/owner-provider-lock.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/p2p-connection-lifecycle.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/peer-discovery-periodic-refresh.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/peer-discovery-refresh.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/peer-discovery-walk.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/peer-record-expired-recovery-hints.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/peer-record-kademlia-renewal-placement.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/peer-record-propagation-readiness.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/peer-record-renewal-productionization.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/peer-record-restart-propagation-readiness.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/placement-directory-network.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-authority-control-plane.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-authority-correctness-regressions.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-authority-image.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-authority-source-discovery.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-dr-foundation.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-logs-retention-foundation.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-logs-retention.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-metrics-backend.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-metrics-collector.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-monitor-provider-registration.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-telemetry-redaction.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/production-trace-backend.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/provider-access.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/provider-backchannel-guard.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/provider-billing.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/provider-node-backchannel.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/public-repository.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/quic-replication-rpc.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/quic-rpc-connect-coalescing.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/quic-rpc-connection-lifecycle.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/quic-session-binding-productionization.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/quic-transient-send.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/randomized-adversarial.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/recovery-dr.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/relay-body-limit.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/relay-provider-policy.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/relay-provider-routing.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/relay-result-replay-c8.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/retrieval.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/rotation-lifecycle.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/routing-telemetry-snapshot.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/runtime-backchannel-wiring.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/runtime-combined-perimeter.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/runtime-relay-security.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/runtime-security.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-agent-descriptor-runtime.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-dx2-conformance-runner.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-dx3-stable-api.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-local-node-e2e.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-npm-package-cleanroom.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-python-core.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-python-local-node-e2e.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-release-archive-hardening.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-release-archive-security.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-release-ci-contract.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-shared-contract.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sdk-typescript-core.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/security-boundary.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/security/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/semantic-concurrency-singleflight.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/semantic-index-lifecycle.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/semantic-projector.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/semantic-reranker.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/semantic-retrieval-v2.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/sharded-semantic-index-store.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/testnet-operator.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/testnet-relay-runtime.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/trust-lifecycle.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/trust-receipt-v2.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/trust/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/unit/.gitkeep",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/vertex-embedding.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "tests/vertex-gemini.test.js",
+      "classification": "KEEP"
+    },
+    {
+      "path": "trust/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "trust/aggregation/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "trust/anomaly/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "trust/domains/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "trust/engine/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "trust/independence/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "trust/policies/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "trust/provenance/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "trust/receipts/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "trust/reputation/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "trust/scoring/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "trust/sybil/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "updater/README.md",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "updater/channels/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "updater/migrations/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "updater/rollback/.gitkeep",
+      "classification": "UNKNOWN"
+    },
+    {
+      "path": "updater/verification/.gitkeep",
+      "classification": "UNKNOWN"
+    }
+  ]
+}

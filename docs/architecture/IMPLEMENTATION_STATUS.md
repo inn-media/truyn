@@ -86,3 +86,5 @@ Bounded Trustability is accepted. Production Trust Authority is not accepted on 
 ## Documentation hygiene
 
 Historical evidence remains audit history. Current-status documents follow accepted `main`. Open PRs, public uploads and in-progress diagnostics do not become accepted production claims merely by existing; merged repository/runtime support does not become live production evidence without deployment proof.
+
+Operational network-scale status: [../operations/NETWORK_SCALE_STATUS.md](../operations/NETWORK_SCALE_STATUS.md).

@@ -9,11 +9,7 @@ const SKIP_DIRS = new Set(['.git', 'node_modules']);
 const TEXT_EXTENSIONS = new Set(['.md', '.js', '.mjs', '.cjs', '.json', '.yml', '.yaml', '.toml', '.txt', '.proto', '.sh', '.ps1', '.cmd', '.html', '.css']);
 const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.cmd']);
 const ALLOWED_WORKFLOWS = new Set([
-  '.github/workflows/.gitkeep',
   '.github/workflows/ci.yml',
-  '.github/workflows/diag-d200-b0da2963-route-repair.yml',
-  '.github/workflows/diag-d200-aa43e0e4-readiness-collection.yml',
-  '.github/workflows/diag-d200-850fff25-qualified.yml',
   '.github/workflows/publish-npm.yml',
   '.github/workflows/publish-python-alpha.yml',
   '.github/workflows/production-authority-image.yml',

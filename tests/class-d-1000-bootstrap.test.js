@@ -122,14 +122,15 @@ test('D-1000 bootstrap plan does not reuse a host-common seed set', () => {
   }
 });
 
-test('D-1000 Azure provisioner uses the per-node XOR bootstrap planner', async () => {
+test('D-1000 Azure provisioner uses the bounded host-stratified XOR bootstrap planner', async () => {
   const provisioner = await readFile(new URL('../benchmarks/scale/class-d-azure-1000-provision.sh', import.meta.url), 'utf8');
 
   assert.match(provisioner, /BOOTSTRAP_MAX_PEERS_PER_NODE=32/);
   assert.match(provisioner, /BOOTSTRAP_PEERS_PER_BUCKET=2/);
   assert.match(provisioner, /buildClassD1000BootstrapPlan/);
   assert.match(provisioner, /bootstrap-plan-by-node\.json/);
-  assert.match(provisioner, /plan=per-node-xor/);
+  assert.match(provisioner, /plan=host-stratified-xor/);
+  assert.match(provisioner, /TRUYN_BOOTSTRAP_REQUIRED_FAILURE_DOMAINS=\$\{HOST_COUNT\}/);
   assert.doesNotMatch(provisioner, /BRIDGES_PER_REMOTE_HOST/);
   assert.doesNotMatch(provisioner, /value\[0:\$bridges\]/);
 });

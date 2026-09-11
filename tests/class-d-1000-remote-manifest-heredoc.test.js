@@ -12,7 +12,7 @@ test('Class D remote jq variables and bootstrap bundle path survive the outer he
   assert.doesNotMatch(provision, /sourceSha == \$sha'/);
   assert.match(provision, /seed:\\\$seed/);
   assert.doesNotMatch(provision, /seed:\$seed/);
-  assert.match(provision, /from '\/opt\/truyqn\/benchmarks\/scale\/class-d-1000-bootstrap\.js'/);
+  assert.match(provision, /from '\/opt\/truyn\/benchmarks\/scale\/class-d-1000-bootstrap\.js'/);
   assert.match(runtimeBundle, /ln -s app\/benchmarks "\$STAGE\/benchmarks"/);
   assert.match(runtimeBundle, /-czf "\$OUT" -C "\$STAGE" app benchmarks runtime manifest\.json dependency-tree\.json/);
   assert.match(runtimeBundle, /test -f "\$VERIFY\/benchmarks\/scale\/class-d-1000-bootstrap\.js"/);

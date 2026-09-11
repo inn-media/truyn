@@ -1,0 +1,3 @@
+import assert from 'node:assert/strict'; import fs from 'node:fs'; import test from 'node:test';
+const stable=['README.md','ROADMAP.md','docs/README.md','docs/architecture/IMPLEMENTATION_STATUS.md','docs/architecture/ARCHITECTURE_CONTRACT.md'];
+test('stable docs delegate ephemeral network-scale state to one operational source',()=>{for(const p of stable){const s=fs.readFileSync(p,'utf8');assert.match(s,/NETWORK_SCALE_STATUS\.md/,p);assert.doesNotMatch(s,/CURRENT_(?:STAGE|MAIN_SHA)\s*=|S50_REPLACEMENT_PR597|34411602064|34438746312|34448411969/,p);}assert.ok(fs.existsSync('docs/operations/NETWORK_SCALE_STATUS.md'));});

@@ -93,3 +93,5 @@ Bounded claim-centric/active Trustability is implemented. Production Trust Autho
 Before stable mainnet: accepted D-1000; live production SLO/operations evidence; live managed authority deployment with recovery/propagation/reconciliation evidence; Production Trust Authority if claimed; stable protocol/A2A-MCP compatibility; complete stable SDK release/Descriptor/site evidence; and appropriate governance maturity.
 
 Historical failed campaigns and old snapshots remain audit history. Current status follows accepted `main`, not stale prose or open PR intent.
+
+Operational network-scale status: [docs/operations/NETWORK_SCALE_STATUS.md](docs/operations/NETWORK_SCALE_STATUS.md).

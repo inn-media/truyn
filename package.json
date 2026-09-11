@@ -20,7 +20,15 @@
     "relay": "node cli/index.js relay",
     "mcp": "node cli/index.js mcp",
     "bridge": "node cli/index.js bridge",
-    "provider": "node cli/index.js provider"
+    "provider": "node cli/index.js provider",
+    "test:fast": "node scripts/run-test-suite.mjs fast",
+    "test:regression": "node scripts/run-test-suite.mjs regression",
+    "test:component": "node scripts/run-test-suite.mjs component",
+    "test:integration": "node scripts/run-test-suite.mjs integration",
+    "test:security": "node scripts/run-test-suite.mjs security",
+    "test:network": "node scripts/run-test-suite.mjs network",
+    "test:sdk": "node scripts/run-test-suite.mjs sdk",
+    "test:full": "node scripts/run-test-suite.mjs full"
   },
   "dependencies": {
     "@chainsafe/libp2p-quic": "2.0.1",

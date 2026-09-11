@@ -50,3 +50,5 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 ## Evidence hygiene
 
 `docs/benchmarks/` is a durable evidence ledger. Failed campaigns remain failures; accepted campaigns remain accepted. Diagnostics and open PRs never become acceptance merely because code exists. Likewise, merged repository/runtime support must not be overstated as live production evidence.
+
+Operational network-scale status: [operations/NETWORK_SCALE_STATUS.md](operations/NETWORK_SCALE_STATUS.md).
