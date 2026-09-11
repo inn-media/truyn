@@ -1,5 +1,5 @@
 # TASK_ID: truyn-d200-repository-sanitation-2609102033-8f2c
-# qualification-marker-scope: final-tail-v7
+# qualification-marker-scope: final-tail-v8
 name: D-200 repository sanitation executor
 
 on:
@@ -104,6 +104,11 @@ jobs:
               printf 'RUN_ID=%s\n' "$GITHUB_RUN_ID"
               printf 'FINALIZER_STAGE=%s\n' "$finalizer_stage"
               printf 'EXIT_CODE=%s\n' "$rc"
+              if [[ -f /tmp/sanitation-diff-check.log ]]; then
+                printf 'DIFF_CHECK_OUTPUT_BEGIN\n'
+                tail -n 80 /tmp/sanitation-diff-check.log || true
+                printf 'DIFF_CHECK_OUTPUT_END\n'
+              fi
               printf 'CANDIDATE_STATUS_BEGIN\n'
               git status --short | head -n 80 || true
               printf 'CANDIDATE_STATUS_END\n'
@@ -117,7 +122,7 @@ jobs:
           finalizer_stage=stage-candidate
           git add -A
           finalizer_stage=diff-check
-          git diff --cached --check
+          git diff --cached --check 2>&1 | tee /tmp/sanitation-diff-check.log
           finalizer_stage=executor-absent
           test ! -e .github/workflows/d200-repository-sanitation-executor.yml
           finalizer_stage=apply-helper-absent
