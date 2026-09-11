@@ -1,5 +1,5 @@
 # TASK_ID: truyn-d200-repository-sanitation-2609102033-8f2c
-# qualification-marker-scope: final-tail-v2
+# qualification-marker-scope: final-tail-v3
 name: D-200 repository sanitation executor
 
 on:
@@ -80,6 +80,9 @@ jobs:
             if [[ -f /tmp/truyn-sanitation.log ]]; then
               grep -E '^SANITATION_GATE_(START|PASS)=' /tmp/truyn-sanitation.log | tail -n 80 || true
               grep -E '^# (tests|pass|fail|cancelled|skipped|todo) ' /tmp/truyn-sanitation.log | tail -n 12 || true
+              printf '%s\n' 'SANITATION_FAILING_SUBTESTS_BEGIN'
+              grep -E '^not ok [0-9]+ - ' /tmp/truyn-sanitation.log | tail -n 20 || true
+              printf '%s\n' 'SANITATION_FAILING_SUBTESTS_END'
             else
               printf 'SANITATION_LOG=missing\n'
             fi
