@@ -1,5 +1,5 @@
 # TASK_ID: truyn-d200-repository-sanitation-2609102033-8f2c
-# qualification-marker-scope: final-tail-v10
+# qualification-marker-scope: final-tail-v11
 name: D-200 repository sanitation executor
 
 on:
@@ -133,8 +133,20 @@ jobs:
           test ! -e scripts/sanitation-executor-prep-v7.py
           finalizer_stage=repair-helper-absent
           test ! -e scripts/sanitation-repair-v7.py
-          finalizer_stage=restore-executor-for-transport
-          git restore --source="$GITHUB_SHA" --staged --worktree -- .github/workflows/d200-repository-sanitation-executor.yml
+          finalizer_stage=stage-workflow-payload
+          mkdir -p .sanitation-transport
+          cp .github/workflows/ci.yml .sanitation-transport/ci.yml
+          {
+            printf '%s\n' 'TASK_ID=truyn-d200-repository-sanitation-2609102033-8f2c'
+            printf 'CI_SHA256=%s\n' "$(sha256sum .github/workflows/ci.yml | awk '{print $1}')"
+            printf '%s\n' 'DELETE=.github/workflows/d200-repository-sanitation-executor.yml'
+            printf '%s\n' 'DELETE=.github/workflows/diag-d200-850fff25-qualified.yml'
+          } > .sanitation-transport/manifest.txt
+          finalizer_stage=restore-workflows-for-actions-transport
+          git restore --source="$GITHUB_SHA" --staged --worktree -- .github/workflows/ci.yml .github/workflows/d200-repository-sanitation-executor.yml .github/workflows/diag-d200-850fff25-qualified.yml
+          git add -A .sanitation-transport .github/workflows
+          finalizer_stage=transport-diff-check
+          git diff --cached --check 2>&1 | tee -a /tmp/sanitation-diff-check.log
           finalizer_stage=configure-author
           git config user.name 'Iluco Mutcnas'
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
@@ -143,4 +155,4 @@ jobs:
           finalizer_stage=push-candidate
           git push origin HEAD:automation/d200-repository-sanitation-260910
           finalizer_stage=complete
-          printf 'TRUYN_SANITATION_CANDIDATE_SHA=%s\n' "$(git rev-parse HEAD)"
+          printf 'TRUYN_SANITATION_TRANSPORT_SHA=%s\n' "$(git rev-parse HEAD)"
