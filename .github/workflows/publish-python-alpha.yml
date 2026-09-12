@@ -1,11 +1,11 @@
-name: TRUYN footer ecosystem hotfix
+name: TRUYN public site SEO GEO AEO deploy
 
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/publish-python-alpha.yml'
-      - '_tmp_public_site/index.html'
+      - '_tmp_public_site/**'
 
 permissions:
   contents: read
@@ -24,11 +24,17 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Validate hardcoded footer source
+      - name: Validate canonical public-site source
         shell: bash
         run: |
           set -Eeuo pipefail
           test -f _tmp_public_site/index.html
+          test -f _tmp_public_site/AGENTS
+          test -f _tmp_public_site/faq.json
+          test -f _tmp_public_site/llms.txt
+          test -f _tmp_public_site/llms-full.txt
+          test -f _tmp_public_site/robots.txt
+          test -f _tmp_public_site/sitemap.xml
           python - <<'PY'
           from pathlib import Path
           import re
@@ -60,6 +66,12 @@ jobs:
           rm -rf /tmp/footer-site
           mkdir -p /tmp/footer-site
           cp _tmp_public_site/index.html /tmp/footer-site/index.html
+          cp _tmp_public_site/AGENTS /tmp/footer-site/AGENTS
+          cp _tmp_public_site/faq.json /tmp/footer-site/faq.json
+          cp _tmp_public_site/llms.txt /tmp/footer-site/llms.txt
+          cp _tmp_public_site/llms-full.txt /tmp/footer-site/llms-full.txt
+          cp _tmp_public_site/robots.txt /tmp/footer-site/robots.txt
+          cp _tmp_public_site/sitemap.xml /tmp/footer-site/sitemap.xml
 
       - name: Azure login
         uses: azure/login@v2
@@ -125,7 +137,13 @@ jobs:
             --overwrite true \
             --only-show-errors \
             --output none
-          echo 'STATIC_UPLOAD=PASS file=index.html'
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name AGENTS --file /tmp/footer-site/AGENTS --content-type 'application/json; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name faq.json --file /tmp/footer-site/faq.json --content-type 'application/ld+json; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name llms.txt --file /tmp/footer-site/llms.txt --content-type 'text/plain; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name llms-full.txt --file /tmp/footer-site/llms-full.txt --content-type 'text/plain; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name robots.txt --file /tmp/footer-site/robots.txt --content-type 'text/plain; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name sitemap.xml --file /tmp/footer-site/sitemap.xml --content-type 'application/xml; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          echo 'STATIC_UPLOAD=PASS files=7'
 
       - name: Purge homepage cache
         shell: bash
@@ -136,7 +154,7 @@ jobs:
             --resource-group "$fd_rg" \
             --profile-name "$fd_profile" \
             --endpoint-name "$fd_endpoint" \
-            --content-paths '/' '/index.html' \
+            --content-paths '/' '/index.html' '/AGENTS' '/faq.json' '/llms.txt' '/llms-full.txt' '/robots.txt' '/sitemap.xml' \
             --only-show-errors \
             --output none
           echo 'FRONT_DOOR_PURGE=PASS'
@@ -158,11 +176,23 @@ jobs:
               && grep -Fq '© 2023 - 2026 Innovation Media Services Inc. All rights reserved. TRUYN is developed and maintained by InnMedia' /tmp/prod.html \
               && ! grep -Fq 'data-t="footer"' /tmp/prod.html \
               && ! grep -Eq '>\s*B2[BC]\s*(↗)?\s*<' /tmp/prod.html \
-              && ! grep -Fq 'TRUYN is developed and maintained by Innovation Media Services' /tmp/prod.html; then
+              && ! grep -Fq 'TRUYN is developed and maintained by Innovation Media Services' /tmp/prod.html \
+    && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/AGENTS?${q}" -o /tmp/agents.json \
+    && grep -Fq 'InnMedia Data Graph' /tmp/agents.json \
+    && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/faq.json?${q}" -o /tmp/faq.json \
+    && grep -Fq '"name": "What is InnMedia Group?"' /tmp/faq.json \
+    && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/llms.txt?${q}" -o /tmp/llms.txt \
+    && grep -Fq 'InnMedia SIGNAL' /tmp/llms.txt \
+    && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/llms-full.txt?${q}" -o /tmp/llms-full.txt \
+    && grep -Fq 'InnMedia Exchange' /tmp/llms-full.txt \
+    && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/robots.txt?${q}" -o /tmp/robots.txt \
+    && grep -Fq 'Sitemap: https://truyn.org/sitemap.xml' /tmp/robots.txt \
+    && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/sitemap.xml?${q}" -o /tmp/sitemap.xml \
+    && grep -Fq 'https://truyn.org/AGENTS' /tmp/sitemap.xml; then
               ok=true
               break
             fi
             sleep 5
           done
           [[ "$ok" == true ]]
-          echo 'PRODUCTION_FOOTER=PASS links=6 copyright=PASS hardcoded=PASS'
+          echo 'PRODUCTION_PUBLIC_SITE=PASS seo=PASS geo=PASS aeo=PASS machine_surfaces=PASS'
