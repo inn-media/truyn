@@ -1,0 +1,169 @@
+name: TRUYN footer ecosystem hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-python-alpha.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PUBLIC_HOST: truyn.org
+
+jobs:
+  deploy-footer-hotfix:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Fetch live homepage and hardcode ecosystem footer
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -rf /tmp/truyn-footer-site
+          mkdir -p /tmp/truyn-footer-site
+          curl -fsSL --retry 3 --max-time 30 \
+            "https://${PUBLIC_HOST}/?footer-source=${GITHUB_RUN_ID}" \
+            -o /tmp/truyn-footer-site/index.html
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('/tmp/truyn-footer-site/index.html')
+          html = path.read_text(encoding='utf-8')
+          b2b = re.search(r'<a\b(?=[^>]*href=["\']https://innmediaservices\.com/?["\'])[^>]*>.*?\bB2B\b.*?</a>', html, re.I | re.S)
+          b2c = re.search(r'<a\b(?=[^>]*href=["\']https://inn\.media/?["\'])[^>]*>.*?\bB2C\b.*?</a>', html, re.I | re.S)
+          if not b2b or not b2c or b2b.start() >= b2c.start():
+              raise SystemExit('legacy footer pair not found in live homepage')
+
+          links = (
+              ('InnMedia Group', 'https://innmedia.group/'),
+              ('OS', 'https://innmediaservices.com/'),
+              ('SOLO', 'https://inn.media/'),
+              ('SIGNAL', 'https://innmedia.services/'),
+              ('EXCHANGE', 'https://exchange.innmediaservices.com/'),
+              ('Data Graph', 'https://graph.innmediaservices.com/'),
+          )
+          replacement = '&nbsp;&nbsp;'.join(
+              f'<a href="{href}" target="_blank" rel="noopener noreferrer"><strong>{label} ↗</strong></a>'
+              for label, href in links
+          )
+          html = html[:b2b.start()] + replacement + html[b2c.end():]
+          path.write_text(html, encoding='utf-8')
+
+          for label, href in links:
+              assert href in html and f'>{label} ↗<' in html
+          assert not re.search(r'>\s*B2[BC]\s*(?:↗)?\s*</', html, re.I)
+          print('FOOTER_REWRITE=PASS links=6')
+          PY
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets[format('AZURE_{0}', 'CLIENT_ID')] }}
+          tenant-id: ${{ secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+          subscription-id: ${{ secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+      - name: Discover static origin
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          declare -a matches=()
+          while IFS=$'\t' read -r rg profile; do
+            [[ -n "${rg:-}" && -n "${profile:-}" ]] || continue
+            while IFS=$'\t' read -r domain_name domain_id; do
+              [[ -n "${domain_name:-}" && -n "${domain_id:-}" ]] || continue
+              matches+=("$rg|$profile|$domain_name|$domain_id")
+            done < <(az afd custom-domain list --resource-group "$rg" --profile-name "$profile" --query "[?hostName=='${PUBLIC_HOST}'].[name,id]" -o tsv 2>/dev/null || true)
+          done < <(az resource list --resource-type Microsoft.Cdn/profiles --query '[].[resourceGroup,name]' -o tsv)
+          [[ ${#matches[@]} -eq 1 ]]
+          IFS='|' read -r fd_rg fd_profile domain_name domain_id <<<"${matches[0]}"
+          for v in "$fd_rg" "$fd_profile" "$domain_name" "$domain_id"; do echo "::add-mask::$v"; done
+
+          declare -a routes=()
+          while IFS= read -r endpoint; do
+            [[ -n "$endpoint" ]] || continue
+            json="$(az afd route list --resource-group "$fd_rg" --profile-name "$fd_profile" --endpoint-name "$endpoint" -o json 2>/dev/null || printf '[]')"
+            while IFS=$'\t' read -r route origin_group state; do
+              [[ -n "$route" && -n "$origin_group" ]] || continue
+              routes+=("$endpoint|$route|$origin_group|$state")
+            done < <(jq -r --arg did "$domain_id" '.[] | select(any(.customDomains[]?; ((.id // "") | ascii_downcase) == ($did | ascii_downcase))) | [.name,.originGroup.id,.enabledState] | @tsv' <<<"$json")
+          done < <(az afd endpoint list --resource-group "$fd_rg" --profile-name "$fd_profile" --query '[].name' -o tsv)
+          [[ ${#routes[@]} -eq 1 ]]
+          IFS='|' read -r fd_endpoint fd_route origin_group_id route_state <<<"${routes[0]}"
+          [[ "$route_state" == 'Enabled' ]]
+          origin_group_name="${origin_group_id##*/}"
+
+          mapfile -t origins < <(az afd origin list --resource-group "$fd_rg" --profile-name "$fd_profile" --origin-group-name "$origin_group_name" --query "[?enabledState=='Enabled' && contains(hostName, '.web.core.windows.net')].hostName" -o tsv)
+          [[ ${#origins[@]} -eq 1 ]]
+          origin_host="${origins[0]}"
+          storage_account="${origin_host%%.*}"
+          for v in "$fd_endpoint" "$origin_group_id" "$origin_group_name" "$origin_host" "$storage_account"; do echo "::add-mask::$v"; done
+
+          declare -p fd_rg fd_profile fd_endpoint storage_account > /tmp/truyn-footer-edge.env
+          echo 'EDGE_DISCOVERY=PASS'
+
+      - name: Upload index only
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          source /tmp/truyn-footer-edge.env
+          echo "::add-mask::$storage_account"
+          az storage blob upload \
+            --auth-mode login \
+            --account-name "$storage_account" \
+            --container-name '$web' \
+            --name index.html \
+            --file /tmp/truyn-footer-site/index.html \
+            --content-type 'text/html; charset=utf-8' \
+            --content-cache-control 'no-cache, max-age=0, must-revalidate' \
+            --overwrite true \
+            --only-show-errors \
+            --output none
+          echo 'STATIC_UPLOAD=PASS file=index.html'
+
+      - name: Purge homepage cache
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          source /tmp/truyn-footer-edge.env
+          az afd endpoint purge \
+            --resource-group "$fd_rg" \
+            --profile-name "$fd_profile" \
+            --endpoint-name "$fd_endpoint" \
+            --content-paths '/' '/index.html' \
+            --only-show-errors \
+            --output none
+          echo 'FRONT_DOOR_PURGE=PASS'
+
+      - name: Verify production footer
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ok=false
+          for attempt in 1 2 3 4 5 6 7 8; do
+            q="footer-hotfix=${GITHUB_RUN_ID}-${attempt}"
+            if curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/?${q}" -o /tmp/prod.html \
+              && grep -Fq 'https://innmedia.group/' /tmp/prod.html \
+              && grep -Fq 'https://innmediaservices.com/' /tmp/prod.html \
+              && grep -Fq 'https://inn.media/' /tmp/prod.html \
+              && grep -Fq 'https://innmedia.services/' /tmp/prod.html \
+              && grep -Fq 'https://exchange.innmediaservices.com/' /tmp/prod.html \
+              && grep -Fq 'https://graph.innmediaservices.com/' /tmp/prod.html \
+              && grep -Fq 'InnMedia Group ↗' /tmp/prod.html \
+              && grep -Fq 'Data Graph ↗' /tmp/prod.html; then
+              ok=true
+              break
+            fi
+            sleep 5
+          done
+          [[ "$ok" == true ]]
+          echo 'PRODUCTION_FOOTER=PASS links=6'
