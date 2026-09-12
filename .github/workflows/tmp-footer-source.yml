@@ -1,0 +1,83 @@
+name: Temporary footer source patch
+
+on:
+  push:
+    branches: [footer-helper-20260912]
+    paths: [.github/workflows/tmp-footer-source.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch live HTML, patch footer, and persist source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl -fsSL --max-time 30 "https://truyn.org/?source-patch=${GITHUB_RUN_ID}" -o /tmp/index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          from html import unescape
+          import re
+
+          links=[
+            ('InnMedia Group','https://innmedia.group/'),
+            ('OS','https://innmediaservices.com/'),
+            ('SOLO','https://inn.media/'),
+            ('SIGNAL','https://innmedia.services/'),
+            ('EXCHANGE','https://exchange.innmediaservices.com/'),
+            ('Data Graph','https://graph.innmediaservices.com/'),
+          ]
+          new_copy='© 2023 - 2026 Innovation Media Services Inc. All rights reserved. TRUYN is developed and maintained by InnMedia'
+          p=Path('/tmp/index.html')
+          html=p.read_text(encoding='utf-8')
+          start=html.rfind('<footer')
+          end=html.find('</footer>',start)
+          if start<0 or end<0:
+            raise RuntimeError('production footer not found')
+          end += len('</footer>')
+          footer=html[start:end]
+          def text_of(value):
+            return unescape(re.sub(r'<[^>]+>','',value)).replace('\xa0',' ').strip()
+          anchors=list(re.finditer(r'<a\b[^>]*>.*?</a>',footer,re.I|re.S))
+          targets=[m for m in anchors if text_of(m.group(0)).startswith('B2B') or text_of(m.group(0)).startswith('B2C')]
+          if len(targets)!=2:
+            raise RuntimeError(f'expected two legacy B2B/B2C links, found {len(targets)}')
+          legacy=footer[targets[0].start():targets[-1].end()]
+          if 'innmediaservices.com' not in legacy or 'inn.media' not in legacy:
+            raise RuntimeError('legacy link URLs mismatch')
+          replacement='&nbsp;&nbsp;'.join(
+            f'<a href="{url}" target="_blank" rel="noopener noreferrer"><strong>{label} ↗</strong></a>'
+            for label,url in links
+          )
+          footer=footer[:targets[0].start()]+replacement+footer[targets[-1].end():]
+          footer,count=re.subn(
+            r'TRUYN\s+is\s+developed\s+and\s+maintained\s+by\s+Innovation\s+Media\s+Services\.?',
+            new_copy,footer,count=1,flags=re.I)
+          if count!=1:
+            raise RuntimeError('legacy maintainer text not found exactly once')
+          visible=text_of(footer)
+          if re.search(r'\bB2B\b|\bB2C\b',visible):
+            raise RuntimeError('legacy labels remain')
+          if new_copy not in visible:
+            raise RuntimeError('new copyright text missing')
+          for label,url in links:
+            if label not in footer or f'href="{url}"' not in footer:
+              raise RuntimeError(f'missing {label}')
+          p.write_text(html[:start]+footer+html[end:],encoding='utf-8')
+          print('FOOTER_PATCH=PASS links=6 copyright=PASS')
+          PY
+          cp /tmp/index.html _tmp_public_site/index.html
+          git diff --check
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add _tmp_public_site/index.html
+          git diff --cached --quiet && { echo 'No source change'; exit 1; }
+          git commit -m $'fix(site): update TRUYN InnMedia footer\n\nSigned-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
+          git push origin HEAD:${GITHUB_REF_NAME}
