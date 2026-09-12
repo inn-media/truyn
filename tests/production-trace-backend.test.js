@@ -116,6 +116,10 @@ test('live retention probe proves both tenants, both override values and runtime
   assert.match(probe, /'incident':[\s\S]*'retention': '2160h'/);
   assert.match(probe, /'X-Scope-OrgID': tenant/);
   assert.match(probe, /\/status\/overrides\/\{tenant\}/);
+  assert.match(probe, /retention_match = re\.search/);
+  assert.match(probe, /disabled_match is None or disabled_match\.group\(1\)\.lower\(\) == 'false'/);
+  assert.match(probe, /return source == tenant and retention_match is not None and compaction_enabled/);
+  assert.match(probe, /TRUYN_TRACE_PROBE_STAGE/);
   assert.match(probe, /TRUYN_TRACE_RETENTION_PASS normal_days=30 incident_days=90 normal_readback=1 incident_readback=1/);
   assert.match(probe, /retention_class=normal/);
 });
