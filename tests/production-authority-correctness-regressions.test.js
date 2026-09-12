@@ -3,8 +3,6 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createIdentity } from '../core/identity/index.js';
-import { createProductionControlPlane } from '../core/security/production-control-plane.js';
 import { createDurableJsonStore } from '../core/security/durable-json-store.js';
 import { TruynAdapterHost, createFunctionAdapter } from '../adapters/sdk/index.js';
 
@@ -13,95 +11,6 @@ function tempDir(t, prefix = 'truyn-authority-correctness-') {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
-
-function authorityFixture(t, suffix = '') {
-  const provider = createIdentity();
-  const requester = createIdentity();
-  const stateDir = tempDir(t, `truyn-authority-${suffix}-`);
-  const control = createProductionControlPlane({
-    stateDir,
-    accountTenantSeed: {
-      accounts: [{ accountId: 'acct' }],
-      organizations: [{ organizationId: 'org', accountId: 'acct' }],
-      tenants: [{ tenantId: 'tenant', organizationId: 'org' }],
-      memberships: [
-        { membershipId: 'provider-membership', principalId: 'provider-principal', scopeType: 'tenant', scopeId: 'tenant', roles: ['provider-operator', 'member'] },
-        { membershipId: 'requester-membership', principalId: 'requester-principal', scopeType: 'tenant', scopeId: 'tenant', roles: ['member'] }
-      ],
-      nodeBindings: [
-        { nodeId: provider.nodeId, principalId: 'provider-principal', tenantId: 'tenant' },
-        { nodeId: requester.nodeId, principalId: 'requester-principal', tenantId: 'tenant' }
-      ],
-      providerBindings: [{ providerNodeId: provider.nodeId, providerId: 'provider' }]
-    }
-  });
-  control.providerGrantAuthority.setProviderPolicy({ providerNodeId: provider.nodeId, mode: 'network' });
-  control.entitlementAuthority.createEntitlement({
-    entitlementId: 'subscription',
-    subjectType: 'node',
-    subjectId: requester.nodeId,
-    providerNodeId: provider.nodeId,
-    capabilities: ['reasoning.secure'],
-    mode: 'subscription',
-    period: 'day',
-    maxRequests: 10,
-    maxTokens: 100
-  });
-  return { control, provider, requester };
-}
-
-function grantDecision(control, provider, requester) {
-  return control.providerGrantAuthority.authorize({
-    providerNodeId: provider.nodeId,
-    requesterNodeId: requester.nodeId,
-    capability: 'reasoning.secure'
-  });
-}
-
-function entitlementDecision(control, provider, requester) {
-  return control.entitlementAuthority.resolve({
-    requesterNodeId: requester.nodeId,
-    providerNodeId: provider.nodeId,
-    capability: 'reasoning.secure',
-    mode: 'subscription'
-  });
-}
-
-test('terminal membership revocation denies both requester and provider authorization paths', { concurrency: false }, (t) => {
-  const requesterCase = authorityFixture(t, 'requester');
-  assert.equal(grantDecision(requesterCase.control, requesterCase.provider, requesterCase.requester).ok, true);
-  assert.equal(entitlementDecision(requesterCase.control, requesterCase.provider, requesterCase.requester).ok, true);
-  requesterCase.control.revocationAuthority.revoke('membership', 'requester-membership', { reason: 'membership_removed' });
-  assert.equal(grantDecision(requesterCase.control, requesterCase.provider, requesterCase.requester).reason, 'membership_revoked');
-  assert.equal(entitlementDecision(requesterCase.control, requesterCase.provider, requesterCase.requester).reason, 'membership_revoked');
-
-  const providerCase = authorityFixture(t, 'provider');
-  assert.equal(grantDecision(providerCase.control, providerCase.provider, providerCase.requester).ok, true);
-  assert.equal(entitlementDecision(providerCase.control, providerCase.provider, providerCase.requester).ok, true);
-  providerCase.control.revocationAuthority.revoke('membership', 'provider-membership', { reason: 'provider_membership_removed' });
-  assert.equal(grantDecision(providerCase.control, providerCase.provider, providerCase.requester).reason, 'membership_revoked');
-  assert.equal(entitlementDecision(providerCase.control, providerCase.provider, providerCase.requester).reason, 'membership_revoked');
-});
-
-test('a committed reservation id cannot authorize provider execution again', { concurrency: false }, (t) => {
-  const { control, provider, requester } = authorityFixture(t, 'replay');
-  const billing = control.createBillingPolicy({ providerNodeId: provider.nodeId, mode: 'subscription' });
-  const accessPolicy = { mode: 'owner-only', authorize: () => ({ ok: true }) };
-  const need = {
-    id: 'need-once',
-    from: requester.nodeId,
-    payload: { capability: { name: 'reasoning.secure' }, policy: { billing: { maxTokens: 10 } } }
-  };
-
-  const first = billing.authorize(need, { accessPolicy, estimatedTokens: 10 });
-  assert.equal(first.ok, true);
-  assert.equal(first.finalize({ outcome: 'completed', actualTokens: 7 }).ok, true);
-
-  const replay = billing.authorize(need, { accessPolicy, estimatedTokens: 10 });
-  assert.equal(replay.ok, false);
-  assert.equal(replay.reason, 'reservation_already_committed');
-  assert.equal(control.accountingAuthority.getReservation('need-once').actualTokens, 7);
-});
 
 test('stale-looking lock owned by a live process is not stolen or unlinked', { concurrency: false }, (t) => {
   const dir = tempDir(t, 'truyn-authority-lock-');
@@ -172,7 +81,7 @@ function billingPolicy(finalizations) {
 
 const allowAccess = { mode: 'owner-only', authorize: () => ({ ok: true }) };
 
-test('provider host finalizes durable billing on success and failure', async () => {
+test('provider host finalizes injected billing on success and failure', async () => {
   const successFinalizations = [];
   const successNode = fakeNode(needEvent('need-success'));
   const successHost = new TruynAdapterHost({
@@ -208,7 +117,7 @@ test('provider host finalizes durable billing on success and failure', async () 
   assert.equal(failureNode.results[0].metadata.billingAccountingStatus, 'released');
 });
 
-test('provider stop releases an in-flight durable reservation as cancelled', async () => {
+test('provider stop releases an injected in-flight reservation as cancelled', async () => {
   const finalizations = [];
   let started;
   const startedPromise = new Promise((resolve) => { started = resolve; });

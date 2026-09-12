@@ -28,19 +28,12 @@ process.once('SIGINT', shutdownRuntime);
 
 try {
   if (role === 'authority') {
-    const { createAuthorityServiceFromEnv } = await import('./authority-service.js');
-    const service = createAuthorityServiceFromEnv(process.env);
-    roleRuntime = service;
-    await service.listen({ host: process.env.HOST || '0.0.0.0', port: Number(process.env.PORT || 8080) });
-    process.stdout.write(`${JSON.stringify({ ok: true, role: 'authority', ready: true })}\n`);
-  } else {
-    if (role === 'relay' && process.env.TRUYN_AUTHORITY_URL) {
-      const { initializeRelayAuthorityFromEnv } = await import('./relay-authority-runtime.js');
-      roleRuntime = await initializeRelayAuthorityFromEnv(process.env);
-      process.stdout.write(`${JSON.stringify({ ok: true, role: 'relay', authority: 'managed', authorityRevision: roleRuntime.status().revision })}\n`);
-    }
-    await import('./service.js');
+    throw new Error('TRUYN authority role requires the proprietary TRUYN Platform runtime');
   }
+  if (role === 'relay' && process.env.TRUYN_AUTHORITY_URL) {
+    throw new Error('managed relay authority requires the TRUYN Platform runtime adapter');
+  }
+  await import('./service.js');
 } catch (error) {
   await shutdownRuntime();
   throw error;
