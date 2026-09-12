@@ -118,7 +118,7 @@ jobs:
           source /tmp/truyn-footer-edge.env
           echo "::add-mask::$storage_account"
           az storage blob upload \
-            --auth-mode login \
+            --auth-mode key \
             --account-name "$storage_account" \
             --container-name '$web' \
             --name index.html \
