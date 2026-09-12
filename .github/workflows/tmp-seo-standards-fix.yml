@@ -1,0 +1,63 @@
+name: Temporary SEO standards alignment
+
+on:
+  push:
+    branches: [seo-geo-aeo-20260912]
+    paths:
+      - '.github/workflows/tmp-seo-standards-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: seo-geo-aeo-20260912
+          fetch-depth: 2
+      - name: Align machine FAQ with search structured-data guidance
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re
+
+          p=Path('_tmp_public_site/index.html')
+          html=p.read_text(encoding='utf-8')
+          m=re.search(r'<script type="application/ld\+json">\s*(\{.*?\})\s*</script>', html, re.S)
+          if not m:
+              raise SystemExit('JSON-LD not found')
+          data=json.loads(m.group(1))
+          graph=data.get('@graph',[])
+          graph=[node for node in graph if node.get('@id') != 'https://truyn.org/#faq']
+          data['@graph']=graph
+          html=html[:m.start(1)] + json.dumps(data,ensure_ascii=False,indent=2) + html[m.end(1):]
+          p.write_text(html,encoding='utf-8')
+
+          robots=Path('_tmp_public_site/robots.txt')
+          text=robots.read_text(encoding='utf-8')
+          if 'User-agent: OAI-AdsBot' not in text:
+              text=text.replace('User-agent: OAI-SearchBot\nAllow: /\n', 'User-agent: OAI-SearchBot\nAllow: /\n\nUser-agent: OAI-AdsBot\nAllow: /\n', 1)
+          robots.write_text(text,encoding='utf-8')
+
+          assert 'https://truyn.org/#faq' not in p.read_text(encoding='utf-8')
+          faq=json.loads(Path('_tmp_public_site/faq.json').read_text(encoding='utf-8'))
+          assert faq.get('@type') == 'FAQPage'
+          assert any(q.get('name') == 'What is InnMedia Group?' for q in faq['mainEntity'])
+          assert 'User-agent: OAI-SearchBot' in text
+          assert 'User-agent: OAI-AdsBot' in text
+          PY
+          git diff --check
+      - name: Commit standards alignment
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add _tmp_public_site/index.html _tmp_public_site/robots.txt
+          git commit -s -m 'fix(site): align machine FAQ with crawler guidance'
+          git push origin HEAD:seo-geo-aeo-20260912
