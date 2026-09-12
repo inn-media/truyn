@@ -23,23 +23,26 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Decode public site and hardcode ecosystem footer
+      - name: Fetch live homepage and hardcode ecosystem footer
         shell: bash
         run: |
           set -Eeuo pipefail
-          rm -rf /tmp/truyn-footer-site /tmp/truyn-footer-site.zip
+          rm -rf /tmp/truyn-footer-site
           mkdir -p /tmp/truyn-footer-site
-          base64 -d _tmp_site.zip.b64 > /tmp/truyn-footer-site.zip
-          unzip -q /tmp/truyn-footer-site.zip -d /tmp/truyn-footer-site
+          curl -fsSL --retry 3 --max-time 30 \
+            "https://${PUBLIC_HOST}/?footer-source=${GITHUB_RUN_ID}" \
+            -o /tmp/truyn-footer-site/index.html
           python - <<'PY'
           from pathlib import Path
           import re
-          p = Path('/tmp/truyn-footer-site/index.html')
-          html = p.read_text(encoding='utf-8')
+
+          path = Path('/tmp/truyn-footer-site/index.html')
+          html = path.read_text(encoding='utf-8')
           b2b = re.search(r'<a\b(?=[^>]*href=["\']https://innmediaservices\.com/?["\'])[^>]*>.*?\bB2B\b.*?</a>', html, re.I | re.S)
           b2c = re.search(r'<a\b(?=[^>]*href=["\']https://inn\.media/?["\'])[^>]*>.*?\bB2C\b.*?</a>', html, re.I | re.S)
           if not b2b or not b2c or b2b.start() >= b2c.start():
-              raise SystemExit('legacy footer pair not found')
+              raise SystemExit('legacy footer pair not found in live homepage')
+
           links = (
               ('InnMedia Group', 'https://innmedia.group/'),
               ('OS', 'https://innmediaservices.com/'),
@@ -53,7 +56,8 @@ jobs:
               for label, href in links
           )
           html = html[:b2b.start()] + replacement + html[b2c.end():]
-          p.write_text(html, encoding='utf-8')
+          path.write_text(html, encoding='utf-8')
+
           for label, href in links:
               assert href in html and f'>{label} ↗<' in html
           assert not re.search(r'>\s*B2[BC]\s*(?:↗)?\s*</', html, re.I)
@@ -63,9 +67,9 @@ jobs:
       - name: Azure login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets[format('AZURE_{0}', 'CLIENT_ID')] }}
-          tenant-id: ${{ secrets[format('AZURE_{0}', 'TENANT_ID')] }}
-          subscription-id: ${{ secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Discover static origin
         shell: bash
@@ -97,10 +101,13 @@ jobs:
           IFS='|' read -r fd_endpoint fd_route origin_group_id route_state <<<"${routes[0]}"
           [[ "$route_state" == 'Enabled' ]]
           origin_group_name="${origin_group_id##*/}"
+
           mapfile -t origins < <(az afd origin list --resource-group "$fd_rg" --profile-name "$fd_profile" --origin-group-name "$origin_group_name" --query "[?enabledState=='Enabled' && contains(hostName, '.web.core.windows.net')].hostName" -o tsv)
           [[ ${#origins[@]} -eq 1 ]]
-          storage_account="${origins[0]%%.*}"
-          for v in "$fd_endpoint" "$origin_group_id" "$origin_group_name" "${origins[0]}" "$storage_account"; do echo "::add-mask::$v"; done
+          origin_host="${origins[0]}"
+          storage_account="${origin_host%%.*}"
+          for v in "$fd_endpoint" "$origin_group_id" "$origin_group_name" "$origin_host" "$storage_account"; do echo "::add-mask::$v"; done
+
           declare -p fd_rg fd_profile fd_endpoint storage_account > /tmp/truyn-footer-edge.env
           echo 'EDGE_DISCOVERY=PASS'
 
@@ -109,7 +116,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           source /tmp/truyn-footer-edge.env
+          echo "::add-mask::$storage_account"
           az storage blob upload \
+            --auth-mode login \
             --account-name "$storage_account" \
             --container-name '$web' \
             --name index.html \
@@ -126,7 +135,13 @@ jobs:
         run: |
           set -Eeuo pipefail
           source /tmp/truyn-footer-edge.env
-          az afd endpoint purge --resource-group "$fd_rg" --profile-name "$fd_profile" --endpoint-name "$fd_endpoint" --content-paths '/' '/index.html' --only-show-errors --output none
+          az afd endpoint purge \
+            --resource-group "$fd_rg" \
+            --profile-name "$fd_profile" \
+            --endpoint-name "$fd_endpoint" \
+            --content-paths '/' '/index.html' \
+            --only-show-errors \
+            --output none
           echo 'FRONT_DOOR_PURGE=PASS'
 
       - name: Verify production footer
