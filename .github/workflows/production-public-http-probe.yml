@@ -1,0 +1,272 @@
+name: Production Public HTTP Probe
+
+on:
+  pull_request:
+    paths:
+      - 'infra/production-observability/public-http-probe.bicep'
+      - 'operations/production-public-http-probe.json'
+      - '.github/workflows/production-public-http-probe.yml'
+      - 'tests/production-public-http-probe.test.js'
+      - 'observability/prometheus/slo-alerts.yml'
+      - 'tests/public-repository.test.js'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/production-observability/public-http-probe.bicep'
+      - 'operations/production-public-http-probe.json'
+      - '.github/workflows/production-public-http-probe.yml'
+      - 'tests/production-public-http-probe.test.js'
+      - 'observability/prometheus/slo-alerts.yml'
+      - 'tests/public-repository.test.js'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'germanywestcentral:francecentral northeurope:swedencentral' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile public HTTP probe Bicep
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep install >/dev/null
+          az bicep build --file infra/production-observability/public-http-probe.bicep --stdout >/dev/null
+      - name: Validate Sprint 19 contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .jobName == "truyn-relay-public" and
+            .target == "https://relay.truyn.org/health" and
+            .interval == "1m" and
+            .timeout == "20s" and
+            .expected.httpStatus == 200 and
+            .expected.requiredResponseHeader == "CF-Ray" and
+            .liveAcceptance.minimumFreshSamples >= 2
+          ' operations/production-public-http-probe.json >/dev/null
+          node --test tests/production-public-http-probe.test.js
+
+  apply-and-prove:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Resolve accepted production observability plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          az bicep install >/dev/null
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+          selected_environment=''
+          selected_environment_id=''
+          selected_region=''
+          attempt=0
+
+          for pair in $REGION_PAIRS; do
+            attempt=$((attempt + 1))
+            [[ "$attempt" -le 2 ]] || break
+            [[ "$pair" == *:* ]] || { echo '::error::Invalid production region pair.'; exit 1; }
+            primary="${pair%%:*}"
+            secondary="${pair#*:}"
+            pair_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}:${primary}:${secondary}" | sha256sum | cut -c1-10)"
+            prefix="truyn${pair_suffix}"
+            environment="${prefix}-aca-env"
+            cosmos="${prefix}cosmos"
+            for value in "$prefix" "$environment" "$cosmos"; do printf '::add-mask::%s\n' "$value"; done
+
+            if ! environment_id="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --query id -o tsv --only-show-errors 2>/dev/null)"; then
+              continue
+            fi
+            [[ -n "$environment_id" ]] || continue
+            printf '::add-mask::%s\n' "$environment_id"
+            if ! environment_json="$(az resource show --ids "$environment_id" --api-version 2025-07-01 --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+            if ! cosmos_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+
+            if ! jq -e '
+              (.properties.vnetConfiguration.internal // false) == true and
+              ((.properties.publicNetworkAccess // "") | ascii_downcase) == "disabled" and
+              (.properties.provisioningState // "") == "Succeeded"
+            ' <<<"$environment_json" >/dev/null; then
+              continue
+            fi
+            if ! jq -e --arg primary "$primary" --arg secondary "$secondary" '
+              .provisioningState == "Succeeded" and
+              ([.locations[].locationName | gsub(" "; "") | ascii_downcase] | sort) == ([$primary, $secondary] | sort)
+            ' <<<"$cosmos_json" >/dev/null; then
+              continue
+            fi
+
+            selected_environment="$environment"
+            selected_environment_id="$environment_id"
+            selected_region="$primary"
+            break
+          done
+
+          [[ -n "$selected_environment_id" && -n "$selected_region" ]] || {
+            echo '::error::No accepted internal production foundation is available.'
+            exit 1
+          }
+
+          backend_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:victoriametrics" | sha256sum | cut -c1-10)"
+          probe_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:public-http-probe" | sha256sum | cut -c1-10)"
+          backend_app="truyn-metrics-${backend_suffix}"
+          probe_app="truyn-public-probe-${probe_suffix}"
+          for value in "$selected_environment" "$selected_environment_id" "$backend_app" "$probe_app"; do printf '::add-mask::%s\n' "$value"; done
+
+          printf 'ACA_ENVIRONMENT_ID=%s\n' "$selected_environment_id" >> "$GITHUB_ENV"
+          printf 'OBSERVABILITY_REGION=%s\n' "$selected_region" >> "$GITHUB_ENV"
+          printf 'BACKEND_APP=%s\n' "$backend_app" >> "$GITHUB_ENV"
+          printf 'PROBE_APP=%s\n' "$probe_app" >> "$GITHUB_ENV"
+
+      - name: Resolve private metrics backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          backend_ready=false
+          for attempt in $(seq 1 120); do
+            if backend_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$BACKEND_APP" --only-show-errors -o json 2>/dev/null)"; then
+              if jq -e '
+                .properties.provisioningState == "Succeeded" and
+                .properties.configuration.ingress.external == false and
+                .properties.configuration.ingress.targetPort == 8428 and
+                ((.properties.configuration.ingress.fqdn // "") | length) > 0
+              ' <<<"$backend_json" >/dev/null; then
+                backend_fqdn="$(jq -r '.properties.configuration.ingress.fqdn' <<<"$backend_json")"
+                backend_ready=true
+                break
+              fi
+            fi
+            sleep 5
+          done
+          [[ "$backend_ready" == true ]] || {
+            echo '::error::Private production metrics backend is unavailable.'
+            exit 1
+          }
+          printf '::add-mask::%s\n' "$backend_fqdn"
+          backend_write_url="https://${backend_fqdn}/api/v1/write"
+          backend_query_base="https://${backend_fqdn}"
+          printf '::add-mask::%s\n' "$backend_write_url"
+          printf '::add-mask::%s\n' "$backend_query_base"
+          printf 'BACKEND_WRITE_URL=%s\n' "$backend_write_url" >> "$GITHUB_ENV"
+          printf 'BACKEND_QUERY_BASE=%s\n' "$backend_query_base" >> "$GITHUB_ENV"
+
+      - name: Deploy one-minute public HTTP edge probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployment_name="public-http-probe-${GITHUB_SHA:0:8}"
+          printf '::add-mask::%s\n' "$deployment_name"
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$deployment_name" \
+            --template-file infra/production-observability/public-http-probe.bicep \
+            --parameters \
+              appName="$PROBE_APP" \
+              environmentId="$ACA_ENVIRONMENT_ID" \
+              location="$OBSERVABILITY_REGION" \
+              deploymentId="$DEPLOYMENT_ID" \
+              sourceSha="$GITHUB_SHA" \
+              backendWriteUrl="$BACKEND_WRITE_URL" \
+              backendQueryBase="$BACKEND_QUERY_BASE" \
+              publicTarget='https://relay.truyn.org/health' \
+              collectorVersion='0.158.0' \
+            --only-show-errors \
+            -o none
+
+          app_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$PROBE_APP" --only-show-errors -o json)"
+          jq -e '
+            .properties.provisioningState == "Succeeded" and
+            (.properties.configuration.ingress == null or .properties.configuration.ingress.external == false)
+          ' <<<"$app_json" >/dev/null
+
+      - name: Prove public edge probe cadence and backend samples
+        shell: bash
+        run: |
+          set -euo pipefail
+          accepted=false
+          for attempt in $(seq 1 42); do
+            logs="$(az containerapp logs show \
+              --resource-group "$RESOURCE_GROUP" \
+              --name "$PROBE_APP" \
+              --container acceptance-probe \
+              --type console \
+              --tail 100 \
+              --follow false \
+              --format text \
+              --only-show-errors 2>/dev/null || true)"
+            if grep -q 'TRUYN_PUBLIC_HTTP_PROBE_PASS job=truyn-relay-public interval=1m http=200 cf_ray=1 samples=2plus' <<<"$logs"; then
+              accepted=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$accepted" == true ]] || {
+            echo '::error::Public HTTP edge did not produce two successful one-minute probe samples.'
+            exit 1
+          }
+
+      - name: Emit sanitized Sprint 19 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg deploymentId "$DEPLOYMENT_ID" \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg region "$OBSERVABILITY_REGION" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              schema: "truyn.production-public-http-probe-evidence/v1",
+              deploymentId: $deploymentId,
+              component: "public-http-probe",
+              job: "truyn-relay-public",
+              target: "https://relay.truyn.org/health",
+              interval: "1m",
+              expectedHttpStatus: 200,
+              cloudflareMarkerObserved: true,
+              minimumFreshSamplesObserved: 2,
+              backendRemoteWriteObserved: true,
+              region: $region,
+              sourceSha: $sourceSha,
+              exactMain: true,
+              generatedAt: $generatedAt,
+              status: "PASS"
+            }' > production-public-http-probe-evidence.json
+
+      - name: Upload sanitized Sprint 19 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-public-http-probe-evidence
+          path: production-public-http-probe-evidence.json
+          if-no-files-found: error
+          retention-days: 30
