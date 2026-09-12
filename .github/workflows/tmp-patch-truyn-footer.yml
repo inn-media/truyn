@@ -3,6 +3,7 @@ name: Temporary TRUYN footer patch
 on:
   push:
     branches:
+      - fix/truin-footer-innmedia-ecosystem
       - fix/truyn-footer-innmedia-ecosystem
     paths:
       - .github/workflows/tmp-patch-truyn-footer.yml
@@ -18,16 +19,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Patch hardcoded InnMedia ecosystem links in static release
+      - name: Patch hardcoded InnMedia ecosystem links in deployed static payload
         shell: bash
         run: |
           set -Eeuo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import base64
-          import io
           import re
-          import zipfile
 
           LINKS = [
               ("InnMedia Group", "https://innmedia.group/"),
@@ -41,10 +40,10 @@ jobs:
           def strip_tags(value: str) -> str:
               return re.sub(r"<[^>]+>", "", value).replace("&nbsp;", " ").strip()
 
-          def patch_html(html: str) -> str:
+          def patch_html(html: str) -> tuple[str, str]:
               marker = html.find("B2B")
               if marker < 0:
-                  raise RuntimeError("B2B footer marker not found")
+                  raise RuntimeError("B2B footer marker not found in decoded public-site payload")
               start = html.rfind("<footer", 0, marker)
               end = html.find("</footer>", marker)
               if start < 0 or end < 0:
@@ -66,74 +65,39 @@ jobs:
               for label, url in LINKS:
                   if url not in patched_footer or label not in patched_footer:
                       raise RuntimeError(f"missing hardcoded footer link after patch: {label}")
-              if strip_tags(patched_footer).find("B2B") >= 0 or strip_tags(patched_footer).find("B2C") >= 0:
+              visible = strip_tags(patched_footer)
+              if re.search(r"\bB2B\b|\bB2C\b", visible):
                   raise RuntimeError("legacy B2B/B2C labels remain in footer")
-              return html[:start] + patched_footer + html[end:]
+              return html[:start] + patched_footer + html[end:], patched_footer
 
-          archive_path = Path("_tmp_site.zip.b64")
-          encoded = archive_path.read_text(encoding="utf-8")
-          compact = re.sub(r"\s+", "", encoded)
+          path = Path("_tmp_public_site/index.html")
+          original = path.read_text(encoding="utf-8")
+          compact = re.sub(r"\s+", "", original)
           compact += "=" * (-len(compact) % 4)
-          archive = base64.b64decode(compact)
+          decoded = base64.b64decode(compact, validate=True).decode("utf-8")
+          patched, footer = patch_html(decoded)
 
-          with zipfile.ZipFile(io.BytesIO(archive), "r") as source:
-              source.testzip()
-              names = source.namelist()
-              if "index.html" not in names:
-                  raise RuntimeError("index.html missing from static release archive")
-              current_html = source.read("index.html").decode("utf-8")
-              patched_html = patch_html(current_html)
-              output = io.BytesIO()
-              with zipfile.ZipFile(output, "w") as target_zip:
-                  for info in source.infolist():
-                      payload = patched_html.encode("utf-8") if info.filename == "index.html" else source.read(info.filename)
-                      target_zip.writestr(info, payload)
+          # Preserve the repository's current one-line base64 payload representation.
+          path.write_text(base64.b64encode(patched.encode("utf-8")).decode("ascii"), encoding="utf-8")
 
-          archive_path.write_text(base64.encodebytes(output.getvalue()).decode("ascii"), encoding="utf-8")
-
-          expanded_path = Path("_tmp_public_site/index.html")
-          if expanded_path.exists():
-              raw = expanded_path.read_bytes()
-              text = raw.decode("utf-8")
-              if "B2B" in text:
-                  expanded_path.write_text(patch_html(text), encoding="utf-8")
-                  print("patched expanded index as plain UTF-8")
-              else:
-                  try:
-                      compact_expanded = re.sub(r"\s+", "", text)
-                      compact_expanded += "=" * (-len(compact_expanded) % 4)
-                      decoded = base64.b64decode(compact_expanded).decode("utf-8")
-                  except Exception:
-                      decoded = ""
-                  if "B2B" in decoded:
-                      patched = patch_html(decoded).encode("utf-8")
-                      if "\n" in text:
-                          expanded_path.write_text(base64.encodebytes(patched).decode("ascii"), encoding="utf-8")
-                      else:
-                          expanded_path.write_text(base64.b64encode(patched).decode("ascii"), encoding="utf-8")
-                      print("patched expanded index as base64-encoded HTML")
-                  else:
-                      print("expanded index has no legacy B2B/B2C footer; archive is authoritative for this patch")
-
-          check = base64.b64decode(re.sub(r"\s+", "", archive_path.read_text()) + "=" * (-len(re.sub(r"\s+", "", archive_path.read_text())) % 4))
-          with zipfile.ZipFile(io.BytesIO(check), "r") as verify_zip:
-              verify_zip.testzip()
-              verify_html = verify_zip.read("index.html").decode("utf-8")
-              footer_start = verify_html.rfind("<footer", 0, verify_html.find("InnMedia Group"))
-              footer_end = verify_html.find("</footer>", footer_start) + len("</footer>")
-              footer = verify_html[footer_start:footer_end]
-              print(footer)
-              for label, url in LINKS:
-                  assert label in footer and url in footer
-              assert "B2B" not in strip_tags(footer)
-              assert "B2C" not in strip_tags(footer)
+          # Decode the just-written payload again and prove the footer is hardcoded correctly.
+          check = base64.b64decode(path.read_text(encoding="utf-8"), validate=True).decode("utf-8")
+          footer_start = check.rfind("<footer", 0, check.find("InnMedia Group"))
+          footer_end = check.find("</footer>", footer_start) + len("</footer>")
+          verified_footer = check[footer_start:footer_end]
+          for label, url in LINKS:
+              assert label in verified_footer, label
+              assert url in verified_footer, url
+          visible = strip_tags(verified_footer)
+          assert not re.search(r"\bB2B\b|\bB2C\b", visible)
+          print(verified_footer)
           PY
 
           git diff --check
-          git diff -- _tmp_site.zip.b64 _tmp_public_site/index.html
+          git diff -- _tmp_public_site/index.html
           git config user.name "Iluco Mutcnas"
           git config user.email "197368050+ilucomutcnas@users.noreply.github.com"
-          git add _tmp_site.zip.b64 _tmp_public_site/index.html
+          git add _tmp_public_site/index.html
           git diff --cached --quiet && { echo 'No footer changes produced'; exit 1; }
           git commit -m $'fix(site): hardcode InnMedia ecosystem footer links\n\nSigned-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
           git push origin HEAD:${GITHUB_REF_NAME}
