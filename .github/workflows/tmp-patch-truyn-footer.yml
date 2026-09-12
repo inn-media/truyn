@@ -3,7 +3,6 @@ name: Temporary TRUYN footer patch
 on:
   push:
     branches:
-      - fix/truin-footer-innmedia-ecosystem
       - fix/truyn-footer-innmedia-ecosystem
     paths:
       - .github/workflows/tmp-patch-truyn-footer.yml
@@ -27,6 +26,7 @@ jobs:
           from pathlib import Path
           import base64
           import re
+          import string
 
           LINKS = [
               ("InnMedia Group", "https://innmedia.group/"),
@@ -72,12 +72,18 @@ jobs:
 
           path = Path("_tmp_public_site/index.html")
           original = path.read_text(encoding="utf-8")
-          compact = re.sub(r"\s+", "", original)
+          alphabet = set(string.ascii_letters + string.digits + "+/=")
+          compact = "".join(ch for ch in original if ch in alphabet)
+          ignored = len(original) - len(compact)
+          print(f"legacy payload framing chars ignored: {ignored}")
           compact += "=" * (-len(compact) % 4)
-          decoded = base64.b64decode(compact, validate=True).decode("utf-8")
-          patched, footer = patch_html(decoded)
+          decoded_bytes = base64.b64decode(compact, validate=False)
+          decoded = decoded_bytes.decode("utf-8")
+          if "<head" not in decoded and "<html" not in decoded:
+              raise RuntimeError("decoded public-site payload is not HTML")
+          patched, _ = patch_html(decoded)
 
-          # Preserve the repository's current one-line base64 payload representation.
+          # Normalize the legacy representation to a one-line base64 payload.
           path.write_text(base64.b64encode(patched.encode("utf-8")).decode("ascii"), encoding="utf-8")
 
           # Decode the just-written payload again and prove the footer is hardcoded correctly.
@@ -94,7 +100,6 @@ jobs:
           PY
 
           git diff --check
-          git diff -- _tmp_public_site/index.html
           git config user.name "Iluco Mutcnas"
           git config user.email "197368050+ilucomutcnas@users.noreply.github.com"
           git add _tmp_public_site/index.html
