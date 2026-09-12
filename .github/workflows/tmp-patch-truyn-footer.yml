@@ -2,10 +2,8 @@ name: Temporary TRUYN footer patch
 
 on:
   push:
-    branches:
-      - fix/truyn-footer-innmedia-ecosystem
-    paths:
-      - .github/workflows/tmp-patch-truyn-footer.yml
+    branches: [fix/truin-footer-innmedia-ecosystem]
+    paths: [.github/workflows/tmp-patch-truyn-footer.yml]
 
 permissions:
   contents: write
@@ -16,38 +14,35 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Diagnose static payload framing
+      - name: Inspect encoded public-site sources
         shell: bash
         run: |
           set -Eeuo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import base64,re
-          p=Path('_tmp_site.zip.b64')
-          raw=p.read_bytes()
-          print('raw_len',len(raw),'raw_head',raw[:80])
-          text=raw.decode('utf-8',errors='replace')
-          compact=re.sub(r'\s+','',text)
-          compact += '=' * (-len(compact)%4)
-          d1=base64.b64decode(compact,validate=False)
-          print('d1_len',len(d1),'d1_head_hex',d1[:64].hex(),'d1_head_repr',repr(d1[:80]))
-          if not d1.startswith(b'PK'):
+          paths=[
+            '_tmp_public_site/index.html',
+            '_tmp_public_site/assets/css/styles.css',
+            '_tmp_public_site/assets/js/app.js',
+            '_tmp_public_site/assets/js/translations.js',
+          ]
+          for path in paths:
+            raw=Path(path).read_bytes()
+            print(path,'raw_len=',len(raw),'raw_head=',repr(raw[:40]))
             try:
-              t=d1.decode('utf-8')
-              c=re.sub(r'\s+','',t); c += '=' * (-len(c)%4)
-              d2=base64.b64decode(c,validate=False)
-              print('d2_len',len(d2),'d2_head_hex',d2[:64].hex(),'d2_head_repr',repr(d2[:80]))
+              text=raw.decode('utf-8'); c=re.sub(r'\s+','',text); c+='='*(-len(c)%4)
+              dec=base64.b64decode(c,validate=False)
+              print(path,'decoded_len=',len(dec),'decoded_head=',repr(dec[:80]))
+              if path.endswith('index.html'):
+                html=dec.decode('utf-8',errors='replace')
+                print('decoded_has_B2B=', 'B2B' in html)
+                print('decoded_has_old_maintainer=', 'TRUYN is developed and maintained by Innovation Media Services' in html)
+                if '<footer' in html:
+                  s=html.rfind('<footer'); e=html.find('</footer>',s)
+                  print('DECODED_FOOTER_START')
+                  print(html[s:e+9])
+                  print('DECODED_FOOTER_END')
             except Exception as e:
-              print('d2_error',type(e).__name__,str(e))
-          ep=Path('_tmp_public_site/index.html')
-          print('expanded_len',ep.stat().st_size)
-          txt=ep.read_text(encoding='utf-8',errors='replace')
-          print('expanded_has_B2B', 'B2B' in txt, 'expanded_has_old_maintainer', 'TRUYN is developed and maintained by Innovation Media Services' in txt)
-          if '<footer' in txt:
-            s=txt.rfind('<footer'); e=txt.find('</footer>',s)
-            print('expanded_footer',txt[s:e+9])
-          else:
-            print('expanded_footer','NO_FOOTER')
+              print(path,'decode_error=',type(e).__name__,str(e))
           PY
