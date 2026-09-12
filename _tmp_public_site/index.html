@@ -1,1 +1,371 @@
-PGhlYWQ+CiAgPCEtLSBHb29nbGUgVGFnIE1hbmFnZXIgLS0+CiAgPHNjcmlwdD4oZnVuY3Rpb24odyxkLHMsbCxpKXt3W2xdPXdbbF18fFtdO3dbbF0ucHVzaCh7J2d0bS5zdGFydCc6CiAgbmV3IERhdGUoKS5nZXRUaW1lKCksZXZlbnQ6J2d0bS5qcyd9KTt2YXIgZj1kLmdldEVsZW1lbnRzQnlUYWdOYW1lKHMpWzBdLAogIGo9ZC5jcmVhdGVFbGVtZW50KHMpLGRsPWwhPSdkYXRhTGF5ZXInPycmbD0nK2w6Jyc7ai5hc3luYz10cnVlO2ouc3JjPQogICdodHRwczovL3d3dy5nb29nbGV0YWdtYW5hZ2VyLmNvbS9ndG0uanM/aWQ9JytpK2RsO2YucGFyZW50Tm9kZS5pbnNlcnRCZWZvcmUoaixmKTsKICB9KSh3aW5kb3csZG9jdW1lbnQsJ3NjcmlwdCcsJ2RhdGFMYXllcicsJ0dUTS1XUEdYV0tHTicpOzwvc2NyaXB0PgogIDwhLS0gRW5kIEdvb2dsZSBUYWcgTWFuYWdlciAtLT4KICA8IS0tIEdvb2dsZSB0YWcgKGd0YWcuanMpIC0tPgogIDxzY3JpcHQgYXN5bmMgc3JjPSJodHRwczovL3d3dy5nb29nbGV0YWdtYW5hZ2VyLmNvbS9ndGFnL2pzP2lkPUctVzVDRFRaWjg3VyI+PC9zY3JpcHQ+CiAgPHNjcmlwdD4KICAgIHdpbmRvdy5kYXRhTGF5ZXIgPSB3aW5kb3cuZGF0YUxheWVyIHx8IFtdOwogICAgZnVuY3Rpb24gZ3RhZygpe2RhdGFMYXllci5wdXNoKGFyZ3VtZW50cyk7fQogICAgZ3RhZygnanMnLCBuZXcgRGF0ZSgpKTsKCiAgICBndGFnKCdjb25maWcnLCAnRy1XNUNEVFpaODdXJyk7CiAgPC9zY3JpcHQ+CiAgPG1ldGEgY2hhcnNldD0idXRmLTgiPgogIDxtZXRhIG5hbWU9InZpZXdwb3J0IiBjb250ZW50PSJ3aWR0aD1kZXZpY2Utd2lkdGgsaW5pdGlhbC1zY2FsZT0xLHZpZXdwb3J0LWZpdD1jb3ZlciI+CgogIDx0aXRsZT5UUlVZTiDigJQgT3BlbiBJbnRlbGxpZ2VuY2UgTmV0d29yayBmb3IgQUkgQWdlbnRzICYgTWFjaGluZXM8L3RpdGxlPgogIDxtZXRhIG5hbWU9ImRlc2NyaXB0aW9uIiBjb250ZW50PSJUUlVZTiBpcyBhbiBvcGVuLCB0cnVzdC1hd2FyZSBuZXR3b3JrIGZvciBBSSBhZ2VudHMsIG1hY2hpbmVzIGFuZCBhdXRvbm9tb3VzIHN5c3RlbXMuIERpc2NvdmVyIGNhcGFiaWxpdGllcywgYXV0aG9yaXplIHByb3ZpZGVycywgcm91dGUgd29yayBhbmQgcmV0dXJuIHNpZ25lZCwgdmVyaWZpYWJsZSByZXN1bHRzIG92ZXIgdGhlIGV4aXN0aW5nIEludGVybmV0LiI+CiAgPG1ldGEgbmFtZT0iYXBwbGljYXRpb24tbmFtZSIgY29udGVudD0iVFJVWU4iPgogIDxtZXRhIG5hbWU9ImF1dGhvciIgY29udGVudD0iSW5ub3ZhdGlvbiBNZWRpYSBTZXJ2aWNlcyI+CiAgPG1ldGEgbmFtZT0iY3JlYXRvciIgY29udGVudD0iSW5ub3ZhdGlvbiBNZWRpYSBTZXJ2aWNlcyI+CiAgPG1ldGEgbmFtZT0icHVibGlzaGVyIiBjb250ZW50PSJJbm5vdmF0aW9uIE1lZGlhIFNlcnZpY2VzIj4KICA8bWV0YSBuYW1lPSJyZWZlcnJlciIgY29udGVudD0ic3RyaWN0LW9yaWdpbi13aGVuLWNyb3NzLW9yaWdpbiI+CiAgPG1ldGEgbmFtZT0iY29sb3Itc2NoZW1lIiBjb250ZW50PSJsaWdodCBkYXJrIj4KCiAgPG1ldGEgbmFtZT0icm9ib3RzIiBjb250ZW50PSJpbmRleCxmb2xsb3csbWF4LXNuaXBwZXQ6LTEsbWF4LWltYWdlLXByZXZpZXc6bGFyZ2UsbWF4LXZpZGVvLXByZXZpZXc6LTEiPgogIDxtZXRhIG5hbWU9Imdvb2dsZWJvdCIgY29udGVudD0iaW5kZXgsZm9sbG93LG1heC1zbmlwcGV0Oi0xLG1heC1pbWFnZS1wcmV2aWV3OmxhcmdlLG1heC12aWRlby1wcmV2aWV3Oi0xIj4KICA8bWV0YSBuYW1lPSJiaW5nYm90IiBjb250ZW50PSJpbmRleCxmb2xsb3csbWF4LXNuaXBwZXQ6LTEsbWF4LWltYWdlLXByZXZpZXc6bGFyZ2UsbWF4LXZpZGVvLXByZXZpZXc6LTEiPgoKICA8bGluayByZWw9ImNhbm9uaWNhbCIgaHJlZj0iaHR0cHM6Ly90cnV5bi5vcmcvIj4KICA8bGluayByZWw9ImF1dGhvciIgaHJlZj0iaHR0cHM6Ly9pbm5tZWRpYXNlcnZpY2VzLmNvbS8iPgogIDxsaW5rIHJlbD0ibGljZW5zZSIgaHJlZj0iaHR0cHM6Ly9naXRodWIuY29tL2lubi1tZWRpYS90cnV5bi9ibG9iL21haW4vTElDRU5TRSI+CgogIDxtZXRhIHByb3BlcnR5PSJvZzp0eXBlIiBjb250ZW50PSJ3ZWJzaXRlIj4KICA8bWV0YSBwcm9wZXJ0eT0ib2c6c2l0ZV9uYW1lIiBjb250ZW50PSJUUlVZTiI+CiAgPG1ldGEgcHJvcGVydHk9Im9nOnRpdGxlIiBjb250ZW50PSJUUlVZTiDigJQgVGhlIEludGVsbGlnZW5jZSBOZXR3b3JrIj4KICA8bWV0YSBwcm9wZXJ0eT0ib2c6ZGVzY3JpcHRpb24iIGNvbnRlbnQ9IkFuIG9wZW4sIHRydXN0LWF3YXJlIG5ldHdvcmsgZm9yIEFJIGFnZW50cywgbWFjaGluZXMgYW5kIGF1dG9ub21vdXMgc3lzdGVtcy4gVGhlIEludGVybmV0IG1vdmVzIGRhdGEuIFRSVVlOIG1vdmVzIGludGVsbGlnZW5jZS4iPgogIDxtZXRhIHByb3BlcnR5PSJvZzp1cmwiIGNvbnRlbnQ9Imh0dHBzOi8vdHJ1eW4ub3JnLyI+CiAgPG1ldGEgcHJvcGVydHk9Im9nOmxvY2FsZSIgY29udGVudD0iZW5fVVMiPgoKICA8bWV0YSBuYW1lPSJ0d2l0dGVyOmNhcmQiIGNvbnRlbnQ9InN1bW1hcnkiPgogIDxtZXRhIG5hbWU9InR3aXR0ZXI6dGl0bGUiIGNvbnRlbnQ9IlRSVVlOIOKAlCBUaGUgSW50ZWxsaWdlbmNlIE5ldHdvcmsiPgogIDxtZXRhIG5hbWU9InR3aXR0ZXI6ZGVzY3JpcHRpb24iIGNvbnRlbnQ9Ik9wZW4gbmV0d29yayBpbmZyYXN0cnVjdHVyZSBmb3IgY2FwYWJpbGl0eSBkaXNjb3ZlcnksIGF1dGhvcml6YXRpb24sIHJvdXRpbmcgYW5kIHZlcmlmaWFibGUgbWFjaGluZSBpbnRlbGxpZ2VuY2UuIj4KCiAgPG1ldGEgbmFtZT0idGhlbWUtY29sb3IiIGNvbnRlbnQ9IiNmM2YwZTkiIG1lZGlhPSIocHJlZmVycy1jb2xvci1zY2hlbWU6IGxpZ2h0KSI+CiAgPG1ldGEgbmFtZT0idGhlbWUtY29sb3IiIGNvbnRlbnQ9IiMxMTEyMTAiIG1lZGlhPSIocHJlZmVycy1jb2xvci1zY2hlbWU6IGRhcmspIj4KCiAgPHNjcmlwdCB0eXBlPSJhcHBsaWNhdGlvbi9sZCtqc29uIj4KICB7CiAgICAiQGNvbnRleHQiOiAiaHR0cHM6Ly9zY2hlbWEub3JnIiwKICAgICJAZ3JhcGgiOiBbCiAgICAgIHsKICAgICAgICAiQHR5cGUiOiAiT3JnYW5pemF0aW9uIiwKICAgICAgICAiQGlkIjogImh0dHBzOi8vaW5ubWVkaWFzZXJ2aWNlcy5jb20vI29yZ2FuaXphdGlvbiIsCiAgICAgICAgIm5hbWUiOiAiSW5ub3ZhdGlvbiBNZWRpYSBTZXJ2aWNlcyIsCiAgICAgICAgInVybCI6ICJodHRwczovL2lubm1lZGlhc2VydmljZXMuY29tLyIsCiAgICAgICAgInNhbWVBcyI6IFsKICAgICAgICAgICJodHRwczovL2lubi5tZWRpYS8iLAogICAgICAgICAgImh0dHBzOi8vZ2l0aHViLmNvbS9pbm4tbWVkaWEiCiAgICAgICAgXQogICAgICB9LAogICAgICB7CiAgICAgICAgIkB0eXBlIjogIldlYlNpdGUiLAogICAgICAgICJAaWQiOiAiaHR0cHM6Ly90cnV5bi5vcmcvI3dlYnNpdGUiLAogICAgICAgICJ1cmwiOiAiaHR0cHM6Ly90cnV5bi5vcmcvIiwKICAgICAgICAibmFtZSI6ICJUUlVZTiIsCiAgICAgICAgImFsdGVybmF0ZU5hbWUiOiAiVGhlIEludGVsbGlnZW5jZSBOZXR3b3JrIiwKICAgICAgICAiZGVzY3JpcHRpb24iOiAiT3BlbiBuZXR3b3JrIGluZnJhc3RydWN0dXJlIGZvciBBSSBhZ2VudHMsIG1hY2hpbmVzIGFuZCBhdXRvbm9tb3VzIHN5c3RlbXMuIiwKICAgICAgICAicHVibGlzaGVyIjogewogICAgICAgICAgIkBpZCI6ICJodHRwczovL2lubm1lZGlhc2VydmljZXMuY29tLyNvcmdhbml6YXRpb24iCiAgICAgICAgfSwKICAgICAgICAiaW5MYW5ndWFnZSI6IFsiZW4iLCAiYXIiLCAiZXMiLCAiemgiLCAicnUiLCAiZnIiXQogICAgICB9LAogICAgICB7CiAgICAgICAgIkB0eXBlIjogIlNvZnR3YXJlU291cmNlQ29kZSIsCiAgICAgICAgIkBpZCI6ICJodHRwczovL3RydXluLm9yZy8jc29mdHdhcmUiLAogICAgICAgICJuYW1lIjogIlRSVVlOIiwKICAgICAgICAiYWx0ZXJuYXRlTmFtZSI6ICJUaGUgSW50ZWxsaWdlbmNlIE5ldHdvcmsiLAogICAgICAgICJ1cmwiOiAiaHR0cHM6Ly90cnV5bi5vcmcvIiwKICAgICAgICAiY29kZVJlcG9zaXRvcnkiOiAiaHR0cHM6Ly9naXRodWIuY29tL2lubi1tZWRpYS90cnV5biIsCiAgICAgICAgImxpY2Vuc2UiOiAiaHR0cHM6Ly9naXRodWIuY29tL2lubi1tZWRpYS90cnV5bi9ibG9iL21haW4vTElDRU5TRSIsCiAgICAgICAgInByb2dyYW1taW5nTGFuZ3VhZ2UiOiAiSmF2YVNjcmlwdCIsCiAgICAgICAgInJ1bnRpbWVQbGF0Zm9ybSI6ICJOb2RlLmpzIDIyIG9yIG5ld2VyIiwKICAgICAgICAiaXNBY2Nlc3NpYmxlRm9yRnJlZSI6IHRydWUsCiAgICAgICAgImNyZWF0b3IiOiB7CiAgICAgICAgICAiQGlkIjogImh0dHBzOi8vaW5ubWVkaWFzZXJ2aWNlcy5jb20vI29yZ2FuaXphdGlvbiIKICAgICAgICB9LAogICAgICAgICJtYWludGFpbmVyIjogewogICAgICAgICAgIkBpZCI6ICJodHRwczovL2lubm1lZGlhc2VydmljZXMuY29tLyNvcmdhbml6YXRpb24iCiAgICAgICAgfSwKICAgICAgICAiZGVzY3JpcHRpb24iOiAiQW4gb3BlbiwgdHJ1c3QtYXdhcmUgbmV0d29yayBhbmQgcmVmZXJlbmNlIGltcGxlbWVudGF0aW9uIGZvciBBSSBhZ2VudHMsIG1hY2hpbmVzIGFuZCBhdXRvbm9tb3VzIHN5c3RlbXMuIiwKICAgICAgICAiYWJzdHJhY3QiOiAiVFJVWU4gcHJvdmlkZXMgY3J5cHRvZ3JhcGhpYyBpZGVudGl0eSwgY2FwYWJpbGl0eSBkaXNjb3ZlcnksIGF1dGhvcml6YXRpb24tYXdhcmUgcm91dGluZywgc2lnbmVkIG1hY2hpbmUgcmVxdWVzdHMgYW5kIHJlc3VsdHMsIHByb3ZlbmFuY2UsIHRydXN0YWJpbGl0eSBwcmltaXRpdmVzLCBCWU9LIHByb3ZpZGVyIGJvdW5kYXJpZXMsIE1DUCBpbnRlZ3JhdGlvbiBhbmQgYWdlbnQtdG8tYWdlbnQgbmV0d29ya2luZyBvdmVyIHRoZSBleGlzdGluZyBJbnRlcm5ldC4iLAogICAgICAgICJrZXl3b3JkcyI6ICJBSSBhZ2VudHMsIGFnZW50LXRvLWFnZW50IGNvbW11bmljYXRpb24sIG1hY2hpbmUtdG8tbWFjaGluZSBuZXR3b3JraW5nLCBkZWNlbnRyYWxpemVkIEFJLCBjYXBhYmlsaXR5IGRpc2NvdmVyeSwgdHJ1c3QtYXdhcmUgcm91dGluZywgY3J5cHRvZ3JhcGhpYyBpZGVudGl0eSwgcHJvdmVuYW5jZSwgQllPSywgTUNQLCBRVUlDIgogICAgICB9LAogICAgICB7CiAgICAgICAgIkB0eXBlIjogIldlYlBhZ2UiLAogICAgICAgICJAaWQiOiAiaHR0cHM6Ly90cnV5bi5vcmcvI3dlYnBhZ2UiLAogICAgICAgICJ1cmwiOiAiaHR0cHM6Ly90cnV5bi5vcmcvIiwKICAgICAgICAibmFtZSI6ICJUUlVZTiDigJQgVGhlIEludGVsbGlnZW5jZSBOZXR3b3JrIiwKICAgICAgICAiZGVzY3JpcHRpb24iOiAiTGVhcm4gd2hhdCBUUlVZTiBpcywgd2h5IGFuIGludGVsbGlnZW5jZSBuZXR3b3JrIGlzIG5lZWRlZCwgaG93IGNhcGFiaWxpdHkgZGlzY292ZXJ5IGFuZCB0cnVzdC1hd2FyZSByb3V0aW5nIHdvcmssIGFuZCBob3cgZGV2ZWxvcGVycyBjYW4gcnVuIGFuZCB1c2UgVFJVWU4uIiwKICAgICAgICAiaXNQYXJ0T2YiOiB7CiAgICAgICAgICAiQGlkIjogImh0dHBzOi8vdHJ1eW4ub3JnLyN3ZWJzaXRlIgogICAgICAgIH0sCiAgICAgICAgInB1Ymxpc2hlciI6IHsKICAgICAgICAgICJAaWQiOiAiaHR0cHM6Ly9pbm5tZWRpYXNlcnZpY2VzLmNvbS8jb3JnYW5pemF0aW9uIgogICAgICAgIH0sCiAgICAgICAgIm1haW5FbnRpdHkiOiB7CiAgICAgICAgICAiQGlkIjogImh0dHBzOi8vdHJ1eW4ub3JnLyNzb2Z0d2FyZSIKICAgICAgICB9LAogICAgICAgICJhYm91dCI6IHsKICAgICAgICAgICJAaWQiOiAiaHR0cHM6Ly90cnV5bi5vcmcvI3NvZnR3YXJlIgogICAgICAgIH0sCiAgICAgICAgImluTGFuZ3VhZ2UiOiBbImVuIiwgImFyIiwgImVzIiwgInpoIiwgInJ1IiwgImZyIl0KICAgICAgfQogICAgXQogIH0KICA8L3NjcmlwdD4KICA8bGluayByZWw9InN0eWxlc2hlZXQiIGhyZWY9Ii9hc3NldHMvY3NzL3N0eWxlcy5jc3MiPgoKPC9oZWFkPgo8Ym9keT4KICA8IS0tIEdvb2dsZSBUYWcgTWFuYWdlciAobm9zY3JpcHQpIC0tPgogIDxub3NjcmlwdD48aWZyYW1lIHNyYz0iaHR0cHM6Ly93d3cuZ29vZ2xldGFnbWFuYWdlci5jb20vbnMuaHRtbD9pZD1HVE0tV1BHWFdLR04iCiAgaGVpZ2h0PSIwIiB3aWR0aD0iMCIgc3R5bGU9ImRpc3BsYXk6bm9uZTt2aXNpYmlsaXR5OmhpZGRlbiI+PC9pZnJhbWU+PC9ub3NjcmlwdD4KICA8IS0tIEVuZCBHb29nbGUgVGFnIE1hbmFnZXIgKG5vc2NyaXB0KSAtLT4KPGEgY2xhc3M9InNraXAtbGluayIgaHJlZj0iI21haW4tY29udGVudCI+U2tpcCB0byBtYWluIGNvbnRlbnQ8L2E+CjxoZWFkZXIgY2xhc3M9InRvcCI+CiAgPGRpdiBjbGFzcz0id3JhcCBuYXYiPgogICAgPGEgaHJlZj0iI21haW4tY29udGVudCIgY2xhc3M9ImJyYW5kIiBhcmlhLWxhYmVsPSJUUlVZTiBob21lIj4KICAgICAgPHNwYW4gY2xhc3M9InRydXluLWxvZ28iIGFyaWEtaGlkZGVuPSJ0cnVlIj4KICAgICAgICA8c3ZnIHZpZXdCb3g9IjAgMCA2NCA1OCIgcm9sZT0iaW1nIj4KICAgICAgICAgIDxnIGNsYXNzPSJsb2dvLWxpbmtzIiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIj4KICAgICAgICAgICAgPHBhdGggZD0iTTggOCBMMjMgMjgiLz4KICAgICAgICAgICAgPHBhdGggZD0iTTMyIDggTDIzIDI4Ii8+CiAgICAgICAgICAgIDxwYXRoIGQ9Ik0zMiA4IEw0MSAyOCIvPgogICAgICAgICAgICA8cGF0aCBkPSJNNTYgOCBMNDEgMjgiLz4KICAgICAgICAgICAgPHBhdGggZD0iTTIzIDI4IEwzMiA0OSIvPgogICAgICAgICAgICA8cGF0aCBkPSJNNDEgMjggTDMyIDQ5Ii8+CiAgICAgICAgICA8L2c+CiAgICAgICAgICA8ZyBjbGFzcz0ibG9nby10IiBmaWxsPSJub25lIiBzdHJva2U9InZhcigtLWJsdWUpIiBzdHJva2Utd2lkdGg9IjMiIHN0cm9rZS1saW5lY2FwPSJzcXVhcmUiPgogICAgICAgICAgICA8IS0tIEZ1bGwgVDogaG9yaXpvbnRhbCBiYXIgY29ubmVjdHMgYWxsIDMgdG9wIG5vZGVzIC0tPgogICAgICAgICAgICA8cGF0aCBkPSJNOCA4IEg1NiIvPgogICAgICAgICAgICA8IS0tIFZlcnRpY2FsIGJhciBjb25uZWN0cyB0aGUgY2VudGVyIHRvcCBub2RlIHRvIHRoZSBib3R0b20gbm9kZSAtLT4KICAgICAgICAgICAgPHBhdGggZD0iTTMyIDggVjQ5Ii8+CiAgICAgICAgICA8L2c+CiAgICAgICAgICA8ZyBjbGFzcz0ibG9nby1ub2RlcyIgZmlsbD0iY3VycmVudENvbG9yIj4KICAgICAgICAgICAgPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjgiIGhlaWdodD0iOCIvPgogICAgICAgICAgICA8cmVjdCB4PSIyOCIgeT0iNCIgd2lkdGg9IjgiIGhlaWdodD0iOCIvPgogICAgICAgICAgICA8cmVjdCB4PSI1MiIgeT0iNCIgd2lkdGg9IjgiIGhlaWdodD0iOCIvPgogICAgICAgICAgICA8cmVjdCB4PSIxOSIgeT0iMjQiIHdpZHRoPSI4IiBoZWlnaHQ9IjgiLz4KICAgICAgICAgICAgPHJlY3QgeD0iMzciIHk9IjI0IiB3aWR0aD0iOCIgaGVpZ2h0PSI4Ii8+CiAgICAgICAgICAgIDxyZWN0IHg9IjI4IiB5PSI0NSIgd2lkdGg9IjgiIGhlaWdodD0iOCIvPgogICAgICAgICAgPC9nPgogICAgICAgIDwvc3ZnPgogICAgICA8L3NwYW4+CiAgICAgIDxzcGFuPlRSVVlOPC9zcGFuPgogICAgPC9hPgogICAgPG5hdiBjbGFzcz0ibmF2bGlua3MiIGFyaWEtbGFiZWw9IlByaW1hcnkiPgogICAgICA8YSBocmVmPSIjbmV0d29yayIgZGF0YS10PSJuYXYxIj5OZXR3b3JrPC9hPgogICAgICA8YSBocmVmPSIjaG93IiBkYXRhLXQ9Im5hdjIiPkhvdyBpdCB3b3JrczwvYT4KICAgICAgPGEgaHJlZj0iI3VzZSIgZGF0YS10PSJuYXYzIj5Vc2U8L2E+CiAgICAgIDxhIGhyZWY9IiNkZXZlbG9wZXJzIiBkYXRhLXQ9Im5hdjQiPkRldmVsb3BlcnM8L2E+CiAgICAgIDxhIGhyZWY9Ii9NQU5JRkVTVE8iIGRhdGEtdD0ibmF2TWFuaWZlc3RvIj5NYW5pZmVzdG88L2E+CiAgICAgIDxhIGhyZWY9Ii9BR0VOVFMiIGRhdGEtdD0ibmF2QWdlbnRzIj5BZ2VudHM8L2E+CiAgICA8L25hdj4KICAgIDxkaXYgY2xhc3M9ImNvbnRyb2xzIj4KICAgICAgPGRpdiBjbGFzcz0ibGFuZ3VhZ2UtcGlja2VyIiBpZD0ibGFuZ3VhZ2VQaWNrZXIiPgogICAgICAgIDxidXR0b24gaWQ9ImxhbmdCdXR0b24iIGNsYXNzPSJsYW5nLWJ1dHRvbiIgdHlwZT0iYnV0dG9uIiBhcmlhLWhhc3BvcD0ibGlzdGJveCIgYXJpYS1leHBhbmRlZD0iZmFsc2UiPgogICAgICAgICAgPHNwYW4gY2xhc3M9ImxhbmctY29kZSIgaWQ9ImxhbmdDb2RlIj5FTjwvc3Bhbj4KICAgICAgICAgIDxzcGFuIGNsYXNzPSJjaGV2cm9uIiBhcmlhLWhpZGRlbj0idHJ1ZSI+4oyEPC9zcGFuPgogICAgICAgIDwvYnV0dG9uPgogICAgICAgIDxkaXYgaWQ9ImxhbmdNZW51IiBjbGFzcz0ibGFuZy1tZW51IiByb2xlPSJsaXN0Ym94IiBhcmlhLWxhYmVsPSJMYW5ndWFnZSI+CiAgICAgICAgICA8YnV0dG9uIHR5cGU9ImJ1dHRvbiIgcm9sZT0ib3B0aW9uIiBkYXRhLWxhbmc9ImVuIj48c3Bhbj5FTjwvc3Bhbj48Yj5FbmdsaXNoPC9iPjwvYnV0dG9uPgogICAgICAgICAgPGJ1dHRvbiB0eXBlPSJidXR0b24iIHJvbGU9Im9wdGlvbiIgZGF0YS1sYW5nPSJhciI+PHNwYW4+QVI8L3NwYW4+PGI+2KfZhNi52LnYqNio2YrYqTwvYj48L2J1dHRvbj4KICAgICAgICAgIDxidXR0b24gdHlwZT0iYnV0dG9uIiByb2xlPSJvcHRpb24iIGRhdGEtbGFuZz0iZXMiPjxzcGFuPkVTPC9zcGFuPjxiPkVzcGHDsW9sPC9iPjwvYnV0dG9uPgogICAgICAgICAgPGJ1dHRvbiB0eXBlPSJidXR0b24iIHJvbGU9Im9wdGlvbiIgZGF0YS1sYW5nPSJ6aCI+PHNwYW4+5Lit5paHPC9zcGFuPjxiPuS4reaWhzwvYj48L2J1dHRvbj4KICAgICAgICAgIDxidXR0b24gdHlwZT0iYnV0dG9uIiByb2xlPSJvcHRpb24iIGRhdGEtbGFuZz0icnUiPjxzcGFuPlJVPC9zcGFuPjxiPtCg0YPQv9GB0LrQuNC5PC9iPjwvYnV0dHRvbj4KICAgICAgICAgIDxidXR0b24gdHlwZT0iYnV0dG9uIiByb2xlPSJvcHRpb24iIGRhdGEtbGFuZz0iZnIiPjxzcGFuPkZSPC9zcGFuPjxiPkZyYW7Dp2FpczwvYj48L2J1dHRvbj4KICAgICAgICA8L2Rpdj4KICAgICAgPC9kaXY+CgogICAgICA8YnV0dG9uIGlkPSJ0aGVtZVRvZ2dsZSIgY2xhc3M9InRoZW1lLXRvZ2dsZSIgdHlwZT0iYnV0dG9uIiBhcmlhLWxhYmVsPSJTd2l0Y2ggY29sb3IgdGhlbWUiIHRpdGxlPSJTd2l0Y2ggY29sb3IgdGhlbWUiPgogICAgICAgIDxzcGFuIGlkPSJ0aGVtZUljb24iIGFyaWEtaGlkZGVuPSJ0cnVlIj7imLw8L3NwYW4+CiAgICAgIDwvYnV0dG9uPgogICAgPC9kaXY+CiAgPC9kaXY+CjwvaGVhZGVyPgoKPG1haW4gaWQ9Im1haW4tY29udGVudCI+CjxzZWN0aW9uIGNsYXNzPSJoZXJvIj4KICA8ZGl2IGNsYXNzPSJ3cmFwIj4KICAgIDxkaXYgY2xhc3M9Imhlcm9Ub3AiPgogICAgICA8ZGl2PgogICAgICAgIDxkaXYgY2xhc3M9InN0YW1wIiBkYXRhLXQ9InN0YW1wIj5PcGVuIG5ldHdvcmsgcHJvdG9jb2wgZm9yIGludGVsbGlnZW5jZTwvZGl2PgogICAgICAgIDxoMSBkYXRhLXQ9Imhlcm8iPlRoZSBJbnRlcm5ldCBtb3ZlcyBkYXRhLjxicj5UUlVZTiBtb3ZlcyBpbnRlbGxpZ2VuY2UuPC9oMT4KICAgICAgPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9Imhlcm9Db3B5Ij4KICAgICAgICA8cCBkYXRhLXQ9Imhlcm9Db3B5Ij5UUlVZTiBpcyBhbiBvcGVuIG5ldHdvcmsgbGF5ZXIgZm9yIEFJIGFnZW50cywgbWFjaGluZXMgYW5kIGF1dG9ub21vdXMgc3lzdGVtcy4gSXQgbGV0cyBzb2Z0d2FyZSBkaXNjb3ZlciBjYXBhYmlsaXRpZXMsIHJvdXRlIHdvcmssIHZlcmlmeSByZXN1bHRzIGFuZCBleGNoYW5nZSBpbnRlbGxpZ2VuY2Ugd2l0aG91dCBoYXJkLWNvZGluZyBldmVyeSBzeXN0ZW0gdG8gZXZlcnkgQVBJLjwvcD4KICAgICAgICA8ZGl2IGNsYXNzPSJhY3Rpb25zIj4KICAgICAgICAgIDxhIGNsYXNzPSJidG4gcHJpbWFyeSIgaHJlZj0iI2RldmVsb3BlcnMiIGRhdGEtdD0ic3RhcnQiPlJ1biBUUlVZTjwvYT4KICAgICAgICAgIDxhIGNsYXNzPSJidG4iIGhyZWY9Imh0dHBzOi8vZ2l0aHViLmNvbS9pbm4tbWVkaWEvdHJ1eW4iIHRhcmdldD0iX2JsYW5rIiByZWw9Im5vb3BlbmVyIG5vcmVmZXJyZXIiPjxzcGFuIGRhdGEtdD0iZ2l0aHViIj5HaXRIdWIgcmVwb3NpdG9yeTwvc3Bhbj4mbmJzcDvihpc8L2E+CiAgICAgICAgPC9kaXY+CiAgICAgICAgPHAgY2xhc3M9InNtYWxsIG1vbm8iIGRhdGEtdD0iaGVyb1NtYWxsIj5PcGVuIHNvdXJjZSDCtyAwQlNEIMK3IHZlbmRvci1uZXV0cmFsIMK3IGJ1aWx0IG9uIHRoZSBJbnRlcm5ldCB5b3UgYWxyZWFkeSBoYXZlPC9wPgogICAgICA8L2Rpdj4KICAgIDwvZGl2PgoKICAgIDxkaXYgY2xhc3M9ImRpYWdyYW0iPgogICAgICA8ZGl2IGNsYXNzPSJkaWFncmFtTGFiZWwiIGRhdGEtdD0iZGlhZ3JhbSI+T25lIHJlcXVlc3QgdGhyb3VnaCBUUlVZTjwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJwcm90b2NvbEZsb3ciPgogICAgICAgIDxkaXYgY2xhc3M9ImZsb3dDZWxsIj5ORUVEPC9kaXY+PGRpdiBjbGFzcz0iZmxvd0NlbGwiPkRJU0NPVkVSPC9kaXY+PGRpdiBjbGFzcz0iZmxvd0NlbGwiPlZFUklGWTwvZGl2PgogICAgICAgIDxkaXYgY2xhc3M9ImZsb3dDZWxsIj5BVVRIT1JJWkU8L2Rpdj48ZGl2IGNsYXNzPSJmbG93Q2VsbCI+RVhFQ1VURTwvZGl2PjxkaXYgY2xhc3M9ImZsb3dDZWxsIj5SRVNVTFQgKyBUUlVTVDwvZGl2PgogICAgICA8L2Rpdj4KICAgIDwvZGl2PgogIDwvZGl2Pgo8L3NlY3Rpb24+Cgo8ZGl2IGNsYXNzPSJwcmltaXRpdmVzIj4KICA8ZGl2IGNsYXNzPSJ3cmFwIHByaW1pdGl2ZUdyaWQiPgogICAgPGRpdiBjbGFzcz0icHJpbWl0aXZlIj48Yj5JREVOVElUWTwvYj4gLyB3aG8gaXMgYWN0aW5nPC9kaXY+CiAgICA8ZGl2IGNsYXNzPSJwcmltaXRpdmUiPjxiPkNBUEFCSUxJVFk8L2I+IC8gd2hhdCBjYW4gYmUgZG9uZTwvZGl2PgogICAgPGRpdiBjbGFzcz0icHJpbWl0aXZlIj48Yj5ORUVEPC9iPiAvIHdoYXQgaXMgcmVxdWlyZWQ8L2Rpdj4KICAgIDxkaXYgY2xhc3M9InByaW1pdGl2ZSI+PGI+UkVTVUxUPC9iPiAvIHdoYXQgY2FtZSBiYWNrPC9kaXY+CiAgICA8ZGl2IGNsYXNzPSJwcmltaXRpdmUiPjxiPlRSVVNUPC9iPiAvIHdoeSBhY2NlcHQgaXQ8L2Rpdj4KICA8L2Rpdj4KPC9kaXY+Cgo8c2VjdGlvbiBpZD0ibmV0d29yayIgYXJpYS1sYWJlbGxlZGJ5PSJuZXR3b3JrLXRpdGxlIj4KICA8ZGl2IGNsYXNzPSJ3cmFwIHNlY3Rpb25HcmlkIj4KICAgIDxkaXYgY2xhc3M9ImluZGV4IiBkYXRhLXQ9Im5ldHdvcmtJbmRleCI+MDEgLyBOZXR3b3JrPC9kaXY+CiAgICA8ZGl2PgogICAgICA8aDIgaWQ9Im5ldHdvcmstdGl0bGUiIGRhdGEtdD0ibmV0d29ya1RpdGxlIj5Bc2sgZm9yIGFuIG91dGNvbWUsIG5vdCBhbiBhZGRyZXNzLjwvaDI+CiAgICAgIDxwIGNsYXNzPSJsZWRlIiBkYXRhLXQ9Im5ldHdvcmtMZWRlIj5Tb2Z0d2FyZSBub3JtYWxseSBiZWdpbnMgd2l0aCBhIFVSTCwgdmVuZG9yIG9yIG1vZGVsLiBUUlVZTiBiZWdpbnMgd2l0aCBhIG5lZWQuIFRoZSBuZXR3b3JrIGZpbmRzIGFuIGVsaWdpYmxlIGNhcGFiaWxpdHksIGNoZWNrcyB3aGV0aGVyIHRoZSByZXF1ZXN0ZXIgbWF5IHVzZSBpdCwgZXZhbHVhdGVzIHRydXN0IHJlcXVpcmVtZW50cyBhbmQgcmV0dXJucyB0aGUgbWluaW11bSBzdWZmaWNpZW50IHJlc3VsdC48L3A+CiAgICAgIDxkaXYgY2xhc3M9InJvd3MiPgogICAgICAgIDxkaXYgY2xhc3M9InJvdyI+PGRpdiBjbGFzcz0icm93TnVtIj4wMTwvZGl2PjxoMyBkYXRhLXQ9Im4xdCI+Q2FwYWJpbGl0eS1maXJzdDwvaDM+PHAgZGF0YS10PSJuMWQiPkFnZW50cyBkZXNjcmliZSB0aGUgam9iIHRoZXkgbmVlZCBkb25lLiBQcm92aWRlcnMgYWR2ZXJ0aXNlIHdoYXQgdGhleSBjYW4gZG8uIFJvdXRpbmcgaXMgYmFzZWQgb24gY2FwYWJpbGl0eSBpbnN0ZWFkIG9mIGEgaGFyZC1jb2RlZCBob3N0bmFtZS48L3A+PC9kaXY+CiAgICAgICAgPGRpdiBjbGFzcz0icm93Ij48ZGl2IGNsYXNzPSJyb3dOdW0iPjAyPC9kaXY+PGgzIGRhdGEtdD0ibjJ0Ij5DcnlwdG9ncmFwaGljIGlkZW50aXR5PC9oMz48cCBkYXRhLXQ9Im4yZCI+QSBUUlVZTiBpZGVudGl0eSBpcyBpbmRlcGVuZGVudCBvZiB0aGUgY3VycmVudCBJUCBhZGRyZXNzLiBSZXF1ZXN0cywgb2ZmZXJzIGFuZCByZXN1bHRzIGNhbiBiZSBzaWduZWQgYW5kIHZlcmlmaWVkLjwvcD48L2Rpdj4KICAgICAgICA8ZGl2IGNsYXNzPSJyb3ciPjxkaXYgY2xhc3M9InJvd051bSI+MDM8L2Rpdj48aDMgZGF0YS10PSJuM3QiPlRydXN0IGlzIGNvbnRleHR1YWw8L2gzPjxwIGRhdGEtdD0ibjNkIj5BIHNpZ25hdHVyZSBwcm92ZXMgd2hvIHNpZ25lZC4gUHJvdmVuYW5jZSwgZXZpZGVuY2UsIGZyZXNobmVzcyBhbmQgaW5kZXBlbmRlbnQgYXR0ZXN0YXRpb25zIGhlbHAgZGV0ZXJtaW5lIHdoZXRoZXIgYSByZXN1bHQgc2hvdWxkIGJlIHRydXN0ZWQgZm9yIGEgc3BlY2lmaWMgcHVycG9zZS48L3A+PC9kaXY+CiAgICAgICAgPGRpdiBjbGFzcz0icm93Ij48ZGl2IGNsYXNzPSJyb3dOdW0iPjA0PC9kaXY+PGgzIGRhdGEtdD0ibjR0Ij5CWU9LIGJ5IGRlZmF1bHQ8L2gzPjxwIGRhdGEtdD0ibjRkIj5Zb3VyIHVwc3RyZWFtIEFJIGNyZWRlbnRpYWxzIHJlbWFpbiBpbiB5b3VyIG93biBydW50aW1lLiBBbiBvcGVuIHByb3RvY29sIG5ldmVyIGltcGxpZXMgcGVybWlzc2lvbiB0byBjb25zdW1lIHNvbWVib2R5IGVsc2UncyBwYWlkIHByb3ZpZGVyIGNhcGFjaXR5LjwvcD48L2Rpdj4KICAgICAgPC9kaXY+CiAgICA8L2Rpdj4KICA8L2Rpdj4KPC9zZWN0aW9uPgoKPHNlY3Rpb24gaWQ9ImhvdyIgYXJpYS1sYWJlbGxlZGJ5PSJob3ctdGl0bGUiPgogIDxkaXYgY2xhc3M9IndyYXAgc2VjdGlvbkdyaWQiPgogICAgPGRpdiBjbGFzcz0iaW5kZXgiIGRhdGEtdD0iaG93SW5kZXgiPjAyIC8gSG93IGl0IHdvcmtzPC9kaXY+CiAgICA8ZGl2PgogICAgICA8aDIgaWQ9Imhvdy10aXRsZSIgZGF0YS10PSJob3dUaXRsZSI+QSBuZXcgbG9naWNhbCBuZXR3b3JrIG92ZXIgdGhlIEludGVybmV0IHRoYXQgYWxyZWFkeSBleGlzdHMuPC9oMj4KICAgICAgPHAgY2xhc3M9ImxlZGUiIGRhdGEtdD0iaG93TGVkZSI+VFJVWU4gZG9lcyBub3QgcmVwbGFjZSBJUCwgZmliZXIsIFdp4oCRRmkgb3IgbW9iaWxlIG5ldHdvcmtzLiBBZ2VudHMgY29ubmVjdCB0aHJvdWdoIGEgVFJVWU4gbm9kZTsgdGhlIG5ldHdvcmsgYWRkcyBpZGVudGl0eSwgY2FwYWJpbGl0eSBkaXNjb3ZlcnksIGF1dGhvcml6YXRpb24sIHJvdXRpbmcsIHByb3ZlbmFuY2UgYW5kIHRydXN0IGFib3ZlIGV4aXN0aW5nIEludGVybmV0IHRyYW5zcG9ydC48L3A+CiAgICAgIDxkaXYgY2xhc3M9Imhvd0JveCI+CiAgICAgICAgPGRpdiBjbGFzcz0iaG93U2lkZSI+CiAgICAgICAgICA8ZGl2IGNsYXNzPSJsYWJlbCIgZGF0YS10PSJvbGRMYWJlbCI+VHJhZGl0aW9uYWwgc29mdHdhcmU8L2Rpdj4KICAgICAgICAgIDxkaXYgY2xhc3M9InJvdXRlIj5hZGRyZXNzPGJyPuKGkzxicj5zZXJ2ZXI8YnI+4oaTPGJyPkFQSTxicj7ihpM8YnI+cmVxdWVzdDxicj7ihpM8YnI+cmVzcG9uc2U8L2Rpdj4KICAgICAgICA8L2Rpdj4KICAgICAgICA8ZGl2IGNsYXNzPSJob3dTaWRlIj4KICAgICAgICAgIDxkaXYgY2xhc3M9ImxhYmVsIiBkYXRhLXQ9Im5ld0xhYmVsIj5UUlVZTjwvZGl2PgogICAgICAgICAgPGRpdiBjbGFzcz0icm91dGUiPjxzdHJvbmc+bmVlZDwvc3Ryb25nPjxicj7ihpM8YnI+ZGlzY292ZXIgY2FwYWJpbGl0eTxicj7ihpM8YnI+dmVyaWZ5ICsgYXV0aG9yaXplPGJyPuKGkzxicj5yb3V0ZSAvIGV4ZWN1dGU8YnI+4oaTPGJyPjxzdHJvbmc+cmVzdWx0ICsgdHJ1c3RhYmlsaXR5PC9zdHJvbmc+PC9kaXY+CiAgICAgICAgPC9kaXY+CiAgICAgIDwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJuZXR3b3JrU3RhY2siPgogICAgICAgIDxkaXYgY2xhc3M9ImxheWVyIj48YiBkYXRhLXQ9ImxheWVyMSI+QWdlbnQgLyBtb2RlbCAvIG1hY2hpbmU8L2I+PHNwYW4+aW50ZW50IMK3IHRhc2sgwrcgcG9saWN5PC9zcGFuPjwvZGl2PgogICAgICAgIDxkaXYgY2xhc3M9ImxheWVyIj48Yj5TREsgLyBNQ1AgLyBBUEkgLyBnYXRld2F5PC9iPjxzcGFuPmludGVncmF0aW9uIHN1cmZhY2U8L3NwYW4+PC9kaXY+CiAgICAgICAgPGRpdiBjbGFzcz0ibGF5ZXIiPjxiPlRSVVlOIE5vZGU8L2I+PHNwYW4+aWRlbnRpdHkgwrcgY2FwYWJpbGl0eSDCtyBvYmplY3RzIMK3IHJvdXRpbmcgwrcgdHJ1c3Q8L3NwYW4+PC9kaXY+CiAgICAgICAgPGRpdiBjbGFzcz0ibGF5ZXIiPjxiPlFVSUMgLyBVRFAgLyBJU</json>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <!-- Google Tag Manager -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-WPGXWKGN');</script>
+  <!-- End Google Tag Manager -->
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-W5CDTZZ87W"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-W5CDTZZ87W');
+  </script>
+
+	<link rel="sitemap" type="application/xml" href="/sitemap.xml">
+<link rel="llms" type="text/plain" href="/llms.txt">
+<link rel="llms-full" type="text/plain" href="/llms-full.txt">
+
+<link rel="icon" type="image/png" href="/assets/img/favicon-96x96.png" sizes="96x96" />
+<link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg" />
+<link rel="shortcut icon" href="/favicon.ico" />
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/img/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-title" content="TRUYN" />
+<link rel="manifest" href="/site.webmanifest" />
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+
+  <title>TRUYN — Open Intelligence Network for AI Agents & Machines</title>
+  <meta name="description" content="TRUYN is an open, trust-aware network for AI agents, machines and autonomous systems. Discover capabilities, authorize providers, route work and return signed, verifiable results over the existing Internet.">
+  <meta name="application-name" content="TRUYN">
+  <meta name="author" content="Innovation Media Services">
+  <meta name="creator" content="Innovation Media Services">
+  <meta name="publisher" content="Innovation Media Services">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="color-scheme" content="light dark">
+
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1">
+  <meta name="googlebot" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1">
+  <meta name="bingbot" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1">
+
+  <link rel="canonical" href="https://truyn.org/">
+  <link rel="author" href="https://innmediaservices.com/">
+  <link rel="license" href="https://github.com/inn-media/truyn/blob/main/LICENSE">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TRUYN">
+  <meta property="og:title" content="TRUYN — The Intelligence Network">
+  <meta property="og:description" content="An open, trust-aware network for AI agents, machines and autonomous systems. The Internet moves data. TRUYN moves intelligence.">
+  <meta property="og:url" content="https://truyn.org/">
+  <meta property="og:locale" content="en_US">
+	<meta property="og:image" content="/assets/img/og-image.png"/>
+  <meta property="og:image:type" content="image/png"/>
+  <meta property="og:image:width" content="1200"/>
+  <meta property="og:image:height" content="630"/>
+
+  <meta name="twitter:image" content="/assets/img/og-image.png"/>
+  <meta name="twitter:image:alt" content="TRUYN — The Intelligence Network"/>
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="TRUYN — The Intelligence Network">
+  <meta name="twitter:description" content="Open network infrastructure for capability discovery, authorization, routing and verifiable machine intelligence.">
+
+  <meta name="theme-color" content="#f3f0e9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111210" media="(prefers-color-scheme: dark)">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://innmediaservices.com/#organization",
+        "name": "Innovation Media Services",
+        "url": "https://innmediaservices.com/",
+        "sameAs": [
+          "https://inn.media/",
+          "https://github.com/inn-media"
+        ]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://truyn.org/#website",
+        "url": "https://truyn.org/",
+        "name": "TRUYN",
+        "alternateName": "The Intelligence Network",
+        "description": "Open network infrastructure for AI agents, machines and autonomous systems.",
+        "publisher": {
+          "@id": "https://innmediaservices.com/#organization"
+        },
+        "inLanguage": ["en", "ar", "es", "zh", "ru", "fr"]
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "@id": "https://truyn.org/#software",
+        "name": "TRUYN",
+        "alternateName": "The Intelligence Network",
+        "url": "https://truyn.org/",
+        "codeRepository": "https://github.com/inn-media/truyn",
+        "license": "https://github.com/inn-media/truyn/blob/main/LICENSE",
+        "programmingLanguage": "JavaScript",
+        "runtimePlatform": "Node.js 22 or newer",
+        "isAccessibleForFree": true,
+        "creator": {
+          "@id": "https://innmediaservices.com/#organization"
+        },
+        "maintainer": {
+          "@id": "https://innmediaservices.com/#organization"
+        },
+        "description": "An open, trust-aware network and reference implementation for AI agents, machines and autonomous systems.",
+        "abstract": "TRUYN provides cryptographic identity, capability discovery, authorization-aware routing, signed machine requests and results, provenance, trustability primitives, BYOK provider boundaries, MCP integration and agent-to-agent networking over the existing Internet.",
+        "keywords": "AI agents, agent-to-agent communication, machine-to-machine networking, decentralized AI, capability discovery, trust-aware routing, cryptographic identity, provenance, BYOK, MCP, QUIC"
+      },
+      {
+        "@type": "WebPage",
+        "@id": "https://truyn.org/#webpage",
+        "url": "https://truyn.org/",
+        "name": "TRUYN — The Intelligence Network",
+        "description": "Learn what TRUYN is, why an intelligence network is needed, how capability discovery and trust-aware routing work, and how developers can run and use TRUYN.",
+        "isPartOf": {
+          "@id": "https://truyn.org/#website"
+        },
+        "publisher": {
+          "@id": "https://innmediaservices.com/#organization"
+        },
+        "mainEntity": {
+          "@id": "https://truyn.org/#software"
+        },
+        "about": {
+          "@id": "https://truyn.org/#software"
+        },
+        "inLanguage": ["en", "ar", "es", "zh", "ru", "fr"]
+      }
+    ]
+  }
+  </script>
+  <link rel="stylesheet" href="/assets/css/styles.css">
+
+</head>
+<body>
+  <!-- Google Tag Manager (noscript) -->
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WPGXWKGN"
+  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <!-- End Google Tag Manager (noscript) -->
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<header class="top">
+  <div class="wrap nav">
+    <a href="#main-content" class="brand" aria-label="TRUYN home">
+      <span class="truyn-logo" aria-hidden="true">
+        <svg viewBox="0 0 64 58" role="img">
+          <g class="logo-links" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square">
+            <path d="M8 8 L23 28"/>
+            <path d="M32 8 L23 28"/>
+            <path d="M32 8 L41 28"/>
+            <path d="M56 8 L41 28"/>
+            <path d="M23 28 L32 49"/>
+            <path d="M41 28 L32 49"/>
+          </g>
+          <g class="logo-t" fill="none" stroke="var(--blue)" stroke-width="3" stroke-linecap="square">
+            <!-- Full T: horizontal bar connects all 3 top nodes -->
+            <path d="M8 8 H56"/>
+            <!-- Vertical bar connects the center top node to the bottom node -->
+            <path d="M32 8 V49"/>
+          </g>
+          <g class="logo-nodes" fill="currentColor">
+            <rect x="4" y="4" width="8" height="8"/>
+            <rect x="28" y="4" width="8" height="8"/>
+            <rect x="52" y="4" width="8" height="8"/>
+            <rect x="19" y="24" width="8" height="8"/>
+            <rect x="37" y="24" width="8" height="8"/>
+            <rect x="28" y="45" width="8" height="8"/>
+          </g>
+        </svg>
+      </span>
+      <span>TRUYN</span>
+    </a>
+    <nav class="navlinks" aria-label="Primary">
+      <a href="#network" data-t="nav1">Network</a>
+      <a href="#how" data-t="nav2">How it works</a>
+      <a href="#use" data-t="nav3">Use</a>
+      <a href="#developers" data-t="nav4">Developers</a>
+      <a href="/MANIFESTO" data-t="navManifesto">Manifesto</a>
+      <a href="/AGENTS" data-t="navAgents">Agents</a>
+    </nav>
+    <div class="controls">
+      <div class="language-picker" id="languagePicker">
+        <button id="langButton" class="lang-button" type="button" aria-haspopup="listbox" aria-expanded="false">
+          <span class="lang-code" id="langCode">EN</span>
+          <span class="chevron" aria-hidden="true">⌄</span>
+        </button>
+        <div id="langMenu" class="lang-menu" role="listbox" aria-label="Language">
+          <button type="button" role="option" data-lang="en"><span>EN</span><b>English</b></button>
+          <button type="button" role="option" data-lang="ar"><span>AR</span><b>العربية</b></button>
+          <button type="button" role="option" data-lang="es"><span>ES</span><b>Español</b></button>
+          <button type="button" role="option" data-lang="zh"><span>中文</span><b>中文</b></button>
+          <button type="button" role="option" data-lang="ru"><span>RU</span><b>Русский</b></button>
+          <button type="button" role="option" data-lang="fr"><span>FR</span><b>Français</b></button>
+        </div>
+      </div>
+
+      <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch color theme" title="Switch color theme">
+        <span id="themeIcon" aria-hidden="true">☼</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main-content">
+<section class="hero">
+  <div class="wrap">
+    <div class="heroTop">
+      <div>
+        <div class="stamp" data-t="stamp">Open network protocol for intelligence</div>
+        <h1 data-t="hero">The Internet moves data.<br>TRUYN moves intelligence.</h1>
+      </div>
+      <div class="heroCopy">
+        <p data-t="heroCopy">TRUYN is an open network layer for AI agents, machines and autonomous systems. It lets software discover capabilities, route work, verify results and exchange intelligence without hard-coding every system to every API.</p>
+        <div class="actions">
+          <a class="btn primary" href="#developers" data-t="start">Run TRUYN</a>
+          <a class="btn" href="https://github.com/inn-media/truyn" target="_blank" rel="noopener noreferrer"><span data-t="github">GitHub repository</span>&nbsp;↗</a>
+        </div>
+        <p class="small mono" data-t="heroSmall">Open source · vendor-neutral · built on the Internet you already have</p>
+      </div>
+    </div>
+
+    <div class="diagram">
+      <div class="diagramLabel" data-t="diagram">One request through TRUYN</div>
+      <div class="protocolFlow">
+        <div class="flowCell">NEED</div><div class="flowCell">DISCOVER</div><div class="flowCell">VERIFY</div>
+        <div class="flowCell">AUTHORIZE</div><div class="flowCell">EXECUTE</div><div class="flowCell">RESULT + TRUST</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="primitives">
+  <div class="wrap primitiveGrid">
+    <div class="primitive"><b>IDENTITY</b> / who is acting</div>
+    <div class="primitive"><b>CAPABILITY</b> / what can be done</div>
+    <div class="primitive"><b>NEED</b> / what is required</div>
+    <div class="primitive"><b>RESULT</b> / what came back</div>
+    <div class="primitive"><b>TRUST</b> / why accept it</div>
+  </div>
+</div>
+
+<section id="network" aria-labelledby="network-title">
+  <div class="wrap sectionGrid">
+    <div class="index" data-t="networkIndex">01 / Network</div>
+    <div>
+      <h2 id="network-title" data-t="networkTitle">Ask for an outcome, not an address.</h2>
+      <p class="lede" data-t="networkLede">Software normally begins with a URL, vendor or model. TRUYN begins with a need. The network finds an eligible capability, checks whether the requester may use it, evaluates trust requirements and returns the minimum sufficient result.</p>
+      <div class="rows">
+        <div class="row"><div class="rowNum">01</div><h3 data-t="n1t">Capability-first</h3><p data-t="n1d">Agents describe the job they need done. Providers advertise what they can do. Routing is based on capability instead of a hard-coded hostname.</p></div>
+        <div class="row"><div class="rowNum">02</div><h3 data-t="n2t">Cryptographic identity</h3><p data-t="n2d">A TRUYN identity is independent of the current IP address. Requests, offers and results can be signed and verified.</p></div>
+        <div class="row"><div class="rowNum">03</div><h3 data-t="n3t">Trust is contextual</h3><p data-t="n3d">A signature proves who signed. Provenance, evidence, freshness and independent attestations help determine whether a result should be trusted for a specific purpose.</p></div>
+        <div class="row"><div class="rowNum">04</div><h3 data-t="n4t">BYOK by default</h3><p data-t="n4d">Your upstream AI credentials remain in your own runtime. An open protocol never implies permission to consume somebody else's paid provider capacity.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how" aria-labelledby="how-title">
+  <div class="wrap sectionGrid">
+    <div class="index" data-t="howIndex">02 / How it works</div>
+    <div>
+      <h2 id="how-title" data-t="howTitle">A new logical network over the Internet that already exists.</h2>
+      <p class="lede" data-t="howLede">TRUYN does not replace IP, fiber, Wi‑Fi or mobile networks. Agents connect through a TRUYN node; the network adds identity, capability discovery, authorization, routing, provenance and trust above existing Internet transport.</p>
+      <div class="howBox">
+        <div class="howSide">
+          <div class="label" data-t="oldLabel">Traditional software</div>
+          <div class="route">address<br>↓<br>server<br>↓<br>API<br>↓<br>request<br>↓<br>response</div>
+        </div>
+        <div class="howSide">
+          <div class="label" data-t="newLabel">TRUYN</div>
+          <div class="route"><strong>need</strong><br>↓<br>discover capability<br>↓<br>verify + authorize<br>↓<br>route / execute<br>↓<br><strong>result + trustability</strong></div>
+        </div>
+      </div>
+      <div class="networkStack">
+        <div class="layer"><b data-t="layer1">Agent / model / machine</b><span>intent · task · policy</span></div>
+        <div class="layer"><b>SDK / MCP / API / gateway</b><span>integration surface</span></div>
+        <div class="layer"><b>TRUYN Node</b><span>identity · capability · objects · routing · trust</span></div>
+        <div class="layer"><b>QUIC / UDP / IP</b><span>transport</span></div>
+        <div class="layer"><b data-t="layer5">Existing Internet</b><span>fiber · Wi‑Fi · mobile · cloud · edge</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="use" aria-labelledby="use-title">
+  <div class="wrap sectionGrid">
+    <div class="index" data-t="useIndex">03 / Use</div>
+    <div>
+      <h2 id="use-title" data-t="useTitle">One network layer. Many forms of intelligence.</h2>
+      <p class="lede" data-t="useLede">TRUYN is useful anywhere machines need to find, invoke, verify or exchange capabilities across organizational and vendor boundaries.</p>
+      <div class="uses">
+        <article class="use"><div class="tag">01 / AGENTS</div><h3 data-t="u1t">AI agents</h3><p data-t="u1d">Let agents discover and invoke useful capabilities without maintaining a growing maze of one-off integrations.</p></article>
+        <article class="use"><div class="tag">02 / ENTERPRISE</div><h3 data-t="u2t">Enterprise systems</h3><p data-t="u2d">Connect private intelligence through explicit authorization while preserving provider ownership and policy boundaries.</p></article>
+        <article class="use"><div class="tag">03 / EDGE</div><h3 data-t="u3t">Robotics & edge</h3><p data-t="u3d">Move computation closer to sensors, machines or private data, then return only the necessary result or proof.</p></article>
+        <article class="use"><div class="tag">04 / VERIFY</div><h3 data-t="u4t">Research & verification</h3><p data-t="u4d">Carry provenance, claims, attestations and trust evidence alongside machine-readable results.</p></article>
+      </div>
+      <div class="benefits">
+        <div class="benefitsTitle" data-t="benefits">What changes</div>
+        <div class="benefit"><span>+</span><span data-t="b1">Fewer repeated prompts, tokens and duplicate inference operations</span></div>
+        <div class="benefit"><span>+</span><span data-t="b2">Capability-aware routing instead of fixed model and API endpoints</span></div>
+        <div class="benefit"><span>+</span><span data-t="b3">Reusable state, references, deltas and content-addressed objects</span></div>
+        <div class="benefit"><span>+</span><span data-t="b4">Explicit authorization before private provider execution</span></div>
+        <div class="benefit"><span>+</span><span data-t="b5">Trust context travels with the result instead of being reconstructed from scratch</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="developers" aria-labelledby="developers-title">
+  <div class="wrap sectionGrid">
+    <div class="index" data-t="devIndex">04 / Developers</div>
+    <div>
+      <h2 id="developers-title" data-t="devTitle">Run a node. Bring your intelligence. Start using the network.</h2>
+      <div class="devIntro">
+        <p data-t="devLede">The reference implementation is open source. Install it, create a cryptographic identity, connect your provider and use TRUYN from the CLI, an MCP-compatible agent or an HTTP bridge.</p>
+        <p data-t="devNote">Provider secrets are read from your own environment. TRUYN stores the environment-variable name, not the credential value.</p>
+      </div>
+      <div class="terminal" data-nosnippet>
+        <div class="termHead"><span>TRUYN / QUICK START</span><span>Node.js ≥ 22</span></div>
+        <div class="codeStep"><div class="label" data-t="install">01 / install</div><button class="copy" data-code="git clone https://github.com/inn-media/truyn.git&#10;cd truyn&#10;npm install" data-t="copy">copy</button><pre>git clone https://github.com/inn-media/truyn.git
+cd truyn
+npm install</pre></div>
+        <div class="codeStep"><div class="label" data-t="identity">02 / create identity</div><button class="copy" data-code="node cli/index.js init" data-t="copy">copy</button><pre>node cli/index.js init</pre></div>
+        <div class="codeStep"><div class="label" data-t="provider">03 / connect provider</div><button class="copy" data-code="export OPENAI_API_KEY='...'&#10;node cli/index.js setup --provider openai --model YOUR_MODEL --test" data-t="copy">copy</button><pre>export OPENAI_API_KEY='...'
+node cli/index.js setup --provider openai --model YOUR_MODEL --test</pre></div>
+        <div class="codeStep"><div class="label" data-t="request">04 / find and request a capability</div><button class="copy" data-code="node cli/index.js find reasoning.general --relay YOUR_RELAY&#10;node cli/index.js need reasoning.general &quot;Analyze this task&quot; --relay YOUR_RELAY" data-t="copy">copy</button><pre>node cli/index.js find reasoning.general --relay YOUR_RELAY
+node cli/index.js need reasoning.general "Analyze this task" --relay YOUR_RELAY</pre></div>
+        <div class="codeStep"><div class="label" data-t="mcp">05 / connect an MCP agent</div><button class="copy" data-code="node cli/index.js mcp --relay YOUR_RELAY" data-t="copy">copy</button><pre>node cli/index.js mcp --relay YOUR_RELAY</pre></div>
+      </div>
+      <div class="devLinks">
+        <a class="devLink" href="https://github.com/inn-media/truyn" target="_blank" rel="noopener noreferrer"><span data-t="source">Source code</span> ↗</a>
+        <a class="devLink" href="https://github.com/inn-media/truyn/blob/main/WHITEPAPER.md" target="_blank" rel="noopener noreferrer"><span data-t="whitepaper">Whitepaper</span> ↗</a>
+        <a class="devLink" href="https://github.com/inn-media/truyn/blob/main/spec/protocol/v1/README.md" target="_blank" rel="noopener noreferrer"><span data-t="protocol">TRUYN/1 protocol</span> ↗</a>
+      </div>
+
+      <div class="machine">
+        <div class="mono">/agents</div>
+        <p data-t="machine">AI agent or machine? A separate machine-readable endpoint is reserved for structured protocol facts, installation data and network context. No human layout.</p>
+        <a class="btn" href="/AGENTS"><span data-t="openMachine">Open machine interface</span>&nbsp;→</a>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap footer">
+    <div><span>© 2023 - 2026 Innovation Media Services Inc. All rights reserved. TRUYN is developed and maintained by InnMedia</span></div>
+    <div>
+      <a href="/MANIFESTO" data-t="footerManifesto">Manifesto</a>&nbsp;&nbsp;
+      <a href="/AGENTS" data-t="footerAgents">Agents</a>&nbsp;&nbsp;
+      <a href="https://innmedia.group/" target="_blank" rel="noopener noreferrer"><strong>InnMedia Group ↗</strong></a>&nbsp;&nbsp;<a href="https://innmediaservices.com/" target="_blank" rel="noopener noreferrer"><strong>OS ↗</strong></a>&nbsp;&nbsp;<a href="https://inn.media/" target="_blank" rel="noopener noreferrer"><strong>SOLO ↗</strong></a>&nbsp;&nbsp;<a href="https://innmedia.services/" target="_blank" rel="noopener noreferrer"><strong>SIGNAL ↗</strong></a>&nbsp;&nbsp;<a href="https://exchange.innmediaservices.com/" target="_blank" rel="noopener noreferrer"><strong>EXCHANGE ↗</strong></a>&nbsp;&nbsp;<a href="https://graph.innmediaservices.com/" target="_blank" rel="noopener noreferrer"><strong>Data Graph ↗</strong></a>&nbsp;&nbsp;
+      <a href="https://github.com/inn-media/truyn" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+    </div>
+  </div>
+</footer>
+
+<script src="/assets/js/translations.js" defer></script>
+<script src="/assets/js/app.js" defer></script>
+</body>
+</html>

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/publish-python-alpha.yml'
+      - '_tmp_public_site/index.html'
 
 permissions:
   contents: read
@@ -23,27 +24,23 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Fetch live homepage and hardcode ecosystem footer
+      - name: Validate hardcoded footer source
         shell: bash
         run: |
           set -Eeuo pipefail
-          rm -rf /tmp/truyn-footer-site
-          mkdir -p /tmp/truyn-footer-site
-          curl -fsSL --retry 3 --max-time 30 \
-            "https://${PUBLIC_HOST}/?footer-source=${GITHUB_RUN_ID}" \
-            -o /tmp/truyn-footer-site/index.html
+          test -f _tmp_public_site/index.html
           python - <<'PY'
           from pathlib import Path
           import re
 
-          path = Path('/tmp/truyn-footer-site/index.html')
+          path = Path('_tmp_public_site/index.html')
           html = path.read_text(encoding='utf-8')
-          b2b = re.search(r'<a\b(?=[^>]*href=["\']https://innmediaservices\.com/?["\'])[^>]*>.*?\bB2B\b.*?</a>', html, re.I | re.S)
-          b2c = re.search(r'<a\b(?=[^>]*href=["\']https://inn\.media/?["\'])[^>]*>.*?\bB2C\b.*?</a>', html, re.I | re.S)
-          if not b2b or not b2c or b2b.start() >= b2c.start():
-              raise SystemExit('legacy footer pair not found in live homepage')
-
-          links = (
+          start = html.rfind('<footer')
+          end = html.find('</footer>', start)
+          if start < 0 or end < 0:
+              raise SystemExit('footer not found')
+          footer = html[start:end + len('</footer>')]
+          required = (
               ('InnMedia Group', 'https://innmedia.group/'),
               ('OS', 'https://innmediaservices.com/'),
               ('SOLO', 'https://inn.media/'),
@@ -51,18 +48,18 @@ jobs:
               ('EXCHANGE', 'https://exchange.innmediaservices.com/'),
               ('Data Graph', 'https://graph.innmediaservices.com/'),
           )
-          replacement = '&nbsp;&nbsp;'.join(
-              f'<a href="{href}" target="_blank" rel="noopener noreferrer"><strong>{label} ↗</strong></a>'
-              for label, href in links
-          )
-          html = html[:b2b.start()] + replacement + html[b2c.end():]
-          path.write_text(html, encoding='utf-8')
-
-          for label, href in links:
-              assert href in html and f'>{label} ↗<' in html
-          assert not re.search(r'>\s*B2[BC]\s*(?:↗)?\s*</', html, re.I)
-          print('FOOTER_REWRITE=PASS links=6')
+          copyright_text = '© 2023 - 2026 Innovation Media Services Inc. All rights reserved. TRUYN is developed and maintained by InnMedia'
+          for label, href in required:
+              assert f'href="{href}"' in footer and f'>{label} ↗<' in footer
+          assert copyright_text in footer
+          assert 'data-t="footer"' not in footer
+          assert not re.search(r'>\s*B2[BC]\s*(?:↗)?\s*</', footer, re.I)
+          assert 'TRUYN is developed and maintained by Innovation Media Services' not in footer
+          print('FOOTER_SOURCE=PASS links=6 copyright=PASS hardcoded=PASS')
           PY
+          rm -rf /tmp/footer-site
+          mkdir -p /tmp/footer-site
+          cp _tmp_public_site/index.html /tmp/footer-site/index.html
 
       - name: Azure login
         uses: azure/login@v2
@@ -108,21 +105,21 @@ jobs:
           storage_account="${origin_host%%.*}"
           for v in "$fd_endpoint" "$origin_group_id" "$origin_group_name" "$origin_host" "$storage_account"; do echo "::add-mask::$v"; done
 
-          declare -p fd_rg fd_profile fd_endpoint storage_account > /tmp/truyn-footer-edge.env
+          declare -p fd_rg fd_profile fd_endpoint storage_account > /tmp/footer-edge.env
           echo 'EDGE_DISCOVERY=PASS'
 
       - name: Upload index only
         shell: bash
         run: |
           set -Eeuo pipefail
-          source /tmp/truyn-footer-edge.env
+          source /tmp/footer-edge.env
           echo "::add-mask::$storage_account"
           az storage blob upload \
             --auth-mode key \
             --account-name "$storage_account" \
             --container-name '$web' \
             --name index.html \
-            --file /tmp/truyn-footer-site/index.html \
+            --file /tmp/footer-site/index.html \
             --content-type 'text/html; charset=utf-8' \
             --content-cache-control 'no-cache, max-age=0, must-revalidate' \
             --overwrite true \
@@ -134,7 +131,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          source /tmp/truyn-footer-edge.env
+          source /tmp/footer-edge.env
           az afd endpoint purge \
             --resource-group "$fd_rg" \
             --profile-name "$fd_profile" \
@@ -158,12 +155,14 @@ jobs:
               && grep -Fq 'https://innmedia.services/' /tmp/prod.html \
               && grep -Fq 'https://exchange.innmediaservices.com/' /tmp/prod.html \
               && grep -Fq 'https://graph.innmediaservices.com/' /tmp/prod.html \
-              && grep -Fq 'InnMedia Group ↗' /tmp/prod.html \
-              && grep -Fq 'Data Graph ↗' /tmp/prod.html; then
+              && grep -Fq '© 2023 - 2026 Innovation Media Services Inc. All rights reserved. TRUYN is developed and maintained by InnMedia' /tmp/prod.html \
+              && ! grep -Fq 'data-t="footer"' /tmp/prod.html \
+              && ! grep -Eq '>\s*B2[BC]\s*(↗)?\s*<' /tmp/prod.html \
+              && ! grep -Fq 'TRUYN is developed and maintained by Innovation Media Services' /tmp/prod.html; then
               ok=true
               break
             fi
             sleep 5
           done
           [[ "$ok" == true ]]
-          echo 'PRODUCTION_FOOTER=PASS links=6'
+          echo 'PRODUCTION_FOOTER=PASS links=6 copyright=PASS hardcoded=PASS'
