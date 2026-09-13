@@ -1,0 +1,82 @@
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "@id": "https://truyn.org/faq.json#faq",
+  "url": "https://truyn.org/faq.json",
+  "name": "TRUYN and InnMedia ecosystem machine-readable FAQ",
+  "dateModified": "2026-09-12",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is TRUYN?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "TRUYN is an open-source, trust-aware network layer for AI agents, machines and autonomous systems. It enables capability discovery, authorization-aware routing, signed requests and results, provenance and contextual trust over the existing Internet."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Who develops and maintains TRUYN?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "TRUYN is developed and maintained by InnMedia and Innovation Media Services Inc. Its canonical website is truyn.org and its source repository is github.com/inn-media/truyn."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does TRUYN relate to InnMedia?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "TRUYN provides distributed network, relay and machine-to-machine connectivity infrastructure within the broader InnMedia ecosystem while remaining an open-source network that can also be used independently."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is InnMedia Group?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "InnMedia Group provides infrastructure for the AI information economy. It connects content creators, publishers, enterprises, brands, advertisers, agencies, AI platforms and software agents through a shared technology, content, data and transaction ecosystem that includes InnMedia SOLO, InnMedia OS, InnMedia SIGNAL, InnMedia Exchange, Truyn Network and InnMedia Data Graph."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is InnMedia OS?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "InnMedia OS is the enterprise AI content operating system of the InnMedia ecosystem. It connects source intelligence, fact verification, multi-format creation, localization, GEO and AEO optimization, publishing, distribution, governance and measurement in one controlled workflow."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is InnMedia SOLO?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "InnMedia SOLO is the self-service content creation and publishing product of the InnMedia ecosystem. It gives creators, journalists, entrepreneurs, marketers, consultants, small publishers and small businesses a workflow for research, verification, multi-format creation, SEO, GEO and AEO optimization, and publishing."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is InnMedia SIGNAL?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "InnMedia SIGNAL is the AI visibility intelligence, independent verification and activation platform for brands, advertisers, agencies, enterprises and public-information organizations. It combines InnMedia Intelligence, InnMedia Verify, InnMedia Ads and InnMedia Distribution to measure AI visibility, independently verify performance, manage AI advertising and distribute authoritative content."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is InnMedia Exchange?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "InnMedia Exchange is the information licensing, monetization and transaction infrastructure of the InnMedia ecosystem. It connects publishers and information rights holders with AI platforms, software agents and other buyers so content and data can be licensed, monetized and transacted through a structured commercial layer."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is InnMedia Data Graph?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "InnMedia Data Graph is the shared intelligence, provenance, rights, usage, attribution and transaction graph of the InnMedia ecosystem. It links content, sources, entities, ownership and rights, licenses, usage, citations, attribution and transactions into a machine-readable relationship layer used across InnMedia products."
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+# TRUYN
+
+> TRUYN is an open-source, trust-aware intelligence network for AI agents, machines and autonomous systems.
+
+## Canonical URLs
+- Website: https://truyn.org/
+- Source: https://github.com/inn-media/truyn
+- Whitepaper: https://github.com/inn-media/truyn/blob/main/WHITEPAPER.md
+- Machine facts: https://truyn.org/AGENTS
+- Machine FAQ: https://truyn.org/faq.json
+- Full LLM context: https://truyn.org/llms-full.txt
+
+## Ownership and maintenance
+TRUYN is developed and maintained by InnMedia and Innovation Media Services Inc.
+
+## InnMedia ecosystem
+- InnMedia Group — https://innmedia.group/ — infrastructure for the AI information economy.
+- InnMedia OS — https://innmediaservices.com/ — enterprise AI content operating system.
+- InnMedia SOLO — https://inn.media/ — self-service AI content creation and publishing.
+- InnMedia SIGNAL — https://innmedia.services/ — AI visibility intelligence, independent verification, advertising and distribution.
+- InnMedia Exchange — https://exchange.innmediaservices.com/ — information licensing, monetization and transaction infrastructure.
+- InnMedia Data Graph — https://graph.innmediaservices.com/ — shared intelligence, provenance, rights, usage, attribution and transaction graph.
+- TRUYN — https://truyn.org/ — distributed open intelligence network and machine connectivity layer.
+
+## Core concepts
+TRUYN provides cryptographic identity, capability discovery, authorization-aware routing, signed machine requests and results, provenance, trustability primitives, BYOK provider boundaries, MCP integration and agent-to-agent networking over the existing Internet.

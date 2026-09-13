@@ -1,0 +1,249 @@
+name: TRUYN public site SEO GEO AEO deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-python-alpha.yml'
+      - '_tmp_public_site/index.html'
+      - '_tmp_public_site/AGENTS'
+      - '_tmp_public_site/faq.json'
+      - '_tmp_public_site/llms.txt'
+      - '_tmp_public_site/llms-full.txt'
+      - '_tmp_public_site/robots.txt'
+      - '_tmp_public_site/sitemap.xml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PUBLIC_HOST: truyn.org
+
+jobs:
+  deploy-public-site:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Validate canonical public-site source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f _tmp_public_site/index.html
+          test -f _tmp_public_site/AGENTS
+          test -f _tmp_public_site/faq.json
+          test -f _tmp_public_site/llms.txt
+          test -f _tmp_public_site/llms-full.txt
+          test -f _tmp_public_site/robots.txt
+          test -f _tmp_public_site/sitemap.xml
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+          import xml.etree.ElementTree as ET
+
+          root = Path('_tmp_public_site')
+          html = (root / 'index.html').read_text(encoding='utf-8')
+          start = html.rfind('<footer')
+          end = html.find('</footer>', start)
+          if start < 0 or end < 0:
+              raise SystemExit('footer not found')
+          footer = html[start:end + len('</footer>')]
+
+          required_links = (
+              ('InnMedia Group', 'https://innmedia.group/'),
+              ('OS', 'https://innmediaservices.com/'),
+              ('SOLO', 'https://inn.media/'),
+              ('SIGNAL', 'https://innmedia.services/'),
+              ('EXCHANGE', 'https://exchange.innmediaservices.com/'),
+              ('Data Graph', 'https://graph.innmediaservices.com/'),
+          )
+          copyright_text = '© 2023 - 2026 Innovation Media Services Inc. All rights reserved. TRUYN is developed and maintained by InnMedia'
+          for label, href in required_links:
+              assert f'href="{href}"' in footer and f'>{label} ↗<' in footer
+          assert copyright_text in footer
+          assert 'data-t="footer"' not in footer
+          assert not re.search(r'>\s*B2[BC]\s*(?:↗)?\s*</', footer, re.I)
+          assert 'TRUYN is developed and maintained by Innovation Media Services' not in footer
+
+          ld_match = re.search(r'<script type="application/ld\+json">\s*(\{.*?\})\s*</script>', html, re.S)
+          assert ld_match, 'homepage JSON-LD not found'
+          homepage_ld = json.loads(ld_match.group(1))
+          ids = {node.get('@id') for node in homepage_ld.get('@graph', [])}
+          assert 'https://truyn.org/#ecosystem' in ids
+          assert 'https://innmedia.group/#organization' in ids
+          assert 'https://truyn.org/#faq' not in ids
+
+          agents = json.loads((root / 'AGENTS').read_text(encoding='utf-8'))
+          faq = json.loads((root / 'faq.json').read_text(encoding='utf-8'))
+          assert agents.get('canonicalUrl') == 'https://truyn.org/'
+          ecosystem_names = {item.get('name') for item in agents.get('ecosystem', [])}
+          required_names = {
+              'InnMedia Group', 'InnMedia OS', 'InnMedia SOLO', 'InnMedia SIGNAL',
+              'InnMedia Exchange', 'InnMedia Data Graph', 'TRUYN'
+          }
+          assert required_names <= ecosystem_names
+          faq_names = {item.get('name') for item in faq.get('mainEntity', [])}
+          for question in (
+              'What is InnMedia Group?', 'What is InnMedia OS?', 'What is InnMedia SOLO?',
+              'What is InnMedia SIGNAL?', 'What is InnMedia Exchange?', 'What is InnMedia Data Graph?'
+          ):
+              assert question in faq_names
+
+          robots = (root / 'robots.txt').read_text(encoding='utf-8')
+          assert 'User-agent: OAI-SearchBot' in robots
+          assert 'User-agent: OAI-AdsBot' in robots
+          assert 'Sitemap: https://truyn.org/sitemap.xml' in robots
+          ET.fromstring((root / 'sitemap.xml').read_text(encoding='utf-8'))
+          assert 'https://truyn.org/AGENTS' in (root / 'sitemap.xml').read_text(encoding='utf-8')
+          assert 'InnMedia SIGNAL' in (root / 'llms.txt').read_text(encoding='utf-8')
+          assert 'InnMedia Exchange' in (root / 'llms-full.txt').read_text(encoding='utf-8')
+          print('PUBLIC_SITE_SOURCE=PASS seo=PASS geo=PASS aeo=PASS machine_surfaces=PASS')
+          PY
+
+          rm -rf /tmp/truyn-public-site
+          mkdir -p /tmp/truyn-public-site
+          cp _tmp_public_site/index.html /tmp/truyn-public-site/index.html
+          cp _tmp_public_site/AGENTS /tmp/truyn-public-site/AGENTS
+          cp _tmp_public_site/faq.json /tmp/truyn-public-site/faq.json
+          cp _tmp_public_site/llms.txt /tmp/truyn-public-site/llms.txt
+          cp _tmp_public_site/llms-full.txt /tmp/truyn-public-site/llms-full.txt
+          cp _tmp_public_site/robots.txt /tmp/truyn-public-site/robots.txt
+          cp _tmp_public_site/sitemap.xml /tmp/truyn-public-site/sitemap.xml
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets[format('AZURE_{0}', 'CLIENT_ID')] }}
+          tenant-id: ${{ secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+          subscription-id: ${{ secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+      - name: Discover static origin
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          declare -a matches=()
+          while IFS=$'\t' read -r rg profile; do
+            [[ -n "${rg:-}" && -n "${profile:-}" ]] || continue
+            while IFS=$'\t' read -r domain_name domain_id; do
+              [[ -n "${domain_name:-}" && -n "${domain_id:-}" ]] || continue
+              matches+=("$rg|$profile|$domain_name|$domain_id")
+            done < <(az afd custom-domain list --resource-group "$rg" --profile-name "$profile" --query "[?hostName=='${PUBLIC_HOST}'].[name,id]" -o tsv 2>/dev/null || true)
+          done < <(az resource list --resource-type Microsoft.Cdn/profiles --query '[].[resourceGroup,name]' -o tsv)
+          [[ ${#matches[@]} -eq 1 ]]
+          IFS='|' read -r fd_rg fd_profile domain_name domain_id <<<"${matches[0]}"
+          for v in "$fd_rg" "$fd_profile" "$domain_name" "$domain_id"; do echo "::add-mask::$v"; done
+
+          declare -a routes=()
+          while IFS= read -r endpoint; do
+            [[ -n "$endpoint" ]] || continue
+            json="$(az afd route list --resource-group "$fd_rg" --profile-name "$fd_profile" --endpoint-name "$endpoint" -o json 2>/dev/null || printf '[]')"
+            while IFS=$'\t' read -r route origin_group state; do
+              [[ -n "$route" && -n "$origin_group" ]] || continue
+              routes+=("$endpoint|$route|$origin_group|$state")
+            done < <(jq -r --arg did "$domain_id" '.[] | select(any(.customDomains[]?; ((.id // "") | ascii_downcase) == ($did | ascii_downcase))) | [.name,.originGroup.id,.enabledState] | @tsv' <<<"$json")
+          done < <(az afd endpoint list --resource-group "$fd_rg" --profile-name "$fd_profile" --query '[].name' -o tsv)
+          [[ ${#routes[@]} -eq 1 ]]
+          IFS='|' read -r fd_endpoint fd_route origin_group_id route_state <<<"${routes[0]}"
+          [[ "$route_state" == 'Enabled' ]]
+          origin_group_name="${origin_group_id##*/}"
+
+          mapfile -t origins < <(az afd origin list --resource-group "$fd_rg" --profile-name "$fd_profile" --origin-group-name "$origin_group_name" --query "[?enabledState=='Enabled' && contains(hostName, '.web.core.windows.net')].hostName" -o tsv)
+          [[ ${#origins[@]} -eq 1 ]]
+          origin_host="${origins[0]}"
+          storage_account="${origin_host%%.*}"
+          for v in "$fd_endpoint" "$origin_group_id" "$origin_group_name" "$origin_host" "$storage_account"; do echo "::add-mask::$v"; done
+
+          declare -p fd_rg fd_profile fd_endpoint storage_account > /tmp/truyn-public-edge.env
+          echo 'EDGE_DISCOVERY=PASS'
+
+      - name: Upload canonical public-site surfaces
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          source /tmp/truyn-public-edge.env
+          echo "::add-mask::$storage_account"
+          az storage blob upload \
+            --auth-mode key \
+            --account-name "$storage_account" \
+            --container-name '$web' \
+            --name index.html \
+            --file /tmp/truyn-public-site/index.html \
+            --content-type 'text/html; charset=utf-8' \
+            --content-cache-control 'no-cache, max-age=0, must-revalidate' \
+            --overwrite true \
+            --only-show-errors \
+            --output none
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name AGENTS --file /tmp/truyn-public-site/AGENTS --content-type 'application/json; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name faq.json --file /tmp/truyn-public-site/faq.json --content-type 'application/ld+json; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name llms.txt --file /tmp/truyn-public-site/llms.txt --content-type 'text/plain; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name llms-full.txt --file /tmp/truyn-public-site/llms-full.txt --content-type 'text/plain; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name robots.txt --file /tmp/truyn-public-site/robots.txt --content-type 'text/plain; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          az storage blob upload --auth-mode key --account-name "$storage_account" --container-name '$web' --name sitemap.xml --file /tmp/truyn-public-site/sitemap.xml --content-type 'application/xml; charset=utf-8' --content-cache-control 'public, max-age=300' --overwrite true --only-show-errors --output none
+          echo 'STATIC_UPLOAD=PASS files=7'
+
+      - name: Purge public-site cache
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          source /tmp/truyn-public-edge.env
+          az afd endpoint purge \
+            --resource-group "$fd_rg" \
+            --profile-name "$fd_profile" \
+            --endpoint-name "$fd_endpoint" \
+            --content-paths '/' '/index.html' '/AGENTS' '/faq.json' '/llms.txt' '/llms-full.txt' '/robots.txt' '/sitemap.xml' \
+            --only-show-errors \
+            --output none
+          echo 'FRONT_DOOR_PURGE=PASS'
+
+      - name: Verify production public site
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ok=false
+          for attempt in 1 2 3 4 5 6 7 8; do
+            q="seo-geo-aeo=${GITHUB_RUN_ID}-${attempt}"
+            if curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/?${q}" -o /tmp/prod.html \
+              && grep -Fq 'https://innmedia.group/' /tmp/prod.html \
+              && grep -Fq 'https://innmediaservices.com/' /tmp/prod.html \
+              && grep -Fq 'https://inn.media/' /tmp/prod.html \
+              && grep -Fq 'https://innmedia.services/' /tmp/prod.html \
+              && grep -Fq 'https://exchange.innmediaservices.com/' /tmp/prod.html \
+              && grep -Fq 'https://graph.innmediaservices.com/' /tmp/prod.html \
+              && grep -Fq '© 2023 - 2026 Innovation Media Services Inc. All rights reserved. TRUYN is developed and maintained by InnMedia' /tmp/prod.html \
+              && ! grep -Fq 'data-t="footer"' /tmp/prod.html \
+              && ! grep -Eq '>\s*B2[BC]\s*(↗)?\s*<' /tmp/prod.html \
+              && ! grep -Fq 'TRUYN is developed and maintained by Innovation Media Services' /tmp/prod.html \
+              && grep -Fq 'https://truyn.org/#ecosystem' /tmp/prod.html \
+              && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/AGENTS?${q}" -o /tmp/agents.json \
+              && grep -Fq 'InnMedia Data Graph' /tmp/agents.json \
+              && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/faq.json?${q}" -o /tmp/faq.json \
+              && grep -Fq '"name": "What is InnMedia Group?"' /tmp/faq.json \
+              && grep -Fq '"name": "What is InnMedia OS?"' /tmp/faq.json \
+              && grep -Fq '"name": "What is InnMedia SOLO?"' /tmp/faq.json \
+              && grep -Fq '"name": "What is InnMedia SIGNAL?"' /tmp/faq.json \
+              && grep -Fq '"name": "What is InnMedia Exchange?"' /tmp/faq.json \
+              && grep -Fq '"name": "What is InnMedia Data Graph?"' /tmp/faq.json \
+              && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/llms.txt?${q}" -o /tmp/llms.txt \
+              && grep -Fq 'InnMedia SIGNAL' /tmp/llms.txt \
+              && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/llms-full.txt?${q}" -o /tmp/llms-full.txt \
+              && grep -Fq 'InnMedia Exchange' /tmp/llms-full.txt \
+              && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/robots.txt?${q}" -o /tmp/robots.txt \
+              && grep -Fq 'User-agent: OAI-SearchBot' /tmp/robots.txt \
+              && grep -Fq 'User-agent: OAI-AdsBot' /tmp/robots.txt \
+              && grep -Fq 'Sitemap: https://truyn.org/sitemap.xml' /tmp/robots.txt \
+              && curl -fsSL --max-time 20 "https://${PUBLIC_HOST}/sitemap.xml?${q}" -o /tmp/sitemap.xml \
+              && grep -Fq 'https://truyn.org/AGENTS' /tmp/sitemap.xml; then
+              ok=true
+              break
+            fi
+            sleep 5
+          done
+          [[ "$ok" == true ]]
+          echo 'PRODUCTION_PUBLIC_SITE=PASS seo=PASS geo=PASS aeo=PASS machine_surfaces=PASS'
