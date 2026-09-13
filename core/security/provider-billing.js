@@ -1,12 +1,10 @@
 const PUBLIC_MODES = new Set(['byok', 'owner-funded']);
-const MANAGED_MODES = new Set(['sponsored', 'prepaid', 'subscription']);
 
 export function createProviderBillingPolicy({ mode = 'owner-funded' } = {}) {
   const normalizedMode = String(mode).trim().toLowerCase();
-  if (MANAGED_MODES.has(normalizedMode)) {
-    throw new Error(`Managed provider billing mode requires a compatible managed platform: ${normalizedMode}`);
+  if (!PUBLIC_MODES.has(normalizedMode)) {
+    throw new Error(`Unsupported public provider billing mode: ${mode}; non-public commercial modes require a compatible managed platform`);
   }
-  if (!PUBLIC_MODES.has(normalizedMode)) throw new Error(`Unsupported provider billing mode: ${mode}`);
 
   function authorize(need, { accessPolicy } = {}) {
     const requesterId = need?.from || null;
