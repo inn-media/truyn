@@ -1,0 +1,57 @@
+{
+  "contracts": {
+    "accountTenantAuthority": {
+      "requiredMethods": [
+        "resolveRequester",
+        "resolveProvider"
+      ]
+    },
+    "accountingAuthority": {
+      "requiredMethods": [
+        "reserve",
+        "reconcile"
+      ],
+      "requiredProperties": {
+        "durable": true
+      }
+    },
+    "authorityHttpClient": {
+      "optionalMethods": [
+        "adminMutate"
+      ],
+      "requiredMethods": [
+        "snapshot",
+        "authorizeAccess",
+        "reserveBilling",
+        "reconcileBilling"
+      ]
+    },
+    "entitlementAuthority": {
+      "requiredMethods": [
+        "resolve"
+      ],
+      "requiredProperties": {
+        "durable": true
+      }
+    },
+    "providerGrantAuthority": {
+      "requiredMethods": [
+        "authorize",
+        "visibleToRequester",
+        "getProviderPolicy"
+      ]
+    },
+    "relayAuthorityRuntime": {
+      "requiredMethods": [
+        "status",
+        "stop"
+      ],
+      "requiredNestedContracts": [
+        "accountTenantAuthority",
+        "providerGrantAuthority"
+      ]
+    }
+  },
+  "schema": "truyn.platform.contract-fixture",
+  "version": 1
+}

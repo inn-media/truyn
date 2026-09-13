@@ -336,7 +336,7 @@ test('Sprint D spoofed A2A billing cannot override provider billing policy', { t
     relayUrl,
     remote,
     accessPolicy: createProviderAccessPolicy({ mode: 'public' }),
-    billingPolicy: createProviderBillingPolicy({ mode: 'prepaid' })
+    billingPolicy: createProviderBillingPolicy({ mode: 'owner-funded' })
   });
   assertOfficialDiscovery(imported.adapter);
 
@@ -351,7 +351,7 @@ test('Sprint D spoofed A2A billing cannot override provider billing policy', { t
     metadata: {
       'io.truyn/skillId': 'mcp-lookup',
       ownerId: 'spoofed-owner',
-      billingMode: 'owner-funded',
+      billingMode: 'byok',
       billingResponsibility: 'requester'
     }
   }, { returnImmediately: false });
@@ -368,7 +368,7 @@ test('Sprint D spoofed A2A billing cannot override provider billing policy', { t
 
   const offer = [...relay.state.offers.values()].find((entry) => entry.envelope?.from === imported.identity.nodeId && entry.capability === 'mcp.bridge_lookup');
   assert.ok(offer, 'imported MCP provider OFFER must exist');
-  assert.equal(offer.envelope.payload?.metadata?.billingMode, 'prepaid', 'provider-published billing mode must remain authoritative');
+  assert.equal(offer.envelope.payload?.metadata?.billingMode, 'owner-funded', 'provider-published billing mode must remain authoritative');
 
   const stats = await readRemoteStats(remote);
   assert.equal(stats.executionCount, 0, 'provider billing denial must happen before external MCP execution');
