@@ -12,24 +12,18 @@ import { createRuntimeProviderBillingPolicy } from '../runtime/billing-config.js
 test('runtime billing defaults to private owner-funded', () => {
   const policy = createRuntimeProviderBillingPolicy({});
   assert.equal(policy.mode, 'owner-funded');
-  assert.equal(policy.managed, false);
   assert.equal(policy.sponsoredAccess, false);
 });
 
-test('managed billing modes fail closed in the open runtime', () => {
-  for (const mode of ['sponsored', 'prepaid', 'subscription']) {
-    assert.throws(
-      () => createRuntimeProviderBillingPolicy({ TRUYN_PROVIDER_BILLING_MODE: mode }),
-      /requires TRUYN Platform runtime/
-    );
-    const policy = createProviderBillingPolicy({ mode });
-    const requesterId = 'truyn:node:requester';
-    const accessPolicy = createProviderAccessPolicy({ mode: 'owner-only', allowedRequesterIds: [requesterId] });
-    const decision = policy.authorize({ from: requesterId }, { accessPolicy, estimatedTokens: 1 });
-    assert.equal(decision.ok, false);
-    assert.equal(decision.managed, true);
-    assert.equal(decision.reason, 'managed_billing_requires_platform');
-  }
+test('non-public billing modes fail closed in the open runtime', () => {
+  assert.throws(
+    () => createRuntimeProviderBillingPolicy({ TRUYN_PROVIDER_BILLING_MODE: 'external-commercial' }),
+    /requires a compatible managed platform/
+  );
+  assert.throws(
+    () => createProviderBillingPolicy({ mode: 'external-commercial' }),
+    /non-public commercial modes require a compatible managed platform/
+  );
 });
 
 test('BYOK billing requires a private provider and an access-authorized requester', () => {
