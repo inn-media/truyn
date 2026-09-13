@@ -1,4 +1,8 @@
 TRUYN — The Intelligence Network
 https://truyn.org
 
+This repository is TRUYN Open: the public Apache-2.0 protocol, SDK, Node/Relay reference implementation, conformance and public-evidence layer of TRUYN.
+
+The separately maintained `inn-media/truyn-platform` repository contains proprietary managed/commercial TRUYN Platform implementation. Its existence does not modify, narrow or revoke the Apache License 2.0 rights granted for this repository.
+
 This product includes software and specifications developed by the TRUYN project.

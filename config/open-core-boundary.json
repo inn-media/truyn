@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "publicRepository": "inn-media/truyn",
+  "publicLayerName": "TRUYN Open",
+  "privateRepository": "inn-media/truyn-platform",
+  "privateLayerName": "TRUYN Platform",
+  "dependencyRule": "public -> released/versioned artifact -> private; reverse dependency forbidden",
+  "classifications": {
+    "OPEN": [
+      "spec/**",
+      "proto/**",
+      "sdk/**",
+      "node/**",
+      "network/**",
+      "cli/**",
+      "adapters/a2a/**",
+      "adapters/mcp/**",
+      "reference provider adapters and self-hostable provider-policy primitives",
+      "trust/provenance primitives",
+      "public conformance and benchmark evidence",
+      "D-200 and public network qualification"
+    ],
+    "SHARED_CONTRACT": [
+      "TRUYN/1 protocol and schemas",
+      "truyn.agent-descriptor/v1",
+      "SDK stable APIs and release artifacts",
+      "provider authorization outcome/error vocabulary",
+      "artifact/object reference schemas",
+      "managed-authority snapshot/status client contract"
+    ],
+    "PRIVATE_TARGET": [
+      "managed cloud authority and revocation service",
+      "Cosmos/managed-cloud authority persistence",
+      "global trust registry and reputation graph",
+      "managed routing/ranking intelligence",
+      "private telemetry/analytics",
+      "marketplace, licensing, billing and enterprise control plane",
+      "private production operations and operator workflows"
+    ]
+  },
+  "d200": {
+    "owner": "OPEN",
+    "rule": "D-200 scripts, benchmark logic and evidence remain public. Only shared-contract compatibility changes require a linked private PR; managed routing intelligence is private."
+  },
+  "migrationGate": {
+    "authorityKernelArtifact": "REQUIRED_BEFORE_PRIVATE_MANAGED_AUTHORITY_CONSUMPTION",
+    "reason": "The current managed coordinator imports the self-hostable public authority kernel. Moving it before publishing a stable authority-kernel contract would require forbidden source/path coupling or turn the private repository into a source snapshot."
+  },
+  "migrationExceptions": [
+    "core/security/managed-production-authority.js",
+    "core/security/cosmos-authority-checkpoint.js",
+    "runtime/authority-service.js",
+    "tests/managed-authority-runtime.test.js",
+    "tests/managed-authority-readiness-regressions.test.js",
+    "docs/operations/MANAGED_AUTHORITY_RUNTIME.md",
+    ".github/workflows/production-authority-image.yml",
+    ".github/workflows/production-authority-source-discovery.yml",
+    ".github/workflows/production-dr-foundation.yml",
+    ".github/workflows/production-logs-retention.yml",
+    ".github/workflows/production-metrics-backend.yml",
+    ".github/workflows/production-metrics-collector.yml",
+    ".github/workflows/production-monitor-provider-registration.yml",
+    ".github/workflows/production-telemetry-redaction.yml",
+    ".github/workflows/production-trace-backend.yml"
+  ],
+  "exceptionPolicy": "Exact allowlist only. No new PRIVATE_TARGET implementation may be added to TRUYN Open. Exceptions must shrink to zero as versioned public contracts become available.",
+  "defaultForAmbiguousWork": "STOP_AND_CLASSIFY"
+}

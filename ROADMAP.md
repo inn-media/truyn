@@ -1,97 +1,98 @@
-# TRUYN Roadmap
+# TRUYN Open Roadmap
 
-This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`.
+This roadmap is for the public **TRUYN Open** layer. Managed/commercial production implementation is owned by the private **TRUYN Platform** repository `inn-media/truyn-platform`.
 
-**Snapshot:** 2026-09-09  
-**Synchronized source:** `main@4a3a312877d14e9f0ee361a9356e7369cad04398`  
-**P2-E1 / Sprint E:** accepted / PR `#427`  
-**P2-E2:** `a2a-mcp-pre-v1/g1` accepted / PR `#432`  
-**P2-E3:** canonical reconciliation merged / PR `#459`  
-**Protocol:** `TRUYN/1` draft  
-**Stable A2A/MCP v1:** **not declared**
+Normative protocol semantics live in `spec/`; current factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured public evidence lives in `docs/benchmarks/`.
 
-## Current top-level state
+## P0 — Two-Repository Closure — ACTIVE
 
-| Track | Current state | Immediate next gate |
-|---|---|---|
-| Network | **Class C + D-100 accepted** | complete post-#458 D-200 acceptance, then strict D-1000 |
-| D-1000 | **OPEN; canonical full campaign remains FAIL** | one exact pinned 20×50 PASS |
-| Production operations | **SLO/observability/alerting/rotation/on-call/DR contracts implemented** | live backends/probes/pager/roster/drills + 28-day evidence |
-| Provider authority | **Durable authority + managed runtime + managed provider accounting wiring accepted** | provisioned/live managed deployment, migration/cutover, multi-region/backup/restore/propagation/reconciliation evidence |
-| Trustability | **Bounded implementation accepted** | Production Trust Authority; PR `#438` remains open |
-| A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + stable ecosystem evidence |
-| SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 accepted** | Maven/NuGet + Descriptor/site completeness |
-| Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
-| Mainnet | **Not productionized** | D-1000 + live ops + live managed authority + stable/release/governance gates |
+### O0 — Boundary and task routing
 
-## Network productionization
+- [x] define `OPEN / PRIVATE_TARGET / SHARED_CONTRACT` ownership;
+- [x] make D-200 explicitly OPEN;
+- [x] require `OPEN / PRIVATE / BOTH` task routing;
+- [x] forbid reverse dependency and private source/path consumption;
+- [x] record the current private-target migration exception allowlist.
 
-Class C and D-100 are accepted. The canonical D-1000 negative record remains source `0e7f16c1ff74d85e9d4dbbc0fec9a35a0840f094`, run `32869078719`, issue `#344`.
+### O1 — Released public authority kernel
 
-PR `#458` repairs target discovery/readiness and bounded transient QUIC establishment without weakening `>=99%` routing, `<=120s` recovery or exactly-once application dispatch. Fresh D-200 run `33959493680` against verified source `6f64c3dc6333044126916d3dd0a118e3cf8220d4` is currently **IN PROGRESS**. It is evidence in flight, not a PASS.
+Publish the reusable self-hostable authority/control-plane contract needed by the private managed implementation as a versioned public artifact. It must expose only the open reference/kernel surface required by a managed consumer and must not include proprietary platform behavior.
 
-Strict D-1000 still requires 20×50 real nodes, baseline/healed routing `>=99%`, recovery p95 `<=120s`, all adversarial/safety predicates, evaluator PASS, terminal PASS, `cleanup=true`, `remainingResources=0`, immutable artifact/digest and durable accepted evidence.
+**DoD:** private code can consume the authority kernel by immutable released coordinate; no Git branch, raw source, sibling path, submodule or vendored repository snapshot is required.
 
-## Production operations
+### O2 — Managed implementation migration
 
-Implemented repository/runtime contracts:
+After O1:
 
-- [x] numerical SLI/SLO + 28-day error-budget model (`#424`);
-- [x] metrics/traces/structured logs/dashboards + alert rules (`#434`);
-- [x] security rotation + PRIMARY/SECONDARY on-call (`#440`);
-- [x] recovery/DR contract (`#441`).
+- move/rebuild managed cloud authority/revocation coordinator in `truyn-platform`;
+- move Cosmos/managed-cloud persistence there;
+- move managed authority server/admin runtime there;
+- migrate managed tests and private operational workflows/evidence;
+- retain public snapshot/client/reference/self-hosting primitives here.
 
-Still open: real telemetry backends/probes/retention, pager delivery/test-fire, private roster, live rotation/restore drills and durable 28-day production SLO evidence.
+**DoD:** corresponding entries disappear from `config/open-core-boundary.json#migrationExceptions` and private tests cover the managed implementation.
 
-## Provider security / Production Authority
+### O3 — Zero migration exceptions
 
-Accepted:
+- remove final private-target code/workflows from public;
+- public CI rejects reintroduction;
+- private CI validates immutable public dependency pins and clean-room compatibility;
+- docs in both repositories agree on ownership.
 
-- [x] Account → Organization → Tenant hierarchy and authoritative bindings (`#425`);
-- [x] durable fsync-backed grants/entitlements/accounting/terminal revocation (`#433`);
-- [x] reservation finalization/replay, membership revocation and writer-lock correctness repairs (`#456`);
-- [x] managed authority **repository/runtime support** (`#457`): Cosmos DB NoSQL checkpoint adapter over managed identity/AAD, SHA-256 checkpoint commitment, monotonic revision, optimistic ETag fencing, explicit digest-bound bootstrap, private authority runtime/admin surface, monotonic relay snapshot cache, fail-closed staleness/readiness integration;
-- [x] managed provider accounting wiring (`#463`): `sponsored`/`prepaid`/`subscription` reserve through managed authority before execution, awaited reconcile/release on success/failure/cancellation, replay denial, and no successful unpaid terminal result when authoritative reconcile fails. `owner-funded`/`byok` retain local/private semantics.
+**DoD:** `migrationExceptions=[]` and exact-head CI is green in both repositories.
 
-PRs `#457` and `#463` are repository/runtime acceptance, not proof of provisioned Cosmos, multi-region writes/continuous backup, production authority migration, live relay cutover, restore/failover acceptance or long-window production reconciliation.
+## Network productionization — OPEN
 
-Remaining production authority gates are live provisioning/hardening, production migration/cutover, multi-instance/multi-region consistency and failover, continuous backup + restore drills, deployed operator/admin RBAC/audit, measured revocation/grant/entitlement propagation including partition/heal and long-window accounting reconciliation.
+Class C and D-100 accepted history remains public evidence. D-200 and D-1000 are public network-qualification tracks and do not move to TRUYN Platform.
 
-## A2A / MCP
+D-200 rule:
 
-Accepted bounded profile:
+- benchmark/network-only work = `OPEN`;
+- public contract change caused by D-200 = `BOTH` with private compatibility work;
+- proprietary managed routing/ranking/telemetry intelligence = `PRIVATE`.
 
-- [x] C1–C8;
-- [x] independent official A2A + MCP black-box proofs;
-- [x] **P2-E1 / Sprint E** bidirectional referenced artifact with explicit resolution and exact size/SHA-256 (`#427`);
-- [x] **P2-E2** compatibility generation `a2a-mcp-pre-v1/g1` with fail-closed negotiation/migration rules (`#432`);
-- [x] **P2-E3** canonical public/status reconciliation and regression guard (`#459`).
+Strict D-1000 acceptance still requires the canonical target topology and unchanged safety/routing/recovery predicates with durable evidence.
 
-The old referenced-artifact and bounded compatibility-policy gaps are closed. **Stable A2A/MCP v1 is not declared** because `TRUYN/1` remains draft.
+## Protocol / interoperability
 
-## SDK / developer release
+`TRUYN/1` remains draft. A2A and MCP remain adapters rather than TRUYN/1 wire dependencies. Stable-v1 is declared only after the public protocol and compatibility contracts meet their stability gates.
 
-Implemented: TypeScript/JavaScript, Python, Go, Java and C#/.NET clients; shared conformance; direct NEED cancellation; signed generic `PARTIAL`; object/artifact references; bounded Agent Descriptor valid-profile support; per-build package provenance.
+## SDK / Developer Release
 
-Public/release state:
+Implemented public first-party clients:
 
-- PyPI `truyn-sdk==0.1.0a1` — accepted;
-- Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` — accepted;
-- npm `@truyn/sdk@0.1.0-alpha.1` — immutable historical artifact, but clean-room Node 22 ESM import failed;
-- npm `@truyn/sdk@0.1.0-alpha.2` — **accepted immutable public release**; public registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import are accepted, with permanent evidence in `sdk/release/evidence/npm-alpha2-2026-09-05.json`;
-- Maven Central — open;
-- NuGet — open.
+- TypeScript/JavaScript;
+- Python;
+- Go;
+- Java;
+- C#/.NET.
 
-Also open: Descriptor refresh/re-sign, full endpoint parity, archive-member content scanning and live developer-site liveness.
+Accepted immutable releases:
+
+- npm `@truyn/sdk@0.1.0-alpha.2`;
+- PyPI `truyn-sdk==0.1.0a1`;
+- Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`.
+
+Open public release gates: Maven Central, NuGet, remaining Descriptor parity/liveness work, and the reusable authority-kernel artifact required for full two-repository closure.
 
 ## Trustability
 
-Bounded claim-centric/active Trustability is implemented. Production Trust Authority remains **OPEN** because PR `#438` is unmerged. Even after bounded acceptance, multi-region dissemination, independent witnesses and WAN revocation-propagation evidence remain production gates.
+Public claim/provenance/Trustability primitives, schemas and conformance remain here. A managed global trust registry, proprietary reputation graph, managed revocation governance and network-wide trust intelligence belong to TRUYN Platform.
+
+A private implementation must not redefine the public trust/protocol contract outside public governance.
+
+## Production operations boundary
+
+Generic/self-hosting operational contracts and sanitized benchmark evidence may remain public when they are required to reproduce or operate the open reference layer.
+
+InnMedia-specific managed production deployment, global telemetry backends, private rosters, commercial quotas/cost controls, privileged cloud topology and private operational evidence belong to TRUYN Platform. Legacy production workflows currently in this repository are explicit migration exceptions and are not a precedent for adding more.
+
+## Governance
+
+TRUYN Open remains G1 bootstrap Founding Stewardship while moving toward external maintainers, a multi-organization TSC and neutral stewardship. The private TRUYN Platform is commercially owned/operated by InnMedia, but that ownership does not create private normative authority over the public protocol.
 
 ## Stable/mainnet gate
 
-Before stable mainnet: accepted D-1000; live production SLO/operations evidence; live managed authority deployment with recovery/propagation/reconciliation evidence; Production Trust Authority if claimed; stable protocol/A2A-MCP compatibility; complete stable SDK release/Descriptor/site evidence; and appropriate governance maturity.
+Before stable public mainnet claims: accepted network-scale qualification; stable protocol/interoperability; complete public SDK/release surface; appropriate security/operations evidence for the open network; and governance maturity appropriate to the claim.
 
-Historical failed campaigns and old snapshots remain audit history. Current status follows accepted `main`, not stale prose or open PR intent.
-
-Operational network-scale status: [docs/operations/NETWORK_SCALE_STATUS.md](docs/operations/NETWORK_SCALE_STATUS.md).
+Private TRUYN Platform production readiness is a separate commercial/operational gate and must not be used to overstate public protocol maturity—or vice versa.
