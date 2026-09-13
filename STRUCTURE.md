@@ -1,56 +1,79 @@
-# Repository Structure
+# Repository Structure — TRUYN Open
 
-TRUYN is a **single evolving codebase**. Software releases, protocol generations, wire schemas, external adapters, SDKs and governance maturity are versioned independently.
+TRUYN is implemented across **two codebases** with an explicit dependency boundary.
+
+- `inn-media/truyn` — **TRUYN Open**, public Apache-2.0 interoperability/reference layer.
+- `inn-media/truyn-platform` — **TRUYN Platform**, private proprietary managed/commercial layer.
+
+This repository is not the home for all TRUYN implementation.
 
 ## Source-of-truth hierarchy
 
-1. `spec/protocol/<generation>/` — normative protocol semantics.
+1. `spec/protocol/<generation>/` — normative public protocol semantics.
 2. `proto/<generation>/` — machine-readable wire schema.
-3. `GOVERNANCE.md` + `docs/governance/` — normative change process.
-4. `docs/architecture/ARCHITECTURE_CONTRACT.md` — architecture ownership/invariants.
-5. `docs/architecture/IMPLEMENTATION_STATUS.md` — canonical factual maturity/status.
-6. subsystem architecture documents.
-7. `docs/benchmarks/` — durable measured evidence.
-8. `README.md` — public summary.
-9. `ROADMAP.md` — sequencing and next gates.
+3. `GOVERNANCE.md` + `docs/governance/` — public normative change process.
+4. `docs/architecture/OPEN_CORE_BOUNDARY.md` + `config/open-core-boundary.json` — repository ownership.
+5. `docs/architecture/ARCHITECTURE_CONTRACT.md` — public architecture invariants.
+6. `docs/architecture/IMPLEMENTATION_STATUS.md` — public factual maturity/status.
+7. subsystem architecture documents.
+8. `docs/benchmarks/` — durable public measured evidence.
+9. `README.md` and `ROADMAP.md` — summary and sequencing.
 
-When current-status prose disagrees with accepted code/evidence, update the prose. Open PR intent is not accepted implementation.
+## Public implementation directories
 
-## Main implementation directories
+- `core/` — open identity, capability, intent, objects, claims, provenance, trust/state/routing and self-hosting/reference security logic.
+- `core/security/` — public authority/reference/provider-policy primitives required for independent self-hosting and interoperability. Managed cloud authority implementation is a private target; current legacy exceptions are tracked explicitly.
+- `network/` — QUIC, authenticated sessions, Kademlia/DHT, routing, Relay, NAT/testnet mechanics.
+- `runtime/` — public provider/relay/reference composition and client-side managed-authority integration contract. Managed authority server ownership is private.
+- `adapters/mcp/`, `adapters/a2a/`, `adapters/providers/` — public external protocol/provider edges that do not embed private owner infrastructure.
+- `sdk/` — five first-party public SDKs and release/conformance tooling.
+- `trust/` — open Trustability/provenance/receipt primitives.
+- `storage/` — public reference storage components.
+- `observability/` — generic reference instrumentation; private global telemetry/analytics systems belong to TRUYN Platform.
+- `tests/`, `benchmarks/`, `scripts/` — public conformance/evidence/maintenance support.
 
-- `core/` — identity, capability, intent, objects, claims, provenance, trust/state/routing/security domain logic.
-- `core/security/` — Account/Tenant authority, provider access/billing, grants, entitlements, accounting, revocation and managed authority checkpoint/composition.
-- `network/` — QUIC, authenticated sessions, Kademlia/DHT, routing, relay, NAT traversal and testnet mechanics.
-- `runtime/` — provider/relay composition plus managed authority service/client/readiness surfaces.
-- `adapters/mcp/`, `adapters/a2a/`, `adapters/providers/` — external protocol/provider edges.
-- `sdk/` — five-language first-party Developer Release clients.
-- `trust/` — Trustability/provenance/receipts/lifecycle components.
-- `storage/` — persistent state/objects/index/cache.
-- `observability/` — metrics/traces/logging/error-budget instrumentation.
-- `tests/`, `benchmarks/`, `scripts/`, `.github/` — executable conformance/evidence/operations support.
+## Private counterpart ownership
 
-## Authority ownership
+`inn-media/truyn-platform` owns:
 
-PR `#425` owns the bounded Account → Organization → Tenant hierarchy. PR `#433` owns the durable single-filesystem Production Authority; PR `#456` owns correctness repairs. PR `#457` adds accepted managed authority repository/runtime support: Cosmos checkpointing over managed identity/AAD, monotonic revision/digest/ETag fencing, authority role/API, monotonic relay snapshot cache and fail-closed readiness.
+- `managed-authority/` and managed revocation/governance service implementation;
+- `control-plane/` for managed global orchestration;
+- `trust-registry/` and `reputation/` managed/global state;
+- `routing-intelligence/`;
+- private `telemetry/` and `analytics/`;
+- `marketplace/`, `billing/`, `licensing/`, `enterprise/`;
+- private production `ops/`.
 
-`#457` does not prove a provisioned/live multi-region authority deployment, production migration/cutover, continuous backup or restore acceptance. Those remain deployment gates.
+The private repository consumes open released/versioned artifacts. Public code never imports private code.
 
-## Interoperability ownership
+## Shared contracts
 
-A2A and MCP are adapters, not TRUYN/1 primitives. Accepted bounded evidence includes C1–C8, independent official A2A/MCP black-box proofs, P2-E1/Sprint E referenced-artifact interoperability, P2-E2 `a2a-mcp-pre-v1/g1` compatibility and P2-E3 canonical documentation reconciliation.
+Shared contracts stay open even when a private service implements them. Current examples:
 
-**Stable A2A/MCP v1 is not declared** because `TRUYN/1` remains draft.
+- `TRUYN/1`;
+- `truyn.agent-descriptor/v1`;
+- first-party SDK stable API behavior;
+- object/artifact reference schemas;
+- provider authorization outcome/error vocabulary;
+- production-control-plane snapshot/status contract consumed by an open Relay client.
 
-## SDK / developer surface
+## Current migration exceptions
 
-All five required first-party SDKs — TypeScript/JavaScript, Python, Go, Java and C#/.NET — implement the bounded relay-client contract and participate in executable conformance. PyPI, Go and npm alpha.2 public alphas are accepted immutable releases. npm alpha.1 is immutable historical evidence whose required clean-room ESM import failed and is superseded without overwrite. Maven Central and NuGet remain open.
+The public tree still contains a bounded legacy set whose **ownership is private but physical migration is not yet complete**:
 
-## Current maturity boundary
+- `core/security/managed-production-authority.js`;
+- `core/security/cosmos-authority-checkpoint.js`;
+- `runtime/authority-service.js`;
+- two mixed managed-authority test files;
+- `docs/operations/MANAGED_AUTHORITY_RUNTIME.md`;
+- legacy `production-*` GitHub workflows listed in `config/open-core-boundary.json`.
 
-Class C and D-100 are accepted; D-1000 remains open. Production operations contracts exist but live 28-day/telemetry/pager/restore evidence remains open. Durable authority plus managed runtime support are implemented, while live managed deployment/multi-region/recovery/propagation evidence remains open. Production Trust Authority remains open in PR `#438`. Governance remains G1 bootstrap Founding Stewardship. Mainnet and stable `TRUYN/1` are not claimed.
+They remain only until the reusable public authority-kernel artifact exists and the private managed implementation can consume it without Git/path/source coupling. The exception allowlist may only shrink.
 
-Canonical current facts belong in `docs/architecture/IMPLEMENTATION_STATUS.md`.
+## D-200 ownership
+
+D-200 is public/open network qualification. Its scripts, benchmark logic, predicates and sanitized evidence stay here. It does not move to TRUYN Platform merely because managed network intelligence may later consume lessons or metrics from it.
 
 ## License
 
-Repository source, specification and first-party SDK surfaces are licensed under the **Apache License 2.0 (`Apache-2.0`)**. Distribution surfaces must retain the required `LICENSE` and `NOTICE` material.
+This repository remains licensed under Apache-2.0. See `LICENSE` and `NOTICE`. TRUYN Platform is separately licensed and does not alter the license of this repository.

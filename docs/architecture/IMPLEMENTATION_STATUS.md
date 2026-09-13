@@ -1,90 +1,89 @@
-# TRUYN Implementation Status
+# TRUYN Open Implementation Status
 
-**Status:** canonical factual status index.  
-**Snapshot:** 2026-09-09  
-**Synchronized source:** `main@4a3a312877d14e9f0ee361a9356e7369cad04398`  
+**Status:** canonical public-layer factual index.  
+**Two-repository closure baseline:** `main@67d46b706805cc149b2a34049d49fa76b8b41da4`  
 **Protocol:** `TRUYN/1` draft  
-**A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
-**Stable A2A/MCP v1:** **not declared**
+**Private counterpart:** `inn-media/truyn-platform` / TRUYN Platform
 
-This document distinguishes accepted `main` facts from open PRs, diagnostics, planned work and live-production evidence that does not yet exist.
+This document distinguishes public/open implementation, private managed ownership, temporary migration exceptions and live-production evidence.
 
 ## Canonical matrix
 
-| Subsystem | Current factual state | Next boundary |
+| Subsystem | Current factual state | Ownership / next boundary |
 |---|---|---|
-| Signed identity / envelopes | **Implemented / CI-proven** | `TRUYN/1` remains draft |
-| QUIC / authenticated sessions / Kademlia | **Implemented / CI-proven** | broader production/WAN evidence |
-| Class C WAN | **ACCEPTED / PASS** | — |
-| Class D-100 | **ACCEPTED / PASS** | — |
-| Post-#458 D-200 | **Run `33959493680` IN PROGRESS** | must terminate on unchanged gates before PASS |
-| Class D-1000 | **OPEN — canonical full pinned campaign FAIL** | exact 20×50 PASS |
-| Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
-| Claim-centric + active Trustability | **Implemented bounded slices** | Production Trust Authority remains open; `#438` unmerged |
-| Account → Organization → Tenant | **Implemented / accepted** | PR `#425` |
-| Durable Production Authority | **Implemented / accepted single-filesystem reference** | `#433` + correctness repair `#456` |
-| Managed authority runtime support | **Implemented / accepted in repository/runtime** | PR `#457` merged |
-| Managed provider accounting wiring | **Implemented / accepted in repository/runtime** | PR `#463` merged; live managed reconciliation evidence open |
-| Live managed authority deployment | **OPEN** | provisioned Cosmos, migration/cutover, multi-region/backup/restore/propagation evidence |
-| Provider grants / entitlements / accounting / terminal revocation | **Implemented durable authority** | live managed ops + reconciliation evidence |
-| Production SLI/SLO | **Defined numerical contract** | `#424`; live 28-day compliance open |
-| Observability / alerting | **Implemented repository/runtime** | `#434`; deployed backends/probes/pager evidence open |
-| Rotation / on-call | **Implemented contracts** | `#440`; live drills/roster/test-fire open |
-| Recovery / DR | **Implemented contract** | `#441`; real backup/restore evidence open |
-| A2A/MCP C1–C8 | **ACCEPTED bounded profile** | broader optional surfaces separate |
-| P2-E1 / Sprint E | **ACCEPTED / CLOSED** | PR `#427` |
-| P2-E2 `a2a-mcp-pre-v1/g1` | **ACCEPTED / CLOSED** | PR `#432`; stable-v1 not claimed |
-| P2-E3 canonical reconciliation | **ACCEPTED / MERGED** | PR `#459` |
-| Five first-party SDK clients | **Implemented / conformance-proven** | release ecosystem completion |
-| PyPI alpha | **Accepted immutable public release** | — |
-| Go alpha | **Accepted immutable public release** | — |
-| npm alpha.1 | **Immutable historical artifact; clean-room Node 22 ESM failed** | superseded, never overwritten |
-| npm alpha.2 | **Accepted immutable public release** | — |
-| Maven Central / NuGet | **OPEN** | public publication evidence |
-| Agent Descriptor | **Bounded valid-profile implemented** | refresh/re-sign + full endpoint parity |
-| Live developer site | **OPEN** | deployment/liveness evidence |
-| Governance | **G1 / bootstrap Founding Stewardship** | external maintainers/TSC/neutral stewardship |
-| Mainnet | **Not productionized** | D-1000 + live ops + live managed authority + stable/release/governance gates |
+| Signed identity / envelopes | implemented / CI-proven | OPEN |
+| QUIC / authenticated sessions / Kademlia | implemented / CI-proven | OPEN |
+| Class C WAN | accepted / PASS history | OPEN |
+| Class D-100 | accepted / PASS history | OPEN |
+| D-200 | public network qualification | OPEN; stays in this repo |
+| Class D-1000 | open until strict accepted PASS | OPEN |
+| Semantic/distributed retrieval | bounded implementation/evidence | OPEN primitives/evidence; managed intelligence PRIVATE |
+| Claim/provenance/Trustability primitives | bounded implementation | OPEN |
+| Global trust registry/reputation graph | managed platform concern | PRIVATE |
+| Account/Organization/Tenant reference semantics | implemented | OPEN self-hostable/reference kernel |
+| Durable local authority/reference control plane | implemented | OPEN |
+| Managed cloud authority coordinator | implemented legacy code still physically here | PRIVATE_TARGET migration exception |
+| Cosmos managed authority checkpoint adapter | implemented legacy code still physically here | PRIVATE_TARGET migration exception |
+| Managed authority server/admin runtime | implemented legacy code still physically here | PRIVATE_TARGET migration exception |
+| Managed commercial accounting/reconciliation | private managed-plane responsibility | PRIVATE; reference billing semantics remain OPEN |
+| Legacy production workflows | physically present / bounded allowlist | PRIVATE_TARGET migration exception |
+| A2A/MCP bounded profile | accepted public interoperability surface | OPEN |
+| Five first-party SDK clients | implemented / conformance-proven | OPEN |
+| npm alpha.2 | accepted immutable release | OPEN released artifact |
+| PyPI alpha | accepted immutable release | OPEN released artifact |
+| Go alpha | accepted immutable release | OPEN released artifact |
+| Maven Central / NuGet | open | no source fallback |
+| Agent Descriptor | bounded valid-profile implemented | OPEN |
+| Private telemetry/analytics/marketplace/billing/enterprise | private platform | PRIVATE |
+| Governance | G1 bootstrap Founding Stewardship | OPEN protocol governance |
+| Stable TRUYN/1/mainnet | not declared | public maturity gate |
 
-## Network productionization
+## Two-repository closure state
 
-The canonical D-1000 negative record remains source `0e7f16c1ff74d85e9d4dbbc0fec9a35a0840f094`, run `32869078719`, issue `#344`. PR `#458` repairs target-readiness/discovery and bounded transient QUIC establishment while preserving exactly-once application NEED dispatch and unchanged D-scale thresholds. Fresh D-200 run `33959493680` against verified source `6f64c3dc6333044126916d3dd0a118e3cf8220d4` remains in progress and is not accepted PASS evidence yet.
+The architectural split is now explicit, but physical migration is **not yet complete**.
 
-## Production Authority boundary
+Completed foundation:
 
-Accepted authority has four stages:
+- public/private/shared-contract ownership defined;
+- D-200 declared OPEN;
+- `OPEN / PRIVATE / BOTH` task routing defined;
+- reverse dependency forbidden;
+- private consumer pins accepted immutable npm/PyPI/Go SDK releases;
+- clean-room private compatibility checks exist;
+- current public private-target migration exceptions are an exact machine-readable allowlist.
 
-1. PR `#425` — Account/Organization/Tenant hierarchy, roles, lifecycle and node/provider bindings;
-2. PR `#433` + `#456` — durable single-filesystem grants, entitlements, accounting reservations/reconciliation, terminal revocation and correctness repairs;
-3. PR `#457` — managed authority **repository/runtime support**: Cosmos DB NoSQL checkpoint adapter over managed identity/AAD, checkpoint digest/source/revision, optimistic ETag fencing, explicit digest-bound bootstrap, private authority role/API, monotonic relay snapshot cache and fail-closed staleness/readiness integration;
-4. PR `#463` — managed provider accounting wiring: `sponsored`, `prepaid`, and `subscription` modes route reserve/reconcile through the managed authority runtime, await reserve before provider execution, reconcile actual usage before terminal success, release/reconcile failure/cancellation, preserve replay denial and suppress successful output when authoritative reconciliation fails. `owner-funded` and `byok` remain local/private semantics.
+Open migration gate:
 
-Stages 3–4 are not proof of a live managed deployment. They do not claim provisioned Cosmos, multi-region writes, continuous backup, migrated production state, relay cutover, accepted restore drill or long-window production reconciliation. Those remain deployment/operations gates.
+> Publish a reusable versioned public authority-kernel artifact before the private managed authority consumes that kernel.
 
-## Production operations boundary
+Without that artifact, deleting the public managed coordinator and rebuilding it private would either force forbidden Git/path/raw-source coupling or require copying the open security subtree into the private repository. Neither is accepted as closure.
 
-The repository has numerical SLI/SLO, observability, dashboards, error budgets/alerts, security rotation/on-call and recovery/DR contracts. Productionized status remains open until real telemetry/probes, pager delivery, roster, live rotations/restores and durable 28-day serving evidence are accepted.
+After the artifact exists, the managed coordinator, Cosmos persistence, managed server/admin runtime, managed tests and private production workflows move/rebuild in TRUYN Platform; the exception list must then shrink to zero.
 
-## A2A / MCP boundary
+## Authority boundary
 
-Accepted bounded state includes C1–C8, independent official A2A/MCP black-box proofs, **P2-E1 / Sprint E** referenced artifacts in both directions with explicit resolution and exact integrity, and **P2-E2** compatibility generation `a2a-mcp-pre-v1/g1` with fail-closed version/required-semantic negotiation and migration rules. PR `#459` closes **P2-E3** documentation reconciliation and adds a regression guard.
+Public/open authority semantics include local/self-hostable account/tenant/provider authorization, grants, entitlement/accounting rules, revocation primitives, reference billing policy and snapshot/client contracts.
 
-**Stable A2A/MCP v1 is not declared.** `TRUYN/1` remains draft.
+Private managed ownership includes globally operated authority/revocation state, cloud checkpoint persistence, managed administration, commercial reconciliation, private operational topology and global trust/routing data.
 
-Durable consolidated evidence: `../compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md`.
+The fact that a current legacy implementation is still physically present in this repository during migration does not change its target ownership.
 
-## SDK / developer release boundary
+## Public dependency/release boundary
 
-Five first-party clients and shared executable conformance are implemented. PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2` have accepted immutable public evidence. npm `@truyn/sdk@0.1.0-alpha.1` remains immutable historical evidence but failed the required clean-room Node 22 ESM import and is superseded without overwrite. The accepted npm alpha.2 has public registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM verification recorded permanently in `../../sdk/release/evidence/npm-alpha2-2026-09-05.json`. Maven Central and NuGet remain open.
+Accepted immutable released coordinates:
 
-Agent Descriptor refresh/re-sign, full endpoint parity, archive-member content scanning and live developer-site liveness remain open.
+- npm `@truyn/sdk@0.1.0-alpha.2`;
+- PyPI `truyn-sdk==0.1.0a1`;
+- Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`.
 
-## Trustability boundary
+Maven Central and NuGet remain unpublished/open. TRUYN Platform may not replace missing releases with a public branch checkout, raw GitHub source, submodule, sibling filesystem path or vendored repo snapshot.
 
-Bounded Trustability is accepted. Production Trust Authority is not accepted on current main because PR `#438` remains open. Multi-region dissemination, transparency witnesses and WAN revocation-propagation evidence remain later production gates.
+## D-200 boundary
 
-## Documentation hygiene
+D-200 scripts, benchmark implementation, predicates and sanitized evidence remain public. A D-200-related change becomes `BOTH` only when it alters a shared public contract consumed by TRUYN Platform.
 
-Historical evidence remains audit history. Current-status documents follow accepted `main`. Open PRs, public uploads and in-progress diagnostics do not become accepted production claims merely by existing; merged repository/runtime support does not become live production evidence without deployment proof.
+## Evidence and documentation hygiene
 
-Operational network-scale status: [../operations/NETWORK_SCALE_STATUS.md](../operations/NETWORK_SCALE_STATUS.md).
+Published benchmark evidence remains protected under redact-not-delete handling. Repository split/sanitization is not permission to delete valid benchmark evidence.
+
+Open PR intent is not accepted implementation. Managed private production claims and public protocol maturity claims remain separate.

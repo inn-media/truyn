@@ -1,14 +1,14 @@
-# TRUYN Governance
+# TRUYN Open Governance
 
-TRUYN is intended to become an open, vendor-neutral technical standard and intelligence network. Open source code alone is not sufficient: the rules that change the protocol, official extensions, compatibility contracts and conformance requirements must also be public, reviewable and able to evolve beyond any single vendor.
+TRUYN Open is intended to become an open, vendor-neutral technical standard and intelligence-network interoperability layer. Open-source code alone is not sufficient: normative protocol, compatibility, conformance and governance changes must remain public, reviewable and able to evolve beyond one vendor.
 
 ## Current governance state
 
-TRUYN is currently in **bootstrap governance**.
+TRUYN Open is in **bootstrap governance**. InnMedia is the **Founding Steward** and currently performs project-level functions that a future multi-organization Technical Steering Committee (TSC) should perform.
 
-InnMedia is the **Founding Steward** and currently performs the project-level functions that a future multi-organization Technical Steering Committee (TSC) will perform. This is a factual description of the current state, not a claim of neutral governance and not a permanent ownership right over the standard.
+This is not a claim that neutral governance already exists.
 
-The intended transition is:
+Target progression:
 
 ```text
 founding stewardship
@@ -22,186 +22,151 @@ neutral legal stewardship
 stable ecosystem governance
 ```
 
-TRUYN MUST NOT describe itself as neutrally governed until the corresponding organizational gates in `ROADMAP.md` and `docs/architecture/GOVERNANCE_ARCHITECTURE.md` have actually been met.
+## Relationship to TRUYN Platform
 
-## Scope
+`inn-media/truyn-platform` is the private proprietary TRUYN Platform codebase operated commercially by InnMedia.
 
-Project governance applies to normative TRUYN protocol specifications, wire/schema compatibility, official extensions and bindings, Agent Descriptor compatibility, first-party SDK conformance, official interoperability profiles, conformance rules, release/stability/deprecation policy, contribution provenance/IP policy and project governance itself.
+TRUYN Platform ownership and TRUYN Open normative governance are separate.
 
-Governance does not give the project control over third-party products, private provider infrastructure, commercial pricing, cloud accounts or independently operated TRUYN networks.
+Private platform owners may make private product, operations, pricing and infrastructure decisions, but they do **not** gain a private channel to redefine:
 
-Protocol governance is separate from implementation ownership, infrastructure ownership and commercial ownership.
+- TRUYN/1 semantics;
+- public wire/schema compatibility;
+- Agent Descriptor semantics;
+- first-party SDK conformance;
+- official public extensions;
+- public D-200 predicates/evidence;
+- public stability/deprecation policy.
+
+If a private-platform requirement needs a public contract change, it enters the normal public RFC/PR/governance process and is routed as `BOTH` under `docs/architecture/CROSS_REPO_TASK_ROUTING.md`.
+
+## Governance scope
+
+Public project governance applies to:
+
+- normative TRUYN protocol/specification changes;
+- wire/schema compatibility;
+- public identity/security/authorization semantics;
+- official extensions and bindings;
+- Agent Descriptor compatibility;
+- first-party SDK conformance;
+- official interoperability profiles;
+- public release/stability/deprecation policy;
+- public conformance programs;
+- contribution provenance/IP policy;
+- public project governance itself.
+
+Governance does not control third-party products, private provider infrastructure, commercial pricing, cloud accounts or independently operated TRUYN networks.
 
 ## Principles
 
-1. **Vendor neutrality by structure, not slogan.** The steady-state model must prevent one organization from permanently controlling normative decisions.
-2. **Public technical record.** Normative decisions use public issues/RFCs/PRs and durable records except for time-bounded confidential security handling.
-3. **Earned authority.** Maintainer/TSC authority follows sustained technical contribution, review quality, reliability and community trust, not employment status alone.
-4. **Protocol stability.** Once a protocol generation is stable, incompatible behavior requires a new generation or explicit major boundary.
-5. **Extension before core.** New ideas should begin outside the core whenever an extension, adapter or binding is sufficient.
+1. **Vendor neutrality by structure, not slogan.**
+2. **Public technical record for normative decisions.**
+3. **Earned maintainer authority.**
+4. **Protocol stability after a stable generation is declared.**
+5. **Extension before core when possible.**
 6. **Security and compatibility are mandatory review dimensions.**
-7. **Open participation.** Any person or organization may propose changes, create community extensions and participate in public review.
-8. **No hidden normative channel.** Private discussion does not replace the public record for normative decisions.
-9. **Conflict transparency.** Decision-makers disclose relevant conflicts and recuse where appropriate.
-10. **No false maturity claims.** Defined governance is not the same as operating multi-vendor governance or neutral legal stewardship.
-11. **Contribution provenance without vendor capture.** New contribution commits use DCO 1.1 certification under the project license; a project-specific CLA, copyright assignment or special relicensing grant is not required unless a future Governance change explicitly adopts one.
+7. **Open participation.**
+8. **No hidden normative channel.**
+9. **Conflict transparency and recusal.**
+10. **No false maturity claims.**
+11. **DCO-based contribution provenance without vendor-specific copyright capture.**
+12. **Private platform ownership never implies private normative protocol authority.**
 
-## Contribution provenance and inbound IP
+## Contribution provenance
 
-TRUYN uses the **Developer Certificate of Origin (DCO) 1.1** as the mandatory provenance mechanism for new contribution commits.
+TRUYN Open uses **Developer Certificate of Origin (DCO) 1.1** for new contribution commits. Every contribution commit must contain an author-matching `Signed-off-by` trailer and CI enforces this requirement.
 
-The canonical DCO text is stored in `DCO`. Every new contribution commit must contain a valid `Signed-off-by` trailer. The repository CI verifies pull-request commits and fails the contribution gate when the sign-off is missing or does not match the commit author email.
+Contributors retain copyright and submit contributions under the applicable public project license. TRUYN Open does not currently require a CLA, copyright assignment or InnMedia-specific relicensing grant.
 
-This policy is intentionally compatible with TRUYN's neutral-stewardship direction:
-
-```text
-contributor retains copyright
-        +
-contribution under Apache License 2.0
-        +
-DCO 1.1 right-to-contribute certification
-        ↓
-auditable inbound provenance without vendor-specific ownership grant
-```
-
-TRUYN does **not** currently require a Contributor License Agreement (CLA), copyright assignment or an InnMedia-specific relicensing right. A future proposal to introduce any of those, to replace DCO, to change the required DCO version, or to create waivers is a **Governance change** and requires a durable public decision.
-
-The DCO policy applies prospectively from adoption. Historical repository commits are not rewritten merely to manufacture retroactive sign-offs.
-
-Canonical policy: `docs/governance/CONTRIBUTION_IP_POLICY.md`.
+A future change to DCO/CLA/copyright-assignment policy is a Governance change.
 
 ## Roles
 
 ### Contributor
-Any participant who proposes, discusses, documents, tests, implements or reviews TRUYN work. A participant submitting new contribution commits must comply with the mandatory DCO 1.1 contribution policy.
+
+Any participant who proposes, documents, tests, implements or reviews public TRUYN Open work.
 
 ### Maintainer
-A contributor trusted to review and merge changes within an assigned scope. Maintainer status is earned through sustained contribution and may be removed for prolonged inactivity, repeated policy violations, loss of trust or voluntary resignation. Maintainers cannot redefine normative protocol semantics outside the RFC/decision process and must not merge a pull request that fails the mandatory DCO gate.
+
+A contributor trusted to review/merge within an assigned public scope. Maintainers cannot bypass protocol governance or DCO requirements.
 
 ### Subsystem Maintainer
-A maintainer with primary review responsibility for a defined subsystem such as networking, protocol/spec, security, SDK/DX, interoperability, Trustability or operations.
 
-### Technical Steering Committee (TSC)
-The future TSC is the highest technical governance body for normative project decisions. It owns protocol/governance RFC decisions, official-extension promotion, stability/deprecation policy, cross-subsystem architecture conflicts, maintainer policy, conformance policy and stewardship-transition decisions.
+A Maintainer with responsibility for networking, protocol/spec, security, SDK/DX, interoperability, Trustability, conformance or other public subsystems.
 
-During bootstrap, the Founding Steward performs these functions transparently under the published process wherever practical.
+### Technical Steering Committee
 
-### TSC Chair
-The TSC may elect a Chair for coordination, agendas and decision recording. The Chair cannot unilaterally override a valid TSC decision.
+The future TSC is the highest technical governance body for normative public-project decisions. During bootstrap, the Founding Steward performs these functions transparently under published process where practical.
 
 ### Security Response Team
-A small trusted group may privately coordinate vulnerability disclosure and embargoed fixes. Security confidentiality is an exception for disclosure timing, not a permanent bypass around governance. Permanent normative changes caused by an incident enter the public record after disclosure is safe.
 
-## Maintainer admission and removal
+A small trusted group may privately coordinate vulnerability disclosure and embargoed fixes. Confidentiality affects disclosure timing, not permanent normative authority. Material permanent protocol/security changes enter the public record when safe.
 
-A Maintainer candidate should demonstrate sustained high-quality contributions or reviews, understanding of TRUYN architecture and compatibility, responsible security behavior, constructive disagreement and independence from private vendor interests when acting for the project.
+## Maintainer admission / TSC target
 
-Before a multi-organization TSC exists, the Founding Steward may appoint maintainers and must record appointments in `MAINTAINERS.md`. After the TSC exists, admission/removal follows the normal decision process. Employment by a company is neither required nor sufficient.
+Maintainer authority is earned through sustained contribution/review, architecture/security understanding, reliable judgment and constructive participation.
 
-## TSC composition target
+The steady-state TSC target is multi-organization:
 
-The steady-state TSC must be multi-organization:
-
-- at least three independent organizations or constituencies before claiming multi-organization governance;
-- no single organization may hold a majority of voting seats;
-- the project should move toward no organization holding more than one third of voting seats as the TSC grows;
-- multiple employees of one organization do not create multiple independent interests for neutrality calculations;
-- independent maintainers may hold seats;
-- seat changes and affiliations are public.
+- at least three independent organizations/constituencies before claiming multi-organization governance;
+- no single organization may hold a voting majority;
+- the project should move toward no organization holding more than one third of voting seats as it grows;
+- affiliations and seat changes are public.
 
 ## Decision classes
 
-### Class A — routine/non-normative
-Typos, tests, non-normative docs, compatible refactoring and bug fixes that do not redefine normative behavior. Normal PR review applies.
+- **Class A** — routine/non-normative implementation/docs/tests/refactoring.
+- **Class B** — compatible normative change.
+- **Class C** — core/normative architecture/security/identity/conformance change.
+- **Class D** — breaking stable-generation change requiring a new major/generation boundary.
+- **Governance change** — governance/TSC/stewardship/contribution-provenance policy.
 
-### Class B — compatible normative change
-Additive or clarifying specification changes that preserve declared compatibility. Requires public RFC/issue, security/compatibility analysis and governance approval.
+Class B–D and Governance changes require the applicable public RFC/decision process.
 
-### Class C — core/normative architecture change
-Changes to identity, wire semantics, trust/security model, authorization semantics, stable discovery behavior, conformance requirements or official core objects. Requires a formal RFC, public review and explicit decision record.
+## Voting / consensus target
 
-### Class D — breaking change
-After a stable generation exists, an incompatible change requires a new protocol generation or explicit major compatibility boundary. It cannot ship as a silent change to a stable contract.
+The project prefers rough consensus backed by evidence. Once a formal TSC exists:
 
-### Governance change
-Changes to this governance contract, voting rules, TSC structure, neutral-stewardship commitments or the contribution provenance/inbound-IP policy require a governance RFC/decision process and supermajority approval once a TSC exists.
+- quorum is a majority of active voting members;
+- ordinary decisions require simple majority with quorum;
+- governance changes, breaking stable-core decisions and neutral-stewardship changes require at least two-thirds of the full active voting TSC;
+- conflicts should cause recusal;
+- decisions/rationale remain public.
 
-## Voting, quorum and consensus
+During bootstrap there is no fictional multi-party vote; the Founding Steward records bootstrap decisions explicitly.
 
-The project prefers rough consensus backed by technical evidence. When a formal TSC vote is required:
+## RFC / extension processes
 
-- quorum is a majority of active voting TSC members;
-- ordinary decisions require a simple majority of votes cast with quorum;
-- governance changes, breaking stable-core decisions and neutral-stewardship changes require at least a two-thirds supermajority of the full active voting TSC;
-- abstentions are not affirmative votes;
-- conflicted members should recuse;
-- decisions and rationale are public.
+Normative changes follow `docs/governance/RFC_PROCESS.md`. Extensions follow `docs/governance/EXTENSIONS.md`.
 
-During bootstrap there is no fictional multi-party vote: the Founding Steward records the decision explicitly as a bootstrap decision.
+Third parties may create Community Extensions in their own namespace without permission. Official `truyn.org` extension status requires public project approval.
 
-## RFC and extension processes
+## Open/private routing
 
-Normative changes follow `docs/governance/RFC_PROCESS.md`.
+Repository placement is governed by `docs/architecture/OPEN_CORE_BOUNDARY.md`:
 
-RFC states:
+- protocol/reference/self-hosting/conformance work → `OPEN`;
+- managed/global/commercial/private-ops implementation → `PRIVATE` in TRUYN Platform;
+- a public contract plus private consumer change → `BOTH` using independent linked PRs.
 
-```text
-Draft → Discussion → Accepted / Rejected / Withdrawn
-                         ↓
-                    Implemented
-                         ↓
-                    Superseded
-```
-
-Extensions follow `docs/governance/EXTENSIONS.md`:
-
-```text
-Community → Experimental → Official → Core Candidate → Core
-```
-
-A third party never needs permission to create a Community Extension in its own namespace. Use of an official `truyn.org` extension identifier or “Official TRUYN Extension” label requires project approval.
-
-## Security emergency process
-
-A credible security incident may require confidential or accelerated action. The Security Response Team may embargo details, prepare a bounded fix and temporarily disable vulnerable functionality. It may not use an emergency as a permanent mechanism to redefine stable normative semantics without later governance review. Material normative changes receive a public decision record after safe disclosure.
-
-## Conflicts and appeals
-
-Escalation path:
-
-```text
-maintainer discussion
-        ↓
-subsystem maintainers
-        ↓
-TSC / bootstrap steward
-        ↓
-recorded final project decision
-```
-
-A rejected proposal may be resubmitted when material new evidence or ecosystem requirements exist. Governance decisions do not prevent independent forks under Apache License 2.0.
+A private commercial concern is not, by itself, a reason to make a public protocol decision private.
 
 ## Neutral stewardship target
 
-TRUYN intends to transition from founding stewardship to a neutral legal/stewardship structure suitable for an open technical standard. The eventual structure may involve a neutral foundation or another independent standards/open-source steward.
-
-That future state may include stewardship of protocol/specification IP where applicable, project marks, official extension namespaces, a neutral charter, conformance programs and project infrastructure that must not remain vendor-controlled.
-
-Contribution provenance must remain portable through that transition. The DCO-based inbound record is designed to avoid dependency on a vendor-specific copyright assignment or relicensing grant. A future neutral steward may propose a different mechanism only through the published governance process.
-
-No document may claim that this transfer has happened before the legal and organizational facts exist.
+TRUYN Open intends to move toward a neutral legal/stewardship structure suitable for an open technical standard. No document may claim that transition is complete until legal and organizational facts exist.
 
 ## Governance maturity
 
 | Stage | Meaning |
 |---|---|
-| **G0 — Founder governed** | Single-steward decisions; no complete public governance contract. |
-| **G1 — Public governance defined** | Governance/RFC/extension/decision/contribution-provenance contracts are public; operational control may still be single-vendor bootstrap. |
-| **G2 — Open maintainer model operating** | Multiple earned maintainers actively review/merge, including external maintainers. |
-| **G3 — Multi-organization TSC** | 3+ independent constituencies, no single-vendor voting majority, public TSC decisions/minutes. |
-| **G4 — Neutral legal stewardship** | Relevant protocol/mark/namespace stewardship is legally/organizationally neutral. |
-| **G5 — Stable ecosystem governance** | Succession, appeals, release/deprecation authority and continuity are demonstrated in operation. |
+| G0 | founder governed, incomplete public process |
+| G1 | public governance/RFC/contribution contracts defined |
+| G2 | open maintainer model operating |
+| G3 | multi-organization TSC |
+| G4 | neutral legal stewardship |
+| G5 | stable ecosystem governance |
 
-Current status after adoption of this contract is **G1 defined, with bootstrap operations still transitioning from G0**. Independent maintainers, a multi-organization TSC and neutral legal stewardship are not yet facts.
+Current public status is **G1**, with bootstrap operational control still transitioning from G0.
 
-See `ROADMAP.md`, `MAINTAINERS.md`, `DCO`, `docs/governance/` and `docs/architecture/GOVERNANCE_ARCHITECTURE.md`.
+See `MAINTAINERS.md`, `DCO`, `docs/governance/`, `docs/architecture/GOVERNANCE_ARCHITECTURE.md`, `docs/architecture/OPEN_CORE_BOUNDARY.md` and `ROADMAP.md`.

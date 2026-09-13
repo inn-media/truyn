@@ -1,12 +1,37 @@
-# Contributing to TRUYN
+# Contributing to TRUYN Open
 
-TRUYN is an open infrastructure project. Contributions are welcome across protocol design, distributed systems, networking, cryptography, trustability, provider authorization, BYOK, A2A/MCP and other agent interoperability, SDKs, developer experience, benchmarks, documentation, governance, standards work and adversarial testing.
+TRUYN Open is the public Apache-2.0 protocol, SDK, Node/Relay reference implementation, conformance and benchmark layer of the wider TRUYN architecture.
 
-## Governance comes first for normative changes
+Contributions are welcome across protocol design, distributed systems, networking, cryptography, Trustability/provenance, provider authorization/BYOK, A2A/MCP interoperability, SDK/DX, public benchmarks, documentation, governance, standards and adversarial testing.
 
-Contributing code and changing the standard are related but different activities.
+## Choose the repository first
 
-Before proposing a normative protocol, stable compatibility, official extension or governance change, read:
+TRUYN has two codebases:
+
+- `inn-media/truyn` — **TRUYN Open** (this public repository);
+- `inn-media/truyn-platform` — **TRUYN Platform** (private managed/commercial implementation).
+
+Before implementation, classify the task using `docs/architecture/OPEN_CORE_BOUNDARY.md` and `docs/architecture/CROSS_REPO_TASK_ROUTING.md`:
+
+- `OPEN` — protocol, SDK, Node/Relay reference implementation, conformance, public benchmark or self-hosting/reference behavior;
+- `PRIVATE` — managed/global/commercial/private-operations implementation; do not implement it here;
+- `BOTH` — a public contract changes and TRUYN Platform needs a linked compatibility PR.
+
+Ambiguous work should be classified before code is written. Do not add a new managed/private implementation to the public tree merely because similar legacy code is still listed as a temporary migration exception.
+
+## Cross-repository rules
+
+Public code must never import private code.
+
+A BOTH change uses independent PRs. Public contract/release work happens here; the private consumer pins the released/versioned artifact separately. Private production code must not consume this repository by branch, source checkout, raw GitHub URL, sibling path, submodule or vendored repo snapshot.
+
+D-200 is OPEN by default. Its scripts, benchmark logic, predicates and evidence stay public. Managed routing/ranking/private telemetry belongs to TRUYN Platform.
+
+## Governance before normative changes
+
+A PR does not acquire normative authority merely because it changes the reference implementation.
+
+Before a normative protocol, stable compatibility, official extension or governance change, read:
 
 - `GOVERNANCE.md`;
 - `MAINTAINERS.md`;
@@ -15,161 +40,91 @@ Before proposing a normative protocol, stable compatibility, official extension 
 - `docs/governance/DECISION_PROCESS.md`;
 - `docs/governance/CONTRIBUTION_IP_POLICY.md`.
 
-Routine non-normative implementation work can use the normal PR process. A PR does not silently acquire normative authority merely because it is merged into the reference implementation.
+Routine non-normative implementation work can use the normal PR process.
 
-TRUYN is currently in bootstrap governance: InnMedia is the Founding Steward while the project transitions toward an earned external-maintainer model, a multi-organization TSC and ultimately neutral stewardship. Do not describe current bootstrap control as already vendor-neutral governance.
+## License / DCO
 
-## License for contributions
+TRUYN Open is licensed under Apache License 2.0. Contributions are accepted under Apache-2.0 unless explicitly governed otherwise.
 
-TRUYN is licensed under the **Apache License 2.0**. Contributions are accepted under the Apache License 2.0 unless explicitly stated otherwise. See [`LICENSE`](LICENSE).
-
-## Mandatory DCO 1.1 sign-off
-
-TRUYN requires the **Developer Certificate of Origin (DCO) 1.1** for every new contribution commit.
-
-By adding a `Signed-off-by` trailer, you certify the DCO 1.1 terms in [`DCO`](DCO) and confirm that you have the right to submit the contribution under the applicable open-source license.
-
-Create a signed-off commit with:
-
-```bash
-git commit -s -m "your commit message"
-```
-
-which adds a trailer like:
+Every new contribution commit requires **DCO 1.1** sign-off with an author-matching trailer:
 
 ```text
 Signed-off-by: Your Name <your.email@example.com>
 ```
 
-The sign-off is a legal/provenance certification, not a cryptographic signature. CI verifies every commit in a pull request and requires a `Signed-off-by` email matching the commit author's email. A pull request with a missing or mismatched DCO sign-off is not eligible for merge.
+Use `git commit -s`. CI verifies every contribution commit. This requirement applies to code, specs, tests, SDKs, adapters, docs, benchmark changes, governance records and repository configuration.
 
-To fix the latest unsigned commit:
-
-```bash
-git commit --amend --signoff --no-edit
-```
-
-For multiple commits, add a sign-off to every contribution commit, for example with an appropriate interactive rebase or:
-
-```bash
-git rebase --signoff <base-branch>
-```
-
-This requirement applies to code, specifications, tests, SDKs, adapters, documentation, benchmark changes, governance records and repository configuration.
-
-TRUYN does **not** currently require a Contributor License Agreement (CLA), copyright assignment or an InnMedia-specific relicensing grant. DCO 1.1 is the project's inbound contribution provenance mechanism. Any future material change to that posture is a Governance change.
-
-The policy is prospective from adoption and does not require rewriting historical repository commits. See [`docs/governance/CONTRIBUTION_IP_POLICY.md`](docs/governance/CONTRIBUTION_IP_POLICY.md).
+TRUYN Open does not currently require a CLA, copyright assignment or InnMedia-specific relicensing grant.
 
 ## Principles
 
-- Keep the network vendor-neutral.
-- Keep governance capable of evolving beyond any single vendor.
-- Separate protocol governance, implementation/repository ownership, infrastructure operation and commercial ownership.
-- Prefer extensions/adapters before expanding the stable core when a feature can remain independently versioned.
-- Separate protocol semantics from adapters, SDK ergonomics and product-specific integrations.
-- Treat A2A and MCP as independently versioned interoperability edges rather than new TRUYN/1 wire primitives.
-- Preserve backward compatibility once a protocol version is declared stable.
-- Prefer measurable claims over marketing claims.
-- Document threat models and failure modes.
-- Treat capability discovery and provider authorization as separate concerns.
-- Preserve the fail-closed/private-by-default provider model.
-- Do not add execution paths that bypass central provider authorization.
-- Keep provider and remote A2A/MCP credentials at the user/provider runtime boundary; do not put them in protocol envelopes or Agent Descriptors.
-- Do not expose private TRUYN providers through public Agent Cards, MCP tool/resource lists or compatibility metadata without authorization.
-- Do not commit secrets or private keys.
-- Do not publish unnecessary production topology, privileged cloud identities, private origins, allowlists, quotas/cost ceilings or billing information in examples/docs.
+- keep public protocol semantics vendor-neutral;
+- preserve the open/private repository boundary;
+- separate protocol governance, repository ownership, infrastructure operation and commercial ownership;
+- prefer extensions/adapters before expanding stable core;
+- preserve compatibility once a generation is declared stable;
+- prefer measured claims over marketing claims;
+- document failure/threat models;
+- keep capability discovery separate from provider authorization;
+- preserve private-by-default provider behavior;
+- do not create execution paths that bypass central authorization;
+- keep provider credentials at the user/provider runtime boundary;
+- do not expose private providers/topology/allowlists/quotas through public metadata;
+- do not commit secrets/private keys;
+- protect published benchmark evidence with redact-not-delete handling.
 
-## Normative change classification
+## Normative decision classes
 
-Use the governance decision classes:
+- Class A — routine/non-normative;
+- Class B — compatible normative change;
+- Class C — core/normative architecture change;
+- Class D — breaking stable-generation change;
+- Governance change — governance/TSC/stewardship/provenance rules.
 
-- **Class A** — routine/non-normative implementation or documentation;
-- **Class B** — compatible normative change;
-- **Class C** — core/normative architecture change;
-- **Class D** — breaking stable change requiring a new protocol generation/major boundary;
-- **Governance change** — governance/TSC/stewardship rules.
+Class B–D and governance changes use the applicable public RFC/decision process.
 
-Class B-D and governance changes require the applicable public RFC/decision process. During bootstrap, decisions are recorded explicitly as Founding Steward decisions rather than fictional TSC votes.
+## SDK / developer experience
 
-## Extensions
+Required first-party public SDKs:
 
-Third parties may create Community Extensions in their own namespace without permission.
-
-Project-hosted extension maturity is:
-
-```text
-Community → Experimental → Official → Core Candidate → Core
-```
-
-Official `truyn.org` extension identifiers and Official TRUYN Extension status require governance approval. Promotion to Core is a separate normative RFC and should be rare.
-
-See `docs/governance/EXTENSIONS.md`.
-
-## SDK and developer-experience contributions
-
-The required first-party SDK targets are:
-
-- JavaScript / TypeScript;
+- JavaScript/TypeScript;
 - Python;
 - Go;
 - Java;
-- C# / .NET.
+- C#/.NET.
 
-Rust is an optional additional SDK track.
+SDK work must preserve equivalent TRUYN semantics while remaining idiomatic. SDKs must not invent protocol behavior or move authoritative provider-policy decisions into clients.
 
-SDK contributions should preserve equivalent TRUYN semantics while remaining idiomatic in the host language. They must not invent protocol behavior absent from `spec/` or move authoritative provider-policy decisions into client code.
+Shared conformance should cover Descriptor verification, version handling, identity, authorization-aware discovery, OFFER publish/revoke, NEED→RESULT correlation, cancellation, references, normalized errors and negative security behavior.
 
-New SDK work should include or extend shared conformance coverage for:
+Agent Descriptor remains bootstrap/self-description; OFFER remains dynamic availability/conditions. Neither grants authorization.
 
-- Agent Descriptor parsing/verification;
-- protocol/descriptor version handling;
-- identity retrieval;
-- authorization-aware discovery and private capability non-disclosure;
-- `OFFER` publish/revoke;
-- `NEED` → `RESULT` correlation;
-- timeout/deadline/cancellation;
-- artifact/reference handling;
-- normalized errors;
-- negative security behavior proving unauthorized private-provider execution remains zero.
+## Provider security / interoperability
 
-Agent Descriptor contributions must preserve the distinction:
-
-```text
-Agent Descriptor = bootstrap/self-description
-OFFER            = dynamic availability/conditions
-```
-
-A public/scoped Descriptor must not reveal providers/capabilities that normal provider-policy discovery would hide from the requester.
-
-See `docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`, `sdk/README.md`, `spec/protocol/v1/agent-descriptor.md` and `docs/compatibility/SDK_COMPATIBILITY.md`.
-
-## Provider-security and interoperability changes
-
-Changes affecting relay routing, discovery, Agent Descriptor views, provider registration, A2A/MCP/HTTP/WebSocket/SDK execution, billing/quotas or adapters should explain:
+Changes affecting routing, discovery, provider registration, A2A/MCP/HTTP/WebSocket/SDK execution, billing/quotas or adapters should explain:
 
 - requester/provider ownership impact;
 - authorization boundary;
-- external protocol version and fallback behavior where applicable;
-- mapping between external objects and TRUYN `OFFER`/`NEED`/`RESULT`/artifact semantics;
-- failure behavior when policy or external protocol state is unavailable;
-- whether an unauthorized request can cause an upstream provider call;
-- whether an external discovery surface can enumerate private providers;
-- compatibility with BYOK and private-by-default providers;
+- protocol/version/fallback behavior;
+- mapping into TRUYN OFFER/NEED/RESULT/reference semantics;
+- fail-closed behavior;
+- whether unauthorized input can cause upstream provider execution;
+- private-provider discovery exposure;
+- BYOK/private-default compatibility;
 - required negative/adversarial tests.
 
-A successful capability match, Descriptor entry, valid A2A/MCP transport credential, SDK discovery result or external task/tool identity is never sufficient reason to bypass provider policy.
+A capability match, Descriptor entry, A2A/MCP transport credential or SDK discovery result is never sufficient to bypass provider policy.
 
-For A2A/MCP work, read:
+## Pull-request metadata
 
-- `docs/architecture/A2A_MCP_INTEROPERABILITY.md`;
-- `docs/compatibility/A2A_MCP_COMPATIBILITY.md`;
-- the v0.5 Interoperability Bridge Gate in `ROADMAP.md`.
+Use the repository PR template and declare:
 
-## Before v1.0
+- Scope: `OPEN` or `BOTH` (`PRIVATE` work belongs in TRUYN Platform);
+- public contract impact;
+- linked private PR/issue when BOTH;
+- D-200 impact;
+- validation/evidence;
+- security/privacy impact;
+- DCO certification.
 
-The repository is intentionally evolving quickly. Proposed protocol, descriptor, SDK, interoperability or governance changes should explain compatibility impact, security implications, versioning assumptions, governance classification and how they can be tested.
-
-Stable-v1 technical maturity does not by itself prove neutral governance maturity. See the Governance & Standardization Gate in `ROADMAP.md`.
-
-See `ROADMAP.md`, `GOVERNANCE.md`, `SECURITY.md`, `DCO`, `spec/`, `sdk/`, `docs/governance/` and `docs/architecture/` for the current direction.
+See `ROADMAP.md`, `GOVERNANCE.md`, `SECURITY.md`, `DCO`, `spec/`, `sdk/`, `docs/governance/` and `docs/architecture/`.
