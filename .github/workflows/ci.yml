@@ -57,6 +57,7 @@ jobs:
       - run: npm run test:security
       - run: node scripts/check-d200-contract.mjs
       - run: node scripts/check-repository-hygiene.mjs
+      - run: node scripts/check-open-private-boundary.mjs
       - run: git diff --check
   regression:
     needs: plan
