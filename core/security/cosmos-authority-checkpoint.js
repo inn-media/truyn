@@ -1,7 +1,9 @@
 import { containerAppsManagedIdentityToken } from '../../adapters/providers/common/azure-auth.js';
 import {
+  isLegacyProductionControlPlaneSnapshot,
   productionControlPlaneSnapshotDigest,
   validateProductionControlPlaneSnapshot,
+  verifyLegacyProductionControlPlaneSnapshotDigest,
   verifyProductionControlPlaneSnapshotDigest
 } from './production-control-plane-snapshot.js';
 
@@ -35,8 +37,12 @@ export function validateAuthorityCheckpointDocument(document, { maxDocumentBytes
   if (!Number.isSafeInteger(document.revision) || document.revision < 1) throw checkpointError('authority_checkpoint_revision_invalid');
   sha(document.sourceSha);
   if (!Number.isFinite(Date.parse(document.committedAt || ''))) throw checkpointError('authority_checkpoint_time_invalid');
-  validateProductionControlPlaneSnapshot(document.state);
-  verifyProductionControlPlaneSnapshotDigest(document.state, document.stateDigest);
+  if (isLegacyProductionControlPlaneSnapshot(document.state)) {
+    verifyLegacyProductionControlPlaneSnapshotDigest(document.state, document.stateDigest);
+  } else {
+    validateProductionControlPlaneSnapshot(document.state);
+    verifyProductionControlPlaneSnapshotDigest(document.state, document.stateDigest);
+  }
   const bytes = Buffer.byteLength(JSON.stringify(document));
   if (bytes > maxDocumentBytes) throw checkpointError('authority_checkpoint_document_too_large');
   return document;

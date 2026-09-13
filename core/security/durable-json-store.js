@@ -152,8 +152,9 @@ export function createDurableJsonStore({
     return clone(readUnlocked());
   }
 
-  function transaction(mutator) {
+  function transaction(mutator, { beforePersist = null } = {}) {
     if (typeof mutator !== 'function') throw new Error('transaction mutator is required');
+    if (beforePersist != null && typeof beforePersist !== 'function') throw new Error('transaction beforePersist must be a function');
     const owner = acquireLock();
     try {
       const current = readUnlocked();
@@ -162,6 +163,7 @@ export function createDurableJsonStore({
       const currentRevision = Number.isSafeInteger(current.revision) && current.revision >= 0 ? current.revision : 0;
       draft.revision = currentRevision + 1;
       draft.updatedAt = new Date(nowMs()).toISOString();
+      if (beforePersist) beforePersist(clone(draft), clone(current));
       persistUnlocked(draft);
       return { result: clone(result), state: clone(draft) };
     } finally {

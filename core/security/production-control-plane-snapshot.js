@@ -2,13 +2,26 @@ import { createHash } from 'node:crypto';
 import { closeSync, fsyncSync, mkdirSync, openSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-const SNAPSHOT_KEYS = Object.freeze(['accountTenant', 'revocations', 'grants', 'entitlements', 'accounting']);
+const LEGACY_SNAPSHOT_KEYS = Object.freeze([
+  'accountTenant',
+  'revocations',
+  'grants',
+  'entitlements',
+  'accounting'
+]);
+const SNAPSHOT_KEYS = Object.freeze([
+  ...LEGACY_SNAPSHOT_KEYS,
+  'trustAuthority',
+  'trustAuthorityAnchor'
+]);
 const FILES = Object.freeze({
   accountTenant: 'account-tenant.json',
   revocations: 'revocations.json',
   grants: 'provider-grants.json',
   entitlements: 'entitlements.json',
-  accounting: 'accounting.json'
+  accounting: 'accounting.json',
+  trustAuthority: 'trust-authority.json',
+  trustAuthorityAnchor: 'trust-authority.anchor.json'
 });
 
 function isObject(value) {
@@ -23,9 +36,9 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 
-export function validateProductionControlPlaneSnapshot(snapshot) {
+function validateBaseSnapshot(snapshot, keys) {
   if (!isObject(snapshot)) throw new Error('production authority snapshot must be an object');
-  for (const key of SNAPSHOT_KEYS) {
+  for (const key of keys) {
     if (!isObject(snapshot[key])) throw new Error(`production authority snapshot missing ${key}`);
   }
   const accountTenant = snapshot.accountTenant;
@@ -33,7 +46,8 @@ export function validateProductionControlPlaneSnapshot(snapshot) {
   for (const key of ['accounts', 'organizations', 'tenants', 'memberships', 'nodeBindings', 'providerBindings']) {
     if (!Array.isArray(accountTenant.accountTenant[key])) throw new Error(`production authority accountTenant.${key} must be an array`);
   }
-  for (const [key, state] of Object.entries(snapshot)) {
+  for (const key of keys) {
+    const state = snapshot[key];
     if (!Number.isSafeInteger(state.revision) || state.revision < 0) {
       throw new Error(`production authority ${key} revision must be a non-negative integer`);
     }
@@ -41,9 +55,41 @@ export function validateProductionControlPlaneSnapshot(snapshot) {
   return snapshot;
 }
 
+export function isLegacyProductionControlPlaneSnapshot(snapshot) {
+  if (!isObject(snapshot)) return false;
+  if (isObject(snapshot.trustAuthority) || isObject(snapshot.trustAuthorityAnchor)) return false;
+  return LEGACY_SNAPSHOT_KEYS.every((key) => isObject(snapshot[key]));
+}
+
+export function validateLegacyProductionControlPlaneSnapshot(snapshot) {
+  if (!isLegacyProductionControlPlaneSnapshot(snapshot)) throw new Error('production authority legacy snapshot shape is invalid');
+  return validateBaseSnapshot(snapshot, LEGACY_SNAPSHOT_KEYS);
+}
+
+export function validateProductionControlPlaneSnapshot(snapshot) {
+  return validateBaseSnapshot(snapshot, SNAPSHOT_KEYS);
+}
+
 export function productionControlPlaneSnapshotDigest(snapshot) {
   validateProductionControlPlaneSnapshot(snapshot);
   return createHash('sha256').update(canonical(snapshot)).digest('hex');
+}
+
+export function productionControlPlaneLegacySnapshotDigest(snapshot) {
+  validateLegacyProductionControlPlaneSnapshot(snapshot);
+  return createHash('sha256').update(canonical(snapshot)).digest('hex');
+}
+
+export function migrateProductionControlPlaneSnapshot({ snapshot, trustBootstrap } = {}) {
+  validateLegacyProductionControlPlaneSnapshot(snapshot);
+  validateProductionControlPlaneSnapshot(trustBootstrap);
+  const migrated = {
+    ...structuredClone(snapshot),
+    trustAuthority: structuredClone(trustBootstrap.trustAuthority),
+    trustAuthorityAnchor: structuredClone(trustBootstrap.trustAuthorityAnchor)
+  };
+  validateProductionControlPlaneSnapshot(migrated);
+  return migrated;
 }
 
 export function verifyProductionControlPlaneSnapshotDigest(snapshot, expectedDigest) {
@@ -51,6 +97,15 @@ export function verifyProductionControlPlaneSnapshotDigest(snapshot, expectedDig
     throw new Error('production authority snapshot digest must be SHA-256');
   }
   const actual = productionControlPlaneSnapshotDigest(snapshot);
+  if (actual !== expectedDigest.toLowerCase()) throw new Error('production_authority_snapshot_digest_mismatch');
+  return actual;
+}
+
+export function verifyLegacyProductionControlPlaneSnapshotDigest(snapshot, expectedDigest) {
+  if (typeof expectedDigest !== 'string' || !/^[a-f0-9]{64}$/i.test(expectedDigest)) {
+    throw new Error('production authority snapshot digest must be SHA-256');
+  }
+  const actual = productionControlPlaneLegacySnapshotDigest(snapshot);
   if (actual !== expectedDigest.toLowerCase()) throw new Error('production_authority_snapshot_digest_mismatch');
   return actual;
 }
