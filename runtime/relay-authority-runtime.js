@@ -1,57 +1,71 @@
-import { createAuthorityHttpClient, createAuthoritySnapshotCache } from './authority-client.js';
+import { createAuthorityHttpClient } from './authority-client.js';
 import {
   configureRelayAccountTenantAuthority,
   configureRelayProviderGrantAuthority
 } from '../core/security/relay-provider-policy.js';
 
-let activeManagedRuntime = null;
+let statusProvider = null;
 
-function required(value, label) {
-  const normalized = typeof value === 'string' ? value.trim() : '';
-  if (!normalized) throw new Error(`${label} is required`);
-  return normalized;
+export function configureRelayAuthorityStatusProvider(provider = null) {
+  if (provider != null && typeof provider !== 'function') {
+    throw new Error('relay authority status provider must be a function or null');
+  }
+  const previous = statusProvider;
+  statusProvider = provider;
+  return previous;
 }
 
-function integer(value, fallback, min, max, label) {
-  const number = value == null || value === '' ? fallback : Number(value);
-  if (!Number.isSafeInteger(number) || number < min || number > max) throw new Error(`${label} must be ${min}..${max}`);
-  return number;
-}
-
-export function managedRelayAuthorityStatus() {
-  if (!activeManagedRuntime) return { ready: false, reason: 'managed_authority_not_initialized' };
-  return activeManagedRuntime.status();
+export function relayAuthorityStatus() {
+  if (!statusProvider) {
+    return Object.freeze({ ready: false, revision: null, reason: 'authority_runtime_not_installed' });
+  }
+  const status = statusProvider();
+  if (!status || typeof status !== 'object') {
+    return Object.freeze({ ready: false, revision: null, reason: 'invalid_authority_runtime_status' });
+  }
+  return Object.freeze({ ...status, ready: status.ready === true });
 }
 
 export async function initializeRelayAuthorityFromEnv(env = process.env, dependencies = {}) {
+  if (typeof dependencies.createAuthorityRuntime !== 'function') {
+    throw new Error('TRUYN Platform runtime adapter is required for managed relay authority');
+  }
+
   const client = dependencies.client || createAuthorityHttpClient({
     baseUrl: env.TRUYN_AUTHORITY_URL,
     token: env.TRUYN_AUTHORITY_RUNTIME_TOKEN,
     fetchImpl: dependencies.fetchImpl || fetch,
-    requestTimeoutMs: integer(env.TRUYN_AUTHORITY_REQUEST_TIMEOUT_MS, 5_000, 100, 60_000, 'TRUYN_AUTHORITY_REQUEST_TIMEOUT_MS')
+    requestTimeoutMs: Number(env.TRUYN_AUTHORITY_REQUEST_TIMEOUT_MS || 5000)
   });
-  const cache = createAuthoritySnapshotCache({
-    client,
-    stateDir: required(env.TRUYN_AUTHORITY_CACHE_DIR || '/tmp/truyn-authority-cache', 'TRUYN_AUTHORITY_CACHE_DIR'),
-    refreshMs: integer(env.TRUYN_AUTHORITY_REFRESH_MS, 1_000, 100, 60_000, 'TRUYN_AUTHORITY_REFRESH_MS'),
-    maxStaleMs: integer(env.TRUYN_AUTHORITY_MAX_STALE_MS, 5_000, 100, 300_000, 'TRUYN_AUTHORITY_MAX_STALE_MS'),
-    nowMs: dependencies.nowMs
-  });
-  await cache.initialize();
-  configureRelayAccountTenantAuthority(cache.accountTenantAuthority);
-  configureRelayProviderGrantAuthority(cache.providerGrantAuthority);
-  cache.start();
-  let stopped = false;
 
-  function stop() {
-    if (stopped) return;
-    stopped = true;
-    // Keep the managed authorities installed while the relay is still closing. The cache will
-    // age past maxStaleMs and stay fail closed if shutdown is delayed.
-    cache.stop();
+  const runtime = await dependencies.createAuthorityRuntime({ env, client });
+  if (!runtime || typeof runtime.status !== 'function' || typeof runtime.stop !== 'function') {
+    throw new Error('TRUYN Platform runtime adapter must expose status() and stop()');
+  }
+  if (!runtime.accountTenantAuthority || !runtime.providerGrantAuthority) {
+    throw new Error('TRUYN Platform runtime adapter must expose public authority contract surfaces');
   }
 
-  const runtime = Object.freeze({ cache, stop, status: () => cache.status() });
-  activeManagedRuntime = runtime;
-  return runtime;
+  const previousAccountTenant = configureRelayAccountTenantAuthority(runtime.accountTenantAuthority);
+  const previousProviderGrants = configureRelayProviderGrantAuthority(runtime.providerGrantAuthority);
+  const previousStatusProvider = configureRelayAuthorityStatusProvider(() => runtime.status());
+  let stopped = false;
+
+  return Object.freeze({
+    status: () => relayAuthorityStatus(),
+    stop() {
+      if (stopped) return;
+      stopped = true;
+      try { runtime.stop(); }
+      finally {
+        configureRelayAccountTenantAuthority(previousAccountTenant);
+        configureRelayProviderGrantAuthority(previousProviderGrants);
+        configureRelayAuthorityStatusProvider(previousStatusProvider);
+      }
+    }
+  });
 }
+
+// Transitional compatibility export for existing open relay bootstrap wiring.
+// It resolves only the neutral injected status seam; no managed implementation exists in public.
+export const managedRelayAuthorityStatus = relayAuthorityStatus;
