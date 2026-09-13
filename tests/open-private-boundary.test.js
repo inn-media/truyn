@@ -10,6 +10,10 @@ function reader(files) {
   };
 }
 
+function privateRepoName() {
+  return ['inn-media', 'truyn-platform'].join('/');
+}
+
 test('rejects reintroduction of classified managed/private implementation paths', () => {
   const path = 'core/security/account-tenant-authority.js';
   const violations = violationsFor([path], reader({ [path]: 'export const placeholder = true;' }));
@@ -21,7 +25,7 @@ test('rejects reintroduction of classified managed/private implementation paths'
 test('rejects public source coupling to the private platform repository', () => {
   const path = 'runtime/service.js';
   const files = {
-    [path]: "export const privateSource = 'https://github.com/inn-media/truyn-platform.git';"
+    [path]: `export const privateSource = 'https://github.com/${privateRepoName()}.git';`
   };
   const violations = violationsFor([path], reader(files));
 
@@ -32,7 +36,7 @@ test('rejects public source coupling to the private platform repository', () => 
 test('rejects raw private source fetches from public code', () => {
   const path = 'scripts/example.mjs';
   const files = {
-    [path]: "const url = 'https://raw.githubusercontent.com/inn-media/truyn-platform/main/internal.js';"
+    [path]: `const url = 'https://raw.githubusercontent.com/${privateRepoName()}/main/internal.js';`
   };
   const violations = violationsFor([path], reader(files));
 
