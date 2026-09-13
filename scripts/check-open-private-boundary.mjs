@@ -14,15 +14,36 @@ const MIGRATED_PRIVATE_PATHS = new Set([
   'core/security/production-control-plane-snapshot.js',
   'core/security/production-control-plane.js',
   'core/security/production-revocation-authority.js',
-  'core/security/provider-billing.js',
-  'core/security/provider-grant-authority.js',
   'core/security/sponsored-entitlement.js',
-  'runtime/authority-client.js',
   'runtime/authority-service.js',
-  'runtime/billing-config.js',
-  'runtime/managed-billing-policy.js',
-  'runtime/production.js',
-  'runtime/relay-authority-runtime.js'
+  'runtime/managed-billing-policy.js'
+]);
+
+// SPLIT paths are allowed to remain public, but managed implementation must not return.
+const SPLIT_FORBIDDEN = new Map([
+  ['core/security/provider-billing.js', [
+    /signedEntitlementVerifier/,
+    /sponsoredUsageStore/,
+    /entitlementAuthority/,
+    /accountingAuthority/,
+    /\b(?:sponsored|prepaid|subscription)\b/
+  ]],
+  ['runtime/billing-config.js', [
+    /authority-client\.js/,
+    /managed-billing-policy\.js/,
+    /TRUYN_AUTHORITY_/,
+    /\b(?:sponsored|prepaid|subscription)\b/
+  ]],
+  ['runtime/authority-client.js', [
+    /production-control-plane(?:-snapshot)?\.js/,
+    /createProductionControlPlane/,
+    /materializeProductionControlPlaneSnapshot/
+  ]],
+  ['runtime/production.js', [
+    /authority-service\.js/,
+    /createAuthorityServiceFromEnv/,
+    /role\s*===\s*['\"]authority['\"]/
+  ]]
 ]);
 
 const CODE_PREFIXES = ['core/', 'runtime/', 'sdk/', 'tests/', 'scripts/', '.github/workflows/'];
@@ -51,6 +72,12 @@ export function violationsFor(paths, readText = (p) => readFileSync(p, 'utf8')) 
     for (const pattern of FORBIDDEN_COUPLING) {
       if (pattern.test(text)) {
         violations.push(`${path}: forbidden public -> private/raw-source coupling (${pattern})`);
+        break;
+      }
+    }
+    for (const pattern of SPLIT_FORBIDDEN.get(path) || []) {
+      if (pattern.test(text)) {
+        violations.push(`${path}: managed implementation leaked back into a public SPLIT surface (${pattern})`);
         break;
       }
     }
