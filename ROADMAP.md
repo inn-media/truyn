@@ -2,8 +2,7 @@
 
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`.
 
-**Snapshot:** 2026-09-09  
-**Synchronized source:** `main@4a3a312877d14e9f0ee361a9356e7369cad04398`  
+**Snapshot:** 2026-09-14  
 **P2-E1 / Sprint E:** accepted / PR `#427`  
 **P2-E2:** `a2a-mcp-pre-v1/g1` accepted / PR `#432`  
 **P2-E3:** canonical reconciliation merged / PR `#459`  
@@ -19,6 +18,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Production operations | **SLO/observability/alerting/rotation/on-call/DR contracts implemented** | live backends/probes/pager/roster/drills + 28-day evidence |
 | Provider authority | **Durable authority + managed runtime + managed provider accounting wiring accepted** | provisioned/live managed deployment, migration/cutover, multi-region/backup/restore/propagation/reconciliation evidence |
 | Trustability | **Bounded implementation accepted** | Production Trust Authority; PR `#438` remains open |
+| HTTP/API | **FIRST-CLASS architecture defined; bounded provider/relay/server primitives implemented** | HAPI-1 descriptor/capability model |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + stable ecosystem evidence |
 | NLWeb | **PLANNED; `who` defined as semantic discovery surface over TRUYN** | NW-1 adapter core + exact upstream profile/version pin |
 | SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 accepted** | Maven/NuGet + Descriptor/site completeness |
@@ -58,6 +58,38 @@ PRs `#457` and `#463` are repository/runtime acceptance, not proof of provisione
 
 Remaining production authority gates are live provisioning/hardening, production migration/cutover, multi-instance/multi-region consistency and failover, continuous backup + restore drills, deployed operator/admin RBAC/audit, measured revocation/grant/entitlement propagation including partition/heal and long-window accounting reconciliation.
 
+## HTTP / API interoperability
+
+HTTP/API is a first-class interoperability interface family alongside NLWeb, MCP and A2A. It is **not** a replacement for any of those surfaces and is not a new `TRUYN/1` wire dependency.
+
+Canonical principle:
+
+> **TRUYN connects services and agents across HTTP APIs, NLWeb, MCP and A2A through a shared discovery, routing and resilient delivery fabric.**
+
+Current implementation foundations already exist:
+
+- generic HTTP/HTTPS JSON provider in `adapters/providers/custom-http.js`;
+- HTTP relay transport in `network/transport/http-relay.js`;
+- local HTTP server surface in `adapters/http/server.js`.
+
+The existing custom provider is a bounded fixed JSON `POST` execution shape, so the architecture is first-class today while arbitrary/full REST method/path/query/header/schema interoperability remains open.
+
+Canonical architecture: `docs/architecture/HTTP_API_INTEROPERABILITY.md`.
+
+Development sequence:
+
+- [x] **HAPI-0 — Architecture/boundary:** HTTP/API is first-class beside NLWeb/MCP/A2A; existing provider/relay/server foundations inventoried; application-domain semantics explicitly remain outside TRUYN;
+- [ ] **HAPI-1 — Descriptor/capability model:** bounded HTTP/API interface metadata, methods, paths/operations, content types, profile/version and non-authoritative semantics;
+- [ ] **HAPI-2 — Generic request mapping:** extend beyond fixed JSON `POST`; bounded method/path/query/header/body mapping, response normalization, size/content-type/redirect policy and cancellation;
+- [ ] **HAPI-3 — Discovery/routing:** discover eligible HTTP/API providers through normal TRUYN discovery, select only authorized/visible candidates, route through normal policy/relay paths and expose bounded health/capability information;
+- [ ] **HAPI-4 — Security/side-effect safety:** adapter-local credentials, SSRF/private-network/redirect controls, idempotency-aware retries and negative proof of zero unauthorized upstream execution;
+- [ ] **HAPI-5 — Cross-interface bridges:** bounded HTTP/API ↔ NLWeb, HTTP/API ↔ MCP and HTTP/API ↔ A2A mappings where semantics are explicit and preserved;
+- [ ] **HAPI-6 — External conformance:** independent HTTP/API black-box proof, method/path/query/header/body/response matrix, adversarial auth/SSRF/redirect/retry/idempotency tests and durable evidence for every claimed generic REST feature.
+
+TRUYN must not define the business meaning of `/publishers`, `/licenses`, `/campaigns`, `/articles` or any product-specific resource model. It should discover that an API capability exists, verify eligibility, deliver a bounded request and return a bounded response.
+
+The product claim boundary is explicit: **bounded HTTP support exists now; arbitrary/full REST interoperability is not accepted until HAPI-1→HAPI-6 close with executable evidence.**
+
 ## A2A / MCP
 
 Accepted bounded profile:
@@ -72,9 +104,9 @@ The old referenced-artifact and bounded compatibility-policy gaps are closed. **
 
 ## NLWeb interoperability and semantic discovery
 
-NLWeb is a planned external interoperability profile around TRUYN, alongside A2A and MCP. It is **not** a TRUYN transport replacement and must not become a `TRUYN/1` wire dependency.
+NLWeb is a planned external interoperability profile around TRUYN, alongside HTTP/API, A2A and MCP. It is **not** a TRUYN transport replacement and must not become a `TRUYN/1` wire dependency.
 
-The strategic discovery composition is now explicit:
+The strategic discovery composition is explicit:
 
 ```text
 NLWeb WHO
@@ -109,8 +141,8 @@ Development sequence:
 - [ ] **NW-2 — Semantic discovery/advertisement:** discover eligible NLWeb endpoints, advertise compatibility through descriptor/capability metadata, map bounded `who` intent into native TRUYN discovery constraints, implement reference selection, health/profile reporting and authorization-aware visibility;
 - [ ] **NW-3 — `who → selection → ask`:** return authorized candidate sets, select only from eligible endpoints, compose the selected endpoint into `ask`, preserve structured response/provenance/correlation and keep normal authority before dispatch;
 - [ ] **NW-4 — Routing/relay/security:** normal TRUYN matching/dispatch, auth-policy passthrough, fail-closed profile negotiation, zero unauthorized provider enumeration and zero unauthorized execution;
-- [ ] **NW-5 — Bridge profiles:** `NLWeb → TRUYN → MCP` plus bounded evaluation of `MCP/A2A → TRUYN → NLWeb` where semantics can be preserved without silent loss or duplicated side effects;
-- [ ] **NW-6 — External conformance:** independent NLWeb black-box proof plus end-to-end `WHO → TRUYN discovery → selection → ASK → TRUYN execution` evidence and adversarial `NLWeb ↔ MCP ↔ A2A ↔ TRUYN` matrix.
+- [ ] **NW-5 — Bridge profiles:** `NLWeb → TRUYN → MCP/HTTP` plus bounded evaluation of `MCP/A2A/HTTP → TRUYN → NLWeb` where semantics can be preserved without silent loss or duplicated side effects;
+- [ ] **NW-6 — External conformance:** independent NLWeb black-box proof plus end-to-end `WHO → TRUYN discovery → selection → ASK → TRUYN execution` evidence and adversarial `NLWeb ↔ HTTP/API ↔ MCP ↔ A2A ↔ TRUYN` matrix.
 
 TRUYN Open must retain a deterministic/reference selector so semantic discovery remains fully usable without the private platform. The private platform may later provide richer managed ranking over the already eligible candidate set using global/history/reputation/health signals; such ranking is an optimization and never an authorization source.
 
