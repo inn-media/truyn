@@ -6,7 +6,7 @@
 
 TRUYN is a logical network for agent-to-agent communication, decentralized AI, capability discovery, content-addressed objects/state, provider execution, provenance and contextual Trustability.
 
-[Manifesto](MANIFESTO.md) · [Whitepaper](WHITEPAPER.md) · [Architecture](STRUCTURE.md) · [Status](docs/architecture/IMPLEMENTATION_STATUS.md) · [Roadmap](ROADMAP.md) · [A2A/MCP](docs/architecture/A2A_MCP_INTEROPERABILITY.md) · [NLWeb](docs/architecture/NLWEB_INTEROPERABILITY.md) · [P2 Final Acceptance](docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md) · [SDK/DX](docs/architecture/SDK_DEVELOPER_EXPERIENCE.md) · [Governance](GOVERNANCE.md) · [Security](SECURITY.md)
+[Manifesto](MANIFESTO.md) · [Whitepaper](WHITEPAPER.md) · [Architecture](STRUCTURE.md) · [Status](docs/architecture/IMPLEMENTATION_STATUS.md) · [Roadmap](ROADMAP.md) · [Open/Private Boundary](docs/architecture/OPEN_PRIVATE_BOUNDARY.md) · [Cross-Repo Routing](docs/architecture/CROSS_REPO_TASK_ROUTING.md) · [A2A/MCP](docs/architecture/A2A_MCP_INTEROPERABILITY.md) · [NLWeb](docs/architecture/NLWEB_INTEROPERABILITY.md) · [P2 Final Acceptance](docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md) · [SDK/DX](docs/architecture/SDK_DEVELOPER_EXPERIENCE.md) · [Governance](GOVERNANCE.md) · [Security](SECURITY.md)
 
 ## Current factual status
 
@@ -22,10 +22,10 @@ TRUYN is a logical network for agent-to-agent communication, decentralized AI, c
 | Class D-100 | **Accepted / PASS** |
 | Class D-1000 | **OPEN — canonical full pinned campaign remains FAIL** |
 | Post-#458 D-200 | **Run `33959493680` in progress; not a PASS** |
-| Account → Organization → Tenant | **Implemented / accepted — #425** |
-| Durable single-filesystem Production Authority | **Implemented / accepted — #433 + #456** |
-| Managed authority runtime support | **Implemented / accepted in repository/runtime — #457** |
-| Managed provider accounting wiring | **Implemented / accepted in repository/runtime — #463; live deployment/reconciliation evidence remains open** |
+| Account → Organization → Tenant | **Implemented / accepted — #425; managed implementation now owned by TRUYN Platform** |
+| Durable single-filesystem Production Authority | **Historical public acceptance — #433 + #456; managed implementation migrated to TRUYN Platform** |
+| Managed authority runtime support | **Implemented / accepted in TRUYN Platform; public repository exposes contracts/reference seams only** |
+| Managed provider accounting wiring | **Implemented / accepted in TRUYN Platform; public repository retains open-edge/reference behavior only** |
 | Managed authority live production deployment | **OPEN — no accepted proof yet of provisioned Cosmos, multi-region writes, live migration/cutover or restore acceptance** |
 | SLI/SLO | **Defined — #424** |
 | Observability / alerting | **Implemented — #434; live evidence open** |
@@ -49,9 +49,11 @@ The canonical factual source is [Implementation Status](docs/architecture/IMPLEM
 
 ## Authority boundary
 
-TRUYN authority comes from authenticated identity plus server-side account/tenant/provider/grant/entitlement state. Requester/provider fields such as `ownerId`, `tenantId` or billing metadata are not authority.
+TRUYN authority comes from authenticated identity plus authoritative account/tenant/provider/grant/entitlement state. Requester/provider fields such as `ownerId`, `tenantId` or billing metadata are not authority.
 
-Accepted authority has durable local semantics (`#425`/`#433`/`#456`), managed authority repository/runtime support (`#457`), and managed provider accounting wiring (`#463`). For managed `sponsored`, `prepaid`, and `subscription` modes, #463 requires authoritative reserve before provider execution and awaited reconcile/release on success, failure or cancellation; `owner-funded` and `byok` retain their existing local/private semantics. These repository/runtime acceptances do **not** prove provisioned Cosmos, multi-region writes, continuous backup, production migration/cutover or restore/failover acceptance.
+Historical public PRs `#425`, `#433`, `#456`, `#457`, and `#463` established authority and managed-accounting semantics. The managed production authority, managed control plane, Cosmos-backed persistence, commercial entitlement/accounting/billing implementation, and hosted authority runtime now live in the private `inn-media/truyn-platform` repository. This public repository retains protocol/open-edge behavior, public contracts and conformance, Node/Relay reference behavior, generic provider/BYOK/owner-funded behavior, and explicit managed extension seams. For managed `sponsored`, `prepaid`, and `subscription` modes, the accepted behavior still requires authoritative reserve before provider execution and awaited reconcile/release on success, failure or cancellation; the repository split changes ownership, not those semantics. These repository/runtime acceptances do **not** prove provisioned Cosmos, multi-region writes, continuous backup, production migration/cutover or restore/failover acceptance.
+
+The permanent dependency rule is documented in [Open/Private Boundary](docs/architecture/OPEN_PRIVATE_BOUNDARY.md): public code never depends on private code; private code consumes only accepted immutable released/versioned public artifacts or explicitly pinned immutable public contracts.
 
 ## A2A + MCP + TRUYN
 
@@ -107,11 +109,13 @@ npm test
 
 1. `spec/protocol/v1/` — normative TRUYN/1 semantics;
 2. `docs/architecture/ARCHITECTURE_CONTRACT.md` — architecture invariants;
-3. `docs/architecture/IMPLEMENTATION_STATUS.md` — current factual maturity;
-4. `docs/architecture/NLWEB_INTEROPERABILITY.md` — planned NLWeb interoperability boundary and development gates;
-5. `docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md` — P2 evidence;
-6. `docs/benchmarks/` — accepted/failed measured evidence;
-7. `ROADMAP.md` — next gates.
+3. `docs/architecture/OPEN_PRIVATE_BOUNDARY.md` — repository ownership/dependency boundary;
+4. `docs/architecture/CROSS_REPO_TASK_ROUTING.md` — OPEN / PRIVATE / BOTH routing contract;
+5. `docs/architecture/IMPLEMENTATION_STATUS.md` — current factual maturity;
+6. `docs/architecture/NLWEB_INTEROPERABILITY.md` — planned NLWeb interoperability boundary and development gates;
+7. `docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md` — P2 evidence;
+8. `docs/benchmarks/` — accepted/failed measured evidence;
+9. `ROADMAP.md` — next gates.
 
 Historical issues/PRs/docs remain audit history and do not override later accepted main evidence.
 
