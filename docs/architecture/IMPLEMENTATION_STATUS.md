@@ -1,8 +1,7 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot:** 2026-09-09  
-**Synchronized source:** `main@4a3a312877d14e9f0ee361a9356e7369cad04398`  
+**Snapshot:** 2026-09-14  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
@@ -31,11 +30,12 @@ This document distinguishes accepted `main` facts from open PRs, diagnostics, pl
 | Observability / alerting | **Implemented repository/runtime** | `#434`; deployed backends/probes/pager evidence open |
 | Rotation / on-call | **Implemented contracts** | `#440`; live drills/roster/test-fire open |
 | Recovery / DR | **Implemented contract** | `#441`; real backup/restore evidence open |
+| HTTP/API interoperability | **FIRST-CLASS architecture defined; bounded HTTP primitives implemented** | HAPI-1 descriptor model → HAPI-6 external conformance for full generic REST claims |
 | A2A/MCP C1–C8 | **ACCEPTED bounded profile** | broader optional surfaces separate |
 | P2-E1 / Sprint E | **ACCEPTED / CLOSED** | PR `#427` |
 | P2-E2 `a2a-mcp-pre-v1/g1` | **ACCEPTED / CLOSED** | PR `#432`; stable-v1 not claimed |
 | P2-E3 canonical reconciliation | **ACCEPTED / MERGED** | PR `#459` |
-| NLWeb interoperability | **PLANNED; architecture/boundary NW-0 defined** | exact upstream profile pin + NW-1 adapter core |
+| NLWeb interoperability | **PLANNED; NW-0 architecture/boundary and `who` semantic-discovery role defined** | exact upstream profile pin + NW-1 adapter core |
 | Five first-party SDK clients | **Implemented / conformance-proven** | release ecosystem completion |
 | PyPI alpha | **Accepted immutable public release** | — |
 | Go alpha | **Accepted immutable public release** | — |
@@ -66,6 +66,20 @@ Stages 3–4 are not proof of a live managed deployment. They do not claim provi
 
 The repository has numerical SLI/SLO, observability, dashboards, error budgets/alerts, security rotation/on-call and recovery/DR contracts. Productionized status remains open until real telemetry/probes, pager delivery, roster, live rotations/restores and durable 28-day serving evidence are accepted.
 
+## HTTP / API boundary
+
+HTTP/API is now a **first-class TRUYN interoperability interface family** alongside NLWeb, MCP and A2A. The canonical architecture is `HTTP_API_INTEROPERABILITY.md` and implementation completion is tracked through HAPI-0→HAPI-6 in `../../ROADMAP.md`.
+
+Current implemented foundations are factual:
+
+- `adapters/providers/custom-http.js` accepts an absolute HTTP/HTTPS endpoint, bounded capability mapping, `none`/bearer auth and a fixed JSON `POST` execution shape;
+- `network/transport/http-relay.js` provides HTTP relay delivery for signed TRUYN envelopes;
+- `adapters/http/server.js` exposes the bounded local HTTP server surface for identity/offers/need/events/result flows.
+
+Therefore TRUYN can truthfully claim **bounded HTTP support** and a first-class HTTP/API architecture. It must **not** yet claim arbitrary/full REST interoperability across general methods, paths, queries, headers and schemas until HAPI implementation and black-box/conformance gates are closed.
+
+TRUYN owns interoperability mechanics — discovery, eligibility, explicit request mapping, routing, delivery, security and provenance — but not application-domain semantics. Routes/entities such as `/publishers`, `/licenses`, `/campaigns`, `/articles` or product-specific schemas belong to the endpoint/application owner.
+
 ## A2A / MCP boundary
 
 Accepted bounded state includes C1–C8, independent official A2A/MCP black-box proofs, **P2-E1 / Sprint E** referenced artifacts in both directions with explicit resolution and exact integrity, and **P2-E2** compatibility generation `a2a-mcp-pre-v1/g1` with fail-closed version/required-semantic negotiation and migration rules. PR `#459` closes **P2-E3** documentation reconciliation and adds a regression guard.
@@ -78,7 +92,9 @@ Durable consolidated evidence: `../compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md`
 
 NLWeb compatibility is **planned**, not implemented or accepted. The architecture is defined in `NLWEB_INTEROPERABILITY.md` and the development sequence is tracked as NW-0 through NW-6 in `../../ROADMAP.md`.
 
-The intended TRUYN scope is limited to interoperability mechanics: NLWeb client/provider adapters, eligible endpoint discovery, `ask`/`who` edge support for a pinned upstream profile, routing/relay, auth-policy passthrough, bounded health/capability advertisement and explicit bridge profiles with MCP/A2A where semantics can be preserved.
+`who` is defined as an external semantic discovery surface over native TRUYN discovery. TRUYN remains responsible for eligibility, reference selection, routing and execution; NLWeb does not replace TRUYN identity, authority or native discovery.
+
+The intended TRUYN scope is limited to interoperability mechanics: NLWeb client/provider adapters, eligible endpoint discovery, `ask`/`who` edge support for a pinned upstream profile, routing/relay, auth-policy passthrough, bounded health/capability advertisement and explicit bridge profiles with MCP/A2A/HTTP where semantics can be preserved.
 
 The following remain outside the TRUYN NLWeb layer: crawling/ingestion, indexing, vector search, RAG corpus ownership, brand/news/product content, publisher/content rights, campaign data and Data Graph business semantics. Those application/data concerns may integrate with TRUYN through explicit interfaces but are not transport/interoperability responsibilities.
 
