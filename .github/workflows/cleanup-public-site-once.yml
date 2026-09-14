@@ -1,0 +1,93 @@
+name: Cleanup public site ownership once
+
+on:
+  push:
+    branches: [chore/remove-public-site-deployment-20260914]
+    paths:
+      - '.github/workflows/cleanup-public-site-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Remove website source and deployment implementation from public repository
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "${{ github.repository }}" = "inn-media/truyn"
+          test "${{ github.event.repository.private }}" = "false"
+
+          git rm -r _tmp_public_site
+          git rm _tmp_site.zip.b64
+          git rm .github/workflows/publish-python-alpha.yml
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          # Keep only a neutral website reference in the public README.
+          readme = Path('README.md')
+          text = readme.read_text(encoding='utf-8')
+          marker = 'TRUYN is a logical network for agent-to-agent communication, decentralized AI, capability discovery, content-addressed objects/state, provider execution, provenance and contextual Trustability.\n'
+          website = '\nWebsite: https://truyn.org/\n'
+          if 'Website: https://truyn.org/' not in text:
+              if marker not in text:
+                  raise SystemExit('README insertion marker not found')
+              text = text.replace(marker, marker + website, 1)
+          readme.write_text(text, encoding='utf-8')
+
+          # Remove the obsolete website deployment workflow from the public workflow allowlist.
+          guard = Path('tests/public-repository.test.js')
+          text = guard.read_text(encoding='utf-8')
+          obsolete = "  '.github/workflows/publish-python-alpha.yml',\n"
+          if obsolete not in text:
+              raise SystemExit('obsolete workflow allowlist entry not found')
+          text = text.replace(obsolete, '', 1)
+          guard.write_text(text, encoding='utf-8')
+
+          # Historical D-200 inventory is retained, but current website-source/archive path entries are redacted.
+          inv = Path('docs/operations/d200/sanitation/inventory-pre.json')
+          data = json.loads(inv.read_text(encoding='utf-8'))
+          files = data.get('files')
+          if not isinstance(files, list):
+              raise SystemExit('inventory files[] missing')
+          before = len(files)
+          data['files'] = [
+              item for item in files
+              if not str(item.get('path', '')).startswith('_tmp_public_site/')
+              and item.get('path') != '_tmp_site.zip.b64'
+              and item.get('path') != '.github/workflows/publish-python-alpha.yml'
+          ]
+          removed = before - len(data['files'])
+          if removed < 5:
+              raise SystemExit(f'expected site inventory entries were not removed: {removed}')
+          inv.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+
+          # This one-shot helper must not survive in the resulting branch.
+          Path('.github/workflows/cleanup-public-site-once.yml').unlink()
+          PY
+
+          test ! -e _tmp_public_site
+          test ! -e _tmp_site.zip.b64
+          test ! -e .github/workflows/publish-python-alpha.yml
+          test ! -e .github/workflows/cleanup-public-site-once.yml
+          grep -Fxq 'Website: https://truyn.org/' README.md
+          ! grep -Fq "'.github/workflows/publish-python-alpha.yml'" tests/public-repository.test.js
+          ! grep -Fq '_tmp_public_site' docs/operations/d200/sanitation/inventory-pre.json
+          ! grep -Fq '_tmp_site.zip.b64' docs/operations/d200/sanitation/inventory-pre.json
+
+          git add -A
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git commit -s -m 'chore(site): remove public website source and deploy ownership'
+          git push origin HEAD:${GITHUB_REF_NAME}
+          echo 'PUBLIC_SITE_OWNERSHIP_CLEANUP=PASS'
