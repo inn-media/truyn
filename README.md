@@ -6,12 +6,13 @@
 
 TRUYN is a logical network for agent-to-agent communication, decentralized AI, capability discovery, content-addressed objects/state, provider execution, provenance and contextual Trustability.
 
-[Manifesto](MANIFESTO.md) · [Whitepaper](WHITEPAPER.md) · [Architecture](STRUCTURE.md) · [Status](docs/architecture/IMPLEMENTATION_STATUS.md) · [Roadmap](ROADMAP.md) · [A2A/MCP](docs/architecture/A2A_MCP_INTEROPERABILITY.md) · [NLWeb](docs/architecture/NLWEB_INTEROPERABILITY.md) · [P2 Final Acceptance](docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md) · [SDK/DX](docs/architecture/SDK_DEVELOPER_EXPERIENCE.md) · [Governance](GOVERNANCE.md) · [Security](SECURITY.md)
+> **TRUYN connects services and agents across HTTP APIs, NLWeb, MCP and A2A through a shared discovery, routing and resilient delivery fabric.**
+
+[Manifesto](MANIFESTO.md) · [Whitepaper](WHITEPAPER.md) · [Architecture](STRUCTURE.md) · [Status](docs/architecture/IMPLEMENTATION_STATUS.md) · [Roadmap](ROADMAP.md) · [HTTP/API](docs/architecture/HTTP_API_INTEROPERABILITY.md) · [A2A/MCP](docs/architecture/A2A_MCP_INTEROPERABILITY.md) · [NLWeb](docs/architecture/NLWEB_INTEROPERABILITY.md) · [P2 Final Acceptance](docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md) · [SDK/DX](docs/architecture/SDK_DEVELOPER_EXPERIENCE.md) · [Governance](GOVERNANCE.md) · [Security](SECURITY.md)
 
 ## Current factual status
 
-**Snapshot:** 2026-09-09  
-**Synchronized source:** `main@4a3a312877d14e9f0ee361a9356e7369cad04398`  
+**Snapshot:** 2026-09-14  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
@@ -32,11 +33,12 @@ TRUYN is a logical network for agent-to-agent communication, decentralized AI, c
 | Rotation / on-call | **Implemented contracts — #440; live drills/roster open** |
 | Recovery / DR | **Implemented contract — #441; live backup/restore evidence open** |
 | Production Trust Authority | **OPEN — #438 unmerged** |
+| HTTP/API interoperability | **First-class architecture defined; bounded generic provider + relay + server primitives implemented; full generic REST conformance open** |
 | A2A/MCP C1–C8 | **Accepted** |
 | P2-E1 / Sprint E | **Accepted — #427** |
 | P2-E2 / `a2a-mcp-pre-v1/g1` | **Accepted — #432** |
 | P2-E3 canonical reconciliation | **Accepted / merged — #459** |
-| NLWeb interoperability | **Planned — NW-0 architecture/boundary defined; no compatibility claim yet** |
+| NLWeb interoperability | **Planned — NW-0 architecture/boundary and `who` semantic-discovery role defined; no compatibility claim yet** |
 | Five first-party SDK clients | **Implemented / executable conformance** |
 | PyPI alpha | **Accepted public immutable release** |
 | Go alpha | **Accepted public immutable release** |
@@ -46,6 +48,36 @@ TRUYN is a logical network for agent-to-agent communication, decentralized AI, c
 | Stable mainnet | **Not yet** |
 
 The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md).
+
+## First-class interface model
+
+TRUYN is protocol-agnostic connectivity infrastructure. HTTP/API, NLWeb, MCP and A2A are peer interface families at the interoperability edge:
+
+| Interface | Primary role |
+|---|---|
+| **HTTP / REST API** | classical programmatic request/response such as `GET /articles` or `POST /search` |
+| **NLWeb** | natural-language discovery and information access |
+| **MCP** | AI model invokes tools/resources |
+| **A2A** | agent-to-agent interaction and task lifecycle |
+| **TRUYN** | shared discovery, eligibility, selection, routing and resilient delivery across all of them |
+
+API answers “how does an application call a function/resource”; NLWeb answers “how can information be asked for semantically”; MCP answers “how does an AI model invoke a capability”; A2A answers “how do agents interact”; TRUYN answers “how do these endpoints find each other and connect reliably under one network fabric”.
+
+## HTTP / API + TRUYN
+
+HTTP/API is a **first-class TRUYN interoperability surface**, not a replacement for NLWeb, MCP or A2A.
+
+Current public implementation already includes:
+
+- `adapters/providers/custom-http.js` — bounded generic HTTP/HTTPS JSON provider;
+- `network/transport/http-relay.js` — HTTP relay transport for signed TRUYN envelopes;
+- `adapters/http/server.js` — bounded local HTTP server surface into a TRUYN node.
+
+The current generic provider uses a fixed JSON `POST` execution shape, so TRUYN can truthfully claim bounded HTTP support today, while arbitrary/full REST method/path/query/header/schema interoperability remains gated by HAPI-1→HAPI-6.
+
+TRUYN should know that an API capability exists, whether it is eligible, how it may be reached and how to deliver a bounded request/response. It must **not** define application-domain meaning for paths or entities such as `/publishers`, `/licenses`, `/campaigns`, `/articles` or product-specific resource models.
+
+See [HTTP / API Interoperability Architecture](docs/architecture/HTTP_API_INTEROPERABILITY.md).
 
 ## Authority boundary
 
@@ -63,7 +95,9 @@ Sprint E uses deterministic `interop-proof.bin` (`29` bytes, SHA-256 `257b10be1e
 
 ## NLWeb + TRUYN
 
-NLWeb is now an explicit **planned interoperability track**. TRUYN should be able to discover eligible NLWeb-compatible endpoints, connect to them, route/relay bounded requests, support `ask` and `who` at the interoperability edge for a pinned upstream profile, pass authorization/policy through the normal TRUYN authority boundary, advertise health/capabilities, and provide bounded bridge profiles with MCP/A2A where semantics can be preserved.
+NLWeb is an explicit **planned interoperability track**. `who` is defined as an external semantic discovery surface over native TRUYN discovery: NLWeb can express semantic intent, while TRUYN resolves that intent against visible capabilities, applies eligibility/authority, selects an endpoint and performs distributed routing/execution.
+
+TRUYN should be able to discover eligible NLWeb-compatible endpoints, connect to them, route/relay bounded requests, support `ask` and `who` at the interoperability edge for a pinned upstream profile, pass authorization/policy through the normal TRUYN authority boundary, advertise health/capabilities, and provide bounded bridge profiles with HTTP/API, MCP and A2A where semantics can be preserved.
 
 NLWeb does **not** become a TRUYN transport protocol or a `TRUYN/1` dependency. TRUYN should transport and interoperate with NLWeb, not absorb the NLWeb application/data stack.
 
@@ -108,10 +142,11 @@ npm test
 1. `spec/protocol/v1/` — normative TRUYN/1 semantics;
 2. `docs/architecture/ARCHITECTURE_CONTRACT.md` — architecture invariants;
 3. `docs/architecture/IMPLEMENTATION_STATUS.md` — current factual maturity;
-4. `docs/architecture/NLWEB_INTEROPERABILITY.md` — planned NLWeb interoperability boundary and development gates;
-5. `docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md` — P2 evidence;
-6. `docs/benchmarks/` — accepted/failed measured evidence;
-7. `ROADMAP.md` — next gates.
+4. `docs/architecture/HTTP_API_INTEROPERABILITY.md` — first-class HTTP/API boundary, current bounded implementation and HAPI gates;
+5. `docs/architecture/NLWEB_INTEROPERABILITY.md` — planned NLWeb interoperability/semantic-discovery boundary and development gates;
+6. `docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md` — P2 evidence;
+7. `docs/benchmarks/` — accepted/failed measured evidence;
+8. `ROADMAP.md` — next gates.
 
 Historical issues/PRs/docs remain audit history and do not override later accepted main evidence.
 
