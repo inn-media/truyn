@@ -43,6 +43,18 @@ Evidence and provenance are referenced objects/relationships rather than separat
 
 `CHALLENGE`, `VERIFY`, `DISPUTE` are composed behaviors. See `verification.md`.
 
-## Compatibility
+## Compatibility and negotiation
 
 Unknown optional fields SHOULD be ignored when the wire encoding permits it. A node MUST NOT reinterpret a field with incompatible semantics inside the same protocol generation. Breaking semantic changes require a new protocol generation or an explicitly negotiated extension.
+
+Protocol/profile negotiation for the bounded Open 1.0 path is deterministic and fail closed:
+
+1. each peer supplies the protocol generations it actually supports;
+2. the highest shared `TRUYN/<generation>` is selected deterministically;
+3. if there is no shared generation, negotiation fails as `version_mismatch` with reason `no_protocol_overlap`;
+4. the requester MAY declare explicit required semantic identifiers for the operation/profile being entered;
+5. a required semantic is accepted only when both peers advertise support for that semantic under the selected protocol generation;
+6. if any required semantic is unavailable, negotiation fails as `version_mismatch` with reason `required_semantic_unavailable` and the missing identifiers; required semantics MUST NOT be silently dropped, downgraded, inferred from unrelated metadata, or treated as optional;
+7. optional semantic overlap MAY be returned for feature selection, but it does not widen identity, authorization, tenant, provider, billing, cancellation or provenance authority.
+
+The public reference implementation exposes this behavior through `core/protocol/negotiation.js`. Negotiation is a compatibility decision only; it never grants authority and never substitutes for signed-message verification or server-side authorization.
