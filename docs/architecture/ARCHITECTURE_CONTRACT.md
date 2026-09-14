@@ -2,8 +2,7 @@
 
 This document prevents architecture, implementation status, public documentation, governance and benchmark evidence from silently diverging.
 
-**Snapshot:** 2026-09-05  
-**Synchronized source:** `main@abd6bd95ecad8dc8d82bbf6d2983d96df80267d3`  
+**Snapshot:** 2026-09-14  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
 
@@ -21,7 +20,7 @@ Accepted `main` evidence overrides stale current-status prose. Historical eviden
 
 ## Identity and authority
 
-TRUYN authority comes from authenticated/signed identities plus server-side authority state. Requester/provider payload metadata, A2A/MCP/NLWeb metadata and transport credentials are never implicit account, tenant, provider-owner, entitlement or billing authority.
+TRUYN authority comes from authenticated/signed identities plus server-side authority state. Requester/provider payload metadata, HTTP/API metadata, A2A/MCP/NLWeb metadata and transport credentials are never implicit account, tenant, provider-owner, entitlement or billing authority.
 
 Accepted authority layers:
 
@@ -38,6 +37,45 @@ Provider compatibility, visibility, authorization and billing are separate decis
 
 Production Trust Authority is separate. PR `#438` remains unmerged, so its delegated roots/rotation/revocation/transparency behavior is not accepted main fact yet.
 
+## First-class interoperability surfaces
+
+TRUYN is protocol-agnostic connectivity infrastructure. **HTTP/API, NLWeb, MCP and A2A are peer first-class interface families at the interoperability edge.** None of them replaces TRUYN native discovery, identity, authority, routing or provenance.
+
+Canonical positioning:
+
+> **TRUYN connects services and agents across HTTP APIs, NLWeb, MCP and A2A through a shared discovery, routing and resilient delivery fabric.**
+
+The division of responsibility is:
+
+- HTTP/API — classical programmatic request/response;
+- NLWeb — natural-language discovery and information access;
+- MCP — AI model/tool/resource invocation;
+- A2A — agent-to-agent interaction and task lifecycle;
+- TRUYN — discovery, eligibility, selection, authorization, routing, resilient delivery and provenance across those surfaces.
+
+External interface metadata is descriptive interoperability data, not authority.
+
+## HTTP / API interoperability
+
+HTTP/API is a first-class TRUYN interoperability surface. The canonical architecture is `HTTP_API_INTEROPERABILITY.md`.
+
+Current `main` already contains bounded HTTP foundations: a generic HTTP/HTTPS JSON provider (`adapters/providers/custom-http.js`), HTTP relay transport (`network/transport/http-relay.js`) and the local TRUYN HTTP adapter server (`adapters/http/server.js`). These facts support the architectural claim that HTTP/API is first-class, but they do **not** yet prove arbitrary/full REST method/path/schema interoperability.
+
+TRUYN may discover and describe an API endpoint, map an explicit capability to a bounded HTTP operation, route a request and return a response. TRUYN must not own application-specific business semantics such as `/publishers`, `/licenses`, `/campaigns`, `/articles` or product-specific resource models.
+
+HTTP/API implementation must preserve:
+
+- explicit/bounded endpoint, method, path, query, header and body mapping;
+- adapter-local credentials;
+- authorization-aware discovery and selection;
+- no implicit arbitrary URL fetch;
+- SSRF/redirect/private-network protections;
+- bounded response size/content type;
+- idempotency-aware retry behavior;
+- zero unauthorized protected/paid upstream execution.
+
+A reachable API endpoint never implies authorization. Full generic REST interoperability remains gated by HAPI implementation/conformance evidence in `ROADMAP.md`.
+
 ## A2A / MCP interoperability
 
 A2A and MCP are adapters, not TRUYN/1 wire dependencies. Accepted bounded evidence includes C1–C8, independent official A2A/MCP black-box proofs, **P2-E1 / Sprint E** referenced-artifact interoperability, **P2-E2** compatibility generation `a2a-mcp-pre-v1/g1`, and **P2-E3** canonical documentation reconciliation in PR `#459`.
@@ -49,6 +87,8 @@ Accepted artifact translation requires explicit resolution, bounded content, exa
 ## NLWeb interoperability
 
 NLWeb is a planned external interoperability edge, not a TRUYN transport primitive and not a `TRUYN/1` wire dependency. The canonical planned architecture is `NLWEB_INTEROPERABILITY.md`.
+
+`who` is defined as a semantic discovery surface over native TRUYN discovery. TRUYN remains the distributed discovery, eligibility, selection, execution and transport fabric behind `who`/`ask`; NLWeb does not replace native TRUYN discovery or authority.
 
 The public/open scope is limited to compatibility mechanics: client/provider adapters, eligible endpoint discovery, `ask`/`who` support for an explicitly pinned upstream profile, routing/relay, auth-policy passthrough, health/capability advertisement and explicit bounded bridges with MCP/A2A where semantics can be preserved.
 
