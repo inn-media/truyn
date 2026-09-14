@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "profile": "TRUYN/1-open-1.0-rc",
+  "cases": [
+    {
+      "id": "envelope.missing-id",
+      "expected": {
+        "ok": false,
+        "reason": "missing_required_field"
+      },
+      "envelope": {
+        "protocol": "TRUYN/1",
+        "type": "NEED",
+        "from": "truyn:node:235f0c4208ac567d21f81c3291276bb6cc68a6ba4ba46f73d5470b08ee0c9f6c",
+        "to": null,
+        "createdAt": "2026-09-14T18:00:00.000Z",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQwRr/kCSs+lJlOraFdzCDYqqB7ZY/TlU644O+4vcpd4=\n-----END PUBLIC KEY-----\n",
+        "payload": {
+          "capability": { "name": "research" },
+          "input": { "query": "golden-negative" }
+        },
+        "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+      }
+    },
+    {
+      "id": "envelope.invalid-signature",
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      },
+      "envelope": {
+        "protocol": "TRUYN/1",
+        "type": "NEED",
+        "id": "need-golden-invalid-signature-001",
+        "from": "truyn:node:235f0c4208ac567d21f81c3291276bb6cc68a6ba4ba46f73d5470b08ee0c9f6c",
+        "to": null,
+        "createdAt": "2026-09-14T18:00:00.000Z",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQwRr/kCSs+lJlOraFdzCDYqqB7ZY/TlU644O+4vcpd4=\n-----END PUBLIC KEY-----\n",
+        "payload": {
+          "capability": { "name": "research" },
+          "input": { "query": "golden-negative" }
+        },
+        "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+      }
+    }
+  ]
+}
