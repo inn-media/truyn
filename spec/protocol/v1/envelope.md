@@ -57,7 +57,22 @@ The resulting UTF-8 byte sequence is the canonical signed representation. A veri
 
 Cross-language golden vectors are required before stable-v1 qualification; the current pre-stable SDK implementations must be reconciled to TCJ1 where their default JSON serializer differs.
 
-Expiry/replay acceptance windows, signature domain, Node-ID derivation and normalized error codes are frozen by the following protocol-RC micro-sprints and MUST remain compatible with this field/canonicalization contract.
+## Signature algorithm and domain
+
+The bounded Open 1.0 core identity-key profile uses **Ed25519** signatures over the TCJ1 bytes of the unsigned envelope.
+
+TRUYN/1 deliberately does **not** prepend an additional out-of-band byte prefix to the signed message. Signature domain separation is carried inside the authenticated object itself by the required exact `protocol: "TRUYN/1"` member together with the bounded envelope structure and `type`. Therefore:
+
+- the signed bytes are exactly `TCJ1(unsignedEnvelope)`;
+- `signature` itself is excluded from the signed value;
+- `protocol`, `type`, `id`, `from`, `to` when present/emitted, `createdAt`, `publicKey`, `payload`, and every other present optional member are inside the signed value;
+- changing the protocol generation, type, correlation identifiers, routing metadata, creation time, key, payload, or an optional member after signing MUST invalidate verification;
+- a signature generated for another protocol generation or non-envelope signed object MUST NOT be accepted merely because the same Ed25519 key is used;
+- the core envelope signature encoding is standard Base64 and MUST decode to exactly 64 Ed25519 signature bytes.
+
+This no-extra-prefix rule preserves the already deployed pre-stable signed-envelope byte domain while making the domain explicit and testable. A future protocol generation MAY define a different explicit domain construction, but it cannot silently alter TRUYN/1 verification semantics.
+
+Expiry/replay acceptance windows, Node-ID derivation and normalized error codes are frozen by the following protocol-RC micro-sprints and MUST remain compatible with this field/canonicalization/signature contract.
 
 ## Authority boundary
 
