@@ -19,6 +19,14 @@ function normalize(value) {
   return value;
 }
 
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isPayloadObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 export function canonicalize(value) {
   return JSON.stringify(normalize(value));
 }
@@ -41,8 +49,14 @@ export function createEnvelope({ type, from, payload, privateKeyPem, publicKeyPe
   if (!MVP_TYPES.includes(type)) {
     throw new Error(`Unsupported MVP message type: ${type}`);
   }
-  if (!from || !payload || !privateKeyPem || !publicKeyPem) {
-    throw new Error('from, payload, privateKeyPem and publicKeyPem are required');
+  if (!isNonEmptyString(from) || !isPayloadObject(payload) || !isNonEmptyString(privateKeyPem) || !isNonEmptyString(publicKeyPem)) {
+    throw new Error('from, payload object, privateKeyPem and publicKeyPem are required');
+  }
+  if (!isNonEmptyString(id) || !isNonEmptyString(createdAt)) {
+    throw new Error('id and createdAt are required');
+  }
+  if (to !== null && !isNonEmptyString(to)) {
+    throw new Error('to must be null or a non-empty node ID');
   }
 
   const expectedNodeId = nodeIdFromPublicKey(publicKeyPem);
@@ -72,8 +86,18 @@ export function verifyEnvelope(envelope, { allowedTypes = MVP_TYPES } = {}) {
   if (!allowedTypes.includes(envelope.type)) {
     return { ok: false, reason: 'unsupported_type' };
   }
-  if (!envelope.id || !envelope.from || !envelope.createdAt || !envelope.publicKey || !envelope.payload || !envelope.signature) {
+  if (
+    !isNonEmptyString(envelope.id) ||
+    !isNonEmptyString(envelope.from) ||
+    !isNonEmptyString(envelope.createdAt) ||
+    !isNonEmptyString(envelope.publicKey) ||
+    !isPayloadObject(envelope.payload) ||
+    !isNonEmptyString(envelope.signature)
+  ) {
     return { ok: false, reason: 'missing_required_field' };
+  }
+  if (envelope.to !== undefined && envelope.to !== null && !isNonEmptyString(envelope.to)) {
+    return { ok: false, reason: 'invalid_optional_field' };
   }
   if (nodeIdFromPublicKey(envelope.publicKey) !== envelope.from) {
     return { ok: false, reason: 'node_id_key_mismatch' };
