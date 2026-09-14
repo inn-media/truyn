@@ -1,0 +1,37 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createIdentity } from '../core/identity/index.js';
+import { createEnvelope, verifyEnvelope } from '../core/protocol/index.js';
+
+function validNeedEnvelope() {
+  const identity = createIdentity();
+  return createEnvelope({
+    type: 'NEED',
+    from: identity.nodeId,
+    privateKeyPem: identity.privateKeyPem,
+    publicKeyPem: identity.publicKeyPem,
+    payload: { capability: { name: 'research' }, input: { query: 'open-1.0' } }
+  });
+}
+
+test('Open 1.0 RC envelope rejects missing or empty required fields', () => {
+  const envelope = validNeedEnvelope();
+  for (const field of ['id', 'from', 'createdAt', 'publicKey', 'payload', 'signature']) {
+    const candidate = structuredClone(envelope);
+    candidate[field] = field === 'payload' ? null : '';
+    assert.deepEqual(
+      verifyEnvelope(candidate),
+      { ok: false, reason: 'missing_required_field' },
+      `expected ${field} to fail closed`
+    );
+  }
+});
+
+test('Open 1.0 RC envelope requires an object payload and bounded optional destination', () => {
+  const envelope = validNeedEnvelope();
+  const arrayPayload = { ...envelope, payload: [] };
+  assert.deepEqual(verifyEnvelope(arrayPayload), { ok: false, reason: 'missing_required_field' });
+
+  const invalidDestination = { ...envelope, to: '' };
+  assert.deepEqual(verifyEnvelope(invalidDestination), { ok: false, reason: 'invalid_optional_field' });
+});
