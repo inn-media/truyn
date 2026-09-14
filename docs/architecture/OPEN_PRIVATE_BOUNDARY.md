@@ -14,12 +14,18 @@ The permanent dependency invariant is:
 
 ## Dependency direction
 
-Private platform code may consume released/versioned or explicitly pinned public contracts and artifacts. Public code, tests, build tooling, and supported runtime paths must not require the private repository.
+Private platform code may consume only one of these accepted immutable public surfaces:
+
+1. a released/versioned public artifact with an explicit immutable coordinate; or
+2. a stable public contract explicitly pinned by public repository + exact commit + canonical path + cryptographic digest, with compatibility validation proving the pinned bytes.
+
+The second form is a released public contract mechanism, not permission to consume arbitrary GitHub source. It is limited to declared SHARED_CONTRACT fixtures/interfaces and must be recorded in the private dependency policy. Public code, tests, build tooling, and supported runtime paths must not require the private repository.
 
 Forbidden coupling includes:
 
 - public imports, package dependencies, source fetches, or filesystem references to `inn-media/truyn-platform`;
-- private consumption through `../truyn`, sibling checkout paths, raw GitHub source URLs, git dependencies, or equivalent raw-source coupling;
+- private consumption through `../truyn`, sibling checkout paths, raw GitHub source URLs, mutable branches, unpinned git dependencies, submodules, or equivalent raw-source coupling;
+- private copying of the public security/control-plane subtree as a hidden fork instead of consuming an accepted contract;
 - normal private CI mutating the public repository;
 - restoring managed/private implementation to the public tree solely to satisfy a public test.
 
@@ -32,6 +38,19 @@ Keep code public when it implements protocol/open-edge behavior, generic infrast
 Place code in the private platform when it implements managed production authority, managed account/tenant administration, managed provider grants/revocation, production control-plane ownership, commercial entitlement/accounting/billing, hosted managed services, proprietary network intelligence, or private operational control.
 
 When public behavior needs a managed extension point, expose a public contract/reference/injection seam and keep the managed implementation private.
+
+## Shared-contract identity
+
+A pinned SHARED_CONTRACT is accepted only when all of the following are true:
+
+- the source repository is `inn-media/truyn`;
+- the source commit is exact and immutable;
+- the contract path is explicit;
+- a cryptographic digest of the contract bytes is recorded;
+- private CI verifies repository, commit, path, version and digest together;
+- private production code does not import or fetch the public repository source tree at runtime/build time.
+
+This permits stable public contract consumption while preserving the no-source-coupling invariant.
 
 ## Split guardrail
 

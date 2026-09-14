@@ -21,14 +21,14 @@ This document distinguishes accepted `main` facts from open PRs, diagnostics, pl
 | Class D-1000 | **OPEN — canonical full pinned campaign FAIL** | exact 20×50 PASS |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
 | Claim-centric + active Trustability | **Implemented bounded slices** | Production Trust Authority remains open; `#438` unmerged |
-| Account → Organization → Tenant | **Implemented / accepted** | PR `#425` |
-| Durable Production Authority | **Implemented / accepted single-filesystem reference** | `#433` + correctness repair `#456` |
-| Managed authority runtime support | **Implemented / accepted in repository/runtime** | PR `#457` merged |
-| Managed provider accounting wiring | **Implemented / accepted in repository/runtime** | PR `#463` merged; live managed reconciliation evidence open |
+| Account → Organization → Tenant | **Historical public acceptance; managed ownership is TRUYN Platform** | public contract/reference seams remain OPEN |
+| Durable Production Authority | **Historical public acceptance; managed implementation migrated to TRUYN Platform** | public self-hostable/reference surfaces remain OPEN |
+| Managed authority runtime support | **Implemented / accepted in TRUYN Platform** | public repository exposes contracts/conformance only |
+| Managed provider accounting wiring | **Implemented / accepted in TRUYN Platform** | live managed reconciliation evidence open |
 | Live managed authority deployment | **OPEN** | provisioned Cosmos, migration/cutover, multi-region/backup/restore/propagation evidence |
-| Provider grants / entitlements / accounting / terminal revocation | **Implemented durable authority** | live managed ops + reconciliation evidence |
+| Provider grants / entitlements / accounting / terminal revocation | **Managed implementation owned by TRUYN Platform; public contract/reference behavior retained where classified OPEN** | live managed ops + reconciliation evidence |
 | Production SLI/SLO | **Defined numerical contract** | `#424`; live 28-day compliance open |
-| Observability / alerting | **Implemented repository/runtime** | `#434`; deployed backends/probes/pager evidence open |
+| Observability / alerting | **Implemented repository/runtime contracts** | `#434`; deployed backends/probes/pager evidence open |
 | Rotation / on-call | **Implemented contracts** | `#440`; live drills/roster/test-fire open |
 | Recovery / DR | **Implemented contract** | `#441`; real backup/restore evidence open |
 | A2A/MCP C1–C8 | **ACCEPTED bounded profile** | broader optional surfaces separate |
@@ -53,18 +53,22 @@ The canonical D-1000 negative record remains source `0e7f16c1ff74d85e9d4dbbc0fec
 
 ## Production Authority boundary
 
-Accepted authority has four stages:
+Historical public PRs established the authority semantics now split across the open/public contract surface and the managed/private implementation:
 
 1. PR `#425` — Account/Organization/Tenant hierarchy, roles, lifecycle and node/provider bindings;
-2. PR `#433` + `#456` — durable single-filesystem grants, entitlements, accounting reservations/reconciliation, terminal revocation and correctness repairs;
-3. PR `#457` — managed authority **repository/runtime support**: Cosmos DB NoSQL checkpoint adapter over managed identity/AAD, checkpoint digest/source/revision, optimistic ETag fencing, explicit digest-bound bootstrap, private authority role/API, monotonic relay snapshot cache and fail-closed staleness/readiness integration;
-4. PR `#463` — managed provider accounting wiring: `sponsored`, `prepaid`, and `subscription` modes route reserve/reconcile through the managed authority runtime, await reserve before provider execution, reconcile actual usage before terminal success, release/reconcile failure/cancellation, preserve replay denial and suppress successful output when authoritative reconciliation fails. `owner-funded` and `byok` remain local/private semantics.
+2. PR `#433` + `#456` — durable grants, entitlements, accounting reservations/reconciliation, terminal revocation and correctness repairs;
+3. PR `#457` — managed authority repository/runtime support including Cosmos checkpoint semantics, digest/source/revision, optimistic fencing, explicit digest-bound bootstrap, private authority role/API, monotonic relay snapshot cache and fail-closed staleness/readiness integration;
+4. PR `#463` — managed provider accounting semantics for `sponsored`, `prepaid`, and `subscription`, including authoritative reserve before execution and reconcile/release on success, failure or cancellation.
 
-Stages 3–4 are not proof of a live managed deployment. They do not claim provisioned Cosmos, multi-region writes, continuous backup, migrated production state, relay cutover, accepted restore drill or long-window production reconciliation. Those remain deployment/operations gates.
+After the two-repository split, the managed implementations represented by stages 3–4 and the managed/commercial portions of stages 1–2 are owned by private `inn-media/truyn-platform`. This public repository owns the protocol/open-edge/reference side: public contracts and conformance, Node/Relay reference behavior, generic provider/BYOK/owner-funded behavior, and explicit managed extension seams. The split changes code ownership, not the previously accepted behavioral invariants.
+
+The private platform consumes accepted public contracts only through immutable released/versioned artifacts or explicitly pinned immutable public contracts. Public code must never require the private repository. The canonical ownership/dependency rule is `OPEN_PRIVATE_BOUNDARY.md`; task routing is `CROSS_REPO_TASK_ROUTING.md`.
+
+Managed repository/runtime acceptance is not proof of a live managed deployment. It does not claim provisioned Cosmos, multi-region writes, continuous backup, migrated production state, relay cutover, accepted restore drill or long-window production reconciliation. Those remain deployment/operations gates.
 
 ## Production operations boundary
 
-The repository has numerical SLI/SLO, observability, dashboards, error budgets/alerts, security rotation/on-call and recovery/DR contracts. Productionized status remains open until real telemetry/probes, pager delivery, roster, live rotations/restores and durable 28-day serving evidence are accepted.
+The public repository retains generic numerical SLI/SLO, observability, dashboards, error budgets/alerts, security rotation/on-call and recovery/DR contracts where they are reusable/open. Private cloud topology, managed production control, proprietary operational state and managed deployment procedures belong to TRUYN Platform. Productionized status remains open until real telemetry/probes, pager delivery, roster, live rotations/restores and durable 28-day serving evidence are accepted.
 
 ## A2A / MCP boundary
 
@@ -96,6 +100,6 @@ Bounded Trustability is accepted. Production Trust Authority is not accepted on 
 
 ## Documentation hygiene
 
-Historical evidence remains audit history. Current-status documents follow accepted `main`. Open PRs, public uploads and in-progress diagnostics do not become accepted production claims merely by existing; merged repository/runtime support does not become live production evidence without deployment proof.
+Historical evidence remains audit history. Current-status documents follow accepted `main`. Open PRs, public uploads and in-progress diagnostics do not become accepted production claims merely by existing; historical repository/runtime acceptance does not imply current public code ownership or live production evidence after the split.
 
 Operational network-scale status: [../operations/NETWORK_SCALE_STATUS.md](../operations/NETWORK_SCALE_STATUS.md).
