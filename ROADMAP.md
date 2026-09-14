@@ -20,6 +20,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Provider authority | **Durable authority + managed runtime + managed provider accounting wiring accepted** | provisioned/live managed deployment, migration/cutover, multi-region/backup/restore/propagation/reconciliation evidence |
 | Trustability | **Bounded implementation accepted** | Production Trust Authority; PR `#438` remains open |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + stable ecosystem evidence |
+| NLWeb | **PLANNED interoperability track; NW-0 architecture/boundary defined** | NW-1 adapter core + exact upstream profile/version pin |
 | SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 accepted** | Maven/NuGet + Descriptor/site completeness |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Mainnet | **Not productionized** | D-1000 + live ops + live managed authority + stable/release/governance gates |
@@ -68,6 +69,26 @@ Accepted bounded profile:
 - [x] **P2-E3** canonical public/status reconciliation and regression guard (`#459`).
 
 The old referenced-artifact and bounded compatibility-policy gaps are closed. **Stable A2A/MCP v1 is not declared** because `TRUYN/1` remains draft.
+
+## NLWeb interoperability
+
+NLWeb is a planned external interoperability profile around TRUYN, alongside A2A and MCP. It is **not** a TRUYN transport replacement and must not become a `TRUYN/1` wire dependency.
+
+The canonical architecture and scope are defined in `docs/architecture/NLWEB_INTEROPERABILITY.md`.
+
+Development sequence:
+
+- [x] **NW-0 — Architecture/boundary:** NLWeb belongs at the public interoperability edge; application/data/indexing/rights/Data Graph logic stays outside TRUYN;
+- [ ] **NW-1 — Adapter core:** NLWeb client/provider adapter contracts, exact upstream profile/version pin, bounded request/response/error normalization;
+- [ ] **NW-2 — Discovery/advertisement:** discover eligible NLWeb endpoints, advertise compatibility through descriptor/capability metadata, health/profile reporting and authorization-aware visibility;
+- [ ] **NW-3 — `ask` / `who`:** bounded natural-language execution and discovery interoperability with structured response preservation;
+- [ ] **NW-4 — Routing/relay/security:** normal TRUYN matching/dispatch, auth-policy passthrough, fail-closed profile negotiation, zero unauthorized provider execution;
+- [ ] **NW-5 — Bridge profiles:** `NLWeb → TRUYN → MCP` plus bounded evaluation of `MCP/A2A → TRUYN → NLWeb` where semantics can be preserved without silent loss or duplicated side effects;
+- [ ] **NW-6 — External conformance:** independent NLWeb black-box proof plus adversarial `NLWeb ↔ MCP ↔ A2A ↔ TRUYN` compatibility matrix and durable evidence.
+
+Explicit non-goals for this track: crawler/ingestion implementation, indexing, vector search, RAG corpus ownership, brand/news/product content models, publisher/content rights, advertising/campaign data and Data Graph business semantics. Those can exist in products outside TRUYN and be reached through explicit interfaces; TRUYN itself should transport/discover/authorize/route/verify interoperability rather than own that application/data layer.
+
+NLWeb compatibility must remain **Planned** until executable evidence closes the relevant NW gates. The track is not currently a blocker for stable `TRUYN/1` unless a later accepted release contract explicitly makes it one.
 
 ## SDK / developer release
 
