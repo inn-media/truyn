@@ -21,7 +21,7 @@ Accepted `main` evidence overrides stale current-status prose. Historical eviden
 
 ## Identity and authority
 
-TRUYN authority comes from authenticated/signed identities plus server-side authority state. Requester/provider payload metadata, A2A/MCP metadata and transport credentials are never implicit account, tenant, provider-owner, entitlement or billing authority.
+TRUYN authority comes from authenticated/signed identities plus server-side authority state. Requester/provider payload metadata, A2A/MCP/NLWeb metadata and transport credentials are never implicit account, tenant, provider-owner, entitlement or billing authority.
 
 Accepted authority layers:
 
@@ -45,6 +45,18 @@ A2A and MCP are adapters, not TRUYN/1 wire dependencies. Accepted bounded eviden
 Accepted artifact translation requires explicit resolution, bounded content, exact digest/byte-size checks, no implicit arbitrary URL fetch and authoritative TRUYN provenance. Polling/retry/fallback must not duplicate remote application side effects.
 
 **Stable A2A/MCP v1 is not declared.** `TRUYN/1` remains draft.
+
+## NLWeb interoperability
+
+NLWeb is a planned external interoperability edge, not a TRUYN transport primitive and not a `TRUYN/1` wire dependency. The canonical planned architecture is `NLWEB_INTEROPERABILITY.md`.
+
+The public/open scope is limited to compatibility mechanics: client/provider adapters, eligible endpoint discovery, `ask`/`who` support for an explicitly pinned upstream profile, routing/relay, auth-policy passthrough, health/capability advertisement and explicit bounded bridges with MCP/A2A where semantics can be preserved.
+
+NLWeb metadata is non-authoritative. It cannot assign account, tenant, provider ownership, entitlement or billing responsibility. Endpoint reachability cannot imply execution permission. Unauthorized NLWeb-originated work must cause zero provider execution.
+
+TRUYN does not own the NLWeb application/data layer. Crawling/ingestion, indexing, vector search, RAG corpus ownership, brand/news/product content, publisher/content rights, campaign data and Data Graph business semantics remain outside this interoperability contract.
+
+No NLWeb compatibility claim is accepted until an exact upstream profile/version is pinned and executable conformance/black-box evidence closes the corresponding roadmap gates.
 
 ## Network scale
 

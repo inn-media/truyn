@@ -35,6 +35,7 @@ This document distinguishes accepted `main` facts from open PRs, diagnostics, pl
 | P2-E1 / Sprint E | **ACCEPTED / CLOSED** | PR `#427` |
 | P2-E2 `a2a-mcp-pre-v1/g1` | **ACCEPTED / CLOSED** | PR `#432`; stable-v1 not claimed |
 | P2-E3 canonical reconciliation | **ACCEPTED / MERGED** | PR `#459` |
+| NLWeb interoperability | **PLANNED; architecture/boundary NW-0 defined** | exact upstream profile pin + NW-1 adapter core |
 | Five first-party SDK clients | **Implemented / conformance-proven** | release ecosystem completion |
 | PyPI alpha | **Accepted immutable public release** | — |
 | Go alpha | **Accepted immutable public release** | — |
@@ -72,6 +73,16 @@ Accepted bounded state includes C1–C8, independent official A2A/MCP black-box 
 **Stable A2A/MCP v1 is not declared.** `TRUYN/1` remains draft.
 
 Durable consolidated evidence: `../compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md`.
+
+## NLWeb boundary
+
+NLWeb compatibility is **planned**, not implemented or accepted. The architecture is defined in `NLWEB_INTEROPERABILITY.md` and the development sequence is tracked as NW-0 through NW-6 in `../../ROADMAP.md`.
+
+The intended TRUYN scope is limited to interoperability mechanics: NLWeb client/provider adapters, eligible endpoint discovery, `ask`/`who` edge support for a pinned upstream profile, routing/relay, auth-policy passthrough, bounded health/capability advertisement and explicit bridge profiles with MCP/A2A where semantics can be preserved.
+
+The following remain outside the TRUYN NLWeb layer: crawling/ingestion, indexing, vector search, RAG corpus ownership, brand/news/product content, publisher/content rights, campaign data and Data Graph business semantics. Those application/data concerns may integrate with TRUYN through explicit interfaces but are not transport/interoperability responsibilities.
+
+No `NLWeb compatible` product claim should be made until exact upstream profile/version pinning and executable black-box/conformance evidence close the relevant NW gates.
 
 ## SDK / developer release boundary
 
