@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "profile": "TRUYN/1-open-1.0-rc",
+  "cases": [
+    {
+      "id": "negotiation.no-protocol-overlap",
+      "input": {
+        "localProtocols": ["TRUYN/1"],
+        "remoteProtocols": ["TRUYN/2"],
+        "localSemantics": ["core-envelope"],
+        "remoteSemantics": ["core-envelope"],
+        "requiredSemantics": ["core-envelope"]
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch",
+        "reason": "no_protocol_overlap"
+      }
+    },
+    {
+      "id": "negotiation.required-semantic-unavailable",
+      "input": {
+        "localProtocols": ["TRUYN/1"],
+        "remoteProtocols": ["TRUYN/1"],
+        "localSemantics": ["core-envelope", "revoke-need"],
+        "remoteSemantics": ["core-envelope"],
+        "requiredSemantics": ["core-envelope", "revoke-need"]
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch",
+        "reason": "required_semantic_unavailable",
+        "protocol": "TRUYN/1",
+        "missingSemantics": ["revoke-need"]
+      }
+    }
+  ]
+}
