@@ -10,6 +10,7 @@ const TEXT_EXTENSIONS = new Set(['.md', '.js', '.mjs', '.cjs', '.json', '.yml', 
 const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.cmd']);
 const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/ci.yml',
+  '.github/workflows/d200-bug-hunt.yml',
   '.github/workflows/publish-npm.yml',
   '.github/workflows/production-authority-image.yml',
   '.github/workflows/production-authority-source-discovery.yml',
