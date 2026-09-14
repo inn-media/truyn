@@ -20,7 +20,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Provider authority | **Durable authority + managed runtime + managed provider accounting wiring accepted** | provisioned/live managed deployment, migration/cutover, multi-region/backup/restore/propagation/reconciliation evidence |
 | Trustability | **Bounded implementation accepted** | Production Trust Authority; PR `#438` remains open |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + stable ecosystem evidence |
-| NLWeb | **PLANNED interoperability track; NW-0 architecture/boundary defined** | NW-1 adapter core + exact upstream profile/version pin |
+| NLWeb | **PLANNED; `who` defined as semantic discovery surface over TRUYN** | NW-1 adapter core + exact upstream profile/version pin |
 | SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 accepted** | Maven/NuGet + Descriptor/site completeness |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Mainnet | **Not productionized** | D-1000 + live ops + live managed authority + stable/release/governance gates |
@@ -70,23 +70,51 @@ Accepted bounded profile:
 
 The old referenced-artifact and bounded compatibility-policy gaps are closed. **Stable A2A/MCP v1 is not declared** because `TRUYN/1` remains draft.
 
-## NLWeb interoperability
+## NLWeb interoperability and semantic discovery
 
 NLWeb is a planned external interoperability profile around TRUYN, alongside A2A and MCP. It is **not** a TRUYN transport replacement and must not become a `TRUYN/1` wire dependency.
+
+The strategic discovery composition is now explicit:
+
+```text
+NLWeb WHO
+   ↓
+TRUYN semantic/native discovery
+   ↓
+eligible providers / agents / endpoints
+   ↓
+reference or managed selection
+   ↓
+best eligible endpoint(s)
+   ↓
+NLWeb ASK
+   ↓
+TRUYN routing / relay / execution
+   ↓
+application/provider layer
+```
+
+Canonical principle:
+
+> **NLWeb provides semantic discovery and interaction semantics; TRUYN provides distributed discovery, eligibility filtering, selection, execution and transport.**
+
+`who` is therefore a semantic discovery **surface over** TRUYN, not a replacement for TRUYN's native discovery protocol. Native identity, Agent Descriptor/OFFER capability state, DHT/discovery, trust, health, policy and routing remain TRUYN responsibilities. Data Graph, Exchange, publisher systems and other application/data services may be selected destinations/providers but remain outside TRUYN core semantics.
 
 The canonical architecture and scope are defined in `docs/architecture/NLWEB_INTEROPERABILITY.md`.
 
 Development sequence:
 
-- [x] **NW-0 — Architecture/boundary:** NLWeb belongs at the public interoperability edge; application/data/indexing/rights/Data Graph logic stays outside TRUYN;
+- [x] **NW-0 — Architecture/boundary:** NLWeb belongs at the public interoperability edge; `who` is defined as a semantic discovery interface over TRUYN; TRUYN is the distributed discovery/selection/execution fabric behind `who`/`ask`; application/data/indexing/rights/Data Graph logic stays outside TRUYN;
 - [ ] **NW-1 — Adapter core:** NLWeb client/provider adapter contracts, exact upstream profile/version pin, bounded request/response/error normalization;
-- [ ] **NW-2 — Discovery/advertisement:** discover eligible NLWeb endpoints, advertise compatibility through descriptor/capability metadata, health/profile reporting and authorization-aware visibility;
-- [ ] **NW-3 — `ask` / `who`:** bounded natural-language execution and discovery interoperability with structured response preservation;
-- [ ] **NW-4 — Routing/relay/security:** normal TRUYN matching/dispatch, auth-policy passthrough, fail-closed profile negotiation, zero unauthorized provider execution;
+- [ ] **NW-2 — Semantic discovery/advertisement:** discover eligible NLWeb endpoints, advertise compatibility through descriptor/capability metadata, map bounded `who` intent into native TRUYN discovery constraints, implement reference selection, health/profile reporting and authorization-aware visibility;
+- [ ] **NW-3 — `who → selection → ask`:** return authorized candidate sets, select only from eligible endpoints, compose the selected endpoint into `ask`, preserve structured response/provenance/correlation and keep normal authority before dispatch;
+- [ ] **NW-4 — Routing/relay/security:** normal TRUYN matching/dispatch, auth-policy passthrough, fail-closed profile negotiation, zero unauthorized provider enumeration and zero unauthorized execution;
 - [ ] **NW-5 — Bridge profiles:** `NLWeb → TRUYN → MCP` plus bounded evaluation of `MCP/A2A → TRUYN → NLWeb` where semantics can be preserved without silent loss or duplicated side effects;
-- [ ] **NW-6 — External conformance:** independent NLWeb black-box proof plus adversarial `NLWeb ↔ MCP ↔ A2A ↔ TRUYN` compatibility matrix and durable evidence.
+- [ ] **NW-6 — External conformance:** independent NLWeb black-box proof plus end-to-end `WHO → TRUYN discovery → selection → ASK → TRUYN execution` evidence and adversarial `NLWeb ↔ MCP ↔ A2A ↔ TRUYN` matrix.
 
-Explicit non-goals for this track: crawler/ingestion implementation, indexing, vector search, RAG corpus ownership, brand/news/product content models, publisher/content rights, advertising/campaign data and Data Graph business semantics. Those can exist in products outside TRUYN and be reached through explicit interfaces; TRUYN itself should transport/discover/authorize/route/verify interoperability rather than own that application/data layer.
+TRUYN Open must retain a deterministic/reference selector so semantic discovery remains fully usable without the private platform. The private platform may later provide richer managed ranking over the already eligible candidate set using global/history/reputation/health signals; such ranking is an optimization and never an authorization source.
+
+Explicit non-goals for this track: crawler/ingestion implementation, indexing, vector search, RAG corpus ownership, brand/news/product content models, publisher/content rights, advertising/campaign data and Data Graph business semantics. Those can exist in products outside TRUYN and be reached through explicit interfaces; TRUYN itself should transport/discover/authorize/select/route/verify interoperability rather than own that application/data layer.
 
 NLWeb compatibility must remain **Planned** until executable evidence closes the relevant NW gates. The track is not currently a blocker for stable `TRUYN/1` unless a later accepted release contract explicitly makes it one.
 
