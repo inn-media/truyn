@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createIdentity } from '../core/identity/index.js';
 import { createEnvelope, verifyEnvelope } from '../core/protocol/index.js';
+
+const negativeFixtures = JSON.parse(
+  readFileSync(new URL('../sdk/conformance/v1/protocol-envelope-negative-fixtures.json', import.meta.url), 'utf8')
+);
 
 function validNeedEnvelope() {
   const identity = createIdentity();
@@ -34,4 +39,11 @@ test('Open 1.0 RC envelope requires an object payload and bounded optional desti
 
   const invalidDestination = { ...envelope, to: '' };
   assert.deepEqual(verifyEnvelope(invalidDestination), { ok: false, reason: 'invalid_optional_field' });
+});
+
+test('Open 1.0 RC durable envelope negative fixtures fail with the declared reason', () => {
+  assert.equal(negativeFixtures.schemaVersion, 1);
+  for (const fixture of negativeFixtures.cases) {
+    assert.deepEqual(verifyEnvelope(fixture.envelope), fixture.expected, fixture.id);
+  }
 });
