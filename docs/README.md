@@ -16,6 +16,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - [Managed Authority Runtime](operations/MANAGED_AUTHORITY_RUNTIME.md) — accepted repository/runtime support and live-deployment non-claims.
 - [Production SLI/SLO](operations/PRODUCTION_SLO.md), [Operations](operations/README.md).
 - [A2A/MCP Architecture](architecture/A2A_MCP_INTEROPERABILITY.md), [Compatibility](compatibility/A2A_MCP_COMPATIBILITY.md), [P2 Final Acceptance](compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md).
+- [NLWeb Interoperability](architecture/NLWEB_INTEROPERABILITY.md) — planned `ask`/`who`/discovery/relay/bridge compatibility track and explicit application/data non-goals.
 - [SDK & Developer Experience](architecture/SDK_DEVELOPER_EXPERIENCE.md).
 - [Governance](../GOVERNANCE.md), [Security](../SECURITY.md), [Benchmark Evidence](benchmarks/README.md).
 
@@ -39,6 +40,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - **P2-E2** `a2a-mcp-pre-v1/g1` — **ACCEPTED** (`#432`).
 - **P2-E3** canonical documentation reconciliation — **ACCEPTED / merged** (`#459`).
 - **Stable A2A/MCP v1 is not declared**; `TRUYN/1` remains draft.
+- NLWeb interoperability — **PLANNED**; NW-0 architecture/boundary is defined, implementation/conformance is not yet accepted.
 - five first-party SDK clients + shared conformance — **IMPLEMENTED**.
 - PyPI alpha + Go alpha + npm alpha.2 — **accepted immutable public releases**.
 - npm alpha.1 — immutable historical artifact with failed required clean-room ESM import.
@@ -46,6 +48,10 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - Production Trust Authority — **OPEN**; PR `#438` unmerged.
 - governance — **G1 / bootstrap Founding Stewardship**.
 - stable mainnet — **not yet**.
+
+## NLWeb scope reminder
+
+TRUYN's NLWeb track is interoperability-only: eligible endpoint discovery, `ask`/`who`, routing/relay, auth-policy passthrough, health/capability advertisement and bounded bridges with MCP/A2A. Crawling, ingestion, indexing, vector search, RAG corpus ownership, brand/publisher content, content rights, campaign data and Data Graph semantics remain outside the TRUYN NLWeb layer.
 
 ## Evidence hygiene
 
