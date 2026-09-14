@@ -40,7 +40,24 @@ For the bounded Open 1.0 core profile:
 - a malformed/unparseable creation timestamp MUST be rejected;
 - validation failure MUST NOT cause provider execution.
 
-Expiry/replay acceptance windows, canonical signing bytes, signature domain, Node-ID derivation and normalized error codes are frozen by the following protocol-RC micro-sprints and MUST remain compatible with this field contract.
+## Canonical unsigned representation
+
+For signing and verification, the **unsigned envelope** is the complete bounded JSON envelope with the top-level `signature` member removed and every other present member preserved. Implementations MUST NOT drop `to: null`, payload members, or unknown optional members merely because their value is false, zero, empty, or null unless a separately negotiated schema explicitly defines that omission.
+
+The unsigned value is encoded as **TRUYN Canonical JSON v1 (TCJ1)**:
+
+1. JSON objects are serialized with member names sorted lexicographically by UTF-16 code units, recursively at every object depth.
+2. JSON arrays preserve their original order.
+3. Strings preserve Unicode scalar content and are encoded as UTF-8; only JSON-required escaping is emitted for quotation mark, reverse solidus and control characters U+0000 through U+001F. HTML characters such as `<`, `>` and `&` are not specially escaped.
+4. JSON numbers MUST be finite. `NaN`, positive/negative infinity and implementation-specific non-JSON numeric values are invalid. Numeric serialization MUST use a shortest round-trippable JSON representation and MUST NOT depend on locale.
+5. No insignificant whitespace, byte-order mark, trailing newline, or other prefix/suffix bytes are emitted.
+6. JSON literals are exactly `true`, `false`, and `null`.
+
+The resulting UTF-8 byte sequence is the canonical signed representation. A verifier MUST reproduce the same bytes from the received unsigned envelope before signature verification. A language/runtime that cannot reproduce TCJ1 exactly MUST fail compatibility rather than invent a language-specific signing representation.
+
+Cross-language golden vectors are required before stable-v1 qualification; the current pre-stable SDK implementations must be reconciled to TCJ1 where their default JSON serializer differs.
+
+Expiry/replay acceptance windows, signature domain, Node-ID derivation and normalized error codes are frozen by the following protocol-RC micro-sprints and MUST remain compatible with this field/canonicalization contract.
 
 ## Authority boundary
 
