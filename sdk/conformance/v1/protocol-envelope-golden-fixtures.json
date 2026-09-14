@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "profile": "TRUYN/1-open-1.0-rc",
+  "cases": [
+    {
+      "id": "envelope.offer-valid",
+      "canonicalUnsignedSha256": "36e86eaeee35b7bcfeea088de9676628b64b0f5912c13f6fdbc01577547c7913",
+      "expected": { "ok": true },
+      "envelope": {
+        "protocol": "TRUYN/1",
+        "type": "OFFER",
+        "id": "offer-golden-001",
+        "from": "truyn:node:235f0c4208ac567d21f81c3291276bb6cc68a6ba4ba46f73d5470b08ee0c9f6c",
+        "to": null,
+        "createdAt": "2026-09-14T18:00:00.000Z",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQwRr/kCSs+lJlOraFdzCDYqqB7ZY/TlU644O+4vcpd4=\n-----END PUBLIC KEY-----\n",
+        "payload": {
+          "capability": { "name": "research" },
+          "metadata": { "description": "Deterministic Open 1.0 RC OFFER" }
+        },
+        "signature": "D5ENoWMBOyouT/05L63DDB3VMQSRzlvtaNtk5VrbRMfWfFBLJ0vTRZRVCXnjGdX5t1Dv+9+d+CBriO/aPG7CCQ=="
+      }
+    },
+    {
+      "id": "envelope.need-valid",
+      "canonicalUnsignedSha256": "8c1e7313fa6bb38bc4546284380d034c73ca3a603950d446ca31f805a06aa1d1",
+      "expected": { "ok": true },
+      "envelope": {
+        "protocol": "TRUYN/1",
+        "type": "NEED",
+        "id": "need-golden-001",
+        "from": "truyn:node:235f0c4208ac567d21f81c3291276bb6cc68a6ba4ba46f73d5470b08ee0c9f6c",
+        "to": null,
+        "createdAt": "2026-09-14T18:00:00.000Z",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQwRr/kCSs+lJlOraFdzCDYqqB7ZY/TlU644O+4vcpd4=\n-----END PUBLIC KEY-----\n",
+        "payload": {
+          "capability": { "name": "research" },
+          "input": { "query": "golden request" },
+          "policy": { }
+        },
+        "signature": "pOmNB6MmNdzkU3zU/aD0LZByM1twcyEudRlRjj5AdcUGjEX+bui9R93DXVubgl5J/L9pKeJBx2a8prITPrxkDw=="
+      }
+    }
+  ]
+}
