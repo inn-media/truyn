@@ -14,20 +14,22 @@ concurrency:
 
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - name: Verify immutable patch base
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "86427c5cd73f9579a36a79ae55dcedcb4295052f"
+          git merge-base --is-ancestor 86427c5cd73f9579a36a79ae55dcedcb4295052f HEAD
+          test "$(git diff --name-only 86427c5cd73f9579a36a79ae55dcedcb4295052f...HEAD | sort)" = ".github/workflows/autopilot-s43-request-status.yml"
       - name: Apply bounded S43 patch
-        shell: python
+        shell: bash
         run: |
+          set -euo pipefail
+          python3 - <<'PY'
           from pathlib import Path
 
           def replace_once(path, old, new):
@@ -40,26 +42,73 @@ jobs:
 
           replace_once(
               "network/relay/server.js",
-              """      if (req.method === 'POST' && url.pathname === '/v1/results') {\n""",
-              """      const legacyRequestStatusRoute = url.pathname.match(/^\\/v1\\/requests\\/([^/]+)$/);\n      if (req.method === 'GET' && legacyRequestStatusRoute) {\n        const requesterNodeId = authenticatedNodeId(req);\n        if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });\n        const requestId = decodeURIComponent(legacyRequestStatusRoute[1]);\n        const request = requests.get(requestId);\n        if (!request || request.requester !== requesterNodeId) return json(res, 404, { ok: false, error: 'request_not_found' });\n        if (request.mode !== 'legacy') return json(res, 409, { ok: false, error: 'request_status_requires_legacy_need' });\n        touch(requesterNodeId);\n        return json(res, 200, {\n          ok: true,\n          requestId,\n          status: request.status,\n          provider: request.provider,\n          capability: request.capability,\n          createdAt: request.createdAt,\n          completedAt: request.completedAt || null,\n          cancelledAt: request.cancelledAt || null,\n          result: request.result || null\n        });\n      }\n\n      if (req.method === 'POST' && url.pathname === '/v1/results') {\n"""
+              "      if (req.method === 'POST' && url.pathname === '/v1/results') {\n",
+              """      const legacyRequestStatusRoute = url.pathname.match(/^\\/v1\\/requests\\/([^/]+)$/);
+      if (req.method === 'GET' && legacyRequestStatusRoute) {
+        const requesterNodeId = authenticatedNodeId(req);
+        if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
+        const requestId = decodeURIComponent(legacyRequestStatusRoute[1]);
+        const request = requests.get(requestId);
+        if (!request || request.requester !== requesterNodeId) return json(res, 404, { ok: false, error: 'request_not_found' });
+        if (request.mode !== 'legacy') return json(res, 409, { ok: false, error: 'request_status_requires_legacy_need' });
+        touch(requesterNodeId);
+        return json(res, 200, {
+          ok: true,
+          requestId,
+          status: request.status,
+          provider: request.provider,
+          capability: request.capability,
+          createdAt: request.createdAt,
+          completedAt: request.completedAt || null,
+          cancelledAt: request.cancelledAt || null,
+          result: request.result || null
+        });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/v1/results') {
+"""
           )
 
           replace_once(
               "network/relay/server.js",
-              """        const trust = completeRequest(request, envelope.from);\n        queue(request.requester, { kind: 'RESULT', envelope, trust });\n        return json(res, 200, { ok: true, requestId, trust });\n""",
-              """        const trust = completeRequest(request, envelope.from);\n        const acceptedResult = { envelope, trust };\n        request.result = acceptedResult;\n        queue(request.requester, { kind: 'RESULT', ...acceptedResult });\n        return json(res, 200, { ok: true, requestId, trust });\n"""
+              """        const trust = completeRequest(request, envelope.from);
+        queue(request.requester, { kind: 'RESULT', envelope, trust });
+        return json(res, 200, { ok: true, requestId, trust });
+""",
+              """        const trust = completeRequest(request, envelope.from);
+        const acceptedResult = { envelope, trust };
+        request.result = acceptedResult;
+        queue(request.requester, { kind: 'RESULT', ...acceptedResult });
+        return json(res, 200, { ok: true, requestId, trust });
+"""
           )
 
           replace_once(
               "node/client.js",
-              """  async compactRequestStatus(requestId) {\n""",
-              """  async requestStatus(requestId) {\n    this.requireSession('reading request status');\n    if (!requestId || typeof requestId !== 'string') throw new Error('requestId is required');\n    return requestJson(`${this.relayUrl}/v1/requests/${encodeURIComponent(requestId)}`, {\n      headers: this.authHeaders()\n    });\n  }\n\n  async compactRequestStatus(requestId) {\n"""
+              "  async compactRequestStatus(requestId) {\n",
+              """  async requestStatus(requestId) {
+    this.requireSession('reading request status');
+    if (!requestId || typeof requestId !== 'string') throw new Error('requestId is required');
+    return requestJson(`${this.relayUrl}/v1/requests/${encodeURIComponent(requestId)}`, {
+      headers: this.authHeaders()
+    });
+  }
+
+  async compactRequestStatus(requestId) {
+"""
           )
 
           replace_once(
               "adapters/http/server.js",
-              """      if (req.method === 'GET' && url.pathname === '/v1/events') {\n""",
-              """      const needStatusRoute = url.pathname.match(/^\\/v1\\/needs\\/([^/]+)$/);\n      if (req.method === 'GET' && needStatusRoute) {\n        await ensureRegistered();\n        const requestId = decodeURIComponent(needStatusRoute[1]);\n        return sendJson(res, 200, await node.requestStatus(requestId));\n      }\n      if (req.method === 'GET' && url.pathname === '/v1/events') {\n"""
+              "      if (req.method === 'GET' && url.pathname === '/v1/events') {\n",
+              """      const needStatusRoute = url.pathname.match(/^\\/v1\\/needs\\/([^/]+)$/);
+      if (req.method === 'GET' && needStatusRoute) {
+        await ensureRegistered();
+        const requestId = decodeURIComponent(needStatusRoute[1]);
+        return sendJson(res, 200, await node.requestStatus(requestId));
+      }
+      if (req.method === 'GET' && url.pathname === '/v1/events') {
+"""
           )
 
           Path("tests/rest-request-status.test.js").write_text(r'''import test from 'node:test';
@@ -143,6 +192,7 @@ test('legacy request status refuses compact request records instead of conflatin
   );
 });
 ''')
+          PY
       - name: Verify bounded S43 patch
         shell: bash
         run: |
