@@ -14,6 +14,17 @@ from pathlib import Path, PurePosixPath
 
 
 _DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
+_PRIVATE_KEY_MARKERS = (
+    b"-----BEGIN PRIVATE KEY-----",
+    b"-----BEGIN ENCRYPTED PRIVATE KEY-----",
+    b"-----BEGIN RSA PRIVATE KEY-----",
+    b"-----BEGIN DSA PRIVATE KEY-----",
+    b"-----BEGIN EC PRIVATE KEY-----",
+    b"-----BEGIN OPENSSH PRIVATE KEY-----",
+    b"-----BEGIN PGP PRIVATE KEY BLOCK-----",
+)
+_PRIVATE_KEY_OVERLAP = max(len(marker) for marker in _PRIVATE_KEY_MARKERS) - 1
+_SCAN_CHUNK_BYTES = 64 * 1024
 
 
 def _safe_parts(raw_name: str) -> tuple[str, ...]:
@@ -38,6 +49,18 @@ def _destination(root: Path, raw_name: str) -> Path:
     return target
 
 
+def _scan_private_key_material(source, member_name: str) -> None:
+    carry = b""
+    while True:
+        chunk = source.read(_SCAN_CHUNK_BYTES)
+        if not chunk:
+            break
+        window = carry + chunk
+        if any(marker in window for marker in _PRIVATE_KEY_MARKERS):
+            raise ValueError(f"private key material in archive member: {member_name}")
+        carry = window[-_PRIVATE_KEY_OVERLAP:] if _PRIVATE_KEY_OVERLAP else b""
+
+
 def _extract_tar(archive: Path, root: Path) -> None:
     with tarfile.open(archive, mode="r:*") as tf:
         members = tf.getmembers()
@@ -50,6 +73,16 @@ def _extract_tar(archive: Path, root: Path) -> None:
                 raise ValueError(f"symlink/hardlink archive member: {member.name} -> {member.linkname}")
             if not (member.isdir() or member.isfile()):
                 raise ValueError(f"special archive member type: {member.name}")
+
+        # Scan every regular member before writing any archive bytes to disk.
+        for member in members:
+            if member.isdir():
+                continue
+            source = tf.extractfile(member)
+            if source is None:
+                raise ValueError(f"unreadable tar member: {member.name}")
+            with source:
+                _scan_private_key_material(source, member.name)
 
         for member in members:
             target = _destination(root, member.name)
@@ -75,6 +108,13 @@ def _extract_zip(archive: Path, root: Path) -> None:
             _destination(root, info.filename)
             if _zip_is_symlink(info):
                 raise ValueError(f"symlink archive member: {info.filename}")
+
+        # Scan every regular member before writing any archive bytes to disk.
+        for info in infos:
+            if info.is_dir():
+                continue
+            with zf.open(info, "r") as source:
+                _scan_private_key_material(source, info.filename)
 
         for info in infos:
             target = _destination(root, info.filename)
