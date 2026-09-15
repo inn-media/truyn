@@ -1,0 +1,78 @@
+name: D-200 Bug Hunt Swarm
+on:
+  pull_request: {}
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  swarm:
+    name: d200-${{ matrix.lane }}
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'automation/d200-parallel-closure-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        lane:
+          - contract-repository
+          - runtime-bundle-staging
+          - cloud-oidc-contract
+          - topology-placement
+          - readiness-lease
+          - routing-repair
+          - recovery-fault
+          - durability
+          - cleanup
+          - safety-security
+          - evidence-evaluator
+          - campaign-runtime-syntax
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run bounded lane without cancelling peers
+        env:
+          D200_LANE_RESULT: d200-lane-${{ matrix.lane }}.json
+        run: node scripts/d200-bug-hunt-lane.mjs '${{ matrix.lane }}'
+      - name: Upload lane evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d200-lane-${{ matrix.lane }}-${{ github.run_id }}
+          path: d200-lane-${{ matrix.lane }}.json
+          if-no-files-found: error
+          retention-days: 30
+  aggregate:
+    name: d200-bug-hunt-aggregate
+    needs: swarm
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: d200-lane-*-${{ github.run_id }}
+          path: d200-results
+          merge-multiple: true
+      - name: Aggregate all terminal lane evidence and enforce clean candidate
+        run: node scripts/d200-bug-hunt-aggregate.mjs d200-results --output d200-bug-hunt-aggregate.json --enforce
+      - name: Upload aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d200-bug-hunt-aggregate-${{ github.run_id }}
+          path: d200-bug-hunt-aggregate.json
+          if-no-files-found: error
+          retention-days: 30
