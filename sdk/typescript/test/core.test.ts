@@ -2,12 +2,17 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
+  TRUYN_MANAGED_AUTH_DEVICE_CONTRACT_VERSION,
+  TRUYN_MANAGED_CLIENT_PLATFORMS,
   TruynClient,
   TruynError,
+  TruynManagedAuthContractError,
   agentDescriptorSigningPayload,
   negotiateAgentDescriptor,
   normalizeError,
   parseAgentDescriptor,
+  parseTruynManagedDeviceRegistrationRequest,
+  parseTruynManagedSessionRevocationRequest,
   verifyAgentDescriptorSignature
 } from '../src/index.ts';
 import type { AgentDescriptor } from '../src/index.ts';
@@ -153,7 +158,6 @@ test('fetchAgentDescriptor composes HTTP retrieval, relay identity resolution, P
   assert.equal(result.descriptor.identity, descriptor.identity);
   assert.equal(result.signer.keyBinding, 'identity');
   assert.equal(result.selection.protocol, 'TRUYN/1');
-  // PR2 semantics prefer descriptor interface order, not client interface order.
   assert.equal(result.selection.interface.type, 'https');
   assert.equal(calls.length, 2);
 });
@@ -171,5 +175,94 @@ test('relay and transport failures surface as shared TruynError taxonomy', async
   await assert.rejects(
     () => transport.getIdentity('truyn:node:any'),
     (error: unknown) => error instanceof TruynError && error.code === 'transport_error' && error.retryable === true
+  );
+});
+
+test('managed auth/device contract is versioned and limited to four released client platforms', () => {
+  assert.equal(TRUYN_MANAGED_AUTH_DEVICE_CONTRACT_VERSION, 'truyn.managed-auth-device/v1');
+  assert.deepEqual(TRUYN_MANAGED_CLIENT_PLATFORMS, ['windows', 'macos', 'linux', 'android']);
+});
+
+test('managed device registration accepts only bounded client-writable fields', () => {
+  assert.deepEqual(
+    parseTruynManagedDeviceRegistrationRequest({
+      contractVersion: TRUYN_MANAGED_AUTH_DEVICE_CONTRACT_VERSION,
+      clientDeviceId: 'desktop-installation-1',
+      platform: 'windows',
+      clientVersion: '1.0.0'
+    }),
+    {
+      contractVersion: TRUYN_MANAGED_AUTH_DEVICE_CONTRACT_VERSION,
+      clientDeviceId: 'desktop-installation-1',
+      platform: 'windows',
+      clientVersion: '1.0.0'
+    }
+  );
+});
+
+test('managed device registration rejects client-supplied authority before transport', () => {
+  for (const field of ['accountId', 'tenantId', 'deviceId', 'sessionId']) {
+    assert.throws(
+      () => parseTruynManagedDeviceRegistrationRequest({
+        contractVersion: TRUYN_MANAGED_AUTH_DEVICE_CONTRACT_VERSION,
+        clientDeviceId: 'android-installation-1',
+        platform: 'android',
+        [field]: 'attacker-selected-value'
+      }),
+      (error: unknown) => error instanceof TruynManagedAuthContractError
+        && error.code === 'managed_auth_contract_violation'
+        && error.reason === 'server_authoritative_field'
+    );
+  }
+});
+
+test('managed auth/device contract fails closed on incompatible or unknown input', () => {
+  assert.throws(
+    () => parseTruynManagedDeviceRegistrationRequest({
+      contractVersion: 'truyn.managed-auth-device/v2',
+      clientDeviceId: 'mac-installation-1',
+      platform: 'macos'
+    }),
+    (error: unknown) => error instanceof TruynManagedAuthContractError && error.reason === 'version_mismatch'
+  );
+
+  assert.throws(
+    () => parseTruynManagedDeviceRegistrationRequest({
+      contractVersion: TRUYN_MANAGED_AUTH_DEVICE_CONTRACT_VERSION,
+      clientDeviceId: 'other-installation-1',
+      platform: 'ios'
+    }),
+    (error: unknown) => error instanceof TruynManagedAuthContractError && error.reason === 'unsupported_platform'
+  );
+
+  assert.throws(
+    () => parseTruynManagedDeviceRegistrationRequest({
+      contractVersion: TRUYN_MANAGED_AUTH_DEVICE_CONTRACT_VERSION,
+      clientDeviceId: 'desktop-installation-2',
+      platform: 'windows',
+      arbitraryPrivilege: true
+    }),
+    (error: unknown) => error instanceof TruynManagedAuthContractError && error.reason === 'invalid_request'
+  );
+});
+
+test('managed session revocation remains self-scoped', () => {
+  for (const scope of ['current_session', 'current_device', 'all_sessions']) {
+    assert.deepEqual(
+      parseTruynManagedSessionRevocationRequest({
+        contractVersion: TRUYN_MANAGED_AUTH_DEVICE_CONTRACT_VERSION,
+        scope
+      }),
+      { contractVersion: TRUYN_MANAGED_AUTH_DEVICE_CONTRACT_VERSION, scope }
+    );
+  }
+
+  assert.throws(
+    () => parseTruynManagedSessionRevocationRequest({
+      contractVersion: TRUYN_MANAGED_AUTH_DEVICE_CONTRACT_VERSION,
+      scope: 'all_sessions',
+      accountId: 'another-account'
+    }),
+    (error: unknown) => error instanceof TruynManagedAuthContractError && error.reason === 'server_authoritative_field'
   );
 });
