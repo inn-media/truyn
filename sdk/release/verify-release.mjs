@@ -10,7 +10,7 @@ const manifest = JSON.parse(await readFile(resolve(root, 'manifest.json'), 'utf8
 if (manifest.schema !== 'truyn.sdk-release/v1') throw new Error('unexpected release manifest schema');
 if (!/^[0-9a-f]{40}$/i.test(manifest.sourceSha)) throw new Error('release source SHA must be exact');
 if (manifest.release !== '0.1.0-alpha.1' || manifest.typescript !== '0.1.0-alpha.3' || manifest.python !== '0.1.0a1') {
-  throw new Error('release version drift');
+  throw new Error(`release version drift: release=${JSON.stringify(manifest.release)} typescript=${JSON.stringify(manifest.typescript)} python=${JSON.stringify(manifest.python)}`);
 }
 
 const required = {
