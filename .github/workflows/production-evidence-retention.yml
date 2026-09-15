@@ -1,0 +1,453 @@
+name: Production Evidence Retention
+
+on:
+  pull_request:
+    paths:
+      - 'infra/production-observability/evidence-retention.bicep'
+      - 'operations/production-evidence-retention.json'
+      - '.github/workflows/production-evidence-retention.yml'
+      - 'tests/production-evidence-retention.test.js'
+      - 'tests/public-repository.test.js'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/production-observability/evidence-retention.bicep'
+      - 'operations/production-evidence-retention.json'
+      - '.github/workflows/production-evidence-retention.yml'
+      - 'tests/production-evidence-retention.test.js'
+      - 'tests/public-repository.test.js'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'germanywestcentral:francecentral northeurope:swedencentral' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+  EVIDENCE_RETENTION_DAYS: '365'
+  MIN_EVIDENCE_RETENTION_DAYS: '365'
+  EVIDENCE_CONTAINER: acceptance-evidence
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Compile evidence retention Bicep
+        shell: bash
+        run: |
+          set -euo pipefail
+          az bicep install >/dev/null
+          az bicep build --file infra/production-observability/evidence-retention.bicep --stdout >/dev/null
+
+      - name: Validate Sprint 18 evidence retention contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EVIDENCE_RETENTION_DAYS" -ge "$MIN_EVIDENCE_RETENTION_DAYS" ]]
+          jq -e '
+            .component == "production-evidence-retention" and
+            .deploymentId == "dc4518de-d1bf-4fce-b351-e43d7c152999" and
+            (.scope.evidenceClasses | sort) == (["drill", "pager", "slo"] | sort) and
+            (.scope.requiredPrefixes | sort) == (["drill/", "pager/", "slo/"] | sort) and
+            .scope.operationalTelemetrySeparated == true and
+            .retention.minimumRequiredDays >= 365 and
+            .retention.configuredDays >= .retention.minimumRequiredDays and
+            .retention.significantlyLongerThanOperationalTelemetry == true and
+            .retention.timeBasedRetentionRequired == true and
+            .retention.policyStateRequired == "Locked" and
+            .retention.shorteningOrRemovalAllowed == false and
+            .storage.backendClass == "azure-blob" and
+            .storage.immutableStorageWithVersioning == true and
+            .storage.blobVersioning == true and
+            .storage.allowProtectedAppendWrites == false and
+            .storage.allowSharedKeyAccess == false and
+            .storage.defaultToOAuthAuthentication == true and
+            .storage.allowBlobPublicAccess == false and
+            .storage.networkDefaultAction == "Deny" and
+            .acceptance.azurePolicyReadBackRequired == true and
+            .acceptance.lockedStateReadBackRequired == true and
+            .acceptance.retentionReadBackRequired == true and
+            .acceptance.immutableDeleteDenialRequired == true and
+            .githubArtifact.durableAuthority == false
+          ' operations/production-evidence-retention.json >/dev/null
+
+  apply-and-prove:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Reconfirm exact main source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::main moved after this Sprint 18 run was scheduled; refusing stale evidence-store mutation.'
+            exit 1
+          }
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Resolve accepted production operations region
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          az bicep install >/dev/null
+          [[ "$EVIDENCE_RETENTION_DAYS" -ge "$MIN_EVIDENCE_RETENTION_DAYS" ]] || {
+            echo '::error::Acceptance evidence retention must remain at least 365 days.'
+            exit 1
+          }
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+          selected_region=''
+          selected_prefix=''
+          attempt=0
+          for pair in $REGION_PAIRS; do
+            attempt=$((attempt + 1))
+            [[ "$attempt" -le 2 ]] || break
+            [[ "$pair" == *:* ]] || { echo '::error::Invalid production region pair.'; exit 1; }
+            primary="${pair%%:*}"
+            secondary="${pair#*:}"
+            pair_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}:${primary}:${secondary}" | sha256sum | cut -c1-10)"
+            prefix="truyn${pair_suffix}"
+            environment="${prefix}-aca-env"
+            cosmos="${prefix}cosmos"
+            for value in "$prefix" "$environment" "$cosmos"; do printf '::add-mask::%s\n' "$value"; done
+
+            if ! environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+            if ! cosmos_json="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$cosmos" --only-show-errors -o json 2>/dev/null)"; then
+              continue
+            fi
+            if ! jq -e '
+              .properties.vnetConfiguration.internal == true and
+              (.properties.publicNetworkAccess | ascii_downcase) == "disabled" and
+              .properties.provisioningState == "Succeeded"
+            ' <<<"$environment_json" >/dev/null; then
+              continue
+            fi
+            if ! jq -e --arg primary "$primary" --arg secondary "$secondary" '
+              .provisioningState == "Succeeded" and
+              ([.locations[].locationName | gsub(" "; "") | ascii_downcase] | sort) == ([$primary, $secondary] | sort)
+            ' <<<"$cosmos_json" >/dev/null; then
+              continue
+            fi
+
+            selected_region="$primary"
+            selected_prefix="$prefix"
+            break
+          done
+
+          [[ -n "$selected_region" && -n "$selected_prefix" ]] || {
+            echo '::error::No accepted production operations region is available.'
+            exit 1
+          }
+
+          evidence_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:${selected_prefix}:acceptance-evidence" | sha256sum | cut -c1-10)"
+          evidence_account="truynevid${evidence_suffix}"
+          printf '::add-mask::%s\n' "$selected_prefix"
+          printf '::add-mask::%s\n' "$evidence_account"
+          printf 'EVIDENCE_REGION=%s\n' "$selected_region" >> "$GITHUB_ENV"
+          printf 'EVIDENCE_STORAGE_ACCOUNT=%s\n' "$evidence_account" >> "$GITHUB_ENV"
+
+      - name: Provision versioned acceptance evidence store
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployment_name="evidence-retention-${GITHUB_SHA:0:8}"
+          printf '::add-mask::%s\n' "$deployment_name"
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$deployment_name" \
+            --template-file infra/production-observability/evidence-retention.bicep \
+            --parameters \
+              storageAccountName="$EVIDENCE_STORAGE_ACCOUNT" \
+              evidenceContainerName="$EVIDENCE_CONTAINER" \
+              location="$EVIDENCE_REGION" \
+              deploymentId="$DEPLOYMENT_ID" \
+              sourceSha="$GITHUB_SHA" \
+              evidenceRetentionDays="$EVIDENCE_RETENTION_DAYS" \
+            --only-show-errors \
+            -o none
+
+          account_json="$(az storage account show --resource-group "$RESOURCE_GROUP" --name "$EVIDENCE_STORAGE_ACCOUNT" --only-show-errors -o json)"
+          jq -e '
+            .provisioningState == "Succeeded" and
+            .allowBlobPublicAccess == false and
+            .allowSharedKeyAccess == false and
+            .defaultToOAuthAuthentication == true and
+            .minimumTlsVersion == "TLS1_2" and
+            .enableHttpsTrafficOnly == true and
+            .networkRuleSet.defaultAction == "Deny" and
+            (.networkRuleSet.bypass | contains("AzureServices"))
+          ' <<<"$account_json" >/dev/null
+          account_id="$(jq -r '.id' <<<"$account_json")"
+          [[ -n "$account_id" ]]
+          printf '::add-mask::%s\n' "$account_id"
+          printf 'EVIDENCE_STORAGE_ACCOUNT_ID=%s\n' "$account_id" >> "$GITHUB_ENV"
+          printf 'EVIDENCE_CONTAINER_ID=%s/blobServices/default/containers/%s\n' "$account_id" "$EVIDENCE_CONTAINER" >> "$GITHUB_ENV"
+
+          blob_json="$(az storage account blob-service-properties show --resource-group "$RESOURCE_GROUP" --account-name "$EVIDENCE_STORAGE_ACCOUNT" --only-show-errors -o json)"
+          jq -e '.isVersioningEnabled == true' <<<"$blob_json" >/dev/null
+
+          container_id="${account_id}/blobServices/default/containers/${EVIDENCE_CONTAINER}"
+          container_json="$(az resource show --ids "$container_id" --api-version 2023-05-01 --only-show-errors -o json)"
+          jq -e '
+            .properties.publicAccess == "None" and
+            .properties.immutableStorageWithVersioning.enabled == true and
+            .properties.metadata.purpose == "production-acceptance-evidence"
+          ' <<<"$container_json" >/dev/null
+
+      - name: Create and irreversibly lock 365-day WORM policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          policy_json="$(az storage container immutability-policy show \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+            --container-name "$EVIDENCE_CONTAINER" \
+            --only-show-errors -o json 2>/dev/null || true)"
+
+          if [[ -z "$policy_json" ]]; then
+            az storage container immutability-policy create \
+              --resource-group "$RESOURCE_GROUP" \
+              --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+              --container-name "$EVIDENCE_CONTAINER" \
+              --period "$EVIDENCE_RETENTION_DAYS" \
+              --allow-protected-append-writes false \
+              --only-show-errors -o none
+            policy_json="$(az storage container immutability-policy show \
+              --resource-group "$RESOURCE_GROUP" \
+              --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+              --container-name "$EVIDENCE_CONTAINER" \
+              --only-show-errors -o json)"
+          fi
+
+          period="$(jq -r '.immutabilityPeriodSinceCreationInDays // .properties.immutabilityPeriodSinceCreationInDays // 0' <<<"$policy_json")"
+          state="$(jq -r '.state // .properties.state // empty' <<<"$policy_json")"
+          [[ "$period" -ge "$MIN_EVIDENCE_RETENTION_DAYS" ]] || {
+            echo '::error::Existing immutability period is below the Sprint 18 one-year minimum.'
+            exit 1
+          }
+
+          if [[ "$state" == 'Unlocked' ]]; then
+            etag="$(jq -r '.etag // empty' <<<"$policy_json")"
+            [[ -n "$etag" ]] || { echo '::error::Immutability policy ETag missing.'; exit 1; }
+            az storage container immutability-policy lock \
+              --resource-group "$RESOURCE_GROUP" \
+              --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+              --container-name "$EVIDENCE_CONTAINER" \
+              --if-match "$etag" \
+              --only-show-errors -o none
+          elif [[ "$state" != 'Locked' ]]; then
+            echo '::error::Unexpected immutability policy state.'
+            exit 1
+          fi
+
+          locked_json="$(az storage container immutability-policy show \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+            --container-name "$EVIDENCE_CONTAINER" \
+            --only-show-errors -o json)"
+          jq -e --argjson minimum "$MIN_EVIDENCE_RETENTION_DAYS" '
+            ((.state // .properties.state) == "Locked") and
+            ((.immutabilityPeriodSinceCreationInDays // .properties.immutabilityPeriodSinceCreationInDays) >= $minimum) and
+            ((.allowProtectedAppendWrites // .properties.allowProtectedAppendWrites // false) == false)
+          ' <<<"$locked_json" >/dev/null
+          printf 'TRUYN_EVIDENCE_POLICY_LOCKED retention_days=%s state=Locked versioning=1 immutable_storage=1\n' "$period"
+
+      - name: Prove immutable evidence writes and exact-version delete denial
+        shell: bash
+        run: |
+          set -euo pipefail
+          assignee="$(az account show --query user.name -o tsv --only-show-errors)"
+          [[ -n "$assignee" ]]
+          role_error="$(mktemp)"
+          if ! az role assignment create \
+            --assignee "$assignee" \
+            --role 'Storage Blob Data Contributor' \
+            --scope "$EVIDENCE_STORAGE_ACCOUNT_ID" \
+            --only-show-errors -o none 2>"$role_error"; then
+            grep -q 'RoleAssignmentExists' "$role_error" || {
+              echo '::error::Unable to establish Entra data-plane writer role for retention acceptance.'
+              exit 1
+            }
+          fi
+          rm -f "$role_error"
+
+          runner_ip="$(curl -4 -fsSL https://api.ipify.org)"
+          [[ "$runner_ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo '::error::Unable to resolve GitHub runner IPv4 egress address.'; exit 1; }
+          printf '::add-mask::%s\n' "$runner_ip"
+          cleanup() {
+            az storage account network-rule remove \
+              --resource-group "$RESOURCE_GROUP" \
+              --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+              --ip-address "$runner_ip" \
+              --only-show-errors -o none >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          az storage account network-rule add \
+            --resource-group "$RESOURCE_GROUP" \
+            --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+            --ip-address "$runner_ip" \
+            --only-show-errors -o none
+
+          mkdir -p evidence-retention-canaries
+          for class in drill pager slo; do
+            jq -n \
+              --arg schema 'truyn.production-acceptance-evidence-retention-canary/v1' \
+              --arg class "$class" \
+              --arg deploymentId "$DEPLOYMENT_ID" \
+              --arg sourceSha "$GITHUB_SHA" \
+              --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              '{schema:$schema,evidenceClass:$class,deploymentId:$deploymentId,sourceSha:$sourceSha,generatedAt:$generatedAt,sanitized:true,retentionCanary:true}' \
+              > "evidence-retention-canaries/${class}.json"
+          done
+
+          drill_blob="drill/retention-canary/${GITHUB_SHA}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          pager_blob="pager/retention-canary/${GITHUB_SHA}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          slo_blob="slo/retention-canary/${GITHUB_SHA}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+
+          ready=false
+          for attempt in $(seq 1 30); do
+            if az storage blob upload \
+              --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+              --container-name "$EVIDENCE_CONTAINER" \
+              --name "$drill_blob" \
+              --file evidence-retention-canaries/drill.json \
+              --auth-mode login \
+              --overwrite false \
+              --only-show-errors -o none 2>/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 5
+          done
+          [[ "$ready" == true ]] || { echo '::error::Entra evidence writer did not become ready.'; exit 1; }
+
+          az storage blob upload --account-name "$EVIDENCE_STORAGE_ACCOUNT" --container-name "$EVIDENCE_CONTAINER" --name "$pager_blob" --file evidence-retention-canaries/pager.json --auth-mode login --overwrite false --only-show-errors -o none
+          az storage blob upload --account-name "$EVIDENCE_STORAGE_ACCOUNT" --container-name "$EVIDENCE_CONTAINER" --name "$slo_blob" --file evidence-retention-canaries/slo.json --auth-mode login --overwrite false --only-show-errors -o none
+
+          for blob in "$drill_blob" "$pager_blob" "$slo_blob"; do
+            az storage blob show --account-name "$EVIDENCE_STORAGE_ACCOUNT" --container-name "$EVIDENCE_CONTAINER" --name "$blob" --auth-mode login --only-show-errors -o none
+          done
+
+          drill_version_id="$(az storage blob list \
+            --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+            --container-name "$EVIDENCE_CONTAINER" \
+            --prefix "$drill_blob" \
+            --include v \
+            --auth-mode login \
+            --query "[?name=='${drill_blob}'].versionId | [0]" \
+            --only-show-errors -o tsv)"
+          [[ -n "$drill_version_id" && "$drill_version_id" != 'null' ]] || {
+            echo '::error::Versioned WORM proof requires the exact protected drill blob version ID.'
+            exit 1
+          }
+          printf '::add-mask::%s\n' "$drill_version_id"
+
+          delete_error="$(mktemp)"
+          if az storage blob delete \
+            --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+            --container-name "$EVIDENCE_CONTAINER" \
+            --name "$drill_blob" \
+            --version-id "$drill_version_id" \
+            --auth-mode login \
+            --only-show-errors -o none 2>"$delete_error"; then
+            echo '::error::Immutable retention breach: protected evidence blob version was deletable.'
+            exit 1
+          fi
+          grep -Eqi 'BlobImmutableDueToPolicy|immutable due to (a )?policy' "$delete_error" || {
+            echo '::error::Exact-version delete failed, but Azure did not prove immutability-policy enforcement.'
+            exit 1
+          }
+          rm -f "$delete_error"
+
+          az storage blob show \
+            --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+            --container-name "$EVIDENCE_CONTAINER" \
+            --name "$drill_blob" \
+            --version-id "$drill_version_id" \
+            --auth-mode login \
+            --only-show-errors -o none
+
+          jq -n \
+            --arg deploymentId "$DEPLOYMENT_ID" \
+            --arg sourceSha "$GITHUB_SHA" \
+            --argjson retentionDays "$EVIDENCE_RETENTION_DAYS" \
+            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              schema:"truyn.production-evidence-retention-evidence/v1",
+              deploymentId:$deploymentId,
+              component:"production-evidence-retention",
+              sourceSha:$sourceSha,
+              exactMain:true,
+              evidenceClasses:["drill","pager","slo"],
+              operationalTelemetrySeparated:true,
+              backendClass:"azure-blob",
+              retentionDays:$retentionDays,
+              minimumRequiredDays:365,
+              policyState:"Locked",
+              policyLockedObserved:true,
+              shorteningOrRemovalAllowed:false,
+              immutableStorageWithVersioningObserved:true,
+              blobVersioningObserved:true,
+              allowProtectedAppendWrites:false,
+              sharedKeyDisabledObserved:true,
+              anonymousBlobAccessDisabledObserved:true,
+              networkDefaultDenyObserved:true,
+              entraDataPlaneWriteObserved:true,
+              drillEvidenceWriteObserved:true,
+              pagerEvidenceWriteObserved:true,
+              sloEvidenceWriteObserved:true,
+              immutableExactVersionDeleteDenialObserved:true,
+              immutableDeleteDenialObserved:true,
+              protectedVersionReadBackObserved:true,
+              sanitized:true,
+              generatedAt:$generatedAt,
+              status:"PASS"
+            }' > production-evidence-retention-evidence.json
+
+          evidence_blob="slo/sprint-18/${GITHUB_SHA}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-evidence-retention.json"
+          az storage blob upload \
+            --account-name "$EVIDENCE_STORAGE_ACCOUNT" \
+            --container-name "$EVIDENCE_CONTAINER" \
+            --name "$evidence_blob" \
+            --file production-evidence-retention-evidence.json \
+            --auth-mode login \
+            --overwrite false \
+            --only-show-errors -o none
+          az storage blob show --account-name "$EVIDENCE_STORAGE_ACCOUNT" --container-name "$EVIDENCE_CONTAINER" --name "$evidence_blob" --auth-mode login --only-show-errors -o none
+
+          echo 'TRUYN_EVIDENCE_RETENTION_PASS retention_days=365 state=Locked drill=1 pager=1 slo=1 exact_version_delete_denied=1 immutable_delete_denied=1 entra_write=1'
+
+      - name: Upload sanitized Sprint 18 convenience evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-evidence-retention-evidence
+          path: production-evidence-retention-evidence.json
+          if-no-files-found: error
+          retention-days: 30
