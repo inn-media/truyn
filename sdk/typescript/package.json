@@ -1,6 +1,6 @@
 {
   "name": "@truyn/sdk",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "description": "First-party JavaScript/TypeScript SDK for the TRUYN Intelligence Network",
   "license": "Apache-2.0",
   "type": "module",
