@@ -103,6 +103,12 @@ export function createHttpAdapterServer({ node, maxBodyBytes = 256 * 1024, descr
         if (!body.capability) return sendJson(res, 400, { ok: false, error: 'capability_required' });
         return sendJson(res, 200, await node.need(body.capability, body.input, body.policy || {}));
       }
+      const needStatusRoute = url.pathname.match(/^\/v1\/needs\/([^/]+)$/);
+      if (req.method === 'GET' && needStatusRoute) {
+        await ensureRegistered();
+        const requestId = decodeURIComponent(needStatusRoute[1]);
+        return sendJson(res, 200, await node.requestStatus(requestId));
+      }
       if (req.method === 'GET' && url.pathname === '/v1/events') {
         await ensureRegistered();
         return sendJson(res, 200, await node.poll());
