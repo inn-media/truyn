@@ -1,0 +1,31 @@
+{
+  "schema": "truyn.production-public-http-probe/v1",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "jobName": "truyn-relay-public",
+  "target": "https://relay.truyn.org/health",
+  "interval": "1m",
+  "timeout": "20s",
+  "transport": "https",
+  "pathClass": "public-edge",
+  "expected": {
+    "httpStatus": 200,
+    "requiredResponseHeader": "CF-Ray"
+  },
+  "metrics": [
+    "probe_success",
+    "probe_http_status_code",
+    "probe_edge_marker"
+  ],
+  "backend": {
+    "kind": "prometheus-compatible",
+    "privateEnvironmentOnly": true,
+    "remoteWrite": true
+  },
+  "liveAcceptance": {
+    "minimumFreshSamples": 2,
+    "requiredMarker": "TRUYN_PUBLIC_HTTP_PROBE_PASS job=truyn-relay-public interval=1m http=200 cf_ray=1 samples=2plus"
+  },
+  "status": "deployment_pending_live_probe_proof",
+  "acceptedSourceSha": null,
+  "invariant": "The canonical public relay edge must be exercised through https://relay.truyn.org/health at a one-minute cadence. Success requires HTTP 200 and a Cloudflare CF-Ray response marker; internal relay loopback or direct-origin probes do not satisfy this job."
+}
