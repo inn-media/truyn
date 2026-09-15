@@ -78,6 +78,35 @@ with zipfile.ZipFile(zip_path, "w") as zf:
     zf.writestr(member_name, payload)
 `;
 
+const credentialGenerator = String.raw`
+import io
+import sys
+import tarfile
+import zipfile
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+kind = sys.argv[2]
+tar_path = root / f"{kind}.tgz"
+zip_path = root / f"{kind}.nupkg"
+member_name = "package/settings.txt"
+
+if kind == "token":
+    payload = b"authorization=ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n"
+elif kind == "credential":
+    payload = b"client_secret=TruynFixtureCredentialValue1234567890\n"
+else:
+    raise SystemExit(f"unknown credential fixture: {kind}")
+
+with tarfile.open(tar_path, "w:gz") as tf:
+    member = tarfile.TarInfo(member_name)
+    member.size = len(payload)
+    tf.addfile(member, io.BytesIO(payload))
+
+with zipfile.ZipFile(zip_path, "w") as zf:
+    zf.writestr(member_name, payload)
+`;
+
 function generateFixtures(root, attack) {
   execFileSync(python, ['-c', generator, root, attack], { stdio: 'pipe' });
 }
@@ -124,3 +153,24 @@ test('SDK release safe extractor denies private-key material in tar and zip memb
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+for (const kind of ['token', 'credential']) {
+  test(`SDK release safe extractor denies ${kind} material in tar and zip members`, () => {
+    const root = mkdtempSync(join(tmpdir(), `truyn-sdk-${kind}-`));
+    try {
+      execFileSync(python, ['-c', credentialGenerator, root, kind], { stdio: 'pipe' });
+
+      const tarDestination = join(root, `extract-${kind}-tar`);
+      const zipDestination = join(root, `extract-${kind}-zip`);
+      const tarResult = assertDenied(join(root, `${kind}.tgz`), tarDestination);
+      const zipResult = assertDenied(join(root, `${kind}.nupkg`), zipDestination);
+
+      assert.match(tarResult.stderr, /credential material/i);
+      assert.match(zipResult.stderr, /credential material/i);
+      assert.equal(existsSync(join(tarDestination, 'package', 'settings.txt')), false);
+      assert.equal(existsSync(join(zipDestination, 'package', 'settings.txt')), false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
