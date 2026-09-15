@@ -1,0 +1,52 @@
+{
+  "schema": "truyn.d200.bug-hunt.v1",
+  "lanes": [
+    {"id":"contract-repository","domain":"launcher-repository","commands":[
+      {"label":"D-200 contract","argv":["node","scripts/check-d200-contract.mjs"]},
+      {"label":"repository hygiene","argv":["node","scripts/check-repository-hygiene.mjs"]},
+      {"label":"open-private boundary","argv":["node","scripts/check-open-private-boundary.mjs"]},
+      {"label":"contract regressions","argv":["node","--test","tests/d200-anti-weakening.test.js","tests/d200-canonical-regressions.test.js"]}
+    ]},
+    {"id":"runtime-bundle-staging","domain":"bundle-staging","commands":[
+      {"label":"staging syntax","argv":["bash","-n","scripts/d200-stage-runtime-bundle.sh"]},
+      {"label":"staging regressions","argv":["node","--test","tests/d200-staging-robustness.test.js"]}
+    ]},
+    {"id":"cloud-oidc-contract","domain":"azure-oidc","commands":[
+      {"label":"Azure private/OIDC contract","argv":["node","scripts/check-d200-cloud-contract.mjs"]}
+    ]},
+    {"id":"topology-placement","domain":"topology-placement","commands":[
+      {"label":"provision syntax","argv":["bash","-n","benchmarks/scale/class-d-azure-1000-provision.sh"]},
+      {"label":"canonical entrypoints","argv":["node","--test","tests/class-d-canonical-pin-regression.test.js","tests/class-d-accepted-entrypoint-regression.test.js"]}
+    ]},
+    {"id":"readiness-lease","domain":"readiness-lease","commands":[
+      {"label":"peer propagation readiness","argv":["node","--test","tests/d200-peer-propagation-readiness-barrier.test.js"]}
+    ]},
+    {"id":"routing-repair","domain":"routing-repair","commands":[
+      {"label":"route repair acceptance","argv":["node","--test","tests/d200-route-repair-acceptance-invariants.test.js"]}
+    ]},
+    {"id":"recovery-fault","domain":"recovery-fault","commands":[
+      {"label":"randomized adversarial recovery","argv":["node","--test","tests/randomized-adversarial.test.js"]}
+    ]},
+    {"id":"durability","domain":"durability","commands":[
+      {"label":"DHT durability/replication","argv":["node","--test","tests/dht-replication-keyspace.test.js"]},
+      {"label":"terminal durability predicates","argv":["node","--test","tests/class-d-terminal-verifier.test.js"]}
+    ]},
+    {"id":"cleanup","domain":"cleanup","commands":[
+      {"label":"campaign syntax","argv":["bash","-n","benchmarks/scale/class-d-azure-1000-campaign.sh"]},
+      {"label":"terminal cleanup predicates","argv":["node","--test","tests/class-d-terminal-verifier.test.js"]}
+    ]},
+    {"id":"safety-security","domain":"safety-security","commands":[
+      {"label":"security suite","argv":["npm","run","test:security"],"timeoutMs":600000}
+    ]},
+    {"id":"evidence-evaluator","domain":"evidence-evaluator","commands":[
+      {"label":"tested source DCO evidence","argv":["node","--test","tests/d200-tested-source-dco.test.js"]},
+      {"label":"healed origin evidence","argv":["node","--test","tests/class-d200-healed-origin-summary.test.js"]},
+      {"label":"terminal evaluator syntax","argv":["node","--check","benchmarks/scale/verify-class-d-terminal.js"]}
+    ]},
+    {"id":"campaign-runtime-syntax","domain":"campaign-runtime","commands":[
+      {"label":"network runtime syntax","argv":["node","--check","network/runtime.js"]},
+      {"label":"campaign shell syntax","argv":["bash","-n","benchmarks/scale/class-d-azure-1000-campaign.sh"]},
+      {"label":"provision shell syntax","argv":["bash","-n","benchmarks/scale/class-d-azure-1000-provision.sh"]}
+    ]}
+  ]
+}

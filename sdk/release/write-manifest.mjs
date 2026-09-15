@@ -6,6 +6,10 @@ import { relative, resolve } from 'node:path';
 const root = resolve(process.argv[2] ?? 'sdk/release/dist');
 const sourceSha = process.env.TRUYN_RELEASE_SOURCE_SHA || execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const version = JSON.parse(await readFile(new URL('./version.json', import.meta.url), 'utf8'));
+const typescriptPackage = JSON.parse(await readFile(new URL('../typescript/package.json', import.meta.url), 'utf8'));
+if (typeof typescriptPackage.version !== 'string' || !typescriptPackage.version) {
+  throw new Error('TypeScript package version is missing');
+}
 
 async function walk(dir) {
   const out = [];
@@ -33,6 +37,10 @@ const manifest = {
   sourceSha,
   createdAt: new Date().toISOString(),
   ...version,
+  // npm's own package metadata is the authoritative coordinate for the npm artifact.
+  // This keeps the manifest bound to the bytes actually packed while version.json
+  // continues to own the shared/multi-language release-family coordinates.
+  typescript: typescriptPackage.version,
   artifacts
 };
 await writeFile(resolve(root, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
