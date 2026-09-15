@@ -1,0 +1,201 @@
+name: D-200 Live Preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact D-200 candidate SHA to qualify
+        required: true
+        type: string
+      pr_number:
+        description: Active D-200 pull request number
+        required: true
+        default: '617'
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+  id-token: write
+
+env:
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+  AZURE_RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  TRUYN_D200_LOCATION: ${{ vars.TRUYN_D200_LOCATION || 'northeurope' }}
+  TRUYN_D200_VM_PREFIX: ${{ vars.TRUYN_D200_VM_PREFIX || 'truyn-d1000' }}
+  REQUIRED_HOSTS: '20'
+
+jobs:
+  live-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Enforce main-ref launcher and exact candidate identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]
+          [[ "$GITHUB_REF" == 'refs/heads/main' ]]
+          [[ "$GITHUB_RUN_ATTEMPT" == '1' ]]
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]
+          pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          jq -e --arg sha "$SOURCE_SHA" --arg repo "$GITHUB_REPOSITORY" '
+            .state=="open" and
+            .head.sha==$sha and
+            .head.repo.full_name==$repo and
+            (.head.ref|startswith("automation/d200-parallel-closure-")) and
+            .base.ref=="main"
+          ' <<<"$pr" >/dev/null
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install exact candidate dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Verify exact candidate and D-200 preflight contract
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
+          bash scripts/class-d-200-preflight-qualification.sh
+
+      - name: Authenticate to Azure with existing main-ref OIDC federation
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Select fail-closed 20-host placement
+        id: placement
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          printf '::add-mask::%s\n' "$AZURE_RESOURCE_GROUP"
+          printf '::add-mask::%s\n' "$TRUYN_D200_VM_PREFIX"
+          mapfile -t running < <(
+            az vm list -g "$AZURE_RESOURCE_GROUP" -d \
+              --query "[?starts_with(name, '${TRUYN_D200_VM_PREFIX}') && powerState=='VM running'].name" \
+              -o tsv --only-show-errors | sort -V
+          )
+          [[ "${#running[@]}" -ge "$REQUIRED_HOSTS" ]]
+          selected=("${running[@]:0:${REQUIRED_HOSTS}}")
+          [[ "${#selected[@]}" -eq "$REQUIRED_HOSTS" ]]
+          for vm in "${selected[@]}"; do printf '::add-mask::%s\n' "$vm"; done
+          printf '%s\n' "${selected[@]}" > /tmp/d200-selected-vms.txt
+          printf 'selected_count=%s\n' "${#selected[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Build immutable runtime bundle
+        id: bundle
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p .d200-preflight
+          tar \
+            --exclude='./.git' \
+            --exclude='./.d200-preflight' \
+            --exclude='./node_modules' \
+            --exclude='./benchmarks/results' \
+            -czf .d200-preflight/truyn-runtime.tgz .
+          runtime_sha="$(sha256sum .d200-preflight/truyn-runtime.tgz | awk '{print $1}')"
+          [[ "$runtime_sha" =~ ^[0-9a-f]{64}$ ]]
+          printf 'runtime_sha=%s\n' "$runtime_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Stage runtime through private Entra data plane
+        shell: bash
+        env:
+          RUNTIME_BUNDLE: .d200-preflight/truyn-runtime.tgz
+          RUNTIME_SHA: ${{ steps.bundle.outputs.runtime_sha }}
+        run: |
+          set -Eeuo pipefail
+          bash scripts/d200-stage-runtime-bundle.sh
+
+      - name: Verify staged artifact identity and privacy
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -n "${TRUYN_D200_STAGING_ACCOUNT:-}" ]]
+          printf '::add-mask::%s\n' "$TRUYN_D200_STAGING_ACCOUNT"
+          account_json="$(az storage account show -g "$AZURE_RESOURCE_GROUP" -n "$TRUYN_D200_STAGING_ACCOUNT" -o json --only-show-errors)"
+          jq -e '(.allowBlobPublicAccess // false) == false and (.enableHttpsTrafficOnly // false) == true and (.minimumTlsVersion // "") == "TLS1_2"' <<<"$account_json" >/dev/null
+          az storage blob download \
+            --account-name "$TRUYN_D200_STAGING_ACCOUNT" \
+            --container-name runtime \
+            --name truyn-d200-runtime.tgz \
+            --file /tmp/truyn-d200-runtime-roundtrip.tgz \
+            --auth-mode login --only-show-errors -o none
+          roundtrip_sha="$(sha256sum /tmp/truyn-d200-runtime-roundtrip.tgz | awk '{print $1}')"
+          [[ "$roundtrip_sha" == "${{ steps.bundle.outputs.runtime_sha }}" ]]
+
+      - name: Run bounded command-channel topology probe
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          probe_vm="$(head -n 1 /tmp/d200-selected-vms.txt)"
+          [[ -n "$probe_vm" ]]
+          printf '::add-mask::%s\n' "$probe_vm"
+          probe_json="$(az vm run-command invoke \
+            -g "$AZURE_RESOURCE_GROUP" \
+            -n "$probe_vm" \
+            --command-id RunShellScript \
+            --scripts 'set -eu; test -r /etc/os-release; printf TRUYN_D200_PREFLIGHT_OK' \
+            -o json --only-show-errors)"
+          jq -e '(.value // []) | length > 0' <<<"$probe_json" >/dev/null
+          grep -q 'TRUYN_D200_PREFLIGHT_OK' <<<"$(jq -r '[.value[]?.message // ""] | join("\n")' <<<"$probe_json")"
+
+      - name: Write sanitized preflight evidence
+        if: success()
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p .d200-preflight/evidence
+          jq -n \
+            --arg sourceSha "$SOURCE_SHA" \
+            --arg runtimeSha "${{ steps.bundle.outputs.runtime_sha }}" \
+            --argjson selectedHosts "${{ steps.placement.outputs.selected_count }}" \
+            '{schema:"truyn.d200.live-preflight.v2",sourceSha:$sourceSha,runtimeSha256:$runtimeSha,selectedHosts:$selectedHosts,oidcAuthenticated:true,oidcSubjectClass:"main-ref",privateStaging:true,artifactDigestVerified:true,commandChannelVerified:true,acceptanceCampaignLaunched:false}' \
+            > .d200-preflight/evidence/live-preflight.json
+
+      - name: Cleanup staging fail-closed
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -n "${TRUYN_D200_STAGING_ACCOUNT:-}" ]]; then
+            printf '::add-mask::%s\n' "$TRUYN_D200_STAGING_ACCOUNT"
+            az storage account delete -g "$AZURE_RESOURCE_GROUP" -n "$TRUYN_D200_STAGING_ACCOUNT" --yes --only-show-errors
+            for attempt in $(seq 1 30); do
+              exists="$(az storage account check-name -n "$TRUYN_D200_STAGING_ACCOUNT" --query nameAvailable -o tsv --only-show-errors || true)"
+              [[ "$exists" == 'true' ]] && break
+              sleep 2
+            done
+            [[ "$(az storage account check-name -n "$TRUYN_D200_STAGING_ACCOUNT" --query nameAvailable -o tsv --only-show-errors)" == 'true' ]]
+          fi
+
+      - name: Upload sanitized preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d200-live-preflight-${{ github.run_id }}
+          path: .d200-preflight/evidence
+          if-no-files-found: warn
+          retention-days: 30
