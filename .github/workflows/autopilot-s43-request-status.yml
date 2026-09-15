@@ -1,0 +1,160 @@
+name: Autopilot S43 request status patch
+
+on:
+  push:
+    branches:
+      - autopilot/open-1-0-7e4c91-rest-s43-workflow
+
+permissions:
+  contents: write
+
+concurrency:
+  group: truyn-open-1-0-productization-7e4c91-s43-patch
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Verify immutable patch base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "86427c5cd73f9579a36a79ae55dcedcb4295052f"
+      - name: Apply bounded S43 patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected exactly one patch anchor, found {count}")
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "network/relay/server.js",
+              """      if (req.method === 'POST' && url.pathname === '/v1/results') {\n""",
+              """      const legacyRequestStatusRoute = url.pathname.match(/^\\/v1\\/requests\\/([^/]+)$/);\n      if (req.method === 'GET' && legacyRequestStatusRoute) {\n        const requesterNodeId = authenticatedNodeId(req);\n        if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });\n        const requestId = decodeURIComponent(legacyRequestStatusRoute[1]);\n        const request = requests.get(requestId);\n        if (!request || request.requester !== requesterNodeId) return json(res, 404, { ok: false, error: 'request_not_found' });\n        if (request.mode !== 'legacy') return json(res, 409, { ok: false, error: 'request_status_requires_legacy_need' });\n        touch(requesterNodeId);\n        return json(res, 200, {\n          ok: true,\n          requestId,\n          status: request.status,\n          provider: request.provider,\n          capability: request.capability,\n          createdAt: request.createdAt,\n          completedAt: request.completedAt || null,\n          cancelledAt: request.cancelledAt || null,\n          result: request.result || null\n        });\n      }\n\n      if (req.method === 'POST' && url.pathname === '/v1/results') {\n"""
+          )
+
+          replace_once(
+              "network/relay/server.js",
+              """        const trust = completeRequest(request, envelope.from);\n        queue(request.requester, { kind: 'RESULT', envelope, trust });\n        return json(res, 200, { ok: true, requestId, trust });\n""",
+              """        const trust = completeRequest(request, envelope.from);\n        const acceptedResult = { envelope, trust };\n        request.result = acceptedResult;\n        queue(request.requester, { kind: 'RESULT', ...acceptedResult });\n        return json(res, 200, { ok: true, requestId, trust });\n"""
+          )
+
+          replace_once(
+              "node/client.js",
+              """  async compactRequestStatus(requestId) {\n""",
+              """  async requestStatus(requestId) {\n    this.requireSession('reading request status');\n    if (!requestId || typeof requestId !== 'string') throw new Error('requestId is required');\n    return requestJson(`${this.relayUrl}/v1/requests/${encodeURIComponent(requestId)}`, {\n      headers: this.authHeaders()\n    });\n  }\n\n  async compactRequestStatus(requestId) {\n"""
+          )
+
+          replace_once(
+              "adapters/http/server.js",
+              """      if (req.method === 'GET' && url.pathname === '/v1/events') {\n""",
+              """      const needStatusRoute = url.pathname.match(/^\\/v1\\/needs\\/([^/]+)$/);\n      if (req.method === 'GET' && needStatusRoute) {\n        await ensureRegistered();\n        const requestId = decodeURIComponent(needStatusRoute[1]);\n        return sendJson(res, 200, await node.requestStatus(requestId));\n      }\n      if (req.method === 'GET' && url.pathname === '/v1/events') {\n"""
+          )
+
+          Path("tests/rest-request-status.test.js").write_text(r'''import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createRelay } from '../network/relay/server.js';
+import { TruynNode } from '../node/client.js';
+import { createHttpAdapterServer } from '../adapters/http/server.js';
+
+test('REST request status uses canonical requester-scoped legacy relay state and accepted RESULT', async (t) => {
+  const relay = createRelay({ localDevelopmentMode: true });
+  const relayUrl = await relay.listen({ port: 0 });
+  t.after(() => relay.close());
+
+  const requester = new TruynNode({ relayUrl });
+  const provider = new TruynNode({ relayUrl });
+  const foreign = new TruynNode({ relayUrl });
+  await requester.register({ name: 'requester' });
+  await provider.register({ name: 'provider' });
+  await foreign.register({ name: 'foreign' });
+  await provider.offer('status.echo');
+
+  const need = await requester.need('status.echo', { value: 'pending' });
+  const pending = await requester.requestStatus(need.needId);
+  assert.equal(pending.ok, true);
+  assert.equal(pending.requestId, need.needId);
+  assert.equal(pending.status, 'matched');
+  assert.equal(pending.provider, provider.identity.nodeId);
+  assert.equal(pending.capability, 'status.echo');
+  assert.equal(pending.result, null);
+
+  await assert.rejects(
+    () => foreign.requestStatus(need.needId),
+    (error) => error.status === 404 && error.body?.error === 'request_not_found'
+  );
+  await assert.rejects(
+    () => requester.requestStatus('missing-request-id'),
+    (error) => error.status === 404 && error.body?.error === 'request_not_found'
+  );
+
+  await provider.result(need.needId, { answer: 'accepted' }, { fixture: true });
+  const events = await requester.poll();
+  assert.equal(events.events.filter((event) => event.kind === 'RESULT').length, 1);
+
+  const completed = await requester.requestStatus(need.needId);
+  assert.equal(completed.status, 'completed');
+  assert.equal(completed.result.envelope.payload.requestId, need.needId);
+  assert.deepEqual(completed.result.envelope.payload.output, { answer: 'accepted' });
+  assert.deepEqual(completed.result.envelope.payload.metadata, { fixture: true });
+  assert.ok(completed.result.trust);
+
+  const bridge = createHttpAdapterServer({ node: requester });
+  const baseUrl = await bridge.listen({ port: 0 });
+  t.after(() => bridge.close());
+
+  const first = await fetch(`${baseUrl}/v1/needs/${encodeURIComponent(need.needId)}`);
+  assert.equal(first.status, 200);
+  const firstBody = await first.json();
+  assert.equal(firstBody.status, 'completed');
+  assert.deepEqual(firstBody.result.envelope.payload.output, { answer: 'accepted' });
+
+  const second = await fetch(`${baseUrl}/v1/needs/${encodeURIComponent(need.needId)}`);
+  assert.equal(second.status, 200);
+  assert.deepEqual(await second.json(), firstBody, 'adapter must re-read canonical relay state rather than synthesize local status');
+});
+
+test('legacy request status refuses compact request records instead of conflating modes', async (t) => {
+  const relay = createRelay({ localDevelopmentMode: true });
+  const relayUrl = await relay.listen({ port: 0 });
+  t.after(() => relay.close());
+
+  const requester = new TruynNode({ relayUrl });
+  const provider = new TruynNode({ relayUrl });
+  await requester.register();
+  await provider.register();
+  await provider.offer('status.compact');
+  const compact = await requester.compactNeed('status.compact', { value: 1 }, {}, { waitMs: 0 });
+
+  await assert.rejects(
+    () => requester.requestStatus(compact.needId),
+    (error) => error.status === 409 && error.body?.error === 'request_status_requires_legacy_need'
+  );
+});
+''')
+      - name: Verify bounded S43 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          node --test tests/rest-request-status.test.js tests/rest-api.test.js tests/rest-need-authority.test.js tests/rest-offer-authority.test.js
+      - name: Commit bounded S43 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add network/relay/server.js node/client.js adapters/http/server.js tests/rest-request-status.test.js
+          git commit -s -m 'feat(rest): add requester-scoped request status'
+          git push origin HEAD:${GITHUB_REF_NAME}
