@@ -12,6 +12,12 @@ function localNodeFixture() {
   };
 }
 
+function assertNormalizedError(body, code, message) {
+  assert.equal(body.ok, false);
+  assert.deepEqual(body.error, { code, message });
+  assert.match(body.correlationId, /^[0-9a-f-]{36}$/i);
+}
+
 test('REST health and version endpoints expose only bounded public metadata', async (t) => {
   const bridge = createHttpAdapterServer({ node: localNodeFixture() });
   const baseUrl = await bridge.listen({ port: 0 });
@@ -82,7 +88,7 @@ test('REST Agent Descriptor route stays fail-closed when public descriptor servi
 
   const response = await fetch(`${baseUrl}/v1/agent-descriptor`);
   assert.equal(response.status, 404);
-  assert.deepEqual(await response.json(), { ok: false, error: 'not_found' });
+  assertNormalizedError(await response.json(), 'not_found', 'requested resource was not found');
 });
 
 test('REST discovery delegates visibility and authorization to the canonical node find path', async (t) => {
@@ -133,6 +139,6 @@ test('REST discovery fails closed when canonical registration or discovery denie
 
   const response = await fetch(`${baseUrl}/v1/discovery?capability=private.internal`);
   assert.equal(response.status, 403);
-  assert.deepEqual(await response.json(), { ok: false, error: 'forbidden' });
+  assertNormalizedError(await response.json(), 'authorization_denied', 'request is not authorized');
   assert.equal(findCalls, 0, 'denied registration must prevent provider discovery/enumeration');
 });
