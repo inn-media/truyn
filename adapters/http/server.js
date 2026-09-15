@@ -1,4 +1,12 @@
 import http from 'node:http';
+import { createRequire } from 'node:module';
+import { createPublicAgentDescriptor } from '../../runtime/agent-descriptor.js';
+
+const require = createRequire(import.meta.url);
+const { version: TRUYN_RUNTIME_VERSION } = require('../../package.json');
+
+export const REST_API_PROFILE = 'TRUYN-REST/1';
+export const TRUYN_PROTOCOL_PROFILE = 'TRUYN/1';
 
 function sendJson(res, status, body) {
   const data = JSON.stringify(body);
@@ -39,7 +47,7 @@ function assertLoopback(host) {
   }
 }
 
-export function createHttpAdapterServer({ node, maxBodyBytes = 256 * 1024 }) {
+export function createHttpAdapterServer({ node, maxBodyBytes = 256 * 1024, descriptorEnv = process.env }) {
   if (!node) throw new Error('node is required');
   let registered = false;
 
@@ -50,17 +58,38 @@ export function createHttpAdapterServer({ node, maxBodyBytes = 256 * 1024 }) {
     }
   }
 
+  async function discoverAuthorized(url) {
+    await ensureRegistered();
+    const capability = url.searchParams.get('capability') || '';
+    return node.find(capability);
+  }
+
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://adapter.local');
       if (req.method === 'GET' && url.pathname === '/health') return sendJson(res, 200, { ok: true });
+      if (req.method === 'GET' && url.pathname === '/v1/version') {
+        return sendJson(res, 200, {
+          ok: true,
+          api: REST_API_PROFILE,
+          runtime: TRUYN_RUNTIME_VERSION,
+          protocol: TRUYN_PROTOCOL_PROFILE
+        });
+      }
+      if (req.method === 'GET' && url.pathname === '/v1/agent-descriptor') {
+        const descriptor = createPublicAgentDescriptor({
+          identity: node.identity,
+          capabilities: typeof node.capabilities === 'function' ? await node.capabilities() : [],
+          env: descriptorEnv
+        });
+        if (!descriptor) return sendJson(res, 404, { ok: false, error: 'not_found' });
+        return sendJson(res, 200, descriptor);
+      }
       if (req.method === 'GET' && url.pathname === '/v1/identity') {
         return sendJson(res, 200, { ok: true, nodeId: node.identity.nodeId, algorithm: node.identity.algorithm });
       }
-      if (req.method === 'GET' && url.pathname === '/v1/offers') {
-        await ensureRegistered();
-        const capability = url.searchParams.get('capability') || '';
-        return sendJson(res, 200, await node.find(capability));
+      if (req.method === 'GET' && (url.pathname === '/v1/discovery' || url.pathname === '/v1/offers')) {
+        return sendJson(res, 200, await discoverAuthorized(url));
       }
       if (req.method === 'POST' && url.pathname === '/v1/offer') {
         await ensureRegistered();

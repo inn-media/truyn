@@ -1,0 +1,366 @@
+openapi: 3.1.0
+info:
+  title: TRUYN Open REST API
+  version: 1.0.0-rc.1
+  description: >-
+    Versioned public REST interface over the same TRUYN node/runtime authority
+    boundary used by the public SDK and interoperability adapters. Appearance
+    in this RC contract does not by itself prove implementation; operations
+    marked with x-truyn-stage require the corresponding executable sprint.
+servers:
+  - url: http://127.0.0.1:8790
+    description: Default loopback-only public HTTP adapter
+x-truyn-authority-invariants:
+  - Request fields are never authoritative identity, tenant, provider-owner, billing, or session-token state.
+  - Discovery is authorization-aware and private or ineligible providers are filtered before return.
+  - Execution uses the canonical TruynNode path and retries or transport behavior must not duplicate application execution.
+  - Cancellation is requester-owned and late output after terminal cancellation is rejected.
+  - Provider credentials, private keys, relay session tokens, and managed-platform state are never exposed.
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Get local adapter liveness
+      x-truyn-stage: existing
+      responses:
+        '200':
+          description: Adapter is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /v1/version:
+    get:
+      operationId: getVersion
+      summary: Get supported REST, runtime, and protocol profile versions
+      x-truyn-stage: S38
+      responses:
+        '200':
+          description: Supported version/profile metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+  /v1/identity:
+    get:
+      operationId: getIdentity
+      summary: Get public local-node identity metadata
+      x-truyn-stage: existing
+      responses:
+        '200':
+          description: Public node identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityResponse'
+  /.well-known/truyn-agent.json:
+    get:
+      operationId: getAgentDescriptor
+      summary: Get the signed Agent Descriptor when serving is enabled
+      x-truyn-stage: S39
+      responses:
+        '200':
+          description: Signed Agent Descriptor
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/offers:
+    get:
+      operationId: discoverOffers
+      summary: Discover capabilities/providers visible to the current node context
+      x-truyn-stage: existing-harden-S40
+      parameters:
+        - name: capability
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Authorization-filtered discovery result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/offer:
+    post:
+      operationId: publishOffer
+      summary: Publish an OFFER through the canonical node path
+      x-truyn-stage: existing-harden-S41
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfferRequest'
+      responses:
+        '200':
+          description: Canonical OFFER result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/need:
+    post:
+      operationId: submitNeed
+      summary: Submit a NEED through the canonical dispatch path
+      x-truyn-stage: existing-harden-S42
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NeedRequest'
+      responses:
+        '200':
+          description: Accepted/correlated NEED result
+          headers:
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/events:
+    get:
+      operationId: pollEvents
+      summary: Poll bounded node events through the compatibility route
+      x-truyn-stage: existing
+      responses:
+        '200':
+          description: Authorized node event batch
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /v1/result:
+    post:
+      operationId: submitResult
+      summary: Submit a provider RESULT through the canonical node path
+      x-truyn-stage: existing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResultRequest'
+      responses:
+        '200':
+          description: Canonical RESULT acknowledgement
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/needs/{requestId}:
+    parameters:
+      - $ref: '#/components/parameters/RequestId'
+    get:
+      operationId: getNeedStatus
+      summary: Get requester-scoped state and accepted result for one NEED
+      x-truyn-stage: S43
+      responses:
+        '200':
+          description: Authorized request state/result
+          headers:
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: cancelNeed
+      summary: Cancel a requester-owned NEED via canonical REVOKE semantics
+      x-truyn-stage: S47
+      responses:
+        '200':
+          description: Cancellation accepted or idempotently already terminal
+          headers:
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/needs/{requestId}/events:
+    parameters:
+      - $ref: '#/components/parameters/RequestId'
+    get:
+      operationId: streamNeedEvents
+      summary: Stream ordered PARTIAL and terminal events for an authorized NEED
+      x-truyn-stage: S46
+      responses:
+        '200':
+          description: Server-sent event stream preserving canonical PARTIAL/RESULT ordering
+          headers:
+            X-Correlation-Id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  parameters:
+    RequestId:
+      name: requestId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+  headers:
+    CorrelationId:
+      description: Diagnostic correlation identifier; never authority.
+      schema:
+        type: string
+  schemas:
+    HealthResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          const: true
+    VersionResponse:
+      type: object
+      required: [ok, api]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        api:
+          type: string
+          const: TRUYN-REST/1
+        runtime:
+          type: string
+        protocol:
+          type: string
+    IdentityResponse:
+      type: object
+      required: [ok, nodeId, algorithm]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        nodeId:
+          type: string
+          minLength: 1
+        algorithm:
+          type: string
+          minLength: 1
+    OfferRequest:
+      type: object
+      required: [capability]
+      additionalProperties: false
+      properties:
+        capability:
+          oneOf:
+            - type: string
+              minLength: 1
+            - type: object
+              additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+    NeedRequest:
+      type: object
+      required: [capability]
+      additionalProperties: false
+      properties:
+        capability:
+          oneOf:
+            - type: string
+              minLength: 1
+            - type: object
+              additionalProperties: true
+        input: {}
+        policy:
+          type: object
+          additionalProperties: true
+    ResultRequest:
+      type: object
+      required: [requestId]
+      additionalProperties: false
+      properties:
+        requestId:
+          type: string
+          minLength: 1
+        output: {}
+        metadata:
+          type: object
+          additionalProperties: true
+    ErrorBody:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          oneOf:
+            - type: string
+            - type: object
+              required: [code, message]
+              properties:
+                code:
+                  type: string
+                message:
+                  type: string
+        correlationId:
+          type: string
+  responses:
+    BadRequest:
+      description: Malformed or invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Forbidden:
+      description: Request is not authorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    NotFound:
+      description: Requested visible resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
