@@ -13,6 +13,12 @@ async function withServer(node, run) {
   }
 }
 
+function assertNormalizedError(body, code, message) {
+  assert.equal(body.ok, false);
+  assert.deepEqual(body.error, { code, message });
+  assert.match(body.correlationId, /^[0-9a-f-]{36}$/i);
+}
+
 test('REST OFFER registers first and delegates only capability plus metadata to canonical node.offer', async () => {
   const calls = [];
   const node = {
@@ -70,7 +76,7 @@ test('REST OFFER fails closed before node.offer when canonical registration is d
       body: JSON.stringify({ capability: 'private-capability', owner: 'spoofed-owner' })
     });
     assert.equal(response.status, 403);
-    assert.deepEqual(await response.json(), { ok: false, error: 'registration_denied' });
+    assertNormalizedError(await response.json(), 'authorization_denied', 'request is not authorized');
   });
 
   assert.equal(offerCalls, 0);
