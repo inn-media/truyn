@@ -111,7 +111,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with: {persist-credentials: false, fetch-depth: 0}
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - uses: actions/setup-python@v5
@@ -140,7 +143,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          package="$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-0.1.0-alpha.2.tgz"
+          package="$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-0.1.0-alpha.3.tgz"
           test -f "$package"
           cleanroom="$(mktemp -d)"
           cd "$cleanroom"
@@ -161,7 +164,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with: {persist-credentials: false, fetch-depth: 0}
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - uses: actions/setup-python@v5
@@ -179,7 +185,10 @@ jobs:
       - run: mvn -q -f sdk/java/pom.xml test
       - run: dotnet build sdk/dotnet/Truyn.Sdk.csproj --configuration Release --nologo
       - run: node sdk/conformance/run-five-language-e2e.mjs
-      - run: sdk/release/build-release.sh
+      - name: Build and verify SDK release packages
+        env:
+          TRUYN_RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: sdk/release/build-release.sh
       - run: npm run test:full
       - run: bash scripts/class-d-200-preflight-qualification.sh
       - run: git diff --check
