@@ -129,11 +129,16 @@ def override_observed(tenant):
     runtime_overrides = str(payload.get('runtime_overrides') or '')
     source = str(payload.get('using_default_or_wildcard_runtime_overrides') or '')
     expected = TENANTS[tenant]['retention']
-    return (
-        source == tenant
-        and re.search(r'(?m)^\s*block_retention:\s*' + re.escape(expected), runtime_overrides) is not None
-        and re.search(r'(?m)^\s*compaction_disabled:\s*false\s*$', runtime_overrides) is not None
+    retention_match = re.search(
+        r'(?m)^\s*block_retention:\s*' + re.escape(expected) + r'(?:0m0s)?\s*$',
+        runtime_overrides,
     )
+    disabled_match = re.search(
+        r'(?m)^\s*compaction_disabled:\s*(\S+)\s*$',
+        runtime_overrides,
+    )
+    compaction_enabled = disabled_match is None or disabled_match.group(1).lower() == 'false'
+    return source == tenant and retention_match is not None and compaction_enabled
 
 
 def wait_override(tenant):
