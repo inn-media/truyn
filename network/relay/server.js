@@ -927,6 +927,28 @@ export function createRelay({
         return json(res, 200, { ok: true, needId: envelope.id, provider: match.envelope.from, providerTrust: trustFor(match.envelope.from) });
       }
 
+      const legacyRequestStatusRoute = url.pathname.match(/^\/v1\/requests\/([^/]+)$/);
+      if (req.method === 'GET' && legacyRequestStatusRoute) {
+        const requesterNodeId = authenticatedNodeId(req);
+        if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
+        const requestId = decodeURIComponent(legacyRequestStatusRoute[1]);
+        const request = requests.get(requestId);
+        if (!request || request.requester !== requesterNodeId) return json(res, 404, { ok: false, error: 'request_not_found' });
+        if (request.mode !== 'legacy') return json(res, 409, { ok: false, error: 'request_status_requires_legacy_need' });
+        touch(requesterNodeId);
+        return json(res, 200, {
+          ok: true,
+          requestId,
+          status: request.status,
+          provider: request.provider,
+          capability: request.capability,
+          createdAt: request.createdAt,
+          completedAt: request.completedAt || null,
+          cancelledAt: request.cancelledAt || null,
+          result: request.result || null
+        });
+      }
+
       if (req.method === 'POST' && url.pathname === '/v1/results') {
         const { envelope } = await readJson(req, maxBodyBytes);
         const verification = verifyEnvelope(envelope, { allowedTypes: ['RESULT'] });
@@ -939,7 +961,9 @@ export function createRelay({
         const terminalError = terminalRequestError(request);
         if (terminalError) return json(res, 409, { ok: false, error: terminalError });
         const trust = completeRequest(request, envelope.from);
-        queue(request.requester, { kind: 'RESULT', envelope, trust });
+        const acceptedResult = { envelope, trust };
+        request.result = acceptedResult;
+        queue(request.requester, { kind: 'RESULT', ...acceptedResult });
         return json(res, 200, { ok: true, requestId, trust });
       }
 
