@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHttpAdapterServer } from '../adapters/http/server.js';
 
+function assertNormalizedError(body, code, message) {
+  assert.equal(body.ok, false);
+  assert.deepEqual(body.error, { code, message });
+  assert.match(body.correlationId, /^[0-9a-f-]{36}$/i);
+}
+
 test('REST NEED delegates only capability, input and policy to canonical node authority', async (t) => {
   const calls = [];
   const node = {
@@ -69,7 +75,7 @@ test('REST NEED fails closed before canonical node execution when registration i
   });
 
   assert.equal(response.status, 403);
-  assert.deepEqual(await response.json(), { ok: false, error: 'forbidden' });
+  assertNormalizedError(await response.json(), 'authorization_denied', 'request is not authorized');
   assert.equal(needCalls, 0, 'denied registration must prevent NEED execution');
 });
 
@@ -94,6 +100,6 @@ test('REST NEED rejects missing capability before canonical node execution', asy
   });
 
   assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), { ok: false, error: 'capability_required' });
+  assertNormalizedError(await response.json(), 'invalid_request', 'capability is required');
   assert.equal(needCalls, 0);
 });
