@@ -1,6 +1,12 @@
 name: Publish npm SDK via Trusted Publishing
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Immutable sdk/npm/v* tag to create on exact current main'
+        required: true
+        type: string
   push:
     tags:
       - 'sdk/npm/v*'
@@ -11,8 +17,64 @@ permissions:
   id-token: write
 
 jobs:
+  bootstrap-tag:
+    if: github.repository == 'inn-media/truyn' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - name: Checkout exact dispatch source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Qualify exact current main and create immutable release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RELEASE_TAG" in
+            sdk/npm/v*) ;;
+            *) echo "Unexpected release tag: $RELEASE_TAG" >&2; exit 1 ;;
+          esac
+
+          test "$GITHUB_REF" = 'refs/heads/main'
+          source_sha="$(git rev-parse HEAD)"
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          current_main="$(git rev-parse refs/remotes/origin/main)"
+          test "$source_sha" = "$current_main"
+
+          version="${RELEASE_TAG#sdk/npm/v}"
+          test -n "$version"
+          test "$(node -p "require('./sdk/typescript/package.json').version")" = "$version"
+
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/tmp/existing-tag.json 2>/dev/null; then
+            existing_sha="$(jq -r '.object.sha' /tmp/existing-tag.json)"
+            test "$existing_sha" = "$source_sha"
+            echo "Tag already exists at exact current main; no duplicate creation."
+            exit 0
+          fi
+
+          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$source_sha&status=completed&per_page=100")"
+          ci_run_id="$(jq -r '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .event == "push" and .head_branch == "main" and .head_sha == env.source_sha and .conclusion == "success")] | first | .id // empty' --arg source_sha "$source_sha" <<<"$runs")"
+          codeql_run_id="$(jq -r '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .head_sha == env.source_sha and .conclusion == "success")] | first | .id // empty' --arg source_sha "$source_sha" <<<"$runs")"
+          test -n "$ci_run_id"
+          test -n "$codeql_run_id"
+
+          codeql_jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$codeql_run_id/jobs?per_page=100")"
+          test "$(jq '[.jobs[] | select(.conclusion != "success")] | length' <<<"$codeql_jobs")" = '0'
+          test "$(jq '.jobs | length' <<<"$codeql_jobs")" -gt 0
+
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$RELEASE_TAG" \
+            -f sha="$source_sha"
+
   publish:
-    if: github.repository == 'inn-media/truyn'
+    if: github.repository == 'inn-media/truyn' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: sdk-release
     timeout-minutes: 30
