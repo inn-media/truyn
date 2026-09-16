@@ -4,6 +4,12 @@ set -Eeuo pipefail
 : "${GITHUB_RUN_ID:?GITHUB_RUN_ID is required}"
 : "${GITHUB_SHA:?GITHUB_SHA is required}"
 
+RUNTIME_SOURCE_SHA="${TESTED_COMMIT:-$GITHUB_SHA}"
+if [[ ! "$RUNTIME_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "TRUYN_CLASS_D_1000 invalid runtime source SHA: ${RUNTIME_SOURCE_SHA}" >&2
+  exit 1
+fi
+
 LOCATION="${TRUYN_CLASS_D1000_LOCATION:-eastus2}"
 VM_SIZE="${TRUYN_CLASS_D1000_VM_SIZE:-Standard_D4as_v5}"
 RG="${TRUYN_AZURE_RESOURCE_GROUP:-truyn}"
@@ -84,7 +90,7 @@ d200_failure_evidence_checkpoint() {
   fi
   tmp="${EVIDENCE}.d200-failure.tmp"
   D200_EVIDENCE="$tmp" \
-  D200_TESTED_COMMIT="${GITHUB_SHA:-}" D200_WORKFLOW_RUN_ID="${GITHUB_RUN_ID:-}" \
+  D200_TESTED_COMMIT="${RUNTIME_SOURCE_SHA:-}" D200_WORKFLOW_RUN_ID="${GITHUB_RUN_ID:-}" \
   D200_FAILURE_STAGE="$failed_stage" D200_FAILURE_EXIT="$prior_rc" D200_FAILURE_LINE="$failed_line" \
   D200_NODE_COUNT="${NODE_COUNT:-}" D200_HOST_COUNT="${HOST_COUNT:-}" D200_NODES_PER_HOST="${NODES_PER_HOST:-}" \
   D200_READINESS_READY="${readiness_ready:-}" D200_READINESS_MS="${readiness_ms:-}" \
@@ -345,7 +351,7 @@ test -x /opt/truyn/runtime/bin/openssl
 /opt/truyn/runtime/bin/curl --version >/dev/null
 /opt/truyn/runtime/bin/openssl version >/dev/null
 install_stage=runtime-manifest
-/opt/truyn/runtime/bin/jq -e --arg sha '${GITHUB_SHA}' '.schema == "truyn.class-d1000.runtime-bundle.v1" and .sourceSha == \$sha' /opt/truyn/manifest.json >/dev/null
+/opt/truyn/runtime/bin/jq -e --arg sha '${RUNTIME_SOURCE_SHA}' '.schema == "truyn.class-d1000.runtime-bundle.v1" and .sourceSha == \$sha' /opt/truyn/manifest.json >/dev/null
 ln -sfn /opt/truyn/runtime/bin/node /usr/local/bin/node
 ln -sfn /opt/truyn/runtime/bin/jq /usr/local/bin/jq
 ln -sfn /opt/truyn/runtime/bin/curl /usr/local/bin/curl
