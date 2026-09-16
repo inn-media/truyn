@@ -171,6 +171,14 @@ export class TruynNode {
     };
   }
 
+  async requestStatus(requestId) {
+    this.requireSession('reading request status');
+    if (!requestId || typeof requestId !== 'string') throw new Error('requestId is required');
+    return requestJson(`${this.relayUrl}/v1/requests/${encodeURIComponent(requestId)}`, {
+      headers: this.authHeaders()
+    });
+  }
+
   async compactRequestStatus(requestId) {
     this.requireSession('reading compact request status');
     if (!requestId || typeof requestId !== 'string') throw new Error('requestId is required');
