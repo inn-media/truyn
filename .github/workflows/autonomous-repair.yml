@@ -1,0 +1,76 @@
+name: Autonomous Guarded Repair
+
+on:
+  push:
+    branches:
+      - 'automation/autorepair/**'
+    paths:
+      - '.github/repairs/*.patch'
+      - '.github/repairs/*.env'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autonomous-repair-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Validate repair request
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+          patches=(.github/repairs/*.patch)
+          envs=(.github/repairs/*.env)
+          [[ ${#patches[@]} == 1 && ${#envs[@]} == 1 ]]
+          source "${envs[0]}"
+          [[ "${TASK_ID:-}" =~ ^[A-Za-z0-9._-]+$ ]]
+          [[ "${BASE_SHA:-}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${EXPECTED_PATHS:-}" != '' ]]
+          git fetch origin main --quiet
+          [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
+          [[ "$(git merge-base HEAD "$BASE_SHA")" == "$BASE_SHA" ]]
+          git apply --check "${patches[0]}"
+
+      - name: Apply exact patch fail closed
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          env_file=(.github/repairs/*.env); patch_file=(.github/repairs/*.patch)
+          source "${env_file[0]}"
+          git apply "${patch_file[0]}"
+          git diff --check
+          mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' | sort)
+          mapfile -t expected < <(printf '%s\n' $EXPECTED_PATHS | sort)
+          [[ "${changed[*]}" == "${expected[*]}" ]]
+          [[ ${#changed[@]} -gt 0 ]]
+
+      - name: Run required repair checks
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          env_file=(.github/repairs/*.env); source "${env_file[0]}"
+          if [[ -n "${CHECK_COMMAND:-}" ]]; then bash -lc "$CHECK_COMMAND"; fi
+          git diff --check
+
+      - name: Commit exact repaired files
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          env_file=(.github/repairs/*.env); source "${env_file[0]}"
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add -- $EXPECTED_PATHS
+          git diff --cached --quiet && { echo 'repair produced no staged changes' >&2; exit 1; }
+          git commit -s -m "fix(autopilot): ${TASK_ID} guarded repair"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
