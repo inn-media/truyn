@@ -9,6 +9,7 @@ const SKIP_DIRS = new Set(['.git', 'node_modules']);
 const TEXT_EXTENSIONS = new Set(['.md', '.js', '.mjs', '.cjs', '.json', '.yml', '.yaml', '.toml', '.txt', '.proto', '.sh', '.ps1', '.cmd', '.html', '.css']);
 const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.cmd']);
 const ALLOWED_WORKFLOWS = new Set([
+  '.github/workflows/autonomous-repair.yml',
   '.github/workflows/ci.yml',
   '.github/workflows/d200-acceptance.yml',
   '.github/workflows/d200-bug-hunt.yml',
