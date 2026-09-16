@@ -1,0 +1,45 @@
+name: Autonomous Repair
+on:
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: Repository-relative JSON repair spec
+        required: true
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: autonomous-repair-${{ github.event.inputs.spec }}
+  cancel-in-progress: false
+jobs:
+  repair:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate dispatch and exact base
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/automation/* ]]
+          [[ "${{ inputs.spec }}" =~ ^\.github/repair-specs/[A-Za-z0-9._/-]+\.json$ ]]
+          test -f "${{ inputs.spec }}"
+      - name: Apply fail-closed declarative repair
+        run: node scripts/autonomous-repair.mjs '${{ inputs.spec }}'
+      - name: Commit exact repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          spec='${{ inputs.spec }}'
+          mapfile -t files < <(node -e 'const s=require("./"+process.argv[1]); for(const f of s.files) console.log(f.path)' "$spec")
+          git add -- "${files[@]}"
+          test -n "$(git diff --cached --name-only)"
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          msg="$(node -e 'console.log(require("./"+process.argv[1]).commitMessage)' "$spec")"
+          git commit -s -m "$msg"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
