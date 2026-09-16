@@ -1,0 +1,54 @@
+name: D-200 final launcher patch
+on:
+  push:
+    branches: [automation/d200-final-launcher-a7f3]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'fix(d200): freeze final acceptance launcher'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: automation/d200-final-launcher-a7f3
+          fetch-depth: 0
+      - name: Apply guarded freeze substitutions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          replacements = {
+            '6a16ae5b2d324d63d9d62993831a4a4b97c7d4d4': 'efd9e13bedf064f263e665eca367f71a69816d71',
+            'd899d7ba': 'beb18419c6b8c866ce1626204995f22a3be5c1e9',
+            '35007564319': '35091962218',
+            '35007560456': '35091961423',
+          }
+          files = [Path('.github/workflows/d200-acceptance.yml'), Path('tests/public-repository.test.js')]
+          total = {k: 0 for k in replacements}
+          for p in files:
+            s = p.read_text()
+            for old, new in replacements.items():
+              n = s.count(old)
+              total[old] += n
+              s = s.replace(old, new)
+            p.write_text(s)
+          if total['6a16ae5b2d324d63d9d62993831a4a4b97c7d4d4'] < 1: raise SystemExit('old TESTED_COMMIT not found')
+          if total['d899d7ba'] < 1: raise SystemExit('old tree token not found')
+          if total['35007564319'] < 1: raise SystemExit('old CI run not found')
+          if total['35007560456'] < 1: raise SystemExit('old CodeQL run not found')
+          PY
+          git diff --check
+          grep -F 'efd9e13bedf064f263e665eca367f71a69816d71' .github/workflows/d200-acceptance.yml
+          grep -F '35091962218' .github/workflows/d200-acceptance.yml
+          grep -F '35091961423' .github/workflows/d200-acceptance.yml
+      - name: Commit frozen launcher
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add .github/workflows/d200-acceptance.yml tests/public-repository.test.js
+          git commit -s -m 'fix(d200): freeze final acceptance launcher'
+          git push origin HEAD:automation/d200-final-launcher-a7f3
