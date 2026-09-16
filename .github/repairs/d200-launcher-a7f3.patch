@@ -18,3 +18,4 @@ diff --git a/.github/workflows/d200-acceptance.yml b/.github/workflows/d200-acce
 +  EXACT_MAIN_CODEQL_RUN: '35145786258'
    AZURE_RESOURCE_GROUP: truyn
    NODES_PER_HOST: '10'
+ jobs:
