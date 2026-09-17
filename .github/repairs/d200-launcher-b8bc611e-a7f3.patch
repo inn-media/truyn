@@ -1,0 +1,21 @@
+diff --git a/.github/workflows/d200-acceptance.yml b/.github/workflows/d200-acceptance.yml
+--- a/.github/workflows/d200-acceptance.yml
++++ b/.github/workflows/d200-acceptance.yml
+@@ -4,12 +4,12 @@ on:
+     branches: [main]
+     paths: ['.github/workflows/d200-acceptance.yml']
+ permissions: { contents: read, actions: read, id-token: write }
+-concurrency: { group: truyn-d200-6a16ae5b-qualified-single-shot, cancel-in-progress: false }
++concurrency: { group: truyn-d200-b8bc611e-qualified-single-shot, cancel-in-progress: false }
+ env:
+-  TESTED_COMMIT: 6a16ae5b2d324d63d9d62993831a4a4b97c7d4d4
+-  TESTED_TREE_SHA: d899d7ba1044b98d4f9effe975a2b59bea29c4af
+-  EXACT_MAIN_CI_RUN: '35007564319'
+-  EXACT_MAIN_CODEQL_RUN: '35007560456'
++  TESTED_COMMIT: b8bc611e1b5ed8f99dbd02fdcc0090687383ac69
++  TESTED_TREE_SHA: 013ff7c70e99c770be8c302a2559c69d436526e5
++  EXACT_MAIN_CI_RUN: '35176089221'
++  EXACT_MAIN_CODEQL_RUN: '35176089014'
+   AZURE_RESOURCE_GROUP: truyn
+   NODES_PER_HOST: '10'
+ jobs:
