@@ -4,12 +4,12 @@ on:
     branches: [main]
     paths: ['.github/workflows/d200-acceptance.yml']
 permissions: { contents: read, actions: read, id-token: write }
-concurrency: { group: truyn-d200-6a16ae5b-qualified-single-shot, cancel-in-progress: false }
+concurrency: { group: truyn-d200-0718c78d-qualified-single-shot, cancel-in-progress: false }
 env:
-  TESTED_COMMIT: 6a16ae5b2d324d63d9d62993831a4a4b97c7d4d4
-  TESTED_TREE_SHA: d899d7ba1044b98d4f9effe975a2b59bea29c4af
-  EXACT_MAIN_CI_RUN: '35007564319'
-  EXACT_MAIN_CODEQL_RUN: '35007560456'
+  TESTED_COMMIT: 0718c78d41b6d935aaafc4eb928a6061e895ce90
+  TESTED_TREE_SHA: c6806a4090d7731ffca25f7f3899242519155c28
+  EXACT_MAIN_CI_RUN: '35184720843'
+  EXACT_MAIN_CODEQL_RUN: '35184720334'
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '10'
 jobs:
@@ -107,7 +107,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d200-6a16ae5b-${{ github.run_id }}'
+          name: 'truyn-class-d200-0718c78d-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
@@ -141,5 +141,5 @@ jobs:
           set -Eeuo pipefail; result=FAIL
           [[ "$DIGEST" =~ ^(sha256:)?[0-9a-f]{64}$ ]] || DIGEST=invalid
           if [[ "${CAMPAIGN_RC:-99}" == 0 && "${EVALUATOR_RC:-99}" == 0 && "$CLEANUP" == true && "$REMAINING" == 0 && "$ACK_COUNT" == 100 && "$ACK_LOSS" == 0 && "$STAGING_CLEANUP" == true && "$STAGING_REMAINING" == 0 && -n "$ARTIFACT_ID" && "$DIGEST" != invalid && "$RUNTIME_SHA" =~ ^[0-9a-f]{64}$ ]]; then result=PASS; fi
-          echo "TRUYN_D200_TERMINAL result=$result run=$GITHUB_RUN_ID launcher_sha=$GITHUB_SHA tested_sha=$TESTED_COMMIT tested_tree_sha=$TESTED_TREE_SHA exact_main_ci_run=$EXACT_MAIN_CI_RUN exact_main_codeql_run=$EXACT_MAIN_CODEQL_RUN runtime_sha256=sha256:${RUNTIME_SHA:-none} azure_location=${TRUYN_D200_LOCATION:-unknown} vm_size=${TRUYN_D200_VM_SIZE:-unknown} hosts=20 nodes=200 nodes_per_host=10 max_peers=32 campaign_rc=${CAMPAIGN_RC:-99} evaluator_rc=${EVALUATOR_RC:-99} acknowledged_write_count=${ACK_COUNT:--1} acknowledged_write_loss=${ACK_LOSS:--1} baseline=${BASELINE:--1} post_restart=${POST_RESTART:--1} healed=${HEALED:--1} convergence_routing=${CONV:--1} convergence_p95_ms=${CONV_P95:--1} recovery_p95_ms=${RECOVERY_P95:--1} partition_recovery_ms=${PARTITION:--1} cleanup=${CLEANUP:-false} remaining=${REMAINING:--1} staging_cleanup=${STAGING_CLEANUP:-false} staging_remaining=${STAGING_REMAINING:--1} artifact_id=${ARTIFACT_ID:-none} digest=${DIGEST:-none}"
+          echo "TRUYN_D200_TERMINAL result=$result run=$GITHUB_RUN_ID launcher_sha=$GITHUB_SHA tested_sha=$TESTED_COMMIT tested_tree_sha=$TESTED_TREE_SHA exact_main_ci_run=$EXACT_MAIN_CI_RUN exact_main_codeql_run=$EXACT_MAIN_CODEQL_RUN runtime_sha256=sha256:${RUNTIME_SHA:-none} azure_location=${TRUYN_D200_LOCATION:-none} vm_size=${TRUYN_D200_VM_SIZE:-none} artifact_id=${ARTIFACT_ID:-none} artifact_digest=$DIGEST campaign_rc=${CAMPAIGN_RC:-99} evaluator_rc=${EVALUATOR_RC:-99} baseline=${BASELINE:--1} post_restart=${POST_RESTART:--1} healed=${HEALED:--1} convergence_routing=${CONV:--1} convergence_p95_ms=${CONV_P95:--1} recovery_p95_ms=${RECOVERY_P95:--1} partition_recovery_ms=${PARTITION:--1} acknowledged_writes=${ACK_COUNT:--1} acknowledged_write_loss=${ACK_LOSS:--1} cleanup=$CLEANUP remaining=$REMAINING staging_cleanup=$STAGING_CLEANUP staging_remaining=$STAGING_REMAINING"
           [[ "$result" == PASS ]]
