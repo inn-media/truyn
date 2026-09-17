@@ -1,0 +1,44 @@
+diff --git a/benchmarks/scale/class-d-azure-1000-campaign.sh b/benchmarks/scale/class-d-azure-1000-campaign.sh
+--- a/benchmarks/scale/class-d-azure-1000-campaign.sh
++++ b/benchmarks/scale/class-d-azure-1000-campaign.sh
+@@ -856,23 +856,38 @@
+ STAGE=durable-writes
+ writes=0
+ d200_durable_write_ttl_ms=21600000
+ d200_write_window_start_ms=$(date +%s%3N)
++d200_write_dir=$(mktemp -d)
++d200_write_pids=()
+ for i in $(seq 0 $((HOST_COUNT-1))); do
+   script=$(cat <<EOS
+ set -Eeuo pipefail
+ ok=0
+ for j in \$(seq 0 4); do
+   body=\$(jq -nc --arg k "d1000-${i}-\${j}" --argjson h ${i} --argjson n \$j '{namespace:"class-d1000",key:\$k,value:{host:\$h,index:\$n},replicationFactor:3,minAcks:2,ttlMs:${d200_durable_write_ttl_ms}}')
+   curl -fsS --max-time 45 -H 'content-type: application/json' --data-binary "\$body" http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/replicate >/tmp/d1000-write-\$j.json
+   a=\$(jq -r '.result.acknowledgements // 0' /tmp/d1000-write-\$j.json)
+   [[ "\$a" -ge 2 ]] && ok=\$((ok+1))
+ done
+ echo WRITES=\$ok
+ EOS
+ )
+-  out=$(remote "${VMS[$i]}" "$script")
+-  w=$(marker "$out" WRITES); [[ "$w" == 5 ]]; writes=$((writes+w))
++  (remote "${VMS[$i]}" "$script" >"${d200_write_dir}/${i}.out" 2>"${d200_write_dir}/${i}.err") &
++  d200_write_pids+=("$!")
++done
++d200_write_remote_failed=0
++for i in $(seq 0 $((HOST_COUNT-1))); do
++  if ! wait "${d200_write_pids[$i]}"; then
++    d200_write_remote_failed=1
++    cat "${d200_write_dir}/${i}.err" >&2 || true
++    continue
++  fi
++  out=$(cat "${d200_write_dir}/${i}.out")
++  w=$(marker "$out" WRITES)
++  [[ "$w" == 5 ]] || d200_write_remote_failed=1
++  writes=$((writes+w))
+ done
++[[ "$d200_write_remote_failed" == 0 ]]
+ [[ "$writes" == 100 ]]
+ d200_write_window_last_ack_ms=$(date +%s%3N)
+ echo "TRUYN_CLASS_D_1000 stage=durable-writes acknowledged=${writes} ttlMs=${d200_durable_write_ttl_ms} writeWindowMs=$((d200_write_window_last_ack_ms-d200_write_window_start_ms)) status=PASS"
