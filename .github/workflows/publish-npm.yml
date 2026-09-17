@@ -60,8 +60,8 @@ jobs:
           fi
 
           runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$source_sha&status=completed&per_page=100")"
-          ci_run_id="$(jq -r '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .event == "push" and .head_branch == "main" and .head_sha == env.source_sha and .conclusion == "success")] | first | .id // empty' --arg source_sha "$source_sha" <<<"$runs")"
-          codeql_run_id="$(jq -r '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .head_sha == env.source_sha and .conclusion == "success")] | first | .id // empty' --arg source_sha "$source_sha" <<<"$runs")"
+          ci_run_id="$(jq -r --arg source_sha "$source_sha" '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .event == "push" and .head_branch == "main" and .head_sha == $source_sha and .conclusion == "success")] | first | .id // empty' <<<"$runs")"
+          codeql_run_id="$(jq -r --arg source_sha "$source_sha" '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .head_sha == $source_sha and .conclusion == "success")] | first | .id // empty' <<<"$runs")"
           test -n "$ci_run_id"
           test -n "$codeql_run_id"
 
@@ -132,10 +132,10 @@ jobs:
           set -euo pipefail
           runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100")"
 
-          ci_run_id="$(jq -r '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .event == "push" and .head_branch == "main" and .head_sha == env.SOURCE_SHA and .conclusion == "success")] | first | .id // empty' <<<"$runs")"
+          ci_run_id="$(jq -r --arg source_sha "$SOURCE_SHA" '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .event == "push" and .head_branch == "main" and .head_sha == $source_sha and .conclusion == "success")] | first | .id // empty' <<<"$runs")"
           test -n "$ci_run_id"
 
-          codeql_run_id="$(jq -r '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .head_sha == env.SOURCE_SHA and .conclusion == "success")] | first | .id // empty' <<<"$runs")"
+          codeql_run_id="$(jq -r --arg source_sha "$SOURCE_SHA" '[.workflow_runs[] | select(.path == "dynamic/github-code-scanning/codeql" and .head_sha == $source_sha and .conclusion == "success")] | first | .id // empty' <<<"$runs")"
           test -n "$codeql_run_id"
 
           codeql_jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$codeql_run_id/jobs?per_page=100")"
