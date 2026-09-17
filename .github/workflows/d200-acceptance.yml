@@ -4,12 +4,12 @@ on:
     branches: [main]
     paths: ['.github/workflows/d200-acceptance.yml']
 permissions: { contents: read, actions: read, id-token: write }
-concurrency: { group: truyn-d200-6a16ae5b-qualified-single-shot, cancel-in-progress: false }
+concurrency: { group: truyn-d200-90ed63e0-qualified-single-shot, cancel-in-progress: false }
 env:
-  TESTED_COMMIT: 6a16ae5b2d324d63d9d62993831a4a4b97c7d4d4
-  TESTED_TREE_SHA: d899d7ba1044b98d4f9effe975a2b59bea29c4af
-  EXACT_MAIN_CI_RUN: '35007564319'
-  EXACT_MAIN_CODEQL_RUN: '35007560456'
+  TESTED_COMMIT: 90ed63e0152d864ce171ef6fda6e58dd95b72f47
+  TESTED_TREE_SHA: 202bbfa72b1a103bc6c5af5688ee4f05d5f273ef
+  EXACT_MAIN_CI_RUN: '35145282371'
+  EXACT_MAIN_CODEQL_RUN: '35145786258'
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '10'
 jobs:
@@ -107,7 +107,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d200-6a16ae5b-${{ github.run_id }}'
+          name: 'truyn-class-d200-90ed63e0-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
