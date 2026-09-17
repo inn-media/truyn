@@ -24,6 +24,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
+          token: $
+      {{ secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB }}
 
       - name: Validate repair request
         shell: bash
