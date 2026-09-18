@@ -861,13 +861,15 @@ d200_write_dir=$(mktemp -d)
 d200_write_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
-set -Eeuo pipefail
+set -Euo pipefail
 ok=0
 for j in \$(seq 0 4); do
   body=\$(jq -nc --arg k "d1000-${i}-\${j}" --argjson h ${i} --argjson n \$j '{namespace:"class-d1000",key:\$k,value:{host:\$h,index:\$n},replicationFactor:3,minAcks:2,ttlMs:${d200_durable_write_ttl_ms}}')
-  curl -fsS --max-time 45 -H 'content-type: application/json' --data-binary "\$body" http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/replicate >/tmp/d1000-write-\$j.json
-  a=\$(jq -r '.result.acknowledgements // 0' /tmp/d1000-write-\$j.json)
-  [[ "\$a" -ge 2 ]] && ok=\$((ok+1))
+  f=/tmp/d1000-write-\$j.json; rm -f "\$f"
+  code=\$(curl -sS --max-time 45 -o "\$f" -w '%{http_code}' -H 'content-type: application/json' --data-binary "\$body" http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/replicate) || code="curl_rc_\$?"
+  a=\$(jq -r '.result.acknowledgements // 0' "\$f" 2>/dev/null || echo 0)
+  echo "TRUYN_D200_WRITE host=${i} node=\$j http=\$code acks=\$a body=\$(head -c 300 "\$f" 2>/dev/null | tr -d '\n')"
+  [[ "\$code" == 200 && "\$a" -ge 2 ]] && ok=\$((ok+1))
 done
 echo WRITES=\$ok
 EOS
@@ -884,7 +886,10 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   fi
   out=$(cat "${d200_write_dir}/${i}.out")
   w=$(marker "$out" WRITES)
-  [[ "$w" == 5 ]] || d200_write_remote_failed=1
+  if [[ "$w" != 5 ]]; then
+    d200_write_remote_failed=1
+    grep -hE 'TRUYN_D200_WRITE|curl:|TRUYN_DHT' "${d200_write_dir}/${i}.out" "${d200_write_dir}/${i}.err" >&2 || true
+  fi
   writes=$((writes+w))
 done
 [[ "$d200_write_remote_failed" == 0 ]]

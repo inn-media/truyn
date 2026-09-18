@@ -359,7 +359,8 @@ export class TruynNetworkNode {
     if (!this.started || this.closing || !this.peerRecordAutoRenew || !this.localPeerRecord) return;
     const expiresAt = Date.parse(this.localPeerRecord.expiresAt);
     const minimumDelay = Math.min(1_000, Math.max(25, Math.floor(this.peerRecordTtlMs / 20)));
-    const delayMs = Math.max(minimumDelay, expiresAt - Date.now() - this.peerRecordRenewBeforeMs);
+    const jitterMs = Math.floor(Math.random() * Math.min(Math.floor(this.peerRecordTtlMs / 4), 300_000));
+    const delayMs = Math.max(minimumDelay, expiresAt - Date.now() - this.peerRecordRenewBeforeMs - jitterMs);
     this.peerRecordRenewTimer = setTimeout(() => {
       this.peerRecordRenewTimer = null;
       void this.renewPeerRecord().catch((error) => {
