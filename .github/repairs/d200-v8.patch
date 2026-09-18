@@ -1,0 +1,36 @@
+diff --git a/.github/workflows/d200-acceptance.yml b/.github/workflows/d200-acceptance.yml
+--- a/.github/workflows/d200-acceptance.yml
++++ b/.github/workflows/d200-acceptance.yml
+@@ -4,12 +4,12 @@ on:
+     branches: [main]
+     paths: ['.github/workflows/d200-acceptance.yml']
+ permissions: { contents: read, actions: read, id-token: write }
+-concurrency: { group: truyn-d200-0718c78d-qualified-single-shot, cancel-in-progress: false }
++concurrency: { group: truyn-d200-305c860f-qualified-single-shot, cancel-in-progress: false }
+ env:
+-  TESTED_COMMIT: 0718c78d41b6d935aaafc4eb928a6061e895ce90
+-  TESTED_TREE_SHA: c6806a4090d7731ffca25f7f3899242519155c28
+-  EXACT_MAIN_CI_RUN: '35184720843'
+-  EXACT_MAIN_CODEQL_RUN: '35184720334'
++  TESTED_COMMIT: 305c860ffaeab12bf26c8b164d665137824a49d3
++  TESTED_TREE_SHA: ac9f7224dbb14f9ff6af675208f238d5102aed11
++  EXACT_MAIN_CI_RUN: '35376694955'
++  EXACT_MAIN_CODEQL_RUN: '35376694220'
+   AZURE_RESOURCE_GROUP: truyn
+   NODES_PER_HOST: '10'
+ jobs:
+@@ -107,7 +107,7 @@ jobs:
+         if: always()
+         uses: actions/upload-artifact@v4
+         with:
+-          name: 'truyn-class-d200-0718c78d-${{ github.run_id }}'
++          name: 'truyn-class-d200-305c860f-${{ github.run_id }}'
+           path: |
+             class-d-200-*.json
+             class-d-200-*.txt
+diff --git a/tests/public-repository.test.js b/tests/public-repository.test.js
+--- a/tests/public-repository.test.js
++++ b/tests/public-repository.test.js
+@@ -47,1 +47,1 @@
+-test('D-200 acceptance launcher is frozen to the qualified exact-main evidence', async()=>{const content=await readFile(path.join(ROOT,'.github/workflows/d200-acceptance.yml'),'utf8');for(const marker of ['TESTED_COMMIT: 0718c78d41b6d935aaafc4eb928a6061e895ce90','TESTED_TREE_SHA: c6806a4090d7731ffca25f7f3899242519155c28',"EXACT_MAIN_CI_RUN: '35184720843'","EXACT_MAIN_CODEQL_RUN: '35184720334'",'truyn-d200-0718c78d-qualified-single-shot'])assert.ok(content.includes(marker),`D-200 launcher lost qualified freeze marker: ${marker}`)});
++test('D-200 acceptance launcher is frozen to the qualified exact-main evidence', async()=>{const content=await readFile(path.join(ROOT,'.github/workflows/d200-acceptance.yml'),'utf8');for(const marker of ['TESTED_COMMIT: 305c860ffaeab12bf26c8b164d665137824a49d3','TESTED_TREE_SHA: ac9f7224dbb14f9ff6af675208f238d5102aed11',"EXACT_MAIN_CI_RUN: '35376694955'","EXACT_MAIN_CODEQL_RUN: '35376694220'",'truyn-d200-305c860f-qualified-single-shot'])assert.ok(content.includes(marker),`D-200 launcher lost qualified freeze marker: ${marker}`)});
