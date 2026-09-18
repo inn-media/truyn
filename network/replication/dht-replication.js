@@ -69,18 +69,21 @@ export class DhtReplicationManager {
     const failures = [];
     const remoteNeeded = Math.max(0, replicationFactor - acknowledgements);
 
-    for (const peer of this.candidates(record.namespace, record.key, replicationFactor + 8)) {
-      if (storedAt.length >= replicationFactor) break;
-      try {
-        const result = await this.rpc.store(peer, record);
-        if (result?.stored) {
-          acknowledgements += 1;
-          storedAt.push(peer.nodeId);
+    const candidates = this.candidates(record.namespace, record.key, replicationFactor + 8);
+    let cursor = 0;
+    while (storedAt.length < replicationFactor && cursor < candidates.length) {
+      const batch = candidates.slice(cursor, cursor + (replicationFactor - storedAt.length));
+      cursor += batch.length;
+      const settled = await Promise.allSettled(batch.map((peer) => this.rpc.store(peer, record)));
+      settled.forEach((outcome, index) => {
+        const peer = batch[index];
+        if (outcome.status === 'fulfilled') {
+          if (outcome.value?.stored) { acknowledgements += 1; storedAt.push(peer.nodeId); }
+          return;
         }
-      } catch (error) {
         this.rpc.forget?.(peer.nodeId);
-        failures.push({ nodeId: peer.nodeId, reason: error?.message || 'dht_store_failed' });
-      }
+        failures.push({ nodeId: peer.nodeId, reason: outcome.reason?.message || 'dht_store_failed' });
+      });
     }
 
     if (acknowledgements < minAcks) {
