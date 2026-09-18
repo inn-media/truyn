@@ -1,10 +1,10 @@
 diff --git a/.github/workflows/d200-acceptance.yml b/.github/workflows/d200-acceptance.yml
 --- a/.github/workflows/d200-acceptance.yml
 +++ b/.github/workflows/d200-acceptance.yml
-@@ -7 +7 @@
+@@ -8 +8 @@
 -concurrency: { group: truyn-d200-0718c78d-qualified-single-shot, cancel-in-progress: false }
 +concurrency: { group: truyn-d200-ace4b135-qualified-single-shot, cancel-in-progress: false }
-@@ -9,4 +9,4 @@
+@@ -10,4 +10,4 @@
 -  TESTED_COMMIT: 0718c78d41b6d935aaafc4eb928a6061e895ce90
 -  TESTED_TREE_SHA: c6806a4090d7731ffca25f7f3899242519155c28
 -  EXACT_MAIN_CI_RUN: '35184720843'
@@ -13,7 +13,7 @@ diff --git a/.github/workflows/d200-acceptance.yml b/.github/workflows/d200-acce
 +  TESTED_TREE_SHA: b860bb39b74541159f47d2c8c83b765bd0fbdbab
 +  EXACT_MAIN_CI_RUN: '35244679402'
 +  EXACT_MAIN_CODEQL_RUN: '35244678533'
-@@ -110 +110 @@
+@@ -109 +109 @@
 -          name: 'truyn-class-d200-0718c78d-${{ github.run_id }}'
 +          name: 'truyn-class-d200-ace4b135-${{ github.run_id }}'
 diff --git a/tests/public-repository.test.js b/tests/public-repository.test.js
