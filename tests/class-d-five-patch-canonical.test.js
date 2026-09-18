@@ -31,3 +31,13 @@ test('canonical manifest pins all five patches to all three scale classes', () =
   assert.equal(manifest.classProfiles['D-500'].productionNodes, 500);
   assert.equal(manifest.classProfiles['D-1000'].productionNodes, 1000);
 });
+
+test('peer-record renewal requires bounded replacement-session convergence without weakening baseline routing', () => {
+  const source = fs.readFileSync('scripts/d200-local-multiprocess-repro.mjs', 'utf8');
+  assert.match(source, /async function assertRouting\(nodes, label = 'routing'\)/, 'baseline routing must remain a strict dedicated assertion');
+  assert.match(source, /assert\.equal\(value\.transport, 'quic-direct'/, 'routing must remain direct QUIC only');
+  assert.match(source, /async function assertRoutingEventually\(nodes, label = 'routing', timeoutMs = 8000 \+ scaleExtra \* 1000\)/, 'renewal replacement session must have a bounded convergence window');
+  assert.match(source, /return await eventually\(async \(\) => \{[\s\S]*?requireOk\(response, `\$\{label\} \$\{source\.index\}->\$\{target\.index\}`\)[\s\S]*?\}, timeoutMs, 150\);/, 'bounded convergence must remain fail-closed through requireOk');
+  assert.match(source, /const routing = await assertRoutingEventually\(nodes, 'post-renewal-routing'\);/, 'only post-renewal routing should use replacement-session convergence');
+  assert.doesNotMatch(source, /const routing = await assertRoutingEventually\(nodes, 'routing'\)/, 'ordinary routing must not be weakened to eventual success');
+});
