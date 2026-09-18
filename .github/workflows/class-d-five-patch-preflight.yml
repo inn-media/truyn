@@ -1,5 +1,7 @@
 name: Class D Five-Patch Preflight
 on:
+  push:
+    branches: [main]
   pull_request: {}
   workflow_dispatch:
     inputs:
