@@ -143,7 +143,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          package="$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-0.1.0-alpha.3.tgz"
+          package="$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-0.1.0-alpha.4.tgz"
           test -f "$package"
           cleanroom="$(mktemp -d)"
           cd "$cleanroom"
