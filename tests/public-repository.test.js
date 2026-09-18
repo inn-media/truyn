@@ -11,6 +11,7 @@ const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.c
 const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/autonomous-repair.yml',
   '.github/workflows/ci.yml',
+  '.github/workflows/class-d-five-patch-preflight.yml',
   '.github/workflows/d200-acceptance.yml',
   '.github/workflows/d200-bug-hunt.yml',
   '.github/workflows/d200-live-preflight.yml',

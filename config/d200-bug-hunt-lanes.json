@@ -3,9 +3,10 @@
   "lanes": [
     {"id":"contract-repository","domain":"launcher-repository","commands":[
       {"label":"D-200 contract","argv":["node","scripts/check-d200-contract.mjs"]},
+      {"label":"Class D five-patch contract","argv":["node","scripts/check-class-d-five-patches.mjs"]},
       {"label":"repository hygiene","argv":["node","scripts/check-repository-hygiene.mjs"]},
       {"label":"open-private boundary","argv":["node","scripts/check-open-private-boundary.mjs"]},
-      {"label":"contract regressions","argv":["node","--test","tests/d200-anti-weakening.test.js","tests/d200-canonical-regressions.test.js"]}
+      {"label":"contract regressions","argv":["node","--test","tests/d200-anti-weakening.test.js","tests/d200-canonical-regressions.test.js","tests/class-d-five-patch-canonical.test.js"]}
     ]},
     {"id":"runtime-bundle-staging","domain":"bundle-staging","commands":[
       {"label":"staging syntax","argv":["bash","-n","scripts/d200-stage-runtime-bundle.sh"]},
@@ -17,24 +18,24 @@
     {"id":"topology-placement","domain":"topology-placement","commands":[
       {"label":"provision syntax","argv":["bash","-n","benchmarks/scale/class-d-azure-1000-provision.sh"]},
       {"label":"canonical entrypoints","argv":["node","--test","tests/class-d-canonical-pin-regression.test.js","tests/class-d-accepted-entrypoint-regression.test.js"]},
-      {"label":"real local multiprocess topology","argv":["node","scripts/d200-local-multiprocess-repro.mjs","--scenario","topology","--nodes","6"],"timeoutMs":90000}
+      {"label":"real canonical Class D multiprocess topology","argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","200","--scenario","topology","--nodes","6"],"timeoutMs":90000}
     ]},
     {"id":"readiness-lease","domain":"readiness-lease","commands":[
       {"label":"peer propagation readiness","argv":["node","--test","tests/d200-peer-propagation-readiness-barrier.test.js"]},
-      {"label":"real local multiprocess readiness","argv":["node","scripts/d200-local-multiprocess-repro.mjs","--scenario","readiness","--nodes","6"],"timeoutMs":90000}
+      {"label":"real canonical Class D multiprocess readiness","argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","200","--scenario","readiness","--nodes","6"],"timeoutMs":90000}
     ]},
     {"id":"routing-repair","domain":"routing-repair","commands":[
       {"label":"route repair acceptance","argv":["node","--test","tests/d200-route-repair-acceptance-invariants.test.js"]},
-      {"label":"real local multiprocess routing","argv":["node","scripts/d200-local-multiprocess-repro.mjs","--scenario","routing","--nodes","6"],"timeoutMs":90000}
+      {"label":"real canonical Class D multiprocess routing","argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","200","--scenario","routing","--nodes","6"],"timeoutMs":90000}
     ]},
     {"id":"recovery-fault","domain":"recovery-fault","commands":[
       {"label":"randomized adversarial recovery","argv":["node","--test","tests/randomized-adversarial.test.js"]},
-      {"label":"real local multiprocess partition-heal","argv":["node","scripts/d200-local-multiprocess-repro.mjs","--scenario","recovery","--nodes","6"],"timeoutMs":90000}
+      {"label":"real canonical Class D multiprocess partition-heal","argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","200","--scenario","recovery","--nodes","6"],"timeoutMs":90000}
     ]},
     {"id":"durability","domain":"durability","commands":[
       {"label":"DHT durability/replication","argv":["node","--test","tests/dht-replication-keyspace.test.js"]},
       {"label":"terminal durability predicates","argv":["node","--test","tests/class-d-terminal-verifier.test.js"]},
-      {"label":"real local multiprocess parallel writes","argv":["node","scripts/d200-local-multiprocess-repro.mjs","--scenario","durability","--nodes","6"],"timeoutMs":90000}
+      {"label":"real canonical Class D multiprocess parallel writes","argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","200","--scenario","durability","--nodes","6"],"timeoutMs":90000}
     ]},
     {"id":"cleanup","domain":"cleanup","commands":[
       {"label":"campaign syntax","argv":["bash","-n","benchmarks/scale/class-d-azure-1000-campaign.sh"]},
@@ -53,7 +54,7 @@
       {"label":"campaign shell syntax","argv":["bash","-n","benchmarks/scale/class-d-azure-1000-campaign.sh"]},
       {"label":"provision shell syntax","argv":["bash","-n","benchmarks/scale/class-d-azure-1000-provision.sh"]},
       {"label":"stage resume regression","argv":["node","--test","tests/d200-stage-runner.test.js"],"timeoutMs":60000},
-      {"label":"real local multiprocess renewal","argv":["node","scripts/d200-local-multiprocess-repro.mjs","--scenario","renewal","--nodes","6"],"timeoutMs":90000}
+      {"label":"real canonical Class D multiprocess renewal","argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","200","--scenario","renewal","--nodes","6"],"timeoutMs":90000}
     ]}
   ]
 }

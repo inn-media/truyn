@@ -1,0 +1,43 @@
+{
+  "schema": "truyn.class-d.five-patches.v1",
+  "status": "CANONICAL_REQUIRED",
+  "requiredFor": ["D-200", "D-500", "D-1000"],
+  "policy": {
+    "failClosed": true,
+    "silentRemovalForbidden": true,
+    "acceptanceWeakeningForbidden": true,
+    "sharedImplementationPreferred": true
+  },
+  "patches": [
+    {
+      "id": "P1_DURABLE_WRITE_DIAGNOSTICS",
+      "canonicalFiles": ["benchmarks/scale/class-d-azure-1000-campaign.sh"],
+      "invariant": "Every durable write records bounded HTTP/body/ack diagnostics and a missing write marker is surfaced before acceptance evaluation."
+    },
+    {
+      "id": "P2_PARALLEL_DHT_REPLICATION",
+      "canonicalFiles": ["network/replication/dht-replication.js"],
+      "invariant": "Remote DHT replica stores execute in bounded parallel batches while the existing minAcks fail-closed quorum remains mandatory."
+    },
+    {
+      "id": "P3_PEER_RECORD_RENEWAL_JITTER",
+      "canonicalFiles": ["network/runtime.js"],
+      "invariant": "Peer-record renewals include bounded random jitter so class-scale nodes do not renew in synchronized waves."
+    },
+    {
+      "id": "P4_RESUMABLE_FAIL_COLLECT_STAGE_DAG",
+      "canonicalFiles": ["scripts/class-d-stage-runner.mjs"],
+      "invariant": "Diagnostic stages checkpoint PASS/FAIL/INFRA/BLOCKED, continue independent work, resume from prior checkpoints, and remain fail-closed overall."
+    },
+    {
+      "id": "P5_REAL_LOCAL_MULTIPROCESS_REPRO",
+      "canonicalFiles": ["scripts/class-d-local-multiprocess-repro.mjs", "scripts/d200-local-multiprocess-repro.mjs"],
+      "invariant": "Preflight executes real separate TRUYN node-service processes and exercises topology, readiness, routing, DHT durability, partition/heal recovery and renewal."
+    }
+  ],
+  "classProfiles": {
+    "D-200": {"diagnosticNodes": 6, "productionNodes": 200},
+    "D-500": {"diagnosticNodes": 8, "productionNodes": 500},
+    "D-1000": {"diagnosticNodes": 10, "productionNodes": 1000}
+  }
+}

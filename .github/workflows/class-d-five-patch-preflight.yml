@@ -1,0 +1,120 @@
+name: Class D Five-Patch Preflight
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch:
+    inputs:
+      resume_run_id:
+        description: 'Previous Class D preflight run id to resume'
+        required: false
+        type: string
+      resume_from:
+        description: 'Optional stage id to invalidate and rerun with descendants'
+        required: false
+        type: string
+      resume_across_sha:
+        description: 'Reuse unaffected PASS stages across source SHA changes'
+        required: false
+        default: false
+        type: boolean
+permissions:
+  contents: read
+  actions: read
+jobs:
+  class-d:
+    name: class-d-${{ matrix.class_size }}-five-patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        class_size: [200, 500, 1000]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Enforce five-patch canonical contract
+        run: node scripts/check-class-d-five-patches.mjs
+      - name: Download previous class checkpoint
+        if: github.event_name == 'workflow_dispatch' && inputs.resume_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: class-d-${{ matrix.class_size }}-stage-checkpoint-${{ inputs.resume_run_id }}
+          path: class-d-resume-${{ matrix.class_size }}
+          run-id: ${{ inputs.resume_run_id }}
+          github-token: ${{ github.token }}
+      - name: Execute real resumable Class D stage DAG
+        shell: bash
+        env:
+          CLASS_SIZE: ${{ matrix.class_size }}
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RESUME_RUN_ID: ${{ inputs.resume_run_id || '' }}
+          RESUME_FROM: ${{ inputs.resume_from || '' }}
+          RESUME_ACROSS_SHA: ${{ inputs.resume_across_sha || false }}
+        run: |
+          set -Eeuo pipefail
+          checkpoint="class-d-${CLASS_SIZE}-stage-checkpoint.json"
+          # The three scale profiles run concurrently on separate hosted runners.
+          # D-200's six-node scenarios can additionally run three local clusters
+          # at once. D-500/D-1000 use 8/10 real node-service processes per
+          # scenario, so execute one cluster at a time to avoid converting
+          # single-runner CPU/socket contention into false network failures.
+          # Fail-collect semantics are unchanged: later independent stages still
+          # execute even after a previous stage is recorded FAIL.
+          concurrency=3
+          if (( CLASS_SIZE > 200 )); then concurrency=1; fi
+          args=(--class "$CLASS_SIZE" --checkpoint "$checkpoint" --concurrency "$concurrency")
+          if [[ -n "$RESUME_RUN_ID" ]]; then
+            prior="class-d-resume-${CLASS_SIZE}/${checkpoint}"
+            test -f "$prior"
+            cp "$prior" "$checkpoint"
+            if [[ -n "$RESUME_FROM" ]]; then args+=(--from "$RESUME_FROM"); else args+=(--resume); fi
+            if [[ "$RESUME_ACROSS_SHA" == "true" ]]; then args+=(--resume-across-sha); fi
+          elif [[ -n "$RESUME_FROM" ]]; then
+            echo 'resume_from requires resume_run_id' >&2
+            exit 2
+          fi
+          TRUYN_CLASS_D_SOURCE_SHA="$EXPECTED_SHA" node scripts/class-d-stage-runner.mjs "${args[@]}"
+      - name: Upload stage checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: class-d-${{ matrix.class_size }}-stage-checkpoint-${{ github.run_id }}
+          path: class-d-${{ matrix.class_size }}-stage-checkpoint.json
+          if-no-files-found: error
+          retention-days: 30
+
+  aggregate:
+    name: class-d-five-patch-aggregate
+    needs: [class-d]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: class-d-*-stage-checkpoint-${{ github.run_id }}
+          path: class-d-checkpoints
+          merge-multiple: true
+      - name: Require exact-SHA clean evidence for D-200 D-500 D-1000
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          for (const size of [200,500,1000]) {
+            const file=`class-d-checkpoints/class-d-${size}-stage-checkpoint.json`;
+            if (!fs.existsSync(file)) throw new Error(`missing checkpoint ${file}`);
+            const p=JSON.parse(fs.readFileSync(file,'utf8'));
+            if (Number(p.classSize)!==size) throw new Error(`wrong class in ${file}`);
+            if (p.sourceSha!==process.env.EXPECTED_SHA) throw new Error(`wrong source SHA in ${file}`);
+            if (p.summary?.clean!==true) throw new Error(`unclean class D-${size} checkpoint`);
+          }
+          console.log('TRUYN_CLASS_D_FIVE_PATCH_AGGREGATE=PASS classes=200,500,1000');
+          NODE
