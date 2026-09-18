@@ -56,6 +56,7 @@ jobs:
       - run: npm run test:fast
       - run: npm run test:security
       - run: node scripts/check-d200-contract.mjs
+      - run: node scripts/check-class-d-five-patches.mjs
       - run: node scripts/check-repository-hygiene.mjs
       - run: node scripts/check-open-private-boundary.mjs
       - run: git diff --check
@@ -103,6 +104,7 @@ jobs:
         with: {node-version: '22'}
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run test:network
+      - run: node scripts/check-class-d-five-patches.mjs
       - run: bash scripts/class-d-200-preflight-qualification.sh
   sdk-release:
     needs: plan
@@ -159,7 +161,7 @@ jobs:
           retention-days: 30
   full-qualification:
     needs: [plan, mandatory]
-    if: github.event_name == 'push' || needs.plan.outputs.full == 'true' || startsWith(github.head_ref, 'automation/d200-repository-sanitation-')
+    if: github.event_name == 'push' || needs.plan.outputs.full == 'true' || startsWith(github.head_ref, 'automation/d200-repository-sanitation-') || startsWith(github.head_ref, 'automation/class-d-five-patches-')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -190,6 +192,7 @@ jobs:
           TRUYN_RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: sdk/release/build-release.sh
       - run: npm run test:full
+      - run: node scripts/check-class-d-five-patches.mjs
       - run: bash scripts/class-d-200-preflight-qualification.sh
       - run: git diff --check
   test:
