@@ -72,7 +72,8 @@ requireAll('P5 real multiprocess implementation', local, [
   "'/faults/partition'",
   "'/faults/heal'",
   "'quic-direct'",
-  'acquirePortBlock'
+  'acquirePortBlock',
+  'externalWriteConcurrency'
 ]);
 
 const d1000 = read('scripts/class-d-1000-final-acceptance.sh');
@@ -94,6 +95,12 @@ const d200Workflow = read('.github/workflows/d200-bug-hunt.yml');
 requireAll('D-200 canonical runner wiring', d200Workflow, [
   'scripts/class-d-stage-runner.mjs',
   '--class 200'
+]);
+const d200Lanes = read('config/d200-bug-hunt-lanes.json');
+requireAll('D-200 lane-level shared repro wiring', d200Lanes, [
+  'scripts/class-d-local-multiprocess-repro.mjs',
+  '"--class","200"',
+  'scripts/check-class-d-five-patches.mjs'
 ]);
 
 const ci = read('.github/workflows/ci.yml');
