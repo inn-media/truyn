@@ -60,7 +60,16 @@ jobs:
         run: |
           set -Eeuo pipefail
           checkpoint="class-d-${CLASS_SIZE}-stage-checkpoint.json"
-          args=(--class "$CLASS_SIZE" --checkpoint "$checkpoint" --concurrency 3)
+          # The three scale profiles run concurrently on separate hosted runners.
+          # D-200's six-node scenarios can additionally run three local clusters
+          # at once. D-500/D-1000 use 8/10 real node-service processes per
+          # scenario, so execute one cluster at a time to avoid converting
+          # single-runner CPU/socket contention into false network failures.
+          # Fail-collect semantics are unchanged: later independent stages still
+          # execute even after a previous stage is recorded FAIL.
+          concurrency=3
+          if (( CLASS_SIZE > 200 )); then concurrency=1; fi
+          args=(--class "$CLASS_SIZE" --checkpoint "$checkpoint" --concurrency "$concurrency")
           if [[ -n "$RESUME_RUN_ID" ]]; then
             prior="class-d-resume-${CLASS_SIZE}/${checkpoint}"
             test -f "$prior"
