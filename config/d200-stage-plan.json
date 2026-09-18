@@ -1,0 +1,59 @@
+{
+  "schema": "truyn.d200.stage-plan.v1",
+  "stages": [
+    {
+      "id": "contract",
+      "dependsOn": [],
+      "inputs": ["config/d200-contract.json", "scripts/check-d200-contract.mjs", "scripts/check-repository-hygiene.mjs", "scripts/check-open-private-boundary.mjs"],
+      "command": {"argv": ["bash", "-lc", "node scripts/check-d200-contract.mjs && node scripts/check-repository-hygiene.mjs && node scripts/check-open-private-boundary.mjs"], "timeoutMs": 120000}
+    },
+    {
+      "id": "campaign-syntax",
+      "dependsOn": [],
+      "inputs": ["benchmarks/scale/class-d-azure-1000-campaign.sh", "benchmarks/scale/class-d-azure-1000-provision.sh", "scripts/class-d-1000-final-acceptance.sh"],
+      "command": {"argv": ["bash", "-lc", "bash -n benchmarks/scale/class-d-azure-1000-campaign.sh && bash -n benchmarks/scale/class-d-azure-1000-provision.sh && bash -n scripts/class-d-1000-final-acceptance.sh"], "timeoutMs": 60000}
+    },
+    {
+      "id": "local-topology",
+      "dependsOn": ["contract"],
+      "inputs": ["network/", "core/", "scripts/d200-local-multiprocess-repro.mjs"],
+      "command": {"argv": ["node", "scripts/d200-local-multiprocess-repro.mjs", "--scenario", "topology", "--nodes", "6"], "timeoutMs": 90000}
+    },
+    {
+      "id": "local-readiness",
+      "dependsOn": ["local-topology"],
+      "inputs": ["network/", "core/", "scripts/d200-local-multiprocess-repro.mjs", "benchmarks/scale/class-d-azure-1000-campaign.sh"],
+      "command": {"argv": ["node", "scripts/d200-local-multiprocess-repro.mjs", "--scenario", "readiness", "--nodes", "6"], "timeoutMs": 90000}
+    },
+    {
+      "id": "local-routing",
+      "dependsOn": ["local-topology"],
+      "inputs": ["network/", "core/", "scripts/d200-local-multiprocess-repro.mjs"],
+      "command": {"argv": ["node", "scripts/d200-local-multiprocess-repro.mjs", "--scenario", "routing", "--nodes", "6"], "timeoutMs": 90000}
+    },
+    {
+      "id": "local-durability",
+      "dependsOn": ["local-topology"],
+      "inputs": ["network/replication/", "network/dht/", "network/testnet/", "scripts/d200-local-multiprocess-repro.mjs"],
+      "command": {"argv": ["node", "scripts/d200-local-multiprocess-repro.mjs", "--scenario", "durability", "--nodes", "6"], "timeoutMs": 90000}
+    },
+    {
+      "id": "local-recovery",
+      "dependsOn": ["local-routing"],
+      "inputs": ["network/", "scripts/d200-local-multiprocess-repro.mjs"],
+      "command": {"argv": ["node", "scripts/d200-local-multiprocess-repro.mjs", "--scenario", "recovery", "--nodes", "6"], "timeoutMs": 90000}
+    },
+    {
+      "id": "local-renewal",
+      "dependsOn": ["local-topology"],
+      "inputs": ["network/runtime.js", "network/discovery/", "network/testnet/", "scripts/d200-local-multiprocess-repro.mjs"],
+      "command": {"argv": ["node", "scripts/d200-local-multiprocess-repro.mjs", "--scenario", "renewal", "--nodes", "6"], "timeoutMs": 90000}
+    },
+    {
+      "id": "acceptance-invariants",
+      "dependsOn": ["campaign-syntax"],
+      "inputs": ["tests/d200-route-repair-acceptance-invariants.test.js", "tests/d200-peer-propagation-readiness-barrier.test.js", "benchmarks/scale/class-d-azure-1000-campaign.sh"],
+      "command": {"argv": ["node", "--test", "tests/d200-route-repair-acceptance-invariants.test.js", "tests/d200-peer-propagation-readiness-barrier.test.js"], "timeoutMs": 180000}
+    }
+  ]
+}

@@ -1,13 +1,28 @@
 name: D-200 Bug Hunt Swarm
 on:
   pull_request: {}
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      resume_run_id:
+        description: 'Previous Bug Hunt run id whose stage checkpoint should be resumed'
+        required: false
+        type: string
+      resume_from:
+        description: 'Optional stage id to invalidate and rerun with all descendants'
+        required: false
+        type: string
+      resume_across_sha:
+        description: 'Allow reuse of unaffected PASS stages when source SHA changed'
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
+  actions: read
 jobs:
   swarm:
     name: d200-${{ matrix.lane }}
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'automation/d200-parallel-closure-') || startsWith(github.head_ref, 'automation/d200-autorepair-control-') || startsWith(github.head_ref, 'automation/d200-durable-write-')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'automation/d200-parallel-closure-') || startsWith(github.head_ref, 'automation/d200-autorepair-control-') || startsWith(github.head_ref, 'automation/d200-durable-write-') || startsWith(github.head_ref, 'automation/d200-stage-')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -47,10 +62,68 @@ jobs:
           path: d200-lane-${{ matrix.lane }}.json
           if-no-files-found: error
           retention-days: 30
+
+  stage-plan:
+    name: d200-resumable-stage-plan
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'automation/d200-parallel-closure-') || startsWith(github.head_ref, 'automation/d200-autorepair-control-') || startsWith(github.head_ref, 'automation/d200-durable-write-') || startsWith(github.head_ref, 'automation/d200-stage-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Download previous resumable checkpoint
+        if: github.event_name == 'workflow_dispatch' && inputs.resume_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: d200-stage-checkpoint-${{ inputs.resume_run_id }}
+          path: d200-resume
+          run-id: ${{ inputs.resume_run_id }}
+          github-token: ${{ github.token }}
+      - name: Execute resumable stage DAG and collect all reachable failures
+        shell: bash
+        env:
+          TRUYN_D200_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RESUME_RUN_ID: ${{ inputs.resume_run_id || '' }}
+          RESUME_FROM: ${{ inputs.resume_from || '' }}
+          RESUME_ACROSS_SHA: ${{ inputs.resume_across_sha || false }}
+        run: |
+          set -Eeuo pipefail
+          args=(--config config/d200-stage-plan.json --checkpoint d200-stage-checkpoint.json --concurrency 3)
+          if [[ -n "$RESUME_RUN_ID" ]]; then
+            test -f d200-resume/d200-stage-checkpoint.json
+            cp d200-resume/d200-stage-checkpoint.json d200-stage-checkpoint.json
+            if [[ -n "$RESUME_FROM" ]]; then
+              args+=(--from "$RESUME_FROM")
+            else
+              args+=(--resume)
+            fi
+            if [[ "$RESUME_ACROSS_SHA" == "true" ]]; then
+              args+=(--resume-across-sha)
+            fi
+          elif [[ -n "$RESUME_FROM" ]]; then
+            echo 'resume_from requires resume_run_id' >&2
+            exit 2
+          fi
+          node scripts/d200-stage-runner.mjs "${args[@]}"
+      - name: Upload resumable stage checkpoint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d200-stage-checkpoint-${{ github.run_id }}
+          path: d200-stage-checkpoint.json
+          if-no-files-found: error
+          retention-days: 30
+
   aggregate:
     name: d200-bug-hunt-aggregate
-    needs: swarm
-    if: always()
+    needs: [swarm, stage-plan]
+    if: always() && (github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'automation/d200-parallel-closure-') || startsWith(github.head_ref, 'automation/d200-autorepair-control-') || startsWith(github.head_ref, 'automation/d200-durable-write-') || startsWith(github.head_ref, 'automation/d200-stage-'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -66,8 +139,16 @@ jobs:
           pattern: d200-lane-*-${{ github.run_id }}
           path: d200-results
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: d200-stage-checkpoint-${{ github.run_id }}
+          path: d200-stage-plan
       - name: Aggregate all terminal lane evidence and enforce clean candidate
         run: node scripts/d200-bug-hunt-aggregate.mjs d200-results --output d200-bug-hunt-aggregate.json --enforce
+      - name: Enforce resumable stage plan evidence from exact tested SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('d200-stage-plan/d200-stage-checkpoint.json','utf8'));if(p.sourceSha!==process.env.EXPECTED_SHA||p.summary?.clean!==true)process.exit(1);"
       - name: Upload aggregate evidence
         if: always()
         uses: actions/upload-artifact@v4
