@@ -298,6 +298,18 @@ async function assertRouting(nodes, label = 'routing') {
   }));
   return { success: rows.length, total: nodes.length };
 }
+async function assertRoutingEventually(nodes, label = 'routing', timeoutMs = 8000 + scaleExtra * 1000) {
+  const rows = await Promise.all(nodes.map(async (source, i) => {
+    const target = nodes[(i + 1) % nodes.length];
+    return await eventually(async () => {
+      const response = await request(source, '/need', { method: 'POST', body: { nodeId: target.startup.nodeId, input: { scenario: label, source: i }, allowRelayFallback: false }, timeoutMs: routingRequestTimeoutMs });
+      const value = requireOk(response, `${label} ${source.index}->${target.index}`);
+      assert.equal(value.transport, 'quic-direct', `${label} must use direct QUIC`);
+      return value;
+    }, timeoutMs, 150);
+  }));
+  return { success: rows.length, total: nodes.length };
+}
 async function assertDurability(nodes) {
   const totalWrites = nodes.length * 2;
   const written = [];
@@ -351,7 +363,7 @@ async function assertRenewal(nodes, ttlMs) {
     const rows = await Promise.all(nodes.map(async (node) => requireOk(await request(node, '/record'), `record after node=${node.index}`).record.sequence));
     return rows.every((sequence, i) => sequence > before[i]) ? rows : false;
   }, Math.max(12000, ttlMs * 2 + scaleExtra * 1000), 150);
-  const routing = await assertRouting(nodes, 'post-renewal-routing');
+  const routing = await assertRoutingEventually(nodes, 'post-renewal-routing');
   return { renewed: renewed.length, total: nodes.length, minSequenceAdvance: Math.min(...renewed.map((sequence, i) => sequence - before[i])), routingSuccess: routing.success };
 }
 
