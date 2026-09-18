@@ -5,6 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { randomInt } from 'node:crypto';
 import net from 'node:net';
 import dgram from 'node:dgram';
 import readline from 'node:readline';
@@ -16,6 +17,12 @@ const nodeCount = Number.isInteger(sizeArg) && sizeArg >= 3 && sizeArg <= 12 ? s
 const resultArg = process.argv.includes('--result') ? process.argv[process.argv.indexOf('--result') + 1] : null;
 const allowed = new Set(['topology', 'readiness', 'routing', 'durability', 'recovery', 'renewal', 'all']);
 if (!allowed.has(scenario)) throw new Error(`unknown scenario: ${scenario}`);
+
+const PORT_LEASE_DIR = join(tmpdir(), 'truyn-d200-port-leases-v1');
+const PORT_BASE = 20000;
+const PORT_BLOCK_SIZE = 32;
+const PORT_BLOCK_COUNT = 300;
+const QUIC_OFFSET = 16;
 
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 async function eventually(fn, timeoutMs = 12000, intervalMs = 100) {
@@ -29,28 +36,85 @@ async function eventually(fn, timeoutMs = 12000, intervalMs = 100) {
   if (lastError) throw lastError;
   throw new Error(`condition_not_met_within_${timeoutMs}ms`);
 }
-async function freeTcpPort() {
-  return await new Promise((resolvePromise, reject) => {
+
+async function canBindTcp(port) {
+  return await new Promise((resolvePromise) => {
     const server = net.createServer();
     server.unref();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const port = server.address().port;
-      server.close((error) => error ? reject(error) : resolvePromise(port));
-    });
+    server.once('error', () => resolvePromise(false));
+    server.listen({ port, host: '127.0.0.1', exclusive: true }, () => server.close(() => resolvePromise(true)));
   });
 }
-async function freeUdpPort() {
-  return await new Promise((resolvePromise, reject) => {
+async function canBindUdp(port) {
+  return await new Promise((resolvePromise) => {
     const socket = dgram.createSocket('udp4');
     socket.unref();
-    socket.once('error', reject);
-    socket.bind(0, '127.0.0.1', () => {
-      const port = socket.address().port;
-      socket.close(() => resolvePromise(port));
-    });
+    socket.once('error', () => resolvePromise(false));
+    socket.bind(port, '127.0.0.1', () => socket.close(() => resolvePromise(true)));
   });
 }
+function removeStaleLease(lockPath) {
+  try {
+    const pid = Number(fs.readFileSync(lockPath, 'utf8').trim());
+    if (!Number.isInteger(pid) || pid <= 0) {
+      fs.unlinkSync(lockPath);
+      return true;
+    }
+    try {
+      process.kill(pid, 0);
+      return false;
+    } catch (error) {
+      if (error?.code === 'ESRCH') {
+        fs.unlinkSync(lockPath);
+        return true;
+      }
+      return false;
+    }
+  } catch (error) {
+    if (error?.code === 'ENOENT') return true;
+    return false;
+  }
+}
+async function acquirePortBlock(count) {
+  assert.ok(count <= QUIC_OFFSET, `node count ${count} exceeds leased block capacity`);
+  fs.mkdirSync(PORT_LEASE_DIR, { recursive: true });
+
+  for (let attempt = 0; attempt < PORT_BLOCK_COUNT * 3; attempt += 1) {
+    const block = randomInt(PORT_BLOCK_COUNT);
+    const base = PORT_BASE + block * PORT_BLOCK_SIZE;
+    const lockPath = join(PORT_LEASE_DIR, `${block}.lock`);
+    let fd;
+    try {
+      fd = fs.openSync(lockPath, 'wx', 0o600);
+    } catch (error) {
+      if (error?.code === 'EEXIST') {
+        removeStaleLease(lockPath);
+        continue;
+      }
+      throw error;
+    }
+
+    fs.writeFileSync(fd, `${process.pid}\n`);
+    fs.closeSync(fd);
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      try { fs.unlinkSync(lockPath); } catch (error) { if (error?.code !== 'ENOENT') throw error; }
+    };
+
+    const controlPorts = Array.from({ length: count }, (_, index) => base + index);
+    const quicPorts = Array.from({ length: count }, (_, index) => base + QUIC_OFFSET + index);
+    const tcpAvailable = await Promise.all(controlPorts.map(canBindTcp));
+    const udpAvailable = await Promise.all(quicPorts.map(canBindUdp));
+    if (tcpAvailable.every(Boolean) && udpAvailable.every(Boolean)) {
+      return { block, base, controlPorts, quicPorts, release };
+    }
+    release();
+  }
+  throw new Error('unable_to_acquire_d200_local_port_block');
+}
+
 function generateTls(root) {
   const keyPath = join(root, 'key.pem');
   const certPath = join(root, 'cert.pem');
@@ -152,17 +216,39 @@ function requireOk(response, label) {
 
 async function createCluster(count = nodeCount, ttlMs = 10000) {
   const root = await mkdtemp(join(tmpdir(), 'truyn-d200-local-multiprocess-'));
-  const tls = generateTls(root);
-  const specs = [];
-  for (let i = 0; i < count; i += 1) specs.push({ index: i, root, ...tls, quicPort: await freeUdpPort(), controlPort: await freeTcpPort(), ttlMs });
-  const nodes = specs.map((spec) => new LocalNodeProcess(spec));
-  try { await Promise.all(nodes.map((node) => node.start())); }
-  catch (error) {
-    await Promise.allSettled(nodes.map((node) => node.stop()));
+  let lease = null;
+  try {
+    const tls = generateTls(root);
+    lease = await acquirePortBlock(count);
+    const specs = Array.from({ length: count }, (_, i) => ({
+      index: i,
+      root,
+      ...tls,
+      quicPort: lease.quicPorts[i],
+      controlPort: lease.controlPorts[i],
+      ttlMs
+    }));
+    const nodes = specs.map((spec) => new LocalNodeProcess(spec));
+    try { await Promise.all(nodes.map((node) => node.start())); }
+    catch (error) {
+      await Promise.allSettled(nodes.map((node) => node.stop()));
+      throw error;
+    }
+    return {
+      root,
+      nodes,
+      portLease: { block: lease.block, base: lease.base },
+      async close() {
+        await Promise.allSettled(nodes.map((node) => node.stop()));
+        await rm(root, { recursive: true, force: true });
+        lease.release();
+      }
+    };
+  } catch (error) {
+    try { lease?.release(); } catch { /* preserve original error */ }
     await rm(root, { recursive: true, force: true });
     throw error;
   }
-  return { root, nodes, async close() { await Promise.allSettled(nodes.map((node) => node.stop())); await rm(root, { recursive: true, force: true }); } };
 }
 
 async function bootstrapMesh(nodes) {
@@ -246,7 +332,7 @@ async function assertRenewal(nodes) {
 async function runScenario(name) {
   const ttlMs = name === 'renewal' || name === 'all' ? 6000 : 12000;
   const cluster = await createCluster(nodeCount, ttlMs);
-  const evidence = { scenario: name, nodeCount, stages: {}, startedAt: new Date().toISOString() };
+  const evidence = { scenario: name, nodeCount, portLease: cluster.portLease, stages: {}, startedAt: new Date().toISOString() };
   try {
     evidence.stages.topology = await assertTopology(cluster.nodes);
     await bootstrapMesh(cluster.nodes);
