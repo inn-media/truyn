@@ -53,7 +53,14 @@ test('resume reuses exact-SHA PASS stages and reruns failed plus blocked descend
     assert.equal(second.results.get('c').reused, true);
     assert.equal(second.results.get('b').reused, false);
     assert.equal(second.results.get('d').reused, false);
+
+    // b and c are independent after a, so their first-run write order is intentionally nondeterministic.
+    // Verify execution cardinality and the only ordering constraint that matters: d runs after the
+    // successful resumed b. Exact order between independent stages must not be part of the contract.
     const lines = (await readFile(marker, 'utf8')).trim().split(/\n/);
-    assert.deepEqual(lines, ['a', 'b', 'c', 'b', 'd']);
+    const counts = Object.fromEntries(['a', 'b', 'c', 'd'].map((name) => [name, lines.filter((line) => line === name).length]));
+    assert.deepEqual(counts, { a: 1, b: 2, c: 1, d: 1 });
+    assert.equal(lines.at(-1), 'd');
+    assert.ok(lines.lastIndexOf('b') < lines.lastIndexOf('d'));
   } finally { await rm(root, { recursive: true, force: true }); }
 });
