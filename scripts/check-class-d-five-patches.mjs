@@ -6,6 +6,10 @@ const requireAll = (label, text, tokens) => {
   const missing = tokens.filter((token) => !text.includes(token));
   if (missing.length) throw new Error(`${label} missing canonical invariants: ${missing.join(' | ')}`);
 };
+const requirePatterns = (label, text, patterns) => {
+  const missing = patterns.filter(({ re }) => !re.test(text)).map(({ name }) => name);
+  if (missing.length) throw new Error(`${label} missing canonical invariants: ${missing.join(' | ')}`);
+};
 
 const manifest = JSON.parse(read('config/class-d-five-patches.json'));
 if (manifest.schema !== 'truyn.class-d.five-patches.v1') throw new Error('invalid class-d five-patch manifest schema');
@@ -19,13 +23,15 @@ for (const id of ['P1_DURABLE_WRITE_DIAGNOSTICS','P2_PARALLEL_DHT_REPLICATION','
 }
 
 const campaign = read('benchmarks/scale/class-d-azure-1000-campaign.sh');
-requireAll('P1 durable-write diagnostics', campaign, [
-  'TRUYN_D200_WRITE host=',
-  'curl_rc_$?',
-  'd200_write_remote_failed=1',
-  'acks=$a',
-  'body=$(head -c 300',
-  '[[ "$code" == 200 && "$a" -ge 2 ]]'
+requirePatterns('P1 durable-write diagnostics', campaign, [
+  { name: 'per-write evidence marker', re: /TRUYN_D200_WRITE\s+host=/ },
+  { name: 'curl failure return-code capture', re: /curl_rc_\\?\$\?/ },
+  { name: 'remote failure aggregation', re: /d200_write_remote_failed=1/ },
+  { name: 'acknowledgement evidence', re: /acks=\\?\$a\b/ },
+  { name: 'bounded response body evidence', re: /body=\\?\$\(head\s+-c\s+300\b/ },
+  { name: 'HTTP 200 plus minAcks=2 success condition', re: /\[\[\s+"?\\?\$code"?\s+==\s+200\s+&&\s+"?\\?\$a"?\s+-ge\s+2\s+\]\]/ },
+  { name: 'five writes per host gate', re: /\[\[\s+"\$w"\s+!=\s+5\s+\]\]/ },
+  { name: 'aggregate remote-write gate', re: /\[\[\s+"\$d200_write_remote_failed"\s+==\s+0\s+\]\]/ }
 ]);
 
 const replication = read('network/replication/dht-replication.js');
@@ -45,15 +51,15 @@ requireAll('P3 peer-record renewal jitter', runtime, [
 ]);
 
 const runner = read('scripts/class-d-stage-runner.mjs');
-requireAll('P4 resumable fail-collect DAG', runner, [
-  "status: 'BLOCKED'",
-  "status: 'INFRA'",
-  "status === 'PASS'",
-  '--resume',
-  '--resume-across-sha',
-  '--from',
-  'atomicWriteJson',
-  'summary.clean'
+requirePatterns('P4 resumable fail-collect DAG', runner, [
+  { name: 'BLOCKED state', re: /status\s*:\s*['"]BLOCKED['"]/ },
+  { name: 'INFRA state', re: /['"]INFRA['"]/ },
+  { name: 'PASS reuse', re: /status\s*===?\s*['"]PASS['"]/ },
+  { name: '--resume flag', re: /['"]--resume['"]/ },
+  { name: '--resume-across-sha flag', re: /['"]--resume-across-sha['"]/ },
+  { name: '--from flag', re: /['"]--from['"]/ },
+  { name: 'atomic checkpoint write', re: /atomicWriteJson\s*\(/ },
+  { name: 'fail-closed clean summary', re: /clean\s*:\s*counts\.FAIL\s*===\s*0\s*&&\s*counts\.BLOCKED\s*===\s*0\s*&&\s*counts\.INFRA\s*===\s*0/ }
 ]);
 
 const wrapper = read('scripts/class-d-local-multiprocess-repro.mjs');
