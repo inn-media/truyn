@@ -41,7 +41,7 @@ test('D-200 stage isolation continues independent stages, skips invalid dependen
   const retentionMarker = join(root, 'retention-ran');
   const evidence = join(root, 'class-d-1000-evidence.json');
   try {
-    await writeFile(campaign, `STAGE=alpha\necho ALPHA_START\nfalse\n\nSTAGE=beta\nprintf yes >'${betaMarker}'\n\nSTAGE=durable-writes\nwrites=0\nprintf '{"failure":{"stage":"durable-writes","evidenceComplete":false},"cleanup":{"confirmed":false,"remainingResources":null}}\\n' >"$EVIDENCE"\nfalse\n\nSTAGE=restart-recovery\necho RESTART_FIXTURE\n\nSTAGE=post-restart-routing\necho POST_RESTART_FIXTURE\n\nSTAGE=packet-partition\necho PARTITION_FIXTURE\n\nSTAGE=healed-routing\necho HEALED_FIXTURE\n\nSTAGE=write-retention\nprintf bad >'${retentionMarker}'\n\nSTAGE=resources\nrss_kb=123\nquic_bytes=456\nprocess_total=1\n\nSTAGE=evidence\nprintf '{"unexpected":true}\\n' >"$EVIDENCE"\n`);
+    await writeFile(campaign, `STAGE=topology\necho TOPOLOGY_FIXTURE\n\nSTAGE=alpha\necho ALPHA_START\nfalse\n\nSTAGE=beta\nprintf yes >'${betaMarker}'\n\nSTAGE=durable-writes\nwrites=0\nprintf '{"failure":{"stage":"durable-writes","evidenceComplete":false},"cleanup":{"confirmed":false,"remainingResources":null}}\\n' >"$EVIDENCE"\nfalse\n\nSTAGE=restart-recovery\necho RESTART_FIXTURE\n\nSTAGE=post-restart-routing\necho POST_RESTART_FIXTURE\n\nSTAGE=packet-partition\necho PARTITION_FIXTURE\n\nSTAGE=healed-routing\necho HEALED_FIXTURE\n\nSTAGE=write-retention\nprintf bad >'${retentionMarker}'\n\nSTAGE=resources\nrss_kb=123\nquic_bytes=456\nprocess_total=1\n\nSTAGE=evidence\nprintf '{"unexpected":true}\\n' >"$EVIDENCE"\n`);
 
     const run = spawnSync('bash', ['-c', fixtureShell({ root, campaign, evidence })], { encoding: 'utf8' });
     assert.notEqual(run.status, 0, `campaign must remain fail-closed\nstdout=${run.stdout}\nstderr=${run.stderr}`);
@@ -54,6 +54,7 @@ test('D-200 stage isolation continues independent stages, skips invalid dependen
     assert.equal(results.overall, 'FAIL');
     assert.equal(results.acceptanceWeakened, false);
     assert.equal(results.allPossibleStagesAttempted, true);
+    assert.equal(byStage.topology.status, 'PASS');
     assert.equal(byStage.alpha.status, 'RED');
     assert.equal(byStage.beta.status, 'PASS');
     assert.equal(byStage['durable-writes'].status, 'RED');
@@ -98,15 +99,24 @@ test('malformed stage plan is fail-closed instead of silently succeeding', async
   }
 });
 
-test('restart recovery override records host evidence before returning RED and keeps READY contract literal', async () => {
+test('restart recovery parses exact markers and compares READY with the five restarted nodes', async () => {
   const source = await readFile(join(repo, 'benchmarks/scale/d200-restart-recovery-stage.sh'), 'utf8');
-  assert.match(source, /if \[\[ "\$\(marker "\$out" READY\)" == "\$NODES_PER_HOST" \]\]/);
+  assert.match(source, /d200_restart_exact_marker\(\)/);
+  assert.match(source, /sed -n "s\/\^\$\{key\}=\/\/p"/);
+  assert.match(source, /restarted_nodes_per_host=\$\(\(restart_last_node-restart_first_node\+1\)\)/);
+  assert.match(source, /if \[\[ "\$ready" == "\$restarted_nodes_per_host" \]\]/);
+  assert.doesNotMatch(source, /marker "\$out" READY/);
   assert.match(source, /RESTART_LOGICAL_RC=/);
   assert.match(source, /TRUYN_D200_RESTART_HOST_FAILURE/);
   assert.match(source, /class-d-200-restart-recovery-hosts\.json/);
   assert.match(source, /remoteRc=/);
   assert.match(source, /lastBadNode=/);
   assert.match(source, /exit 0\nEOS/, 'logical remote failure must not trigger remote\(\) retry/restart repetition');
+});
+
+test('stage-isolated plan explicitly requires topology', async () => {
+  const source = await readFile(join(repo, 'scripts/d200-stage-isolated-campaign.sh'), 'utf8');
+  assert.match(source, /for required_stage in topology restart-recovery post-restart-routing packet-partition healed-routing resources evidence/);
 });
 
 test('acceptance remains strict: campaign rc and evaluator rc must both be zero for PASS', async () => {
