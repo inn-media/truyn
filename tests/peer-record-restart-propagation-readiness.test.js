@@ -87,6 +87,15 @@ test('durable restart is process-live before peer-record re-registration is netw
       if (peer.nodeId === flaky.nodeId && count === 1) throw new Error('simulated_restart_registration_gap');
       return { accepted: true, nodeId: record.nodeId, sequence: record.sequence };
     };
+    restarted.discovery.refreshRoutingTable = async () => ({
+      refreshed: true,
+      targets: [],
+      walks: [],
+      queriedPeers: [],
+      responses: 0,
+      routingSizeDelta: 0,
+      validPeersDelta: 0
+    });
 
     const newRecord = await restarted.start();
     assert.ok(restarted.started, 'process/QUIC startup completes');
@@ -108,6 +117,15 @@ test('durable restart is process-live before peer-record re-registration is netw
     assert.equal(attempts.get(`${newRecord.sequence}:${stable.nodeId}`), 1, 'already acknowledged placement is not retried');
     assert.equal(attempts.get(`${newRecord.sequence}:${flaky.nodeId}`), 2, 'failed restart registration is retried on the control plane only');
     assert.equal(restarted.localPeerRecord.recordId, newRecord.recordId, 'recovery retry must not mint another record or application envelope');
+
+    const recovery = restarted.peerRecordLifecycleSnapshot().recovery;
+    assert.equal(recovery.phase, 'ready', 'network readiness opens only after the explicit recovery epoch completes');
+    assert.ok(recovery.routingRefreshMs >= 0);
+    assert.ok(recovery.propagationAttempts >= 3, 'initial placements plus failed-peer retry are counted');
+    assert.ok(recovery.retryAttempts >= 1, 'failed placement is retried independently');
+    assert.equal(recovery.ackReset, 0, 'restart target churn must not reset same-record ACKs');
+    assert.equal(recovery.pendingAgeMs, 0, 'pending age returns to zero after recovery');
+    assert.ok(recovery.quicReplacementMs >= 0);
   } finally {
     if (restarted) await restarted.close();
     else if (first.started) await first.close();
