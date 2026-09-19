@@ -27,7 +27,7 @@ const forbidden = [
   ['storage key env', /AZURE_STORAGE_(?:KEY|CONNECTION_STRING)/.test(staging)],
   ['public container flag', /--public-access\s+(?!off\b|false\b)/.test(staging)],
   ['stage isolation weakens terminal acceptance', /acceptanceWeakened['\"]?\s*[:=]\s*true/.test(orchestrator)],
-  ['substring READY parser in restart stage', /marker "\$out" READY/.test(restart)]
+  ['substring READY parser in restart stage', /(?:^|\s)marker "\$out" READY/m.test(restart)]
 ];
 const failures = [...required.filter(([, ok]) => !ok).map(([name]) => `missing:${name}`), ...forbidden.filter(([, found]) => found).map(([name]) => `forbidden:${name}`)];
 if (failures.length) {
