@@ -26,7 +26,8 @@ function selectedQuicEndpoint(peerRecord) {
 }
 
 function peerRecordBinding(peerRecord, endpointValue) {
-  return `${Number.isInteger(peerRecord?.sequence) ? peerRecord.sequence : 'na'}:${endpointValue}`;
+  const epoch = peerRecord?.instanceId || (Number.isInteger(peerRecord?.sequence) ? peerRecord.sequence : 'na');
+  return `${epoch}:${endpointValue}`;
 }
 
 function retryableConnectError(error) {
