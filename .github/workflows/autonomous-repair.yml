@@ -41,7 +41,7 @@ jobs:
           git fetch origin main --quiet
           [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
           [[ "$(git merge-base HEAD "$BASE_SHA")" == "$BASE_SHA" ]]
-          git apply --check "${patches[0]}"
+          git apply --recount --check "${patches[0]}"
 
       - name: Apply exact patch fail closed
         shell: bash
@@ -49,7 +49,7 @@ jobs:
           set -Eeuo pipefail
           env_file=(.github/repairs/*.env); patch_file=(.github/repairs/*.patch)
           source "${env_file[0]}"
-          git apply "${patch_file[0]}"
+          git apply --recount "${patch_file[0]}"
           git diff --check
           mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' | sort)
           mapfile -t expected < <(printf '%s\n' $EXPECTED_PATHS | sort)
