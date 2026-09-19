@@ -29,7 +29,7 @@ async function eventually(check, { timeoutMs = 10_000, intervalMs = 25, message 
   assert.fail(`${message}${last ? `:${JSON.stringify(last)}` : ''}`);
 }
 
-test('productionization: peer record renews before expiry, disseminates, and invalidates stale outbound clients', { timeout: 20_000 }, async () => {
+test('productionization: same-instance peer record renewal preserves live outbound clients', { timeout: 20_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'truyn-peer-renewal-'));
   const tls = await generateTls(root);
   const a = new TruynNetworkNode({ identity: createIdentity(), host: '127.0.0.1', tls, statePath: join(root, 'a-state.json'), peerRecordTtlMs: 60_000, peerRecordRenewBeforeMs: 58_000 });
@@ -43,13 +43,19 @@ test('productionization: peer record renews before expiry, disseminates, and inv
     assert.equal(await b.pingPeer(a.identity.nodeId), true);
     assert.equal(b.router.connections.has(a.identity.nodeId), true, 'direct client must exist before renewal');
     assert.equal(b.rpc.clients.has(a.identity.nodeId), true, 'DHT RPC client must exist before renewal');
+    const directClientBefore = b.router.connections.get(a.identity.nodeId).client;
+    const rpcClientBefore = b.rpc.clients.get(a.identity.nodeId).client;
     const originalExpiresAt = Date.parse(recordA.expiresAt);
     const renewedAtB = await eventually(() => {
       const current = b.discovery.get(a.identity.nodeId);
       return current?.sequence > recordA.sequence ? current : null;
     }, { message: 'renewed_record_not_disseminated' });
     assert.ok(Date.parse(renewedAtB.expiresAt) > originalExpiresAt, 'renewal must extend the signed lease');
-    await eventually(() => !b.router.connections.has(a.identity.nodeId) && !b.rpc.clients.has(a.identity.nodeId), { message: 'stale_clients_not_invalidated' });
+    assert.equal(renewedAtB.instanceId, recordA.instanceId, 'renewal must keep the same signed process instanceId');
+    assert.equal(b.router.connections.get(a.identity.nodeId)?.client, directClientBefore, 'renewal must preserve a live direct QUIC client');
+    assert.equal(b.rpc.clients.get(a.identity.nodeId)?.client, rpcClientBefore, 'renewal must preserve a live discovery QUIC client');
+    const afterRenew = await b.need(a.identity.nodeId, 'renewal-proof', { value: 2 });
+    assert.equal(afterRenew.transport, 'quic-direct', 'first routing attempt after renewal must remain direct');
     const afterOriginalExpiry = b.discovery.get(a.identity.nodeId, { now: originalExpiresAt + 1 });
     assert.ok(afterOriginalExpiry, 'newer record must remain valid after the original lease expires');
     assert.ok(afterOriginalExpiry.sequence > recordA.sequence);
@@ -142,6 +148,8 @@ test('productionization: durable restart re-registers before first application t
     a = new TruynNetworkNode({ identity: identityA, host: '127.0.0.1', port: restartPort, tls, statePath: statePathA, peerRecordAutoRenew: false });
     const restartedRecord = await a.start();
     assert.ok(restartedRecord.sequence > recordA.sequence, 'restart must advance the durable signed peer-record sequence');
+    assert.ok(recordA.instanceId, 'runtime peer record must carry a signed process instanceId');
+    assert.notEqual(restartedRecord.instanceId, recordA.instanceId, 'process restart must mint a new signed instanceId');
 
     const registered = await eventually(() => {
       const current = b.discovery.get(identityA.nodeId);

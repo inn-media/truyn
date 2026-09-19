@@ -363,7 +363,7 @@ async function assertRenewal(nodes, ttlMs) {
     const rows = await Promise.all(nodes.map(async (node) => requireOk(await request(node, '/record'), `record after node=${node.index}`).record.sequence));
     return rows.every((sequence, i) => sequence > before[i]) ? rows : false;
   }, Math.max(12000, ttlMs * 2 + scaleExtra * 1000), 150);
-  const routing = await assertRoutingEventually(nodes, 'post-renewal-routing');
+  const routing = await assertRouting(nodes, 'post-renewal-routing');
   return { renewed: renewed.length, total: nodes.length, minSequenceAdvance: Math.min(...renewed.map((sequence, i) => sequence - before[i])), routingSuccess: routing.success };
 }
 

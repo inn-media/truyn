@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createIdentity } from '../core/identity/index.js';
 import { createEnvelope } from '../core/protocol/index.js';
 import { DurableAcceptedWorkInbox } from './admission/durable-inbox.js';
@@ -41,6 +42,7 @@ export class TruynNetworkNode {
     }
 
     this.identity = identity;
+    this.peerRecordInstanceId = randomUUID();
     this.host = host;
     this.port = port;
     this.advertiseHost = advertiseHost;
@@ -127,11 +129,16 @@ export class TruynNetworkNode {
     this.workInbox = workInboxPath ? new DurableAcceptedWorkInbox({ filePath: workInboxPath, maxCompleted: workInboxMaxCompleted }) : null;
     this.stateReady = false;
     this.persistQueue = Promise.resolve();
+    this.persistRequested = false;
+    this.persistFlushPromise = null;
     this.faults = faultController || new NetworkFaultController();
     const onStateChange = () => this.schedulePersist();
     const onRecordAccepted = ({ nodeId, previous, record }) => {
       if (previous?.recordId === record.recordId) return;
-      if (previous) {
+      const sessionChanged = !previous?.instanceId || !record.instanceId ||
+        previous.instanceId !== record.instanceId ||
+        JSON.stringify(previous.endpoints) !== JSON.stringify(record.endpoints);
+      if (previous && sessionChanged) {
         this.peerRecordReplacementStartedAt.set(nodeId, Date.now());
         this.rpc?.forget?.(nodeId);
         const forgotten = this.router?.forget?.(nodeId);
@@ -184,15 +191,39 @@ export class TruynNetworkNode {
     };
   }
 
+  #requestPersist() {
+    if (!this.stateStore || !this.stateReady || this.closing) return Promise.resolve(null);
+    this.persistRequested = true;
+    if (!this.persistFlushPromise) {
+      this.persistFlushPromise = Promise.resolve().then(async () => {
+        let snapshot = null;
+        while (this.persistRequested && !this.closing) {
+          this.persistRequested = false;
+          snapshot = this.snapshotState();
+          this.persistQueue = this.persistQueue.then(() => this.stateStore.save(snapshot));
+          await this.persistQueue;
+        }
+        return snapshot;
+      }).finally(() => {
+        this.persistFlushPromise = null;
+      });
+    }
+    return this.persistFlushPromise;
+  }
+
   schedulePersist() {
     if (!this.stateStore || !this.stateReady || this.closing) return;
-    const snapshot = this.snapshotState();
-    this.persistQueue = this.persistQueue.then(() => this.stateStore.save(snapshot));
+    void this.#requestPersist().catch(() => {});
   }
 
   async persistState() {
     if (!this.stateStore) return null;
+    if (this.stateReady && !this.closing) return await this.#requestPersist();
+    if (this.persistFlushPromise) {
+      try { await this.persistFlushPromise; } catch { /* explicit persistence below remains authoritative */ }
+    }
     const snapshot = this.snapshotState();
+    this.persistRequested = false;
     this.persistQueue = this.persistQueue.then(() => this.stateStore.save(snapshot));
     await this.persistQueue;
     return snapshot;
@@ -351,9 +382,15 @@ export class TruynNetworkNode {
     return this.#markRecoveryEpochReady();
   }
 
+  #hydrateControlPlanePeer(peer) {
+    if (!peer?.nodeId) return peer;
+    return this.discovery.get(peer.nodeId) || peer;
+  }
+
   #peerRecordPropagationPeers(record = this.localPeerRecord) {
     if (!record || this.peerRecordPublishFanout <= 0) return [];
     return this.discovery.closest(record.nodeId, this.peerRecordPublishFanout)
+      .map((peer) => this.#hydrateControlPlanePeer(peer))
       .filter((peer) => peer?.nodeId && peer.nodeId !== this.identity.nodeId);
   }
 
@@ -525,7 +562,15 @@ export class TruynNetworkNode {
 
   #schedulePeerRecordRecoveryRetries(record, recoveryPeers, failedNodeIds, attempt = 0) {
     if (!this.started || this.closing || this.localPeerRecord?.recordId !== record?.recordId) return;
-    if (attempt >= this.peerRecordRecoveryRetryDelaysMs.length) return;
+    if (attempt >= this.peerRecordRecoveryRetryDelaysMs.length) {
+      const propagation = this.peerRecordLifecycle.propagation;
+      const pending = new Set(
+        propagation?.recordId === record.recordId ? propagation.pendingNodeIds || [] : []
+      );
+      failedNodeIds = (failedNodeIds || []).filter((nodeId) => pending.has(nodeId));
+      if (failedNodeIds.length === 0) return;
+      attempt = this.peerRecordRecoveryRetryDelaysMs.length - 1;
+    }
 
     const pendingNodeIds = new Set(failedNodeIds || []);
     const peers = recoveryPeers.filter((peer) => pendingNodeIds.has(peer?.nodeId));
@@ -645,7 +690,8 @@ export class TruynNetworkNode {
     const advertisedHost = this.advertiseHost || (endpoint.host === '0.0.0.0' ? '127.0.0.1' : endpoint.host);
     this.sequence += 1;
     this.localPeerRecord = createPeerRecord({ identity: this.identity, endpoints: [`quic://${advertisedHost}:${endpoint.port}`],
-      sequence: this.sequence, ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat });
+      sequence: this.sequence, ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat,
+      instanceId: this.peerRecordInstanceId });
     this.started = true;
     await this.persistState();
     await this.recoverAcceptedWork();
@@ -724,7 +770,8 @@ export class TruynNetworkNode {
     const endpoint = this.localPeerRecord.endpoints[0];
     this.sequence += 1;
     this.localPeerRecord = createPeerRecord({ identity: this.identity, endpoints: [endpoint], sequence: this.sequence,
-      ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat });
+      ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat,
+      instanceId: this.peerRecordInstanceId });
     this.#resetPeerRecordPropagation(this.localPeerRecord);
     if (persist) this.schedulePersist();
     return structuredClone(this.localPeerRecord);
@@ -744,9 +791,10 @@ export class TruynNetworkNode {
     // lexicographically-first fanout set. The default path intentionally uses the
     // routing table (including cryptographically verified durable recovery hints)
     // so a restarted node can repair placement before every cached lease is live.
-    const source = Array.isArray(peers)
+    const source = (Array.isArray(peers)
       ? peers.filter((peer) => peer?.nodeId && peer.nodeId !== this.identity.nodeId).sort((a, b) => a.nodeId.localeCompare(b.nodeId))
-      : this.discovery.closest(record.nodeId, fanout);
+      : this.discovery.closest(record.nodeId, fanout))
+      .map((peer) => this.#hydrateControlPlanePeer(peer));
     const candidates = source
       .filter((peer) => peer?.nodeId && peer.nodeId !== this.identity.nodeId)
       .slice(0, fanout);

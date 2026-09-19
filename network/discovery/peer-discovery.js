@@ -25,7 +25,12 @@ function expiryMs(record) {
   return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
 }
 
-export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 300_000, capabilities = [], nat = null, issuedAt = new Date().toISOString() } = {}) {
+function leaseLive(record, now = Date.now()) {
+  const expires = Date.parse(record?.expiresAt);
+  return Number.isFinite(expires) && now < expires;
+}
+
+export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 300_000, capabilities = [], nat = null, instanceId = null, issuedAt = new Date().toISOString() } = {}) {
   assertIdentity(identity);
   const normalizedEndpoints = [...new Set((endpoints || []).filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()))].sort();
   if (normalizedEndpoints.length === 0) throw new Error('at least one peer endpoint is required');
@@ -37,6 +42,7 @@ export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 30
     capabilities: [...new Set(capabilities.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()))].sort(),
     nat,
     sequence,
+    instanceId: typeof instanceId === 'string' && instanceId.trim() ? instanceId.trim() : null,
     issuedAt,
     expiresAt: new Date(Date.parse(issuedAt) + ttlMs).toISOString()
   };
@@ -102,8 +108,8 @@ export class PeerDiscovery {
     const changed = !existing || existing.recordId !== record.recordId;
     this.records.set(record.nodeId, structuredClone(record));
     this.routing.upsert({ nodeId: record.nodeId, endpoints: record.endpoints, publicKey: record.publicKey, lastSeenAt: new Date().toISOString() });
-    if (notify) {
-      if (changed) this.onRecordAccepted?.({
+    if (notify && changed) {
+      this.onRecordAccepted?.({
         nodeId: record.nodeId,
         previous: existing ? structuredClone(existing) : null,
         record: structuredClone(record)
@@ -115,7 +121,7 @@ export class PeerDiscovery {
 
   get(nodeId, { now = Date.now() } = {}) {
     const record = this.records.get(nodeId);
-    return record && verifyPeerRecord(record, { now }).ok ? structuredClone(record) : null;
+    return record && leaseLive(record, now) ? structuredClone(record) : null;
   }
 
   bootstrap(records, options = {}) { return (records || []).map((record) => this.ingest(record, options)); }
