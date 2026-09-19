@@ -50,6 +50,7 @@ jobs:
           env_file=(.github/repairs/*.env); patch_file=(.github/repairs/*.patch)
           source "${env_file[0]}"
           git apply --recount "${patch_file[0]}"
+          python3 .github/repairs/d200-restart-rootcause-postprocess.py
           git add -N -- tests/d200-restart-rootcause-regression.test.js
           git diff --check
           mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' ':!.github/workflows/autonomous-repair.yml' | sort)
