@@ -87,20 +87,23 @@ test('durable restart is process-live before peer-record re-registration is netw
       if (peer.nodeId === flaky.nodeId && count === 1) throw new Error('simulated_restart_registration_gap');
       return { accepted: true, nodeId: record.nodeId, sequence: record.sequence };
     };
+    restarted.rpc.ping = async () => true;
 
+    const startAt = Date.now();
     const newRecord = await restarted.start();
+    assert.ok(Date.now() - startAt < 2_000, 'process startup must not block on network recovery epoch');
     assert.ok(restarted.started, 'process/QUIC startup completes');
     assert.ok(newRecord.sequence > initial.sequence, 'restart must mint a strictly newer signed peer record');
     assert.equal(persisted.nodeId, restarted.identity.nodeId);
     assert.equal(restarted.peerRecordPropagationReady(), false, 'process liveness must not imply network readiness');
 
-    const pending = restarted.peerRecordLifecycleSnapshot().propagation;
-    assert.deepEqual(pending.pendingNodeIds, [flaky.nodeId]);
-    assert.ok(pending.acknowledgedNodeIds.includes(stable.nodeId));
+    const recovering = restarted.peerRecordLifecycleSnapshot();
+    assert.equal(recovering.recoveryEpoch.active, true, 'network recovery epoch remains active after process startup');
+    assert.notEqual(recovering.recoveryEpoch.phase, 'ready', 'network readiness must remain fail-closed while recovery is asynchronous');
 
     const recovered = await eventually(() => {
       const current = restarted.peerRecordLifecycleSnapshot().propagation;
-      return current.recordId === newRecord.recordId && current.ready ? current : null;
+      return current.recordId === newRecord.recordId && current.ready && restarted.peerRecordPropagationReady() ? current : null;
     }, { timeoutMs: 4_000, message: 'restart_registration_retry_did_not_recover' });
 
     assert.equal(restarted.peerRecordPropagationReady(), true);

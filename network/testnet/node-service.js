@@ -218,7 +218,8 @@ export async function createTestnetNodeService({
 
   const dhtReadiness = () => {
     const routing = routingReadinessFields(node.discovery.routingSnapshot());
-    const propagation = node.peerRecordLifecycleSnapshot().propagation || {};
+    const lifecycle = node.peerRecordLifecycleSnapshot();
+    const propagation = lifecycle.propagation || {};
     const propagationReady = node.peerRecordPropagationReady();
     const peerRecordLeases = node.discovery.leaseSnapshot();
     const periodicRefresh = node.discovery.periodicRefreshSnapshot();
@@ -247,8 +248,11 @@ export async function createTestnetNodeService({
         targetCount: Array.isArray(propagation.targetNodeIds) ? propagation.targetNodeIds.length : 0,
         acknowledgedCount: Array.isArray(propagation.acknowledgedNodeIds) ? propagation.acknowledgedNodeIds.length : 0,
         pendingCount: Array.isArray(propagation.pendingNodeIds) ? propagation.pendingNodeIds.length : 0,
-        pendingNodeIds: Array.isArray(propagation.pendingNodeIds) ? [...propagation.pendingNodeIds] : []
+        pendingNodeIds: Array.isArray(propagation.pendingNodeIds) ? [...propagation.pendingNodeIds] : [],
+        pendingAgeMs: lifecycle.diagnostics?.pendingAgeMs ?? 0
       },
+      recoveryEpoch: lifecycle.recoveryEpoch || null,
+      recoveryDiagnostics: lifecycle.diagnostics || {},
       peerRecordLeases,
       periodicRefresh,
       remoteEndpointDiversity: remoteEndpointDiversity(),
