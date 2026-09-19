@@ -22,4 +22,9 @@ new_pending = """    const recovering = restarted.peerRecordLifecycleSnapshot();
 if t.count(old_pending) != 1:
     raise SystemExit(f'stale synchronous pending assertion: expected one match, got {t.count(old_pending)}')
 t = t.replace(old_pending, new_pending, 1)
+old_recovered = "      return current.recordId === newRecord.recordId && current.ready ? current : null;"
+new_recovered = "      return current.recordId === newRecord.recordId && current.ready && restarted.peerRecordPropagationReady() ? current : null;"
+if t.count(old_recovered) != 1:
+    raise SystemExit(f'stale propagation-only recovery wait: expected one match, got {t.count(old_recovered)}')
+t = t.replace(old_recovered, new_recovered, 1)
 restart_path.write_text(t)
