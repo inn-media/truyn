@@ -1,23 +1,12 @@
 diff --git a/network/runtime.js b/network/runtime.js
 --- a/network/runtime.js
 +++ b/network/runtime.js
-@@ -34,7 +34,7 @@ export class TruynNetworkNode {
-     if (!Number.isInteger(periodicRefreshTargetCount) || periodicRefreshTargetCount < 0) throw new Error('discoveryRefreshTargetCount must be a non-negative integer');
-     if (!Number.isInteger(discoveryRefreshMaxRounds) || discoveryRefreshMaxRounds < 0) throw new Error('discoveryRefreshMaxRounds must be a non-negative integer');
-     const periodicRefreshIntervalMs = discoveryRefreshIntervalMs == null
+@@ -37,1 +37,1 @@
 -      ? Math.min(60_000, Math.max(1, Math.floor(peerRecordTtlMs / 2)))
 +      ? Math.min(30_000, Math.max(1, Math.floor(peerRecordTtlMs / 4)))
-       : discoveryRefreshIntervalMs;
-     if (discoveryPeriodicRefresh && (!Number.isFinite(periodicRefreshIntervalMs) || periodicRefreshIntervalMs <= 0 || periodicRefreshIntervalMs >= peerRecordTtlMs)) {
-       throw new Error('discoveryRefreshIntervalMs must be positive and less than peerRecordTtlMs');
 diff --git a/tests/peer-discovery-periodic-refresh.test.js b/tests/peer-discovery-periodic-refresh.test.js
 --- a/tests/peer-discovery-periodic-refresh.test.js
 +++ b/tests/peer-discovery-periodic-refresh.test.js
-@@ -86,7 +86,7 @@ test('runtime enables periodic refresh by default and stops it on close', async () => {
-   assert.match(runtime, /discoveryPeriodicRefresh = true/);
-   assert.match(runtime, /discoveryRefreshIntervalMs = null/);
+@@ -89,1 +89,1 @@
 -  assert.match(runtime, /Math\.min\(60_000, Math\.max\(1, Math\.floor\(peerRecordTtlMs \/ 2\)\)\)/);
 +  assert.match(runtime, /Math\.min\(30_000, Math\.max\(1, Math\.floor\(peerRecordTtlMs \/ 4\)\)\)/);
-   assert.match(runtime, /this\.discovery\.startPeriodicRefresh\(\{/);
-   assert.match(runtime, /intervalMs: this\.discoveryRefreshIntervalMs/);
-   assert.match(runtime, /targetCount: this\.discoveryRefreshTargetCount/);
