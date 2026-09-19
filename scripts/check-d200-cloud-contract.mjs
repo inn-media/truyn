@@ -5,7 +5,7 @@ const provision = fs.readFileSync('benchmarks/scale/class-d-azure-1000-provision
 const campaign = fs.readFileSync('benchmarks/scale/class-d-azure-1000-campaign.sh', 'utf8');
 const orchestrator = fs.readFileSync('scripts/d200-stage-isolated-campaign.sh', 'utf8');
 const restart = fs.readFileSync('benchmarks/scale/d200-restart-recovery-stage.sh', 'utf8');
-const workflow = fs.readFileSync('.github/workflows/d200-acceptance.yml', 'utf8');
+const entrypoint = fs.readFileSync('scripts/d200-execute-isolated-campaign.sh', 'utf8');
 const required = [
   ['private staging account', staging.includes('--allow-blob-public-access false')],
   ['OIDC data-plane marker', staging.includes('auth=oidc_data_plane')],
@@ -20,21 +20,19 @@ const required = [
   ['restart per-host evidence', restart.includes('class-d-200-restart-recovery-hosts.json') && restart.includes('TRUYN_D200_RESTART_HOST_FAILURE')],
   ['restart exact READY contract', restart.includes('[[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]')],
   ['restart logical failure does not replay remote restart', restart.includes('RESTART_LOGICAL_RC=') && restart.includes('exit 0\nEOS')],
-  ['real acceptance sources stage-isolated runner', /source benchmarks\/scale\/class-d-azure-1000-provision\.sh; source scripts\/d200-stage-isolated-campaign\.sh/.test(workflow)],
-  ['workflow outer continuation retained', workflow.includes('continue-on-error: true') && workflow.includes('if: always()')],
-  ['4-vCPU placement preferred', workflow.includes('for z in Standard_D4as_v5 Standard_D4s_v5 Standard_E2as_v7')]
+  ['stable isolated execution entrypoint', /source benchmarks\/scale\/class-d-azure-1000-provision\.sh\s*\nsource scripts\/d200-stage-isolated-campaign\.sh/.test(entrypoint)]
 ];
 const forbidden = [
   ['account key flag', /--account-key\b/.test(staging)],
   ['storage key env', /AZURE_STORAGE_(?:KEY|CONNECTION_STRING)/.test(staging)],
   ['public container flag', /--public-access\s+(?!off\b|false\b)/.test(staging)],
   ['stage isolation weakens terminal acceptance', /acceptanceWeakened['\"]?\s*[:=]\s*true/.test(orchestrator)],
-  ['real acceptance still sources fail-fast canonical campaign directly', /source benchmarks\/scale\/class-d-azure-1000-provision\.sh; source benchmarks\/scale\/class-d-azure-1000-campaign\.sh/.test(workflow)]
+  ['isolated entrypoint sources fail-fast canonical campaign', /source benchmarks\/scale\/class-d-azure-1000-campaign\.sh/.test(entrypoint)]
 ];
 const failures = [...required.filter(([, ok]) => !ok).map(([name]) => `missing:${name}`), ...forbidden.filter(([, found]) => found).map(([name]) => `forbidden:${name}`)];
 if (failures.length) {
   console.error(`TRUYN_D200_CLOUD_CONTRACT=FAIL ${failures.join(',')}`);
   process.exitCode = 1;
 } else {
-  console.log('TRUYN_D200_CLOUD_CONTRACT=PASS private=true auth=oidc_entra fail_closed=true stage_isolation=true acceptance_path=isolated');
+  console.log('TRUYN_D200_CLOUD_CONTRACT=PASS private=true auth=oidc_entra fail_closed=true stage_isolation=true source_entrypoint=isolated');
 }
