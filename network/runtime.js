@@ -34,7 +34,7 @@ export class TruynNetworkNode {
     if (!Number.isInteger(periodicRefreshTargetCount) || periodicRefreshTargetCount < 0) throw new Error('discoveryRefreshTargetCount must be a non-negative integer');
     if (!Number.isInteger(discoveryRefreshMaxRounds) || discoveryRefreshMaxRounds < 0) throw new Error('discoveryRefreshMaxRounds must be a non-negative integer');
     const periodicRefreshIntervalMs = discoveryRefreshIntervalMs == null
-      ? Math.min(60_000, Math.max(1, Math.floor(peerRecordTtlMs / 2)))
+      ? Math.min(30_000, Math.max(1, Math.floor(peerRecordTtlMs / 4)))
       : discoveryRefreshIntervalMs;
     if (discoveryPeriodicRefresh && (!Number.isFinite(periodicRefreshIntervalMs) || periodicRefreshIntervalMs <= 0 || periodicRefreshIntervalMs >= peerRecordTtlMs)) {
       throw new Error('discoveryRefreshIntervalMs must be positive and less than peerRecordTtlMs');
