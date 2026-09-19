@@ -214,9 +214,15 @@ with open(sys.argv[2], 'w', encoding='utf-8') as handle:
 PYD200RESULTS
 
 if [[ "$d200_overall_failed" != 0 ]]; then
-  # Preserve the first real stage failure after every possible diagnostic stage
-  # has had a chance to run. The provisioner EXIT trap will still perform the
-  # one real Azure cleanup after this runner returns non-zero.
+  # Some canonical stages (notably packet-partition) can write an immediate
+  # checkpoint of their own. Keep that immutable checkpoint as a separate
+  # diagnostic artifact, then rebuild the final partial evidence from the
+  # accumulated parent state so metrics from stages that continued afterward
+  # are not lost behind the checkpoint function's RETAINED guard.
+  if [[ -s "$EVIDENCE" ]]; then
+    cp "$EVIDENCE" "${GITHUB_WORKSPACE:-$PWD}/class-d-200-intermediate-failure-evidence.json"
+    rm -f "$EVIDENCE"
+  fi
   d200_failure_evidence_checkpoint "${d200_first_failure_rc:-1}" "${d200_first_failure_stage:-unknown}" "${d200_first_failure_line:-0}" || true
 fi
 
