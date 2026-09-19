@@ -98,15 +98,21 @@ export class TruynNetworkNode {
     this.stateStore = statePath ? new DurableNetworkState({ filePath: statePath }) : null;
     this.workInbox = workInboxPath ? new DurableAcceptedWorkInbox({ filePath: workInboxPath, maxCompleted: workInboxMaxCompleted }) : null;
     this.stateReady = false;
-    this.persistQueue = Promise.resolve();
+    this.persistRequestedGeneration = 0;
+    this.persistedGeneration = 0;
+    this.persistFlushPromise = null;
     this.faults = faultController || new NetworkFaultController();
     const onStateChange = () => this.schedulePersist();
     const onRecordAccepted = ({ nodeId, previous, record }) => {
       if (previous?.recordId === record.recordId) return;
       if (previous) {
-        this.rpc?.forget?.(nodeId);
-        const forgotten = this.router?.forget?.(nodeId);
-        if (forgotten?.catch) void forgotten.catch(() => {});
+        // Do not tear down an already-active route re-entrantly. Both RPC and
+        // application transport caches bind sessions to sequence:endpoint and
+        // replace a stale binding before its next use. Eager disconnect here can
+        // abort a strict in-flight route after a legitimate peer-record update.
+        // Lazy rebind therefore preserves continuity without allowing the old
+        // record binding to service the next request.
+        void nodeId;
       }
       // Any first-seen or changed valid peer record can change the Kademlia
       // placement set for our own current record. Reconcile it on the control
@@ -155,17 +161,47 @@ export class TruynNetworkNode {
     };
   }
 
+  #requestPersist() {
+    this.persistRequestedGeneration += 1;
+    return this.persistRequestedGeneration;
+  }
+
+  #ensurePersistFlush() {
+    if (this.persistFlushPromise) return this.persistFlushPromise;
+    this.persistFlushPromise = new Promise((resolve) => setImmediate(resolve))
+      .then(async () => {
+        while (this.persistedGeneration < this.persistRequestedGeneration) {
+          const generation = this.persistRequestedGeneration;
+          const snapshot = this.snapshotState();
+          await this.stateStore.save(snapshot);
+          this.persistedGeneration = generation;
+        }
+      })
+      .finally(() => {
+        this.persistFlushPromise = null;
+      });
+    return this.persistFlushPromise;
+  }
+
   schedulePersist() {
     if (!this.stateStore || !this.stateReady || this.closing) return;
-    const snapshot = this.snapshotState();
-    this.persistQueue = this.persistQueue.then(() => this.stateStore.save(snapshot));
+    this.#requestPersist();
+    void this.#ensurePersistFlush().catch((error) => {
+      this.peerRecordLifecycle.lastError = {
+        at: new Date().toISOString(),
+        code: error?.code || null,
+        message: error?.message || String(error)
+      };
+    });
   }
 
   async persistState() {
     if (!this.stateStore) return null;
     const snapshot = this.snapshotState();
-    this.persistQueue = this.persistQueue.then(() => this.stateStore.save(snapshot));
-    await this.persistQueue;
+    const targetGeneration = this.#requestPersist();
+    while (this.persistedGeneration < targetGeneration) {
+      await this.#ensurePersistFlush();
+    }
     return snapshot;
   }
 
