@@ -1,7 +1,7 @@
 diff --git a/network/testnet/node-service.js b/network/testnet/node-service.js
 --- a/network/testnet/node-service.js
 +++ b/network/testnet/node-service.js
-@@ -214,4 +214,6 @@
+@@
    const dhtReadiness = () => {
      const routing = routingReadinessFields(node.discovery.routingSnapshot());
 -    const propagation = node.peerRecordLifecycleSnapshot().propagation || {};
@@ -9,7 +9,13 @@ diff --git a/network/testnet/node-service.js b/network/testnet/node-service.js
 +    const propagation = lifecycle.propagation || {};
 +    const recovery = lifecycle.recovery || {};
      const propagationReady = node.peerRecordPropagationReady();
-@@ -240,4 +242,19 @@
+@@
+       peerRecordPropagation: {
+         ready: propagationReady,
+         recordId: propagation.recordId || null,
+         sequence: propagation.sequence ?? null,
+         targetCount: Array.isArray(propagation.targetNodeIds) ? propagation.targetNodeIds.length : 0,
+         acknowledgedCount: Array.isArray(propagation.acknowledgedNodeIds) ? propagation.acknowledgedNodeIds.length : 0,
          pendingCount: Array.isArray(propagation.pendingNodeIds) ? propagation.pendingNodeIds.length : 0,
          pendingNodeIds: Array.isArray(propagation.pendingNodeIds) ? [...propagation.pendingNodeIds] : []
        },
@@ -29,210 +35,3 @@ diff --git a/network/testnet/node-service.js b/network/testnet/node-service.js
 +        startupJitterMs: recovery.startupJitterMs || 0
 +      },
        peerRecordLeases,
-diff --git a/benchmarks/scale/class-d-azure-1000-campaign.sh b/benchmarks/scale/class-d-azure-1000-campaign.sh
---- a/benchmarks/scale/class-d-azure-1000-campaign.sh
-+++ b/benchmarks/scale/class-d-azure-1000-campaign.sh
-@@ -936,4 +936,12 @@
- max_pending=0
-+max_target_set_changes=0
-+max_ack_preserved=0
-+max_ack_reset=0
-+max_propagation_attempts=0
-+max_rpc_timeouts=0
-+max_pending_age_ms=0
-+max_routing_refresh_ms=0
-+max_quic_replacement_ms=0
- for n in \$(seq 1 90); do
-   good=0
-   min_valid=999999
-@@ -951,4 +959,20 @@
-       valid=\$(printf '%s' "\$readiness" | jq -r '.validPeers // 0' 2>/dev/null || echo 0)
-       buckets=\$(printf '%s' "\$readiness" | jq -r '.populatedBuckets // 0' 2>/dev/null || echo 0)
-       hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount // 0' 2>/dev/null || echo 0)
-+      target_set_changes=\$(printf '%s' "\$readiness" | jq -r '.recovery.targetSetChanges // 0' 2>/dev/null || echo 0)
-+      ack_preserved=\$(printf '%s' "\$readiness" | jq -r '.recovery.ackPreserved // 0' 2>/dev/null || echo 0)
-+      ack_reset=\$(printf '%s' "\$readiness" | jq -r '.recovery.ackReset // 0' 2>/dev/null || echo 0)
-+      propagation_attempts=\$(printf '%s' "\$readiness" | jq -r '.recovery.propagationAttempts // 0' 2>/dev/null || echo 0)
-+      rpc_timeouts=\$(printf '%s' "\$readiness" | jq -r '.recovery.rpcTimeouts // 0' 2>/dev/null || echo 0)
-+      pending_age_ms=\$(printf '%s' "\$readiness" | jq -r '.recovery.pendingAgeMs // 0' 2>/dev/null || echo 0)
-+      routing_refresh_ms=\$(printf '%s' "\$readiness" | jq -r '.recovery.routingRefreshMs // 0' 2>/dev/null || echo 0)
-+      quic_replacement_ms=\$(printf '%s' "\$readiness" | jq -r '.recovery.quicReplacementMs // 0' 2>/dev/null || echo 0)
-+      if [[ "\$target_set_changes" =~ ^[0-9]+$ && "\$target_set_changes" -gt "\$max_target_set_changes" ]]; then max_target_set_changes="\$target_set_changes"; fi
-+      if [[ "\$ack_preserved" =~ ^[0-9]+$ && "\$ack_preserved" -gt "\$max_ack_preserved" ]]; then max_ack_preserved="\$ack_preserved"; fi
-+      if [[ "\$ack_reset" =~ ^[0-9]+$ && "\$ack_reset" -gt "\$max_ack_reset" ]]; then max_ack_reset="\$ack_reset"; fi
-+      if [[ "\$propagation_attempts" =~ ^[0-9]+$ && "\$propagation_attempts" -gt "\$max_propagation_attempts" ]]; then max_propagation_attempts="\$propagation_attempts"; fi
-+      if [[ "\$rpc_timeouts" =~ ^[0-9]+$ && "\$rpc_timeouts" -gt "\$max_rpc_timeouts" ]]; then max_rpc_timeouts="\$rpc_timeouts"; fi
-+      if [[ "\$pending_age_ms" =~ ^[0-9]+$ && "\$pending_age_ms" -gt "\$max_pending_age_ms" ]]; then max_pending_age_ms="\$pending_age_ms"; fi
-+      if [[ "\$routing_refresh_ms" =~ ^[0-9]+$ && "\$routing_refresh_ms" -gt "\$max_routing_refresh_ms" ]]; then max_routing_refresh_ms="\$routing_refresh_ms"; fi
-+      if [[ "\$quic_replacement_ms" =~ ^[0-9]+$ && "\$quic_replacement_ms" -gt "\$max_quic_replacement_ms" ]]; then max_quic_replacement_ms="\$quic_replacement_ms"; fi
-       if [[ "\$valid" =~ ^[0-9]+$ && "\$valid" -lt "\$min_valid" ]]; then min_valid="\$valid"; fi
-@@ -992,4 +1016,12 @@
- echo READY_MIN_BUCKETS=\$min_buckets
- echo READY_MIN_HOSTS=\$min_hosts
- echo READY_MAX_PENDING=\$max_pending
-+echo RECOVERY_TARGET_SET_CHANGES=\$max_target_set_changes
-+echo RECOVERY_ACK_PRESERVED=\$max_ack_preserved
-+echo RECOVERY_ACK_RESET=\$max_ack_reset
-+echo RECOVERY_PROPAGATION_ATTEMPTS=\$max_propagation_attempts
-+echo RECOVERY_RPC_TIMEOUTS=\$max_rpc_timeouts
-+echo RECOVERY_PENDING_AGE_MS=\$max_pending_age_ms
-+echo RECOVERY_ROUTING_REFRESH_MS=\$max_routing_refresh_ms
-+echo RECOVERY_QUIC_REPLACEMENT_MS=\$max_quic_replacement_ms
- EOS
-@@ -1000,3 +1032,11 @@
-   ready_min_hosts=$(printf '%s\n' "$out" | sed -n 's/^READY_MIN_HOSTS=//p' | tail -1); [[ -n "$ready_min_hosts" ]]
-   ready_max_pending=$(printf '%s\n' "$out" | sed -n 's/^READY_MAX_PENDING=//p' | tail -1); [[ -n "$ready_max_pending" ]]
--  echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i mode=parallel-node-restart stopMs=${stop_ms} startMs=${start_ms} readyMs=${ready_ms} restartMs=${restart_ms} peerPropagationReady=true pendingMax=${ready_max_pending} validMin=${ready_min_valid} bucketsMin=${ready_min_buckets} remoteHostsMin=${ready_min_hosts}"
-+  recovery_target_set_changes=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_TARGET_SET_CHANGES=//p' | tail -1); [[ -n "$recovery_target_set_changes" ]]
-+  recovery_ack_preserved=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_ACK_PRESERVED=//p' | tail -1); [[ -n "$recovery_ack_preserved" ]]
-+  recovery_ack_reset=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_ACK_RESET=//p' | tail -1); [[ -n "$recovery_ack_reset" ]]
-+  recovery_propagation_attempts=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_PROPAGATION_ATTEMPTS=//p' | tail -1); [[ -n "$recovery_propagation_attempts" ]]
-+  recovery_rpc_timeouts=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_RPC_TIMEOUTS=//p' | tail -1); [[ -n "$recovery_rpc_timeouts" ]]
-+  recovery_pending_age_ms=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_PENDING_AGE_MS=//p' | tail -1); [[ -n "$recovery_pending_age_ms" ]]
-+  recovery_routing_refresh_ms=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_ROUTING_REFRESH_MS=//p' | tail -1); [[ -n "$recovery_routing_refresh_ms" ]]
-+  recovery_quic_replacement_ms=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_QUIC_REPLACEMENT_MS=//p' | tail -1); [[ -n "$recovery_quic_replacement_ms" ]]
-+  echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i mode=parallel-node-restart stopMs=${stop_ms} startMs=${start_ms} readyMs=${ready_ms} restartMs=${restart_ms} peerPropagationReady=true pendingMax=${ready_max_pending} validMin=${ready_min_valid} bucketsMin=${ready_min_buckets} remoteHostsMin=${ready_min_hosts} targetSetChanges=${recovery_target_set_changes} ackPreserved=${recovery_ack_preserved} ackReset=${recovery_ack_reset} propagationAttempts=${recovery_propagation_attempts} rpcTimeouts=${recovery_rpc_timeouts} pendingAgeMs=${recovery_pending_age_ms} routingRefreshMs=${recovery_routing_refresh_ms} quicReplacementMs=${recovery_quic_replacement_ms}"
-diff --git a/tests/peer-record-propagation-readiness.test.js b/tests/peer-record-propagation-readiness.test.js
---- a/tests/peer-record-propagation-readiness.test.js
-+++ b/tests/peer-record-propagation-readiness.test.js
-@@ -126 +126,55 @@
-+test('production propagation: target-set churn preserves ACK intersection and coalesces reconciliation bursts', { timeout: 20_000 }, async () => {
-+  const root = await mkdtemp(join(tmpdir(), 'truyn-peer-propagation-churn-'));
-+  const tls = await generateTls(root);
-+  const node = new TruynNetworkNode({
-+    identity: createIdentity(),
-+    host: '127.0.0.1',
-+    tls,
-+    statePath: join(root, 'node-state.json'),
-+    k: 3,
-+    peerRecordAutoRenew: false
-+  });
-+  try {
-+    await node.start();
-+    node.rpc.announce = async (peer, record) => ({
-+      accepted: true,
-+      nodeId: record.nodeId,
-+      peerNodeId: peer.nodeId,
-+      sequence: record.sequence
-+    });
-+
-+    node.bootstrap([remoteRecord(65601), remoteRecord(65602), remoteRecord(65603)]);
-+    await eventually(() => node.peerRecordPropagationReady(), { message: 'initial_churn_fixture_not_ready' });
-+
-+    let observed = null;
-+    for (let port = 65604; port < 65640; port += 1) {
-+      const previous = node.peerRecordLifecycleSnapshot().propagation;
-+      node.bootstrap([remoteRecord(port)]);
-+      const current = node.peerRecordLifecycleSnapshot().propagation;
-+      if (current.targetNodeIds.join(',') === previous.targetNodeIds.join(',')) continue;
-+      const intersection = previous.acknowledgedNodeIds.filter((nodeId) => current.targetNodeIds.includes(nodeId));
-+      if (intersection.length === 0) continue;
-+      observed = { current, intersection };
-+      break;
-+    }
-+
-+    assert.ok(observed, 'fixture must produce a placement replacement with a non-empty ACK intersection');
-+    assert.ok(observed.intersection.every((nodeId) => observed.current.acknowledgedNodeIds.includes(nodeId)),
-+      'ACKs for placements that remain required must survive target-set churn');
-+    assert.ok(observed.current.pendingNodeIds.length > 0, 'new placement must still fail readiness closed until it ACKs');
-+
-+    const staged = node.peerRecordLifecycleSnapshot().recovery;
-+    assert.equal(staged.ackReset, 0, 'same-record target churn must not reset acknowledged intersection');
-+    assert.ok(staged.ackPreserved >= observed.intersection.length);
-+
-+    await eventually(() => node.peerRecordPropagationReady(), { message: 'coalesced_churn_did_not_recover' });
-+    const recovered = node.peerRecordLifecycleSnapshot().recovery;
-+    assert.ok(recovered.targetSetChanges > recovered.reconcileBatches,
-+      'multiple synchronous target changes should collapse into fewer network reconciliation batches');
-+  } finally {
-+    await node.close();
-+    await rm(root, { recursive: true, force: true });
-+  }
-+});
-+
- test('production propagation: retry schedule stays bounded below the unchanged 120 second Class-D recovery ceiling', async () => {
-diff --git a/tests/peer-record-restart-propagation-readiness.test.js b/tests/peer-record-restart-propagation-readiness.test.js
---- a/tests/peer-record-restart-propagation-readiness.test.js
-+++ b/tests/peer-record-restart-propagation-readiness.test.js
-@@ -91,5 +91,14 @@
-       if (peer.nodeId === flaky.nodeId && count === 1) throw new Error('simulated_restart_registration_gap');
-       return { accepted: true, nodeId: record.nodeId, sequence: record.sequence };
-     };
-+    restarted.discovery.refreshRoutingTable = async () => ({
-+      refreshed: true,
-+      targets: [],
-+      walks: [],
-+      queriedPeers: [],
-+      responses: 0,
-+      routingSizeDelta: 0,
-+      validPeersDelta: 0
-+    });
- 
-     const newRecord = await restarted.start();
-@@ -108,3 +117,12 @@
-     assert.equal(attempts.get(`${newRecord.sequence}:${stable.nodeId}`), 1, 'already acknowledged placement is not retried');
-     assert.equal(attempts.get(`${newRecord.sequence}:${flaky.nodeId}`), 2, 'failed restart registration is retried on the control plane only');
-     assert.equal(restarted.localPeerRecord.recordId, newRecord.recordId, 'recovery retry must not mint another record or application envelope');
-+
-+    const recovery = restarted.peerRecordLifecycleSnapshot().recovery;
-+    assert.equal(recovery.phase, 'ready', 'network readiness opens only after the explicit recovery epoch completes');
-+    assert.ok(recovery.routingRefreshMs >= 0);
-+    assert.ok(recovery.propagationAttempts >= 3, 'initial placements plus failed-peer retry are counted');
-+    assert.ok(recovery.retryAttempts >= 1, 'failed placement is retried independently');
-+    assert.equal(recovery.ackReset, 0, 'restart target churn must not reset same-record ACKs');
-+    assert.equal(recovery.pendingAgeMs, 0, 'pending age returns to zero after recovery');
-+    assert.ok(recovery.quicReplacementMs >= 0);
-diff --git a/tests/d200-peer-propagation-readiness-barrier.test.js b/tests/d200-peer-propagation-readiness-barrier.test.js
---- a/tests/d200-peer-propagation-readiness-barrier.test.js
-+++ b/tests/d200-peer-propagation-readiness-barrier.test.js
-@@ -77,16 +77,50 @@
- test('D-1000 readiness barrier requires production peer-record propagation and preserves strict thresholds', async () => {
-   const service = await readFile(new URL('../network/testnet/node-service.js', import.meta.url), 'utf8');
-+  const runtime = await readFile(new URL('../network/runtime.js', import.meta.url), 'utf8');
-   const campaign = await readFile(new URL('../benchmarks/scale/class-d-azure-1000-campaign.sh', import.meta.url), 'utf8');
-   const start = campaign.indexOf('STAGE=readiness-barrier');
-   const end = campaign.indexOf('STAGE=convergence');
-   const barrier = campaign.slice(start, end);
-+  const restartStart = campaign.indexOf('STAGE=restart-recovery');
-+  const restartEnd = campaign.indexOf('STAGE=post-restart-routing');
-+  const restart = campaign.slice(restartStart, restartEnd);
- 
-   assert.match(service, /acceptanceReady: propagationReady/);
-   assert.match(service, /peerRecordPropagation:\s*\{/);
-   assert.match(service, /ok: propagationReady/);
-+  assert.match(service, /targetSetChanges: recovery\.targetSetChanges/);
-+  assert.match(service, /ackPreserved: recovery\.ackPreserved/);
-+  assert.match(service, /ackReset: recovery\.ackReset/);
-+  assert.match(service, /propagationAttempts: recovery\.propagationAttempts/);
-+  assert.match(service, /rpcTimeouts: recovery\.rpcTimeouts/);
-+  assert.match(service, /pendingAgeMs: recovery\.pendingAgeMs/);
-+  assert.match(service, /routingRefreshMs: recovery\.routingRefreshMs/);
-+  assert.match(service, /quicReplacementMs: recovery\.quicReplacementMs/);
-+
-+  assert.match(runtime, /peerRecordRecoveryRetryTimers = new Map\(\)/);
-+  assert.match(runtime, /peerRecordReconcileBaseDelayMs = 25/);
-+  assert.match(runtime, /peerRecordPublishConcurrency = Math\.max\(2, Math\.min\(8, this\.alpha \* 2\)\)/);
-+  assert.match(runtime, /#setRecoveryPhase\('routing-refresh'\)/);
-+  assert.match(runtime, /#setRecoveryPhase\('determine-placement'\)/);
-+  assert.match(runtime, /#setRecoveryPhase\('replacement-sessions'\)/);
-+  assert.match(runtime, /previousAcks\.filter\(\(nodeId\) => targetSet\.has\(nodeId\)\)/);
-+  assert.doesNotMatch(runtime, /queueMicrotask\(\(\) =>/);
-+
-+  for (const marker of [
-+    'RECOVERY_TARGET_SET_CHANGES',
-+    'RECOVERY_ACK_PRESERVED',
-+    'RECOVERY_ACK_RESET',
-+    'RECOVERY_PROPAGATION_ATTEMPTS',
-+    'RECOVERY_RPC_TIMEOUTS',
-+    'RECOVERY_PENDING_AGE_MS',
-+    'RECOVERY_ROUTING_REFRESH_MS',
-+    'RECOVERY_QUIC_REPLACEMENT_MS'
-+  ]) assert.match(restart, new RegExp(marker));
-+
-   assert.match(barrier, /\.acceptanceReady == true and \.peerRecordPropagation\.ready == true/);
-   assert.doesNotMatch(barrier, /\/need/);
-   assert.match(campaign, /assert float\('\$conv_rate'\) >= \.99/);
-   assert.match(campaign, /assert float\('\$conv_p95'\) <= 120000/);
-   assert.match(campaign, /assert float\('\$base_rate'\) >= \.99/);
-+  assert.match(campaign, /assert float\('\$recovery_p95'\) <= 120000/);
- });
