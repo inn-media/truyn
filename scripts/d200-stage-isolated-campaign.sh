@@ -166,34 +166,63 @@ d200_skip_stage() {
   fi
 }
 
-mapfile -t D200_STAGE_ROWS < <(d200_split_campaign)
-for row in "${D200_STAGE_ROWS[@]}"; do
-  stage="${row%%$'\t'*}"
-  stage_file="${row#*$'\t'}"
+stage_plan="$D200_STAGE_TMP/stages.tsv"
+set +e
+d200_split_campaign >"$stage_plan"
+stage_split_rc=$?
+set -e
+if [[ "$stage_split_rc" != 0 || ! -s "$stage_plan" ]]; then
+  d200_overall_failed=1
+  d200_first_failure_stage=stage-plan
+  d200_first_failure_rc="${stage_split_rc:-1}"
+  d200_first_failure_line=0
+  d200_append_stage_result stage-plan RED "${stage_split_rc:-1}" 0 '' 'canonical campaign stage split failed'
+  echo "TRUYN_D200_STAGE_RESULT stage=stage-plan status=RED rc=${stage_split_rc:-1}" >&2
+else
+  mapfile -t D200_STAGE_ROWS <"$stage_plan"
+  required_stage_missing=0
+  for required_stage in restart-recovery post-restart-routing packet-partition healed-routing resources evidence; do
+    if ! printf '%s\n' "${D200_STAGE_ROWS[@]}" | cut -f1 | grep -Fxq "$required_stage"; then
+      required_stage_missing=1
+      d200_append_stage_result stage-plan RED 1 0 '' "missing required stage ${required_stage}"
+      echo "TRUYN_D200_STAGE_PLAN_MISSING stage=${required_stage}" >&2
+    fi
+  done
+  if [[ "$required_stage_missing" != 0 ]]; then
+    d200_overall_failed=1
+    d200_first_failure_stage=stage-plan
+    d200_first_failure_rc=1
+    d200_first_failure_line=0
+  else
+    for row in "${D200_STAGE_ROWS[@]}"; do
+      stage="${row%%$'\t'*}"
+      stage_file="${row#*$'\t'}"
 
-  # The restart override is semantically identical acceptance-wise but always
-  # emits per-host diagnostics before returning RED. Other stages remain the
-  # canonical campaign source split at STAGE= boundaries.
-  if [[ "$stage" == restart-recovery && -f "$D200_RESTART_STAGE_SOURCE" ]]; then
-    stage_file="$D200_RESTART_STAGE_SOURCE"
+      # The restart override is semantically identical acceptance-wise but always
+      # emits per-host diagnostics before returning RED. Other stages remain the
+      # canonical campaign source split at STAGE= boundaries.
+      if [[ "$stage" == restart-recovery && -f "$D200_RESTART_STAGE_SOURCE" ]]; then
+        stage_file="$D200_RESTART_STAGE_SOURCE"
+      fi
+
+      # Write-retention is meaningful only when the durable-write stage completed
+      # successfully; otherwise the expected key set/window is undefined.
+      if [[ "$stage" == write-retention && "${D200_STAGE_STATUS[durable-writes]:-RED}" != PASS ]]; then
+        d200_skip_stage "$stage" 'durable-writes did not PASS'
+        continue
+      fi
+
+      # Canonical final evidence requires every mandatory stage to have passed.
+      # On a diagnostic RED we create partial evidence after all possible stages.
+      if [[ "$stage" == evidence && "$d200_overall_failed" != 0 ]]; then
+        d200_skip_stage "$stage" 'one or more mandatory stages RED/SKIPPED'
+        continue
+      fi
+
+      d200_run_stage "$stage" "$stage_file"
+    done
   fi
-
-  # Write-retention is meaningful only when the durable-write stage completed
-  # successfully; otherwise the expected key set/window is undefined.
-  if [[ "$stage" == write-retention && "${D200_STAGE_STATUS[durable-writes]:-RED}" != PASS ]]; then
-    d200_skip_stage "$stage" 'durable-writes did not PASS'
-    continue
-  fi
-
-  # Canonical final evidence requires every mandatory stage to have passed.
-  # On a diagnostic RED we create partial evidence after all possible stages.
-  if [[ "$stage" == evidence && "$d200_overall_failed" != 0 ]]; then
-    d200_skip_stage "$stage" 'one or more mandatory stages RED/SKIPPED'
-    continue
-  fi
-
-  d200_run_stage "$stage" "$stage_file"
-done
+fi
 
 python3 - "$D200_STAGE_RESULTS_JSONL" "$D200_STAGE_RESULTS_JSON" "$d200_overall_failed" <<'PYD200RESULTS'
 import json, sys
