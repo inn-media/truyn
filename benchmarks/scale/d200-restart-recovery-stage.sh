@@ -11,13 +11,24 @@ restart_log="${GITHUB_WORKSPACE:-$PWD}/class-d-200-restart-recovery-host-output.
 : >"$restart_log"
 restart_pids=()
 
+restart_first_node=5
+restart_last_node=9
+restarted_nodes_per_host=$((restart_last_node-restart_first_node+1))
+restarted_total=$((HOST_COUNT*restarted_nodes_per_host))
+[[ "$NODES_PER_HOST" -gt "$restart_last_node" ]]
+
+d200_restart_exact_marker() {
+  local text="$1" key="$2"
+  printf '%s\n' "$text" | sed -n "s/^${key}=//p" | tail -1 | tr -d '\r'
+}
+
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
 t0=\$(date +%s%3N)
 logical_rc=0
 stop_pids=()
-for j in \$(seq 5 9); do
+for j in \$(seq ${restart_first_node} ${restart_last_node}); do
   idx=\$(( ${i} * ${NODES_PER_HOST} + j ))
   systemctl stop truyn-d1000@\${idx}.service &
   stop_pids+=("\$!")
@@ -32,7 +43,7 @@ stop_ms=\$((t_stop-t0))
 sleep 2
 t_start0=\$(date +%s%3N)
 start_pids=()
-for j in \$(seq 5 9); do
+for j in \$(seq ${restart_first_node} ${restart_last_node}); do
   idx=\$(( ${i} * ${NODES_PER_HOST} + j ))
   systemctl start truyn-d1000@\${idx}.service &
   start_pids+=("\$!")
@@ -65,7 +76,7 @@ for n in \$(seq 1 90); do
   min_hosts=999999
   max_pending=0
   last_bad_node=-1
-  for j in \$(seq 5 9); do
+  for j in \$(seq ${restart_first_node} ${restart_last_node}); do
     control_url="http://127.0.0.1:\$(( ${CONTROL_BASE}+j ))"
     readiness=''
     if readiness=\$(curl -fsS --max-time 2 "\${control_url}/dht/readiness" 2>/dev/null); then
@@ -107,10 +118,10 @@ for n in \$(seq 1 90); do
       last_refresh_status=curl-failed
     fi
   done
-  [[ \$good -eq 5 ]] && break
+  [[ \$good -eq ${restarted_nodes_per_host} ]] && break
   sleep 1
 done
-if [[ "\$good" -ne 5 ]]; then logical_rc=1; fi
+if [[ "\$good" -ne ${restarted_nodes_per_host} ]]; then logical_rc=1; fi
 t1=\$(date +%s%3N)
 ready_ms=\$((t1-t_ready0))
 restart_ms=\$((t1-t0))
@@ -163,21 +174,19 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   err="$(cat "$restart_dir/$i.err" 2>/dev/null || true)"
   remote_rc="$(cat "$restart_dir/$i.remote_rc" 2>/dev/null || echo 99)"
 
-  # Keep the exact READY assertion shape relied on by regression tests. Unlike
-  # the old stage, it is evaluated after all host output has been captured.
-  ready_assertion=false
-  if [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]; then ready_assertion=true; fi
+  stop_ms=$(d200_restart_exact_marker "$out" STOP_MS); start_ms=$(d200_restart_exact_marker "$out" START_MS)
+  ready_ms=$(d200_restart_exact_marker "$out" READY_MS); restart_ms=$(d200_restart_exact_marker "$out" RESTART_MS)
+  ready=$(d200_restart_exact_marker "$out" READY); logical_rc=$(d200_restart_exact_marker "$out" RESTART_LOGICAL_RC)
+  ready_min_valid=$(d200_restart_exact_marker "$out" READY_MIN_VALID); ready_min_buckets=$(d200_restart_exact_marker "$out" READY_MIN_BUCKETS)
+  ready_min_hosts=$(d200_restart_exact_marker "$out" READY_MIN_HOSTS); ready_max_pending=$(d200_restart_exact_marker "$out" READY_MAX_PENDING)
+  stop_failed=$(d200_restart_exact_marker "$out" RESTART_STOP_FAILED); start_failed=$(d200_restart_exact_marker "$out" RESTART_START_FAILED)
+  last_bad_node=$(d200_restart_exact_marker "$out" RESTART_LAST_BAD_NODE); last_acceptance_ready=$(d200_restart_exact_marker "$out" RESTART_LAST_ACCEPTANCE_READY)
+  last_propagation_ready=$(d200_restart_exact_marker "$out" RESTART_LAST_PROPAGATION_READY); last_pending=$(d200_restart_exact_marker "$out" RESTART_LAST_PENDING)
+  last_valid=$(d200_restart_exact_marker "$out" RESTART_LAST_VALID); last_buckets=$(d200_restart_exact_marker "$out" RESTART_LAST_BUCKETS)
+  last_hosts=$(d200_restart_exact_marker "$out" RESTART_LAST_HOSTS); last_refresh_status=$(d200_restart_exact_marker "$out" RESTART_LAST_REFRESH_STATUS)
 
-  stop_ms=$(marker "$out" STOP_MS); start_ms=$(marker "$out" START_MS)
-  ready_ms=$(marker "$out" READY_MS); restart_ms=$(marker "$out" RESTART_MS)
-  ready=$(marker "$out" READY); logical_rc=$(marker "$out" RESTART_LOGICAL_RC)
-  ready_min_valid=$(marker "$out" READY_MIN_VALID); ready_min_buckets=$(marker "$out" READY_MIN_BUCKETS)
-  ready_min_hosts=$(marker "$out" READY_MIN_HOSTS); ready_max_pending=$(marker "$out" READY_MAX_PENDING)
-  stop_failed=$(marker "$out" RESTART_STOP_FAILED); start_failed=$(marker "$out" RESTART_START_FAILED)
-  last_bad_node=$(marker "$out" RESTART_LAST_BAD_NODE); last_acceptance_ready=$(marker "$out" RESTART_LAST_ACCEPTANCE_READY)
-  last_propagation_ready=$(marker "$out" RESTART_LAST_PROPAGATION_READY); last_pending=$(marker "$out" RESTART_LAST_PENDING)
-  last_valid=$(marker "$out" RESTART_LAST_VALID); last_buckets=$(marker "$out" RESTART_LAST_BUCKETS)
-  last_hosts=$(marker "$out" RESTART_LAST_HOSTS); last_refresh_status=$(marker "$out" RESTART_LAST_REFRESH_STATUS)
+  ready_assertion=false
+  if [[ "$ready" == "$restarted_nodes_per_host" ]]; then ready_assertion=true; fi
 
   markers_complete=true
   for value in "$stop_ms" "$start_ms" "$ready_ms" "$restart_ms" "$ready" "$logical_rc" "$ready_min_valid" "$ready_min_buckets" "$ready_min_hosts" "$ready_max_pending"; do
@@ -188,7 +197,7 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   if [[ "$remote_rc" != 0 || "$logical_rc" != 0 || "$ready_assertion" != true || "$markers_complete" != true ]]; then
     host_status=RED
     restart_stage_failed=1
-    echo "TRUYN_D200_RESTART_HOST_FAILURE host=$i remoteRc=${remote_rc} logicalRc=${logical_rc:-missing} ready=${ready:-missing}/${NODES_PER_HOST} markersComplete=${markers_complete} lastBadNode=${last_bad_node:-unknown} acceptanceReady=${last_acceptance_ready:-unknown} propagationReady=${last_propagation_ready:-unknown} pending=${last_pending:-unknown} valid=${last_valid:-unknown} buckets=${last_buckets:-unknown} remoteHosts=${last_hosts:-unknown} refresh=${last_refresh_status:-unknown}" >&2
+    echo "TRUYN_D200_RESTART_HOST_FAILURE host=$i remoteRc=${remote_rc} logicalRc=${logical_rc:-missing} ready=${ready:-missing}/${restarted_nodes_per_host} markersComplete=${markers_complete} lastBadNode=${last_bad_node:-unknown} acceptanceReady=${last_acceptance_ready:-unknown} propagationReady=${last_propagation_ready:-unknown} pending=${last_pending:-unknown} valid=${last_valid:-unknown} buckets=${last_buckets:-unknown} remoteHosts=${last_hosts:-unknown} refresh=${last_refresh_status:-unknown}" >&2
   else
     restart_hosts_pass=$((restart_hosts_pass+1))
   fi
@@ -224,17 +233,17 @@ PYD200RESTART
     if [[ -n "$err" ]]; then echo '--- stderr ---'; printf '%s\n' "$err" | tail -n 80; fi
   } >>"$restart_log"
 
-  echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i status=${host_status} mode=parallel-node-restart stopMs=${stop_ms:-null} startMs=${start_ms:-null} readyMs=${ready_ms:-null} restartMs=${restart_ms:-null} ready=${ready:-0}/${NODES_PER_HOST} pendingMax=${ready_max_pending:-null} validMin=${ready_min_valid:-null} bucketsMin=${ready_min_buckets:-null} remoteHostsMin=${ready_min_hosts:-null}"
+  echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i status=${host_status} mode=parallel-node-restart stopMs=${stop_ms:-null} startMs=${start_ms:-null} readyMs=${ready_ms:-null} restartMs=${restart_ms:-null} ready=${ready:-0}/${restarted_nodes_per_host} pendingMax=${ready_max_pending:-null} validMin=${ready_min_valid:-null} bucketsMin=${ready_min_buckets:-null} remoteHostsMin=${ready_min_hosts:-null}"
 done
 
-python3 - "$restart_jsonl" "$restart_json" <<'PYD200RESTARTSUMMARY'
+python3 - "$restart_jsonl" "$restart_json" "$restarted_nodes_per_host" "$restart_first_node" "$restart_last_node" <<'PYD200RESTARTSUMMARY'
 import json,sys
 rows=[]
 with open(sys.argv[1],encoding='utf-8') as h:
     for line in h:
         line=line.strip()
         if line: rows.append(json.loads(line))
-value={'schema':'truyn.d200.restart-recovery-hosts.v1','hosts':rows,'passHosts':sum(r['status']=='PASS' for r in rows),'totalHosts':len(rows),'allHostsPass':all(r['status']=='PASS' for r in rows)}
+value={'schema':'truyn.d200.restart-recovery-hosts.v1','hosts':rows,'passHosts':sum(r['status']=='PASS' for r in rows),'totalHosts':len(rows),'allHostsPass':all(r['status']=='PASS' for r in rows),'expectedReadyPerHost':int(sys.argv[3]),'restartNodeRange':[int(sys.argv[4]),int(sys.argv[5])]}
 with open(sys.argv[2],'w',encoding='utf-8') as h:json.dump(value,h,separators=(',',':'));h.write('\n')
 PYD200RESTARTSUMMARY
 rm -f "$restart_jsonl"
@@ -258,8 +267,8 @@ then
 fi
 
 if [[ "$restart_stage_failed" == 0 && "$restart_hosts_pass" == "$HOST_COUNT" ]]; then
-  echo "TRUYN_CLASS_D_1000 stage=restart-recovery restarted=100 mode=parallel-node-restart networkReady=true hosts=${restart_hosts_pass}/${restart_hosts_total} stopP95Ms=${stop_p95} startP95Ms=${start_p95} readyP95Ms=${ready_p95} recoveryP95Ms=${recovery_p95} status=PASS"
+  echo "TRUYN_CLASS_D_1000 stage=restart-recovery restarted=${restarted_total} mode=parallel-node-restart networkReady=true hosts=${restart_hosts_pass}/${restart_hosts_total} stopP95Ms=${stop_p95} startP95Ms=${start_p95} readyP95Ms=${ready_p95} recoveryP95Ms=${recovery_p95} status=PASS"
 else
-  echo "TRUYN_CLASS_D_1000 stage=restart-recovery restarted=100 mode=parallel-node-restart networkReady=false hosts=${restart_hosts_pass}/${restart_hosts_total} stopP95Ms=${stop_p95} startP95Ms=${start_p95} readyP95Ms=${ready_p95} recoveryP95Ms=${recovery_p95} status=RED" >&2
+  echo "TRUYN_CLASS_D_1000 stage=restart-recovery restarted=${restarted_total} mode=parallel-node-restart networkReady=false hosts=${restart_hosts_pass}/${restart_hosts_total} stopP95Ms=${stop_p95} startP95Ms=${start_p95} readyP95Ms=${ready_p95} recoveryP95Ms=${recovery_p95} status=RED" >&2
   false
 fi
