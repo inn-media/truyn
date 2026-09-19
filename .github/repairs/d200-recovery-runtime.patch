@@ -79,7 +79,7 @@ diff --git a/benchmarks/scale/class-d-azure-1000-campaign.sh b/benchmarks/scale/
 +echo RECOVERY_ROUTING_REFRESH_MS=\$max_routing_refresh_ms
 +echo RECOVERY_QUIC_REPLACEMENT_MS=\$max_quic_replacement_ms
  EOS
-@@ -1024,3 +1056,11 @@
+@@ -1000,3 +1032,11 @@
    ready_min_hosts=$(printf '%s\n' "$out" | sed -n 's/^READY_MIN_HOSTS=//p' | tail -1); [[ -n "$ready_min_hosts" ]]
    ready_max_pending=$(printf '%s\n' "$out" | sed -n 's/^READY_MAX_PENDING=//p' | tail -1); [[ -n "$ready_max_pending" ]]
 -  echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i mode=parallel-node-restart stopMs=${stop_ms} startMs=${start_ms} readyMs=${ready_ms} restartMs=${restart_ms} peerPropagationReady=true pendingMax=${ready_max_pending} validMin=${ready_min_valid} bucketsMin=${ready_min_buckets} remoteHostsMin=${ready_min_hosts}"
@@ -169,7 +169,7 @@ diff --git a/tests/peer-record-restart-propagation-readiness.test.js b/tests/pee
 +    });
  
      const newRecord = await restarted.start();
-@@ -125,3 +134,12 @@
+@@ -108,3 +117,12 @@
      assert.equal(attempts.get(`${newRecord.sequence}:${stable.nodeId}`), 1, 'already acknowledged placement is not retried');
      assert.equal(attempts.get(`${newRecord.sequence}:${flaky.nodeId}`), 2, 'failed restart registration is retried on the control plane only');
      assert.equal(restarted.localPeerRecord.recordId, newRecord.recordId, 'recovery retry must not mint another record or application envelope');
