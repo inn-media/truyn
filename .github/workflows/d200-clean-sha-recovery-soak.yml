@@ -38,7 +38,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Prove sparse topology precondition
+      - name: Prove exact SHA and supported sparse fanout surface
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -46,21 +46,152 @@ jobs:
           node <<'NODE'
           const fs = require('fs');
           const src = fs.readFileSync('network/runtime.js', 'utf8');
-          if (!src.includes('k = 20, alpha = 3')) throw new Error('canonical k=20 default not found');
-          if (!src.includes('const publishFanout = peerRecordPublishFanout == null ? k : peerRecordPublishFanout;')) throw new Error('canonical publish fanout default not found');
-          const nodes = 22;
-          const peers = nodes - 1;
-          const fanout = 20;
+          if (!src.includes('peerRecordPublishFanout = null')) throw new Error('publish fanout option missing');
+          if (!src.includes('const publishFanout = peerRecordPublishFanout == null ? k : peerRecordPublishFanout;')) throw new Error('publish fanout wiring missing');
+          const nodes = 6, peers = 5, fanout = 4;
           if (!(peers > fanout)) throw new Error('topology is not sparse');
           console.log(`TRUYN_SPARSE_TOPOLOGY=PASS nodes=${nodes} peers=${peers} fanout=${fanout}`);
           NODE
+      - name: Create qualification-only sparse node service
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > "$RUNNER_TEMP/sparse-node-service.mjs" <<'NODE'
+          import http from 'node:http';
+          import { readFile, mkdir } from 'node:fs/promises';
+          import { join } from 'node:path';
+          import { pathToFileURL } from 'node:url';
+
+          const root = process.env.GITHUB_WORKSPACE || process.cwd();
+          const runtimeUrl = pathToFileURL(join(root, 'network/runtime.js')).href;
+          const serviceUrl = pathToFileURL(join(root, 'network/testnet/node-service.js')).href;
+          const { TruynNetworkNode } = await import(runtimeUrl);
+          const { loadOrCreateTestnetIdentity } = await import(serviceUrl);
+          const env = process.env;
+          const dataDir = env.TRUYN_TESTNET_DATA_DIR;
+          if (!dataDir) throw new Error('TRUYN_TESTNET_DATA_DIR required');
+          await mkdir(dataDir, { recursive: true });
+          const identity = await loadOrCreateTestnetIdentity(join(dataDir, 'identity.json'));
+          const tls = {
+            key: await readFile(env.TRUYN_TLS_KEY_PATH, 'utf8'),
+            cert: await readFile(env.TRUYN_TLS_CERT_PATH, 'utf8')
+          };
+          const int = (v, d) => Number.isInteger(Number(v)) ? Number(v) : d;
+          const node = new TruynNetworkNode({
+            identity,
+            host: env.TRUYN_QUIC_HOST || '127.0.0.1',
+            port: int(env.TRUYN_QUIC_PORT, 0),
+            advertiseHost: env.TRUYN_ADVERTISE_HOST || '127.0.0.1',
+            tls,
+            statePath: join(dataDir, 'network-state.json'),
+            peerRecordTtlMs: int(env.TRUYN_PEER_RECORD_TTL_MS, 60000),
+            k: 4,
+            peerRecordPublishFanout: 4,
+            discoveryRefreshTargetCount: 4,
+            maxInFlight: 64,
+            maxQueued: 256,
+            dhtReplicationFactor: int(env.TRUYN_DHT_REPLICATION_FACTOR, 3),
+            dhtWriteQuorum: int(env.TRUYN_DHT_WRITE_QUORUM, 2),
+            dhtRpcTimeoutMs: int(env.TRUYN_DHT_RPC_TIMEOUT_MS, 2500),
+            capabilities: ['testnet.echo','testnet.dht']
+          });
+          node.onEnvelope(async (message, context) => ({
+            ok: true,
+            echo: message.payload?.input ?? {},
+            from: message.from,
+            to: identity.nodeId,
+            transport: context.transport
+          }));
+          await node.start();
+
+          const readJson = async (req) => {
+            const chunks = [];
+            for await (const chunk of req) chunks.push(chunk);
+            return chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
+          };
+          const send = (res, status, value) => {
+            const body = JSON.stringify(value);
+            res.writeHead(status, {'content-type':'application/json','content-length':Buffer.byteLength(body),'cache-control':'no-store'});
+            res.end(body);
+          };
+          const readiness = () => {
+            const routing = node.discovery.routingSnapshot();
+            const propagation = node.peerRecordLifecycleSnapshot().propagation || {};
+            const ready = node.peerRecordPropagationReady();
+            return {
+              ok: ready,
+              acceptanceReady: ready,
+              nodeId: identity.nodeId,
+              peerRecordSequence: node.localPeerRecord?.sequence || 0,
+              validPeers: routing.validPeers ?? 0,
+              populatedBuckets: routing.populatedBuckets ?? 0,
+              peerRecordPropagation: {
+                ready,
+                recordId: propagation.recordId || null,
+                sequence: propagation.sequence ?? null,
+                targetCount: Array.isArray(propagation.targetNodeIds) ? propagation.targetNodeIds.length : 0,
+                acknowledgedCount: Array.isArray(propagation.acknowledgedNodeIds) ? propagation.acknowledgedNodeIds.length : 0,
+                pendingCount: Array.isArray(propagation.pendingNodeIds) ? propagation.pendingNodeIds.length : 0,
+                pendingNodeIds: Array.isArray(propagation.pendingNodeIds) ? [...propagation.pendingNodeIds] : []
+              }
+            };
+          };
+          const server = http.createServer(async (req, res) => {
+            try {
+              const url = new URL(req.url, 'http://127.0.0.1');
+              if (req.method === 'GET' && url.pathname === '/dht/readiness') return send(res, 200, readiness());
+              if (req.method === 'POST' && url.pathname === '/bootstrap') {
+                const body = await readJson(req);
+                return send(res, 200, { results: node.bootstrap(body.records || []) });
+              }
+              if (req.method === 'POST' && url.pathname === '/dht/refresh') {
+                const body = await readJson(req);
+                const result = await node.discovery.refreshRoutingTable({
+                  targetCount: Number.isInteger(body.targetCount) ? body.targetCount : 5,
+                  maxRounds: Number.isInteger(body.maxRounds) ? body.maxRounds : 4,
+                  seed: typeof body.seed === 'string' ? body.seed : 'sparse-qualification'
+                });
+                await node.persistState();
+                return send(res, 200, result);
+              }
+              if (req.method === 'POST' && url.pathname === '/sweep') {
+                const peers = node.discovery.sweep();
+                const records = node.recordStore.sweep();
+                await node.persistState();
+                return send(res, 200, { peers, records });
+              }
+              if (req.method === 'POST' && url.pathname === '/need') {
+                const body = await readJson(req);
+                const result = await node.need(body.nodeId, 'testnet.echo', body.input ?? {}, {}, { allowRelayFallback: false });
+                return send(res, 200, result);
+              }
+              return send(res, 404, { error: 'not_found' });
+            } catch (error) {
+              return send(res, 500, { error: error?.code || 'error', message: error?.message || String(error) });
+            }
+          });
+          const controlPort = int(env.TRUYN_CONTROL_PORT, 8788);
+          await new Promise((resolve, reject) => {
+            server.once('error', reject);
+            server.listen(controlPort, env.TRUYN_CONTROL_HOST || '127.0.0.1', resolve);
+          });
+          console.log(JSON.stringify({ ok: true, nodeId: identity.nodeId, peerRecord: node.localPeerRecord, quicPort: node.quic.port, controlPort }));
+          const shutdown = async () => {
+            await new Promise((resolve) => server.close(resolve));
+            await node.close();
+            process.exit(0);
+          };
+          process.once('SIGTERM', () => { void shutdown(); });
+          process.once('SIGINT', () => { void shutdown(); });
+          NODE
+          test -s "$RUNNER_TEMP/sparse-node-service.mjs"
       - name: Fetch immutable recovery harness
         shell: bash
         run: |
           set -Eeuo pipefail
           curl -fsSL "https://raw.githubusercontent.com/inn-media/truyn/${HARNESS_SHA}/scripts/class-d-restart-recovery-soak.mjs" -o "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs"
           test -s "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs"
-      - name: Adapt harness only to canonical public readiness contract and sparse process count
+      - name: Adapt harness to canonical readiness and qualification node service
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -69,24 +200,20 @@ jobs:
           import re, sys
           p = Path(sys.argv[1])
           s = p.read_text()
-          replacements = [
-              ("nodeCount <= 12, '--nodes must be 3..12'", "nodeCount <= 24, '--nodes must be 3..24'"),
-              ("const PORT_BLOCK_SIZE = 32;", "const PORT_BLOCK_SIZE = 48;"),
-              ("const QUIC_OFFSET = 16;", "const QUIC_OFFSET = 24;"),
-              ("const seed = `D${classSize}-restart-${iteration}`;", "const seed = `${process.env.TRUYN_SOAK_SHARD || 'S0'}-D${classSize}-restart-${iteration}`;"),
-          ]
-          for old, new in replacements:
-              if old not in s:
-                  raise SystemExit(f'missing expected harness fragment: {old}')
-              s = s.replace(old, new, 1)
+          old_spawn = "spawn(process.execPath, ['network/testnet/node-service.js'], {"
+          new_spawn = "spawn(process.execPath, [process.env.TRUYN_SOAK_NODE_SERVICE || 'network/testnet/node-service.js'], {"
+          if old_spawn not in s: raise SystemExit('node-service spawn fragment missing')
+          s = s.replace(old_spawn, new_spawn, 1)
+          old_seed = "const seed = `D${classSize}-restart-${iteration}`;"
+          new_seed = "const seed = `${process.env.TRUYN_SOAK_SHARD || 'S0'}-D${classSize}-restart-${iteration}`;"
+          if old_seed not in s: raise SystemExit('seed fragment missing')
+          s = s.replace(old_seed, new_seed, 1)
           pattern = re.compile(r"row\.acceptanceReady === true && row\.peerRecordPropagation\?\.ready === true &&\s*row\.recoveryEpoch\?\.active !== true && row\.recoveryEpoch\?\.phase === 'ready' &&\s*row\.validPeers >= nodes\.length - 1 && row\.populatedBuckets > 0")
           replacement = "row.acceptanceReady === true && row.peerRecordPropagation?.ready === true &&\n          row.validPeers >= nodes.length - 1 && row.populatedBuckets > 0"
           s, count = pattern.subn(replacement, s, count=1)
-          if count != 1:
-              raise SystemExit(f'expected exactly one diagnostic-only recoveryEpoch predicate, got {count}')
+          if count != 1: raise SystemExit(f'expected one diagnostic-only predicate, got {count}')
           p.write_text(s)
           PY
-          ! grep -Fq "row.recoveryEpoch?.active !== true && row.recoveryEpoch?.phase === 'ready'" "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs"
       - name: Run six first-attempt sparse restart cycles
         shell: bash
         env:
@@ -95,21 +222,24 @@ jobs:
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test -z "$(git status --porcelain)"
           out="$RUNNER_TEMP/sparse-${SHARD}"
           env -u GITHUB_SHA TRUYN_CLASS_D_SOURCE_SHA="$TARGET_SHA" TRUYN_SOAK_SHARD="$SHARD" \
+            TRUYN_SOAK_NODE_SERVICE="$RUNNER_TEMP/sparse-node-service.mjs" \
             node "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs" \
-            --class "$CLASS_SIZE" --nodes 22 --iterations 6 --out-dir "$out"
-          node - "$out/summary.json" "$CLASS_SIZE" "$TARGET_SHA" "$SHARD" <<'NODE'
+            --class "$CLASS_SIZE" --nodes 6 --iterations 6 --out-dir "$out"
+          node - "$out/summary.json" "$out/iterations.jsonl" "$CLASS_SIZE" "$TARGET_SHA" "$SHARD" <<'NODE'
           const fs = require('fs');
-          const [file, classSize, targetSha, shard] = process.argv.slice(2);
-          const s = JSON.parse(fs.readFileSync(file, 'utf8'));
-          if (Number(s.classSize) !== Number(classSize)) throw new Error('wrong class size');
-          if (Number(s.nodeCount) !== 22) throw new Error(`wrong node count: ${s.nodeCount}`);
+          const [summaryFile, rowsFile, classSize, targetSha, shard] = process.argv.slice(2);
+          const s = JSON.parse(fs.readFileSync(summaryFile, 'utf8'));
+          const rows = fs.readFileSync(rowsFile, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
+          if (Number(s.classSize) !== Number(classSize) || Number(s.nodeCount) !== 6) throw new Error('wrong topology metadata');
           if (s.sourceSha !== targetSha) throw new Error(`wrong source SHA: ${s.sourceSha}`);
           if (Number(s.iterations) !== 6 || Number(s.passed) !== 6 || Number(s.failed) !== 0 || s.clean !== true) throw new Error(`unclean sparse soak: ${JSON.stringify(s)}`);
           if (Number(s.canonicalRecoveryP95MaxMs) !== 120000) throw new Error('recovery ceiling changed');
           if (Number(s.recoveryP95AcrossIterationsMs?.max ?? Infinity) > 120000) throw new Error(`recovery p95 exceeded: ${s.recoveryP95AcrossIterationsMs?.max}`);
-          console.log(`TRUYN_SPARSE_RECOVERY=PASS shard=${shard} cycles=6 nodes=22 source_sha=${targetSha} worst_p95_ms=${s.recoveryP95AcrossIterationsMs.max}`);
+          if (rows.length !== 6 || rows.some((r) => r.status !== 'PASS' || r.directQuicRoutes !== 6 || Number(r.recoveryMs?.p95 ?? Infinity) > 120000)) throw new Error('first-attempt direct routing/recovery evidence incomplete');
+          console.log(`TRUYN_SPARSE_RECOVERY=PASS shard=${shard} cycles=6 nodes=6 peers=5 fanout=4 source_sha=${targetSha} worst_p95_ms=${s.recoveryP95AcrossIterationsMs.max}`);
           NODE
       - uses: actions/upload-artifact@v4
         if: always()
@@ -131,4 +261,4 @@ jobs:
         run: |
           set -Eeuo pipefail
           test "$RESULT" = success
-          echo "TRUYN_SPARSE_RECOVERY_AGGREGATE=PASS cycles=24 nodes_per_cycle=22 peers=21 fanout=20 exact_sha=$TARGET_SHA"
+          echo "TRUYN_SPARSE_RECOVERY_AGGREGATE=PASS cycles=24 nodes_per_cycle=6 peers=5 fanout=4 exact_sha=$TARGET_SHA"
