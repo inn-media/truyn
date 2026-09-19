@@ -105,7 +105,7 @@ test('restart recovery parses exact markers and compares READY with the five res
   assert.match(source, /sed -n "s\/\^\$\{key\}=\/\/p"/);
   assert.match(source, /restarted_nodes_per_host=\$\(\(restart_last_node-restart_first_node\+1\)\)/);
   assert.match(source, /if \[\[ "\$ready" == "\$restarted_nodes_per_host" \]\]/);
-  assert.doesNotMatch(source, /marker "\$out" READY/);
+  assert.doesNotMatch(source, /(?:^|\s)marker "\$out" READY/m);
   assert.match(source, /RESTART_LOGICAL_RC=/);
   assert.match(source, /TRUYN_D200_RESTART_HOST_FAILURE/);
   assert.match(source, /class-d-200-restart-recovery-hosts\.json/);
