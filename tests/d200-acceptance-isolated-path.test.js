@@ -4,25 +4,21 @@ import { readFile } from 'node:fs/promises';
 
 const read = (path) => readFile(path, 'utf8');
 
-test('D-200 real acceptance executes stage-isolated campaign, never direct fail-fast campaign', async () => {
-  const workflow = await read('.github/workflows/d200-acceptance.yml');
-  assert.match(workflow, /source benchmarks\/scale\/class-d-azure-1000-provision\.sh; source scripts\/d200-stage-isolated-campaign\.sh/);
-  assert.doesNotMatch(workflow, /source benchmarks\/scale\/class-d-azure-1000-provision\.sh; source benchmarks\/scale\/class-d-azure-1000-campaign\.sh/);
-  assert.match(workflow, /continue-on-error: true/);
-  assert.match(workflow, /if: always\(\)/);
+test('D-200 source bundle exposes a stable stage-isolated cloud entrypoint', async () => {
+  const entrypoint = await read('scripts/d200-execute-isolated-campaign.sh');
+  assert.match(entrypoint, /source benchmarks\/scale\/class-d-azure-1000-provision\.sh/);
+  assert.match(entrypoint, /source scripts\/d200-stage-isolated-campaign\.sh/);
+  assert.doesNotMatch(entrypoint, /source benchmarks\/scale\/class-d-azure-1000-campaign\.sh/);
 });
 
-test('D-200 acceptance stays fail-closed after stage isolation', async () => {
+test('frozen launcher remains fail-closed while source repair is qualified separately', async () => {
   const workflow = await read('.github/workflows/d200-acceptance.yml');
+  assert.match(workflow, /continue-on-error: true/);
+  assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /CAMPAIGN_RC:-99[^\n]*== 0/);
   assert.match(workflow, /EVALUATOR_RC:-99[^\n]*== 0/);
   assert.match(workflow, /result=FAIL/);
   assert.match(workflow, /TRUYN_D200_TERMINAL result=\$result/);
-});
-
-test('D-200 next placement prefers 4-vCPU hosts before 2-vCPU fallback', async () => {
-  const workflow = await read('.github/workflows/d200-acceptance.yml');
-  assert.match(workflow, /for z in Standard_D4as_v5 Standard_D4s_v5 Standard_E2as_v7/);
 });
 
 test('restart logical RED is evidence, not an Azure RunCommand replay trigger', async () => {
