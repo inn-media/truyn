@@ -2,7 +2,7 @@ diff --git a/network/runtime.js b/network/runtime.js
 index 1ae4e35..0000000 100644
 --- a/network/runtime.js
 +++ b/network/runtime.js
-@@ -104,15 +104,20 @@ export class TruynNetworkNode {
+@@ -98,15 +98,21 @@ export class TruynNetworkNode {
      this.stateStore = statePath ? new DurableNetworkState({ filePath: statePath }) : null;
      this.workInbox = workInboxPath ? new DurableAcceptedWorkInbox({ filePath: workInboxPath, maxCompleted: workInboxMaxCompleted }) : null;
      this.stateReady = false;
@@ -28,7 +28,7 @@ index 1ae4e35..0000000 100644
        }
        // Any first-seen or changed valid peer record can change the Kademlia
        // placement set for our own current record. Reconcile it on the control
-@@ -158,18 +163,47 @@ export class TruynNetworkNode {
+@@ -155,17 +161,47 @@ export class TruynNetworkNode {
      };
    }
  
@@ -84,7 +84,7 @@ diff --git a/tests/peer-record-renewal-productionization.test.js b/tests/peer-re
 index 5e43db2..0000000 100644
 --- a/tests/peer-record-renewal-productionization.test.js
 +++ b/tests/peer-record-renewal-productionization.test.js
-@@ -24,7 +24,7 @@ async function eventually(check, { timeoutMs = 10_000, intervalMs = 25, message
+@@ -29,7 +29,7 @@ async function eventually(check, { timeoutMs = 10_000, intervalMs = 25, message
    assert.fail(`${message}${last ? `:${JSON.stringify(last)}` : ''}`);
  }
  
@@ -93,7 +93,7 @@ index 5e43db2..0000000 100644
    const root = await mkdtemp(join(tmpdir(), 'truyn-peer-renewal-'));
    const tls = await generateTls(root);
    const a = new TruynNetworkNode({ identity: createIdentity(), host: '127.0.0.1', tls, statePath: join(root, 'a-state.json'), peerRecordTtlMs: 60_000, peerRecordRenewBeforeMs: 58_000 });
-@@ -45,7 +45,12 @@ test('productionization: peer record renews before expiry, disseminates, and inv
+@@ -49,7 +49,11 @@ test('productionization: peer record renews before expiry, disseminates, and inv
        return current?.sequence > recordA.sequence ? current : null;
      }, { message: 'renewed_record_not_disseminated' });
      assert.ok(Date.parse(renewedAtB.expiresAt) > originalExpiresAt, 'renewal must extend the signed lease');
@@ -106,7 +106,7 @@ index 5e43db2..0000000 100644
      const afterOriginalExpiry = b.discovery.get(a.identity.nodeId, { now: originalExpiresAt + 1 });
      assert.ok(afterOriginalExpiry, 'newer record must remain valid after the original lease expires');
      assert.ok(afterOriginalExpiry.sequence > recordA.sequence);
-@@ -117,7 +122,7 @@ test('productionization: PING piggyback repairs a missed proactive renewal annou
+@@ -115,7 +119,7 @@ test('productionization: PING piggyback repairs a missed proactive renewal annou
    }
  });
  
@@ -115,7 +115,7 @@ index 5e43db2..0000000 100644
    const root = await mkdtemp(join(tmpdir(), 'truyn-peer-restart-reregister-'));
    const tls = await generateTls(root);
    const identityA = createIdentity();
-@@ -151,18 +156,19 @@ test('productionization: durable restart re-registers before first application t
+@@ -148,19 +152,17 @@ test('productionization: durable restart re-registers before first application t
        return current?.sequence === restartedRecord.sequence ? current : null;
      }, { message: 'restart_record_not_proactively_registered' });
      assert.equal(registered.recordId, restartedRecord.recordId);
@@ -137,7 +137,7 @@ index 5e43db2..0000000 100644
    } finally {
      await Promise.allSettled([a.close(), b.close()]);
      await rm(root, { recursive: true, force: true });
-@@ -219,3 +225,31 @@ test('productionization: durable restart retries only failed peer registrations
+@@ -225,3 +227,29 @@ test('productionization: durable restart retries only failed peer registrations
      await rm(root, { recursive: true, force: true });
    }
  });
