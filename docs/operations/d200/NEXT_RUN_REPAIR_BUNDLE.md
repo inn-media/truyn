@@ -19,9 +19,9 @@ The campaign stopped in `restart-recovery`. The reported outer line was the pare
 
 ## Stage-isolated cloud campaign orchestration
 
-The next D-200 must execute the canonical campaign through `scripts/d200-stage-isolated-campaign.sh` after provisioning.
+The source bundle exposes one stable cloud execution entrypoint: `scripts/d200-execute-isolated-campaign.sh`. It sources `benchmarks/scale/class-d-azure-1000-provision.sh` first and then `scripts/d200-stage-isolated-campaign.sh`. It never sources the fail-fast canonical campaign directly as the real D-200 execution path.
 
-The orchestrator:
+The stage-isolated orchestrator:
 
 - splits the canonical campaign only at top-level `STAGE=...` boundaries;
 - executes each stage in an isolated subshell;
@@ -52,10 +52,16 @@ Per-host evidence is emitted to `class-d-200-restart-recovery-hosts.json` and `c
 
 ## Acceptance remains strict
 
-The GitHub acceptance launcher already requires both campaign rc = 0 and evaluator rc = 0, plus cleanup, durability and artifact gates, before emitting `TRUYN_D200_TERMINAL result=PASS`. Stage isolation changes diagnostic completeness only; it does not convert a RED/SKIP into PASS.
+The current one-shot launcher remains frozen while the source repair is qualified. This avoids triggering or mutating D-200 acceptance during a source merge.
 
-The existing one-shot launcher must **not** be reused as-is. After this source bundle is merged and exact-main CI/CodeQL are GREEN, prepare a separate launcher-only freeze commit pinned to that exact tested SHA/tree and update its campaign command to source the stage-isolated orchestrator. Only that new qualified launcher may start the next acceptance run.
+After the clean source repair is merged and exact-main CI/CodeQL are GREEN, prepare a **separate launcher-only freeze commit** pinned to that exact tested SHA/tree. That launcher-only commit must:
+
+1. change the campaign execution command to `bash scripts/d200-execute-isolated-campaign.sh` while preserving outer `continue-on-error` and all `if: always()` evaluator/cleanup/artifact/terminal steps;
+2. prefer VM sizes in this order: `Standard_D4as_v5`, `Standard_D4s_v5`, then `Standard_E2as_v7` fallback;
+3. keep the strict terminal rule unchanged: campaign rc = 0, evaluator rc = 0, cleanup confirmed, durability gates PASS, staging cleanup PASS and artifact integrity PASS are all mandatory before `TRUYN_D200_TERMINAL result=PASS`.
+
+Stage isolation changes diagnostic completeness only; it never converts RED/SKIPPED into PASS.
 
 ## Still separate from correctness acceptance
 
-Infrastructure speedups remain a separate layer: parallel provisioning/install across different VMs, later parallel host-level post-restart/healed/resources commands while keeping commands to one VM sequential, 4-vCPU placement preference, and eventually a Compute Gallery image. They must not weaken or replace the correctness gates above.
+Additional infrastructure speedups remain a separate layer: parallel provisioning/install across different VMs, later parallel host-level post-restart/healed/resources commands while keeping commands to one VM sequential, and eventually a Compute Gallery image. They must not weaken or replace the correctness gates above.
