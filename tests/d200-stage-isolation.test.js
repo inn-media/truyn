@@ -11,14 +11,14 @@ async function exists(path) {
   try { await access(path); return true; } catch { return false; }
 }
 
-test('D-200 stage isolation continues independent stages, skips invalid dependencies, and returns FAIL', async () => {
+test('D-200 stage isolation continues independent stages, skips invalid dependencies, rebuilds partial evidence, and returns FAIL', async () => {
   const root = await mkdtemp(join(tmpdir(), 'truyn-d200-stage-isolation-'));
   const campaign = join(root, 'fixture-campaign.sh');
   const betaMarker = join(root, 'beta-ran');
   const retentionMarker = join(root, 'retention-ran');
   const evidence = join(root, 'class-d-1000-evidence.json');
   try {
-    await writeFile(campaign, `STAGE=alpha\necho ALPHA_START\nfalse\n\nSTAGE=beta\nprintf yes >'${betaMarker}'\n\nSTAGE=durable-writes\nwrites=0\nfalse\n\nSTAGE=write-retention\nprintf bad >'${retentionMarker}'\n\nSTAGE=evidence\nprintf '{"unexpected":true}\\n' >"$EVIDENCE"\n`);
+    await writeFile(campaign, `STAGE=alpha\necho ALPHA_START\nfalse\n\nSTAGE=beta\nprintf yes >'${betaMarker}'\n\nSTAGE=durable-writes\nwrites=0\nprintf '{"failure":{"stage":"durable-writes","evidenceComplete":false},"cleanup":{"confirmed":false,"remainingResources":null}}\\n' >"$EVIDENCE"\nfalse\n\nSTAGE=write-retention\nprintf bad >'${retentionMarker}'\n\nSTAGE=resources\nrss_kb=123\nquic_bytes=456\nprocess_total=1\n\nSTAGE=evidence\nprintf '{"unexpected":true}\\n' >"$EVIDENCE"\n`);
 
     const shell = `
 set -Eeuo pipefail
@@ -36,7 +36,7 @@ VMS=(fixture-vm)
 PRIV=(10.0.0.1 10.0.0.2)
 remote(){ return 0; }
 marker(){ local text="$1" key="$2"; printf '%s\\n' "$text" | sed -n "s/.*\${key}=//p" | tail -1 | tr -d '\\r'; }
-d200_failure_evidence_checkpoint(){ printf '{"failure":{"stage":"%s","exitCode":%s,"line":%s,"evidenceComplete":false},"cleanup":{"confirmed":false,"remainingResources":null}}\\n' "$2" "$1" "$3" >"$EVIDENCE"; }
+d200_failure_evidence_checkpoint(){ printf '{"failure":{"stage":"%s","exitCode":%s,"line":%s,"evidenceComplete":false},"resources":{"aggregateNodeRssKb":%s,"measuredQuicUdpBytes":%s,"observedNodeProcesses":%s},"cleanup":{"confirmed":false,"remainingResources":null}}\\n' "$2" "$1" "$3" "\${rss_kb:-null}" "\${quic_bytes:-null}" "\${process_total:-null}" >"$EVIDENCE"; }
 d200_err_trap(){ exit "\${1:-1}"; }
 source scripts/d200-stage-isolated-campaign.sh
 `;
@@ -44,6 +44,7 @@ source scripts/d200-stage-isolated-campaign.sh
     assert.notEqual(run.status, 0, `campaign must remain fail-closed\nstdout=${run.stdout}\nstderr=${run.stderr}`);
     assert.equal(await exists(betaMarker), true, 'independent beta stage must run after alpha RED');
     assert.equal(await exists(retentionMarker), false, 'write-retention must be skipped when durable-writes is RED');
+    assert.equal(await exists(join(root, 'class-d-200-intermediate-failure-evidence.json')), true, 'stage-local checkpoint must be retained separately');
 
     const results = JSON.parse(await readFile(join(root, 'class-d-200-stage-results.json'), 'utf8'));
     const byStage = Object.fromEntries(results.stages.map((row) => [row.stage, row]));
@@ -54,12 +55,19 @@ source scripts/d200-stage-isolated-campaign.sh
     assert.equal(byStage.beta.status, 'PASS');
     assert.equal(byStage['durable-writes'].status, 'RED');
     assert.equal(byStage['write-retention'].status, 'SKIPPED_DEPENDENCY');
+    assert.equal(byStage.resources.status, 'PASS');
     assert.equal(byStage.evidence.status, 'SKIPPED_DEPENDENCY');
+
+    const intermediate = JSON.parse(await readFile(join(root, 'class-d-200-intermediate-failure-evidence.json'), 'utf8'));
+    assert.equal(intermediate.failure.stage, 'durable-writes');
 
     const partial = JSON.parse(await readFile(evidence, 'utf8'));
     assert.equal(partial.failure.stage, 'alpha', 'first real failure must remain the durable failure anchor');
     assert.equal(partial.failure.diagnosticPassComplete, true);
     assert.equal(partial.stageResults.overall, 'FAIL');
+    assert.equal(partial.resources.aggregateNodeRssKb, 123, 'later successful stage metrics must survive final partial evidence rebuild');
+    assert.equal(partial.resources.measuredQuicUdpBytes, 456);
+    assert.equal(partial.resources.observedNodeProcesses, 1);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
