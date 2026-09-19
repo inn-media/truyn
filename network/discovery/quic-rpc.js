@@ -28,7 +28,8 @@ function selectedEndpoint(peer) {
 }
 
 function peerBinding(peer, endpointValue) {
-  return `${Number.isInteger(peer?.sequence) ? peer.sequence : 'na'}:${endpointValue}`;
+  const epoch = peer?.instanceId || (Number.isInteger(peer?.sequence) ? peer.sequence : 'na');
+  return `${epoch}:${endpointValue}`;
 }
 
 function resolveLocalPeerRecord(localPeerRecord) {
