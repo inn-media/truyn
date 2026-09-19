@@ -107,7 +107,7 @@ d200_packet_partition_fail_cleanup() {
   [[ ${#VMS[@]} -ge 1 && ${#PRIV[@]} -ge 2 ]] || return 0
   local block_ip="${PRIV[1]}"
   set +e
-  remote "${VMS[0]}" "set +e; while iptables -C OUTPUT 1 -p udp -d '${block_ip}' --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-partition -j DROP >/dev/null 2>&1; do iptables -D OUTPUT -p udp -d '${block_ip}' --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-partition -j DROP; done; exit 0" >/dev/null 2>&1
+  remote "${VMS[0]}" "set +e; while iptables -C OUTPUT -p udp -d '${block_ip}' --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-partition -j DROP >/dev/null 2>&1; do iptables -D OUTPUT -p udp -d '${block_ip}' --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-partition -j DROP; done; exit 0" >/dev/null 2>&1
   set -e
 }
 
