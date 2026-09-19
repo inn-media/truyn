@@ -1,0 +1,518 @@
+diff --git a/network/runtime.js b/network/runtime.js
+--- a/network/runtime.js
++++ b/network/runtime.js
+@@ -66,2 +66,6 @@
+-    this.peerRecordRecoveryRetryTimer = null;
+-    this.peerRecordPropagationQueued = false;
++    this.peerRecordRecoveryRetryTimers = new Map();
++    this.peerRecordPropagationTimer = null;
++    this.peerRecordReplacementStartedAt = new Map();
++    this.peerRecordReconcileDelayMs = 75;
++    this.peerRecordStartupJitterMaxMs = 250;
++    this.peerRecordControlPlaneConcurrency = Math.max(1, Math.min(4, alpha));
+@@ -78,11 +78,31 @@
+       propagation: {
+         recordId: null,
+         sequence: null,
+         targetNodeIds: [],
+         acknowledgedNodeIds: [],
+         pendingNodeIds: [],
+         ready: true,
++        pendingSinceAt: null,
+         lastUpdatedAt: null
+       },
++      recoveryEpoch: {
++        active: false,
++        id: 0,
++        phase: 'idle',
++        startedAt: null,
++        completedAt: null
++      },
++      diagnostics: {
++        targetSetChanges: 0,
++        ackPreserved: 0,
++        ackReset: 0,
++        propagationAttempts: 0,
++        rpcTimeouts: 0,
++        pendingAgeMs: 0,
++        routingRefreshMs: 0,
++        quicReplacementMs: 0,
++        reconcileBatches: 0,
++        startupJitterMs: 0
++      },
+       lastError: null
+     };
+@@ -110,4 +110,5 @@
+     const onRecordAccepted = ({ nodeId, previous, record }) => {
+       if (previous?.recordId === record.recordId) return;
+       if (previous) {
++        this.peerRecordReplacementStartedAt.set(nodeId, Date.now());
+         this.rpc?.forget?.(nodeId);
+@@ -195,5 +195,33 @@
+   #clearPeerRecordRenewTimer() {
+     if (!this.peerRecordRenewTimer) return;
+     clearTimeout(this.peerRecordRenewTimer);
+     this.peerRecordRenewTimer = null;
+   }
++
++  #deterministicControlPlaneJitterMs(maxMs = this.peerRecordStartupJitterMaxMs) {
++    const text = String(this.identity?.nodeId || '');
++    let hash = 2166136261;
++    for (let i = 0; i < text.length; i += 1) {
++      hash ^= text.charCodeAt(i);
++      hash = Math.imul(hash, 16777619) >>> 0;
++    }
++    return maxMs > 0 ? hash % (maxMs + 1) : 0;
++  }
++
++  #setRecoveryEpochPhase(phase) {
++    const epoch = this.peerRecordLifecycle.recoveryEpoch;
++    if (!epoch.active && phase !== 'ready') return;
++    epoch.phase = phase;
++    if (phase === 'ready') {
++      epoch.active = false;
++      epoch.completedAt = new Date().toISOString();
++    }
++  }
++
++  #maybeCompleteRecoveryEpoch() {
++    const propagation = this.peerRecordLifecycle.propagation;
++    if (this.peerRecordLifecycle.recoveryEpoch.active && propagation?.ready === true) {
++      if (this.peerRecordLifecycle.recoveryEpoch.phase === 'propagate') this.#setRecoveryEpochPhase('establish-sessions');
++      this.#setRecoveryEpochPhase('ready');
++    }
++  }
+@@ -210,13 +210,37 @@
+   #resetPeerRecordPropagation(record = this.localPeerRecord, peers = null) {
+     const candidates = Array.isArray(peers) ? peers : this.#peerRecordPropagationPeers(record);
+     const targetNodeIds = [...new Set(candidates.map((peer) => peer?.nodeId).filter(Boolean))].sort();
++    const previous = this.peerRecordLifecycle.propagation || {};
++    const sameRecord = previous.recordId === record?.recordId;
++    const previousTargets = sameRecord ? [...(previous.targetNodeIds || [])].sort() : [];
++    const targetSetChanged = previousTargets.length !== targetNodeIds.length ||
++      targetNodeIds.some((nodeId, index) => nodeId !== previousTargets[index]);
++    const targetSet = new Set(targetNodeIds);
++    const acknowledgedNodeIds = sameRecord
++      ? (previous.acknowledgedNodeIds || []).filter((nodeId) => targetSet.has(nodeId)).sort()
++      : [];
++    const acknowledgedSet = new Set(acknowledgedNodeIds);
++    const pendingNodeIds = targetNodeIds.filter((nodeId) => !acknowledgedSet.has(nodeId));
++    if (targetSetChanged) this.peerRecordLifecycle.diagnostics.targetSetChanges += 1;
++    if (sameRecord) {
++      this.peerRecordLifecycle.diagnostics.ackPreserved += acknowledgedNodeIds.length;
++      const stillRequiredAcknowledged = (previous.acknowledgedNodeIds || []).filter((nodeId) => targetSet.has(nodeId)).length;
++      this.peerRecordLifecycle.diagnostics.ackReset += Math.max(0, stillRequiredAcknowledged - acknowledgedNodeIds.length);
++    }
++    const now = new Date().toISOString();
++    const previousPending = new Set(sameRecord ? previous.pendingNodeIds || [] : []);
++    const preservePendingClock = pendingNodeIds.some((nodeId) => previousPending.has(nodeId));
+     this.peerRecordLifecycle.propagation = {
+       recordId: record?.recordId || null,
+       sequence: record?.sequence ?? null,
+       targetNodeIds,
+-      acknowledgedNodeIds: [],
+-      pendingNodeIds: [...targetNodeIds],
+-      ready: targetNodeIds.length === 0,
+-      lastUpdatedAt: new Date().toISOString()
++      acknowledgedNodeIds,
++      pendingNodeIds,
++      ready: pendingNodeIds.length === 0,
++      pendingSinceAt: pendingNodeIds.length > 0
++        ? (preservePendingClock ? previous.pendingSinceAt || now : now)
++        : null,
++      lastUpdatedAt: now
+     };
++    this.#maybeCompleteRecoveryEpoch();
+   }
+@@ -246,2 +246,12 @@
+     for (let i = 0; i < candidateIds.length; i += 1) {
+-      if (settled[i]?.status === 'fulfilled') acknowledged.add(candidateIds[i]);
++      if (settled[i]?.status === 'fulfilled') {
++        acknowledged.add(candidateIds[i]);
++        const replacementStartedAt = this.peerRecordReplacementStartedAt.get(candidateIds[i]);
++        if (Number.isFinite(replacementStartedAt)) {
++          this.peerRecordLifecycle.diagnostics.quicReplacementMs = Math.max(
++            this.peerRecordLifecycle.diagnostics.quicReplacementMs,
++            Date.now() - replacementStartedAt
++          );
++          this.peerRecordReplacementStartedAt.delete(candidateIds[i]);
++        }
++      }
+@@ -263,2 +263,5 @@
+     const pendingNodeIds = targetNodeIds.filter((nodeId) => !acknowledgedSet.has(nodeId));
++    const now = new Date().toISOString();
++    const previousPending = new Set(sameRecord ? previous.pendingNodeIds || [] : []);
++    const preservePendingClock = pendingNodeIds.some((nodeId) => previousPending.has(nodeId));
+     this.peerRecordLifecycle.propagation = {
+@@ -293,6 +293,10 @@
+       acknowledgedNodeIds,
+       pendingNodeIds,
+       ready: pendingNodeIds.length === 0,
+-      lastUpdatedAt: new Date().toISOString()
++      pendingSinceAt: pendingNodeIds.length > 0
++        ? (preservePendingClock ? previous.pendingSinceAt || now : now)
++        : null,
++      lastUpdatedAt: now
+     };
++    this.#maybeCompleteRecoveryEpoch();
+   }
+@@ -327,10 +327,12 @@
+     // Readiness must close synchronously when live discovery changes the required
+     // placement set; the queued operation below is control-plane dissemination.
+     this.#stagePeerRecordPropagation(record);
++    if (this.peerRecordLifecycle.recoveryEpoch.active) return;
+-    if (this.peerRecordPropagationQueued) return;
++    if (this.peerRecordPropagationTimer) return;
+     const recordId = record.recordId;
+-    this.peerRecordPropagationQueued = true;
+-    queueMicrotask(() => {
+-      this.peerRecordPropagationQueued = false;
++    const delayMs = this.peerRecordReconcileDelayMs + this.#deterministicControlPlaneJitterMs(50);
++    this.peerRecordPropagationTimer = setTimeout(() => {
++      this.peerRecordPropagationTimer = null;
+       if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
++      this.peerRecordLifecycle.diagnostics.reconcileBatches += 1;
+       const peers = this.#peerRecordPropagationPeers(record);
+@@ -401,45 +401,49 @@
+         };
+       });
+-    });
++    }, delayMs);
++    this.peerRecordPropagationTimer.unref?.();
+   }
+ 
+   #clearPeerRecordRecoveryRetryTimer() {
+-    if (!this.peerRecordRecoveryRetryTimer) return;
+-    clearTimeout(this.peerRecordRecoveryRetryTimer);
+-    this.peerRecordRecoveryRetryTimer = null;
++    for (const { timer } of this.peerRecordRecoveryRetryTimers.values()) clearTimeout(timer);
++    this.peerRecordRecoveryRetryTimers.clear();
+   }
+ 
+   #schedulePeerRecordRecoveryRetries(record, recoveryPeers, failedNodeIds, attempt = 0) {
+-    this.#clearPeerRecordRecoveryRetryTimer();
+     if (!this.started || this.closing || this.localPeerRecord?.recordId !== record?.recordId) return;
+     if (attempt >= this.peerRecordRecoveryRetryDelaysMs.length) return;
+ 
+     const pendingNodeIds = new Set(failedNodeIds || []);
+     const peers = recoveryPeers.filter((peer) => pendingNodeIds.has(peer?.nodeId));
+     if (peers.length === 0) return;
+-
+-    const recordId = record.recordId;
+-    const delayMs = this.peerRecordRecoveryRetryDelaysMs[attempt];
+-    this.peerRecordRecoveryRetryTimer = setTimeout(() => {
+-      this.peerRecordRecoveryRetryTimer = null;
+-      if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
+-      void this.announcePeerRecord(record, { peers, fanout: peers.length, replacePropagationTargets: false })
+-        .then((result) => {
+-          if (result.failed === 0) {
+-            this.peerRecordLifecycle.lastError = null;
+-            return;
+-          }
+-          this.#schedulePeerRecordRecoveryRetries(record, recoveryPeers, result.failedNodeIds, attempt + 1);
+-        })
+-        .catch((error) => {
+-          if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
+-          this.peerRecordLifecycle.lastError = {
+-            at: new Date().toISOString(),
+-            code: error?.code || null,
+-            message: error?.message || String(error)
+-          };
+-          this.#schedulePeerRecordRecoveryRetries(record, recoveryPeers, peers.map((peer) => peer.nodeId), attempt + 1);
+-        });
+-    }, delayMs);
+-    this.peerRecordRecoveryRetryTimer.unref?.();
++    for (const peer of peers) {
++      const existing = this.peerRecordRecoveryRetryTimers.get(peer.nodeId);
++      if (existing?.recordId === record.recordId && existing.attempt <= attempt) continue;
++      if (existing?.timer) clearTimeout(existing.timer);
++      const recordId = record.recordId;
++      const delayMs = this.peerRecordRecoveryRetryDelaysMs[attempt];
++      const timer = setTimeout(() => {
++        this.peerRecordRecoveryRetryTimers.delete(peer.nodeId);
++        if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
++        void this.announcePeerRecord(record, { peers: [peer], fanout: 1, replacePropagationTargets: false })
++          .then((result) => {
++            if (result.failed === 0) {
++              if (this.peerRecordLifecycle.propagation.ready) this.peerRecordLifecycle.lastError = null;
++              return;
++            }
++            this.#schedulePeerRecordRecoveryRetries(record, [peer], [peer.nodeId], attempt + 1);
++          })
++          .catch((error) => {
++            if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
++            this.peerRecordLifecycle.lastError = {
++              at: new Date().toISOString(),
++              code: error?.code || null,
++              message: error?.message || String(error)
++            };
++            this.#schedulePeerRecordRecoveryRetries(record, [peer], [peer.nodeId], attempt + 1);
++          });
++      }, delayMs);
++      this.peerRecordRecoveryRetryTimers.set(peer.nodeId, { timer, attempt, recordId });
++      timer.unref?.();
++    }
+   }
+@@ -414,3 +414,8 @@
+   peerRecordLifecycleSnapshot() {
+-    return structuredClone(this.peerRecordLifecycle);
++    const snapshot = structuredClone(this.peerRecordLifecycle);
++    const pendingSince = Date.parse(snapshot.propagation?.pendingSinceAt || '');
++    snapshot.diagnostics.pendingAgeMs = Number.isFinite(pendingSince) && snapshot.propagation?.pendingNodeIds?.length > 0
++      ? Math.max(0, Date.now() - pendingSince)
++      : 0;
++    return snapshot;
+   }
+@@ -426,5 +426,6 @@
+       this.localPeerRecord &&
+       propagation?.recordId === this.localPeerRecord.recordId &&
+-      propagation.ready === true
++      propagation.ready === true &&
++      this.peerRecordLifecycle.recoveryEpoch.active !== true
+     );
+   }
+@@ -445,4 +445,10 @@
+   async start() {
+     if (this.started) return this.localPeerRecord;
+     this.closing = false;
++    const epoch = this.peerRecordLifecycle.recoveryEpoch;
++    epoch.active = true;
++    epoch.id += 1;
++    epoch.phase = 'hydrate';
++    epoch.startedAt = new Date().toISOString();
++    epoch.completedAt = null;
+     await this.hydrateState();
+@@ -469,2 +469,22 @@
+     this.peerRecordLifecycle.lastSequence = this.localPeerRecord.sequence;
+-    this.#resetPeerRecordPropagation(this.localPeerRecord, recoveryPeers);
++    this.#setRecoveryEpochPhase('routing-refresh');
++    const refreshStartedAt = Date.now();
++    if (recoveryPeers.length > 0) {
++      try {
++        await this.discovery.refreshRoutingTable({
++          targetCount: Math.min(this.discoveryRefreshTargetCount, recoveryPeers.length),
++          maxRounds: this.discoveryRefreshMaxRounds,
++          seed: `truyn-recovery-${this.identity.nodeId}-${this.sequence}`
++        });
++      } catch (error) {
++        this.peerRecordLifecycle.lastError = {
++          at: new Date().toISOString(),
++          code: error?.code || null,
++          message: error?.message || String(error)
++        };
++      }
++    }
++    this.peerRecordLifecycle.diagnostics.routingRefreshMs = Date.now() - refreshStartedAt;
++    this.#setRecoveryEpochPhase('placement');
++    const placementPeers = this.#peerRecordPropagationPeers(this.localPeerRecord);
++    this.#resetPeerRecordPropagation(this.localPeerRecord, placementPeers);
+@@ -520,14 +520,20 @@
+-    if (recoveryPeers.length > 0) {
++    if (placementPeers.length > 0) {
++      const startupJitterMs = this.#deterministicControlPlaneJitterMs();
++      this.peerRecordLifecycle.diagnostics.startupJitterMs = startupJitterMs;
++      if (startupJitterMs > 0) await new Promise((resolve) => setTimeout(resolve, startupJitterMs));
++      this.#setRecoveryEpochPhase('propagate');
+       const announcement = await this.announcePeerRecord(this.localPeerRecord, {
+-        peers: recoveryPeers,
+-        fanout: recoveryPeers.length,
++        peers: placementPeers,
++        fanout: placementPeers.length,
+         replacePropagationTargets: true
+       });
+       if (announcement.failed > 0) {
++        this.#setRecoveryEpochPhase('establish-sessions');
+         this.#schedulePeerRecordRecoveryRetries(
+           this.localPeerRecord,
+-          recoveryPeers,
++          placementPeers,
+           announcement.failedNodeIds
+         );
+       }
+     }
++    this.#maybeCompleteRecoveryEpoch();
+@@ -575,4 +575,23 @@
+     const candidates = source
+       .filter((peer) => peer?.nodeId && peer.nodeId !== this.identity.nodeId)
+       .slice(0, fanout);
+-    const settled = await Promise.allSettled(candidates.map((peer) => this.rpc.announce(peer, record)));
++    this.peerRecordLifecycle.diagnostics.propagationAttempts += 1;
++    const settled = new Array(candidates.length);
++    let cursor = 0;
++    const worker = async () => {
++      while (true) {
++        const index = cursor;
++        cursor += 1;
++        if (index >= candidates.length) return;
++        try {
++          const value = await this.rpc.announce(candidates[index], record);
++          settled[index] = { status: 'fulfilled', value };
++        } catch (reason) {
++          settled[index] = { status: 'rejected', reason };
++          const text = `${reason?.code || ''} ${reason?.message || reason || ''}`.toLowerCase();
++          if (text.includes('timeout') || text.includes('timed out')) this.peerRecordLifecycle.diagnostics.rpcTimeouts += 1;
++        }
++      }
++    };
++    const workers = Math.min(this.peerRecordControlPlaneConcurrency, Math.max(1, candidates.length));
++    await Promise.all(Array.from({ length: workers }, () => worker()));
+@@ -610,3 +610,5 @@
+     this.#clearPeerRecordRenewTimer();
+     this.#clearPeerRecordRecoveryRetryTimer();
+-    this.peerRecordPropagationQueued = false;
++    if (this.peerRecordPropagationTimer) clearTimeout(this.peerRecordPropagationTimer);
++    this.peerRecordPropagationTimer = null;
++    this.peerRecordReplacementStartedAt.clear();
+diff --git a/network/testnet/node-service.js b/network/testnet/node-service.js
+--- a/network/testnet/node-service.js
++++ b/network/testnet/node-service.js
+@@ -168,5 +168,6 @@
+   const dhtReadiness = () => {
+     const routing = routingReadinessFields(node.discovery.routingSnapshot());
+-    const propagation = node.peerRecordLifecycleSnapshot().propagation || {};
++    const lifecycle = node.peerRecordLifecycleSnapshot();
++    const propagation = lifecycle.propagation || {};
+     const propagationReady = node.peerRecordPropagationReady();
+     const peerRecordLeases = node.discovery.leaseSnapshot();
+@@ -194,8 +195,11 @@
+         targetCount: Array.isArray(propagation.targetNodeIds) ? propagation.targetNodeIds.length : 0,
+         acknowledgedCount: Array.isArray(propagation.acknowledgedNodeIds) ? propagation.acknowledgedNodeIds.length : 0,
+         pendingCount: Array.isArray(propagation.pendingNodeIds) ? propagation.pendingNodeIds.length : 0,
+-        pendingNodeIds: Array.isArray(propagation.pendingNodeIds) ? [...propagation.pendingNodeIds] : []
++        pendingNodeIds: Array.isArray(propagation.pendingNodeIds) ? [...propagation.pendingNodeIds] : [],
++        pendingAgeMs: lifecycle.diagnostics?.pendingAgeMs ?? 0
+       },
++      recoveryEpoch: lifecycle.recoveryEpoch || null,
++      recoveryDiagnostics: lifecycle.diagnostics || {},
+       peerRecordLeases,
+       periodicRefresh,
+       remoteEndpointDiversity: remoteEndpointDiversity(),
+diff --git a/benchmarks/scale/class-d-azure-1000-campaign.sh b/benchmarks/scale/class-d-azure-1000-campaign.sh
+--- a/benchmarks/scale/class-d-azure-1000-campaign.sh
++++ b/benchmarks/scale/class-d-azure-1000-campaign.sh
+@@ -760,5 +760,36 @@
+ done
+ [[ \$good -eq 5 ]]
++recovery_target_set_changes=0
++recovery_ack_preserved=0
++recovery_ack_reset=0
++recovery_propagation_attempts=0
++recovery_rpc_timeouts=0
++recovery_pending_age_ms=0
++recovery_routing_refresh_ms=0
++recovery_quic_replacement_ms=0
++for j in \$(seq 5 9); do
++  control_url="http://127.0.0.1:\$(( ${CONTROL_BASE}+j ))"
++  recovery_diag=\$(curl -fsS --max-time 2 "\${control_url}/dht/readiness")
++  target_set_changes=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.targetSetChanges // 0')
++  ack_preserved=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.ackPreserved // 0')
++  ack_reset=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.ackReset // 0')
++  propagation_attempts=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.propagationAttempts // 0')
++  rpc_timeouts=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.rpcTimeouts // 0')
++  pending_age_ms=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.pendingAgeMs // 0')
++  routing_refresh_ms=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.routingRefreshMs // 0')
++  quic_replacement_ms=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.quicReplacementMs // 0')
++  for value in target_set_changes ack_preserved ack_reset propagation_attempts rpc_timeouts pending_age_ms routing_refresh_ms quic_replacement_ms; do
++    [[ "\${!value}" =~ ^[0-9]+$ ]]
++  done
++  recovery_target_set_changes=\$((recovery_target_set_changes + target_set_changes))
++  recovery_ack_preserved=\$((recovery_ack_preserved + ack_preserved))
++  recovery_ack_reset=\$((recovery_ack_reset + ack_reset))
++  recovery_propagation_attempts=\$((recovery_propagation_attempts + propagation_attempts))
++  recovery_rpc_timeouts=\$((recovery_rpc_timeouts + rpc_timeouts))
++  [[ "\$pending_age_ms" -gt "\$recovery_pending_age_ms" ]] && recovery_pending_age_ms="\$pending_age_ms"
++  [[ "\$routing_refresh_ms" -gt "\$recovery_routing_refresh_ms" ]] && recovery_routing_refresh_ms="\$routing_refresh_ms"
++  [[ "\$quic_replacement_ms" -gt "\$recovery_quic_replacement_ms" ]] && recovery_quic_replacement_ms="\$quic_replacement_ms"
++done
+ t1=\$(date +%s%3N)
+ ready_ms=\$((t1-t_ready0))
+ restart_ms=\$((t1-t0))
+@@ -769,5 +802,13 @@
+ echo READY_MIN_BUCKETS=\$min_buckets
+ echo READY_MIN_HOSTS=\$min_hosts
+ echo READY_MAX_PENDING=\$max_pending
++echo RECOVERY_TARGET_SET_CHANGES=\$recovery_target_set_changes
++echo RECOVERY_ACK_PRESERVED=\$recovery_ack_preserved
++echo RECOVERY_ACK_RESET=\$recovery_ack_reset
++echo RECOVERY_PROPAGATION_ATTEMPTS=\$recovery_propagation_attempts
++echo RECOVERY_RPC_TIMEOUTS=\$recovery_rpc_timeouts
++echo RECOVERY_PENDING_AGE_MS=\$recovery_pending_age_ms
++echo RECOVERY_ROUTING_REFRESH_MS=\$recovery_routing_refresh_ms
++echo RECOVERY_QUIC_REPLACEMENT_MS=\$recovery_quic_replacement_ms
+ EOS
+ )
+@@ -787,5 +828,13 @@
+   ready_min_hosts=$(printf '%s\n' "$out" | sed -n 's/^READY_MIN_HOSTS=//p' | tail -1); [[ -n "$ready_min_hosts" ]]
+   ready_max_pending=$(printf '%s\n' "$out" | sed -n 's/^READY_MAX_PENDING=//p' | tail -1); [[ -n "$ready_max_pending" ]]
+-  echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i mode=parallel-node-restart stopMs=${stop_ms} startMs=${start_ms} readyMs=${ready_ms} restartMs=${restart_ms} peerPropagationReady=true pendingMax=${ready_max_pending} validMin=${ready_min_valid} bucketsMin=${ready_min_buckets} remoteHostsMin=${ready_min_hosts}"
++  recovery_target_set_changes=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_TARGET_SET_CHANGES=//p' | tail -1); [[ -n "$recovery_target_set_changes" ]]
++  recovery_ack_preserved=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_ACK_PRESERVED=//p' | tail -1); [[ -n "$recovery_ack_preserved" ]]
++  recovery_ack_reset=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_ACK_RESET=//p' | tail -1); [[ -n "$recovery_ack_reset" ]]
++  recovery_propagation_attempts=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_PROPAGATION_ATTEMPTS=//p' | tail -1); [[ -n "$recovery_propagation_attempts" ]]
++  recovery_rpc_timeouts=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_RPC_TIMEOUTS=//p' | tail -1); [[ -n "$recovery_rpc_timeouts" ]]
++  recovery_pending_age_ms=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_PENDING_AGE_MS=//p' | tail -1); [[ -n "$recovery_pending_age_ms" ]]
++  recovery_routing_refresh_ms=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_ROUTING_REFRESH_MS=//p' | tail -1); [[ -n "$recovery_routing_refresh_ms" ]]
++  recovery_quic_replacement_ms=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_QUIC_REPLACEMENT_MS=//p' | tail -1); [[ -n "$recovery_quic_replacement_ms" ]]
++  echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i mode=parallel-node-restart stopMs=${stop_ms} startMs=${start_ms} readyMs=${ready_ms} restartMs=${restart_ms} peerPropagationReady=true pendingMax=${ready_max_pending} validMin=${ready_min_valid} bucketsMin=${ready_min_buckets} remoteHostsMin=${ready_min_hosts} targetSetChanges=${recovery_target_set_changes} ackPreserved=${recovery_ack_preserved} ackReset=${recovery_ack_reset} propagationAttempts=${recovery_propagation_attempts} rpcTimeouts=${recovery_rpc_timeouts} pendingAgeMs=${recovery_pending_age_ms} routingRefreshMs=${recovery_routing_refresh_ms} quicReplacementMs=${recovery_quic_replacement_ms}"
+ done
+ rm -rf "$restart_dir"
+diff --git a/tests/d200-recovery-control-plane.test.js b/tests/d200-recovery-control-plane.test.js
+new file mode 100644
+--- /dev/null
++++ b/tests/d200-recovery-control-plane.test.js
+@@ -0,0 +1,55 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const runtime = await readFile(new URL('../network/runtime.js', import.meta.url), 'utf8');
++const service = await readFile(new URL('../network/testnet/node-service.js', import.meta.url), 'utf8');
++const campaign = await readFile(new URL('../benchmarks/scale/class-d-azure-1000-campaign.sh', import.meta.url), 'utf8');
++
++test('D-200 recovery telemetry exposes the eight root-cause dimensions', () => {
++  for (const field of [
++    'targetSetChanges',
++    'ackPreserved',
++    'ackReset',
++    'propagationAttempts',
++    'rpcTimeouts',
++    'pendingAgeMs',
++    'routingRefreshMs',
++    'quicReplacementMs'
++  ]) {
++    assert.match(runtime, new RegExp(`${field}: 0`));
++    assert.match(service, new RegExp(field));
++    assert.match(campaign, new RegExp(field));
++  }
++});
++
++test('same-record placement churn preserves ACKs for the target intersection', () => {
++  assert.match(runtime, /const sameRecord = previous\.recordId === record\?\.recordId/);
++  assert.match(runtime, /\(previous\.acknowledgedNodeIds \|\| \[\]\)\.filter\(\(nodeId\) => targetSet\.has\(nodeId\)\)/);
++  assert.match(runtime, /diagnostics\.ackPreserved \+= acknowledgedNodeIds\.length/);
++  assert.match(runtime, /pendingNodeIds = targetNodeIds\.filter\(\(nodeId\) => !acknowledgedSet\.has\(nodeId\)\)/);
++});
++
++test('peer-record reconciliation is fail-closed and coalesced', () => {
++  assert.match(runtime, /this\.#stagePeerRecordPropagation\(record\);[\s\S]*?if \(this\.peerRecordPropagationTimer\) return/);
++  assert.match(runtime, /peerRecordReconcileDelayMs = 75/);
++  assert.match(runtime, /setTimeout\(\(\) => \{[\s\S]*?diagnostics\.reconcileBatches \+= 1/);
++  assert.doesNotMatch(runtime, /queueMicrotask\(\(\) =>/);
++});
++
++test('restart uses an explicit recovery epoch before network readiness', () => {
++  for (const phase of ['hydrate', 'routing-refresh', 'placement', 'propagate', 'establish-sessions', 'ready']) {
++    assert.match(runtime, new RegExp(`'${phase}'`));
++  }
++  assert.match(runtime, /recoveryEpoch\.active !== true/);
++  assert.match(runtime, /await this\.discovery\.refreshRoutingTable\(/);
++});
++
++test('retries are per-peer and startup burst is bounded without weakening acceptance', () => {
++  assert.match(runtime, /peerRecordRecoveryRetryTimers = new Map\(\)/);
++  assert.match(runtime, /announcePeerRecord\(record, \{ peers: \[peer\], fanout: 1, replacePropagationTargets: false \}\)/);
++  assert.match(runtime, /peerRecordControlPlaneConcurrency = Math\.max\(1, Math\.min\(4, alpha\)\)/);
++  assert.match(runtime, /peerRecordStartupJitterMaxMs = 250/);
++  assert.match(runtime, /const workers = Math\.min\(this\.peerRecordControlPlaneConcurrency/);
++  assert.match(campaign, /assert float\('\$recovery_p95'\) <= 120000/);
++});
