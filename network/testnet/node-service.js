@@ -218,7 +218,9 @@ export async function createTestnetNodeService({
 
   const dhtReadiness = () => {
     const routing = routingReadinessFields(node.discovery.routingSnapshot());
-    const propagation = node.peerRecordLifecycleSnapshot().propagation || {};
+    const lifecycle = node.peerRecordLifecycleSnapshot();
+    const propagation = lifecycle.propagation || {};
+    const recovery = lifecycle.recovery || {};
     const propagationReady = node.peerRecordPropagationReady();
     const peerRecordLeases = node.discovery.leaseSnapshot();
     const periodicRefresh = node.discovery.periodicRefreshSnapshot();
@@ -248,6 +250,21 @@ export async function createTestnetNodeService({
         acknowledgedCount: Array.isArray(propagation.acknowledgedNodeIds) ? propagation.acknowledgedNodeIds.length : 0,
         pendingCount: Array.isArray(propagation.pendingNodeIds) ? propagation.pendingNodeIds.length : 0,
         pendingNodeIds: Array.isArray(propagation.pendingNodeIds) ? [...propagation.pendingNodeIds] : []
+      },
+      recovery: {
+        epoch: recovery.epoch || 0,
+        phase: recovery.phase || 'unknown',
+        targetSetChanges: recovery.targetSetChanges || 0,
+        ackPreserved: recovery.ackPreserved || 0,
+        ackReset: recovery.ackReset || 0,
+        propagationAttempts: recovery.propagationAttempts || 0,
+        rpcTimeouts: recovery.rpcTimeouts || 0,
+        pendingAgeMs: recovery.pendingAgeMs || 0,
+        routingRefreshMs: recovery.routingRefreshMs || 0,
+        quicReplacementMs: recovery.quicReplacementMs || 0,
+        reconcileBatches: recovery.reconcileBatches || 0,
+        retryAttempts: recovery.retryAttempts || 0,
+        startupJitterMs: recovery.startupJitterMs || 0
       },
       peerRecordLeases,
       periodicRefresh,
