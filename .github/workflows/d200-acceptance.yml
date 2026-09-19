@@ -4,12 +4,12 @@ on:
     branches: [main]
     paths: ['.github/workflows/d200-acceptance.yml']
 permissions: { contents: read, actions: read, id-token: write }
-concurrency: { group: truyn-d200-e9583d3e-qualified-single-shot, cancel-in-progress: false }
+concurrency: { group: truyn-d200-e58b06d8-qualified-single-shot, cancel-in-progress: false }
 env:
-  TESTED_COMMIT: e9583d3e2c7f85d618efead38cb7853d5e8abab3
-  TESTED_TREE_SHA: 28f09972fa9b36c11d0e80e8f96ba58bfd056fe3
-  EXACT_MAIN_CI_RUN: '35457753815'
-  EXACT_MAIN_CODEQL_RUN: '35457753986'
+  TESTED_COMMIT: e58b06d8fc37fb08af3f3a003e4a82332e8327c7
+  TESTED_TREE_SHA: c279599e7ae4c765532c12ab67abf8dcf28aa529
+  EXACT_MAIN_CI_RUN: '35468492233'
+  EXACT_MAIN_CODEQL_RUN: '35468491860'
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '10'
 jobs:
@@ -71,7 +71,7 @@ jobs:
           set -Eeuo pipefail; ok=false
           for l in eastus2 eastus westus2 centralus northcentralus southcentralus westeurope northeurope; do
             u="$(az vm list-usage -l "$l" -o json --only-show-errors)"||continue; rc="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].currentValue//-1'<<<"$u")"; rl="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].limit//-1'<<<"$u")"
-            for z in Standard_E2as_v7 Standard_D4as_v5 Standard_D4s_v5; do q="$(az vm list-skus -l "$l" --size "$z" --all -o json --only-show-errors)"||continue; [[ "$(jq length<<<"$q")" -ge 1 ]]||continue; v="$(jq -r '[.[].capabilities[]?|select(.name=="vCPUs")|.value][0]//empty'<<<"$q")"; f="$(jq -r '.[0].family//empty'<<<"$q")"; [[ -n "$v" && -n "$f" ]]||continue; fc="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].currentValue//-1'<<<"$u")"; fl="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].limit//-1'<<<"$u")"; blocks="$(jq '[.[].restrictions[]?|select(.type=="Location" and .reasonCode=="NotAvailableForSubscription")]|length'<<<"$q")"; need=$((v*20)); echo "TRUYN_D200_CAPACITY_PROBE location=$l size=$z required=$need regionalRemaining=$((rl-rc)) familyRemaining=$((fl-fc)) blocks=$blocks"; if [[ "$blocks" == 0 && "$rc" -ge 0 && "$fc" -ge 0 && $((rl-rc)) -ge "$need" && $((fl-fc)) -ge "$need" ]]; then echo "TRUYN_D200_LOCATION=$l" >>"$GITHUB_ENV"; echo "TRUYN_D200_VM_SIZE=$z" >>"$GITHUB_ENV"; ok=true; break 2; fi; done
+            for z in Standard_D4as_v5 Standard_D4s_v5 Standard_E2as_v7; do q="$(az vm list-skus -l "$l" --size "$z" --all -o json --only-show-errors)"||continue; [[ "$(jq length<<<"$q")" -ge 1 ]]||continue; v="$(jq -r '[.[].capabilities[]?|select(.name=="vCPUs")|.value][0]//empty'<<<"$q")"; f="$(jq -r '.[0].family//empty'<<<"$q")"; [[ -n "$v" && -n "$f" ]]||continue; fc="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].currentValue//-1'<<<"$u")"; fl="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].limit//-1'<<<"$u")"; blocks="$(jq '[.[].restrictions[]?|select(.type=="Location" and .reasonCode=="NotAvailableForSubscription")]|length'<<<"$q")"; need=$((v*20)); echo "TRUYN_D200_CAPACITY_PROBE location=$l size=$z required=$need regionalRemaining=$((rl-rc)) familyRemaining=$((fl-fc)) blocks=$blocks"; if [[ "$blocks" == 0 && "$rc" -ge 0 && "$fc" -ge 0 && $((rl-rc)) -ge "$need" && $((fl-fc)) -ge "$need" ]]; then echo "TRUYN_D200_LOCATION=$l" >>"$GITHUB_ENV"; echo "TRUYN_D200_VM_SIZE=$z" >>"$GITHUB_ENV"; ok=true; break 2; fi; done
           done; [[ "$ok" == true ]]
       - name: Stage immutable runtime bundle with OIDC data-plane auth
         env: { RUNTIME_BUNDLE: '${{ steps.runtime.outputs.path }}', RUNTIME_SHA: '${{ steps.runtime.outputs.sha }}' }
@@ -83,7 +83,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          TRUYN_AZURE_RESOURCE_GROUP="$AZURE_RESOURCE_GROUP" TRUYN_CLASS_D1000_LOCATION="$TRUYN_D200_LOCATION" TRUYN_CLASS_D1000_VM_SIZE="$TRUYN_D200_VM_SIZE" TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" bash -c 'set -Eeuo pipefail; source benchmarks/scale/class-d-azure-1000-provision.sh; source benchmarks/scale/class-d-azure-1000-campaign.sh' 2>&1|tee class-d-200-diagnostic.log
+          TRUYN_AZURE_RESOURCE_GROUP="$AZURE_RESOURCE_GROUP" TRUYN_CLASS_D1000_LOCATION="$TRUYN_D200_LOCATION" TRUYN_CLASS_D1000_VM_SIZE="$TRUYN_D200_VM_SIZE" TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" bash -c 'set -Eeuo pipefail; source benchmarks/scale/class-d-azure-1000-provision.sh; source scripts/d200-stage-isolated-campaign.sh' 2>&1|tee class-d-200-diagnostic.log
           rc=${PIPESTATUS[0]}; set -e; echo "campaign_rc=$rc" >>"$GITHUB_OUTPUT"; exit "$rc"
       - name: Evaluate strict D-200 evidence
         id: evaluate
@@ -107,7 +107,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d200-e9583d3e-${{ github.run_id }}'
+          name: 'truyn-class-d200-e58b06d8-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
