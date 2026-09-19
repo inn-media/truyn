@@ -67,7 +67,6 @@ test('durable restart is process-live before peer-record re-registration is netw
     await first.persistState();
     await first.close();
 
-    // Reuse the durable identity and network state exactly as the node runtime sees them on restart.
     const persisted = JSON.parse(await readFile(statePath, 'utf8'));
 
     restarted = new TruynNetworkNode({
@@ -101,10 +100,17 @@ test('durable restart is process-live before peer-record re-registration is netw
     assert.equal(recovering.recoveryEpoch.active, true, 'network recovery epoch remains active after process startup');
     assert.notEqual(recovering.recoveryEpoch.phase, 'ready', 'network readiness must remain fail-closed while recovery is asynchronous');
 
-    const recovered = await eventually(() => {
-      const current = restarted.peerRecordLifecycleSnapshot().propagation;
-      return current.recordId === newRecord.recordId && current.ready && restarted.peerRecordPropagationReady() ? current : null;
-    }, { timeoutMs: 4_000, message: 'restart_registration_retry_did_not_recover' });
+    const recovered = await eventually(async () => {
+      const current = restarted.peerRecordLifecycleSnapshot();
+      if (current.propagation.recordId !== newRecord.recordId || !current.propagation.ready ||
+          current.recoveryEpoch.active || current.recoveryEpoch.phase !== 'ready' || !restarted.peerRecordPropagationReady()) return null;
+      await sleep(75);
+      const settled = restarted.peerRecordLifecycleSnapshot();
+      return settled.propagation.recordId === newRecord.recordId && settled.propagation.ready &&
+        settled.recoveryEpoch.active === false && settled.recoveryEpoch.phase === 'ready' && restarted.peerRecordPropagationReady()
+        ? settled.propagation
+        : null;
+    }, { timeoutMs: 4_000, message: 'restart_registration_retry_did_not_recover_stably' });
 
     assert.equal(restarted.peerRecordPropagationReady(), true);
     assert.deepEqual(recovered.pendingNodeIds, []);
