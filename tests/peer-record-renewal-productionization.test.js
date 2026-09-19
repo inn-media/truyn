@@ -33,7 +33,7 @@ test('productionization: peer record renews before expiry, disseminates, and inv
   const root = await mkdtemp(join(tmpdir(), 'truyn-peer-renewal-'));
   const tls = await generateTls(root);
   const a = new TruynNetworkNode({ identity: createIdentity(), host: '127.0.0.1', tls, statePath: join(root, 'a-state.json'), peerRecordTtlMs: 60_000, peerRecordRenewBeforeMs: 58_000 });
-  const b = new TruynNetworkNode({ identity: createIdentity(), host: '127.0.0.1', tls, statePath: join(root, 'b-state.json'), peerRecordTtlMs: 60_000, peerRecordAutoRenew: false });
+  const b = new TruynNetworkNode({ identity: createIdentity(), host: '127.0.0.1', tls, statePath: join(root, 'b-state.json'), peerRecordAutoRenew: false });
   try {
     const [recordA, recordB] = await Promise.all([a.start(), b.start()]);
     a.bootstrap([recordB]);
@@ -192,7 +192,10 @@ test('productionization: durable restart retries only failed peer registrations 
       return { accepted: true, nodeId: record.nodeId, sequence: record.sequence };
     };
     await node.start();
-    const initial = node.peerRecordLifecycleSnapshot().lastAnnouncement;
+    const initial = await eventually(() => {
+      const lifecycle = node.peerRecordLifecycleSnapshot();
+      return lifecycle.lastAnnouncement?.attempted === 2 ? lifecycle.lastAnnouncement : null;
+    }, { timeoutMs: 4_000, message: 'restart_initial_registration_not_observed' });
     assert.equal(initial.attempted, 2);
     assert.equal(initial.delivered, 1);
     assert.equal(initial.failed, 1);
@@ -216,6 +219,7 @@ test('productionization: durable restart retries only failed peer registrations 
       throw new Error('simulated_peer_still_unavailable');
     };
     await node.start();
+    await eventually(() => cancelledAttempts === 2, { timeoutMs: 4_000, message: 'restart_initial_failed_registrations_not_observed' });
     assert.equal(cancelledAttempts, 2, 'restart must make one initial attempt per recovered peer');
     await node.close();
     await sleep(1_200);
