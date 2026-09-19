@@ -183,7 +183,7 @@ test('runtime starts bounded periodic discovery refresh below peer-record lifeti
 
   assert.match(runtime, /discoveryPeriodicRefresh = true/);
   assert.match(runtime, /discoveryRefreshIntervalMs = null/);
-  assert.match(runtime, /Math\.min\(60_000, Math\.max\(1, Math\.floor\(peerRecordTtlMs \/ 2\)\)\)/);
+  assert.match(runtime, /Math\.min\(30_000, Math\.max\(1, Math\.floor\(peerRecordTtlMs \/ 4\)\)\)/);
   assert.match(runtime, /periodicRefreshIntervalMs >= peerRecordTtlMs/);
   assert.match(runtime, /this\.discovery\.startPeriodicRefresh\(\{/);
   assert.match(runtime, /intervalMs: this\.discoveryRefreshIntervalMs/);
