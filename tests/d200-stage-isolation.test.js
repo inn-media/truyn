@@ -35,9 +35,9 @@ CONTROL_BASE=8700
 VMS=(fixture-vm)
 PRIV=(10.0.0.1 10.0.0.2)
 remote(){ return 0; }
-marker(){ local text="$1" key="$2"; printf '%s\\n' "$text" | sed -n "s/.*${key}=//p" | tail -1 | tr -d '\\r'; }
+marker(){ local text="$1" key="$2"; printf '%s\\n' "$text" | sed -n "s/.*\${key}=//p" | tail -1 | tr -d '\\r'; }
 d200_failure_evidence_checkpoint(){ printf '{"failure":{"stage":"%s","exitCode":%s,"line":%s,"evidenceComplete":false},"cleanup":{"confirmed":false,"remainingResources":null}}\\n' "$2" "$1" "$3" >"$EVIDENCE"; }
-d200_err_trap(){ exit "${1:-1}"; }
+d200_err_trap(){ exit "\${1:-1}"; }
 source scripts/d200-stage-isolated-campaign.sh
 `;
     const run = spawnSync('bash', ['-c', shell], { encoding: 'utf8' });
