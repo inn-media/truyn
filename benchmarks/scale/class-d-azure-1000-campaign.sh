@@ -899,6 +899,7 @@ echo "TRUYN_CLASS_D_1000 stage=durable-writes acknowledged=${writes} ttlMs=${d20
 
 STAGE=restart-recovery
 restart_dir=$(mktemp -d)
+restart_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -937,6 +938,7 @@ min_valid=999999
 min_buckets=999999
 min_hosts=999999
 max_pending=0
+max_pending_age_ms=0
 for n in \$(seq 1 90); do
   good=0
   min_valid=999999
@@ -949,6 +951,7 @@ for n in \$(seq 1 90); do
     if readiness=\$(curl -fsS --max-time 2 "\${control_url}/dht/readiness" 2>/dev/null); then
       acceptance_ready=\$(printf '%s' "\$readiness" | jq -r '.acceptanceReady == true and .peerRecordPropagation.ready == true' 2>/dev/null || echo false)
       pending=\$(printf '%s' "\$readiness" | jq -r '.peerRecordPropagation.pendingCount // 999999' 2>/dev/null || echo 999999)
+      pending_age_ms=\$(printf '%s' "\$readiness" | jq -r '.peerRecordPropagation.pendingAgeMs // .recoveryDiagnostics.pendingAgeMs // 0' 2>/dev/null || echo 0)
       valid=\$(printf '%s' "\$readiness" | jq -r '.validPeers // 0' 2>/dev/null || echo 0)
       buckets=\$(printf '%s' "\$readiness" | jq -r '.populatedBuckets // 0' 2>/dev/null || echo 0)
       hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount // 0' 2>/dev/null || echo 0)
@@ -956,6 +959,7 @@ for n in \$(seq 1 90); do
       if [[ "\$buckets" =~ ^[0-9]+$ && "\$buckets" -lt "\$min_buckets" ]]; then min_buckets="\$buckets"; fi
       if [[ "\$hosts" =~ ^[0-9]+$ && "\$hosts" -lt "\$min_hosts" ]]; then min_hosts="\$hosts"; fi
       if [[ "\$pending" =~ ^[0-9]+$ && "\$pending" -gt "\$max_pending" ]]; then max_pending="\$pending"; fi
+      if [[ "\$pending_age_ms" =~ ^[0-9]+$ && "\$pending_age_ms" -gt "\$max_pending_age_ms" ]]; then max_pending_age_ms="\$pending_age_ms"; fi
       if [[ "\$acceptance_ready" == true &&
             "\$pending" == 0 &&
             "\$valid" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE} &&
@@ -968,7 +972,44 @@ for n in \$(seq 1 90); do
   [[ \$good -eq 5 ]] && break
   sleep 1
 done
-[[ \$good -eq 5 ]]
+
+recovery_target_set_changes=0
+recovery_ack_preserved=0
+recovery_ack_reset=0
+recovery_propagation_attempts=0
+recovery_rpc_timeouts=0
+recovery_pending_age_ms=\$max_pending_age_ms
+recovery_routing_refresh_ms=0
+recovery_quic_replacement_ms=0
+recovery_diag_unavailable=0
+for j in \$(seq 5 9); do
+  control_url="http://127.0.0.1:\$(( ${CONTROL_BASE}+j ))"
+  recovery_diag=''
+  if ! recovery_diag=\$(curl -fsS --max-time 2 "\${control_url}/dht/readiness" 2>/dev/null); then
+    recovery_diag_unavailable=\$((recovery_diag_unavailable+1))
+    continue
+  fi
+  target_set_changes=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.targetSetChanges // 0')
+  ack_preserved=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.ackPreserved // 0')
+  ack_reset=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.ackReset // 0')
+  propagation_attempts=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.propagationAttempts // 0')
+  rpc_timeouts=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.rpcTimeouts // 0')
+  pending_age_ms=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.pendingAgeMs // 0')
+  routing_refresh_ms=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.routingRefreshMs // 0')
+  quic_replacement_ms=\$(printf '%s' "\$recovery_diag" | jq -r '.recoveryDiagnostics.quicReplacementMs // 0')
+  for value in target_set_changes ack_preserved ack_reset propagation_attempts rpc_timeouts pending_age_ms routing_refresh_ms quic_replacement_ms; do
+    [[ "\${!value}" =~ ^[0-9]+$ ]]
+  done
+  recovery_target_set_changes=\$((recovery_target_set_changes + target_set_changes))
+  recovery_ack_preserved=\$((recovery_ack_preserved + ack_preserved))
+  recovery_ack_reset=\$((recovery_ack_reset + ack_reset))
+  recovery_propagation_attempts=\$((recovery_propagation_attempts + propagation_attempts))
+  recovery_rpc_timeouts=\$((recovery_rpc_timeouts + rpc_timeouts))
+  [[ "\$pending_age_ms" -gt "\$recovery_pending_age_ms" ]] && recovery_pending_age_ms="\$pending_age_ms"
+  [[ "\$routing_refresh_ms" -gt "\$recovery_routing_refresh_ms" ]] && recovery_routing_refresh_ms="\$routing_refresh_ms"
+  [[ "\$quic_replacement_ms" -gt "\$recovery_quic_replacement_ms" ]] && recovery_quic_replacement_ms="\$quic_replacement_ms"
+done
+
 t1=\$(date +%s%3N)
 ready_ms=\$((t1-t_ready0))
 restart_ms=\$((t1-t0))
@@ -980,11 +1021,26 @@ echo READY_MIN_VALID=\$min_valid
 echo READY_MIN_BUCKETS=\$min_buckets
 echo READY_MIN_HOSTS=\$min_hosts
 echo READY_MAX_PENDING=\$max_pending
+echo RECOVERY_GOOD=\$good
+echo RECOVERY_DIAG_UNAVAILABLE=\$recovery_diag_unavailable
+echo RECOVERY_TARGET_SET_CHANGES=\$recovery_target_set_changes
+echo RECOVERY_ACK_PRESERVED=\$recovery_ack_preserved
+echo RECOVERY_ACK_RESET=\$recovery_ack_reset
+echo RECOVERY_PROPAGATION_ATTEMPTS=\$recovery_propagation_attempts
+echo RECOVERY_RPC_TIMEOUTS=\$recovery_rpc_timeouts
+echo RECOVERY_PENDING_AGE_MS=\$recovery_pending_age_ms
+echo RECOVERY_ROUTING_REFRESH_MS=\$recovery_routing_refresh_ms
+echo RECOVERY_QUIC_REPLACEMENT_MS=\$recovery_quic_replacement_ms
+[[ \$good -eq 5 ]]
 EOS
 )
   (remote "${VMS[$i]}" "$script" >"$restart_dir/$i") &
+  restart_pids+=("$!")
 done
-wait
+restart_remote_failed=0
+for pid in "${restart_pids[@]}"; do
+  if ! wait "$pid"; then restart_remote_failed=1; fi
+done
 stop_values=()
 start_values=()
 ready_values=()
@@ -999,8 +1055,21 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   ready_min_buckets=$(printf '%s\n' "$out" | sed -n 's/^READY_MIN_BUCKETS=//p' | tail -1); [[ -n "$ready_min_buckets" ]]
   ready_min_hosts=$(printf '%s\n' "$out" | sed -n 's/^READY_MIN_HOSTS=//p' | tail -1); [[ -n "$ready_min_hosts" ]]
   ready_max_pending=$(printf '%s\n' "$out" | sed -n 's/^READY_MAX_PENDING=//p' | tail -1); [[ -n "$ready_max_pending" ]]
-  echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i mode=parallel-node-restart stopMs=${stop_ms} startMs=${start_ms} readyMs=${ready_ms} restartMs=${restart_ms} peerPropagationReady=true pendingMax=${ready_max_pending} validMin=${ready_min_valid} bucketsMin=${ready_min_buckets} remoteHostsMin=${ready_min_hosts}"
+  recovery_good=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_GOOD=//p' | tail -1); [[ -n "$recovery_good" ]]
+  recovery_diag_unavailable=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_DIAG_UNAVAILABLE=//p' | tail -1); [[ -n "$recovery_diag_unavailable" ]]
+  recovery_target_set_changes=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_TARGET_SET_CHANGES=//p' | tail -1); [[ -n "$recovery_target_set_changes" ]]
+  recovery_ack_preserved=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_ACK_PRESERVED=//p' | tail -1); [[ -n "$recovery_ack_preserved" ]]
+  recovery_ack_reset=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_ACK_RESET=//p' | tail -1); [[ -n "$recovery_ack_reset" ]]
+  recovery_propagation_attempts=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_PROPAGATION_ATTEMPTS=//p' | tail -1); [[ -n "$recovery_propagation_attempts" ]]
+  recovery_rpc_timeouts=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_RPC_TIMEOUTS=//p' | tail -1); [[ -n "$recovery_rpc_timeouts" ]]
+  recovery_pending_age_ms=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_PENDING_AGE_MS=//p' | tail -1); [[ -n "$recovery_pending_age_ms" ]]
+  recovery_routing_refresh_ms=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_ROUTING_REFRESH_MS=//p' | tail -1); [[ -n "$recovery_routing_refresh_ms" ]]
+  recovery_quic_replacement_ms=$(printf '%s\n' "$out" | sed -n 's/^RECOVERY_QUIC_REPLACEMENT_MS=//p' | tail -1); [[ -n "$recovery_quic_replacement_ms" ]]
+  network_ready=false
+  [[ "$recovery_good" == 5 ]] && network_ready=true
+  echo "TRUYN_CLASS_D_1000 stage=restart-recovery host=$i mode=parallel-node-restart stopMs=${stop_ms} startMs=${start_ms} readyMs=${ready_ms} restartMs=${restart_ms} peerPropagationReady=${network_ready} pendingMax=${ready_max_pending} validMin=${ready_min_valid} bucketsMin=${ready_min_buckets} remoteHostsMin=${ready_min_hosts} targetSetChanges=${recovery_target_set_changes} ackPreserved=${recovery_ack_preserved} ackReset=${recovery_ack_reset} propagationAttempts=${recovery_propagation_attempts} rpcTimeouts=${recovery_rpc_timeouts} pendingAgeMs=${recovery_pending_age_ms} routingRefreshMs=${recovery_routing_refresh_ms} quicReplacementMs=${recovery_quic_replacement_ms} diagnosticUnavailable=${recovery_diag_unavailable}"
 done
+[[ "$restart_remote_failed" == 0 ]]
 rm -rf "$restart_dir"
 stop_p95=$(printf '%s\n' "${stop_values[@]}" | python3 -c 'import sys; a=sorted(float(x) for x in sys.stdin if x.strip()); print(a[min(len(a)-1,int((len(a)-1)*.95))])')
 start_p95=$(printf '%s\n' "${start_values[@]}" | python3 -c 'import sys; a=sorted(float(x) for x in sys.stdin if x.strip()); print(a[min(len(a)-1,int((len(a)-1)*.95))])')
