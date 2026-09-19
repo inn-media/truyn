@@ -41,7 +41,17 @@ jobs:
           git fetch origin main --quiet
           [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
           [[ "$(git merge-base HEAD "$BASE_SHA")" == "$BASE_SHA" ]]
-          git apply --check "${patches[0]}"
+          patch_abs="$PWD/${patches[0]}"
+          if ! git apply --recount --verbose --check "$patch_abs"; then
+            diag_dir=$(mktemp -d)
+            git worktree add --detach "$diag_dir" "$BASE_SHA" >/dev/null
+            set +e
+            (cd "$diag_dir" && git apply --recount --reject --verbose "$patch_abs")
+            set -e
+            find "$diag_dir" -name '*.rej' -type f -print -exec sed -n '1,220p' {} \;
+            git worktree remove --force "$diag_dir" >/dev/null || true
+            exit 1
+          fi
 
       - name: Apply exact patch fail closed
         shell: bash
@@ -49,7 +59,7 @@ jobs:
           set -Eeuo pipefail
           env_file=(.github/repairs/*.env); patch_file=(.github/repairs/*.patch)
           source "${env_file[0]}"
-          git apply "${patch_file[0]}"
+          git apply --recount --verbose "${patch_file[0]}"
           git diff --check
           mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' | sort)
           mapfile -t expected < <(printf '%s\n' $EXPECTED_PATHS | sort)
