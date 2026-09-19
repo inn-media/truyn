@@ -51,6 +51,7 @@ jobs:
           source "${env_file[0]}"
           git apply --recount --verbose "${patch_file[0]}"
           python3 .github/repairs/d200-recovery-postprocess.py
+          python3 .github/repairs/d200-recovery-testpost.py
           git diff --check
           git add -N -- $EXPECTED_PATHS
           mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' | sort)
