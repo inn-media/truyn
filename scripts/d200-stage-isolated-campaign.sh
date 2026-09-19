@@ -49,7 +49,10 @@ d200_stage_dump_state() {
   local destination="$1" name
   : >"$destination"
   for name in "${D200_STATE_VARS[@]}"; do
-    if [[ -v "$name" ]]; then declare -p "$name" >>"$destination"; fi
+    # Use plain shell assignments rather than `declare -p`: sourcing a declare
+    # inside d200_run_stage() would make the restored value local to that
+    # function and lose it before the next stage/evidence writer can consume it.
+    if [[ -v "$name" ]]; then printf '%s=%q\n' "$name" "${!name}" >>"$destination"; fi
   done
 }
 
@@ -104,7 +107,7 @@ d200_packet_partition_fail_cleanup() {
   [[ ${#VMS[@]} -ge 1 && ${#PRIV[@]} -ge 2 ]] || return 0
   local block_ip="${PRIV[1]}"
   set +e
-  remote "${VMS[0]}" "set +e; while iptables -C OUTPUT -p udp -d '${block_ip}' --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-partition -j DROP >/dev/null 2>&1; do iptables -D OUTPUT -p udp -d '${block_ip}' --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-partition -j DROP; done; exit 0" >/dev/null 2>&1
+  remote "${VMS[0]}" "set +e; while iptables -C OUTPUT 1 -p udp -d '${block_ip}' --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-partition -j DROP >/dev/null 2>&1; do iptables -D OUTPUT -p udp -d '${block_ip}' --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-partition -j DROP; done; exit 0" >/dev/null 2>&1
   set -e
 }
 
