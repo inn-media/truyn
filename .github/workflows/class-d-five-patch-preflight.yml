@@ -109,9 +109,9 @@ jobs:
         env:
           CLASS_SIZE: ${{ matrix.class_size }}
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          GITHUB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           case "$CLASS_SIZE" in
             200) iterations=12; nodes=6 ;;
             500) iterations=6; nodes=8 ;;
@@ -119,7 +119,7 @@ jobs:
             *) exit 2 ;;
           esac
           out="class-d-recovery-soak-${CLASS_SIZE}"
-          TRUYN_CLASS_D_SOURCE_SHA="$EXPECTED_SHA" node scripts/class-d-restart-recovery-soak.mjs \
+          env -u GITHUB_SHA TRUYN_CLASS_D_SOURCE_SHA="$EXPECTED_SHA" node scripts/class-d-restart-recovery-soak.mjs \
             --class "$CLASS_SIZE" --nodes "$nodes" --iterations "$iterations" --out-dir "$out"
       - name: Upload restart-recovery telemetry
         if: always()
