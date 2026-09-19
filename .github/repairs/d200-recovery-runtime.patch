@@ -1,0 +1,460 @@
+diff --git a/network/runtime.js b/network/runtime.js
+--- a/network/runtime.js
++++ b/network/runtime.js
+@@ -70,9 +70,33 @@
+     this.peerRecordRenewTimer = null;
+     this.peerRecordRenewalInFlight = null;
+-    this.peerRecordRecoveryRetryTimer = null;
++    this.peerRecordRecoveryRetryTimers = new Map();
++    this.peerRecordPropagationTimer = null;
+     this.peerRecordPropagationQueued = false;
+-    // Peer-record propagation is control-plane recovery. The complete retry
+-    // schedule remains comfortably inside the unchanged 120s network recovery
+-    // contract and never retries an application NEED envelope.
++    this.peerRecordReconcileSuppressed = false;
++    this.peerRecordReconcileBaseDelayMs = 25;
++    this.peerRecordReconcileJitterMs = 75;
++    this.peerRecordPublishConcurrency = Math.max(2, Math.min(8, this.alpha * 2));
++    this.peerRecordStartupJitterMaxMs = 250;
++    // Peer-record propagation is control-plane recovery. Retries remain bounded
++    // inside the unchanged 120s recovery contract and never retry application
++    // NEED envelopes. Failed placement peers are retried independently.
+     this.peerRecordRecoveryRetryDelaysMs = [500, 1_500, 5_000, 10_000, 20_000];
++    this.peerRecordRecoveryEpoch = {
++      epoch: 0,
++      phase: 'idle',
++      startedAt: null,
++      completedAt: null,
++      targetSetChanges: 0,
++      ackPreserved: 0,
++      ackReset: 0,
++      propagationAttempts: 0,
++      rpcTimeouts: 0,
++      pendingSinceAt: null,
++      routingRefreshMs: 0,
++      quicReplacementMs: 0,
++      reconcileBatches: 0,
++      retryAttempts: 0,
++      startupJitterMs: 0,
++      replacementStartedAtMs: null
++    };
+     this.peerRecordLifecycle = {
+@@ -183,4 +207,94 @@
+     return state;
+   }
+ 
++  #beginRecoveryEpoch() {
++    const now = Date.now();
++    this.peerRecordRecoveryEpoch = {
++      epoch: (this.peerRecordRecoveryEpoch?.epoch || 0) + 1,
++      phase: 'hydrate',
++      startedAt: new Date(now).toISOString(),
++      completedAt: null,
++      targetSetChanges: 0,
++      ackPreserved: 0,
++      ackReset: 0,
++      propagationAttempts: 0,
++      rpcTimeouts: 0,
++      pendingSinceAt: null,
++      routingRefreshMs: 0,
++      quicReplacementMs: 0,
++      reconcileBatches: 0,
++      retryAttempts: 0,
++      startupJitterMs: 0,
++      replacementStartedAtMs: null
++    };
++  }
++
++  #setRecoveryPhase(phase) {
++    this.peerRecordRecoveryEpoch.phase = phase;
++  }
++
++  #deterministicDelay(maxMs, salt = '') {
++    const limit = Math.max(0, Math.floor(maxMs));
++    if (limit === 0) return 0;
++    const input = `${this.identity.nodeId}:${salt}`;
++    let hash = 2166136261;
++    for (let i = 0; i < input.length; i += 1) {
++      hash ^= input.charCodeAt(i);
++      hash = Math.imul(hash, 16777619) >>> 0;
++    }
++    return hash % (limit + 1);
++  }
++
++  async #sleep(ms) {
++    if (ms <= 0) return;
++    await new Promise((resolve) => setTimeout(resolve, ms));
++  }
++
++  #updateRecoveryPending(pendingNodeIds = []) {
++    if (pendingNodeIds.length > 0) {
++      if (!this.peerRecordRecoveryEpoch.pendingSinceAt) {
++        this.peerRecordRecoveryEpoch.pendingSinceAt = new Date().toISOString();
++      }
++      return;
++    }
++    this.peerRecordRecoveryEpoch.pendingSinceAt = null;
++  }
++
++  #completeRecoveryIfReady() {
++    const propagation = this.peerRecordLifecycle.propagation;
++    if (!this.started || !this.localPeerRecord ||
++        propagation?.recordId !== this.localPeerRecord.recordId ||
++        propagation.ready !== true) return false;
++    const now = Date.now();
++    if (this.peerRecordRecoveryEpoch.phase !== 'ready') {
++      this.peerRecordRecoveryEpoch.phase = 'ready';
++      this.peerRecordRecoveryEpoch.completedAt = new Date(now).toISOString();
++      if (this.peerRecordRecoveryEpoch.replacementStartedAtMs != null) {
++        this.peerRecordRecoveryEpoch.quicReplacementMs =
++          Math.max(0, now - this.peerRecordRecoveryEpoch.replacementStartedAtMs);
++      }
++    }
++    this.#updateRecoveryPending([]);
++    return true;
++  }
++
++  async #mapSettledBounded(items, worker) {
++    const settled = new Array(items.length);
++    if (items.length === 0) return settled;
++    let cursor = 0;
++    const workerCount = Math.min(this.peerRecordPublishConcurrency, items.length);
++    await Promise.all(Array.from({ length: workerCount }, async () => {
++      while (cursor < items.length) {
++        const index = cursor;
++        cursor += 1;
++        try {
++          settled[index] = { status: 'fulfilled', value: await worker(items[index], index) };
++        } catch (reason) {
++          settled[index] = { status: 'rejected', reason };
++        }
++      }
++    }));
++    return settled;
++  }
++
+   async #dispatchEnvelope(envelope, context) {
+@@ -207,13 +321,35 @@
+   #resetPeerRecordPropagation(record = this.localPeerRecord, peers = null) {
+     const candidates = Array.isArray(peers) ? peers : this.#peerRecordPropagationPeers(record);
+     const targetNodeIds = [...new Set(candidates.map((peer) => peer?.nodeId).filter(Boolean))].sort();
++    const targetSet = new Set(targetNodeIds);
++    const previous = this.peerRecordLifecycle.propagation || {};
++    const sameRecord = Boolean(record?.recordId && previous.recordId === record.recordId);
++    const previousTargets = Array.isArray(previous.targetNodeIds) ? previous.targetNodeIds : [];
++    const previousAcks = Array.isArray(previous.acknowledgedNodeIds) ? previous.acknowledgedNodeIds : [];
++    const acknowledgedNodeIds = sameRecord
++      ? previousAcks.filter((nodeId) => targetSet.has(nodeId)).sort()
++      : [];
++    const acknowledged = new Set(acknowledgedNodeIds);
++    const pendingNodeIds = targetNodeIds.filter((nodeId) => !acknowledged.has(nodeId));
++    const targetsChanged = previousTargets.length !== targetNodeIds.length ||
++      previousTargets.some((nodeId, index) => nodeId !== targetNodeIds[index]);
++
++    if (sameRecord && targetsChanged) {
++      this.peerRecordRecoveryEpoch.targetSetChanges += 1;
++      this.peerRecordRecoveryEpoch.ackPreserved += acknowledgedNodeIds.length;
++    } else if (!sameRecord && previous.recordId) {
++      this.peerRecordRecoveryEpoch.ackReset += previousAcks.length;
++    }
++
+     this.peerRecordLifecycle.propagation = {
+       recordId: record?.recordId || null,
+       sequence: record?.sequence ?? null,
+       targetNodeIds,
+-      acknowledgedNodeIds: [],
+-      pendingNodeIds: [...targetNodeIds],
+-      ready: targetNodeIds.length === 0,
++      acknowledgedNodeIds,
++      pendingNodeIds,
++      ready: pendingNodeIds.length === 0,
+       lastUpdatedAt: new Date().toISOString()
+     };
++    this.#updateRecoveryPending(pendingNodeIds);
++    this.#completeRecoveryIfReady();
+   }
+@@ -248,6 +384,8 @@
+       ready: pendingNodeIds.length === 0,
+       lastUpdatedAt: new Date().toISOString()
+     };
++    this.#updateRecoveryPending(pendingNodeIds);
++    this.#completeRecoveryIfReady();
+   }
+ 
+   async #publishCurrentPeerRecord(record = this.localPeerRecord) {
+@@ -260,8 +398,8 @@
+     });
+     if (announcement.failed > 0) {
+       this.#schedulePeerRecordRecoveryRetries(record, peers, announcement.failedNodeIds);
+-    } else {
+-      this.#clearPeerRecordRecoveryRetryTimer();
++    } else if (this.peerRecordPropagationReady()) {
++      this.#clearPeerRecordRecoveryRetryTimers();
+       this.peerRecordLifecycle.lastError = null;
+     }
+     return announcement;
+@@ -282,24 +420,30 @@
+     return true;
+   }
+ 
++  #clearPeerRecordPropagationTimer() {
++    if (!this.peerRecordPropagationTimer) return;
++    clearTimeout(this.peerRecordPropagationTimer);
++    this.peerRecordPropagationTimer = null;
++    this.peerRecordPropagationQueued = false;
++  }
++
+   #schedulePeerRecordPropagation(record = this.localPeerRecord) {
+     if (!this.started || this.closing || !record) return;
+-    // Readiness must close synchronously when live discovery changes the required
+-    // placement set; the queued operation below is control-plane dissemination.
+-    this.#stagePeerRecordPropagation(record);
+-    if (this.peerRecordPropagationQueued) return;
++    // Readiness closes synchronously, but dissemination is coalesced into a short,
++    // deterministic batch so a peer-record burst does not create an RPC storm.
++    const targetsChanged = this.#stagePeerRecordPropagation(record);
++    if (!targetsChanged && this.peerRecordLifecycle.propagation?.ready) return;
++    if (this.peerRecordReconcileSuppressed || this.peerRecordPropagationTimer) return;
+     const recordId = record.recordId;
++    const delayMs = this.peerRecordReconcileBaseDelayMs +
++      this.#deterministicDelay(this.peerRecordReconcileJitterMs, `reconcile:${record.sequence}`);
+     this.peerRecordPropagationQueued = true;
+-    queueMicrotask(() => {
++    this.peerRecordPropagationTimer = setTimeout(() => {
++      this.peerRecordPropagationTimer = null;
+       this.peerRecordPropagationQueued = false;
+       if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
+-      const peers = this.#peerRecordPropagationPeers(record);
+-      const targets = peers.map((peer) => peer.nodeId).sort();
+-      const propagation = this.peerRecordLifecycle.propagation;
+-      const currentTargets = propagation?.recordId === recordId ? [...(propagation.targetNodeIds || [])].sort() : [];
+-      const unchangedTargets = targets.length === currentTargets.length && targets.every((nodeId, index) => nodeId === currentTargets[index]);
+-      if (unchangedTargets && propagation?.ready) return;
+-      void this.#publishCurrentPeerRecord(record).catch((error) => {
++      this.peerRecordRecoveryEpoch.reconcileBatches += 1;
++      void this.#publishCurrentPeerRecord(this.localPeerRecord).catch((error) => {
+         if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
+         this.peerRecordLifecycle.lastError = {
+           at: new Date().toISOString(),
+@@ -314,17 +458,19 @@
+           message: error?.message || String(error)
+         };
+       });
+-    });
++    }, delayMs);
+   }
+ 
+-  #clearPeerRecordRecoveryRetryTimer() {
+-    if (!this.peerRecordRecoveryRetryTimer) return;
+-    clearTimeout(this.peerRecordRecoveryRetryTimer);
+-    this.peerRecordRecoveryRetryTimer = null;
++  #clearPeerRecordRecoveryRetryTimers(nodeIds = null) {
++    const selected = nodeIds == null ? null : new Set(nodeIds);
++    for (const [nodeId, timer] of this.peerRecordRecoveryRetryTimers) {
++      if (selected && !selected.has(nodeId)) continue;
++      clearTimeout(timer);
++      this.peerRecordRecoveryRetryTimers.delete(nodeId);
++    }
+   }
+ 
+   #schedulePeerRecordRecoveryRetries(record, recoveryPeers, failedNodeIds, attempt = 0) {
+-    this.#clearPeerRecordRecoveryRetryTimer();
+     if (!this.started || this.closing || this.localPeerRecord?.recordId !== record?.recordId) return;
+     if (attempt >= this.peerRecordRecoveryRetryDelaysMs.length) return;
+ 
+@@ -331,27 +477,34 @@
+     if (peers.length === 0) return;
+ 
+     const recordId = record.recordId;
+-    const delayMs = this.peerRecordRecoveryRetryDelaysMs[attempt];
+-    this.peerRecordRecoveryRetryTimer = setTimeout(() => {
+-      this.peerRecordRecoveryRetryTimer = null;
+-      if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
+-      void this.announcePeerRecord(record, { peers, fanout: peers.length, replacePropagationTargets: false })
+-        .then((result) => {
+-          if (result.failed === 0) {
+-            this.peerRecordLifecycle.lastError = null;
+-            return;
+-          }
+-          this.#schedulePeerRecordRecoveryRetries(record, recoveryPeers, result.failedNodeIds, attempt + 1);
+-        })
+-        .catch((error) => {
+-          if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
+-          this.peerRecordLifecycle.lastError = {
+-            at: new Date().toISOString(),
+-            code: error?.code || null,
+-            message: error?.message || String(error)
+-          };
+-          this.#schedulePeerRecordRecoveryRetries(record, recoveryPeers, peers.map((peer) => peer.nodeId), attempt + 1);
+-        });
+-    }, delayMs);
+-    this.peerRecordRecoveryRetryTimer.unref?.();
++    for (const peer of peers) {
++      const key = peer.nodeId;
++      if (this.peerRecordRecoveryRetryTimers.has(key)) continue;
++      const delayMs = this.peerRecordRecoveryRetryDelaysMs[attempt] +
++        this.#deterministicDelay(150, `retry:${peer.nodeId}:${attempt}`);
++      const timer = setTimeout(() => {
++        this.peerRecordRecoveryRetryTimers.delete(key);
++        if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
++        this.peerRecordRecoveryEpoch.retryAttempts += 1;
++        void this.announcePeerRecord(record, { peers: [peer], fanout: 1, replacePropagationTargets: false })
++          .then((result) => {
++            if (result.failed === 0) {
++              if (this.peerRecordPropagationReady()) this.peerRecordLifecycle.lastError = null;
++              return;
++            }
++            this.#schedulePeerRecordRecoveryRetries(record, [peer], result.failedNodeIds, attempt + 1);
++          })
++          .catch((error) => {
++            if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
++            this.peerRecordLifecycle.lastError = {
++              at: new Date().toISOString(),
++              code: error?.code || null,
++              message: error?.message || String(error)
++            };
++            this.#schedulePeerRecordRecoveryRetries(record, [peer], [peer.nodeId], attempt + 1);
++          });
++      }, delayMs);
++      this.peerRecordRecoveryRetryTimers.set(key, timer);
++      timer.unref?.();
++    }
+   }
+@@ -392,11 +545,23 @@
++  peerRecordRecoverySnapshot() {
++    const snapshot = structuredClone(this.peerRecordRecoveryEpoch);
++    const pendingSince = Date.parse(snapshot.pendingSinceAt || '');
++    snapshot.pendingAgeMs = Number.isFinite(pendingSince) ? Math.max(0, Date.now() - pendingSince) : 0;
++    delete snapshot.replacementStartedAtMs;
++    return snapshot;
++  }
++
+   peerRecordLifecycleSnapshot() {
+-    return structuredClone(this.peerRecordLifecycle);
++    const lifecycle = structuredClone(this.peerRecordLifecycle);
++    lifecycle.recovery = this.peerRecordRecoverySnapshot();
++    return lifecycle;
+   }
+ 
+   peerRecordPropagationReady() {
++    this.#completeRecoveryIfReady();
+     const propagation = this.peerRecordLifecycle.propagation;
+     return Boolean(
+       this.started &&
++      this.peerRecordRecoveryEpoch.phase === 'ready' &&
+       this.localPeerRecord &&
+       propagation?.recordId === this.localPeerRecord.recordId &&
+       propagation.ready === true
+@@ -414,6 +579,8 @@
+   async start() {
+     if (this.started) return this.localPeerRecord;
+     this.closing = false;
++    this.#beginRecoveryEpoch();
++    this.#setRecoveryPhase('hydrate');
+     await this.hydrateState();
+     await this.workInbox?.load();
+     const recoveryPeers = this.discovery.snapshot();
+@@ -428,24 +595,49 @@
+     this.peerRecordLifecycle.lastSequence = this.localPeerRecord.sequence;
+     this.#resetPeerRecordPropagation(this.localPeerRecord, recoveryPeers);
+ 
+-    // A durable restart mints a strictly newer signed peer record. Publish it to every
+-    // still-valid peer recovered from durable routing state before startup completes.
+-    // This is a control-plane re-registration, not an application-envelope retry:
+-    // receivers invalidate stale outbound QUIC clients on the newer recordId, so their
+-    // first post-restart application request establishes a fresh authenticated session.
+-    if (recoveryPeers.length > 0) {
+-      const announcement = await this.announcePeerRecord(this.localPeerRecord, {
+-        peers: recoveryPeers,
+-        fanout: recoveryPeers.length,
+-        replacePropagationTargets: true
+-      });
+-      if (announcement.failed > 0) {
+-        this.#schedulePeerRecordRecoveryRetries(
+-          this.localPeerRecord,
+-          recoveryPeers,
+-          announcement.failedNodeIds
+-        );
++    // Recovery is an explicit fail-closed epoch:
++    // hydrate -> routing refresh -> placement -> propagation/QUIC replacement -> READY.
++    // Incoming record churn may update the required target set synchronously, but
++    // dissemination stays suppressed until the bounded startup refresh is complete.
++    this.peerRecordReconcileSuppressed = true;
++    try {
++      this.#setRecoveryPhase('routing-refresh');
++      const refreshStartedAt = Date.now();
++      if (recoveryPeers.length > 0) {
++        try {
++          await this.discovery.refreshRoutingTable({
++            targetCount: Math.min(this.discoveryRefreshTargetCount, Math.max(1, this.alpha * 2)),
++            maxRounds: Math.min(2, this.discoveryRefreshMaxRounds),
++            seed: `${this.discoveryRefreshSeed}:recovery:${this.peerRecordRecoveryEpoch.epoch}`
++          });
++        } catch (error) {
++          this.peerRecordLifecycle.lastError = {
++            at: new Date().toISOString(),
++            code: error?.code || null,
++            message: error?.message || String(error)
++          };
++        }
+       }
++      this.peerRecordRecoveryEpoch.routingRefreshMs = Math.max(0, Date.now() - refreshStartedAt);
++
++      this.#setRecoveryPhase('determine-placement');
++      this.#stagePeerRecordPropagation(this.localPeerRecord);
++
++      const startupJitterMs = recoveryPeers.length > 0
++        ? this.#deterministicDelay(
++          this.peerRecordStartupJitterMaxMs,
++          `startup:${this.peerRecordRecoveryEpoch.epoch}:${this.localPeerRecord.sequence}`
++        )
++        : 0;
++      this.peerRecordRecoveryEpoch.startupJitterMs = startupJitterMs;
++      await this.#sleep(startupJitterMs);
++
++      this.#setRecoveryPhase('replacement-sessions');
++      this.peerRecordRecoveryEpoch.replacementStartedAtMs = Date.now();
++      await this.#publishCurrentPeerRecord(this.localPeerRecord);
++      this.#completeRecoveryIfReady();
++    } finally {
++      this.peerRecordReconcileSuppressed = false;
+     }
+ 
+     if (this.discoveryPeriodicRefresh) {
+@@ -468,4 +660,5 @@
+   refreshPeerRecord({ nat = this.nat, capabilities = this.capabilities, persist = true } = {}) {
+     if (!this.started) throw new Error('network node is not started');
+-    this.#clearPeerRecordRecoveryRetryTimer();
++    this.#clearPeerRecordPropagationTimer();
++    this.#clearPeerRecordRecoveryRetryTimers();
+     this.nat = nat;
+@@ -495,10 +688,17 @@
+     const candidates = source
+       .filter((peer) => peer?.nodeId && peer.nodeId !== this.identity.nodeId)
+       .slice(0, fanout);
+-    const settled = await Promise.allSettled(candidates.map((peer) => this.rpc.announce(peer, record)));
++    this.peerRecordRecoveryEpoch.propagationAttempts += candidates.length;
++    const settled = await this.#mapSettledBounded(candidates, (peer) => this.rpc.announce(peer, record));
+     const failedNodeIds = [];
+     let delivered = 0;
+     for (let i = 0; i < settled.length; i += 1) {
+-      if (settled[i].status === 'fulfilled') delivered += 1;
+-      else failedNodeIds.push(candidates[i].nodeId);
++      if (settled[i].status === 'fulfilled') {
++        delivered += 1;
++        continue;
++      }
++      failedNodeIds.push(candidates[i].nodeId);
++      const reason = settled[i].reason;
++      const timeoutText = `${reason?.code || ''} ${reason?.name || ''} ${reason?.message || reason || ''}`;
++      if (/timeout|timed.?out|abort/i.test(timeoutText)) this.peerRecordRecoveryEpoch.rpcTimeouts += 1;
+     }
+@@ -600,6 +800,6 @@
+     if (!this.started && !this.closing) return;
+     this.closing = true;
+     this.#clearPeerRecordRenewTimer();
+-    this.#clearPeerRecordRecoveryRetryTimer();
+-    this.peerRecordPropagationQueued = false;
++    this.#clearPeerRecordPropagationTimer();
++    this.#clearPeerRecordRecoveryRetryTimers();
+     this.discovery.close();
