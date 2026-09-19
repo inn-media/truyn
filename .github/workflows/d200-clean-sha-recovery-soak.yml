@@ -1,0 +1,91 @@
+name: D-200 Clean SHA Recovery Soak
+
+on:
+  push:
+    branches: [qualification/d200-soak-fe2b8f7]
+
+permissions:
+  contents: read
+
+env:
+  TARGET_SHA: fe2b8f7a54302e430827f216d5a861564161673e
+  HARNESS_SHA: 6e23227ac9fd5cf37e6f275dbf145dabaf3955af
+
+jobs:
+  soak:
+    name: recovery-soak-D${{ matrix.class_size }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - class_size: 200
+            nodes: 6
+            iterations: 12
+          - class_size: 500
+            nodes: 8
+            iterations: 6
+          - class_size: 1000
+            nodes: 10
+            iterations: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Fetch immutable approved recovery-soak harness
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl -fsSL "https://raw.githubusercontent.com/inn-media/truyn/${HARNESS_SHA}/scripts/class-d-restart-recovery-soak.mjs" -o "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs"
+          test -s "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs"
+      - name: Run exact-SHA sparse restart-recovery soak
+        shell: bash
+        env:
+          CLASS_SIZE: ${{ matrix.class_size }}
+          NODES: ${{ matrix.nodes }}
+          ITERATIONS: ${{ matrix.iterations }}
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          out="$RUNNER_TEMP/class-d-recovery-soak-${CLASS_SIZE}"
+          env -u GITHUB_SHA TRUYN_CLASS_D_SOURCE_SHA="$TARGET_SHA" node "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs" \
+            --class "$CLASS_SIZE" --nodes "$NODES" --iterations "$ITERATIONS" --out-dir "$out"
+          node - "$out/summary.json" "$CLASS_SIZE" "$ITERATIONS" "$TARGET_SHA" <<'NODE'
+          const fs = require('fs');
+          const [file, classSize, iterations, targetSha] = process.argv.slice(2);
+          const s = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (Number(s.classSize) !== Number(classSize)) throw new Error('wrong class size');
+          if (s.sourceSha !== targetSha) throw new Error(`wrong source SHA: ${s.sourceSha}`);
+          if (Number(s.iterations) !== Number(iterations) || Number(s.passed) !== Number(iterations) || Number(s.failed) !== 0 || s.clean !== true) throw new Error(`unclean soak: ${JSON.stringify(s)}`);
+          if (Number(s.canonicalRecoveryP95MaxMs) !== 120000) throw new Error('recovery ceiling changed');
+          if (Number(s.recoveryP95AcrossIterationsMs?.max ?? Infinity) > 120000) throw new Error(`recovery p95 exceeded: ${s.recoveryP95AcrossIterationsMs?.max}`);
+          console.log(`TRUYN_CLASS_D_RECOVERY_SOAK=PASS class=${classSize} iterations=${iterations} source_sha=${targetSha}`);
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clean-sha-recovery-soak-D${{ matrix.class_size }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/class-d-recovery-soak-${{ matrix.class_size }}
+          if-no-files-found: error
+          retention-days: 30
+
+  aggregate:
+    name: recovery-soak-24-aggregate
+    needs: [soak]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all 24 exact-SHA cycles green
+        env:
+          RESULT: ${{ needs.soak.result }}
+        run: |
+          set -Eeuo pipefail
+          test "$RESULT" = success
+          echo "TRUYN_CLASS_D_RECOVERY_SOAK_AGGREGATE=PASS cycles=24 source_sha=$TARGET_SHA"
