@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createIdentity } from '../core/identity/index.js';
 import { createEnvelope } from '../core/protocol/index.js';
 import { DurableAcceptedWorkInbox } from './admission/durable-inbox.js';
@@ -91,6 +92,8 @@ export class TruynNetworkNode {
       lastError: null
     };
     this.sequence = 0;
+    // A process restart must invalidate transport bindings; a lease renewal must not.
+    this.instanceId = randomUUID();
     this.started = false;
     this.closing = false;
     this.localPeerRecord = null;
@@ -101,18 +104,21 @@ export class TruynNetworkNode {
     this.persistRequestedGeneration = 0;
     this.persistedGeneration = 0;
     this.persistFlushPromise = null;
+    this.lastPersistedSnapshot = null;
     this.faults = faultController || new NetworkFaultController();
     const onStateChange = () => this.schedulePersist();
     const onRecordAccepted = ({ nodeId, previous, record }) => {
       if (previous?.recordId === record.recordId) return;
-      if (previous) {
-        // Do not tear down an already-active route re-entrantly. Both RPC and
-        // application transport caches bind sessions to sequence:endpoint and
-        // replace a stale binding before its next use. Eager disconnect here can
-        // abort a strict in-flight route after a legitimate peer-record update.
-        // Lazy rebind therefore preserves continuity without allowing the old
-        // record binding to service the next request.
-        void nodeId;
+      const sessionChanged = Boolean(previous) && (
+        !previous.instanceId ||
+        !record.instanceId ||
+        previous.instanceId !== record.instanceId ||
+        JSON.stringify(previous.endpoints) !== JSON.stringify(record.endpoints)
+      );
+      if (sessionChanged) {
+        this.rpc?.forget?.(nodeId);
+        const forgotten = this.router?.forget?.(nodeId);
+        if (forgotten?.catch) void forgotten.catch(() => {});
       }
       // Any first-seen or changed valid peer record can change the Kademlia
       // placement set for our own current record. Reconcile it on the control
@@ -174,6 +180,7 @@ export class TruynNetworkNode {
           const generation = this.persistRequestedGeneration;
           const snapshot = this.snapshotState();
           await this.stateStore.save(snapshot);
+          this.lastPersistedSnapshot = snapshot;
           this.persistedGeneration = generation;
         }
       })
@@ -197,12 +204,11 @@ export class TruynNetworkNode {
 
   async persistState() {
     if (!this.stateStore) return null;
-    const snapshot = this.snapshotState();
     const targetGeneration = this.#requestPersist();
     while (this.persistedGeneration < targetGeneration) {
       await this.#ensurePersistFlush();
     }
-    return snapshot;
+    return this.lastPersistedSnapshot ? structuredClone(this.lastPersistedSnapshot) : this.snapshotState();
   }
 
   async hydrateState() {
@@ -358,7 +364,15 @@ export class TruynNetworkNode {
   #schedulePeerRecordRecoveryRetries(record, recoveryPeers, failedNodeIds, attempt = 0) {
     this.#clearPeerRecordRecoveryRetryTimer();
     if (!this.started || this.closing || this.localPeerRecord?.recordId !== record?.recordId) return;
-    if (attempt >= this.peerRecordRecoveryRetryDelaysMs.length) return;
+    if (attempt >= this.peerRecordRecoveryRetryDelaysMs.length) {
+      // Best-effort recovered peers may stop after the bounded schedule. Required
+      // placement peers must keep retrying until they ACK or the local record changes.
+      const propagation = this.peerRecordLifecycle.propagation;
+      const pending = new Set(propagation?.recordId === record.recordId ? propagation.pendingNodeIds || [] : []);
+      failedNodeIds = (failedNodeIds || []).filter((nodeId) => pending.has(nodeId));
+      if (failedNodeIds.length === 0) return;
+      attempt = this.peerRecordRecoveryRetryDelaysMs.length - 1;
+    }
 
     const pendingNodeIds = new Set(failedNodeIds || []);
     const peers = recoveryPeers.filter((peer) => pendingNodeIds.has(peer?.nodeId));
@@ -458,23 +472,21 @@ export class TruynNetworkNode {
     const advertisedHost = this.advertiseHost || (endpoint.host === '0.0.0.0' ? '127.0.0.1' : endpoint.host);
     this.sequence += 1;
     this.localPeerRecord = createPeerRecord({ identity: this.identity, endpoints: [`quic://${advertisedHost}:${endpoint.port}`],
-      sequence: this.sequence, ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat });
+      sequence: this.sequence, ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat, instanceId: this.instanceId });
     this.started = true;
     await this.persistState();
     await this.recoverAcceptedWork();
     this.peerRecordLifecycle.lastSequence = this.localPeerRecord.sequence;
-    this.#resetPeerRecordPropagation(this.localPeerRecord, recoveryPeers);
+    // Restart readiness is the Kademlia placement set, not every recovered peer.
+    this.#resetPeerRecordPropagation(this.localPeerRecord);
 
-    // A durable restart mints a strictly newer signed peer record. Publish it to every
-    // still-valid peer recovered from durable routing state before startup completes.
-    // This is a control-plane re-registration, not an application-envelope retry:
-    // receivers invalidate stale outbound QUIC clients on the newer recordId, so their
-    // first post-restart application request establishes a fresh authenticated session.
+    // Re-register to all still-live recovery peers as best-effort dissemination, while
+    // readiness remains gated only by the required closest(self, fanout) placement set.
     if (recoveryPeers.length > 0) {
       const announcement = await this.announcePeerRecord(this.localPeerRecord, {
         peers: recoveryPeers,
         fanout: recoveryPeers.length,
-        replacePropagationTargets: true
+        replacePropagationTargets: false
       });
       if (announcement.failed > 0) {
         this.#schedulePeerRecordRecoveryRetries(
@@ -505,7 +517,7 @@ export class TruynNetworkNode {
     const endpoint = this.localPeerRecord.endpoints[0];
     this.sequence += 1;
     this.localPeerRecord = createPeerRecord({ identity: this.identity, endpoints: [endpoint], sequence: this.sequence,
-      ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat });
+      ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat, instanceId: this.instanceId });
     this.#resetPeerRecordPropagation(this.localPeerRecord);
     if (persist) this.schedulePersist();
     return structuredClone(this.localPeerRecord);
