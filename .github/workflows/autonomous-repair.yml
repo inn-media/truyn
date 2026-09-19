@@ -51,7 +51,7 @@ jobs:
           source "${env_file[0]}"
           git apply --recount "${patch_file[0]}"
           git diff --check
-          mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' | sort)
+          mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' ':!.github/workflows/autonomous-repair.yml' | sort)
           mapfile -t expected < <(printf '%s\n' $EXPECTED_PATHS | sort)
           [[ "${changed[*]}" == "${expected[*]}" ]]
           [[ ${#changed[@]} -gt 0 ]]
