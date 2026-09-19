@@ -84,17 +84,46 @@ test('production readiness closes synchronously when first-seen peers change req
 
 test('D-1000 readiness barrier requires production peer-record propagation and preserves strict thresholds', async () => {
   const service = await readFile(new URL('../network/testnet/node-service.js', import.meta.url), 'utf8');
+  const runtime = await readFile(new URL('../network/runtime.js', import.meta.url), 'utf8');
   const campaign = await readFile(new URL('../benchmarks/scale/class-d-azure-1000-campaign.sh', import.meta.url), 'utf8');
   const start = campaign.indexOf('STAGE=readiness-barrier');
   const end = campaign.indexOf('STAGE=convergence');
   const barrier = campaign.slice(start, end);
+  const restartStart = campaign.indexOf('STAGE=restart-recovery');
+  const restartEnd = campaign.indexOf('STAGE=post-restart-routing');
+  const restart = campaign.slice(restartStart, restartEnd);
 
   assert.match(service, /acceptanceReady: propagationReady/);
   assert.match(service, /peerRecordPropagation:\s*\{/);
   assert.match(service, /ok: propagationReady/);
+  for (const field of [
+    'targetSetChanges', 'ackPreserved', 'ackReset', 'propagationAttempts',
+    'rpcTimeouts', 'pendingAgeMs', 'routingRefreshMs', 'quicReplacementMs'
+  ]) assert.match(service, new RegExp(`${field}: recovery\\.${field}`));
+
+  assert.match(runtime, /peerRecordRecoveryRetryTimers = new Map\(\)/);
+  assert.match(runtime, /peerRecordReconcileBaseDelayMs = 25/);
+  assert.match(runtime, /peerRecordReconcileJitterMs = 75/);
+  assert.match(runtime, /peerRecordStartupJitterMaxMs = 250/);
+  assert.match(runtime, /peerRecordPublishConcurrency = Math\.max\(2, Math\.min\(8, this\.alpha \* 2\)\)/);
+  assert.match(runtime, /previousAcks\.filter\(\(nodeId\) => targetSet\.has\(nodeId\)\)/);
+  assert.match(runtime, /#setRecoveryPhase\('hydrate'\)/);
+  assert.match(runtime, /#setRecoveryPhase\('routing-refresh'\)/);
+  assert.match(runtime, /#setRecoveryPhase\('determine-placement'\)/);
+  assert.match(runtime, /#setRecoveryPhase\('replacement-sessions'\)/);
+  assert.doesNotMatch(runtime, /peerRecordRecoveryRetryTimer = null/);
+  assert.doesNotMatch(runtime, /queueMicrotask\(\(\) =>/);
+
+  for (const marker of [
+    'RECOVERY_TARGET_SET_CHANGES', 'RECOVERY_ACK_PRESERVED', 'RECOVERY_ACK_RESET',
+    'RECOVERY_PROPAGATION_ATTEMPTS', 'RECOVERY_RPC_TIMEOUTS', 'RECOVERY_PENDING_AGE_MS',
+    'RECOVERY_ROUTING_REFRESH_MS', 'RECOVERY_QUIC_REPLACEMENT_MS'
+  ]) assert.match(restart, new RegExp(marker));
+
   assert.match(barrier, /\.acceptanceReady == true and \.peerRecordPropagation\.ready == true/);
   assert.doesNotMatch(barrier, /\/need/);
   assert.match(campaign, /assert float\('\$conv_rate'\) >= \.99/);
   assert.match(campaign, /assert float\('\$conv_p95'\) <= 120000/);
   assert.match(campaign, /assert float\('\$base_rate'\) >= \.99/);
+  assert.match(campaign, /assert float\('\$recovery_p95'\) <= 120000/);
 });
