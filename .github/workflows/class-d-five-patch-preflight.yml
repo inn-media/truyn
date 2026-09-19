@@ -41,6 +41,8 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Enforce five-patch canonical contract
         run: node scripts/check-class-d-five-patches.mjs
+      - name: Enforce restart-recovery anti-weakening contract
+        run: node scripts/check-class-d-recovery-invariants.mjs
       - name: Download previous class checkpoint
         if: github.event_name == 'workflow_dispatch' && inputs.resume_run_id != ''
         uses: actions/download-artifact@v4
@@ -60,13 +62,6 @@ jobs:
         run: |
           set -Eeuo pipefail
           checkpoint="class-d-${CLASS_SIZE}-stage-checkpoint.json"
-          # The three scale profiles run concurrently on separate hosted runners.
-          # D-200's six-node scenarios can additionally run three local clusters
-          # at once. D-500/D-1000 use 8/10 real node-service processes per
-          # scenario, so execute one cluster at a time to avoid converting
-          # single-runner CPU/socket contention into false network failures.
-          # Fail-collect semantics are unchanged: later independent stages still
-          # execute even after a previous stage is recorded FAIL.
           concurrency=3
           if (( CLASS_SIZE > 200 )); then concurrency=1; fi
           args=(--class "$CLASS_SIZE" --checkpoint "$checkpoint" --concurrency "$concurrency")
@@ -90,9 +85,54 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  recovery-soak:
+    name: class-d-${{ matrix.class_size }}-restart-recovery-soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        class_size: [200, 500, 1000]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Enforce restart-recovery invariant before soak
+        run: node scripts/check-class-d-recovery-invariants.mjs
+      - name: Repeated real multiprocess simultaneous-restart soak
+        shell: bash
+        env:
+          CLASS_SIZE: ${{ matrix.class_size }}
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GITHUB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -Eeuo pipefail
+          case "$CLASS_SIZE" in
+            200) iterations=12; nodes=6 ;;
+            500) iterations=6; nodes=8 ;;
+            1000) iterations=6; nodes=10 ;;
+            *) exit 2 ;;
+          esac
+          out="class-d-recovery-soak-${CLASS_SIZE}"
+          TRUYN_CLASS_D_SOURCE_SHA="$EXPECTED_SHA" node scripts/class-d-restart-recovery-soak.mjs \
+            --class "$CLASS_SIZE" --nodes "$nodes" --iterations "$iterations" --out-dir "$out"
+      - name: Upload restart-recovery telemetry
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: class-d-recovery-soak-${{ matrix.class_size }}-${{ github.run_id }}
+          path: class-d-recovery-soak-${{ matrix.class_size }}
+          if-no-files-found: error
+          retention-days: 30
+
   aggregate:
     name: class-d-five-patch-aggregate
-    needs: [class-d]
+    needs: [class-d, recovery-soak]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -102,12 +142,19 @@ jobs:
           pattern: class-d-*-stage-checkpoint-${{ github.run_id }}
           path: class-d-checkpoints
           merge-multiple: true
-      - name: Require exact-SHA clean evidence for D-200 D-500 D-1000
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: class-d-recovery-soak-*-${{ github.run_id }}
+          path: class-d-soak
+          merge-multiple: false
+      - name: Require exact-SHA clean evidence for D-200 D-500 D-1000 and recovery soak
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           node <<'NODE'
           const fs=require('fs');
+          const expectedIterations={200:12,500:6,1000:6};
           for (const size of [200,500,1000]) {
             const file=`class-d-checkpoints/class-d-${size}-stage-checkpoint.json`;
             if (!fs.existsSync(file)) throw new Error(`missing checkpoint ${file}`);
@@ -115,6 +162,15 @@ jobs:
             if (Number(p.classSize)!==size) throw new Error(`wrong class in ${file}`);
             if (p.sourceSha!==process.env.EXPECTED_SHA) throw new Error(`wrong source SHA in ${file}`);
             if (p.summary?.clean!==true) throw new Error(`unclean class D-${size} checkpoint`);
+
+            const soak=`class-d-soak/class-d-recovery-soak-${size}-${process.env.RUN_ID}/summary.json`;
+            if (!fs.existsSync(soak)) throw new Error(`missing recovery soak ${soak}`);
+            const s=JSON.parse(fs.readFileSync(soak,'utf8'));
+            if (Number(s.classSize)!==size) throw new Error(`wrong soak class D-${size}`);
+            if (s.sourceSha!==process.env.EXPECTED_SHA) throw new Error(`wrong soak source SHA D-${size}`);
+            if (s.iterations!==expectedIterations[size] || s.passed!==expectedIterations[size] || s.failed!==0 || s.clean!==true) throw new Error(`unclean soak D-${size}: ${JSON.stringify(s)}`);
+            if (s.canonicalRecoveryP95MaxMs!==120000) throw new Error(`recovery ceiling changed D-${size}`);
+            if (s.recoveryP95AcrossIterationsMs?.max>120000) throw new Error(`recovery p95 exceeded D-${size}`);
           }
-          console.log('TRUYN_CLASS_D_FIVE_PATCH_AGGREGATE=PASS classes=200,500,1000');
+          console.log('TRUYN_CLASS_D_FIVE_PATCH_AGGREGATE=PASS classes=200,500,1000 recovery_soak=24 exact_sha=true');
           NODE
