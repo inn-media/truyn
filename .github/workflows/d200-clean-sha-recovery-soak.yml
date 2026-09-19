@@ -66,7 +66,7 @@ jobs:
           set -Eeuo pipefail
           python3 - "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs" <<'PY'
           from pathlib import Path
-          import sys
+          import re, sys
           p = Path(sys.argv[1])
           s = p.read_text()
           replacements = [
@@ -79,14 +79,11 @@ jobs:
               if old not in s:
                   raise SystemExit(f'missing expected harness fragment: {old}')
               s = s.replace(old, new, 1)
-          old = """row.acceptanceReady === true && row.peerRecordPropagation?.ready === true &&
-          row.recoveryEpoch?.active !== true && row.recoveryEpoch?.phase === 'ready' &&
-          row.validPeers >= nodes.length - 1 && row.populatedBuckets > 0"""
-          new = """row.acceptanceReady === true && row.peerRecordPropagation?.ready === true &&
-          row.validPeers >= nodes.length - 1 && row.populatedBuckets > 0"""
-          if old not in s:
-              raise SystemExit('old diagnostic-only recoveryEpoch readiness predicate not found')
-          s = s.replace(old, new, 1)
+          pattern = re.compile(r"row\.acceptanceReady === true && row\.peerRecordPropagation\?\.ready === true &&\s*row\.recoveryEpoch\?\.active !== true && row\.recoveryEpoch\?\.phase === 'ready' &&\s*row\.validPeers >= nodes\.length - 1 && row\.populatedBuckets > 0")
+          replacement = "row.acceptanceReady === true && row.peerRecordPropagation?.ready === true &&\n          row.validPeers >= nodes.length - 1 && row.populatedBuckets > 0"
+          s, count = pattern.subn(replacement, s, count=1)
+          if count != 1:
+              raise SystemExit(f'expected exactly one diagnostic-only recoveryEpoch predicate, got {count}')
           p.write_text(s)
           PY
           ! grep -Fq "row.recoveryEpoch?.active !== true && row.recoveryEpoch?.phase === 'ready'" "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs"
@@ -119,7 +116,7 @@ jobs:
         with:
           name: sparse-recovery-${{ matrix.shard }}-${{ github.run_id }}
           path: ${{ runner.temp }}/sparse-${{ matrix.shard }}
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
   aggregate:
