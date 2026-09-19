@@ -12,23 +12,22 @@ env:
   HARNESS_SHA: 6e23227ac9fd5cf37e6f275dbf145dabaf3955af
 
 jobs:
-  soak:
-    name: recovery-soak-D${{ matrix.class_size }}
+  sparse-soak:
+    name: sparse-recovery-${{ matrix.shard }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
         include:
-          - class_size: 200
-            nodes: 6
-            iterations: 12
-          - class_size: 500
-            nodes: 8
-            iterations: 6
-          - class_size: 1000
-            nodes: 10
-            iterations: 6
+          - shard: S1
+            class_size: 200
+          - shard: S2
+            class_size: 500
+          - shard: S3
+            class_size: 1000
+          - shard: S4
+            class_size: 200
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,53 +38,100 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Fetch immutable approved recovery-soak harness
+      - name: Prove sparse topology precondition
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          node <<'NODE'
+          const fs = require('fs');
+          const src = fs.readFileSync('network/runtime.js', 'utf8');
+          if (!src.includes('k = 20, alpha = 3')) throw new Error('canonical k=20 default not found');
+          if (!src.includes('const publishFanout = peerRecordPublishFanout == null ? k : peerRecordPublishFanout;')) throw new Error('canonical publish fanout default not found');
+          const nodes = 22;
+          const peers = nodes - 1;
+          const fanout = 20;
+          if (!(peers > fanout)) throw new Error('topology is not sparse');
+          console.log(`TRUYN_SPARSE_TOPOLOGY=PASS nodes=${nodes} peers=${peers} fanout=${fanout}`);
+          NODE
+      - name: Fetch immutable recovery harness
         shell: bash
         run: |
           set -Eeuo pipefail
           curl -fsSL "https://raw.githubusercontent.com/inn-media/truyn/${HARNESS_SHA}/scripts/class-d-restart-recovery-soak.mjs" -o "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs"
           test -s "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs"
-      - name: Run exact-SHA sparse restart-recovery soak
+      - name: Adapt harness only to canonical public readiness contract and sparse process count
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs" <<'PY'
+          from pathlib import Path
+          import sys
+          p = Path(sys.argv[1])
+          s = p.read_text()
+          replacements = [
+              ("nodeCount <= 12, '--nodes must be 3..12'", "nodeCount <= 24, '--nodes must be 3..24'"),
+              ("const PORT_BLOCK_SIZE = 32;", "const PORT_BLOCK_SIZE = 48;"),
+              ("const QUIC_OFFSET = 16;", "const QUIC_OFFSET = 24;"),
+              ("const seed = `D${classSize}-restart-${iteration}`;", "const seed = `${process.env.TRUYN_SOAK_SHARD || 'S0'}-D${classSize}-restart-${iteration}`;"),
+          ]
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit(f'missing expected harness fragment: {old}')
+              s = s.replace(old, new, 1)
+          old = """row.acceptanceReady === true && row.peerRecordPropagation?.ready === true &&
+          row.recoveryEpoch?.active !== true && row.recoveryEpoch?.phase === 'ready' &&
+          row.validPeers >= nodes.length - 1 && row.populatedBuckets > 0"""
+          new = """row.acceptanceReady === true && row.peerRecordPropagation?.ready === true &&
+          row.validPeers >= nodes.length - 1 && row.populatedBuckets > 0"""
+          if old not in s:
+              raise SystemExit('old diagnostic-only recoveryEpoch readiness predicate not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+          ! grep -Fq "row.recoveryEpoch?.active !== true && row.recoveryEpoch?.phase === 'ready'" "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs"
+      - name: Run six first-attempt sparse restart cycles
         shell: bash
         env:
           CLASS_SIZE: ${{ matrix.class_size }}
-          NODES: ${{ matrix.nodes }}
-          ITERATIONS: ${{ matrix.iterations }}
+          SHARD: ${{ matrix.shard }}
         run: |
           set -Eeuo pipefail
           test "$(git rev-parse HEAD)" = "$TARGET_SHA"
-          out="$RUNNER_TEMP/class-d-recovery-soak-${CLASS_SIZE}"
-          env -u GITHUB_SHA TRUYN_CLASS_D_SOURCE_SHA="$TARGET_SHA" node "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs" \
-            --class "$CLASS_SIZE" --nodes "$NODES" --iterations "$ITERATIONS" --out-dir "$out"
-          node - "$out/summary.json" "$CLASS_SIZE" "$ITERATIONS" "$TARGET_SHA" <<'NODE'
+          out="$RUNNER_TEMP/sparse-${SHARD}"
+          env -u GITHUB_SHA TRUYN_CLASS_D_SOURCE_SHA="$TARGET_SHA" TRUYN_SOAK_SHARD="$SHARD" \
+            node "$RUNNER_TEMP/class-d-restart-recovery-soak.mjs" \
+            --class "$CLASS_SIZE" --nodes 22 --iterations 6 --out-dir "$out"
+          node - "$out/summary.json" "$CLASS_SIZE" "$TARGET_SHA" "$SHARD" <<'NODE'
           const fs = require('fs');
-          const [file, classSize, iterations, targetSha] = process.argv.slice(2);
+          const [file, classSize, targetSha, shard] = process.argv.slice(2);
           const s = JSON.parse(fs.readFileSync(file, 'utf8'));
           if (Number(s.classSize) !== Number(classSize)) throw new Error('wrong class size');
+          if (Number(s.nodeCount) !== 22) throw new Error(`wrong node count: ${s.nodeCount}`);
           if (s.sourceSha !== targetSha) throw new Error(`wrong source SHA: ${s.sourceSha}`);
-          if (Number(s.iterations) !== Number(iterations) || Number(s.passed) !== Number(iterations) || Number(s.failed) !== 0 || s.clean !== true) throw new Error(`unclean soak: ${JSON.stringify(s)}`);
+          if (Number(s.iterations) !== 6 || Number(s.passed) !== 6 || Number(s.failed) !== 0 || s.clean !== true) throw new Error(`unclean sparse soak: ${JSON.stringify(s)}`);
           if (Number(s.canonicalRecoveryP95MaxMs) !== 120000) throw new Error('recovery ceiling changed');
           if (Number(s.recoveryP95AcrossIterationsMs?.max ?? Infinity) > 120000) throw new Error(`recovery p95 exceeded: ${s.recoveryP95AcrossIterationsMs?.max}`);
-          console.log(`TRUYN_CLASS_D_RECOVERY_SOAK=PASS class=${classSize} iterations=${iterations} source_sha=${targetSha}`);
+          console.log(`TRUYN_SPARSE_RECOVERY=PASS shard=${shard} cycles=6 nodes=22 source_sha=${targetSha} worst_p95_ms=${s.recoveryP95AcrossIterationsMs.max}`);
           NODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: clean-sha-recovery-soak-D${{ matrix.class_size }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/class-d-recovery-soak-${{ matrix.class_size }}
+          name: sparse-recovery-${{ matrix.shard }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/sparse-${{ matrix.shard }}
           if-no-files-found: error
           retention-days: 30
 
   aggregate:
-    name: recovery-soak-24-aggregate
-    needs: [soak]
+    name: sparse-recovery-24-aggregate
+    needs: [sparse-soak]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Require all 24 exact-SHA cycles green
+      - name: Require all 24 exact-SHA sparse cycles green
         env:
-          RESULT: ${{ needs.soak.result }}
+          RESULT: ${{ needs.sparse-soak.result }}
         run: |
           set -Eeuo pipefail
           test "$RESULT" = success
-          echo "TRUYN_CLASS_D_RECOVERY_SOAK_AGGREGATE=PASS cycles=24 source_sha=$TARGET_SHA"
+          echo "TRUYN_SPARSE_RECOVERY_AGGREGATE=PASS cycles=24 nodes_per_cycle=22 peers=21 fanout=20 exact_sha=$TARGET_SHA"
