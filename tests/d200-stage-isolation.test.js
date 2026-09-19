@@ -11,16 +11,8 @@ async function exists(path) {
   try { await access(path); return true; } catch { return false; }
 }
 
-test('D-200 stage isolation continues independent stages, skips invalid dependencies, rebuilds partial evidence, and returns FAIL', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'truyn-d200-stage-isolation-'));
-  const campaign = join(root, 'fixture-campaign.sh');
-  const betaMarker = join(root, 'beta-ran');
-  const retentionMarker = join(root, 'retention-ran');
-  const evidence = join(root, 'class-d-1000-evidence.json');
-  try {
-    await writeFile(campaign, `STAGE=alpha\necho ALPHA_START\nfalse\n\nSTAGE=beta\nprintf yes >'${betaMarker}'\n\nSTAGE=durable-writes\nwrites=0\nprintf '{"failure":{"stage":"durable-writes","evidenceComplete":false},"cleanup":{"confirmed":false,"remainingResources":null}}\\n' >"$EVIDENCE"\nfalse\n\nSTAGE=write-retention\nprintf bad >'${retentionMarker}'\n\nSTAGE=resources\nrss_kb=123\nquic_bytes=456\nprocess_total=1\n\nSTAGE=evidence\nprintf '{"unexpected":true}\\n' >"$EVIDENCE"\n`);
-
-    const shell = `
+function fixtureShell({ root, campaign, evidence }) {
+  return `
 set -Eeuo pipefail
 cd '${repo}'
 export GITHUB_WORKSPACE='${root}'
@@ -40,7 +32,18 @@ d200_failure_evidence_checkpoint(){ printf '{"failure":{"stage":"%s","exitCode":
 d200_err_trap(){ exit "\${1:-1}"; }
 source scripts/d200-stage-isolated-campaign.sh
 `;
-    const run = spawnSync('bash', ['-c', shell], { encoding: 'utf8' });
+}
+
+test('D-200 stage isolation continues independent stages, skips invalid dependencies, rebuilds partial evidence, and returns FAIL', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'truyn-d200-stage-isolation-'));
+  const campaign = join(root, 'fixture-campaign.sh');
+  const betaMarker = join(root, 'beta-ran');
+  const retentionMarker = join(root, 'retention-ran');
+  const evidence = join(root, 'class-d-1000-evidence.json');
+  try {
+    await writeFile(campaign, `STAGE=alpha\necho ALPHA_START\nfalse\n\nSTAGE=beta\nprintf yes >'${betaMarker}'\n\nSTAGE=durable-writes\nwrites=0\nprintf '{"failure":{"stage":"durable-writes","evidenceComplete":false},"cleanup":{"confirmed":false,"remainingResources":null}}\\n' >"$EVIDENCE"\nfalse\n\nSTAGE=restart-recovery\necho RESTART_FIXTURE\n\nSTAGE=post-restart-routing\necho POST_RESTART_FIXTURE\n\nSTAGE=packet-partition\necho PARTITION_FIXTURE\n\nSTAGE=healed-routing\necho HEALED_FIXTURE\n\nSTAGE=write-retention\nprintf bad >'${retentionMarker}'\n\nSTAGE=resources\nrss_kb=123\nquic_bytes=456\nprocess_total=1\n\nSTAGE=evidence\nprintf '{"unexpected":true}\\n' >"$EVIDENCE"\n`);
+
+    const run = spawnSync('bash', ['-c', fixtureShell({ root, campaign, evidence })], { encoding: 'utf8' });
     assert.notEqual(run.status, 0, `campaign must remain fail-closed\nstdout=${run.stdout}\nstderr=${run.stderr}`);
     assert.equal(await exists(betaMarker), true, 'independent beta stage must run after alpha RED');
     assert.equal(await exists(retentionMarker), false, 'write-retention must be skipped when durable-writes is RED');
@@ -54,6 +57,10 @@ source scripts/d200-stage-isolated-campaign.sh
     assert.equal(byStage.alpha.status, 'RED');
     assert.equal(byStage.beta.status, 'PASS');
     assert.equal(byStage['durable-writes'].status, 'RED');
+    assert.equal(byStage['restart-recovery'].status, 'PASS');
+    assert.equal(byStage['post-restart-routing'].status, 'PASS');
+    assert.equal(byStage['packet-partition'].status, 'PASS');
+    assert.equal(byStage['healed-routing'].status, 'PASS');
     assert.equal(byStage['write-retention'].status, 'SKIPPED_DEPENDENCY');
     assert.equal(byStage.resources.status, 'PASS');
     assert.equal(byStage.evidence.status, 'SKIPPED_DEPENDENCY');
@@ -68,6 +75,24 @@ source scripts/d200-stage-isolated-campaign.sh
     assert.equal(partial.resources.aggregateNodeRssKb, 123, 'later successful stage metrics must survive final partial evidence rebuild');
     assert.equal(partial.resources.measuredQuicUdpBytes, 456);
     assert.equal(partial.resources.observedNodeProcesses, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('malformed stage plan is fail-closed instead of silently succeeding', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'truyn-d200-stage-plan-'));
+  const campaign = join(root, 'fixture-campaign.sh');
+  const evidence = join(root, 'class-d-1000-evidence.json');
+  try {
+    await writeFile(campaign, 'STAGE=baseline-routing\necho BASELINE_ONLY\n');
+    const run = spawnSync('bash', ['-c', fixtureShell({ root, campaign, evidence })], { encoding: 'utf8' });
+    assert.notEqual(run.status, 0, `missing required stages must fail closed\nstdout=${run.stdout}\nstderr=${run.stderr}`);
+    const results = JSON.parse(await readFile(join(root, 'class-d-200-stage-results.json'), 'utf8'));
+    assert.equal(results.overall, 'FAIL');
+    assert.ok(results.stages.some((row) => row.stage === 'stage-plan' && row.status === 'RED'));
+    const partial = JSON.parse(await readFile(evidence, 'utf8'));
+    assert.equal(partial.failure.stage, 'stage-plan');
   } finally {
     await rm(root, { recursive: true, force: true });
   }
