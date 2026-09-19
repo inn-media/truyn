@@ -13,7 +13,7 @@ diff --git a/network/runtime.js b/network/runtime.js
 diff --git a/tests/peer-discovery-periodic-refresh.test.js b/tests/peer-discovery-periodic-refresh.test.js
 --- a/tests/peer-discovery-periodic-refresh.test.js
 +++ b/tests/peer-discovery-periodic-refresh.test.js
-@@ -86,7 +86,7 @@ test('runtime enables periodic refresh by default and stops it on close', async (
+@@ -86,7 +86,7 @@ test('runtime enables periodic refresh by default and stops it on close', async () => {
    assert.match(runtime, /discoveryPeriodicRefresh = true/);
    assert.match(runtime, /discoveryRefreshIntervalMs = null/);
 -  assert.match(runtime, /Math\.min\(60_000, Math\.max\(1, Math\.floor\(peerRecordTtlMs \/ 2\)\)\)/);
