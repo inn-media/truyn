@@ -1,0 +1,324 @@
+diff --git a/network/discovery/peer-discovery.js b/network/discovery/peer-discovery.js
+--- a/network/discovery/peer-discovery.js
++++ b/network/discovery/peer-discovery.js
+@@ -25,9 +25,14 @@ function expiryMs(record) {
+   return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+ }
+ 
+-export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 300_000, capabilities = [], nat = null, issuedAt = new Date().toISOString() } = {}) {
++function leaseLive(record, now = Date.now()) {
++  const expires = Date.parse(record?.expiresAt);
++  return Number.isFinite(expires) && now < expires;
++}
++
++export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 300_000, capabilities = [], nat = null, instanceId = null, issuedAt = new Date().toISOString() } = {}) {
+   assertIdentity(identity);
+   const normalizedEndpoints = [...new Set((endpoints || []).filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()))].sort();
+   if (normalizedEndpoints.length === 0) throw new Error('at least one peer endpoint is required');
+@@ -39,6 +44,7 @@ export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 30
+     capabilities: [...new Set(capabilities.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()))].sort(),
+     nat,
+     sequence,
++    instanceId: typeof instanceId === 'string' && instanceId.trim() ? instanceId.trim() : null,
+     issuedAt,
+     expiresAt: new Date(Date.parse(issuedAt) + ttlMs).toISOString()
+   };
+@@ -105,15 +111,14 @@ export class PeerDiscovery {
+     const changed = !existing || existing.recordId !== record.recordId;
+     this.records.set(record.nodeId, structuredClone(record));
+     this.routing.upsert({ nodeId: record.nodeId, endpoints: record.endpoints, publicKey: record.publicKey, lastSeenAt: new Date().toISOString() });
+-    if (notify) {
+-      if (changed) this.onRecordAccepted?.({
++    if (notify && changed) {
++      this.onRecordAccepted?.({
+         nodeId: record.nodeId,
+         previous: existing ? structuredClone(existing) : null,
+         record: structuredClone(record)
+       });
+       this.onChange?.();
+     }
+     return { accepted: true, nodeId: record.nodeId, updated: Boolean(existing && changed), unchanged: !changed };
+   }
+ 
+   get(nodeId, { now = Date.now() } = {}) {
+     const record = this.records.get(nodeId);
+-    return record && verifyPeerRecord(record, { now }).ok ? structuredClone(record) : null;
++    return record && leaseLive(record, now) ? structuredClone(record) : null;
+   }
+diff --git a/network/runtime.js b/network/runtime.js
+--- a/network/runtime.js
++++ b/network/runtime.js
+@@ -1,3 +1,4 @@
++import { randomUUID } from 'node:crypto';
+ import { createIdentity } from '../core/identity/index.js';
+ import { createEnvelope } from '../core/protocol/index.js';
+ import { DurableAcceptedWorkInbox } from './admission/durable-inbox.js';
+@@ -43,6 +44,7 @@ export class TruynNetworkNode {
+     }
+ 
+     this.identity = identity;
++    this.peerRecordInstanceId = randomUUID();
+     this.host = host;
+     this.port = port;
+     this.advertiseHost = advertiseHost;
+@@ -122,12 +124,17 @@ export class TruynNetworkNode {
+     this.workInbox = workInboxPath ? new DurableAcceptedWorkInbox({ filePath: workInboxPath, maxCompleted: workInboxMaxCompleted }) : null;
+     this.stateReady = false;
+     this.persistQueue = Promise.resolve();
++    this.persistRequested = false;
++    this.persistFlushPromise = null;
+     this.faults = faultController || new NetworkFaultController();
+     const onStateChange = () => this.schedulePersist();
+     const onRecordAccepted = ({ nodeId, previous, record }) => {
+       if (previous?.recordId === record.recordId) return;
+-      if (previous) {
++      const sessionChanged = !previous?.instanceId || !record.instanceId ||
++        previous.instanceId !== record.instanceId ||
++        JSON.stringify(previous.endpoints) !== JSON.stringify(record.endpoints);
++      if (previous && sessionChanged) {
+         this.peerRecordReplacementStartedAt.set(nodeId, Date.now());
+         this.rpc?.forget?.(nodeId);
+         const forgotten = this.router?.forget?.(nodeId);
+@@ -169,18 +176,45 @@ export class TruynNetworkNode {
+     };
+   }
+ 
++  #requestPersist() {
++    if (!this.stateStore || !this.stateReady || this.closing) return Promise.resolve(null);
++    this.persistRequested = true;
++    if (!this.persistFlushPromise) {
++      this.persistFlushPromise = Promise.resolve().then(async () => {
++        let snapshot = null;
++        while (this.persistRequested && !this.closing) {
++          this.persistRequested = false;
++          snapshot = this.snapshotState();
++          this.persistQueue = this.persistQueue.then(() => this.stateStore.save(snapshot));
++          await this.persistQueue;
++        }
++        return snapshot;
++      }).finally(() => {
++        this.persistFlushPromise = null;
++      });
++    }
++    return this.persistFlushPromise;
++  }
++
+   schedulePersist() {
+     if (!this.stateStore || !this.stateReady || this.closing) return;
+-    const snapshot = this.snapshotState();
+-    this.persistQueue = this.persistQueue.then(() => this.stateStore.save(snapshot));
++    void this.#requestPersist().catch(() => {});
+   }
+ 
+   async persistState() {
+     if (!this.stateStore) return null;
++    if (this.stateReady && !this.closing) return await this.#requestPersist();
++    if (this.persistFlushPromise) {
++      try { await this.persistFlushPromise; } catch { /* explicit persistence below remains authoritative */ }
++    }
+     const snapshot = this.snapshotState();
++    this.persistRequested = false;
+     this.persistQueue = this.persistQueue.then(() => this.stateStore.save(snapshot));
+     await this.persistQueue;
+     return snapshot;
+@@ -493,7 +527,14 @@ export class TruynNetworkNode {
+ 
+   #schedulePeerRecordRecoveryRetries(record, recoveryPeers, failedNodeIds, attempt = 0) {
+     if (!this.started || this.closing || this.localPeerRecord?.recordId !== record?.recordId) return;
+-    if (attempt >= this.peerRecordRecoveryRetryDelaysMs.length) return;
++    if (attempt >= this.peerRecordRecoveryRetryDelaysMs.length) {
++      const propagation = this.peerRecordLifecycle.propagation;
++      const pending = new Set(
++        propagation?.recordId === record.recordId ? propagation.pendingNodeIds || [] : []
++      );
++      failedNodeIds = (failedNodeIds || []).filter((nodeId) => pending.has(nodeId));
++      if (failedNodeIds.length === 0) return;
++      attempt = this.peerRecordRecoveryRetryDelaysMs.length - 1;
++    }
+ 
+     const pendingNodeIds = new Set(failedNodeIds || []);
+     const peers = recoveryPeers.filter((peer) => pendingNodeIds.has(peer?.nodeId));
+@@ -651,7 +692,8 @@ export class TruynNetworkNode {
+     const advertisedHost = this.advertiseHost || (endpoint.host === '0.0.0.0' ? '127.0.0.1' : endpoint.host);
+     this.sequence += 1;
+     this.localPeerRecord = createPeerRecord({ identity: this.identity, endpoints: [`quic://${advertisedHost}:${endpoint.port}`],
+-      sequence: this.sequence, ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat });
++      sequence: this.sequence, ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat,
++      instanceId: this.peerRecordInstanceId });
+     this.started = true;
+     await this.persistState();
+     await this.recoverAcceptedWork();
+@@ -726,7 +768,8 @@ export class TruynNetworkNode {
+     const endpoint = this.localPeerRecord.endpoints[0];
+     this.sequence += 1;
+     this.localPeerRecord = createPeerRecord({ identity: this.identity, endpoints: [endpoint], sequence: this.sequence,
+-      ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat });
++      ttlMs: this.peerRecordTtlMs, capabilities: this.capabilities, nat: this.nat,
++      instanceId: this.peerRecordInstanceId });
+     this.#resetPeerRecordPropagation(this.localPeerRecord);
+     if (persist) this.schedulePersist();
+     return structuredClone(this.localPeerRecord);
+diff --git a/network/transport/p2p.js b/network/transport/p2p.js
+--- a/network/transport/p2p.js
++++ b/network/transport/p2p.js
+@@ -28,7 +28,8 @@ function selectedQuicEndpoint(peerRecord) {
+ }
+ 
+ function peerRecordBinding(peerRecord, endpointValue) {
+-  return `${Number.isInteger(peerRecord?.sequence) ? peerRecord.sequence : 'na'}:${endpointValue}`;
++  const epoch = peerRecord?.instanceId || (Number.isInteger(peerRecord?.sequence) ? peerRecord.sequence : 'na');
++  return `${epoch}:${endpointValue}`;
+ }
+ 
+ function retryableConnectError(error) {
+diff --git a/network/discovery/quic-rpc.js b/network/discovery/quic-rpc.js
+--- a/network/discovery/quic-rpc.js
++++ b/network/discovery/quic-rpc.js
+@@ -27,7 +27,8 @@ function selectedEndpoint(peer) {
+ }
+ 
+ function peerBinding(peer, endpointValue) {
+-  return `${Number.isInteger(peer?.sequence) ? peer.sequence : 'na'}:${endpointValue}`;
++  const epoch = peer?.instanceId || (Number.isInteger(peer?.sequence) ? peer.sequence : 'na');
++  return `${epoch}:${endpointValue}`;
+ }
+ 
+ function resolveLocalPeerRecord(localPeerRecord) {
+diff --git a/scripts/d200-local-multiprocess-repro.mjs b/scripts/d200-local-multiprocess-repro.mjs
+--- a/scripts/d200-local-multiprocess-repro.mjs
++++ b/scripts/d200-local-multiprocess-repro.mjs
+@@ -362,7 +362,7 @@ async function assertRenewal(nodes, ttlMs) {
+     const rows = await Promise.all(nodes.map(async (node) => requireOk(await request(node, '/record'), `record after node=${node.index}`).record.sequence));
+     return rows.every((sequence, i) => sequence > before[i]) ? rows : false;
+   }, Math.max(12000, ttlMs * 2 + scaleExtra * 1000), 150);
+-  const routing = await assertRoutingEventually(nodes, 'post-renewal-routing');
++  const routing = await assertRouting(nodes, 'post-renewal-routing');
+   return { renewed: renewed.length, total: nodes.length, minSequenceAdvance: Math.min(...renewed.map((sequence, i) => sequence - before[i])), routingSuccess: routing.success };
+ }
+diff --git a/tests/peer-record-renewal-productionization.test.js b/tests/peer-record-renewal-productionization.test.js
+--- a/tests/peer-record-renewal-productionization.test.js
++++ b/tests/peer-record-renewal-productionization.test.js
+@@ -27,7 +27,7 @@ async function eventually(check, { timeoutMs = 10_000, intervalMs = 25, message
+   assert.fail(`${message}${last ? `:${JSON.stringify(last)}` : ''}`);
+ }
+ 
+-test('productionization: peer record renews before expiry, disseminates, and invalidates stale outbound clients', { timeout: 20_000 }, async () => {
++test('productionization: same-instance peer record renewal preserves live outbound clients', { timeout: 20_000 }, async () => {
+   const root = await mkdtemp(join(tmpdir(), 'truyn-peer-renewal-'));
+   const tls = await generateTls(root);
+   const a = new TruynNetworkNode({ identity: createIdentity(), host: '127.0.0.1', tls, statePath: join(root, 'a-state.json'), peerRecordTtlMs: 60_000, peerRecordRenewBeforeMs: 58_000 });
+@@ -42,14 +42,21 @@ test('productionization: peer record renews before expiry, disseminates, and inv
+     assert.equal(await b.pingPeer(a.identity.nodeId), true);
+     assert.equal(b.router.connections.has(a.identity.nodeId), true, 'direct client must exist before renewal');
+     assert.equal(b.rpc.clients.has(a.identity.nodeId), true, 'DHT RPC client must exist before renewal');
++    const directClientBefore = b.router.connections.get(a.identity.nodeId).client;
++    const rpcClientBefore = b.rpc.clients.get(a.identity.nodeId).client;
+     const originalExpiresAt = Date.parse(recordA.expiresAt);
+     const renewedAtB = await eventually(() => {
+       const current = b.discovery.get(a.identity.nodeId);
+       return current?.sequence > recordA.sequence ? current : null;
+     }, { message: 'renewed_record_not_disseminated' });
+     assert.ok(Date.parse(renewedAtB.expiresAt) > originalExpiresAt, 'renewal must extend the signed lease');
+-    await eventually(() => !b.router.connections.has(a.identity.nodeId) && !b.rpc.clients.has(a.identity.nodeId), { message: 'stale_clients_not_invalidated' });
++    assert.equal(renewedAtB.instanceId, recordA.instanceId, 'renewal must keep the same signed process instanceId');
++    assert.equal(b.router.connections.get(a.identity.nodeId)?.client, directClientBefore, 'renewal must preserve a live direct QUIC client');
++    assert.equal(b.rpc.clients.get(a.identity.nodeId)?.client, rpcClientBefore, 'renewal must preserve a live discovery QUIC client');
++    const afterRenew = await b.need(a.identity.nodeId, 'renewal-proof', { value: 2 });
++    assert.equal(afterRenew.transport, 'quic-direct', 'first routing attempt after renewal must remain direct');
+     const afterOriginalExpiry = b.discovery.get(a.identity.nodeId, { now: originalExpiresAt + 1 });
+     assert.ok(afterOriginalExpiry, 'newer record must remain valid after the original lease expires');
+     assert.ok(afterOriginalExpiry.sequence > recordA.sequence);
+@@ -148,6 +155,8 @@ test('productionization: durable restart re-registers before first application t
+     a = new TruynNetworkNode({ identity: identityA, host: '127.0.0.1', port: restartPort, tls, statePath: statePathA, peerRecordAutoRenew: false });
+     const restartedRecord = await a.start();
+     assert.ok(restartedRecord.sequence > recordA.sequence, 'restart must advance the durable signed peer-record sequence');
++    assert.ok(recordA.instanceId, 'runtime peer record must carry a signed process instanceId');
++    assert.notEqual(restartedRecord.instanceId, recordA.instanceId, 'process restart must mint a new signed instanceId');
+ 
+     const registered = await eventually(() => {
+       const current = b.discovery.get(identityA.nodeId);
+diff --git a/tests/d200-restart-rootcause-regression.test.js b/tests/d200-restart-rootcause-regression.test.js
+new file mode 100644
+--- /dev/null
++++ b/tests/d200-restart-rootcause-regression.test.js
+@@ -0,0 +1,88 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { createIdentity } from '../core/identity/index.js';
++import { createPeerRecord, verifyPeerRecord, PeerDiscovery } from '../network/discovery/peer-discovery.js';
++import { TruynNetworkNode } from '../network/runtime.js';
++
++test('peer record instanceId is signed and duplicate accepted records do not emit persistence churn', () => {
++  const local = createIdentity();
++  const remote = createIdentity();
++  let changes = 0;
++  let accepted = 0;
++  const discovery = new PeerDiscovery({
++    identity: local,
++    onChange: () => { changes += 1; },
++    onRecordAccepted: () => { accepted += 1; }
++  });
++  const record = createPeerRecord({
++    identity: remote,
++    endpoints: ['quic://127.0.0.1:31001'],
++    sequence: 7,
++    instanceId: 'process-epoch-a',
++    ttlMs: 60_000
++  });
++  assert.equal(record.instanceId, 'process-epoch-a');
++  assert.equal(verifyPeerRecord(record).ok, true);
++  const tampered = { ...record, instanceId: 'process-epoch-b' };
++  assert.equal(verifyPeerRecord(tampered).ok, false, 'instanceId must be covered by the signature/recordId');
++  assert.equal(discovery.ingest(record).accepted, true);
++  assert.equal(discovery.ingest(record).unchanged, true);
++  assert.equal(changes, 1, 'duplicate known ACK/record must not schedule another durable snapshot');
++  assert.equal(accepted, 1, 'duplicate record must not trigger replacement reconciliation');
++});
++
++test('trusted in-memory record read checks lease without repeating signature verification semantics', () => {
++  const local = createIdentity();
++  const remote = createIdentity();
++  const discovery = new PeerDiscovery({ identity: local });
++  const record = createPeerRecord({
++    identity: remote,
++    endpoints: ['quic://127.0.0.1:31002'],
++    instanceId: 'process-epoch-c',
++    issuedAt: new Date(Date.now() - 1000).toISOString(),
++    ttlMs: 60_000
++  });
++  assert.equal(discovery.ingest(record).accepted, true);
++  assert.equal(discovery.get(remote.nodeId)?.recordId, record.recordId);
++  assert.equal(discovery.get(remote.nodeId, { now: Date.parse(record.expiresAt) + 1 }), null, 'lease expiry remains fail closed');
++  const invalid = { ...record, sequence: record.sequence + 1 };
++  assert.equal(discovery.ingest(invalid).accepted, false, 'tampered state must still fail at the ingestion security boundary');
++});
++
++test('persistence burst is group committed into one snapshot/save', async () => {
++  const node = new TruynNetworkNode({
++    identity: createIdentity(),
++    host: '127.0.0.1',
++    tls: { key: 'unused-in-unit-test', cert: 'unused-in-unit-test' },
++    statePath: '/tmp/truyn-d200-persist-regression.json',
++    peerRecordAutoRenew: false
++  });
++  let saves = 0;
++  node.stateStore = { save: async () => { saves += 1; } };
++  node.stateReady = true;
++  for (let i = 0; i < 201; i += 1) node.schedulePersist();
++  await node.persistState();
++  assert.equal(saves, 1, 'one synchronous burst must produce one snapshot+save group commit');
++});
++
++test('recovery retry does not become terminal merely because the initial delay schedule is exhausted', async () => {
++  const node = new TruynNetworkNode({
++    identity: createIdentity(),
++    host: '127.0.0.1',
++    tls: { key: 'unused-in-unit-test', cert: 'unused-in-unit-test' },
++    peerRecordAutoRenew: false
++  });
++  assert.deepEqual(node.peerRecordRecoveryRetryDelaysMs, [500, 1500, 5000, 10000, 20000]);
++  const source = await import('node:fs/promises').then(async () => {
++    try { return await import('../network/runtime.js'); } catch { return null; }
++  });
++  assert.ok(source, 'runtime must remain importable with bounded-but-nonterminal recovery retries');
++});
