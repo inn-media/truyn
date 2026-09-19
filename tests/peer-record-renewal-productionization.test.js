@@ -29,7 +29,7 @@ async function eventually(check, { timeoutMs = 10_000, intervalMs = 25, message 
   assert.fail(`${message}${last ? `:${JSON.stringify(last)}` : ''}`);
 }
 
-test('productionization: peer record renews before expiry, disseminates, and rebinds stale outbound clients', { timeout: 20_000 }, async () => {
+test('productionization: peer record renews before expiry, disseminates, and keeps live same-instance sessions', { timeout: 20_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'truyn-peer-renewal-'));
   const tls = await generateTls(root);
   const a = new TruynNetworkNode({ identity: createIdentity(), host: '127.0.0.1', tls, statePath: join(root, 'a-state.json'), peerRecordTtlMs: 60_000, peerRecordRenewBeforeMs: 58_000 });
@@ -43,17 +43,24 @@ test('productionization: peer record renews before expiry, disseminates, and reb
     assert.equal(await b.pingPeer(a.identity.nodeId), true);
     assert.equal(b.router.connections.has(a.identity.nodeId), true, 'direct client must exist before renewal');
     assert.equal(b.rpc.clients.has(a.identity.nodeId), true, 'DHT RPC client must exist before renewal');
+    const directClientBefore = b.router.connections.get(a.identity.nodeId)?.client;
+    const directBindingBefore = b.router.connections.get(a.identity.nodeId)?.binding;
+    const rpcClientBefore = b.rpc.clients.get(a.identity.nodeId)?.client;
+    const rpcBindingBefore = b.rpc.clients.get(a.identity.nodeId)?.binding;
     const originalExpiresAt = Date.parse(recordA.expiresAt);
     const renewedAtB = await eventually(() => {
       const current = b.discovery.get(a.identity.nodeId);
       return current?.sequence > recordA.sequence ? current : null;
     }, { message: 'renewed_record_not_disseminated' });
     assert.ok(Date.parse(renewedAtB.expiresAt) > originalExpiresAt, 'renewal must extend the signed lease');
-    const rebound = await b.need(a.identity.nodeId, 'renewal-proof', { value: 2 });
-    assert.equal(rebound.transport, 'quic-direct');
-    assert.ok(b.router.connections.get(a.identity.nodeId)?.binding.startsWith(`${renewedAtB.sequence}:`), 'application route must rebind to the renewed record before use');
+    assert.equal(renewedAtB.instanceId, recordA.instanceId, 'renewal must keep the process instance id');
+    assert.equal(b.router.connections.get(a.identity.nodeId)?.client, directClientBefore, 'renewal must keep the live direct client');
+    assert.equal(b.router.connections.get(a.identity.nodeId)?.binding, directBindingBefore, 'renewal must keep the same direct session binding');
+    assert.equal(b.rpc.clients.get(a.identity.nodeId)?.client, rpcClientBefore, 'renewal must keep the live discovery client');
+    assert.equal(b.rpc.clients.get(a.identity.nodeId)?.binding, rpcBindingBefore, 'renewal must keep the same discovery session binding');
+    const afterRenewal = await b.need(a.identity.nodeId, 'renewal-proof', { value: 2 });
+    assert.equal(afterRenewal.transport, 'quic-direct');
     assert.equal(await b.pingPeer(a.identity.nodeId), true);
-    assert.ok(b.rpc.clients.get(a.identity.nodeId)?.binding.startsWith(`${renewedAtB.sequence}:`), 'discovery RPC must rebind to the renewed record before use');
     const afterOriginalExpiry = b.discovery.get(a.identity.nodeId, { now: originalExpiresAt + 1 });
     assert.ok(afterOriginalExpiry, 'newer record must remain valid after the original lease expires');
     assert.ok(afterOriginalExpiry.sequence > recordA.sequence);
@@ -136,8 +143,10 @@ test('productionization: durable restart re-registers and rebinds stale clients 
     const directBefore = await b.need(identityA.nodeId, 'restart-proof', { phase: 'before' });
     assert.equal(directBefore.transport, 'quic-direct');
     assert.equal(await b.pingPeer(identityA.nodeId), true);
-    assert.equal(b.router.connections.has(identityA.nodeId), true, 'direct cache must be populated before shutdown');
-    assert.equal(b.rpc.clients.has(identityA.nodeId), true, 'discovery cache must be populated before shutdown');
+    const directClientBefore = b.router.connections.get(identityA.nodeId)?.client;
+    const rpcClientBefore = b.rpc.clients.get(identityA.nodeId)?.client;
+    assert.ok(directClientBefore, 'direct cache must be populated before shutdown');
+    assert.ok(rpcClientBefore, 'discovery cache must be populated before shutdown');
 
     const endpoint = new URL(recordA.endpoints[0]);
     const restartPort = Number(endpoint.port);
@@ -146,6 +155,7 @@ test('productionization: durable restart re-registers and rebinds stale clients 
     a = new TruynNetworkNode({ identity: identityA, host: '127.0.0.1', port: restartPort, tls, statePath: statePathA, peerRecordAutoRenew: false });
     const restartedRecord = await a.start();
     assert.ok(restartedRecord.sequence > recordA.sequence, 'restart must advance the durable signed peer-record sequence');
+    assert.notEqual(restartedRecord.instanceId, recordA.instanceId, 'restart must mint a new process instance id');
 
     const registered = await eventually(() => {
       const current = b.discovery.get(identityA.nodeId);
@@ -160,9 +170,13 @@ test('productionization: durable restart re-registers and rebinds stale clients 
     const directAfter = await b.need(identityA.nodeId, 'restart-proof', { phase: 'after' });
     assert.equal(directAfter.transport, 'quic-direct', 'first application request after re-registration must establish a fresh QUIC session');
     assert.equal(directAfter.result.phase, 'after-restart');
-    assert.ok(b.router.connections.get(identityA.nodeId)?.binding.startsWith(`${restartedRecord.sequence}:`), 'first application request must replace the stale route binding');
+    const directEntryAfter = b.router.connections.get(identityA.nodeId);
+    assert.notEqual(directEntryAfter?.client, directClientBefore, 'restart must replace the stale route client');
+    assert.ok(directEntryAfter?.binding.startsWith(`${restartedRecord.instanceId}:`), 'route binding must follow the new process instance');
     assert.equal(await b.pingPeer(identityA.nodeId), true, 'first discovery request after re-registration must use a fresh QUIC session');
-    assert.ok(b.rpc.clients.get(identityA.nodeId)?.binding.startsWith(`${restartedRecord.sequence}:`), 'first discovery request must replace the stale RPC binding');
+    const rpcEntryAfter = b.rpc.clients.get(identityA.nodeId);
+    assert.notEqual(rpcEntryAfter?.client, rpcClientBefore, 'restart must replace the stale discovery client');
+    assert.ok(rpcEntryAfter?.binding.startsWith(`${restartedRecord.instanceId}:`), 'discovery binding must follow the new process instance');
   } finally {
     await Promise.allSettled([a.close(), b.close()]);
     await rm(root, { recursive: true, force: true });
