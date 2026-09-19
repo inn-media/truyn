@@ -133,6 +133,75 @@ test('production propagation: failed renewal placement remains not-ready until b
   }
 });
 
+test('production propagation: target-set churn preserves ACK intersection and coalesces a synchronous reconciliation burst', { timeout: 20_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'truyn-peer-propagation-churn-'));
+  const tls = await generateTls(root);
+  const node = new TruynNetworkNode({
+    identity: createIdentity(),
+    host: '127.0.0.1',
+    tls,
+    statePath: join(root, 'node-state.json'),
+    k: 3,
+    peerRecordAutoRenew: false
+  });
+  try {
+    await node.start();
+    node.rpc.announce = async (peer, record) => ({
+      accepted: true,
+      nodeId: record.nodeId,
+      peerNodeId: peer.nodeId,
+      sequence: record.sequence
+    });
+
+    node.bootstrap([remoteRecord(65601), remoteRecord(65602), remoteRecord(65603)]);
+    await eventually(() => node.peerRecordPropagationReady(), { message: 'initial_churn_fixture_not_ready' });
+
+    const baselineRecovery = node.peerRecordLifecycleSnapshot().recovery;
+    let observed = null;
+    let port = 65604;
+    for (; port < 65720; port += 1) {
+      const previous = node.peerRecordLifecycleSnapshot().propagation;
+      node.bootstrap([remoteRecord(port)]);
+      const current = node.peerRecordLifecycleSnapshot().propagation;
+      if (current.targetNodeIds.join(',') === previous.targetNodeIds.join(',')) continue;
+      const intersection = previous.acknowledgedNodeIds.filter((nodeId) => current.targetNodeIds.includes(nodeId));
+      if (intersection.length === 0) continue;
+      observed = { current, intersection };
+      break;
+    }
+
+    assert.ok(observed, 'fixture must produce a placement replacement with a non-empty ACK intersection');
+    assert.ok(observed.intersection.every((nodeId) => observed.current.acknowledgedNodeIds.includes(nodeId)),
+      'ACKs for placements that remain required must survive same-record target-set churn');
+    assert.ok(observed.current.pendingNodeIds.length > 0,
+      'newly required placement must keep readiness closed until its own ACK arrives');
+    assert.equal(node.peerRecordPropagationReady(), false, 'target churn closes readiness synchronously');
+
+    // Keep adding records synchronously inside the same short reconciliation window.
+    // The network should publish the final placement, not one RPC wave per accepted record.
+    for (let extra = 0; extra < 32; extra += 1) node.bootstrap([remoteRecord(port + 1 + extra)]);
+
+    const stagedRecovery = node.peerRecordLifecycleSnapshot().recovery;
+    assert.equal(stagedRecovery.ackReset, baselineRecovery.ackReset,
+      'same signed record target churn must not reset already valid ACKs');
+    assert.ok(stagedRecovery.ackPreserved > baselineRecovery.ackPreserved,
+      'intersection ACK preservation must be observable');
+    assert.ok(stagedRecovery.targetSetChanges > baselineRecovery.targetSetChanges,
+      'target-set changes must be counted');
+
+    await eventually(() => node.peerRecordPropagationReady(), { message: 'coalesced_churn_did_not_recover' });
+    const recovered = node.peerRecordLifecycleSnapshot().recovery;
+    const targetChangeDelta = recovered.targetSetChanges - baselineRecovery.targetSetChanges;
+    const batchDelta = recovered.reconcileBatches - baselineRecovery.reconcileBatches;
+    assert.ok(targetChangeDelta >= 1);
+    assert.ok(batchDelta <= 1,
+      `synchronous target churn should coalesce into at most one network reconciliation batch; changes=${targetChangeDelta} batches=${batchDelta}`);
+  } finally {
+    await node.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('production propagation: retry schedule stays bounded below the unchanged 120 second Class-D recovery ceiling', async () => {
   const source = await readFile(new URL('../network/runtime.js', import.meta.url), 'utf8');
   const match = source.match(/peerRecordRecoveryRetryDelaysMs\s*=\s*\[([^\]]+)\]/);
