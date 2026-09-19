@@ -15,16 +15,19 @@ const required = [
   ['canonical campaign readiness evidence', campaign.includes('class-d-200-readiness-node-observations.json')],
   ['stage-isolated orchestration', orchestrator.includes('TRUYN_D200_STAGE_RESULT') && orchestrator.includes('SKIPPED_DEPENDENCY')],
   ['stage results evidence', orchestrator.includes('class-d-200-stage-results.json') && orchestrator.includes('acceptanceWeakened')],
+  ['required topology stage', /for required_stage in topology\s+restart-recovery/.test(orchestrator)],
   ['restart diagnostic override', orchestrator.includes('d200-restart-recovery-stage.sh')],
   ['restart per-host evidence', restart.includes('class-d-200-restart-recovery-hosts.json') && restart.includes('TRUYN_D200_RESTART_HOST_FAILURE')],
-  ['restart exact READY contract', restart.includes('[[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]')],
+  ['restart exact marker parser', restart.includes('d200_restart_exact_marker') && restart.includes('sed -n "s/^${key}=//p"')],
+  ['restart five-node READY contract', restart.includes('restarted_nodes_per_host=$((restart_last_node-restart_first_node+1))') && restart.includes('if [[ "$ready" == "$restarted_nodes_per_host" ]]')],
   ['restart logical failure does not replay remote restart', restart.includes('RESTART_LOGICAL_RC=') && restart.includes('exit 0\nEOS')]
 ];
 const forbidden = [
   ['account key flag', /--account-key\b/.test(staging)],
   ['storage key env', /AZURE_STORAGE_(?:KEY|CONNECTION_STRING)/.test(staging)],
   ['public container flag', /--public-access\s+(?!off\b|false\b)/.test(staging)],
-  ['stage isolation weakens terminal acceptance', /acceptanceWeakened['\"]?\s*[:=]\s*true/.test(orchestrator)]
+  ['stage isolation weakens terminal acceptance', /acceptanceWeakened['\"]?\s*[:=]\s*true/.test(orchestrator)],
+  ['substring READY parser in restart stage', /(?:^|\s)marker "\$out" READY/m.test(restart)]
 ];
 const failures = [...required.filter(([, ok]) => !ok).map(([name]) => `missing:${name}`), ...forbidden.filter(([, found]) => found).map(([name]) => `forbidden:${name}`)];
 if (failures.length) {

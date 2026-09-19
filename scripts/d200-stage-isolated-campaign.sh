@@ -181,7 +181,7 @@ if [[ "$stage_split_rc" != 0 || ! -s "$stage_plan" ]]; then
 else
   mapfile -t D200_STAGE_ROWS <"$stage_plan"
   required_stage_missing=0
-  for required_stage in restart-recovery post-restart-routing packet-partition healed-routing resources evidence; do
+  for required_stage in topology restart-recovery post-restart-routing packet-partition healed-routing resources evidence; do
     if ! printf '%s\n' "${D200_STAGE_ROWS[@]}" | cut -f1 | grep -Fxq "$required_stage"; then
       required_stage_missing=1
       d200_append_stage_result stage-plan RED 1 0 '' "missing required stage ${required_stage}"
