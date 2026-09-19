@@ -1,0 +1,36 @@
+{
+  "schema": "truyn.class-d.recovery-invariants.v1",
+  "classes": [200, 500, 1000],
+  "recoveryP95MaxMs": 120000,
+  "startupMustNotBlockOnRecovery": true,
+  "failClosedReadiness": true,
+  "preserveSameRecordAcks": true,
+  "republishPendingOnly": true,
+  "directQuicBeforeReady": true,
+  "perPeerRetries": true,
+  "boundedControlPlaneConcurrency": true,
+  "deterministicStartupJitter": true,
+  "recoveryPhases": [
+    "hydrate",
+    "routing-refresh",
+    "placement",
+    "propagate",
+    "establish-sessions",
+    "ready"
+  ],
+  "requiredDiagnostics": [
+    "targetSetChanges",
+    "ackPreserved",
+    "ackReset",
+    "propagationAttempts",
+    "rpcTimeouts",
+    "pendingAgeMs",
+    "routingRefreshMs",
+    "quicReplacementMs"
+  ],
+  "policy": {
+    "noSilentRemoval": true,
+    "noAcceptanceWeakening": true,
+    "fivePatchContractRemainsIndependent": true
+  }
+}
