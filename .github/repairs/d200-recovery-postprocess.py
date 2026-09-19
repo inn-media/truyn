@@ -1,0 +1,228 @@
+from pathlib import Path
+
+runtime_path = Path('network/runtime.js')
+s = runtime_path.read_text()
+
+def replace_once(old, new, label):
+    global s
+    count = s.count(old)
+    if count != 1:
+        raise SystemExit(f'{label}: expected exactly one match, got {count}')
+    s = s.replace(old, new, 1)
+
+replace_once(
+    "    this.peerRecordControlPlaneConcurrency = Math.max(1, Math.min(4, alpha));\n",
+    "    this.peerRecordControlPlaneConcurrency = Math.max(1, Math.min(4, alpha));\n"
+    "    this.peerRecordRecoverySessionTimers = new Map();\n"
+    "    this.peerRecordRecoverySessionReady = new Set();\n"
+    "    this.peerRecordRecoverySessionStartedAt = null;\n"
+    "    this.peerRecordRecoveryTask = null;\n",
+    'constructor recovery session state'
+)
+
+old = '''  #maybeCompleteRecoveryEpoch() {
+    const propagation = this.peerRecordLifecycle.propagation;
+    if (this.peerRecordLifecycle.recoveryEpoch.active && propagation?.ready === true) {
+      if (this.peerRecordLifecycle.recoveryEpoch.phase === 'propagate') this.#setRecoveryEpochPhase('establish-sessions');
+      this.#setRecoveryEpochPhase('ready');
+    }
+  }
+'''
+new = '''  #clearPeerRecordRecoverySessionTimers(nodeIds = null) {
+    const selected = nodeIds == null ? null : new Set(nodeIds);
+    for (const [nodeId, state] of this.peerRecordRecoverySessionTimers) {
+      if (selected && !selected.has(nodeId)) continue;
+      clearTimeout(state.timer);
+      this.peerRecordRecoverySessionTimers.delete(nodeId);
+    }
+  }
+
+  #markRecoveryEpochReady() {
+    const epoch = this.peerRecordLifecycle.recoveryEpoch;
+    const propagation = this.peerRecordLifecycle.propagation;
+    if (!epoch.active || propagation?.recordId !== this.localPeerRecord?.recordId || propagation.ready !== true) return false;
+    const targets = new Set(propagation.targetNodeIds || []);
+    if ([...targets].some((nodeId) => !this.peerRecordRecoverySessionReady.has(nodeId))) return false;
+    if (this.peerRecordRecoverySessionStartedAt != null) {
+      this.peerRecordLifecycle.diagnostics.quicReplacementMs = Math.max(
+        this.peerRecordLifecycle.diagnostics.quicReplacementMs,
+        Date.now() - this.peerRecordRecoverySessionStartedAt
+      );
+    }
+    this.peerRecordRecoverySessionStartedAt = null;
+    this.#clearPeerRecordRecoverySessionTimers();
+    this.peerRecordLifecycle.lastError = null;
+    this.#setRecoveryEpochPhase('ready');
+    return true;
+  }
+
+  #scheduleRecoverySessionProbe(record, peer, attempt = 0) {
+    const epoch = this.peerRecordLifecycle.recoveryEpoch;
+    if (!epoch.active || !this.started || this.closing || this.localPeerRecord?.recordId !== record?.recordId) return;
+    if (attempt > this.peerRecordRecoveryRetryDelaysMs.length) return;
+    const propagation = this.peerRecordLifecycle.propagation;
+    if (propagation?.recordId !== record.recordId || !(propagation.targetNodeIds || []).includes(peer.nodeId)) return;
+    if (this.peerRecordRecoverySessionReady.has(peer.nodeId)) return;
+    const existing = this.peerRecordRecoverySessionTimers.get(peer.nodeId);
+    if (existing?.recordId === record.recordId) return;
+    if (existing?.timer) clearTimeout(existing.timer);
+    const delayMs = attempt === 0
+      ? this.#deterministicControlPlaneJitterMs(50)
+      : this.peerRecordRecoveryRetryDelaysMs[Math.min(attempt - 1, this.peerRecordRecoveryRetryDelaysMs.length - 1)];
+    const timer = setTimeout(() => {
+      this.peerRecordRecoverySessionTimers.delete(peer.nodeId);
+      if (!this.started || this.closing || this.localPeerRecord?.recordId !== record.recordId) return;
+      const current = this.peerRecordLifecycle.propagation;
+      if (current?.recordId !== record.recordId || !(current.targetNodeIds || []).includes(peer.nodeId)) return;
+      void this.rpc.ping(peer).then((pong) => {
+        if (!pong) {
+          const error = new Error(`recovery_session_ping_failed:${peer.nodeId}`);
+          error.code = 'TRUYN_RECOVERY_SESSION_PING_FAILED';
+          throw error;
+        }
+        const latest = this.peerRecordLifecycle.propagation;
+        if (!this.started || this.closing || this.localPeerRecord?.recordId !== record.recordId ||
+            latest?.recordId !== record.recordId || !(latest.targetNodeIds || []).includes(peer.nodeId)) return;
+        this.peerRecordRecoverySessionReady.add(peer.nodeId);
+        const replacementStartedAt = this.peerRecordReplacementStartedAt.get(peer.nodeId);
+        if (Number.isFinite(replacementStartedAt)) {
+          this.peerRecordLifecycle.diagnostics.quicReplacementMs = Math.max(
+            this.peerRecordLifecycle.diagnostics.quicReplacementMs,
+            Date.now() - replacementStartedAt
+          );
+          this.peerRecordReplacementStartedAt.delete(peer.nodeId);
+        }
+        this.#maybeCompleteRecoveryEpoch();
+      }).catch((error) => {
+        if (!this.started || this.closing || this.localPeerRecord?.recordId !== record.recordId) return;
+        const text = `${error?.code || ''} ${error?.message || error || ''}`.toLowerCase();
+        if (text.includes('timeout') || text.includes('timed out')) this.peerRecordLifecycle.diagnostics.rpcTimeouts += 1;
+        this.peerRecordLifecycle.lastError = {
+          at: new Date().toISOString(),
+          code: error?.code || null,
+          message: error?.message || String(error)
+        };
+        this.#scheduleRecoverySessionProbe(record, peer, attempt + 1);
+      });
+    }, delayMs);
+    this.peerRecordRecoverySessionTimers.set(peer.nodeId, { timer, attempt, recordId: record.recordId });
+    timer.unref?.();
+  }
+
+  #maybeCompleteRecoveryEpoch() {
+    const epoch = this.peerRecordLifecycle.recoveryEpoch;
+    const propagation = this.peerRecordLifecycle.propagation;
+    if (!epoch.active) return epoch.phase === 'ready';
+    if (!this.started || this.closing || !this.localPeerRecord || propagation?.recordId !== this.localPeerRecord.recordId) return false;
+    if (!['propagate', 'establish-sessions'].includes(epoch.phase) || propagation.ready !== true) return false;
+    const targets = new Set(propagation.targetNodeIds || []);
+    this.peerRecordRecoverySessionReady = new Set(
+      [...this.peerRecordRecoverySessionReady].filter((nodeId) => targets.has(nodeId))
+    );
+    if (targets.size === 0) return this.#markRecoveryEpochReady();
+    if (epoch.phase !== 'establish-sessions') {
+      this.#setRecoveryEpochPhase('establish-sessions');
+      this.peerRecordRecoverySessionStartedAt = Date.now();
+    }
+    for (const nodeId of targets) {
+      if (this.peerRecordRecoverySessionReady.has(nodeId)) continue;
+      const peer = this.discovery.get(nodeId);
+      if (peer) this.#scheduleRecoverySessionProbe(this.localPeerRecord, peer, 0);
+    }
+    return this.#markRecoveryEpochReady();
+  }
+'''
+replace_once(old, new, 'real direct-QUIC recovery session phase')
+
+replace_once(
+    "    await this.workInbox?.load();\n    const endpoint = await this.quic.start();\n",
+    "    await this.workInbox?.load();\n    const recoveryRoutingSize = this.discovery.routing.size();\n    const endpoint = await this.quic.start();\n",
+    'capture durable recovery routing state'
+)
+
+start_marker = "    this.#setRecoveryEpochPhase('routing-refresh');\n"
+end_marker = "    if (this.discoveryPeriodicRefresh) {\n"
+start = s.find(start_marker)
+end = s.find(end_marker, start)
+if start < 0 or end < 0:
+    raise SystemExit(f'async recovery block markers missing start={start} end={end}')
+background = '''    this.peerRecordRecoverySessionReady.clear();
+    this.#clearPeerRecordRecoverySessionTimers();
+    if (recoveryRoutingSize === 0) {
+      this.#setRecoveryEpochPhase('propagate');
+      this.#resetPeerRecordPropagation(this.localPeerRecord, []);
+      this.#maybeCompleteRecoveryEpoch();
+    } else {
+      const recoveryEpochId = epoch.id;
+      const recoveryRecordId = this.localPeerRecord.recordId;
+      this.peerRecordRecoveryTask = (async () => {
+        this.#setRecoveryEpochPhase('routing-refresh');
+        const refreshStartedAt = Date.now();
+        try {
+          await this.rpc.withDeadline(Date.now() + 1_500, () => this.discovery.refreshRoutingTable({
+            targetCount: Math.min(this.discoveryRefreshTargetCount, Math.max(1, this.alpha * 2)),
+            maxRounds: Math.min(2, this.discoveryRefreshMaxRounds),
+            seed: `truyn-recovery-${this.identity.nodeId}-${this.sequence}`
+          }));
+        } catch (error) {
+          if (!this.started || this.closing || this.localPeerRecord?.recordId !== recoveryRecordId ||
+              this.peerRecordLifecycle.recoveryEpoch.id !== recoveryEpochId) return;
+          this.peerRecordLifecycle.lastError = {
+            at: new Date().toISOString(),
+            code: error?.code || null,
+            message: error?.message || String(error)
+          };
+        }
+        if (!this.started || this.closing || this.localPeerRecord?.recordId !== recoveryRecordId ||
+            this.peerRecordLifecycle.recoveryEpoch.id !== recoveryEpochId) return;
+        this.peerRecordLifecycle.diagnostics.routingRefreshMs = Date.now() - refreshStartedAt;
+        this.#setRecoveryEpochPhase('placement');
+        const placementPeers = this.#peerRecordPropagationPeers(this.localPeerRecord);
+        this.#resetPeerRecordPropagation(this.localPeerRecord, placementPeers);
+        const startupJitterMs = this.#deterministicControlPlaneJitterMs();
+        this.peerRecordLifecycle.diagnostics.startupJitterMs = startupJitterMs;
+        if (startupJitterMs > 0) await new Promise((resolve) => setTimeout(resolve, startupJitterMs));
+        if (!this.started || this.closing || this.localPeerRecord?.recordId !== recoveryRecordId ||
+            this.peerRecordLifecycle.recoveryEpoch.id !== recoveryEpochId) return;
+        this.#setRecoveryEpochPhase('propagate');
+        await this.#publishCurrentPeerRecord(this.localPeerRecord);
+        this.#maybeCompleteRecoveryEpoch();
+      })().catch((error) => {
+        if (!this.started || this.closing || this.localPeerRecord?.recordId !== recoveryRecordId) return;
+        this.peerRecordLifecycle.lastError = {
+          at: new Date().toISOString(),
+          code: error?.code || null,
+          message: error?.message || String(error)
+        };
+      }).finally(() => {
+        this.peerRecordRecoveryTask = null;
+      });
+    }
+
+'''
+s = s[:start] + background + s[end:]
+
+replace_once(
+    "    this.#clearPeerRecordRecoveryRetryTimer();\n    if (this.peerRecordPropagationTimer) clearTimeout(this.peerRecordPropagationTimer);\n",
+    "    this.#clearPeerRecordRecoveryRetryTimer();\n    this.#clearPeerRecordRecoverySessionTimers();\n    this.peerRecordRecoverySessionReady.clear();\n    this.peerRecordRecoverySessionStartedAt = null;\n    this.peerRecordLifecycle.recoveryEpoch.active = false;\n    if (this.peerRecordPropagationTimer) clearTimeout(this.peerRecordPropagationTimer);\n",
+    'shutdown recovery session cleanup'
+)
+
+runtime_path.write_text(s)
+
+restart_test = Path('tests/peer-record-restart-propagation-readiness.test.js')
+t = restart_test.read_text()
+needle = "    };\n\n    const newRecord = await restarted.start();\n"
+if t.count(needle) != 1:
+    raise SystemExit(f'restart test fixture insertion expected one match, got {t.count(needle)}')
+t = t.replace(
+    needle,
+    "    };\n    restarted.rpc.ping = async () => true;\n\n    const startAt = Date.now();\n    const newRecord = await restarted.start();\n    assert.ok(Date.now() - startAt < 2_000, 'process startup must not block on network recovery epoch');\n",
+    1
+)
+restart_test.write_text(t)
+
+contract = Path('tests/d200-recovery-control-plane.test.js')
+c = contract.read_text()
+c += '''\n\ntest('restart recovery is asynchronous and verifies direct QUIC sessions before READY', async () => {\n  const runtime = await readFile(new URL('../network/runtime.js', import.meta.url), 'utf8');\n  assert.match(runtime, /this\\.peerRecordRecoveryTask = \\(async \\(\\) => \\{/);\n  assert.match(runtime, /this\\.rpc\\.withDeadline\\(Date\\.now\\(\\) \\+ 1_500/);\n  assert.match(runtime, /void this\\.rpc\\.ping\\(peer\\)/);\n  assert.match(runtime, /peerRecordRecoverySessionReady/);\n  assert.match(runtime, /\\['propagate', 'establish-sessions'\\]\\.includes\\(epoch\\.phase\\)/);\n  assert.match(runtime, /this\\.#markRecoveryEpochReady\\(\\)/);\n});\n'''
+contract.write_text(c)
