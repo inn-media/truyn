@@ -29,7 +29,7 @@ async function eventually(check, { timeoutMs = 10_000, intervalMs = 25, message 
   assert.fail(`${message}${last ? `:${JSON.stringify(last)}` : ''}`);
 }
 
-test('productionization: peer record renews before expiry, disseminates, and invalidates stale outbound clients', { timeout: 20_000 }, async () => {
+test('productionization: peer record renews before expiry, disseminates, and rebinds stale outbound clients', { timeout: 20_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'truyn-peer-renewal-'));
   const tls = await generateTls(root);
   const a = new TruynNetworkNode({ identity: createIdentity(), host: '127.0.0.1', tls, statePath: join(root, 'a-state.json'), peerRecordTtlMs: 60_000, peerRecordRenewBeforeMs: 58_000 });
@@ -49,7 +49,11 @@ test('productionization: peer record renews before expiry, disseminates, and inv
       return current?.sequence > recordA.sequence ? current : null;
     }, { message: 'renewed_record_not_disseminated' });
     assert.ok(Date.parse(renewedAtB.expiresAt) > originalExpiresAt, 'renewal must extend the signed lease');
-    await eventually(() => !b.router.connections.has(a.identity.nodeId) && !b.rpc.clients.has(a.identity.nodeId), { message: 'stale_clients_not_invalidated' });
+    const rebound = await b.need(a.identity.nodeId, 'renewal-proof', { value: 2 });
+    assert.equal(rebound.transport, 'quic-direct');
+    assert.ok(b.router.connections.get(a.identity.nodeId)?.binding.startsWith(`${renewedAtB.sequence}:`), 'application route must rebind to the renewed record before use');
+    assert.equal(await b.pingPeer(a.identity.nodeId), true);
+    assert.ok(b.rpc.clients.get(a.identity.nodeId)?.binding.startsWith(`${renewedAtB.sequence}:`), 'discovery RPC must rebind to the renewed record before use');
     const afterOriginalExpiry = b.discovery.get(a.identity.nodeId, { now: originalExpiresAt + 1 });
     assert.ok(afterOriginalExpiry, 'newer record must remain valid after the original lease expires');
     assert.ok(afterOriginalExpiry.sequence > recordA.sequence);
@@ -115,7 +119,7 @@ test('productionization: PING piggyback repairs a missed proactive renewal annou
   }
 });
 
-test('productionization: durable restart re-registers before first application traffic and invalidates stale clients', { timeout: 25_000 }, async () => {
+test('productionization: durable restart re-registers and rebinds stale clients before first application traffic', { timeout: 25_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'truyn-peer-restart-reregister-'));
   const tls = await generateTls(root);
   const identityA = createIdentity();
@@ -148,10 +152,6 @@ test('productionization: durable restart re-registers before first application t
       return current?.sequence === restartedRecord.sequence ? current : null;
     }, { message: 'restart_record_not_proactively_registered' });
     assert.equal(registered.recordId, restartedRecord.recordId);
-    await eventually(
-      () => !b.router.connections.has(identityA.nodeId) && !b.rpc.clients.has(identityA.nodeId),
-      { message: 'new_restart_record_did_not_invalidate_stale_clients' }
-    );
     const lifecycle = a.peerRecordLifecycleSnapshot();
     assert.ok(lifecycle.lastAnnouncement?.attempted >= 1, 'restart must attempt control-plane re-registration');
     assert.ok(lifecycle.lastAnnouncement?.delivered >= 1, 'restart must deliver its new signed record to a recovered peer');
@@ -160,7 +160,9 @@ test('productionization: durable restart re-registers before first application t
     const directAfter = await b.need(identityA.nodeId, 'restart-proof', { phase: 'after' });
     assert.equal(directAfter.transport, 'quic-direct', 'first application request after re-registration must establish a fresh QUIC session');
     assert.equal(directAfter.result.phase, 'after-restart');
+    assert.ok(b.router.connections.get(identityA.nodeId)?.binding.startsWith(`${restartedRecord.sequence}:`), 'first application request must replace the stale route binding');
     assert.equal(await b.pingPeer(identityA.nodeId), true, 'first discovery request after re-registration must use a fresh QUIC session');
+    assert.ok(b.rpc.clients.get(identityA.nodeId)?.binding.startsWith(`${restartedRecord.sequence}:`), 'first discovery request must replace the stale RPC binding');
   } finally {
     await Promise.allSettled([a.close(), b.close()]);
     await rm(root, { recursive: true, force: true });
@@ -220,6 +222,32 @@ test('productionization: durable restart retries only failed peer registrations 
     await node.close();
     await sleep(1_200);
     assert.equal(cancelledAttempts, 2, 'close must cancel the pending control-plane retry');
+  } finally {
+    await node.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('productionization: concurrent durability barriers coalesce into one fsync batch', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'truyn-persist-coalesce-'));
+  const tls = await generateTls(root);
+  const node = new TruynNetworkNode({ identity: createIdentity(), host: '127.0.0.1', tls, statePath: join(root, 'state.json'), peerRecordAutoRenew: false });
+  try {
+    await node.start();
+    const originalSave = node.stateStore.save.bind(node.stateStore);
+    let saves = 0;
+    let releaseSave;
+    const gate = new Promise((resolve) => { releaseSave = resolve; });
+    node.stateStore.save = async (state) => {
+      saves += 1;
+      await gate;
+      return originalSave(state);
+    };
+
+    const barriers = Array.from({ length: 200 }, () => node.persistState());
+    releaseSave();
+    await Promise.all(barriers);
+    assert.equal(saves, 1, 'concurrent durable ACK barriers must share one snapshot/fsync batch');
   } finally {
     await node.close();
     await rm(root, { recursive: true, force: true });
