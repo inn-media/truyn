@@ -25,7 +25,7 @@ function expiryMs(record) {
   return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
 }
 
-export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 300_000, capabilities = [], nat = null, issuedAt = new Date().toISOString() } = {}) {
+export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 300_000, capabilities = [], nat = null, instanceId = null, issuedAt = new Date().toISOString() } = {}) {
   assertIdentity(identity);
   const normalizedEndpoints = [...new Set((endpoints || []).filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()))].sort();
   if (normalizedEndpoints.length === 0) throw new Error('at least one peer endpoint is required');
@@ -36,6 +36,7 @@ export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 30
     endpoints: normalizedEndpoints,
     capabilities: [...new Set(capabilities.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim()))].sort(),
     nat,
+    ...(typeof instanceId === 'string' && instanceId ? { instanceId } : {}),
     sequence,
     issuedAt,
     expiresAt: new Date(Date.parse(issuedAt) + ttlMs).toISOString()
@@ -63,6 +64,11 @@ export function verifyPeerRecord(record, { now = Date.now(), allowExpired = fals
     return { ok: false, reason: error.message };
   }
 }
+
+// Every record in PeerDiscovery.records crosses verifyPeerRecord() before insertion.
+// Read paths therefore only need to re-check lease freshness instead of repeatedly
+// performing signature verification for every snapshot/persistence barrier.
+const leaseLive = (record, now) => expiryMs(record) > now;
 
 export class PeerDiscovery {
   constructor({ identity, k = 20, alpha = 3, rpc = null, onChange = null, onRecordAccepted = null } = {}) {
@@ -102,8 +108,8 @@ export class PeerDiscovery {
     const changed = !existing || existing.recordId !== record.recordId;
     this.records.set(record.nodeId, structuredClone(record));
     this.routing.upsert({ nodeId: record.nodeId, endpoints: record.endpoints, publicKey: record.publicKey, lastSeenAt: new Date().toISOString() });
-    if (notify) {
-      if (changed) this.onRecordAccepted?.({
+    if (notify && changed) {
+      this.onRecordAccepted?.({
         nodeId: record.nodeId,
         previous: existing ? structuredClone(existing) : null,
         record: structuredClone(record)
@@ -115,14 +121,14 @@ export class PeerDiscovery {
 
   get(nodeId, { now = Date.now() } = {}) {
     const record = this.records.get(nodeId);
-    return record && verifyPeerRecord(record, { now }).ok ? structuredClone(record) : null;
+    return record && leaseLive(record, now) ? structuredClone(record) : null;
   }
 
   bootstrap(records, options = {}) { return (records || []).map((record) => this.ingest(record, options)); }
   closest(targetNodeId, count = this.k) { return this.routing.closest(targetNodeId, count); }
 
   snapshot({ now = Date.now() } = {}) {
-    return [...this.records.values()].filter((record) => verifyPeerRecord(record, { now }).ok).map((record) => structuredClone(record));
+    return [...this.records.values()].filter((record) => leaseLive(record, now)).map((record) => structuredClone(record));
   }
 
   leaseSnapshot({ now = Date.now() } = {}) {
@@ -135,9 +141,8 @@ export class PeerDiscovery {
     let nearestExpiry = Number.POSITIVE_INFINITY;
 
     for (const record of records) {
-      const valid = verifyPeerRecord(record, { now });
-      if (valid.ok) validPeerRecords += 1;
-      else if (valid.reason === 'peer_record_expired' && verifyPeerRecord(record, { now, allowExpired: true }).ok) expiredPeerRecords += 1;
+      if (leaseLive(record, now)) validPeerRecords += 1;
+      else expiredPeerRecords += 1;
 
       const issued = Date.parse(record.issuedAt);
       if (Number.isFinite(issued) && issued < oldestIssuedMs) {
@@ -163,9 +168,7 @@ export class PeerDiscovery {
 
   routingSnapshot({ now = Date.now() } = {}) {
     const routing = this.routing.routingSnapshot();
-    const validPeers = [...this.records.values()]
-      .filter((record) => verifyPeerRecord(record, { now }).ok)
-      .length;
+    const validPeers = [...this.records.values()].filter((record) => leaseLive(record, now)).length;
 
     return {
       ...routing,
@@ -176,13 +179,10 @@ export class PeerDiscovery {
   }
 
   durableSnapshot() {
-    // Persistence needs enough cryptographically authenticated endpoint history to
-    // recover after a lease expires while this node is offline. Expired records are
-    // retained only in durable state; live get()/snapshot() remain fail-closed and
-    // iterative recovery must obtain a fresh signed record before authority returns.
-    return [...this.records.values()]
-      .filter((record) => verifyPeerRecord(record, { allowExpired: true }).ok)
-      .map((record) => structuredClone(record));
+    // Records are signature/identity/record-id verified at insertion. Expired records
+    // are intentionally retained here only as durable non-authoritative routing hints;
+    // live get()/snapshot() continue to fail closed on lease expiry.
+    return [...this.records.values()].map((record) => structuredClone(record));
   }
 
   restore(records = [], options = {}) {
@@ -218,7 +218,7 @@ export class PeerDiscovery {
   sweep({ now = Date.now(), notify = true } = {}) {
     let removed = 0;
     for (const [nodeId, record] of this.records) {
-      if (!verifyPeerRecord(record, { now }).ok) {
+      if (!leaseLive(record, now)) {
         this.records.delete(nodeId);
         this.routing.remove(nodeId);
         this.rpc?.forget?.(nodeId);
