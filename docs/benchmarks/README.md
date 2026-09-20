@@ -59,6 +59,13 @@ The repository regression suite treats the evidence files below as protected and
 - [`T_HEAD_TO_HEAD_METHODOLOGY.md`](T_HEAD_TO_HEAD_METHODOLOGY.md) — paired good-faith comparison of TRUYN vs NAIVE / MCP / A2A / NLWeb plus the separate NLWeb-over-TRUYN bridge arm.
 - [`T_PREDICT_METHODOLOGY.md`](T_PREDICT_METHODOLOGY.md) — p50/p90/p95/p99 cost/latency predictability, hard guardrails and controlled-stress methodology.
 - [`T_SERIES_TELEMETRY.md`](T_SERIES_TELEMETRY.md) — normalized raw telemetry/evidence schema and reproducible metric formulas shared by all T-series tests.
+- [`H_SERIES_HIDDEN_BENCHMARKS.md`](H_SERIES_HIDDEN_BENCHMARKS.md) — canonical H-series open/private boundary, paired controls, hidden-benchmark precommitment, evidence bundle and safety precedence; **foundation only, not a benchmark result**.
+- [`H_CACHE_COMPOUND_METHODOLOGY.md`](H_CACHE_COMPOUND_METHODOLOGY.md) — cross-node CID/context/result reuse compounding with 50/100/200-node cells, controlled Zipf overlap, reuse-disabled control and explicit same-node vs cross-node attribution.
+- [`H_SECOND_OPINION_METHODOLOGY.md`](H_SECOND_OPINION_METHODOLOGY.md) — hidden gold holdout, seven single-vendor baselines, majority/trust-weighted/verify-dispute policies, disagreement accuracy, error diversity, accuracy lift and accuracy-per-dollar.
+- [`H_ARBITRAGE_METHODOLOGY.md`](H_ARBITRAGE_METHODOLOGY.md) — STATIC/TRUYN/ORACLE cost-aware routing proof with scripted causal shocks separated from live-price observation, captured-arbitrage/regret/reaction/oscillation metrics and quality guardrails.
+- [`H_CHAOS_FUZZ_METHODOLOGY.md`](H_CHAOS_FUZZ_METHODOLOGY.md) — seeded property-based adversarial campaign, fault-class coverage matrix, severity, deterministic reproduction/minimization and zero-critical-safety-violation closure contract.
+- [`H_SERIES_TELEMETRY.md`](H_SERIES_TELEMETRY.md) — normalized H request/reuse/provider-answer/adjudication/routing/price/fault/invariant/recovery/interference events and recomputable metric formulas.
+- [`BENCHMARK_SERIES_ISOLATION.md`](BENCHMARK_SERIES_ISOLATION.md) — normative D/S/T/H concurrency and R0/R1/R2 shared-resource isolation contract.
 
 ## Reproducibility note
 
