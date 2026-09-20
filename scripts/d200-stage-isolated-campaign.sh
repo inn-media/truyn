@@ -12,6 +12,9 @@
 
 D200_CAMPAIGN_SOURCE="${D200_CAMPAIGN_SOURCE:-benchmarks/scale/class-d-azure-1000-campaign.sh}"
 D200_RESTART_STAGE_SOURCE="${D200_RESTART_STAGE_SOURCE:-benchmarks/scale/d200-restart-recovery-stage.sh}"
+D200_POST_RESTART_STAGE_SOURCE="${D200_POST_RESTART_STAGE_SOURCE:-benchmarks/scale/d200-post-restart-routing-stage.sh}"
+D200_RETENTION_STAGE_SOURCE="${D200_RETENTION_STAGE_SOURCE:-benchmarks/scale/d200-write-retention-stage.sh}"
+D200_RESOURCES_STAGE_SOURCE="${D200_RESOURCES_STAGE_SOURCE:-benchmarks/scale/d200-resources-stage.sh}"
 D200_STAGE_RESULTS_JSON="${GITHUB_WORKSPACE:-$PWD}/class-d-200-stage-results.json"
 D200_STAGE_RESULTS_JSONL="${GITHUB_WORKSPACE:-$PWD}/class-d-200-stage-results.jsonl"
 D200_STAGE_TMP="$(mktemp -d)"
@@ -27,6 +30,13 @@ d200_first_failure_stage=''
 d200_first_failure_rc=0
 d200_first_failure_line=0
 
+# Cross-stage diagnostic defaults must be defined even when a prior stage fails
+# before producing its canonical scalar. Zero is fail-closed and serializes as
+# evidence; it never converts a RED stage into PASS.
+post_success=0
+post_total=0
+post_rate=0
+
 # Scalars needed by later stages and by the canonical evidence writer. A stage
 # subshell dumps every variable it managed to compute, even when that stage is
 # RED, so later independent stages can still run and partial evidence survives.
@@ -41,7 +51,7 @@ D200_STATE_VARS=(
   post_success post_total post_rate
   partition_successes partition_probes heal_code partition_recovery_ms
   healed_success healed_total healed_p50 healed_p90 healed_p95 healed_p99 healed_rate
-  d200_retention_required_margin_ms d200_retention_start_ms d200_retention_age_start_ms d200_retention_end_ms d200_retention_age_end_ms retained ack_loss
+  d200_retention_required_margin_ms d200_retention_start_ms d200_retention_age_start_ms d200_retention_end_ms d200_retention_age_end_ms retained ack_loss retention_confirmed_missing retention_read_errors
   rss_kb quic_bytes process_total END_MS
 )
 
@@ -198,11 +208,16 @@ else
       stage="${row%%$'\t'*}"
       stage_file="${row#*$'\t'}"
 
-      # The restart override is semantically identical acceptance-wise but always
-      # emits per-host diagnostics before returning RED. Other stages remain the
-      # canonical campaign source split at STAGE= boundaries.
+      # Overrides are acceptance-equivalent but diagnostic-complete: they collect
+      # all hosts before returning RED and preserve every canonical threshold.
       if [[ "$stage" == restart-recovery && -f "$D200_RESTART_STAGE_SOURCE" ]]; then
         stage_file="$D200_RESTART_STAGE_SOURCE"
+      elif [[ "$stage" == post-restart-routing && -f "$D200_POST_RESTART_STAGE_SOURCE" ]]; then
+        stage_file="$D200_POST_RESTART_STAGE_SOURCE"
+      elif [[ "$stage" == write-retention && -f "$D200_RETENTION_STAGE_SOURCE" ]]; then
+        stage_file="$D200_RETENTION_STAGE_SOURCE"
+      elif [[ "$stage" == resources && -f "$D200_RESOURCES_STAGE_SOURCE" ]]; then
+        stage_file="$D200_RESOURCES_STAGE_SOURCE"
       fi
 
       # Write-retention is meaningful only when the durable-write stage completed

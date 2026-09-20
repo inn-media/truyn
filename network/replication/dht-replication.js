@@ -81,7 +81,9 @@ export class DhtReplicationManager {
           if (outcome.value?.stored) { acknowledgements += 1; storedAt.push(peer.nodeId); }
           return;
         }
-        this.rpc.forget?.(peer.nodeId);
+        // A single failed control stream must not destroy a peer-scoped shared QUIC
+        // client used by sibling replication operations. QuicDiscoveryRpc owns exact
+        // client retirement and generation invalidation.
         failures.push({ nodeId: peer.nodeId, reason: outcome.reason?.message || 'dht_store_failed' });
       });
     }
@@ -107,7 +109,8 @@ export class DhtReplicationManager {
       try {
         return { peer, response: await this.rpc.findValue(peer, namespace, key), error: null };
       } catch (error) {
-        this.rpc.forget?.(peer.nodeId);
+        // QuicDiscoveryRpc owns exact client retirement. Do not globally forget a
+        // peer because one concurrent read stream failed.
         return { peer, response: null, error };
       }
     }));

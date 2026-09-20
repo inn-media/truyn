@@ -6,6 +6,7 @@ const DEFAULT_ROUTE_ATTEMPT_TIMEOUT_MS = 12_500;
 const DEFAULT_DIRECT_CONNECT_TIMEOUT_MS = 5_000;
 const DEFAULT_DIRECT_CONNECT_ATTEMPTS = 3;
 const DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS = 20_000;
+const DEFAULT_SUPERSEDED_RETRIES = 2;
 
 function parseQuicEndpoint(value) {
   if (typeof value !== 'string' || !value.startsWith('quic://')) return null;
@@ -64,7 +65,8 @@ export class DirectFirstP2P {
     routeAttemptTimeoutMs = DEFAULT_ROUTE_ATTEMPT_TIMEOUT_MS,
     directConnectTimeoutMs = DEFAULT_DIRECT_CONNECT_TIMEOUT_MS,
     directConnectAttempts = DEFAULT_DIRECT_CONNECT_ATTEMPTS,
-    directConnectionReuseIdleMs = DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS
+    directConnectionReuseIdleMs = DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS,
+    supersededRetries = DEFAULT_SUPERSEDED_RETRIES
   } = {}) {
     if (!quicTransport) throw new Error('quicTransport is required');
     if (!discovery) throw new Error('peer discovery is required');
@@ -89,6 +91,9 @@ export class DirectFirstP2P {
     if (!Number.isInteger(directConnectionReuseIdleMs) || directConnectionReuseIdleMs < 10 || directConnectionReuseIdleMs > 120_000) {
       throw new Error('directConnectionReuseIdleMs must be between 10 and 120000');
     }
+    if (!Number.isInteger(supersededRetries) || supersededRetries < 0 || supersededRetries > 4) {
+      throw new Error('supersededRetries must be between 0 and 4');
+    }
     this.quic = quicTransport;
     this.discovery = discovery;
     this.relayFallback = relayFallback;
@@ -98,6 +103,7 @@ export class DirectFirstP2P {
     this.directConnectTimeoutMs = directConnectTimeoutMs;
     this.directConnectAttempts = directConnectAttempts;
     this.directConnectionReuseIdleMs = directConnectionReuseIdleMs;
+    this.supersededRetries = supersededRetries;
     this.connections = new Map();
     this.connectingByNodeId = new Map();
     this.discoveryRecoveries = new Map();
@@ -151,6 +157,19 @@ export class DirectFirstP2P {
     await this.#disconnectClient(existing?.client);
   }
 
+  async #discardBinding(peerNodeId, binding) {
+    if (!binding) return;
+    const pending = this.connectingByNodeId.get(peerNodeId);
+    if (pending?.binding === binding) {
+      pending.discarded = true;
+      this.connectingByNodeId.delete(peerNodeId);
+    }
+    const existing = this.connections.get(peerNodeId);
+    if (existing?.binding !== binding) return;
+    this.connections.delete(peerNodeId);
+    await this.#disconnectClient(existing.client);
+  }
+
   async #boundedConnect(peerNodeId, endpoint, deadlineAt) {
     const timeoutMs = Math.min(this.directConnectTimeoutMs, this.#remainingMs(deadlineAt));
     if (timeoutMs <= 0) throw routeDeadlineError(peerNodeId, 'direct-connect');
@@ -191,6 +210,12 @@ export class DirectFirstP2P {
     if (!client) throw lastError || new Error('peer_connection_failed');
     if (state.discarded || this.connectingByNodeId.get(peerRecord.nodeId) !== state) {
       await this.#disconnectClient(client);
+      const replacement = this.connectingByNodeId.get(peerRecord.nodeId);
+      if (replacement && !replacement.discarded) {
+        return this.#boundedPhase(peerRecord.nodeId, deadlineAt, 'direct-connect-superseded', () => replacement.promise);
+      }
+      const existing = this.connections.get(peerRecord.nodeId);
+      if (existing) return existing.client;
       const error = new Error(`p2p_connection_superseded:${peerRecord.nodeId}`);
       error.code = 'TRUYN_P2P_CONNECTION_SUPERSEDED';
       throw error;
@@ -211,7 +236,7 @@ export class DirectFirstP2P {
         existing.lastUsedAt = Date.now();
         return existing.client;
       }
-      await this.#discardConnection(peerRecord.nodeId);
+      await this.#discardBinding(peerRecord.nodeId, binding);
     } else if (existing) {
       await this.#discardConnection(peerRecord.nodeId);
     }
@@ -332,8 +357,11 @@ export class DirectFirstP2P {
       const routeDeadlineAt = Date.now() + this.routeAttemptTimeoutMs;
       let applicationDispatched = false;
       let directError = null;
-      const record = await this.#discover(peerNodeId, routeDeadlineAt);
-      if (record) {
+      let record = await this.#discover(peerNodeId, routeDeadlineAt);
+      let supersededAttempt = 0;
+      while (record) {
+        const selected = selectedQuicEndpoint(record);
+        const attemptedBinding = selected ? peerRecordBinding(record, selected.value) : null;
         try {
           this.faults?.assertPeer(peerNodeId, 'direct');
           const client = await this.#directClient(record, routeDeadlineAt);
@@ -347,11 +375,21 @@ export class DirectFirstP2P {
           return { transport: 'quic-direct', result };
         } catch (error) {
           directError = error;
-          await this.#discardConnection(peerNodeId);
+          await this.#discardBinding(peerNodeId, attemptedBinding);
+          if (
+            !applicationDispatched &&
+            error?.code === 'TRUYN_P2P_CONNECTION_SUPERSEDED' &&
+            supersededAttempt < this.supersededRetries &&
+            this.#remainingMs(routeDeadlineAt) > 0
+          ) {
+            supersededAttempt += 1;
+            record = this.discovery.get(peerNodeId) || await this.#discover(peerNodeId, routeDeadlineAt);
+            continue;
+          }
+          break;
         }
-      } else {
-        directError = new Error('peer_not_discovered');
       }
+      if (!record && !directError) directError = new Error('peer_not_discovered');
 
       // Once the application envelope has entered a transport, delivery may be
       // ambiguous. Never issue a second application dispatch through relay fallback.

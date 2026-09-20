@@ -18,6 +18,9 @@ cd '${repo}'
 export GITHUB_WORKSPACE='${root}'
 export D200_CAMPAIGN_SOURCE='${campaign}'
 export D200_RESTART_STAGE_SOURCE='${root}/no-restart-override.sh'
+export D200_POST_RESTART_STAGE_SOURCE='${root}/no-post-restart-override.sh'
+export D200_RETENTION_STAGE_SOURCE='${root}/no-retention-override.sh'
+export D200_RESOURCES_STAGE_SOURCE='${root}/no-resources-override.sh'
 HOST_COUNT=1
 NODES_PER_HOST=1
 NODE_COUNT=1

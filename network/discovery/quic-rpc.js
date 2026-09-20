@@ -8,6 +8,8 @@ export const QUIC_DISCOVERY_METHOD_ANNOUNCE = 'peer.announce';
 export const QUIC_DHT_METHOD_STORE = 'dht.store';
 export const QUIC_DHT_METHOD_FIND_VALUE = 'dht.find-value';
 
+const DEFAULT_SUPERSEDED_RETRIES = 2;
+
 function parseEndpoint(value) {
   if (typeof value !== 'string' || !value.startsWith('quic://')) return null;
   try {
@@ -32,21 +34,34 @@ function peerBinding(peer, endpointValue) {
   return `${epoch}:${endpointValue}`;
 }
 
+function peerSequence(peer) {
+  return Number.isInteger(peer?.sequence) ? peer.sequence : -1;
+}
+
+function sameOrNewerGeneration(candidate, reference) {
+  return candidate?.nodeId === reference?.nodeId && peerSequence(candidate) >= peerSequence(reference);
+}
+
 function resolveLocalPeerRecord(localPeerRecord) {
   const record = typeof localPeerRecord === 'function' ? localPeerRecord() : localPeerRecord;
   return verifyPeerRecord(record).ok ? structuredClone(record) : null;
 }
 
 export class QuicDiscoveryRpc {
-  constructor({ quicTransport, timeoutMs = 5_000, faults = null, ingestPeerRecord = null } = {}) {
+  constructor({ quicTransport, timeoutMs = 5_000, faults = null, ingestPeerRecord = null, supersededRetries = DEFAULT_SUPERSEDED_RETRIES } = {}) {
     if (!quicTransport) throw new Error('quicTransport is required');
     if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) throw new Error('DHT RPC timeoutMs must be between 100 and 120000');
+    if (!Number.isInteger(supersededRetries) || supersededRetries < 0 || supersededRetries > 4) throw new Error('supersededRetries must be between 0 and 4');
     this.quic = quicTransport;
     this.timeoutMs = timeoutMs;
     this.faults = faults;
     this.ingestPeerRecord = typeof ingestPeerRecord === 'function' ? ingestPeerRecord : null;
+    this.supersededRetries = supersededRetries;
     this.clients = new Map();
     this.connectingByNodeId = new Map();
+    this.clientUsers = new WeakMap();
+    this.retiredClients = new WeakSet();
+    this.disconnectingClients = new WeakSet();
     this.deadlineContext = new AsyncLocalStorage();
   }
 
@@ -76,7 +91,8 @@ export class QuicDiscoveryRpc {
   }
 
   async #disconnect(client) {
-    if (!client) return;
+    if (!client || this.disconnectingClients.has(client)) return;
+    this.disconnectingClients.add(client);
     if (typeof this.quic.disconnect === 'function') {
       try { await this.quic.disconnect(client); } catch {}
       return;
@@ -86,12 +102,44 @@ export class QuicDiscoveryRpc {
     }
   }
 
-  #forgetClient(nodeId, client) {
+  #acquireClient(client) {
+    if (!client || (typeof client !== 'object' && typeof client !== 'function')) return client;
+    this.clientUsers.set(client, (this.clientUsers.get(client) || 0) + 1);
+    return client;
+  }
+
+  #releaseClient(client) {
+    if (!client || (typeof client !== 'object' && typeof client !== 'function')) return;
+    const remaining = Math.max(0, (this.clientUsers.get(client) || 1) - 1);
+    if (remaining === 0) {
+      this.clientUsers.delete(client);
+      if (this.retiredClients.has(client)) void this.#disconnect(client);
+      return;
+    }
+    this.clientUsers.set(client, remaining);
+  }
+
+  #retireClient(nodeId, client) {
     if (!client) return;
     const existing = this.clients.get(nodeId);
-    if (existing?.client !== client) return;
+    if (existing?.client === client) this.clients.delete(nodeId);
+    this.retiredClients.add(client);
+    if ((this.clientUsers.get(client) || 0) === 0) void this.#disconnect(client);
+  }
+
+  #forgetBinding(nodeId, binding) {
+    const pending = this.connectingByNodeId.get(nodeId);
+    if (pending?.binding === binding) {
+      pending.discarded = true;
+      this.connectingByNodeId.delete(nodeId);
+    }
+    const existing = this.clients.get(nodeId);
+    if (existing?.binding !== binding) return;
     this.clients.delete(nodeId);
-    void this.#disconnect(client);
+    // A peer generation/end-point change is an explicit topology invalidation.
+    // Unlike a single failed control stream, stale-generation teardown is
+    // deliberately immediate so no stale session survives the rebinding event.
+    void this.#disconnect(existing.client);
   }
 
   async client(peer) {
@@ -100,25 +148,35 @@ export class QuicDiscoveryRpc {
     const binding = peerBinding(peer, selected.value);
     const existing = this.clients.get(peer.nodeId);
     if (existing?.binding === binding) return existing.client;
-    if (existing) this.forget(peer.nodeId);
+    if (existing) {
+      if (sameOrNewerGeneration(existing.peer, peer)) return existing.client;
+      this.#forgetBinding(peer.nodeId, existing.binding);
+    }
 
     const currentPending = this.connectingByNodeId.get(peer.nodeId);
     if (currentPending?.binding === binding && !currentPending.discarded) return currentPending.promise;
+    if (currentPending && !currentPending.discarded && sameOrNewerGeneration(currentPending.peer, peer)) {
+      return currentPending.promise;
+    }
     if (currentPending) {
       currentPending.discarded = true;
       this.connectingByNodeId.delete(peer.nodeId);
     }
 
-    const state = { binding, promise: null, discarded: false };
+    const state = { binding, peer: structuredClone(peer), promise: null, discarded: false };
     state.promise = (async () => {
       const client = await this.quic.connect(selected.endpoint);
       if (state.discarded || this.connectingByNodeId.get(peer.nodeId) !== state) {
         await this.#disconnect(client);
+        const replacement = this.connectingByNodeId.get(peer.nodeId);
+        if (replacement && !replacement.discarded && sameOrNewerGeneration(replacement.peer, peer)) return replacement.promise;
+        const replacementClient = this.clients.get(peer.nodeId);
+        if (replacementClient && sameOrNewerGeneration(replacementClient.peer, peer)) return replacementClient.client;
         const error = new Error(`discovery_connection_superseded:${peer.nodeId}`);
         error.code = 'TRUYN_DISCOVERY_CONNECTION_SUPERSEDED';
         throw error;
       }
-      this.clients.set(peer.nodeId, { client, binding });
+      this.clients.set(peer.nodeId, { client, binding, peer: structuredClone(peer) });
       this.#watchClient(peer.nodeId, client);
       return client;
     })();
@@ -138,35 +196,61 @@ export class QuicDiscoveryRpc {
       if (state) state.cancelledError = error;
       throw error;
     }
-    let timer = null;
-    try {
-      this.faults?.assertPeer(peer.nodeId, 'dht-rpc');
-      return await Promise.race([
-        operation(),
-        new Promise((_, reject) => {
-          timer = setTimeout(() => {
-            const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peer.nodeId}`);
-            error.code = 'TRUYN_DHT_RPC_TIMEOUT';
-            if (state) state.cancelledError = error;
-            reject(error);
-          }, effectiveTimeoutMs);
-        })
-      ]);
-    } catch (error) {
-      if (state) this.#forgetClient(peer.nodeId, state.client);
-      else this.forget(peer.nodeId);
-      throw error;
-    } finally {
-      if (timer) clearTimeout(timer);
+    const deadlineAt = Date.now() + effectiveTimeoutMs;
+    let supersededAttempt = 0;
+    while (true) {
+      let timer = null;
+      if (state) { state.client = null; state.clientLeased = false; state.cancelledError = null; }
+      try {
+        this.faults?.assertPeer(peer.nodeId, 'dht-rpc');
+        const remaining = deadlineAt - Date.now();
+        if (remaining <= 0) {
+          const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peer.nodeId}`);
+          error.code = 'TRUYN_DHT_RPC_TIMEOUT';
+          if (state) state.cancelledError = error;
+          throw error;
+        }
+        return await Promise.race([
+          operation(),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => {
+              const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peer.nodeId}`);
+              error.code = 'TRUYN_DHT_RPC_TIMEOUT';
+              if (state) state.cancelledError = error;
+              reject(error);
+            }, remaining);
+          })
+        ]);
+      } catch (error) {
+        if (state?.client) this.#retireClient(peer.nodeId, state.client);
+        if (error?.code === 'TRUYN_DISCOVERY_CONNECTION_SUPERSEDED' && supersededAttempt < this.supersededRetries && Date.now() < deadlineAt) {
+          supersededAttempt += 1;
+          continue;
+        }
+        throw error;
+      } finally {
+        if (timer) clearTimeout(timer);
+        if (state?.clientLeased && state.client) {
+          this.#releaseClient(state.client);
+          state.clientLeased = false;
+        }
+      }
     }
   }
 
+  async #leasedClient(peer, state) {
+    const client = await this.client(peer);
+    this.#acquireClient(client);
+    state.client = client;
+    state.clientLeased = true;
+    if (state.cancelledError) throw state.cancelledError;
+    return client;
+  }
+
   async ping(peer, options = {}) {
-    const state = { client: null, cancelledError: null };
+    const state = { client: null, clientLeased: false, cancelledError: null };
     return this.bounded(peer, async () => {
-      const client = await this.client(peer);
-      state.client = client;
-      if (state.cancelledError) throw state.cancelledError;
+      const client = await this.#leasedClient(peer, state);
       const result = await this.quic.requestControl(client, QUIC_DHT_METHOD_PING, null);
       if (verifyPeerRecord(result?.peerRecord).ok && this.ingestPeerRecord) {
         const record = structuredClone(result.peerRecord);
@@ -179,11 +263,9 @@ export class QuicDiscoveryRpc {
   }
 
   async findNode(peer, targetNodeId, options = {}) {
-    const state = { client: null, cancelledError: null };
+    const state = { client: null, clientLeased: false, cancelledError: null };
     return this.bounded(peer, async () => {
-      const client = await this.client(peer);
-      state.client = client;
-      if (state.cancelledError) throw state.cancelledError;
+      const client = await this.#leasedClient(peer, state);
       const result = await this.quic.requestControl(client, QUIC_DISCOVERY_METHOD_FIND_NODE, { targetNodeId });
       const records = [];
       for (const record of result?.records || []) {
@@ -196,11 +278,9 @@ export class QuicDiscoveryRpc {
   async announce(peer, record, options = {}) {
     const verification = verifyPeerRecord(record);
     if (!verification.ok) throw new Error(`invalid_peer_record:${verification.reason}`);
-    const state = { client: null, cancelledError: null };
+    const state = { client: null, clientLeased: false, cancelledError: null };
     return this.bounded(peer, async () => {
-      const client = await this.client(peer);
-      state.client = client;
-      if (state.cancelledError) throw state.cancelledError;
+      const client = await this.#leasedClient(peer, state);
       return this.quic.requestControl(client, QUIC_DISCOVERY_METHOD_ANNOUNCE, { record });
     }, { ...options, state });
   }
@@ -208,21 +288,17 @@ export class QuicDiscoveryRpc {
   async store(peer, record, options = {}) {
     const verification = verifyDhtRecord(record);
     if (!verification.ok) throw new Error(`invalid DHT record: ${verification.reason}`);
-    const state = { client: null, cancelledError: null };
+    const state = { client: null, clientLeased: false, cancelledError: null };
     return this.bounded(peer, async () => {
-      const client = await this.client(peer);
-      state.client = client;
-      if (state.cancelledError) throw state.cancelledError;
+      const client = await this.#leasedClient(peer, state);
       return this.quic.requestControl(client, QUIC_DHT_METHOD_STORE, { record });
     }, { ...options, state });
   }
 
   async findValue(peer, namespace, key, options = {}) {
-    const state = { client: null, cancelledError: null };
+    const state = { client: null, clientLeased: false, cancelledError: null };
     return this.bounded(peer, async () => {
-      const client = await this.client(peer);
-      state.client = client;
-      if (state.cancelledError) throw state.cancelledError;
+      const client = await this.#leasedClient(peer, state);
       const result = await this.quic.requestControl(client, QUIC_DHT_METHOD_FIND_VALUE, { namespace, key });
       const records = [];
       for (const record of result?.records || []) {
@@ -242,6 +318,8 @@ export class QuicDiscoveryRpc {
     this.clients.delete(nodeId);
     const client = existing?.client || existing;
     if (!client) return;
+    // Explicit forget is used for generation changes and fault/partition control;
+    // it must remain destructive rather than waiting for sibling stream leases.
     void this.#disconnect(client);
   }
 }
