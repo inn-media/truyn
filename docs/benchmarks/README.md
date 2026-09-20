@@ -65,7 +65,9 @@ The repository regression suite treats the evidence files below as protected and
 - [`H_ARBITRAGE_METHODOLOGY.md`](H_ARBITRAGE_METHODOLOGY.md) — STATIC/TRUYN/ORACLE cost-aware routing proof with scripted causal shocks separated from live-price observation, captured-arbitrage/regret/reaction/oscillation metrics and quality guardrails.
 - [`H_CHAOS_FUZZ_METHODOLOGY.md`](H_CHAOS_FUZZ_METHODOLOGY.md) — seeded property-based adversarial campaign, fault-class coverage matrix, severity, deterministic reproduction/minimization and zero-critical-safety-violation closure contract.
 - [`H_SERIES_TELEMETRY.md`](H_SERIES_TELEMETRY.md) — normalized H request/reuse/provider-answer/adjudication/routing/price/fault/invariant/recovery/interference events and recomputable metric formulas.
-- [`BENCHMARK_SERIES_ISOLATION.md`](BENCHMARK_SERIES_ISOLATION.md) — normative D/S/T/H concurrency and R0/R1/R2 shared-resource isolation contract.
+- [`N_SERIES_EMERGENT_BEHAVIOR_CONTRACT.md`](N_SERIES_EMERGENT_BEHAVIOR_CONTRACT.md) — canonical N-Series methodology for sovereignty, capability marketplace, adaptive trust decay and sustained churn; **foundation only, not a benchmark result**.
+- [`N_SERIES_TELEMETRY.md`](N_SERIES_TELEMETRY.md) — normalized N event vocabulary, safe public/private evidence mapping and recomputable specialist/policy/churn/trust formulas.
+- [`BENCHMARK_SERIES_ISOLATION.md`](BENCHMARK_SERIES_ISOLATION.md) — normative D/S/T/H/N/future concurrency and R0/R1/R2 shared-resource isolation contract.
 
 ## Reproducibility note
 
