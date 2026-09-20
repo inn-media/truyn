@@ -16,6 +16,9 @@ This document distinguishes accepted facts from open PRs, diagnostics, planned w
 | QUIC / authenticated sessions / Kademlia | **Implemented / CI-proven** | broader production/WAN evidence |
 | Class C WAN | **ACCEPTED / PASS** | — |
 | Class D-100 | **ACCEPTED / PASS** | — |
+| Class D-200 | **ACCEPTED / PASS** — run `35503894414`, attempt 1 | D-500 / D-1000 remain separate gates |
+| Class D-500 | **OPEN** | real accepted D-500 evidence |
+| Class D-1000 | **OPEN** | real accepted D-1000 evidence |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
 | Claim-centric + active Trustability | **Implemented bounded slices** | Production Trust Authority remains open |
 | Account → Organization → Tenant | **Historical public acceptance; managed ownership is TRUYN Platform** | public contract/reference seams |
@@ -32,7 +35,7 @@ This document distinguishes accepted facts from open PRs, diagnostics, planned w
 | P2-E1 / Sprint E | **ACCEPTED / CLOSED** | — |
 | P2-E2 `a2a-mcp-pre-v1/g1` | **ACCEPTED / CLOSED** | stable-v1 not claimed |
 | P2-E3 canonical reconciliation | **ACCEPTED / MERGED** | — |
-| NLWeb interoperability | **BOUNDED NLWeb 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | qualify/merge canonical status head; later upstream profiles require requalification |
+| NLWeb interoperability | **BOUNDED NLWeb 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later upstream profiles require requalification |
 | Five first-party SDK clients | **Implemented / conformance-proven** | release ecosystem completion |
 | PyPI alpha | **Accepted immutable public release** | — |
 | Go alpha | **Accepted immutable public release** | — |
@@ -44,6 +47,16 @@ This document distinguishes accepted facts from open PRs, diagnostics, planned w
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers/TSC/neutral stewardship |
 | Mainnet | **Not productionized** | external qualification + live ops + release/governance gates |
 
+## Network-scale acceptance boundary
+
+Class D-200 is accepted on immutable workflow run `35503894414`, attempt 1, with strict `TRUYN_D200_TERMINAL result=PASS`. The accepted tuple is frozen tested source `e91c165c67c655deb80df4511ca346acb9f1f45b`, tested tree `3a402ba72502de12ed2277db3c9f472872f44b46`, launcher merge `e785815530a59a56787e20ceb6bb232ccc93ad4f`, artifact ID `10603748497`, artifact digest `sha256:386387165b729ed2167140747a310d85822d9d1987dce812812408f2468bccd4`.
+
+Measured D-200 acceptance included 20 hosts / 200 real processes, readiness 200/200, baseline routing 400/400, post-restart routing 100/100 first-attempt with zero application retries, healed routing 200/200, convergence p95 `256.43 ms`, restart recovery p95 `28,717 ms`, real packet-partition recovery `32,159 ms`, 100 acknowledged writes with zero loss, zero safety violations, and zero remaining campaign/staging resources after cleanup.
+
+This closes D-200 only. It does not promote D-500, D-1000, long-duration stability or mainnet to accepted status.
+
+Durable evidence: `../benchmarks/CLASS_D_200_2026-09-20.md`.
+
 ## Repository boundary
 
 Managed production authority, managed control plane, Cosmos-backed persistence, commercial entitlement/accounting/billing implementation and hosted authority runtime are owned by private `inn-media/truyn-platform`. This public repository retains protocol/open-edge behavior, public contracts/conformance, Node/Relay reference behavior, generic provider/BYOK/owner-funded behavior and explicit managed extension seams. Public code never depends on private code; private code consumes only immutable released/versioned public artifacts or explicitly pinned immutable public contracts.
@@ -54,11 +67,11 @@ Accepted bounded state includes C1–C8, independent official A2A/MCP black-box 
 
 ## NLWeb boundary
 
-TRUYN Open now has executable evidence for a **bounded pinned NLWeb protocol 0.5 interoperability profile** at upstream `nlweb-ai/nlweb-typespec@d973d4fe811830eb3734c01a79133adfc474c197`.
+TRUYN Open has executable evidence for a **bounded pinned NLWeb protocol 0.5 interoperability profile** at upstream `nlweb-ai/nlweb-typespec@d973d4fe811830eb3734c01a79133adfc474c197`.
 
 Accepted bounded behavior includes client/provider normalization, exact profile negotiation, authorization-aware WHO discovery over the already visible/eligible TRUYN candidate universe, deterministic public/reference selection, `who → selection → ask` through canonical TRUYN authority/dispatch, structured correlation/provenance preservation, adversarial private-provider invisibility, unsupported-profile fail-closed behavior, and explicitly tested bridge mappings.
 
-Independent S89 black-box run **`35487917472`**, attempt 1, completed **SUCCESS** against exact qualified SUT `a28cba182b9cddde34bc34894180d14cfa166d2b`; its evidence-only PR #667 was closed without merge.
+Independent S89 black-box run `35487917472`, attempt 1, completed **SUCCESS** against exact qualified SUT `a28cba182b9cddde34bc34894180d14cfa166d2b`; its evidence-only PR #667 was closed without merge.
 
 This does **not** claim stable NLWeb v1, compatibility with later upstream revisions, or ownership of crawling/ingestion, indexing, vector search, RAG corpus ownership, brand/news/product content, publisher/content rights, campaign data or Data Graph business semantics. Those application/data concerns remain outside TRUYN's interoperability layer.
 

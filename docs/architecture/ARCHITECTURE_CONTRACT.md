@@ -2,8 +2,8 @@
 
 This document prevents architecture, implementation status, public documentation, governance and benchmark evidence from silently diverging.
 
-**Snapshot:** 2026-09-05  
-**Synchronized source:** `main@abd6bd95ecad8dc8d82bbf6d2983d96df80267d3`  
+**Snapshot:** 2026-09-20  
+**Synchronized source:** `main` at this documentation revision  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
 
@@ -48,7 +48,7 @@ Accepted artifact translation requires explicit resolution, bounded content, exa
 
 ## NLWeb interoperability
 
-NLWeb is a planned external interoperability edge, not a TRUYN transport primitive and not a `TRUYN/1` wire dependency. The canonical planned architecture is `NLWEB_INTEROPERABILITY.md`.
+NLWeb is a bounded external interoperability edge, not a TRUYN transport primitive and not a `TRUYN/1` wire dependency. The canonical architecture is `NLWEB_INTEROPERABILITY.md`.
 
 The public/open scope is limited to compatibility mechanics: client/provider adapters, eligible endpoint discovery, `ask`/`who` support for an explicitly pinned upstream profile, routing/relay, auth-policy passthrough, health/capability advertisement and explicit bounded bridges with MCP/A2A where semantics can be preserved.
 
@@ -56,11 +56,17 @@ NLWeb metadata is non-authoritative. It cannot assign account, tenant, provider 
 
 TRUYN does not own the NLWeb application/data layer. Crawling/ingestion, indexing, vector search, RAG corpus ownership, brand/news/product content, publisher/content rights, campaign data and Data Graph business semantics remain outside this interoperability contract.
 
-No NLWeb compatibility claim is accepted until an exact upstream profile/version is pinned and executable conformance/black-box evidence closes the corresponding roadmap gates.
+The currently evidenced bounded profile is NLWeb protocol 0.5 pinned to exact upstream `nlweb-ai/nlweb-typespec@d973d4fe811830eb3734c01a79133adfc474c197`. Later profiles require explicit requalification.
 
 ## Network scale
 
-Class C and D-100 are accepted. D-1000 is not. PR `#458` repairs target-readiness/transport establishment without weakening strict D-scale thresholds. Fresh D-200 run `33959493680` remains in progress and cannot be promoted to PASS until its unchanged predicates terminate green.
+Class C heterogeneous WAN, Class D-100 and **Class D-200 are accepted**. Class D-500 and Class D-1000 remain separate open gates.
+
+The accepted D-200 tuple is immutable workflow run `35503894414`, attempt 1, strict terminal `TRUYN_D200_TERMINAL result=PASS`, frozen tested source `e91c165c67c655deb80df4511ca346acb9f1f45b`, tested tree `3a402ba72502de12ed2277db3c9f472872f44b46`, launcher merge `e785815530a59a56787e20ceb6bb232ccc93ad4f`, artifact ID `10603748497`, artifact digest `sha256:386387165b729ed2167140747a310d85822d9d1987dce812812408f2468bccd4`.
+
+Measured D-200 evidence includes 20 hosts / 200 real processes, readiness 200/200, baseline 400/400, post-restart 100/100 first-attempt with zero application retries, healed 200/200, convergence p95 `256.43 ms`, restart recovery p95 `28,717 ms`, real packet-partition recovery `32,159 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign + staging cleanup with zero remaining resources.
+
+D-200 acceptance does not imply D-500, D-1000, long-duration operational stability, stable protocol, mainnet or managed-production acceptance. Durable evidence is `../benchmarks/CLASS_D_200_2026-09-20.md`; current scale status is `../operations/NETWORK_SCALE_STATUS.md`.
 
 ## Production operations
 
