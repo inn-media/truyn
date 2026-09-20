@@ -1,0 +1,191 @@
+name: S-Series Relay Artifact
+
+on:
+  push:
+    branches:
+      - ops/s50-isolated-relay-artifact-v1
+    paths:
+      - 'runtime/s-series-benchmark-relay.js'
+      - '.github/workflows/s-series-relay-artifact.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: truyn-s-series-relay-artifact-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  qualify-and-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ACCEPTED_SDK: '@truyn/sdk@0.1.0-alpha.2'
+      RELAY_BASE_SHA: '585e8b9865a47d8abe390d3dd548c2e57fdd9a32'
+    steps:
+      - name: Checkout exact public artifact source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install public runtime dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Verify inherited relay code is unchanged from qualified base
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git diff --exit-code "$RELAY_BASE_SHA" -- network/relay core package.json package-lock.json
+          echo 'S_RELAY_PUBLIC_RUNTIME_INHERITANCE=PASS'
+
+      - name: Source semantic smoke with accepted public SDK
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          port=18771
+          TRUYN_S_RELAY_PORT="$port" node runtime/s-series-benchmark-relay.js >/tmp/s-series-relay.log 2>&1 &
+          relay_pid=$!
+          cleanup() { kill "$relay_pid" >/dev/null 2>&1 || true; wait "$relay_pid" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for _ in $(seq 1 40); do
+            curl -fsS "http://127.0.0.1:${port}/health" >/dev/null && break
+            sleep 0.25
+          done
+          curl -fsS "http://127.0.0.1:${port}/health" >/dev/null
+
+          client="$(mktemp -d)"
+          cd "$client"
+          npm init --yes >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund "$ACCEPTED_SDK"
+          TRUYN_RELAY="http://127.0.0.1:${port}" node --input-type=module <<'NODE'
+          import { TruynLocalNodeClient } from '@truyn/sdk';
+          const c = await TruynLocalNodeClient.connect({ relayUrl: process.env.TRUYN_RELAY, name: 's-relay-artifact-smoke' });
+          try {
+            const put = await c.runtime.putContext([
+              { id: 'alpha', text: 'Aster Observatory objective is ANSWER=SMOKE.' },
+              { id: 'beta', text: 'Unrelated maintenance note.' }
+            ], { readers: [c.nodeId], metadata: { benchmark: 'S-relay-artifact-smoke' } });
+            if (!put?.cid) throw new Error('missing_context_cid');
+            const retrieved = await c.runtime.retrieveContext(put.cid, 'What is the Aster Observatory objective?', { topK: 1 });
+            if (!Array.isArray(retrieved?.blocks) || retrieved.blocks.length !== 1) throw new Error('semantic_retrieval_failed');
+            if (!String(retrieved.blocks[0]?.text || '').includes('ANSWER=SMOKE')) throw new Error('semantic_retrieval_wrong_block');
+            if (retrieved.provenanceVerified !== true) throw new Error('semantic_provenance_failed');
+            console.log('S_RELAY_SOURCE_SEMANTIC_SMOKE=PASS');
+          } finally {
+            c.close();
+          }
+          NODE
+
+      - name: Build deterministic public relay runtime bundle
+        id: bundle
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          out="$RUNNER_TEMP/s-series-relay-release"
+          root="$out/root"
+          mkdir -p "$root/network" "$root/runtime"
+          cp -a core "$root/core"
+          cp -a network/relay "$root/network/relay"
+          cp runtime/s-series-benchmark-relay.js "$root/runtime/s-series-benchmark-relay.js"
+          cp package.json package-lock.json LICENSE NOTICE "$root/"
+          tarball="$out/truyn-s-series-relay.tgz"
+          mkdir -p "$out"
+          tar --sort=name --mtime='UTC 2026-09-20' --owner=0 --group=0 --numeric-owner -C "$root" -czf "$tarball" .
+          sha256="$(sha256sum "$tarball" | awk '{print $1}')"
+          printf '%s  %s\n' "$sha256" 'truyn-s-series-relay.tgz' > "$out/truyn-s-series-relay.tgz.sha256"
+          jq -n \
+            --arg schema 'truyn.public.s-series-relay-artifact/v1' \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg relayBaseSha "$RELAY_BASE_SHA" \
+            --arg acceptedSdk "$ACCEPTED_SDK" \
+            --arg sha256 "$sha256" \
+            '{schema:$schema,sourceSha:$sourceSha,relayBaseSha:$relayBaseSha,acceptedSdk:$acceptedSdk,sha256:$sha256,loopbackOnly:true,allowPublicRegistrationInsideIsolatedNamespace:true,allowPublicDispatchInsideIsolatedNamespace:true,productionRelayMutation:false}' \
+            > "$out/manifest.json"
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+          echo "tag=s-series-relay-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "S_RELAY_ARTIFACT_SHA256=$sha256"
+
+      - name: Clean-room artifact semantic qualification
+        shell: bash
+        env:
+          BUNDLE_DIR: ${{ steps.bundle.outputs.dir }}
+        run: |
+          set -Eeuo pipefail
+          clean="$(mktemp -d)"
+          tar -xzf "$BUNDLE_DIR/truyn-s-series-relay.tgz" -C "$clean"
+          cd "$clean"
+          npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+          port=18772
+          TRUYN_S_RELAY_PORT="$port" node runtime/s-series-benchmark-relay.js >/tmp/s-series-relay-cleanroom.log 2>&1 &
+          relay_pid=$!
+          cleanup() { kill "$relay_pid" >/dev/null 2>&1 || true; wait "$relay_pid" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for _ in $(seq 1 40); do
+            curl -fsS "http://127.0.0.1:${port}/health" >/dev/null && break
+            sleep 0.25
+          done
+          curl -fsS "http://127.0.0.1:${port}/health" >/dev/null
+          client="$(mktemp -d)"
+          cd "$client"
+          npm init --yes >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund "$ACCEPTED_SDK"
+          TRUYN_RELAY="http://127.0.0.1:${port}" node --input-type=module <<'NODE'
+          import { TruynLocalNodeClient } from '@truyn/sdk';
+          const requester = await TruynLocalNodeClient.connect({ relayUrl: process.env.TRUYN_RELAY, name: 's-relay-cleanroom-requester' });
+          const provider = await TruynLocalNodeClient.connect({ relayUrl: process.env.TRUYN_RELAY, name: 's-relay-cleanroom-provider' });
+          try {
+            const cap = 'benchmark.semantic.cleanroom';
+            await provider.offer(cap, {});
+            const put = await requester.runtime.putContext([
+              { id: 'a', text: 'Cobalt Station restoration objective is RESTORE-CLEANROOM.' },
+              { id: 'b', text: 'Irrelevant context.' }
+            ], { readers: [requester.nodeId], metadata: { benchmark: 'cleanroom' } });
+            const retrieved = await requester.runtime.retrieveContext(put.cid, 'What is the Cobalt Station restoration objective?', { topK: 1 });
+            if (retrieved.provenanceVerified !== true || retrieved.blocks?.length !== 1 || !retrieved.blocks[0].text.includes('RESTORE-CLEANROOM')) {
+              throw new Error('cleanroom_semantic_retrieval_failed');
+            }
+            const needPromise = provider.nextNeed({ timeoutMs: 10000 });
+            const receipt = await requester.need(cap, { task: 'return cleanroom', context: retrieved.blocks[0].text }, {});
+            const need = await needPromise;
+            await provider.result(need.needId, 'ANSWER=CLEANROOM', { benchmark: true });
+            const result = await requester.waitForResult(receipt.needId, { timeoutMs: 10000 });
+            if (result.output !== 'ANSWER=CLEANROOM') throw new Error('cleanroom_need_result_failed');
+            console.log('S_RELAY_CLEANROOM_SEMANTIC=PASS');
+          } finally {
+            requester.close();
+            provider.close();
+          }
+          NODE
+
+      - name: Publish immutable public prerelease asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUNDLE_DIR: ${{ steps.bundle.outputs.dir }}
+          RELEASE_TAG: ${{ steps.bundle.outputs.tag }}
+          BUNDLE_SHA256: ${{ steps.bundle.outputs.sha256 }}
+        run: |
+          set -Eeuo pipefail
+          if gh release view "$RELEASE_TAG" >/tmp/s-relay-existing.json 2>/dev/null; then
+            echo "release already exists; refusing mutable replacement: $RELEASE_TAG" >&2
+            exit 31
+          fi
+          gh release create "$RELEASE_TAG" \
+            "$BUNDLE_DIR/truyn-s-series-relay.tgz#TRUYN S-Series isolated relay runtime" \
+            "$BUNDLE_DIR/truyn-s-series-relay.tgz.sha256#SHA-256" \
+            "$BUNDLE_DIR/manifest.json#Provenance manifest" \
+            --target "$GITHUB_SHA" \
+            --title "S-Series isolated relay ${GITHUB_SHA::12}" \
+            --notes "Public immutable benchmark runtime. Existing TRUYN relay behavior is packaged unchanged from ${RELAY_BASE_SHA}; only a loopback-only S-Series launcher is added. Production relay is not modified or opened. SHA-256: ${BUNDLE_SHA256}." \
+            --prerelease
+          echo "S_RELAY_PUBLIC_RELEASE=PASS tag=$RELEASE_TAG sha256=$BUNDLE_SHA256"
