@@ -35,12 +35,35 @@ grep -Fq 'D200_CAMPAIGN_SOURCE=' scripts/d200-stage-isolated-campaign.sh
 grep -Fq 'class-d-200-stage-results.json' scripts/d200-stage-isolated-campaign.sh
 grep -Fq 'acceptanceWeakened' scripts/d200-stage-isolated-campaign.sh
 
-# Preparation must remain non-launching. The eventual executable workflow is
-# materialized only after D-200 repeatability closure and exact-main qualification.
-if compgen -G '.github/workflows/d500*.yml' >/dev/null || compgen -G '.github/workflows/d-500*.yml' >/dev/null; then
-  echo 'TRUYN_D500_PREFLIGHT=FAIL active_d500_workflow_present' >&2
-  exit 1
-fi
+phase="${D500_PREFLIGHT_PHASE:-prepare}"
+mapfile -t active_d500_workflows < <(find .github/workflows -maxdepth 1 -type f \( -iname 'd500*.yml' -o -iname 'd500*.yaml' -o -iname 'd-500*.yml' -o -iname 'd-500*.yaml' \) -printf '%f\n' | sort)
+
+case "$phase" in
+  prepare)
+    # Preparation is intentionally impossible to launch.
+    if [[ "${#active_d500_workflows[@]}" -ne 0 ]]; then
+      printf 'TRUYN_D500_PREFLIGHT=FAIL phase=prepare active_workflows=%s\n' "${active_d500_workflows[*]}" >&2
+      exit 1
+    fi
+    [[ ! -e .github/d500/launch-01.txt ]]
+    launchable=false
+    ;;
+  launch)
+    # The eventual frozen tested source may contain exactly the reviewed canonical
+    # workflow, but not the single-shot launch token (that token is introduced by
+    # the subsequent launcher-only commit).
+    if [[ "${#active_d500_workflows[@]}" -ne 1 || "${active_d500_workflows[0]}" != 'd500-acceptance.yml' ]]; then
+      printf 'TRUYN_D500_PREFLIGHT=FAIL phase=launch active_workflows=%s\n' "${active_d500_workflows[*]}" >&2
+      exit 1
+    fi
+    [[ ! -e .github/d500/launch-01.txt ]]
+    launchable=reviewed-workflow-only
+    ;;
+  *)
+    echo "TRUYN_D500_PREFLIGHT=FAIL invalid_phase=${phase}" >&2
+    exit 1
+    ;;
+esac
 
 node --test tests/d500-prelaunch.test.js
-printf 'TRUYN_D500_PREFLIGHT_QUALIFICATION=PASS topology=20x25 process_target=500 max_peers=32 d200_floor_preserved=true five_patch=true launchable=false\n'
+printf 'TRUYN_D500_PREFLIGHT_QUALIFICATION=PASS phase=%s topology=20x25 process_target=500 max_peers=32 d200_floor_preserved=true five_patch=true launchable=%s\n' "$phase" "$launchable"
