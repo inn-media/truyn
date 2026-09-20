@@ -36,6 +36,18 @@ Repeatability 01 run `35515705123` remains an immutable pre-provisioning FAIL ca
 
 All earlier D-200 failures remain immutable historical evidence.
 
+## Final post-merge qualification
+
+Final D-200 closure documentation was merged through PR `#686` to exact main SHA `07471834685118d5be833dcb64b8f5548dece897`.
+
+The final post-merge checks on that exact main are terminal GREEN:
+
+- CI run `35521958204` — **SUCCESS**, including mandatory security/safety, full qualification, `npm run test:full`, D-200 preflight qualification and `git diff --check`;
+- Class D Five-Patch Preflight run `35521958253` — **SUCCESS**, including the D-200, D-500 and D-1000 lanes plus the aggregate exact-SHA evidence gate;
+- CodeQL run `35521957744` — **SUCCESS** for actions, Go, Java/Kotlin, C#, Python and JavaScript/TypeScript.
+
+The merge commit is GitHub-verified. No D-200 acceptance threshold was weakened.
+
 ## Operational closure
 
 D-200 is no longer an active launch/repair program.
