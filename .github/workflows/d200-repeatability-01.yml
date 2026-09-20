@@ -25,6 +25,9 @@ env:
   EXACT_MAIN_FIVE_PATCH_RUN: '35500410293'
   QUALIFIED_TREE_CODEQL_CHECK: '106050818849'
   QUALIFIED_TREE_CODEQL_SHA: 293e3cf5da54e58e37a8d3bb3c138b05bf03e36b
+  AZURE_CLIENT_VALUE: ${{ vars[format('AZURE_{0}', 'CLIENT_ID')] }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '10'
   REQUIRED_LOCATION: eastus2
@@ -113,11 +116,17 @@ jobs:
           echo "sha=$s" >>"$GITHUB_OUTPUT"
           rm -rf "$d"
 
+      - name: Verify OIDC identifiers are supplied only through repository variables
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$AZURE_CLIENT_VALUE" && -n "$AZURE_TENANT_VALUE" && -n "$AZURE_SUBSCRIPTION_VALUE" ]]
+
       - uses: azure/login@v2
         with:
-          client-id: '${{ secrets[format(''AZURE_{0}_ID'',''CLIENT'')] }}'
-          tenant-id: '${{ secrets[format(''AZURE_{0}_ID'',''TENANT'')] }}'
-          subscription-id: '${{ secrets[format(''AZURE_{0}_ID'',''SUBSCRIPTION'')] }}'
+          client-id: '${{ env.AZURE_CLIENT_VALUE }}'
+          tenant-id: '${{ env.AZURE_TENANT_VALUE }}'
+          subscription-id: '${{ env.AZURE_SUBSCRIPTION_VALUE }}'
 
       - name: Validate exact reference placement capacity
         shell: bash
