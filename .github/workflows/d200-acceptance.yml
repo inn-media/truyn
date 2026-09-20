@@ -4,12 +4,14 @@ on:
     branches: [main]
     paths: ['.github/workflows/d200-acceptance.yml']
 permissions: { contents: read, actions: read, id-token: write }
-concurrency: { group: truyn-d200-1c2a432a-qualified-single-shot, cancel-in-progress: false }
+concurrency: { group: truyn-d200-e91c165c-qualified-single-shot, cancel-in-progress: false }
 env:
-  TESTED_COMMIT: 1c2a432a447b4b6da5aa952c0c51902ecaae454a
-  TESTED_TREE_SHA: 290c8d0dc2a80dd787feee2f572462d8d97ce351
-  EXACT_MAIN_CI_RUN: '35469639703'
-  EXACT_MAIN_CODEQL_RUN: '35469639095'
+  TESTED_COMMIT: e91c165c67c655deb80df4511ca346acb9f1f45b
+  TESTED_TREE_SHA: 3a402ba72502de12ed2277db3c9f472872f44b46
+  EXACT_MAIN_CI_RUN: '35500410155'
+  EXACT_MAIN_FIVE_PATCH_RUN: '35500410293'
+  QUALIFIED_TREE_CODEQL_CHECK: '106050818849'
+  QUALIFIED_TREE_CODEQL_SHA: 293e3cf5da54e58e37a8d3bb3c138b05bf03e36b
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '10'
 jobs:
@@ -41,15 +43,19 @@ jobs:
         run: |
           set -Eeuo pipefail
           [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" && "$(git rev-parse "${TESTED_COMMIT}^{tree}")" == "$TESTED_TREE_SHA" ]]
-          ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"; cq="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}")"
+          ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
+          fp="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_FIVE_PATCH_RUN}")"
+          cq="$(gh api "repos/${GITHUB_REPOSITORY}/check-runs/${QUALIFIED_TREE_CODEQL_CHECK}")"
           jq -e --arg s "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$ci" >/dev/null
-          jq -e --arg s "$TESTED_COMMIT" '.head_branch=="main" and .head_sha==$s and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$cq" >/dev/null
+          jq -e --arg s "$TESTED_COMMIT" '.name=="Class D Five-Patch Preflight" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$fp" >/dev/null
+          jq -e --arg s "$QUALIFIED_TREE_CODEQL_SHA" '.name=="CodeQL" and .head_sha==$s and .status=="completed" and .conclusion=="success"' <<<"$cq" >/dev/null
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/${QUALIFIED_TREE_CODEQL_SHA}" --jq .commit.tree.sha)" == "$TESTED_TREE_SHA" ]]
           git ls-tree -r "$TESTED_COMMIT" -- benchmarks/scale scripts network config tests > class-d-200-source-manifest.txt
           sha256sum class-d-200-source-manifest.txt > class-d-200-source-manifest.sha256.txt
           npm install --ignore-scripts --no-audit --no-fund
           node scripts/check-d200-contract.mjs; node scripts/check-d200-cloud-contract.mjs
           bash scripts/class-d-200-preflight-qualification.sh; git diff --check
-          printf 'tested_commit=%s\ntested_tree_sha=%s\nexact_main_ci_run=%s\nexact_main_codeql_run=%s\nhosts=20\nprocesses=200\nnodes_per_host=10\nmax_peers=32\nrouting_threshold=0.99\nrecovery_p95_limit_ms=120000\nacknowledged_writes=100\nacknowledged_write_loss=0\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$EXACT_MAIN_CI_RUN" "$EXACT_MAIN_CODEQL_RUN" > class-d-200-diagnostic-input.txt
+          printf 'tested_commit=%s\ntested_tree_sha=%s\nexact_main_ci_run=%s\nexact_main_five_patch_run=%s\nqualified_tree_codeql_check=%s\nqualified_tree_codeql_sha=%s\nhosts=20\nprocesses=200\nnodes_per_host=10\nmax_peers=32\nrouting_threshold=0.99\nrecovery_p95_limit_ms=120000\nacknowledged_writes=100\nacknowledged_write_loss=0\n' "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$EXACT_MAIN_CI_RUN" "$EXACT_MAIN_FIVE_PATCH_RUN" "$QUALIFIED_TREE_CODEQL_CHECK" "$QUALIFIED_TREE_CODEQL_SHA" > class-d-200-diagnostic-input.txt
       - name: Build immutable runtime bundle
         id: runtime
         shell: bash
@@ -107,7 +113,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d200-1c2a432a-${{ github.run_id }}'
+          name: 'truyn-class-d200-e91c165c-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
@@ -141,5 +147,5 @@ jobs:
           set -Eeuo pipefail; result=FAIL
           [[ "$DIGEST" =~ ^(sha256:)?[0-9a-f]{64}$ ]] || DIGEST=invalid
           if [[ "${CAMPAIGN_RC:-99}" == 0 && "${EVALUATOR_RC:-99}" == 0 && "$CLEANUP" == true && "$REMAINING" == 0 && "$ACK_COUNT" == 100 && "$ACK_LOSS" == 0 && "$STAGING_CLEANUP" == true && "$STAGING_REMAINING" == 0 && -n "$ARTIFACT_ID" && "$DIGEST" != invalid && "$RUNTIME_SHA" =~ ^[0-9a-f]{64}$ ]]; then result=PASS; fi
-          echo "TRUYN_D200_TERMINAL result=$result run=$GITHUB_RUN_ID launcher_sha=$GITHUB_SHA tested_sha=$TESTED_COMMIT tested_tree_sha=$TESTED_TREE_SHA exact_main_ci_run=$EXACT_MAIN_CI_RUN exact_main_codeql_run=$EXACT_MAIN_CODEQL_RUN runtime_sha256=sha256:${RUNTIME_SHA:-none} azure_location=${TRUYN_D200_LOCATION:-none} vm_size=${TRUYN_D200_VM_SIZE:-none} baseline=${BASELINE:-none} post_restart=${POST_RESTART:-none} healed=${HEALED:-none} convergence_routing=${CONV:-none} convergence_p95_ms=${CONV_P95:-none} recovery_p95_ms=${RECOVERY_P95:-none} partition_recovery_ms=${PARTITION:-none} acknowledged_writes=${ACK_COUNT:-none} acknowledged_write_loss=${ACK_LOSS:-none} cleanup=$CLEANUP remaining=$REMAINING staging_cleanup=$STAGING_CLEANUP staging_remaining=$STAGING_REMAINING artifact_id=${ARTIFACT_ID:-none} artifact_digest=$DIGEST"
+          echo "TRUYN_D200_TERMINAL result=$result run=$GITHUB_RUN_ID launcher_sha=$GITHUB_SHA tested_sha=$TESTED_COMMIT tested_tree_sha=$TESTED_TREE_SHA exact_main_ci_run=$EXACT_MAIN_CI_RUN exact_main_five_patch_run=$EXACT_MAIN_FIVE_PATCH_RUN qualified_tree_codeql_check=$QUALIFIED_TREE_CODEQL_CHECK qualified_tree_codeql_sha=$QUALIFIED_TREE_CODEQL_SHA runtime_sha256=sha256:${RUNTIME_SHA:-none} azure_location=${TRUYN_D200_LOCATION:-none} vm_size=${TRUYN_D200_VM_SIZE:-none} baseline=${BASELINE:-none} post_restart=${POST_RESTART:-none} healed=${HEALED:-none} convergence_routing=${CONV:-none} convergence_p95_ms=${CONV_P95:-none} recovery_p95_ms=${RECOVERY_P95:-none} partition_recovery_ms=${PARTITION:-none} acknowledged_writes=${ACK_COUNT:-none} acknowledged_write_loss=${ACK_LOSS:-none} cleanup=$CLEANUP remaining=$REMAINING staging_cleanup=$STAGING_CLEANUP staging_remaining=$STAGING_REMAINING artifact_id=${ARTIFACT_ID:-none} artifact_digest=$DIGEST"
           [[ "$result" == PASS ]]
