@@ -49,13 +49,29 @@ Private artifacts MUST contain operational material whose disclosure would expos
 
 The public repository MUST NOT import or depend on private source. The private runner consumes only released/versioned public contracts or immutable public artifacts.
 
-## 2. Common invariant across all T-series tests
+## 2. Cross-series isolation invariant
+
+T-series may run concurrently with D, S, H and future benchmark/test families.
+
+All T execution MUST obey [`BENCHMARK_SERIES_ISOLATION.md`](BENCHMARK_SERIES_ISOLATION.md). In particular:
+
+- every run carries `series_id=T`, `benchmark_id` and globally unique `run_id`;
+- mutable run-state, telemetry partitions, artifact prefixes, caches, indexes, budgets and cleanup scope are namespaced by series/run;
+- shared dependencies are classified R0 immutable/read-only, R1 shared-but-attributed, or R2 exclusive mutable/fault targets;
+- R2 mutation/fault injection requires an exclusive lease and MUST NOT overlap an active foreign series in the same fault domain;
+- a D/S/H run MUST NOT warm, evict, overwrite, throttle, spend into, clean up or otherwise contaminate T evidence/state;
+- T MUST NOT cancel, mutate or clean up a D/S/H run merely to obtain benchmark capacity;
+- material cross-series interference invalidates the affected T headline measurement unless such interference was frozen as part of the methodology.
+
+A T run waiting on a genuinely exclusive shared resource records `WAITING_SHARED_RESOURCE`; it does not weaken acceptance or interrupt the current lease owner.
+
+## 3. Common invariant across all T-series tests
 
 A T-series run is invalid unless every compared arm uses the same frozen task semantics.
 
 The run manifest MUST freeze before paid inference begins:
 
-- `benchmark_id` and `run_id`;
+- `series_id=T`, `benchmark_id` and `run_id`;
 - tested public TRUYN commit SHA/release;
 - comparator implementation/version/pin;
 - model provider, model family/version/deployment class;
@@ -66,7 +82,9 @@ The run manifest MUST freeze before paid inference begins:
 - arm list;
 - warmup policy;
 - cache policy (`cold`, `warm`, or both as separate strata);
+- cache/artifact namespace policy;
 - concurrency/offered-load profile;
+- cross-series shared-resource classifications and interference policy;
 - randomization seed / arm ordering policy;
 - retry policy;
 - timeout/deadline policy;
@@ -76,7 +94,7 @@ The run manifest MUST freeze before paid inference begins:
 
 **Thresholds are immutable after the first measured request.** A failed gate is evidence; it is not permission to lower the gate and relabel the same run as PASS.
 
-## 3. Cost accounting contract
+## 4. Cost accounting contract
 
 T-series reports MUST separate four values:
 
@@ -95,15 +113,19 @@ Every cost sample declares an evidence class:
 - `B_PROVIDER_USAGE_X_PRICE` — provider-reported billed usage × pinned published price;
 - `C_LOCAL_ESTIMATE` — local estimate only; diagnostic, not sufficient alone for an accepted public dollar claim.
 
-## 4. Common telemetry envelope
+Foreign concurrent-series usage MUST be excluded from T run totals. Shared-account effects remain private reconciliation facts unless sanitized safely.
+
+## 5. Common telemetry envelope
 
 Each measured request/hop emits one normalized record with, at minimum:
 
 ```json
 {
   "schema": "truyn.t-series.telemetry/v1",
+  "seriesId": "T",
   "benchmarkId": "...",
   "runId": "...",
+  "runNamespace": "T/<benchmark>/<run-id>",
   "pairId": "...",
   "sampleId": "...",
   "arm": "TRUYN|DIRECT|NAIVE|MCP|A2A|NLWEB|NLWEB_OVER_TRUYN",
@@ -133,6 +155,7 @@ Each measured request/hop emits one normalized record with, at minimum:
   },
   "quality": {"score": null, "correct": null},
   "provenance": {"present": false, "verified": false},
+  "interference": {"material": false, "resourceClass": null},
   "outcome": "ok|controlled_fail|error",
   "retryCount": 0,
   "priceSnapshotId": "...",
@@ -142,7 +165,7 @@ Each measured request/hop emits one normalized record with, at minimum:
 
 Benchmark-specific records MAY extend this envelope but MUST NOT redefine the common fields.
 
-## 5. Quality scoring hierarchy
+## 6. Quality scoring hierarchy
 
 Use the strongest available scoring method in this order:
 
@@ -153,7 +176,7 @@ Use the strongest available scoring method in this order:
 
 A comparator is not allowed to win economically by silently reducing task quality. Cost/token claims therefore MUST be paired with quality/accuracy.
 
-## 6. Randomization and cache/order bias
+## 7. Randomization and cache/order bias
 
 For paired comparator tests:
 
@@ -162,9 +185,10 @@ For paired comparator tests:
 - warmups are tagged and excluded from measured distributions;
 - cold-cache and warm-cache results are never mixed into one number;
 - cross-arm shared caches are disabled unless the shared cache itself is part of every arm's defined architecture;
+- T cache namespaces are isolated from D/S/H/future-series mutable caches;
 - failures and retries remain in the evidence ledger.
 
-## 7. Evidence bundle
+## 8. Evidence bundle
 
 An accepted T-series run produces an immutable evidence bundle containing, when safe:
 
@@ -175,6 +199,7 @@ price-snapshot.json
 corpus-manifest.json
 workload-manifest.json
 telemetry.jsonl
+interference.jsonl
 summary.json
 checksums.sha256
 REPORT.md
@@ -182,12 +207,13 @@ REPORT.md
 
 The public report retains tested SHA, run/workflow identity, artifact ID/digest, methods, limitations, negative results and corrections. Sensitive operational fields are redacted, not used as a reason to delete the benchmark record.
 
-## 8. Program gates
+## 9. Program gates
 
 The T-series foundation is complete only when:
 
 - public methodology exists for all three tests;
 - the normalized telemetry contract is implemented by every arm;
+- the cross-series isolation contract is enforced for concurrent D/S/H/T execution;
 - private execution/runbook material is isolated in `truyn-platform`;
 - price snapshots can be pinned before a run;
 - corpus/workload manifests are immutable and digest-addressed;
@@ -197,8 +223,9 @@ The T-series foundation is complete only when:
 
 Measured PASS is a later stage. Foundation completion MUST NOT be represented as a benchmark win.
 
-## 9. Canonical methodology documents
+## 10. Canonical methodology documents
 
+- [`BENCHMARK_SERIES_ISOLATION.md`](BENCHMARK_SERIES_ISOLATION.md)
 - [`T_BREAK_EVEN_METHODOLOGY.md`](T_BREAK_EVEN_METHODOLOGY.md)
 - [`T_HEAD_TO_HEAD_METHODOLOGY.md`](T_HEAD_TO_HEAD_METHODOLOGY.md)
 - [`T_PREDICT_METHODOLOGY.md`](T_PREDICT_METHODOLOGY.md)
