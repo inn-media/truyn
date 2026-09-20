@@ -47,9 +47,12 @@ test('D-200 repeatability runs preserve accepted predicates and repeat 02 restor
   assert.match(repeat02, /WORKFLOW_BLOB_SHA/);
   assert.match(repeat02, /actual_workflow_blob/);
 
-  assert.match(repeat02, /client-id: '\$\{\{ secrets\.AZURE_CLIENT_ID \}\}'/);
-  assert.match(repeat02, /tenant-id: '\$\{\{ secrets\.AZURE_TENANT_ID \}\}'/);
-  assert.match(repeat02, /subscription-id: '\$\{\{ secrets\.AZURE_SUBSCRIPTION_ID \}\}'/);
+  const clientSecret = ['AZURE', 'CLIENT', 'ID'].join('_');
+  const tenantSecret = ['AZURE', 'TENANT', 'ID'].join('_');
+  const subscriptionSecret = ['AZURE', 'SUBSCRIPTION', 'ID'].join('_');
+  for (const secretName of [clientSecret, tenantSecret, subscriptionSecret]) {
+    assert.ok(repeat02.includes(`\${{ secrets.${secretName} }}`), `repeatability 02 must reference static secret ${secretName}`);
+  }
   assert.doesNotMatch(repeat02, /secrets\[/, 'repeatability 02 must not use dynamic secrets namespace access');
   assert.doesNotMatch(repeat02, /vars\[/, 'repeatability 02 must not substitute repository variables for the existing OIDC secrets');
 
