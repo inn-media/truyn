@@ -1,0 +1,71 @@
+{
+  "schema": "truyn.class-d200.public-evidence-index.v2",
+  "acceptedWorkflowRun": 35503894414,
+  "runAttempt": 1,
+  "artifactId": 10603748497,
+  "artifactDigest": "sha256:386387165b729ed2167140747a310d85822d9d1987dce812812408f2468bccd4",
+  "testedSourceSha": "e91c165c67c655deb80df4511ca346acb9f1f45b",
+  "testedTreeSha": "3a402ba72502de12ed2277db3c9f472872f44b46",
+  "publicVerificationFiles": [
+    {
+      "name": "CLASS_D_200_2026-09-20.md",
+      "purpose": "human-readable immutable acceptance report with thresholds, measured values, provenance and scope"
+    },
+    {
+      "name": "CLASS_D_200_2026-09-20.json",
+      "purpose": "sanitized structured acceptance telemetry with per-host routing, restart, durability and resource measurements"
+    },
+    {
+      "name": "CLASS_D_200_2026-09-20_READINESS_PUBLIC.json",
+      "purpose": "all 200 sanitized per-node readiness observations needed to independently recompute readiness distributions",
+      "sourceArtifactFile": "class-d-200-readiness-node-observations.json",
+      "sourceArtifactFileSha256": "sha256:826ab1975eefc5332b656bed385cfd59f2a352ecf9683a01b1b9ed4a9af13607"
+    },
+    {
+      "name": "CLASS_D_200_2026-09-20_RETENTION_PUBLIC.json",
+      "purpose": "all 100 sanitized durable-write retention rows needed to verify zero acknowledged-write loss",
+      "sourceArtifactFile": "class-d-200-write-retention-hosts.json",
+      "sourceArtifactFileSha256": "sha256:1af30aae9f3fc5991091397ba5ddc66d3e95f6c4bc15ea720a668aae33b21f33"
+    },
+    {
+      "name": "CLASS_D_200_2026-09-20_ARTIFACT_FILES.sha256",
+      "purpose": "SHA-256 identity of every one of the 20 files in the immutable GitHub Actions artifact"
+    }
+  ],
+  "notPublished": [
+    {
+      "name": "class-d-200-diagnostic.log",
+      "sha256": "sha256:274bf52aee7586900a779eaceb876445abf4dd78717e2c49d0b35e073af1df9e",
+      "reason": "contains private/internal network addressing and verbose operational detail; not required to verify any accepted benchmark predicate"
+    },
+    {
+      "name": "class-d-200-runtime-staging-cleanup.txt",
+      "sha256": "sha256:a508d145750174c7455aabbab4ec0cd3600459b91015df309c64adaa131f63c7",
+      "reason": "contains an ephemeral infrastructure resource identifier; public evidence retains only the required cleanup result confirmed=true and remaining=0"
+    },
+    {
+      "name": "class-d-200-restart-recovery-host-output.log",
+      "sha256": "sha256:c4cce7313dc81d832f57b8d8d23c1eff76469dd2e8277f8e9e17dc495982b871",
+      "reason": "redundant unstructured operational stdout/stderr; all acceptance-relevant restart measurements are published in sanitized structured telemetry"
+    }
+  ],
+  "safetyReview": {
+    "rule": "Never publish secrets, credentials, tokens, private addresses, private topology, cloud resource identifiers, or unnecessary operational logs.",
+    "publicTelemetryContains": [
+      "benchmark counters and ratios",
+      "latency and recovery measurements",
+      "host/node ordinal indexes",
+      "resource utilization totals and per-host measurements",
+      "cryptographic digests",
+      "public Git commit/tree/run/artifact identifiers"
+    ],
+    "publicTelemetryExcludes": [
+      "credentials and authentication material",
+      "private/internal IP addresses",
+      "cloud account/resource names",
+      "secret-bearing URLs or connection strings",
+      "raw operational log text not needed for independent benchmark verification"
+    ]
+  },
+  "verificationBoundary": "The public files contain the data required to independently recompute the accepted readiness, routing, restart-recovery, durability, resource and stage results. The complete immutable artifact remains identified by artifact ID and digest, and every original artifact file remains individually SHA-256 anchored without exposing unsafe bytes."
+}

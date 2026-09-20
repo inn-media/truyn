@@ -10,14 +10,31 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 
 | Track | Current state | Immediate next gate |
 |---|---|---|
-| Network | **Class C + D-100 accepted** | external D-scale qualification continues independently |
+| Network | **Class C + D-100 + D-200 accepted** | D-500 / D-1000 external scale qualification |
 | Production operations | **contracts implemented** | live evidence |
 | Provider authority | **repository/runtime semantics accepted** | live managed deployment evidence |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + ecosystem evidence |
-| NLWeb | **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | qualify and merge canonical profile head; later profiles require explicit requalification |
+| NLWeb | **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later profiles require explicit requalification |
 | SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 accepted** | Maven/NuGet + Descriptor/site completeness |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
-| Mainnet | **Not productionized** | external qualification + live ops + release/governance gates |
+| Mainnet | **Not productionized** | larger D-scale + live ops + release/governance gates |
+
+## Network scale
+
+Accepted milestones:
+
+- [x] Class C heterogeneous WAN — accepted.
+- [x] Class D-100 — accepted.
+- [x] **Class D-200 — accepted** on immutable single-shot run `35503894414`, attempt 1, strict terminal `TRUYN_D200_TERMINAL result=PASS`.
+- [ ] Class D-500 — open.
+- [ ] Class D-1000 — open.
+- [ ] long-duration operational stability / mainnet-scale closure — open.
+
+D-200 accepted evidence is frozen to source `e91c165c67c655deb80df4511ca346acb9f1f45b` / tree `3a402ba72502de12ed2277db3c9f472872f44b46`, with artifact ID `10603748497` and digest `sha256:386387165b729ed2167140747a310d85822d9d1987dce812812408f2468bccd4`.
+
+The D-200 gate proved 20 hosts / 200 real processes, readiness 200/200, baseline routing 400/400, post-restart routing 100/100 first-attempt with zero application retries, healed routing 200/200, convergence p95 `256.43 ms`, restart recovery p95 `28,717 ms`, real packet-partition recovery `32,159 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign + staging cleanup with zero remaining resources.
+
+Evidence: [`docs/benchmarks/CLASS_D_200_2026-09-20.md`](docs/benchmarks/CLASS_D_200_2026-09-20.md).
 
 ## A2A / MCP
 
@@ -69,6 +86,6 @@ Implemented: TypeScript/JavaScript, Python, Go, Java and C#/.NET clients with sh
 
 ## Stable/mainnet gate
 
-Stable/mainnet remains gated by the separately defined external D-scale/security/reliability qualification, live production operations/authority evidence, stable protocol/ecosystem compatibility, complete stable SDK/Descriptor/site evidence and appropriate governance maturity. NLWeb 0.5 bounded interoperability acceptance does not by itself declare stable TRUYN or mainnet.
+Stable/mainnet remains gated by the remaining external D-scale/security/reliability qualification, live production operations/authority evidence, stable protocol/ecosystem compatibility, complete stable SDK/Descriptor/site evidence and appropriate governance maturity. D-200 acceptance and NLWeb 0.5 bounded interoperability acceptance do not by themselves declare stable TRUYN or mainnet.
 
 Operational network-scale status remains delegated to [docs/operations/NETWORK_SCALE_STATUS.md](docs/operations/NETWORK_SCALE_STATUS.md).
