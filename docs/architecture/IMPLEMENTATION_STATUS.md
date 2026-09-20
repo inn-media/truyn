@@ -20,6 +20,7 @@ This document distinguishes accepted facts from open PRs, diagnostics, planned w
 | Class D-500 | **OPEN** | real accepted D-500 evidence |
 | Class D-1000 | **OPEN** | real accepted D-1000 evidence |
 | Semantic Scale S-Series | **DEFINED / NOT YET EXECUTED** | S-50 `ECON` + `MIX`, then remaining S-50 scenarios |
+| Efficiency E-Series | **FOUNDATION DEFINED / NOT YET EXECUTED** | stage instrumentation + isolation qualification, then DECOMPOSE → PER-RESULT → KNEE → DEGRADE |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
 | Claim-centric + active Trustability | **Implemented bounded slices** | Production Trust Authority remains open |
 | Account → Organization → Tenant | **Historical public acceptance; managed ownership is TRUYN Platform** | public contract/reference seams |
@@ -68,9 +69,32 @@ The existing `SEMANTIC_SCALE_GATE_V3_2026-08-16.md` remains valid corpus/index-s
 
 No S-Series workflow/run has been accepted yet. Canonical foundation: `SEMANTIC_SCALE_S_SERIES.md`, `../benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md`, `../operations/S_SERIES_EXECUTION_AND_TELEMETRY.md`.
 
+## Efficiency E-Series boundary
+
+E-Series is defined as a separate efficiency-limit family over qualified TRUYN substrate. It does not replace D-Series network acceptance or S-Series semantic-node acceptance and cannot inherit PASS from either.
+
+The four canonical benchmarks are:
+
+```text
+E/DECOMPOSE
+E/PER-RESULT
+E/KNEE
+E/DEGRADE
+```
+
+Public methodology fixes canonical stage attribution, useful-result correctness/provenance/minimal-context gates, paired DIRECT comparison, dense knee scale grid, overload sustainability/recovery rules, telemetry schemas, evidence preservation and D/S/T/H/E isolation semantics.
+
+The initial v1 profile is text/reasoning only. Comparable E campaigns freeze corpus/workload, oracle, provider mix, model/config class, routing/retrieval/verification policy, scale/load grids, warmup, sample minima, confidence method and billing/compute attribution mode before final runs.
+
+No E instrumentation qualification, pilot or final campaign is accepted yet. Documentation/harness existence is not evidence of efficiency, bottleneck, knee or sustainable-load claims.
+
+Canonical foundation: `../benchmarks/E_SERIES_EFFICIENCY.md`, `../benchmarks/E_DECOMPOSE_METHODOLOGY.md`, `../benchmarks/E_PER_RESULT_METHODOLOGY.md`, `../benchmarks/E_KNEE_METHODOLOGY.md`, `../benchmarks/E_DEGRADE_METHODOLOGY.md`, `../benchmarks/E_SERIES_TELEMETRY.md`, `../operations/E_SERIES_EXECUTION.md`.
+
 ## Repository boundary
 
 Managed production authority, managed control plane, Cosmos-backed persistence, commercial entitlement/accounting/billing implementation and hosted authority runtime are owned by private `inn-media/truyn-platform`. This public repository retains protocol/open-edge behavior, public contracts/conformance, Node/Relay reference behavior, generic provider/BYOK/owner-funded behavior and explicit managed extension seams. Public code never depends on private code; private code consumes only immutable released/versioned public artifacts or explicitly pinned immutable public contracts.
+
+For E-Series specifically, public TRUYN owns metric semantics, formulas and sanitized evidence. Exact cloud resources/topology, quotas/capacity, service identities, actual billing/credits/net cash, run budgets, active leases and secret-bearing raw traces remain private in `truyn-platform`.
 
 ## A2A / MCP boundary
 

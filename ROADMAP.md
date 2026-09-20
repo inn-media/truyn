@@ -12,6 +12,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 |---|---|---|
 | Network | **Class C + D-100 + D-200 accepted** | D-500 / D-1000 external scale qualification |
 | Semantic Scale (S-Series) | **Architecture + benchmark/telemetry contract defined; no S PASS claimed** | S-50 `ECON` + `MIX`, then remaining S-50 scenario matrix |
+| Efficiency Limits (E-Series) | **FOUNDATION DEFINED / no E result claim** | instrumentation + isolation qualification → E/DECOMPOSE → E/PER-RESULT → E/KNEE → E/DEGRADE |
 | Production operations | **contracts implemented** | live evidence |
 | Provider authority | **repository/runtime semantics accepted** | live managed deployment evidence |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + ecosystem evidence |
@@ -61,6 +62,81 @@ Benchmark contract: [`docs/benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md`](docs
 Execution/telemetry: [`docs/operations/S_SERIES_EXECUTION_AND_TELEMETRY.md`](docs/operations/S_SERIES_EXECUTION_AND_TELEMETRY.md).
 
 No S-Series PASS is currently claimed.
+
+## E-series efficiency limits
+
+E-Series measures **where efficiency stops scaling and why**. It is independent of D-Series network acceptance and S-Series semantic-scale acceptance; it reuses qualified substrate without redefining those gates.
+
+Canonical public contract: [`docs/benchmarks/E_SERIES_EFFICIENCY.md`](docs/benchmarks/E_SERIES_EFFICIENCY.md).
+
+### E0 — Foundation — DEFINED
+
+- [x] define OPEN/PRIVATE ownership boundary;
+- [x] define common useful-result gate and DIRECT pairing rule;
+- [x] define canonical stage taxonomy and monotonic-clock rule;
+- [x] define E/DECOMPOSE methodology;
+- [x] define E/PER-RESULT methodology;
+- [x] define E/KNEE methodology and precommitted breakpoint rule;
+- [x] define E/DEGRADE sustainability/recovery methodology;
+- [x] define telemetry/evidence schema;
+- [x] bind E to common D/S/T/H/E R0/R1/R2 isolation contract;
+- [ ] implement/qualify stage instrumentation and deterministic exporter;
+- [ ] qualify private run identity, billing attribution and cross-series preflight.
+
+### E1 — Instrumentation and isolation qualification
+
+- [ ] exact public contract/release pin in private runner;
+- [ ] request/retry/stage attribution with host-local monotonic clocks;
+- [ ] gross provider + private actual-billing attribution kept distinct;
+- [ ] provider-429 vs internal-saturation taxonomy proven;
+- [ ] cross-series R0/R1/R2 dry-run with zero namespace/cleanup collisions;
+- [ ] independent sanitized-evidence recomputation.
+
+### E2 — E/DECOMPOSE
+
+- [ ] final comparable cells at 50/100/200/500 real nodes;
+- [ ] fixed non-saturating load, corpus, oracle and provider mix;
+- [ ] per-stage p50/p95/(qualified p99), bytes/tokens/cost;
+- [ ] request-level `TRUYN tax` in ms and %;
+- [ ] dominant-stage growth and bottleneck interpretation;
+- [ ] immutable evidence + independent reconciliation.
+
+### E3 — E/PER-RESULT
+
+- [ ] paired TRUYN vs DIRECT under identical useful-result gate;
+- [ ] `$ / useful result`, `wall-seconds / useful result`, `compute/proxy / useful result`;
+- [ ] wrong/unverified answers retain full cost but zero useful credit;
+- [ ] wasted-cost/compute accounting;
+- [ ] paired efficiency ratios + 95% CI.
+
+### E4 — E/KNEE
+
+- [ ] dense grid `50/75/100/150/200/350/500`;
+- [ ] primary curve frozen as DIRECT `$ / useful` divided by TRUYN `$ / useful`;
+- [ ] precommitted segmented breakpoint + bootstrap support;
+- [ ] publish knee/working range or `NO_KNEE_OBSERVED_IN_RANGE`;
+- [ ] connect curve change to DECOMPOSE stage saturation.
+
+### E5 — E/DEGRADE
+
+- [ ] separate load ramps at 50/100/200/500 nodes;
+- [ ] frozen offered-load ladder and baseline;
+- [ ] success, p95/p99, queue/backpressure and failure taxonomy per step;
+- [ ] max sustainable load under `success >=99%`, `p95 <=2x baseline`, zero safety violations and no uncontrolled queue growth;
+- [ ] provider external limits labeled separately from internal saturation;
+- [ ] return-to-baseline recovery/hysteresis measurement.
+
+### E6 — Efficiency evidence closure
+
+- [ ] independent recomputation of every headline metric from frozen evidence;
+- [ ] interference/lease/budget/cleanup reconciliation;
+- [ ] safe append-only public reports + structured sanitized evidence + checksums;
+- [ ] private raw operational/billing/topology evidence retained only in `truyn-platform`;
+- [ ] no efficiency/knee/capacity claim exceeds observed workload/provider/scale scope.
+
+E-Series lanes may execute in parallel with D, S, T and H on disjoint state/resources. Shared R1 services require attribution and an active interference detector. Any capacity change, cache/index mutation or fault target shared with another active measured series is R2-exclusive; E records `WAITING_SHARED_RESOURCE` rather than cancelling or perturbing the owner run.
+
+Foundation documents are not benchmark results.
 
 ## A2A / MCP
 
@@ -186,7 +262,7 @@ Canonical public contract: [`docs/benchmarks/H_SERIES_HIDDEN_BENCHMARKS.md`](doc
 - [x] define H/SECOND-OPINION methodology;
 - [x] define H/ARBITRAGE methodology;
 - [x] define H/CHAOS-FUZZ methodology;
-- [x] bind H to the common D/S/T/H series-isolation contract;
+- [x] bind H to the common D/S/T/H/E series-isolation contract;
 - [ ] implement H telemetry emitters and deterministic exporter;
 - [ ] implement private hidden seed/dataset/config precommitment;
 - [ ] qualify isolated private runner and evidence schemas.
@@ -244,7 +320,7 @@ Canonical public contract: [`docs/benchmarks/H_SERIES_HIDDEN_BENCHMARKS.md`](doc
 - [ ] retain security-sensitive/raw operational material only in `truyn-platform`;
 - [ ] no moat/accuracy/arbitrage/robustness claim exceeds the exact measured scope.
 
-H-series lanes may progress in parallel with D, S and T on disjoint state/resources. H/CHAOS-FUZZ fault injection and any mutable shared capacity/cache operation require exclusive R2 ownership; waiting is `WAITING_SHARED_RESOURCE`, never a reason to cancel or contaminate another series.
+H-series lanes may progress in parallel with D, S, T and E on disjoint state/resources. H/CHAOS-FUZZ fault injection and any mutable shared capacity/cache operation require exclusive R2 ownership; waiting is `WAITING_SHARED_RESOURCE`, never a reason to cancel or contaminate another series.
 
 Foundation documents are not benchmark results.
 

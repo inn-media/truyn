@@ -1,7 +1,7 @@
 # Benchmark Series Isolation Contract
 
 Status: **NORMATIVE**  
-Scope: all TRUYN benchmark/test families, including T, D, S, H and future series.
+Scope: all TRUYN benchmark/test families, including T, D, S, H, E and future series.
 
 TRUYN benchmark families are designed to execute concurrently. A run from one series MUST NOT invalidate, perturb, overwrite, throttle, warm, fault-inject, spend from, or otherwise contaminate another series except where an explicitly declared shared dependency is immutable/read-only and proven not to alter measured conditions.
 
@@ -31,6 +31,10 @@ T/T-PREDICT/<run-id>
 D/D-200/<run-id>
 S/<benchmark>/<run-id>
 H/<benchmark>/<run-id>
+E/E-DECOMPOSE/<run-id>
+E/E-PER-RESULT/<run-id>
+E/E-KNEE/<run-id>
+E/E-DEGRADE/<run-id>
 ```
 
 `run_id` MUST be globally unique within the repository evidence domain. A mutable alias such as `latest`, `current`, or a branch name MUST NOT be an evidence identity.
@@ -77,11 +81,15 @@ Allowed only when:
 - one series cannot mutate another series' configuration/state;
 - a load/interference detector is active when latency/capacity is part of acceptance.
 
+For E-Series, provider endpoints and shared network fabric are often R1 only when E does not change their capacity/configuration and can observe throttling/interference separately from TRUYN saturation.
+
 ### Class R2 — exclusive mutable/fault target
 
 Examples: region degradation target, shared cache being flushed, mutable index, provider deployment whose capacity is being changed, network route under fault injection.
 
 R2 MUST use an exclusive lease/lock. Parallel series may continue only on disjoint R2 targets.
+
+E/DEGRADE does not automatically make a provider deployment R2: offered-load generation against an unchanged shared endpoint may remain R1 if interference is measurable and acceptable. Changing provider capacity, throttling configuration, route state or shared cache/index state makes the affected target R2.
 
 A benchmark is invalidated when an undeclared cross-series R1/R2 interaction can affect a headline metric.
 
@@ -101,7 +109,7 @@ Required pattern:
 concurrency-group = <series_id>-<benchmark_id>-<resource_scope>
 ```
 
-Cancellation policy MUST NOT allow a newer S/D/H/T run to cancel an unrelated active run from another series.
+Cancellation policy MUST NOT allow a newer S/D/H/T/E run to cancel an unrelated active run from another series.
 
 Global locks are prohibited unless the underlying resource is genuinely global and mutable. When a global exclusive dependency is unavoidable, the waiting series records `WAITING_SHARED_RESOURCE` with exact owner/lease identity rather than modifying or cancelling the active run.
 
@@ -109,7 +117,7 @@ Global locks are prohibited unless the underlying resource is genuinely global a
 
 Every normalized telemetry/event record for any series SHOULD carry `seriesId` and MUST carry enough run identity to join unambiguously to exactly one run.
 
-For T-series, `seriesId = "T"` is mandatory in implementation even where older schema examples omit it.
+For T-series, `seriesId = "T"` is mandatory in implementation even where older schema examples omit it. For E-Series, `seriesId = "E"`, `benchmarkId`, `runId`, `batchId`, `requestId`, `scaleN` and `arm` are mandatory for measured request-level evidence.
 
 Cross-series dashboards MAY aggregate, but accepted evidence MUST be reconstructable from one series/run namespace without relying on mutable global summaries.
 
@@ -129,13 +137,16 @@ attributed_infrastructure_usage
 
 A different concurrent series consuming shared account credits/quota MUST NOT be charged to the measured run. Public list-price economics remain independent; private actual-cash reconciliation must attribute shared-account effects explicitly.
 
+For E/PER-RESULT and E/KNEE, cost attribution must remain request/run-specific even when E shares an R1 provider account with another series.
+
 ## 7. Cache and corpus isolation
 
 Cache state is benchmark state.
 
 - cache namespaces MUST be per series/run unless shared cache is part of every compared arm by design;
 - T-series arm caches remain isolated from one another according to T methodology;
-- a D/S/H run MUST NOT warm or evict a T-series measured cache namespace;
+- a D/S/H/E run MUST NOT warm or evict a T-series measured cache namespace;
+- E runs MUST NOT warm/flush another series' cache/index generation merely to improve or stress E results;
 - corpus/index generations MUST be digest-addressed and immutable after freeze;
 - cleanup from one series MUST never delete another series' generation.
 
@@ -152,6 +163,8 @@ rollback path = proven
 ```
 
 If another series is active in the same fault domain, the injector MUST wait or select a disjoint target. It MUST NOT proceed merely because the tests have different benchmark names.
+
+E/DEGRADE offered-load ramps are not permission to inject faults into foreign/shared mutable resources. Any capacity/configuration/fault mutation follows the same R2 lease rule.
 
 ## 9. Cross-series interference detection
 
