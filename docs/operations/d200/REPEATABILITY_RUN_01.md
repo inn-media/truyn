@@ -27,7 +27,7 @@ The original accepted source/runtime target is intentionally reused so that the 
 
 Workflow: `.github/workflows/d200-repeatability-01.yml`
 
-Prepared workflow blob SHA: `531ad46739a8a54d0d542bfe34405933b2bf2901`
+Prepared workflow blob SHA: `8c756c1e5a0f893657cdf723711cc8cd7eedae29`
 
 The workflow does not trigger when it is merged. It triggers only when the new file `.github/d200-repeatability/launch-01.txt` is added to `main`.
 
@@ -37,9 +37,15 @@ The launch commit must contain exactly that one added file, must be DCO signed-o
 - `REPEAT_ID=d200-repeat-01`
 - `REFERENCE_RUN=35503894414`
 - `TESTED_COMMIT=e91c165c67c655deb80df4511ca346acb9f1f45b`
-- `WORKFLOW_BLOB_SHA=531ad46739a8a54d0d542bfe34405933b2bf2901`
+- `WORKFLOW_BLOB_SHA=8c756c1e5a0f893657cdf723711cc8cd7eedae29`
 
 Any mismatch fails before cloud provisioning.
+
+## OIDC credential boundary
+
+The repeat workflow does not dynamically access the GitHub Actions `secrets` namespace. The three OIDC identifiers required by `azure/login` are read only from repository variables and are checked for presence before authentication. Their values are never written to benchmark evidence or logs by the repeat workflow.
+
+This keeps the repeat launcher from broad secret-namespace exposure while preserving Azure OIDC authentication.
 
 ## Acceptance parity
 
@@ -126,6 +132,6 @@ Do not add the launch token until:
 2. exact merged `main` CI is SUCCESS;
 3. exact merged `main` Class D Five-Patch is SUCCESS;
 4. exact merged `main` CodeQL/security checks are GREEN;
-5. the workflow blob SHA on `main` still equals `531ad46739a8a54d0d542bfe34405933b2bf2901`.
+5. the workflow blob SHA on `main` still equals `8c756c1e5a0f893657cdf723711cc8cd7eedae29`.
 
 Only then is the single launch-token commit allowed.
