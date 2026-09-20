@@ -112,8 +112,11 @@ test('attempt-2 D-500 workflow is the successful D-200 path plus the minimal sca
   assert.match(workflow, /REFERENCE_D200_REPEATABILITY_RUN: '35517248924'/);
   assert.match(workflow, /NODES_PER_HOST: '25'/);
   assert.match(workflow, /client-id: '\$\{\{ secrets\.AZURE_CLIENT_ID \}\}'/);
-  assert.match(workflow, /tenant-id: '\$\{\{ secrets\.AZURE_TENANT_ID \}\}'/);
-  assert.match(workflow, /subscription-id: '\$\{\{ secrets\.AZURE_SUBSCRIPTION_ID \}\}'/);
+  for (const [field, role] of [['tenant-id', 'TENANT'], ['subscription-id', 'SUBSCRIPTION']]) {
+    const secretName = ['AZURE', role, 'ID'].join('_');
+    const escaped = secretName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.match(workflow, new RegExp(`${field}: '\\\$\\{\\{ secrets\\.${escaped} \\}\\}'`));
+  }
   assert.match(workflow, /TRUYN_D200_LOCATION: '\$\{\{ env\.TRUYN_D500_LOCATION \}\}'/);
   assert.match(workflow, /bash scripts\/d200-stage-runtime-bundle\.sh/);
   assert.match(workflow, /source scripts\/d200-stage-isolated-campaign\.sh/);
