@@ -1,7 +1,7 @@
 diff --git a/network/runtime.js b/network/runtime.js
 --- a/network/runtime.js
 +++ b/network/runtime.js
-@@ -481,22 +481,37 @@ export class TruynNetworkNode {
+@@ -481,29 +481,45 @@ export class TruynNetworkNode {
      // Restart readiness is the Kademlia placement set, not every recovered peer.
      this.#resetPeerRecordPropagation(this.localPeerRecord);
  
