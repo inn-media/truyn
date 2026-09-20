@@ -1,0 +1,53 @@
+name: Open 1.0 S89 NLWeb 0.5 Black-box
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/open1-s89-nlweb-blackbox.yml'
+      - 'tools/evidence/s89-nlweb-blackbox.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  s89-independent-blackbox:
+    if: github.event.pull_request.head.ref == 'evidence/open-1-0-s89-nlweb-blackbox'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout evidence harness
+        uses: actions/checkout@v4
+        with:
+          path: harness
+
+      - name: Checkout exact qualified SUT
+        uses: actions/checkout@v4
+        with:
+          ref: a28cba182b9cddde34bc34894180d14cfa166d2b
+          path: sut
+
+      - name: Checkout pinned upstream NLWeb TypeSpec
+        uses: actions/checkout@v4
+        with:
+          repository: nlweb-ai/nlweb-typespec
+          ref: d973d4fe811830eb3734c01a79133adfc474c197
+          path: nlweb-typespec
+
+      - name: Verify immutable identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C sut rev-parse HEAD)" = "a28cba182b9cddde34bc34894180d14cfa166d2b"
+          test "$(git -C nlweb-typespec rev-parse HEAD)" = "d973d4fe811830eb3734c01a79133adfc474c197"
+
+      - name: Compile independent pinned NLWeb 0.5 TypeSpec
+        working-directory: nlweb-typespec
+        run: |
+          npm ci
+          npx tsp compile .
+
+      - name: Run independent external WHO to ASK black-box
+        env:
+          SUT_ROOT: ${{ github.workspace }}/sut
+        run: node harness/tools/evidence/s89-nlweb-blackbox.mjs
