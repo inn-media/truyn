@@ -2,7 +2,7 @@
 
 First-party JavaScript/TypeScript SDK for TRUYN.
 
-**Status:** implemented Developer Release client. The latest accepted immutable public npm prerelease remains `@truyn/sdk@0.1.0-alpha.2`; the current source prepares `0.1.0-alpha.3` for exact-main qualification and immutable publication of the managed auth/device v1 client contract. Do not treat alpha.3 as released until the trusted-publishing workflow completes successfully.
+**Status:** implemented Developer Release client. The latest accepted immutable public npm prerelease remains `@truyn/sdk@0.1.0-alpha.2`; the current source prepares `0.1.0-alpha.4` as a release candidate for exact-main qualification and immutable publication of the managed auth/device v1 client contract. Do not treat alpha.4 as released until the trusted-publishing workflow completes successfully and the published registry coordinate is independently verified.
 
 ```js
 import { TruynLocalNodeClient } from '@truyn/sdk';
@@ -28,13 +28,3 @@ The contract intentionally exposes only client-facing interoperability:
 Account/tenant ownership, device/session identifiers, billing ownership, entitlements and authorization are **server-authoritative**. Client attempts to supply those authority fields are contract violations. The SDK contract does not move managed identity storage, tenant policy, billing, entitlement or revocation authority into the public repository.
 
 Private managed deployments must consume this contract from an accepted immutable released SDK coordinate, never through a sibling checkout, raw GitHub source URL, branch dependency or source copy.
-
-Run the shared executable Developer Release gate from the repository root:
-
-```bash
-node sdk/conformance/run-five-language-e2e.mjs
-```
-
-Ordinary CI builds/verifies the npm release artifact and records exact source SHA, byte size and SHA-256 provenance. This package remains a **pre-stable `0.x` SDK**. `TRUYN/1` remains subject to its separate Open 1.0 qualification. Provider authorization, billing and visibility are enforced by TRUYN server/runtime policy, never by client-supplied metadata, managed auth request fields or Agent Descriptor contents.
-
-See `../README.md`, `../conformance/README.md` and `../../docs/compatibility/SDK_COMPATIBILITY.md`.
