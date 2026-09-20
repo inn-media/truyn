@@ -1,13 +1,12 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot:** 2026-09-09  
-**Synchronized source:** `main@4a3a312877d14e9f0ee361a9356e7369cad04398`  
+**Snapshot:** 2026-09-20  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
 
-This document distinguishes accepted `main` facts from open PRs, diagnostics, planned work and live-production evidence that does not yet exist.
+This document distinguishes accepted facts from open PRs, diagnostics, planned work and live-production evidence that does not yet exist.
 
 ## Canonical matrix
 
@@ -17,25 +16,23 @@ This document distinguishes accepted `main` facts from open PRs, diagnostics, pl
 | QUIC / authenticated sessions / Kademlia | **Implemented / CI-proven** | broader production/WAN evidence |
 | Class C WAN | **ACCEPTED / PASS** | — |
 | Class D-100 | **ACCEPTED / PASS** | — |
-| Post-#458 D-200 | **Run `33959493680` IN PROGRESS** | must terminate on unchanged gates before PASS |
-| Class D-1000 | **OPEN — canonical full pinned campaign FAIL** | exact 20×50 PASS |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
-| Claim-centric + active Trustability | **Implemented bounded slices** | Production Trust Authority remains open; `#438` unmerged |
-| Account → Organization → Tenant | **Historical public acceptance; managed ownership is TRUYN Platform** | public contract/reference seams remain OPEN |
-| Durable Production Authority | **Historical public acceptance; managed implementation migrated to TRUYN Platform** | public self-hostable/reference surfaces remain OPEN |
+| Claim-centric + active Trustability | **Implemented bounded slices** | Production Trust Authority remains open |
+| Account → Organization → Tenant | **Historical public acceptance; managed ownership is TRUYN Platform** | public contract/reference seams |
+| Durable Production Authority | **Historical public acceptance; managed implementation migrated to TRUYN Platform** | public self-hostable/reference surfaces |
 | Managed authority runtime support | **Implemented / accepted in TRUYN Platform** | public repository exposes contracts/conformance only |
 | Managed provider accounting wiring | **Implemented / accepted in TRUYN Platform** | live managed reconciliation evidence open |
-| Live managed authority deployment | **OPEN** | provisioned Cosmos, migration/cutover, multi-region/backup/restore/propagation evidence |
+| Live managed authority deployment | **OPEN** | provisioned production evidence |
 | Provider grants / entitlements / accounting / terminal revocation | **Managed implementation owned by TRUYN Platform; public contract/reference behavior retained where classified OPEN** | live managed ops + reconciliation evidence |
-| Production SLI/SLO | **Defined numerical contract** | `#424`; live 28-day compliance open |
-| Observability / alerting | **Implemented repository/runtime contracts** | `#434`; deployed backends/probes/pager evidence open |
-| Rotation / on-call | **Implemented contracts** | `#440`; live drills/roster/test-fire open |
-| Recovery / DR | **Implemented contract** | `#441`; real backup/restore evidence open |
+| Production SLI/SLO | **Defined numerical contract** | live compliance evidence |
+| Observability / alerting | **Implemented repository/runtime contracts** | deployed evidence |
+| Rotation / on-call | **Implemented contracts** | live drills/roster/test-fire |
+| Recovery / DR | **Implemented contract** | real backup/restore evidence |
 | A2A/MCP C1–C8 | **ACCEPTED bounded profile** | broader optional surfaces separate |
-| P2-E1 / Sprint E | **ACCEPTED / CLOSED** | PR `#427` |
-| P2-E2 `a2a-mcp-pre-v1/g1` | **ACCEPTED / CLOSED** | PR `#432`; stable-v1 not claimed |
-| P2-E3 canonical reconciliation | **ACCEPTED / MERGED** | PR `#459` |
-| NLWeb interoperability | **PLANNED; architecture/boundary NW-0 defined** | exact upstream profile pin + NW-1 adapter core |
+| P2-E1 / Sprint E | **ACCEPTED / CLOSED** | — |
+| P2-E2 `a2a-mcp-pre-v1/g1` | **ACCEPTED / CLOSED** | stable-v1 not claimed |
+| P2-E3 canonical reconciliation | **ACCEPTED / MERGED** | — |
+| NLWeb interoperability | **BOUNDED NLWeb 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | qualify/merge canonical status head; later upstream profiles require requalification |
 | Five first-party SDK clients | **Implemented / conformance-proven** | release ecosystem completion |
 | PyPI alpha | **Accepted immutable public release** | — |
 | Go alpha | **Accepted immutable public release** | — |
@@ -45,61 +42,32 @@ This document distinguishes accepted `main` facts from open PRs, diagnostics, pl
 | Agent Descriptor | **Bounded valid-profile implemented** | refresh/re-sign + full endpoint parity |
 | Live developer site | **OPEN** | deployment/liveness evidence |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers/TSC/neutral stewardship |
-| Mainnet | **Not productionized** | D-1000 + live ops + live managed authority + stable/release/governance gates |
+| Mainnet | **Not productionized** | external qualification + live ops + release/governance gates |
 
-## Network productionization
+## Repository boundary
 
-The canonical D-1000 negative record remains source `0e7f16c1ff74d85e9d4dbbc0fec9a35a0840f094`, run `32869078719`, issue `#344`. PR `#458` repairs target-readiness/discovery and bounded transient QUIC establishment while preserving exactly-once application NEED dispatch and unchanged D-scale thresholds. Fresh D-200 run `33959493680` against verified source `6f64c3dc6333044126916d3dd0a118e3cf8220d4` remains in progress and is not accepted PASS evidence yet.
-
-## Production Authority boundary
-
-Historical public PRs established the authority semantics now split across the open/public contract surface and the managed/private implementation:
-
-1. PR `#425` — Account/Organization/Tenant hierarchy, roles, lifecycle and node/provider bindings;
-2. PR `#433` + `#456` — durable grants, entitlements, accounting reservations/reconciliation, terminal revocation and correctness repairs;
-3. PR `#457` — managed authority repository/runtime support including Cosmos checkpoint semantics, digest/source/revision, optimistic fencing, explicit digest-bound bootstrap, private authority role/API, monotonic relay snapshot cache and fail-closed staleness/readiness integration;
-4. PR `#463` — managed provider accounting semantics for `sponsored`, `prepaid`, and `subscription`, including authoritative reserve before execution and reconcile/release on success, failure or cancellation.
-
-After the two-repository split, the managed implementations represented by stages 3–4 and the managed/commercial portions of stages 1–2 are owned by private `inn-media/truyn-platform`. This public repository owns the protocol/open-edge/reference side: public contracts and conformance, Node/Relay reference behavior, generic provider/BYOK/owner-funded behavior, and explicit managed extension seams. The split changes code ownership, not the previously accepted behavioral invariants.
-
-The private platform consumes accepted public contracts only through immutable released/versioned artifacts or explicitly pinned immutable public contracts. Public code must never require the private repository. The canonical ownership/dependency rule is `OPEN_PRIVATE_BOUNDARY.md`; task routing is `CROSS_REPO_TASK_ROUTING.md`.
-
-Managed repository/runtime acceptance is not proof of a live managed deployment. It does not claim provisioned Cosmos, multi-region writes, continuous backup, migrated production state, relay cutover, accepted restore drill or long-window production reconciliation. Those remain deployment/operations gates.
-
-## Production operations boundary
-
-The public repository retains generic numerical SLI/SLO, observability, dashboards, error budgets/alerts, security rotation/on-call and recovery/DR contracts where they are reusable/open. Private cloud topology, managed production control, proprietary operational state and managed deployment procedures belong to TRUYN Platform. Productionized status remains open until real telemetry/probes, pager delivery, roster, live rotations/restores and durable 28-day serving evidence are accepted.
+Managed production authority, managed control plane, Cosmos-backed persistence, commercial entitlement/accounting/billing implementation and hosted authority runtime are owned by private `inn-media/truyn-platform`. This public repository retains protocol/open-edge behavior, public contracts/conformance, Node/Relay reference behavior, generic provider/BYOK/owner-funded behavior and explicit managed extension seams. Public code never depends on private code; private code consumes only immutable released/versioned public artifacts or explicitly pinned immutable public contracts.
 
 ## A2A / MCP boundary
 
-Accepted bounded state includes C1–C8, independent official A2A/MCP black-box proofs, **P2-E1 / Sprint E** referenced artifacts in both directions with explicit resolution and exact integrity, and **P2-E2** compatibility generation `a2a-mcp-pre-v1/g1` with fail-closed version/required-semantic negotiation and migration rules. PR `#459` closes **P2-E3** documentation reconciliation and adds a regression guard.
-
-**Stable A2A/MCP v1 is not declared.** `TRUYN/1` remains draft.
-
-Durable consolidated evidence: `../compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md`.
+Accepted bounded state includes C1–C8, independent official A2A/MCP black-box proofs, P2-E1 referenced artifacts, P2-E2 compatibility generation `a2a-mcp-pre-v1/g1`, and P2-E3 canonical reconciliation. **Stable A2A/MCP v1 is not declared.** `TRUYN/1` remains draft.
 
 ## NLWeb boundary
 
-NLWeb compatibility is **planned**, not implemented or accepted. The architecture is defined in `NLWEB_INTEROPERABILITY.md` and the development sequence is tracked as NW-0 through NW-6 in `../../ROADMAP.md`.
+TRUYN Open now has executable evidence for a **bounded pinned NLWeb protocol 0.5 interoperability profile** at upstream `nlweb-ai/nlweb-typespec@d973d4fe811830eb3734c01a79133adfc474c197`.
 
-The intended TRUYN scope is limited to interoperability mechanics: NLWeb client/provider adapters, eligible endpoint discovery, `ask`/`who` edge support for a pinned upstream profile, routing/relay, auth-policy passthrough, bounded health/capability advertisement and explicit bridge profiles with MCP/A2A where semantics can be preserved.
+Accepted bounded behavior includes client/provider normalization, exact profile negotiation, authorization-aware WHO discovery over the already visible/eligible TRUYN candidate universe, deterministic public/reference selection, `who → selection → ask` through canonical TRUYN authority/dispatch, structured correlation/provenance preservation, adversarial private-provider invisibility, unsupported-profile fail-closed behavior, and explicitly tested bridge mappings.
 
-The following remain outside the TRUYN NLWeb layer: crawling/ingestion, indexing, vector search, RAG corpus ownership, brand/news/product content, publisher/content rights, campaign data and Data Graph business semantics. Those application/data concerns may integrate with TRUYN through explicit interfaces but are not transport/interoperability responsibilities.
+Independent S89 black-box run **`35487917472`**, attempt 1, completed **SUCCESS** against exact qualified SUT `a28cba182b9cddde34bc34894180d14cfa166d2b`; its evidence-only PR #667 was closed without merge.
 
-No `NLWeb compatible` product claim should be made until exact upstream profile/version pinning and executable black-box/conformance evidence close the relevant NW gates.
+This does **not** claim stable NLWeb v1, compatibility with later upstream revisions, or ownership of crawling/ingestion, indexing, vector search, RAG corpus ownership, brand/news/product content, publisher/content rights, campaign data or Data Graph business semantics. Those application/data concerns remain outside TRUYN's interoperability layer.
+
+Canonical profile details and evidence boundary: `NLWEB_INTEROPERABILITY.md`.
 
 ## SDK / developer release boundary
 
-Five first-party clients and shared executable conformance are implemented. PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2` have accepted immutable public evidence. npm `@truyn/sdk@0.1.0-alpha.1` remains immutable historical evidence but failed the required clean-room Node 22 ESM import and is superseded without overwrite. The accepted npm alpha.2 has public registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM verification recorded permanently in `../../sdk/release/evidence/npm-alpha2-2026-09-05.json`. Maven Central and NuGet remain open.
-
-Agent Descriptor refresh/re-sign, full endpoint parity, archive-member content scanning and live developer-site liveness remain open.
-
-## Trustability boundary
-
-Bounded Trustability is accepted. Production Trust Authority is not accepted on current main because PR `#438` remains open. Multi-region dissemination, transparency witnesses and WAN revocation-propagation evidence remain later production gates.
+Five first-party clients and shared executable conformance are implemented. PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2` have accepted immutable public evidence. npm alpha.1 remains immutable historical evidence but is superseded. Maven Central and NuGet remain open.
 
 ## Documentation hygiene
 
-Historical evidence remains audit history. Current-status documents follow accepted `main`. Open PRs, public uploads and in-progress diagnostics do not become accepted production claims merely by existing; historical repository/runtime acceptance does not imply current public code ownership or live production evidence after the split.
-
-Operational network-scale status: [../operations/NETWORK_SCALE_STATUS.md](../operations/NETWORK_SCALE_STATUS.md).
+Historical evidence remains audit history. Current-status documents follow accepted evidence. Open PRs, public uploads and in-progress diagnostics do not become accepted production claims merely by existing. Operational network-scale status remains delegated to `../operations/NETWORK_SCALE_STATUS.md`.
