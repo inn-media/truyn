@@ -11,6 +11,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Track | Current state | Immediate next gate |
 |---|---|---|
 | Network | **Class C + D-100 + D-200 accepted** | D-500 / D-1000 external scale qualification |
+| Semantic Scale (S-Series) | **Architecture + benchmark/telemetry contract defined; no S PASS claimed** | S-50 `ECON` + `MIX`, then remaining S-50 scenario matrix |
 | Production operations | **contracts implemented** | live evidence |
 | Provider authority | **repository/runtime semantics accepted** | live managed deployment evidence |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + ecosystem evidence |
@@ -36,6 +37,29 @@ D-200 accepted evidence is frozen to source `e91c165c67c655deb80df4511ca346acb9f
 The D-200 gate proved 20 hosts / 200 real processes, readiness 200/200, baseline routing 400/400, post-restart routing 100/100 first-attempt with zero application retries, healed routing 200/200, convergence p95 `256.43 ms`, restart recovery p95 `28,717 ms`, real packet-partition recovery `32,159 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign + staging cleanup with zero remaining resources.
 
 Evidence: [`docs/benchmarks/CLASS_D_200_2026-09-20.md`](docs/benchmarks/CLASS_D_200_2026-09-20.md).
+
+## Semantic Scale (S-Series)
+
+S-Series is a separate live semantic-node scale track that combines the already-proven Class-D network substrate with the already-proven seven-actor provider/semantic path. It does **not** replace D-Series and does not redefine TRUYN networking.
+
+Target ladder:
+
+- [ ] **S-50** — 50 real semantic nodes; first `ECON` + `MIX`, then the full bounded scenario matrix.
+- [ ] **S-100** — repeat comparable core workloads and produce scale curves.
+- [ ] **S-200** — semantic-node gate at the already-proven D-200 node count.
+- [ ] **S-500** — large semantic-network benchmark; preserve comparable `ECON`, `XBORDER` and `COST-ROUTING` evidence at minimum.
+
+Required live text-provider families are GPT, Gemini, Grok, DeepSeek, Llama, Mistral and Kimi. Scenario families are `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION`, `LANG`.
+
+Common hard gates remain fixed across the ladder: routing >=99%, recovery p95 <=120 s, answer/retrieval correctness >=99% where exercised, provenance/minimal-context 100%, zero internal block-ID leakage, zero acknowledged-write loss where exercised, zero invalid/stale/unauthorized acceptance, and paired ECON input-token/provider-cost reduction >=90%.
+
+S-Series uses dedicated workflow/concurrency/resource/evidence namespaces so it can be qualified and run without mutating frozen D-Series campaigns or making concurrent D evidence ambiguous.
+
+Architecture: [`docs/architecture/SEMANTIC_SCALE_S_SERIES.md`](docs/architecture/SEMANTIC_SCALE_S_SERIES.md).  
+Benchmark contract: [`docs/benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md`](docs/benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md).  
+Execution/telemetry: [`docs/operations/S_SERIES_EXECUTION_AND_TELEMETRY.md`](docs/operations/S_SERIES_EXECUTION_AND_TELEMETRY.md).
+
+No S-Series PASS is currently claimed.
 
 ## A2A / MCP
 

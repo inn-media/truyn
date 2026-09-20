@@ -12,6 +12,10 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - [Implementation Status](architecture/IMPLEMENTATION_STATUS.md) — canonical factual maturity/status.
 - [Architecture Contract](architecture/ARCHITECTURE_CONTRACT.md) — source ownership and invariants.
 - [Roadmap](../ROADMAP.md) — accepted gates and next work.
+- [Semantic Scale S-Series](architecture/SEMANTIC_SCALE_S_SERIES.md) — live semantic-node scale architecture for S-50/100/200/500.
+- [S-Series Open/Private Boundary](architecture/S_SERIES_OPEN_PRIVATE_BOUNDARY.md) — canonical repository ownership split for S-Series.
+- [S-Series Benchmark Contract](benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md) — fixed scenarios, acceptance gates and evidence rules.
+- [S-Series Execution & Telemetry](operations/S_SERIES_EXECUTION_AND_TELEMETRY.md) — D/S isolation, telemetry schemas and run closure.
 - [Production Authority](architecture/PRODUCTION_AUTHORITY_CONTROL_PLANE.md) — durable + managed-runtime authority boundary.
 - [Managed Authority Runtime](operations/MANAGED_AUTHORITY_RUNTIME.md) — accepted repository/runtime support and live-deployment non-claims.
 - [Production SLI/SLO](operations/PRODUCTION_SLO.md), [Operations](operations/README.md).
@@ -27,6 +31,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - Class D-200 — **ACCEPTED / PASS** on immutable run `35503894414`, attempt 1; strict terminal marker `TRUYN_D200_TERMINAL result=PASS`.
 - Class D-500 — **OPEN**.
 - Class D-1000 — **OPEN**; D-200 acceptance does not imply the 1,000-process gate.
+- Semantic Scale S-Series — **DEFINED / NOT YET EXECUTED**; S-50/100/200/500 remain open and do not inherit PASS from D-Series or earlier semantic corpus-scale gates.
 - Account → Organization → Tenant — **IMPLEMENTED / accepted** (`#425`).
 - durable grants/entitlements/accounting/revocation — **IMPLEMENTED / accepted** (`#433` + `#456`).
 - managed authority repository/runtime support — **IMPLEMENTED / accepted** (`#457`).
@@ -51,6 +56,14 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - stable mainnet — **not yet**.
 
 Accepted D-200 evidence: [`benchmarks/CLASS_D_200_2026-09-20.md`](benchmarks/CLASS_D_200_2026-09-20.md). Operational scale status: [`operations/NETWORK_SCALE_STATUS.md`](operations/NETWORK_SCALE_STATUS.md).
+
+## Semantic Scale scope reminder
+
+S-Series is the **live semantic-node** benchmark family. It intentionally reuses the accepted TRUYN network, provider and semantic retrieval paths and adds no second network architecture. The earlier `SEMANTIC_SCALE_GATE_V3` remains corpus/index-scale evidence and does not by itself prove S-50/100/200/500 with real heterogeneous inference.
+
+S-Series and D-Series have separate workflow/concurrency/resource/evidence namespaces. A S run may execute beside a D run only when capacity/quota and resource isolation prevent either benchmark from altering the other's result.
+
+Repository ownership is split by behavior: public S-Series contains the reproducible benchmark architecture/methodology, public/reference runner surfaces and sanitized evidence; managed cloud orchestration, private/raw telemetry, credentials/quota/spend controls, proprietary routing/cost intelligence and production operations remain in private `inn-media/truyn-platform`. See [S-Series Open/Private Boundary](architecture/S_SERIES_OPEN_PRIVATE_BOUNDARY.md).
 
 ## NLWeb scope reminder
 
