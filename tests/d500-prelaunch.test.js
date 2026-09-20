@@ -6,6 +6,7 @@ import { validate, D500_TOPOLOGY } from '../scripts/check-d500-contract.mjs';
 const d200 = JSON.parse(fs.readFileSync('config/d200-contract.json', 'utf8'));
 const d500 = JSON.parse(fs.readFileSync('config/d500-contract.json', 'utf8'));
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const phase = process.env.D500_PREFLIGHT_PHASE || 'prepare';
 
 function mustReject(mutator, match) {
   const candidate = clone(d500);
@@ -76,11 +77,12 @@ test('first D-500 gate preserves the proven 100-node restart slice', () => {
   assert.equal(d500.restartNodeTarget, 100);
 });
 
-test('D-500 preparation is not launchable from an active Actions workflow or launch token', () => {
+test('D-500 workflow surface is phase-locked', () => {
   const names = fs.readdirSync('.github/workflows');
-  const active = names.filter((name) => /^d-?500.*\.ya?ml$/i.test(name));
-  assert.deepEqual(active, []);
+  const active = names.filter((name) => /^d-?500.*\.ya?ml$/i.test(name)).sort();
   assert.equal(fs.existsSync('.github/d500/launch-01.txt'), false);
+  if (phase === 'launch') assert.deepEqual(active, ['d500-acceptance.yml']);
+  else assert.deepEqual(active, []);
   assert.equal(fs.existsSync('.github/d500/d500-acceptance.template.yml'), true);
   assert.equal(fs.existsSync('.github/d500/launch-01.template.txt'), true);
 });
@@ -94,7 +96,9 @@ test('D-500 launcher template inherits immutable qualification and strict termin
   assert.match(template, /EXACT_MAIN_CI_RUN: '__EXACT_MAIN_CI_RUN__'/);
   assert.match(template, /EXACT_MAIN_FIVE_PATCH_RUN: '__EXACT_MAIN_FIVE_PATCH_RUN__'/);
   assert.match(template, /QUALIFIED_TREE_CODEQL_CHECK: '__QUALIFIED_TREE_CODEQL_CHECK__'/);
+  assert.match(template, /D500_CONTRACT_SHA256: __D500_CONTRACT_SHA256__/);
   assert.match(template, /NODES_PER_HOST: '25'/);
+  assert.match(template, /D500_PREFLIGHT_PHASE=launch bash scripts\/class-d-500-preflight-qualification\.sh/);
   assert.match(template, /TRUYN_CLASS_D1000_NODES_PER_HOST="\$NODES_PER_HOST"/);
   assert.match(template, /\.topology\.nodeCount==500/);
   assert.match(template, /\.topology\.realProcessesPerHost==25/);
