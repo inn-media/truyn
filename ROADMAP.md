@@ -16,6 +16,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + ecosystem evidence |
 | NLWeb | **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later profiles require explicit requalification |
 | SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 accepted** | Maven/NuGet + Descriptor/site completeness |
+| Commercial proof / T-series | **FOUNDATION ACTIVE / no result claim** | telemetry qualification → pilots → immutable final T/BREAK-EVEN, T/HEAD-TO-HEAD, T/PREDICT |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Mainnet | **Not productionized** | larger D-scale + live ops + release/governance gates |
 
@@ -83,6 +84,67 @@ The accepted claim is bounded to the pinned 0.5 profile. Stable NLWeb v1 and lat
 ## SDK / developer release
 
 Implemented: TypeScript/JavaScript, Python, Go, Java and C#/.NET clients with shared conformance. Accepted immutable releases include PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central and NuGet remain open.
+
+## T-series commercial proof
+
+The T-series converts existing technical evidence into reproducible commercial evidence without changing protocol acceptance criteria.
+
+Canonical public contract: [`docs/benchmarks/T_SERIES_COMMERCIAL_PROOF.md`](docs/benchmarks/T_SERIES_COMMERCIAL_PROOF.md).
+
+### T0 — Foundation — ACTIVE
+
+- [x] define open/private benchmark boundary;
+- [x] define normalized telemetry/evidence vocabulary;
+- [x] define T/BREAK-EVEN methodology;
+- [x] define T/HEAD-TO-HEAD methodology including NAIVE, bare MCP, bare A2A, NLWeb and NLWeb-over-TRUYN;
+- [x] define T/PREDICT methodology including p99, guardrails and controlled stress;
+- [ ] implement common telemetry emitters/exporters;
+- [ ] implement immutable run/acceptance/price/workload manifests;
+- [ ] qualify public-safe deterministic evidence export.
+
+### T1 — Comparator and billing qualification
+
+- [ ] pin exact comparator implementations/profiles;
+- [ ] qualify provider-reported billed-usage capture;
+- [ ] qualify public price-snapshot ingestion;
+- [ ] prove all TRUYN setup/fixed/variable overhead is attributable;
+- [ ] qualify paired-order randomization and cold/warm cache strata;
+- [ ] validate deterministic/blinded quality scoring.
+
+### T2 — T/BREAK-EVEN
+
+- [ ] pilot three corpus classes;
+- [ ] measured logarithmic volume sweep;
+- [ ] low/mainstream/premium price snapshots where available;
+- [ ] compute variable and fully-loaded `N*`;
+- [ ] final immutable run only after telemetry + billing qualification;
+- [ ] publish `$/request vs volume` curves and limitations.
+
+### T3 — T/HEAD-TO-HEAD
+
+- [ ] freeze multi-hop workload and comparator configs;
+- [ ] paired randomized runs across NAIVE/MCP/A2A/NLWeb/TRUYN;
+- [ ] separate NLWeb-over-TRUYN bridge run;
+- [ ] report tokens, gross cost, E2E latency, context duplication, quality and evidence capability matrix;
+- [ ] publish exact comparator pins/config and immutable evidence.
+
+### T4 — T/PREDICT
+
+- [ ] pilot >=1,000 samples/arm/condition;
+- [ ] final p99 proof >=10,000 measured samples/arm/condition;
+- [ ] baseline cost/latency distributions;
+- [ ] provider slowdown, rate-limit and path/region degradation stress;
+- [ ] max-cost/deadline/reroute/fail-closed guardrail proof;
+- [ ] publish percentile-band and p99-shift evidence.
+
+### T5 — Commercial evidence closure
+
+- [ ] independent reconciliation of all three T-series reports against raw evidence and frozen manifests;
+- [ ] safe public reports committed to append-only benchmark ledger;
+- [ ] private operational/raw evidence retained under `truyn-platform` policy;
+- [ ] no investor/client claim exceeds the exact measured scope.
+
+No T-series gate may weaken existing safety, authorization, provenance or benchmark-evidence requirements. Foundation documents are not benchmark results.
 
 ## Stable/mainnet gate
 

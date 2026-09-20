@@ -54,6 +54,11 @@ The repository regression suite treats the evidence files below as protected and
 ### Methodology / planned parity
 
 - [`MULTIMODAL_PROVIDER_PARITY.md`](MULTIMODAL_PROVIDER_PARITY.md) — apples-to-apples methodology for text, image and video provider comparisons; it does not claim a completed multimodal benchmark result.
+- [`T_SERIES_COMMERCIAL_PROOF.md`](T_SERIES_COMMERCIAL_PROOF.md) — canonical T-series boundary, common invariants, cost-accounting contract and immutable evidence bundle; **foundation only, not a benchmark result**.
+- [`T_BREAK_EVEN_METHODOLOGY.md`](T_BREAK_EVEN_METHODOLOGY.md) — fully-loaded and variable-only `$/request vs volume` methodology with measured volume sweep and break-even `N*`.
+- [`T_HEAD_TO_HEAD_METHODOLOGY.md`](T_HEAD_TO_HEAD_METHODOLOGY.md) — paired good-faith comparison of TRUYN vs NAIVE / MCP / A2A / NLWeb plus the separate NLWeb-over-TRUYN bridge arm.
+- [`T_PREDICT_METHODOLOGY.md`](T_PREDICT_METHODOLOGY.md) — p50/p90/p95/p99 cost/latency predictability, hard guardrails and controlled-stress methodology.
+- [`T_SERIES_TELEMETRY.md`](T_SERIES_TELEMETRY.md) — normalized raw telemetry/evidence schema and reproducible metric formulas shared by all T-series tests.
 
 ## Reproducibility note
 
