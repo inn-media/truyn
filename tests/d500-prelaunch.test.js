@@ -84,12 +84,24 @@ test('first D-500 gate preserves the proven 100-node restart slice', () => {
   assert.equal(d500.restartNodeTarget, 100);
 });
 
-test('D-500 workflow surface preserves attempt 1 and keeps attempt 2 phase-locked', () => {
+test('D-500 workflow surface preserves preparation phase-lock or an immutable launched attempt 2', () => {
   const hasAttempt1 = fs.existsSync('.github/d500/launch-01.txt');
   const hasAttempt2 = fs.existsSync('.github/d500/launch-02.txt');
-  assert.equal(hasAttempt2, false, 'attempt 2 launch token must not exist during preparation/qualification');
 
-  if (hasAttempt1) {
+  if (hasAttempt2) {
+    assert.equal(hasAttempt1, true, 'attempt 2 cannot exist without preserved attempt 1 evidence');
+    assert.deepEqual(activeD500Workflows, ['d500-acceptance.yml']);
+    const token2 = fs.readFileSync('.github/d500/launch-02.txt', 'utf8');
+    assert.match(token2, /^TASK_ID=truyn-d500-acceptance-260920-a2$/m);
+    assert.match(token2, /^SOURCE_REF=refs\/heads\/main$/m);
+    assert.match(token2, /^SOURCE_SHA=[0-9a-f]{40}$/m);
+    assert.match(token2, /^TESTED_D500_COMMIT=[0-9a-f]{40}$/m);
+    assert.match(token2, /^P900_RUN_ID=[1-9][0-9]*$/m);
+    assert.match(token2, /^P100_RUN_ID=[1-9][0-9]*$/m);
+    for (const key of ['CONTRACT_SHA256', 'WORKFLOW_BLOB_SHA256', 'PROVISIONER_BLOB_SHA256', 'RUNNER_BLOB_SHA256', 'EVALUATOR_BLOB_SHA256', 'LAUNCH_SCRIPT_BLOB_SHA256']) {
+      assert.match(token2, new RegExp(`^${key}=[0-9a-f]{64}$`, 'm'));
+    }
+  } else if (hasAttempt1) {
     assert.deepEqual(activeD500Workflows, ['d500-acceptance.yml']);
     const token1 = fs.readFileSync('.github/d500/launch-01.txt', 'utf8');
     assert.match(token1, /TASK_ID=truyn-d500-acceptance-260920-a1/);
@@ -139,14 +151,25 @@ test('D-500 launcher template inherits immutable qualification and strict termin
   assert.match(template, /staging_cleanup/);
 });
 
-test('D-500 attempt-2 token template is incomplete by construction until exact qualification', () => {
+test('D-500 attempt-2 template stays incomplete while any launched token is fully qualified', () => {
   if (!fs.existsSync('.github/d500/launch-01.txt')) return;
-  const token = fs.readFileSync('.github/d500/launch-02.template.txt', 'utf8');
-  assert.match(token, /TASK_ID=truyn-d500-acceptance-260920-a2/);
-  assert.match(token, /REFERENCE_D200_RUN=35503894414/);
-  assert.match(token, /REFERENCE_D200_REPEATABILITY_RUN=35517248924/);
-  assert.match(token, /WORKFLOW_BLOB_SHA=__WORKFLOW_BLOB_SHA__/);
-  assert.equal(fs.existsSync('.github/d500/launch-02.txt'), false);
+  const template = fs.readFileSync('.github/d500/launch-02.template.txt', 'utf8');
+  assert.match(template, /TASK_ID=truyn-d500-acceptance-260920-a2/);
+  assert.match(template, /REFERENCE_D200_RUN=35503894414/);
+  assert.match(template, /REFERENCE_D200_REPEATABILITY_RUN=35517248924/);
+  assert.match(template, /WORKFLOW_BLOB_SHA=__WORKFLOW_BLOB_SHA__/);
+
+  if (!fs.existsSync('.github/d500/launch-02.txt')) return;
+  const token = fs.readFileSync('.github/d500/launch-02.txt', 'utf8');
+  assert.match(token, /^TASK_ID=truyn-d500-acceptance-260920-a2$/m);
+  assert.match(token, /^SOURCE_REF=refs\/heads\/main$/m);
+  assert.match(token, /^SOURCE_SHA=[0-9a-f]{40}$/m);
+  assert.match(token, /^TESTED_D500_COMMIT=[0-9a-f]{40}$/m);
+  assert.match(token, /^P900_RUN_ID=[1-9][0-9]*$/m);
+  assert.match(token, /^P100_RUN_ID=[1-9][0-9]*$/m);
+  for (const key of ['CONTRACT_SHA256', 'WORKFLOW_BLOB_SHA256', 'PROVISIONER_BLOB_SHA256', 'RUNNER_BLOB_SHA256', 'EVALUATOR_BLOB_SHA256', 'LAUNCH_SCRIPT_BLOB_SHA256']) {
+    assert.match(token, new RegExp(`^${key}=[0-9a-f]{64}$`, 'm'));
+  }
 });
 
 test('accepted D-200 evidence remains authoritative and explicitly does not claim D-500', () => {
