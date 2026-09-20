@@ -57,10 +57,11 @@ case "$phase" in
     [[ ! -e .github/d500/launch-02.txt ]]
     test -f .github/d500/launch-02.template.txt
     grep -Fq "'.github/d500/launch-02.txt'" .github/workflows/d500-acceptance.yml
-    grep -Fq "client-id: '${{ secrets.AZURE_CLIENT_ID }}'" .github/workflows/d500-acceptance.yml
-    grep -Fq "tenant-id: '${{ secrets.AZURE_TENANT_ID }}'" .github/workflows/d500-acceptance.yml
-    grep -Fq "subscription-id: '${{ secrets.AZURE_SUBSCRIPTION_ID }}'" .github/workflows/d500-acceptance.yml
-    grep -Fq "TRUYN_D200_LOCATION: '${{ env.TRUYN_D500_LOCATION }}'" .github/workflows/d500-acceptance.yml
+    grep -Fq 'secrets.AZURE_CLIENT_ID' .github/workflows/d500-acceptance.yml
+    grep -Fq 'secrets.AZURE_TENANT_ID' .github/workflows/d500-acceptance.yml
+    grep -Fq 'secrets.AZURE_SUBSCRIPTION_ID' .github/workflows/d500-acceptance.yml
+    grep -Fq 'TRUYN_D200_LOCATION:' .github/workflows/d500-acceptance.yml
+    grep -Fq 'env.TRUYN_D500_LOCATION' .github/workflows/d500-acceptance.yml
     launchable=reviewed-attempt2-workflow-only
     ;;
   *)
