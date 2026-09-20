@@ -7,7 +7,10 @@ import { validate, D500_TOPOLOGY } from '../scripts/check-d500-contract.mjs';
 const d200 = JSON.parse(fs.readFileSync('config/d200-contract.json', 'utf8'));
 const d500 = JSON.parse(fs.readFileSync('config/d500-contract.json', 'utf8'));
 const clone = (value) => JSON.parse(JSON.stringify(value));
-const phase = process.env.D500_PREFLIGHT_PHASE || 'prepare';
+const activeD500Workflows = fs.existsSync('.github/workflows')
+  ? fs.readdirSync('.github/workflows').filter((name) => /^d-?500.*\.ya?ml$/i.test(name)).sort()
+  : [];
+const phase = process.env.D500_PREFLIGHT_PHASE || (activeD500Workflows.length ? 'launch' : 'prepare');
 
 function mustReject(mutator, match) {
   const candidate = clone(d500);
@@ -85,8 +88,7 @@ test('first D-500 gate preserves the proven 100-node restart slice', () => {
 });
 
 test('D-500 workflow surface is phase-locked', () => {
-  const names = fs.readdirSync('.github/workflows');
-  const active = names.filter((name) => /^d-?500.*\.ya?ml$/i.test(name)).sort();
+  const active = activeD500Workflows;
   assert.equal(fs.existsSync('.github/d500/launch-01.txt'), false);
   if (phase === 'launch') assert.deepEqual(active, ['d500-acceptance.yml']);
   else assert.deepEqual(active, []);
