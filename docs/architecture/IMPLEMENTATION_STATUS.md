@@ -19,6 +19,7 @@ This document distinguishes accepted facts from open PRs, diagnostics, planned w
 | Class D-200 | **ACCEPTED / PASS** — run `35503894414`, attempt 1 | D-500 / D-1000 remain separate gates |
 | Class D-500 | **OPEN** | real accepted D-500 evidence |
 | Class D-1000 | **OPEN** | real accepted D-1000 evidence |
+| Semantic Scale S-Series | **DEFINED / NOT YET EXECUTED** | S-50 `ECON` + `MIX`, then remaining S-50 scenarios |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
 | Claim-centric + active Trustability | **Implemented bounded slices** | Production Trust Authority remains open |
 | Account → Organization → Tenant | **Historical public acceptance; managed ownership is TRUYN Platform** | public contract/reference seams |
@@ -56,6 +57,16 @@ Measured D-200 acceptance included 20 hosts / 200 real processes, readiness 200/
 This closes D-200 only. It does not promote D-500, D-1000, long-duration stability or mainnet to accepted status.
 
 Durable evidence: `../benchmarks/CLASS_D_200_2026-09-20.md`.
+
+## Semantic Scale S-Series boundary
+
+S-Series is defined as the live semantic-node scale family `S-50 → S-100 → S-200 → S-500`. It combines the existing Class-D network substrate with the existing seven-provider semantic path (GPT, Gemini, Grok, DeepSeek, Llama, Mistral, Kimi) without defining a second network protocol or replacing the D-Series.
+
+The fixed scenario families are `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION`, `LANG`. Common gates retain routing >=99%, recovery p95 <=120 s, answer/retrieval >=99% where exercised, provenance/minimal-context 100%, zero block-ID leakage, zero acknowledged-write loss where exercised, zero invalid/stale/unauthorized acceptance and paired ECON token/provider-cost reduction >=90%.
+
+The existing `SEMANTIC_SCALE_GATE_V3_2026-08-16.md` remains valid corpus/index-scale evidence but does not satisfy S-50/100/200/500 because those gates require real heterogeneous provider-backed nodes and the S-Series execution/evidence contract.
+
+No S-Series workflow/run has been accepted yet. Canonical foundation: `SEMANTIC_SCALE_S_SERIES.md`, `../benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md`, `../operations/S_SERIES_EXECUTION_AND_TELEMETRY.md`.
 
 ## Repository boundary
 
