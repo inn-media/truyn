@@ -1,0 +1,67 @@
+diff --git a/network/runtime.js b/network/runtime.js
+--- a/network/runtime.js
++++ b/network/runtime.js
+@@ -481,22 +481,37 @@ export class TruynNetworkNode {
+     // Restart readiness is the Kademlia placement set, not every recovered peer.
+     this.#resetPeerRecordPropagation(this.localPeerRecord);
+ 
++    // Start discovery repair before contacting recovered endpoints. During a
++    // simultaneous restart those durable endpoints can all be stale, and waiting
++    // for their RPC timeouts here would keep the process control plane offline.
++    if (this.discoveryPeriodicRefresh) {
++      this.discovery.startPeriodicRefresh({
++        intervalMs: this.discoveryRefreshIntervalMs,
++        targetCount: this.discoveryRefreshTargetCount,
++        maxRounds: this.discoveryRefreshMaxRounds,
++        seed: this.discoveryRefreshSeed
++      });
++    }
++
+     // Re-register to all still-live recovery peers as best-effort dissemination, while
+-    // readiness remains gated only by the required closest(self, fanout) placement set.
++    // readiness remains gated only by the required closest(self, fanout) placement set.
++    // This is deliberately non-blocking: stale recovered endpoints must not delay
++    // start() or the HTTP/control listener that is opened by the caller afterwards.
+     if (recoveryPeers.length > 0) {
+-      const announcement = await this.announcePeerRecord(this.localPeerRecord, {
++      const record = this.localPeerRecord;
++      void this.announcePeerRecord(record, {
+         peers: recoveryPeers,
+         fanout: recoveryPeers.length,
+         replacePropagationTargets: false
+-      });
+-      if (announcement.failed > 0) {
+-        this.#schedulePeerRecordRecoveryRetries(
+-          this.localPeerRecord,
+-          recoveryPeers,
+-          announcement.failedNodeIds
+-        );
+-      }
+-    }
+-
+-    if (this.discoveryPeriodicRefresh) {
+-      this.discovery.startPeriodicRefresh({
+-        intervalMs: this.discoveryRefreshIntervalMs,
+-        targetCount: this.discoveryRefreshTargetCount,
+-        maxRounds: this.discoveryRefreshMaxRounds,
+-        seed: this.discoveryRefreshSeed
++      }).then((announcement) => {
++        if (!this.started || this.closing || this.localPeerRecord?.recordId !== record.recordId) return;
++        if (announcement.failed > 0) {
++          this.#schedulePeerRecordRecoveryRetries(record, recoveryPeers, announcement.failedNodeIds);
++        }
++      }).catch((error) => {
++        if (!this.started || this.closing || this.localPeerRecord?.recordId !== record.recordId) return;
++        this.peerRecordLifecycle.lastError = {
++          at: new Date().toISOString(),
++          code: error?.code || null,
++          message: error?.message || String(error)
++        };
++        this.#schedulePeerRecordRecoveryRetries(
++          record,
++          recoveryPeers,
++          recoveryPeers.map((peer) => peer.nodeId)
++        );
+       });
+     }
+     this.#schedulePeerRecordRenewal();
