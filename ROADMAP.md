@@ -17,6 +17,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | NLWeb | **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later profiles require explicit requalification |
 | SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 accepted** | Maven/NuGet + Descriptor/site completeness |
 | Commercial proof / T-series | **FOUNDATION ACTIVE / no result claim** | telemetry qualification → pilots → immutable final T/BREAK-EVEN, T/HEAD-TO-HEAD, T/PREDICT |
+| Hidden-value / H-series | **FOUNDATION ACTIVE / no result claim** | telemetry + private runner qualification → isolated pilots → immutable H/CACHE-COMPOUND, H/SECOND-OPINION, H/ARBITRAGE, H/CHAOS-FUZZ |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Mainnet | **Not productionized** | larger D-scale + live ops + release/governance gates |
 
@@ -145,6 +146,83 @@ Canonical public contract: [`docs/benchmarks/T_SERIES_COMMERCIAL_PROOF.md`](docs
 - [ ] no investor/client claim exceeds the exact measured scope.
 
 No T-series gate may weaken existing safety, authorization, provenance or benchmark-evidence requirements. Foundation documents are not benchmark results.
+
+## H-series hidden-value discovery
+
+The H-series tests emergent network value and adversarial robustness that are not guaranteed merely because the protocol works.
+
+Canonical public contract: [`docs/benchmarks/H_SERIES_HIDDEN_BENCHMARKS.md`](docs/benchmarks/H_SERIES_HIDDEN_BENCHMARKS.md).
+
+### H0 — Foundation — ACTIVE
+
+- [x] define OPEN/PRIVATE benchmark boundary;
+- [x] define paired-control and frozen-manifest rules;
+- [x] define common H telemetry/evidence schema;
+- [x] define H/CACHE-COMPOUND methodology;
+- [x] define H/SECOND-OPINION methodology;
+- [x] define H/ARBITRAGE methodology;
+- [x] define H/CHAOS-FUZZ methodology;
+- [x] bind H to the common D/S/T/H series-isolation contract;
+- [ ] implement H telemetry emitters and deterministic exporter;
+- [ ] implement private hidden seed/dataset/config precommitment;
+- [ ] qualify isolated private runner and evidence schemas.
+
+### H1 — Instrumentation and isolation qualification
+
+- [ ] dedicated H benchmark requester/provider attribution;
+- [ ] per-run cache/artifact/index/budget namespaces;
+- [ ] provider billed-usage and public price-snapshot capture;
+- [ ] cross-series R0/R1/R2 preflight and interference detector;
+- [ ] exact safe export from private raw evidence to public bundle;
+- [ ] negative authorization controls prove zero unauthorized owner-funded calls.
+
+### H2 — H/CACHE-COMPOUND
+
+- [ ] immutable corpus + controlled Zipf overlap generator;
+- [ ] 50/100/200-node cells with cold and steady-state strata;
+- [ ] reuse-disabled paired control;
+- [ ] same-node vs cross-node reuse attribution;
+- [ ] pilot effect-size/variance qualification;
+- [ ] immutable final campaign and independent metric recomputation.
+
+### H3 — H/SECOND-OPINION
+
+- [ ] hidden gold dataset with calibration/validation/holdout split;
+- [ ] all seven single-vendor baselines;
+- [ ] majority, trust-weighted and verify→dispute policies;
+- [ ] disagreement-subset and error-diversity telemetry;
+- [ ] accuracy lift, trust lift, cost multiplier and accuracy-per-dollar;
+- [ ] immutable holdout campaign with no gold leakage.
+
+### H4 — H/ARBITRAGE
+
+- [ ] pinned public price snapshot ingestion;
+- [ ] deterministic scripted price-shock timeline;
+- [ ] STATIC / TRUYN_COST_AWARE / ORACLE arms;
+- [ ] reaction-lag, misroute, regret and captured-arbitrage metrics;
+- [ ] herd/rate-limit/oscillation scenario;
+- [ ] separate live-price observational run when real price movement exists.
+
+### H5 — H/CHAOS-FUZZ
+
+- [ ] seeded generator families and invariant engine;
+- [ ] exclusive R2 fault-target leases;
+- [ ] protocol/provider/identity/timing/trust fault coverage matrix;
+- [ ] deterministic reproduction + minimization pipeline;
+- [ ] every confirmed defect becomes a permanent regression test;
+- [ ] final closure requires zero critical safety-invariant violations and closure of all acceptance-blocking findings.
+
+### H6 — Hidden-value evidence closure
+
+- [ ] independent reconciliation against frozen manifests and raw evidence;
+- [ ] preserve negative/failed campaigns under append-only evidence policy;
+- [ ] publish safe reports, sanitized per-sample evidence and cryptographic digests;
+- [ ] retain security-sensitive/raw operational material only in `truyn-platform`;
+- [ ] no moat/accuracy/arbitrage/robustness claim exceeds the exact measured scope.
+
+H-series lanes may progress in parallel with D, S and T on disjoint state/resources. H/CHAOS-FUZZ fault injection and any mutable shared capacity/cache operation require exclusive R2 ownership; waiting is `WAITING_SHARED_RESOURCE`, never a reason to cancel or contaminate another series.
+
+Foundation documents are not benchmark results.
 
 ## Stable/mainnet gate
 
