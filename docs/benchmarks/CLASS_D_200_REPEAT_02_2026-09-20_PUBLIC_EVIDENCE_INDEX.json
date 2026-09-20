@@ -1,0 +1,57 @@
+{
+  "schema": "truyn.class-d200.repeatability-public-evidence-index.v1",
+  "status": "PASS",
+  "repeatId": "d200-repeat-02",
+  "referenceRunId": 35503894414,
+  "workflowRunId": 35517248924,
+  "artifact": {
+    "id": 10607664333,
+    "name": "truyn-class-d200-repeat-02-e91c165c-35517248924",
+    "digest": "sha256:62808cb3e8c49c7a6218bd259365bfcb1a73ac267ea55ce33e11fe6c4f674010",
+    "fileCount": 21
+  },
+  "published": [
+    {
+      "name": "CLASS_D_200_REPEAT_02_2026-09-20.md",
+      "purpose": "human-readable repeatability acceptance report"
+    },
+    {
+      "name": "CLASS_D_200_REPEAT_02_2026-09-20.json",
+      "purpose": "sanitized normalized repeatability telemetry"
+    },
+    {
+      "name": "CLASS_D_200_REPEAT_02_2026-09-20_READINESS_PUBLIC.json",
+      "purpose": "all 200 sanitized per-node readiness observations"
+    },
+    {
+      "name": "CLASS_D_200_REPEAT_02_2026-09-20_RETENTION_PUBLIC.json",
+      "purpose": "all 100 sanitized write-retention rows"
+    },
+    {
+      "name": "CLASS_D_200_REPEAT_02_2026-09-20_ARTIFACT_FILES.sha256",
+      "purpose": "SHA-256 identity of every file in the immutable repeat artifact"
+    },
+    {
+      "name": "CLASS_D_200_REPEATABILITY_MATRIX.md",
+      "purpose": "side-by-side reference/repeat comparison ledger"
+    }
+  ],
+  "rawArtifactExclusions": [
+    {
+      "name": "class-d-200-diagnostic.log",
+      "sha256": "6242c30ac19bd502886cdf16b275d430ced317a7370d15b336de046a22b48368",
+      "reason": "contains private/internal network addressing and verbose operational output"
+    },
+    {
+      "name": "class-d-200-runtime-staging-cleanup.txt",
+      "sha256": "ff29f5f3885893dd4d1b889cc0540b08b4178f9d0f9c8efffbfe01f234d7ed3d",
+      "reason": "contains an ephemeral cloud resource identifier"
+    },
+    {
+      "name": "class-d-200-restart-recovery-host-output.log",
+      "sha256": "9855ca081e9dd8cf0e697bd52cdeb9355aa9b5ae1ea4da070b1443e1d9e73b98",
+      "reason": "redundant unstructured operational stdout/stderr; acceptance-relevant restart values are published structurally"
+    }
+  ],
+  "policy": "verify-max / exposure-min; unsafe raw bytes are withheld, not deleted or reinterpreted"
+}
