@@ -1,61 +1,69 @@
-# D-200 next-run repair bundle
+# D-200 next-run repair bundle — historical / superseded
 
 TASK_ID: `truyn-d200-parallel-closure-260914-a7f3`
 
-This document records the staging-only repair bundle prepared after D-200 run `35462775116` (attempt 1) failed at `restart-recovery` on launcher SHA `2ebdf89bcc31f3bfe32d934c6282b35e524ed72f`, testing `e9583d3e2c7f85d618efead38cb7853d5e8abab3`.
+Status: **SUPERSEDED BY ACCEPTED D-200 PASS**
 
-## Immutable failure facts
+This document is retained as historical repair context. It originally recorded the stage-isolated repair bundle prepared after failed D-200 run `35462775116` and the diagnostic hardening used by subsequent repair iterations.
 
-The failed run proved that provisioning and the pre-restart network were healthy enough to reach the restart phase: 20 hosts / 200 real processes, topology PASS, readiness 200/200, convergence 200/200 with routing success 1.0, baseline 400/400 with routing success 1.0, safety invariants PASS, and 100 acknowledged durable writes.
+The closure task is now complete. The immutable accepted run is `35503894414`, attempt 1, with strict terminal marker `TRUYN_D200_TERMINAL result=PASS`.
 
-The campaign stopped in `restart-recovery`. The reported outer line was the parent-side marker parser after one or more host restart scripts failed to produce their final markers; the retained artifact does not identify the exact host-side predicate. Therefore the old run does **not** justify claiming a specific host or predicate as proven root cause.
+Accepted evidence: [`../../benchmarks/CLASS_D_200_2026-09-20.md`](../../benchmarks/CLASS_D_200_2026-09-20.md). Current operational status: [`../NETWORK_SCALE_STATUS.md`](../NETWORK_SCALE_STATUS.md).
 
-## Correctness repairs retained for the next run
+## Final resolution
 
-1. Session binding uses process `instanceId` (with sequence fallback for legacy records). Lease renewal does not discard a live session; a real process restart changes `instanceId` and invalidates stale transport/RPC sessions.
-2. Peer-record restart readiness is gated on the Kademlia placement set (`closest(self, fanout)`), not every recovered peer. Dissemination to recovered peers remains best-effort and does not broaden the readiness gate.
-3. Persistence is coalesced and unchanged peer-record hearsay does not repeatedly force whole-state snapshot/fsync work.
-4. D-200-specific regressions cover restart placement, renewal/session races, persistence amplification and fail-closed durability.
+The accepted source repair plus stage-isolated diagnostics resolved the restart-recovery failure without weakening acceptance. The passing run proved:
 
-## Stage-isolated cloud campaign orchestration
+- 20/20 hosts / 200 real processes;
+- readiness 200/200;
+- convergence 200/200, p95 `256.43 ms`;
+- baseline routing 400/400;
+- safety invariants PASS;
+- 100 acknowledged durable writes;
+- restart of 100 nodes across all 20 hosts, recovery p95 `28,717 ms`;
+- post-restart routing 100/100 first-attempt, application retries `0`;
+- real packet partition with zero successful blocked probes and recovery `32,159 ms`;
+- healed routing 200/200, p95 `322.473 ms`;
+- write retention 100/100 with acknowledged loss `0`, confirmed missing `0`, read errors `0`;
+- resource observation 200/200 processes;
+- campaign cleanup confirmed, remaining `0`;
+- staging cleanup confirmed, remaining `0`;
+- evaluator rc `0`, campaign rc `0`, terminal PASS.
 
-The next D-200 must execute the canonical campaign through `scripts/d200-stage-isolated-campaign.sh` after provisioning.
+Accepted tuple:
 
-The orchestrator:
+- tested source: `e91c165c67c655deb80df4511ca346acb9f1f45b`
+- tested tree: `3a402ba72502de12ed2277db3c9f472872f44b46`
+- launcher merge: `e785815530a59a56787e20ceb6bb232ccc93ad4f`
+- run: `35503894414`
+- artifact ID: `10603748497`
+- artifact digest: `sha256:386387165b729ed2167140747a310d85822d9d1987dce812812408f2468bccd4`
 
-- splits the canonical campaign only at top-level `STAGE=...` boundaries;
-- executes each stage in an isolated subshell;
-- records `PASS`, `RED`, or `SKIPPED_DEPENDENCY` for every stage;
-- preserves the first real failure as the durable failure anchor;
-- continues every later stage that is still meaningful;
-- skips `write-retention` only when `durable-writes` did not PASS;
-- skips canonical final evidence on any earlier mandatory RED/SKIP and rebuilds strict partial evidence after diagnostics;
-- archives any stage-local early failure checkpoint separately before rebuilding final partial evidence;
-- keeps Azure resource cleanup owned by the provisioner EXIT trap and therefore runs it only after the diagnostic pass finishes;
-- returns non-zero when any mandatory stage is RED/SKIPPED, so acceptance is never weakened.
+Run `35503894414` is accepted immutable evidence and **NEVER_RERUN**.
 
-The stage plan itself is fail-closed: an empty plan or a plan missing required restart/post-restart/partition/healed/resources/evidence stages is RED.
+## Historical failure facts
 
-## Restart-recovery diagnostic hardening
+The earlier failed run `35462775116` proved provisioning and the pre-restart network were healthy enough to reach restart: 20 hosts / 200 real processes, topology PASS, readiness 200/200, convergence 200/200, baseline 400/400, safety PASS, and 100 acknowledged durable writes. It failed at restart recovery and motivated the diagnostic hardening below.
 
-`benchmarks/scale/d200-restart-recovery-stage.sh` always captures per-host remote rc, logical rc, stdout/stderr-derived markers, readiness counts, pending propagation count, valid peers, buckets, remote-host diversity, refresh status, and the last failing local node before the stage returns RED.
+A later failed run `35470182984` provided complete evidence that pre-restart state was GREEN while restart recovery failed; its evidence drove the final permanent source repair. Both runs remain immutable historical failures and are not converted into PASS by the later success.
 
-Logical readiness failure does not return a non-zero Azure RunCommand exit from the remote script. This prevents the existing `remote()` retry wrapper from replaying a mutating restart several times. The parent interprets `RESTART_LOGICAL_RC` and `READY` strictly instead.
+## Repairs that became part of the accepted path
 
-The literal READY assertion required by existing regression tests is preserved:
+1. Session binding uses process instance generation/identity so a real process restart invalidates stale transport/RPC sessions without treating ordinary lease renewal as a restart.
+2. Peer-record restart readiness is based on required Kademlia placement rather than every recovered peer; recovered-peer dissemination remains best-effort and does not broaden the readiness gate.
+3. Persistence work is coalesced so unchanged peer-record hearsay does not repeatedly force full snapshot/fsync work.
+4. Restart generation recovery, discovery-client lease/refcount behavior, DHT replication cleanup, required-placement readiness, recovered-peer hydration, critical publish/background dissemination and persistence anti-starvation were hardened without lowering thresholds.
+5. Per-host restart diagnostics record remote/logical rc, readiness counts, pending propagation, valid peers, buckets, remote-host diversity, refresh status and last failing local node.
+6. Stage-isolated orchestration continues independent meaningful stages after a failure, records PASS/RED/SKIPPED_DEPENDENCY, preserves first failure, and still returns non-zero whenever a mandatory stage fails.
+7. Post-restart acceptance remains first-attempt-only; diagnostic retries never change the gate.
+8. Write-retention evidence separates confirmed missing records from read/control errors; acknowledged write loss remains strictly zero.
 
-```bash
-[[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
-```
+## Stage-isolated orchestration retained
 
-Per-host evidence is emitted to `class-d-200-restart-recovery-hosts.json` and `class-d-200-restart-recovery-host-output.log`.
+`scripts/d200-stage-isolated-campaign.sh` remains the canonical diagnostic execution model for this scale path. It isolates top-level stages, aggregates complete evidence, skips only invalid dependencies, rebuilds strict partial evidence after diagnostics, and leaves cleanup owned by the provisioner EXIT trap.
 
-## Acceptance remains strict
+The stage plan is fail-closed: malformed or incomplete plans are RED. The GitHub acceptance launcher requires both campaign rc `0` and evaluator rc `0`, plus durability, cleanup, staging cleanup and immutable artifact gates, before emitting terminal PASS.
 
-The GitHub acceptance launcher already requires both campaign rc = 0 and evaluator rc = 0, plus cleanup, durability and artifact gates, before emitting `TRUYN_D200_TERMINAL result=PASS`. Stage isolation changes diagnostic completeness only; it does not convert a RED/SKIP into PASS.
+## Future use
 
-The existing one-shot launcher must **not** be reused as-is. After this source bundle is merged and exact-main CI/CodeQL are GREEN, prepare a separate launcher-only freeze commit pinned to that exact tested SHA/tree and update its campaign command to source the stage-isolated orchestrator. Only that new qualified launcher may start the next acceptance run.
-
-## Still separate from correctness acceptance
-
-Infrastructure speedups remain a separate layer: parallel provisioning/install across different VMs, later parallel host-level post-restart/healed/resources commands while keeping commands to one VM sequential, 4-vCPU placement preference, and eventually a Compute Gallery image. They must not weaken or replace the correctness gates above.
+This file is no longer a request to launch another D-200. D-200 is closed. Future D-500/D-1000 work may reuse the proven diagnostic principles, but must create new exact-SHA qualification and new single-shot acceptance evidence for those separate gates.

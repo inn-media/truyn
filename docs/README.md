@@ -2,8 +2,8 @@
 
 Human-facing documentation for TRUYN architecture, implementation status, governance, operations, security, Trustability, compatibility, SDK/DX and benchmark evidence.
 
-**Snapshot:** 2026-09-05  
-**Current synchronized source:** `main@abd6bd95ecad8dc8d82bbf6d2983d96df80267d3`  
+**Snapshot:** 2026-09-20  
+**Current synchronized source:** `main` at this documentation revision  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
 
@@ -16,7 +16,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - [Managed Authority Runtime](operations/MANAGED_AUTHORITY_RUNTIME.md) — accepted repository/runtime support and live-deployment non-claims.
 - [Production SLI/SLO](operations/PRODUCTION_SLO.md), [Operations](operations/README.md).
 - [A2A/MCP Architecture](architecture/A2A_MCP_INTEROPERABILITY.md), [Compatibility](compatibility/A2A_MCP_COMPATIBILITY.md), [P2 Final Acceptance](compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md).
-- [NLWeb Interoperability](architecture/NLWEB_INTEROPERABILITY.md) — planned `ask`/`who`/discovery/relay/bridge compatibility track and explicit application/data non-goals.
+- [NLWeb Interoperability](architecture/NLWEB_INTEROPERABILITY.md) — bounded pinned 0.5 profile and explicit application/data non-goals.
 - [SDK & Developer Experience](architecture/SDK_DEVELOPER_EXPERIENCE.md).
 - [Governance](../GOVERNANCE.md), [Security](../SECURITY.md), [Benchmark Evidence](benchmarks/README.md).
 
@@ -24,8 +24,9 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 
 - Class C heterogeneous WAN — **ACCEPTED**.
 - Class D-100 — **ACCEPTED**.
-- Class D-1000 — **OPEN**; canonical full pinned campaign remains failed.
-- post-#458 D-200 run `33959493680` — **IN PROGRESS**, not PASS.
+- Class D-200 — **ACCEPTED / PASS** on immutable run `35503894414`, attempt 1; strict terminal marker `TRUYN_D200_TERMINAL result=PASS`.
+- Class D-500 — **OPEN**.
+- Class D-1000 — **OPEN**; D-200 acceptance does not imply the 1,000-process gate.
 - Account → Organization → Tenant — **IMPLEMENTED / accepted** (`#425`).
 - durable grants/entitlements/accounting/revocation — **IMPLEMENTED / accepted** (`#433` + `#456`).
 - managed authority repository/runtime support — **IMPLEMENTED / accepted** (`#457`).
@@ -40,7 +41,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - **P2-E2** `a2a-mcp-pre-v1/g1` — **ACCEPTED** (`#432`).
 - **P2-E3** canonical documentation reconciliation — **ACCEPTED / merged** (`#459`).
 - **Stable A2A/MCP v1 is not declared**; `TRUYN/1` remains draft.
-- NLWeb interoperability — **PLANNED**; NW-0 architecture/boundary is defined, implementation/conformance is not yet accepted.
+- NLWeb interoperability — **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN**.
 - five first-party SDK clients + shared conformance — **IMPLEMENTED**.
 - PyPI alpha + Go alpha + npm alpha.2 — **accepted immutable public releases**.
 - npm alpha.1 — immutable historical artifact with failed required clean-room ESM import.
@@ -48,6 +49,8 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - Production Trust Authority — **OPEN**; PR `#438` unmerged.
 - governance — **G1 / bootstrap Founding Stewardship**.
 - stable mainnet — **not yet**.
+
+Accepted D-200 evidence: [`benchmarks/CLASS_D_200_2026-09-20.md`](benchmarks/CLASS_D_200_2026-09-20.md). Operational scale status: [`operations/NETWORK_SCALE_STATUS.md`](operations/NETWORK_SCALE_STATUS.md).
 
 ## NLWeb scope reminder
 
@@ -57,4 +60,4 @@ TRUYN's NLWeb track is interoperability-only: eligible endpoint discovery, `ask`
 
 `docs/benchmarks/` is a durable evidence ledger. Failed campaigns remain failures; accepted campaigns remain accepted. Diagnostics and open PRs never become acceptance merely because code exists. Likewise, merged repository/runtime support must not be overstated as live production evidence.
 
-Operational network-scale status: [operations/NETWORK_SCALE_STATUS.md](operations/NETWORK_SCALE_STATUS.md).
+Raw diagnostic logs that can carry operational details stay in immutable Actions artifacts. Public reports retain sanitized structured telemetry, artifact identity and cryptographic digests.
