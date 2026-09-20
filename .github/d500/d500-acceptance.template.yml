@@ -27,6 +27,7 @@ env:
   EXACT_MAIN_FIVE_PATCH_RUN: '__EXACT_MAIN_FIVE_PATCH_RUN__'
   QUALIFIED_TREE_CODEQL_CHECK: '__QUALIFIED_TREE_CODEQL_CHECK__'
   QUALIFIED_TREE_CODEQL_SHA: __QUALIFIED_TREE_CODEQL_SHA__
+  D500_CONTRACT_SHA256: __D500_CONTRACT_SHA256__
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '25'
 
@@ -51,9 +52,15 @@ jobs:
           raw="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${token}?ref=${GITHUB_SHA}" --jq .content | tr -d '\n' | base64 -d)"
           value(){ sed -n "s/^$1=//p" <<<"$raw" | tail -1; }
           [[ "$(value TASK_ID)" == "$TASK_ID" ]]
-          [[ "$(value TESTED_COMMIT)" == "$TESTED_COMMIT" ]]
           [[ "$(value REFERENCE_D200_RUN)" == "$REFERENCE_D200_RUN" ]]
           [[ "$(value REFERENCE_D200_REPEATABILITY_RUN)" == "$REFERENCE_D200_REPEATABILITY_RUN" ]]
+          [[ "$(value TESTED_COMMIT)" == "$TESTED_COMMIT" ]]
+          [[ "$(value TESTED_TREE_SHA)" == "$TESTED_TREE_SHA" ]]
+          [[ "$(value EXACT_MAIN_CI_RUN)" == "$EXACT_MAIN_CI_RUN" ]]
+          [[ "$(value EXACT_MAIN_FIVE_PATCH_RUN)" == "$EXACT_MAIN_FIVE_PATCH_RUN" ]]
+          [[ "$(value QUALIFIED_TREE_CODEQL_CHECK)" == "$QUALIFIED_TREE_CODEQL_CHECK" ]]
+          [[ "$(value QUALIFIED_TREE_CODEQL_SHA)" == "$QUALIFIED_TREE_CODEQL_SHA" ]]
+          [[ "$(value D500_CONTRACT_SHA256)" == "$D500_CONTRACT_SHA256" ]]
           expected_workflow_blob="$(value WORKFLOW_BLOB_SHA)"
           [[ "$expected_workflow_blob" =~ ^[0-9a-f]{40}$ ]]
           actual_workflow_blob="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${workflow}?ref=${GITHUB_SHA}" --jq .sha)"
@@ -81,22 +88,26 @@ jobs:
           ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
           fp="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_FIVE_PATCH_RUN}")"
           cq="$(gh api "repos/${GITHUB_REPOSITORY}/check-runs/${QUALIFIED_TREE_CODEQL_CHECK}")"
+          d200="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${REFERENCE_D200_RUN}")"
           repeat="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${REFERENCE_D200_REPEATABILITY_RUN}")"
           jq -e --arg s "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$ci" >/dev/null
           jq -e --arg s "$TESTED_COMMIT" '.name=="Class D Five-Patch Preflight" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$fp" >/dev/null
           jq -e --arg s "$QUALIFIED_TREE_CODEQL_SHA" '.name=="CodeQL" and .head_sha==$s and .status=="completed" and .conclusion=="success"' <<<"$cq" >/dev/null
           [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/${QUALIFIED_TREE_CODEQL_SHA}" --jq .commit.tree.sha)" == "$TESTED_TREE_SHA" ]]
+          jq -e '.status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$d200" >/dev/null
           jq -e '.status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$repeat" >/dev/null
+          actual_contract_sha="$(sha256sum config/d500-contract.json | awk '{print $1}')"
+          [[ "$actual_contract_sha" == "$D500_CONTRACT_SHA256" ]]
           git ls-tree -r "$TESTED_COMMIT" -- benchmarks/scale scripts network config tests > class-d-500-source-manifest.txt
           sha256sum class-d-500-source-manifest.txt > class-d-500-source-manifest.sha256.txt
           npm install --ignore-scripts --no-audit --no-fund
           node scripts/check-d200-contract.mjs
           node scripts/check-d500-contract.mjs
           node scripts/check-class-d-five-patches.mjs
-          bash scripts/class-d-500-preflight-qualification.sh
+          D500_PREFLIGHT_PHASE=launch bash scripts/class-d-500-preflight-qualification.sh
           git diff --check
-          sha256sum config/d500-contract.json > class-d-500-contract.sha256.txt
-          printf 'task_id=%s\nreference_d200_run=%s\nreference_d200_repeatability_run=%s\ntested_commit=%s\ntested_tree_sha=%s\nhosts=20\nprocesses=500\nnodes_per_host=25\nmax_peers=32\nrouting_threshold=0.99\nrecovery_p95_limit_ms=120000\nacknowledged_writes=100\nacknowledged_write_loss=0\n' "$TASK_ID" "$REFERENCE_D200_RUN" "$REFERENCE_D200_REPEATABILITY_RUN" "$TESTED_COMMIT" "$TESTED_TREE_SHA" > class-d-500-diagnostic-input.txt
+          printf '%s  config/d500-contract.json\n' "$actual_contract_sha" > class-d-500-contract.sha256.txt
+          printf 'task_id=%s\nreference_d200_run=%s\nreference_d200_repeatability_run=%s\ntested_commit=%s\ntested_tree_sha=%s\nd500_contract_sha256=%s\nhosts=20\nprocesses=500\nnodes_per_host=25\nmax_peers=32\nrouting_threshold=0.99\nrecovery_p95_limit_ms=120000\nacknowledged_writes=100\nacknowledged_write_loss=0\n' "$TASK_ID" "$REFERENCE_D200_RUN" "$REFERENCE_D200_REPEATABILITY_RUN" "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$actual_contract_sha" > class-d-500-diagnostic-input.txt
 
       - name: Build immutable runtime bundle
         id: runtime
@@ -192,16 +203,16 @@ jobs:
             for x in evaluator_rc=99 cleanup=false remaining=-1 ack_count=-1 ack_loss=-1; do echo "$x" >>"$GITHUB_OUTPUT"; done
             exit 0
           fi
-          cp "$f" class-d-500-evidence.json
-          jq -e '.topology.hostCount==20 and .topology.nodeCount==500 and .topology.realProcessCount==500 and .topology.realProcessesPerHost==25 and .topology.uniqueIdentityCount==500 and .topology.uniqueEndpointCount==500 and .topology.syntheticNodeCount==0 and .readiness.readyNodeRatio>=.99 and .routing.baselineSuccessRatio>=.99 and .routing.postRestartSuccessRatio>=.99 and .routing.healedSuccessRatio>=.99 and .convergence.routingSuccessRatio>=.99 and .convergence.latencyMs.p95<=120000 and .recovery.latencyMs.p95<=120000 and .recovery.restartedNodeCount==100 and .recovery.packetPartitionRecoveryMs<=120000 and .adversarial.packetPartition.realPacketPath==true and .adversarial.packetPartition.blockedSuccesses==0 and .safety.acknowledgedWriteCount>=100 and .safety.acknowledgedWriteLossCount==0 and .safety.invalidSignedStateAcceptedCount==0 and .safety.staleRevokedReceiptAcceptedCount==0 and .safety.unauthorizedProviderExecutionCount==0 and .cleanup.confirmed==true and .cleanup.remainingResources==0' "$f" >/dev/null
+          jq '.class="D-500" | .scope="500-real-process-scale+safety-contract-v1" | .sharedHarnessEvidenceFile="class-d-1000-evidence.json"' "$f" > class-d-500-evidence.json
+          jq -e '.topology.hostCount==20 and .topology.nodeCount==500 and .topology.realProcessCount==500 and .topology.realProcessesPerHost==25 and .topology.uniqueIdentityCount==500 and .topology.uniqueEndpointCount==500 and .topology.syntheticNodeCount==0 and .readiness.readyNodeRatio>=.99 and .routing.baselineSuccessRatio>=.99 and .routing.postRestartSuccessRatio>=.99 and .routing.healedSuccessRatio>=.99 and .convergence.routingSuccessRatio>=.99 and .convergence.latencyMs.p95<=120000 and .recovery.latencyMs.p95<=120000 and .recovery.restartedNodeCount==100 and .recovery.packetPartitionRecoveryMs<=120000 and .adversarial.packetPartition.realPacketPath==true and .adversarial.packetPartition.blockedSuccesses==0 and .safety.acknowledgedWriteCount>=100 and .safety.acknowledgedWriteLossCount==0 and .safety.invalidSignedStateAcceptedCount==0 and .safety.staleRevokedReceiptAcceptedCount==0 and .safety.unauthorizedProviderExecutionCount==0 and .cleanup.confirmed==true and .cleanup.remainingResources==0' class-d-500-evidence.json >/dev/null
           rc=$?
           echo "evaluator_rc=$rc" >>"$GITHUB_OUTPUT"
-          echo "cleanup=$(jq -r '.cleanup.confirmed//false' "$f")" >>"$GITHUB_OUTPUT"
-          echo "remaining=$(jq -r '.cleanup.remainingResources//-1' "$f")" >>"$GITHUB_OUTPUT"
-          echo "ack_count=$(jq -r '.safety.acknowledgedWriteCount//-1' "$f")" >>"$GITHUB_OUTPUT"
-          echo "ack_loss=$(jq -r '.safety.acknowledgedWriteLossCount//-1' "$f")" >>"$GITHUB_OUTPUT"
+          echo "cleanup=$(jq -r '.cleanup.confirmed//false' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "remaining=$(jq -r '.cleanup.remainingResources//-1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "ack_count=$(jq -r '.safety.acknowledgedWriteCount//-1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "ack_loss=$(jq -r '.safety.acknowledgedWriteLossCount//-1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
           for q in baseline=.routing.baselineSuccessRatio post_restart=.routing.postRestartSuccessRatio healed=.routing.healedSuccessRatio convergence_routing=.convergence.routingSuccessRatio convergence_p95=.convergence.latencyMs.p95 recovery_p95=.recovery.latencyMs.p95 partition_recovery=.recovery.packetPartitionRecoveryMs; do
-            k=${q%%=*}; e=${q#*=}; echo "$k=$(jq -r "$e//-1" "$f")" >>"$GITHUB_OUTPUT"
+            k=${q%%=*}; e=${q#*=}; echo "$k=$(jq -r "$e//-1" class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
           done
 
       - name: Cleanup runtime staging fail-closed
@@ -267,7 +278,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           result=FAIL
-          if [[ "${CAMPAIGN_RC:-99}" == 0 && "${EVALUATOR_RC:-99}" == 0 && "$CLEANUP" == true && "$REMAINING" == 0 && "$STAGING_CLEANUP" == true && "$STAGING_REMAINING" == 0 && "$ACK_COUNT" -ge 100 && "$ACK_LOSS" == 0 && "$DIGEST" =~ ^(sha256:)?[0-9a-f]{64}$ ]]; then
+          if [[ "${CAMPAIGN_RC:-99}" == 0 && "${EVALUATOR_RC:-99}" == 0 && "$CLEANUP" == true && "$REMAINING" == 0 && "$STAGING_CLEANUP" == true && "$STAGING_REMAINING" == 0 && "${ACK_COUNT:--1}" =~ ^[0-9]+$ && "$ACK_COUNT" -ge 100 && "$ACK_LOSS" == 0 && "$DIGEST" =~ ^(sha256:)?[0-9a-f]{64}$ ]]; then
             result=PASS
           fi
           echo "TRUYN_D500_TERMINAL result=$result campaign_rc=${CAMPAIGN_RC:-99} evaluator_rc=${EVALUATOR_RC:-99} baseline=${BASELINE:--1} post_restart=${POST_RESTART:--1} healed=${HEALED:--1} convergence=${CONV:--1} convergence_p95=${CONV_P95:--1} recovery_p95=${RECOVERY_P95:--1} partition_recovery=${PARTITION:--1} acknowledged_writes=${ACK_COUNT:--1} acknowledged_loss=${ACK_LOSS:--1} cleanup=$CLEANUP remaining=$REMAINING staging_cleanup=$STAGING_CLEANUP staging_remaining=$STAGING_REMAINING artifact_id=${ARTIFACT_ID:-missing} artifact_digest=${DIGEST:-missing}"
