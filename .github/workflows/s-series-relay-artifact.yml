@@ -145,7 +145,7 @@ jobs:
           const provider = await TruynLocalNodeClient.connect({ relayUrl: process.env.TRUYN_RELAY, name: 's-relay-cleanroom-provider' });
           try {
             const cap = 'benchmark.semantic.cleanroom';
-            await provider.offer(cap, {});
+            await provider.offer(cap, { accessMode: 'owner-only', allowedRequesterIds: [requester.nodeId] });
             const put = await requester.runtime.putContext([
               { id: 'a', text: 'Cobalt Station restoration objective is RESTORE-CLEANROOM.' },
               { id: 'b', text: 'Irrelevant context.' }
@@ -157,6 +157,7 @@ jobs:
             const needPromise = provider.nextNeed({ timeoutMs: 10000 });
             const receipt = await requester.need(cap, { task: 'return cleanroom', context: retrieved.blocks[0].text }, {});
             const need = await needPromise;
+            if (need.requester !== requester.nodeId) throw new Error('cleanroom_requester_mismatch');
             await provider.result(need.needId, 'ANSWER=CLEANROOM', { benchmark: true });
             const result = await requester.waitForResult(receipt.needId, { timeoutMs: 10000 });
             if (result.output !== 'ANSWER=CLEANROOM') throw new Error('cleanroom_need_result_failed');
