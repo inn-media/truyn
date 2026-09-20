@@ -76,10 +76,47 @@ test('first D-500 gate preserves the proven 100-node restart slice', () => {
   assert.equal(d500.restartNodeTarget, 100);
 });
 
-test('D-500 preparation is not launchable from an active Actions workflow', () => {
+test('D-500 preparation is not launchable from an active Actions workflow or launch token', () => {
   const names = fs.readdirSync('.github/workflows');
   const active = names.filter((name) => /^d-?500.*\.ya?ml$/i.test(name));
   assert.deepEqual(active, []);
+  assert.equal(fs.existsSync('.github/d500/launch-01.txt'), false);
+  assert.equal(fs.existsSync('.github/d500/d500-acceptance.template.yml'), true);
+  assert.equal(fs.existsSync('.github/d500/launch-01.template.txt'), true);
+});
+
+test('D-500 launcher template inherits immutable qualification and strict terminal semantics', () => {
+  const template = fs.readFileSync('.github/d500/d500-acceptance.template.yml', 'utf8');
+  assert.match(template, /REFERENCE_D200_RUN: '35503894414'/);
+  assert.match(template, /REFERENCE_D200_REPEATABILITY_RUN: '__D200_REPEATABILITY_ACCEPTED_RUN__'/);
+  assert.match(template, /TESTED_COMMIT: __TESTED_COMMIT__/);
+  assert.match(template, /TESTED_TREE_SHA: __TESTED_TREE_SHA__/);
+  assert.match(template, /EXACT_MAIN_CI_RUN: '__EXACT_MAIN_CI_RUN__'/);
+  assert.match(template, /EXACT_MAIN_FIVE_PATCH_RUN: '__EXACT_MAIN_FIVE_PATCH_RUN__'/);
+  assert.match(template, /QUALIFIED_TREE_CODEQL_CHECK: '__QUALIFIED_TREE_CODEQL_CHECK__'/);
+  assert.match(template, /NODES_PER_HOST: '25'/);
+  assert.match(template, /TRUYN_CLASS_D1000_NODES_PER_HOST="\$NODES_PER_HOST"/);
+  assert.match(template, /\.topology\.nodeCount==500/);
+  assert.match(template, /\.topology\.realProcessesPerHost==25/);
+  assert.match(template, /\.recovery\.restartedNodeCount==100/);
+  assert.match(template, /TRUYN_D500_TERMINAL result=\$result/);
+  assert.match(template, /staging_cleanup/);
+});
+
+test('D-500 launch token template is incomplete by construction until final qualification', () => {
+  const token = fs.readFileSync('.github/d500/launch-01.template.txt', 'utf8');
+  for (const placeholder of [
+    '__D200_REPEATABILITY_ACCEPTED_RUN__',
+    '__TESTED_COMMIT__',
+    '__TESTED_TREE_SHA__',
+    '__EXACT_MAIN_CI_RUN__',
+    '__EXACT_MAIN_FIVE_PATCH_RUN__',
+    '__QUALIFIED_TREE_CODEQL_CHECK__',
+    '__QUALIFIED_TREE_CODEQL_SHA__',
+    '__D500_CONTRACT_SHA256__',
+    '__WORKFLOW_BLOB_SHA__',
+  ]) assert.match(token, new RegExp(placeholder));
+  assert.match(token, /REFERENCE_D200_RUN=35503894414/);
 });
 
 test('accepted D-200 evidence remains authoritative and explicitly does not claim D-500', () => {
