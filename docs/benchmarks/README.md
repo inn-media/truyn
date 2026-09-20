@@ -54,6 +54,12 @@ The repository regression suite treats the evidence files below as protected and
 ### Methodology / planned parity
 
 - [`MULTIMODAL_PROVIDER_PARITY.md`](MULTIMODAL_PROVIDER_PARITY.md) — apples-to-apples methodology for text, image and video provider comparisons; it does not claim a completed multimodal benchmark result.
+- [`E_SERIES_EFFICIENCY.md`](E_SERIES_EFFICIENCY.md) — canonical E-series boundary and full efficiency profile: stage bottlenecks, useful-result economics, scale knee and overload/recovery; **foundation only, not a benchmark result**.
+- [`E_DECOMPOSE_METHODOLOGY.md`](E_DECOMPOSE_METHODOLOGY.md) — ingress/retrieval/rerank/routing/dispatch/provider/verification/transport decomposition with monotonic-clock attribution and `TRUYN tax`.
+- [`E_PER_RESULT_METHODOLOGY.md`](E_PER_RESULT_METHODOLOGY.md) — paired DIRECT vs TRUYN `$ / useful`, wall-seconds/useful and compute/proxy/useful with wrong/unverified results charged full cost but zero useful credit.
+- [`E_KNEE_METHODOLOGY.md`](E_KNEE_METHODOLOGY.md) — dense `50/75/100/150/200/350/500` scale grid, precommitted segmented breakpoint detector and bootstrap support; permits `NO_KNEE_OBSERVED_IN_RANGE`.
+- [`E_DEGRADE_METHODOLOGY.md`](E_DEGRADE_METHODOLOGY.md) — offered-load ramps at 50/100/200/500, max sustainable load, provider-vs-internal failure attribution and return-to-baseline recovery/hysteresis.
+- [`E_SERIES_TELEMETRY.md`](E_SERIES_TELEMETRY.md) — request/stage/usage/load/interference telemetry and recomputable formulas for all E metrics.
 - [`T_SERIES_COMMERCIAL_PROOF.md`](T_SERIES_COMMERCIAL_PROOF.md) — canonical T-series boundary, common invariants, cost-accounting contract and immutable evidence bundle; **foundation only, not a benchmark result**.
 - [`T_BREAK_EVEN_METHODOLOGY.md`](T_BREAK_EVEN_METHODOLOGY.md) — fully-loaded and variable-only `$/request vs volume` methodology with measured volume sweep and break-even `N*`.
 - [`T_HEAD_TO_HEAD_METHODOLOGY.md`](T_HEAD_TO_HEAD_METHODOLOGY.md) — paired good-faith comparison of TRUYN vs NAIVE / MCP / A2A / NLWeb plus the separate NLWeb-over-TRUYN bridge arm.
@@ -65,7 +71,7 @@ The repository regression suite treats the evidence files below as protected and
 - [`H_ARBITRAGE_METHODOLOGY.md`](H_ARBITRAGE_METHODOLOGY.md) — STATIC/TRUYN/ORACLE cost-aware routing proof with scripted causal shocks separated from live-price observation, captured-arbitrage/regret/reaction/oscillation metrics and quality guardrails.
 - [`H_CHAOS_FUZZ_METHODOLOGY.md`](H_CHAOS_FUZZ_METHODOLOGY.md) — seeded property-based adversarial campaign, fault-class coverage matrix, severity, deterministic reproduction/minimization and zero-critical-safety-violation closure contract.
 - [`H_SERIES_TELEMETRY.md`](H_SERIES_TELEMETRY.md) — normalized H request/reuse/provider-answer/adjudication/routing/price/fault/invariant/recovery/interference events and recomputable metric formulas.
-- [`BENCHMARK_SERIES_ISOLATION.md`](BENCHMARK_SERIES_ISOLATION.md) — normative D/S/T/H concurrency and R0/R1/R2 shared-resource isolation contract.
+- [`BENCHMARK_SERIES_ISOLATION.md`](BENCHMARK_SERIES_ISOLATION.md) — normative D/S/T/H/E concurrency and R0/R1/R2 shared-resource isolation contract.
 
 ## Reproducibility note
 
