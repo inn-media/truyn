@@ -7,6 +7,8 @@ This document defines the minimum measurement vocabulary shared by T/BREAK-EVEN,
 
 The goal is simple: every chart and dollar figure must be reproducible from immutable per-request/per-hop records rather than reconstructed from screenshots or prose.
 
+All T-series telemetry also obeys [`BENCHMARK_SERIES_ISOLATION.md`](BENCHMARK_SERIES_ISOLATION.md). T runs may execute concurrently with D, S, H and future series, so every mutable record/evidence path must remain attributable to exactly one series/run namespace.
+
 ## 1. Record types
 
 A complete run may emit the following logical record types:
@@ -20,6 +22,7 @@ A complete run may emit the following logical record types:
 - `quality_result` — deterministic/blinded quality score;
 - `guardrail_event` — cost/deadline/quota/reroute/fail-closed decision;
 - `stress_event` — injected degradation and its exact timing/class;
+- `interference_event` — cross-series/shared-resource interference observation;
 - `summary` — derived metrics only; never the sole evidence.
 
 ## 2. Immutable identifiers
@@ -27,8 +30,10 @@ A complete run may emit the following logical record types:
 Every record MUST be attributable to:
 
 ```text
+series_id       # T for this schema
 benchmark_id
 run_id
+run_namespace   # T/<benchmark>/<run-id>
 sample_id
 pair_id        # same task across comparator arms
 hop_id         # when applicable
@@ -43,6 +48,8 @@ telemetry_schema_version
 
 `pair_id` is required for paired comparator statistics.
 
+`series_id = T` is mandatory in implementation. A record without an unambiguous series/run namespace is not eligible for accepted T-series evidence.
+
 ## 3. Common dimensions
 
 Required dimensions where applicable:
@@ -51,6 +58,7 @@ Required dimensions where applicable:
 task_class
 corpus_class
 cache_state        cold|warm
+cache_namespace
 load_condition     baseline|stress:<name>
 protocol_profile
 protocol_version
@@ -58,6 +66,7 @@ provider
 model_family
 model_version
 region_class       sanitized/public class, not private resource ID
+resource_scope_class   R0|R1|R2
 attempt
 retry_count
 outcome
@@ -77,6 +86,7 @@ total_tokens
 cached_input_tokens         nullable
 reasoning_tokens            nullable
 provider_billed_units       structured / provider-specific normalized object
+provider_usage_attribution_key
 ```
 
 ### Bytes
@@ -133,9 +143,13 @@ truyn_variable_cost_usd
 allocated_fixed_cost_usd
 fully_loaded_cost_usd
 cost_evidence_class
+series_budget_id             private/sanitized reference
+run_budget_id                private/sanitized reference
 ```
 
 `net_cash_cost_usd`, cloud credits and negotiated/internal rates are private operational telemetry unless explicitly sanitized for publication.
+
+Foreign D/S/H usage on a shared provider/account MUST NOT be included in T run cost totals. Private reconciliation must preserve enough attribution to prove that separation.
 
 ### Cost evidence classes
 
@@ -172,6 +186,8 @@ setup_total_cost_usd
 ```
 
 Every setup component is attributable either to TRUYN, DIRECT or SHARED. Shared costs must not be charged to only one arm.
+
+A setup event also records/derives ownership namespace so cleanup cannot affect another series' index/corpus generation.
 
 ## 8. Quality fields
 
@@ -238,6 +254,8 @@ severity                    mild|severe|custom
 start_time
 end_time
 injection_target_class
+fault_domain_class          nullable
+exclusive_lease_held        nullable
 injected_latency_ms         nullable
 injected_error_rate         nullable
 notes_digest                nullable
@@ -245,7 +263,28 @@ notes_digest                nullable
 
 Operationally sensitive target identities remain private.
 
-## 12. Derived metrics
+A T/PREDICT stress event is invalid if a foreign active measured run shares the same mutable fault domain without an explicitly frozen joint methodology.
+
+## 12. Cross-series interference fields
+
+For any R1/R2 dependency that can affect cost, latency, capacity or correctness, emit/retain enough evidence to derive:
+
+```text
+foreign_active_series_count
+foreign_active_run_count
+shared_resource_class       R1|R2
+quota_partitioned           nullable
+interference_probe_status   pass|fail|unknown
+material_interference       true|false|unknown
+r2_lease_conflict           true|false
+namespace_collision         true|false
+foreign_artifact_write      true|false
+foreign_cleanup_candidate   true|false
+```
+
+A headline T-series PASS requires `material_interference=false`, no R2 lease conflict and no namespace/artifact/cleanup collision.
+
+## 13. Derived metrics
 
 Derived values MUST be reproducible from raw records.
 
@@ -297,7 +336,7 @@ bounded_outcome_rate =
   (success_within_bounds + controlled_fail_within_bounds) / total_requests
 ```
 
-## 13. Aggregation rules
+## 14. Aggregation rules
 
 - Percentiles are computed from individual request samples, not from batch-percentile averages.
 - Failed/controlled-failure requests remain in outcome counts.
@@ -305,14 +344,15 @@ bounded_outcome_rate =
 - Warmup samples are retained with `is_warmup=true` but excluded from measured summaries.
 - Cold and warm cache samples are separate strata.
 - Do not merge materially different model versions, price snapshots, corpus versions or task classes into a single headline number.
+- Do not merge D/S/H/T records into one accepted T-series sample set merely because they share a provider or dashboard.
 - Every summary states `n`.
 
-## 14. Evidence bundle layout
+## 15. Evidence bundle layout
 
 Recommended public artifact layout:
 
 ```text
-t-series/<benchmark>/<run-id>/
+benchmarks/T/<benchmark>/<run-id>/
   manifest.json
   acceptance.json
   price-snapshot.json
@@ -323,6 +363,7 @@ t-series/<benchmark>/<run-id>/
   hops.jsonl
   quality.jsonl
   guardrails.jsonl
+  interference.jsonl
   summary.json
   checksums.sha256
   REPORT.md
@@ -330,17 +371,20 @@ t-series/<benchmark>/<run-id>/
 
 Private raw evidence may contain additional operational fields. Public export MUST be generated through deterministic redaction/sanitization, preserving numeric evidence and digests wherever safe.
 
-## 15. Telemetry completeness gate
+## 16. Telemetry completeness gate
 
 Before a paid final run, execute a zero/low-cost telemetry qualification that proves:
 
 - every expected record type can be emitted;
+- `series_id=T`, benchmark ID and run ID survive all records;
 - pair IDs survive all arms;
-- provider usage is captured;
+- provider usage is captured and attributable to the T run;
 - prices resolve to the frozen snapshot;
 - all relevant TRUYN overhead fields are populated or explicitly `null` with documented reason;
 - provider execution count is observable for fail-closed tests;
+- cache/artifact namespaces do not collide with active D/S/H/T runs;
+- shared R1/R2 dependencies are classified and interference/lease state is observable;
 - artifacts can be checksummed and exported safely;
 - no private resource name/credential appears in the public export.
 
-If telemetry completeness fails, the benchmark MUST NOT proceed to an expensive final run.
+If telemetry completeness or cross-series isolation fails, the benchmark MUST NOT proceed to an expensive final run.
