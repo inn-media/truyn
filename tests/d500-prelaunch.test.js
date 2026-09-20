@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { validate, D500_TOPOLOGY } from '../scripts/check-d500-contract.mjs';
 
 const d200 = JSON.parse(fs.readFileSync('config/d200-contract.json', 'utf8'));
@@ -60,6 +61,12 @@ test('D-500 anti-weakening checker rejects slower recovery ceiling', () => {
 test('D-500 checker rejects topology drift and synthetic scale shortcuts', () => {
   mustReject((c) => { c.nodesPerHost = 20; c.processTarget = 400; }, /nodesPerHost|processTarget/);
   mustReject((c) => { c.hostsRequired = 25; c.processTarget = 625; }, /hostsRequired|processTarget/);
+});
+
+test('D-500 inheritance manifest preserves accepted D-200/Class-D components', () => {
+  const run = spawnSync(process.execPath, ['scripts/check-d500-inheritance.mjs'], { encoding: 'utf8' });
+  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
+  assert.match(run.stdout, /TRUYN_D500_INHERITANCE=PASS/);
 });
 
 test('shared Class-D provisioner already supports the 25-process D-500 mode', () => {
