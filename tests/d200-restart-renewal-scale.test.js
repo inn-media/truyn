@@ -100,3 +100,27 @@ test('D-200: renewal keeps the live direct session object (no supersede race for
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('D-200: persistState() completes under sustained state churn (no flush-loop starvation)', { timeout: 20_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'truyn-d200-persist-starve-'));
+  const node = new TruynNetworkNode({ identity: createIdentity(), host: '127.0.0.1', tls: await generateTls(root), statePath: join(root, 's.json'), peerRecordAutoRenew: false, discoveryPeriodicRefresh: false, peerRecordPublishFanout: 0 });
+  let churn = null;
+  try {
+    await node.start();
+    const save = node.stateStore.save.bind(node.stateStore);
+    node.stateStore.save = async (snapshot) => { await new Promise((resolve) => setTimeout(resolve, 30)); return save(snapshot); };
+    let port = 44000;
+    churn = setInterval(() => node.discovery.ingest(remote(port++)), 10);
+    const started = Date.now();
+    const outcome = await Promise.race([
+      node.persistState().then(() => 'durable'),
+      new Promise((resolve) => setTimeout(() => resolve('starved'), 3_000))
+    ]);
+    assert.equal(outcome, 'durable', 'a durability barrier must not wait for churn that arrived after it');
+    assert.ok(Date.now() - started < 1_000);
+  } finally {
+    if (churn) clearInterval(churn);
+    await node.close().catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
