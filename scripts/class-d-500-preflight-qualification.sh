@@ -58,8 +58,10 @@ case "$phase" in
     test -f .github/d500/launch-02.template.txt
     grep -Fq "'.github/d500/launch-02.txt'" .github/workflows/d500-acceptance.yml
     grep -Fq 'secrets.AZURE_CLIENT_ID' .github/workflows/d500-acceptance.yml
-    grep -Fq 'secrets.AZURE_TENANT_ID' .github/workflows/d500-acceptance.yml
-    grep -Fq 'secrets.AZURE_SUBSCRIPTION_ID' .github/workflows/d500-acceptance.yml
+    for role in TENANT SUBSCRIPTION; do
+      secret_name="AZURE_${role}_ID"
+      grep -Fq "secrets.${secret_name}" .github/workflows/d500-acceptance.yml
+    done
     grep -Fq 'TRUYN_D200_LOCATION:' .github/workflows/d500-acceptance.yml
     grep -Fq 'env.TRUYN_D500_LOCATION' .github/workflows/d500-acceptance.yml
     launchable=reviewed-attempt2-workflow-only
