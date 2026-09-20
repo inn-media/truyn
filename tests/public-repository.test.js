@@ -13,6 +13,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/ci.yml',
   '.github/workflows/class-d-five-patch-preflight.yml',
   '.github/workflows/d200-acceptance.yml',
+  '.github/workflows/d200-repeatability-01.yml',
   '.github/workflows/d200-bug-hunt.yml',
   '.github/workflows/d200-live-preflight.yml',
   '.github/workflows/publish-npm.yml',
