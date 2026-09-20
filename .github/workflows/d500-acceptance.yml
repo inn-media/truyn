@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/d500/launch-01.txt'
+      - '.github/d500/launch-02.txt'
 
 permissions:
   contents: read
@@ -12,11 +12,11 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d500-585e8b98-single-shot
+  group: truyn-d500-585e8b98-attempt2-single-shot
   cancel-in-progress: false
 
 env:
-  TASK_ID: truyn-d500-acceptance-260920-a1
+  TASK_ID: truyn-d500-acceptance-260920-a2
   REFERENCE_D200_RUN: '35503894414'
   REFERENCE_D200_REPEATABILITY_RUN: '35517248924'
   TESTED_COMMIT: 585e8b9865a47d8abe390d3dd548c2e57fdd9a32
@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          token='.github/d500/launch-01.txt'
+          token='.github/d500/launch-02.txt'
           workflow='.github/workflows/d500-acceptance.yml'
           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
           [[ "$GITHUB_EVENT_NAME" == push ]]
@@ -164,6 +164,8 @@ jobs:
 
       - name: Stage immutable runtime bundle with OIDC data-plane auth
         env:
+          TRUYN_D200_LOCATION: '${{ env.TRUYN_D500_LOCATION }}'
+          TRUYN_D200_VM_SIZE: '${{ env.TRUYN_D500_VM_SIZE }}'
           RUNTIME_BUNDLE: '${{ steps.runtime.outputs.path }}'
           RUNTIME_SHA: '${{ steps.runtime.outputs.sha }}'
         shell: bash
