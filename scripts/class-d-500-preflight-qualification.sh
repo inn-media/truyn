@@ -4,9 +4,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 # D-500 is an extension of the accepted D-200 path, not a replacement for it.
-# First prove the D-200 safety floor and canonical Class-D patches remain intact.
+# First prove the D-200 safety floor, inheritance manifest and canonical Class-D
+# patches remain intact.
 node scripts/check-d200-contract.mjs
 node scripts/check-d500-contract.mjs
+node scripts/check-d500-inheritance.mjs
 node scripts/check-class-d-five-patches.mjs
 node scripts/check-repository-hygiene.mjs
 
@@ -66,4 +68,4 @@ case "$phase" in
 esac
 
 node --test tests/d500-prelaunch.test.js
-printf 'TRUYN_D500_PREFLIGHT_QUALIFICATION=PASS phase=%s topology=20x25 process_target=500 max_peers=32 d200_floor_preserved=true five_patch=true launchable=%s\n' "$phase" "$launchable"
+printf 'TRUYN_D500_PREFLIGHT_QUALIFICATION=PASS phase=%s topology=20x25 process_target=500 max_peers=32 d200_floor_preserved=true inheritance=true five_patch=true launchable=%s\n' "$phase" "$launchable"
