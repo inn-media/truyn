@@ -668,6 +668,17 @@ export class TruynNetworkNode {
   async send(nodeId, envelope, options = {}) { if (!this.started) throw new Error('network node is not started'); return this.router.send(nodeId, envelope, options); }
 
   async need(nodeId, capability, input, policy = {}, options = {}) {
+    // Resolve stale or missing signed peer state on the control plane before the
+    // application envelope exists on the transport path. This is discovery, not
+    // an application retry: NEED is still sent at most once.
+    if (!this.discovery.get(nodeId)) {
+      const peer = await this.findPeer(nodeId);
+      if (!peer) {
+        const error = new Error('peer_not_found');
+        error.code = 'TRUYN_PEER_NOT_FOUND';
+        throw error;
+      }
+    }
     return this.send(nodeId, this.envelope('NEED', { capability: { name: capability }, input, policy }, { to: nodeId }), options);
   }
 
