@@ -2,7 +2,7 @@
 
 First-party JavaScript/TypeScript SDK for TRUYN.
 
-**Status:** implemented Developer Release client. The latest accepted immutable public npm prerelease remains `@truyn/sdk@0.1.0-alpha.2`; the current source prepares `0.1.0-alpha.3` for exact-main qualification and immutable publication of the managed auth/device v1 client contract. Do not treat alpha.3 as released until the trusted-publishing workflow completes successfully.
+**Status:** implemented Developer Release client. The latest accepted immutable public npm prerelease remains `@truyn/sdk@0.1.0-alpha.2`; the current source prepares `0.1.0-alpha.4` as a release candidate for exact-main qualification and immutable publication of the managed auth/device v1 client contract. Do not treat alpha.4 as released until the trusted-publishing workflow completes successfully and independent registry verification confirms the published package.
 
 ```js
 import { TruynLocalNodeClient } from '@truyn/sdk';
