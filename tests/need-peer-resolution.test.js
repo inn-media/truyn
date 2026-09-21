@@ -38,7 +38,7 @@ test('NEED sends exactly once without lookup when a live signed peer record is a
   assert.deepEqual(calls, { get: 1, find: 0, envelope: 1, send: 1 });
 });
 
-test('NEED resolves stale or missing peer state before the only application send', async () => {
+test('D-500 regression: NEED resolves stale or missing peer state before the only application send', async () => {
   const { node, calls } = fixture({ live: null, resolved: { nodeId: 'target' } });
   const result = await need.call(node, 'target', 'testnet.echo', { n: 2 });
   assert.equal(result.nodeId, 'target');
