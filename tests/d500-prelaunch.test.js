@@ -31,6 +31,19 @@ function assertAttempt2Token(token) {
   assert.match(token, /^WORKFLOW_BLOB_SHA=20a8dd7d9c0267f4851deadd34dddcfa5ee600a9$/m);
 }
 
+function assertAttempt3Token(token) {
+  assert.match(token, /^TASK_ID=truyn-d500-acceptance-260922-a3$/m);
+  assert.match(token, /^REFERENCE_D200_RUN=35503894414$/m);
+  assert.match(token, /^REFERENCE_D200_REPEATABILITY_RUN=35517248924$/m);
+  assert.match(token, /^TESTED_COMMIT=0f17a41b91df4e7ff914e43b0dcab3da39cea4cb$/m);
+  assert.match(token, /^TESTED_TREE_SHA=c28d71f49804cbac81a8fd783ca30d912acc5201$/m);
+  assert.match(token, /^EXACT_MAIN_CI_RUN=35690793896$/m);
+  assert.match(token, /^EXACT_MAIN_FIVE_PATCH_RUN=35690793984$/m);
+  assert.match(token, /^EXACT_MAIN_CODEQL_RUN=35690793647$/m);
+  assert.match(token, /^D500_CONTRACT_SHA256=469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e913fd8f85$/m);
+  assert.match(token, /^WORKFLOW_BLOB_SHA=1d5dee8150595eb8f61f96e0c235840576217ef5$/m);
+}
+
 test('D-500 canonical contract is exactly 20 hosts x 25 real processes = 500', () => {
   assert.equal(validate(d500), true);
   assert.deepEqual({
@@ -97,11 +110,18 @@ test('first D-500 gate preserves the proven 100-node restart slice', () => {
   assert.equal(d500.restartNodeTarget, 100);
 });
 
-test('D-500 workflow surface preserves preparation phase-lock or immutable launched attempt 2 evidence', () => {
+test('D-500 workflow surface preserves immutable launch history', () => {
   const hasAttempt1 = fs.existsSync('.github/d500/launch-01.txt');
   const hasAttempt2 = fs.existsSync('.github/d500/launch-02.txt');
+  const hasAttempt3 = fs.existsSync('.github/d500/launch-03.txt');
 
-  if (hasAttempt2) {
+  if (hasAttempt3) {
+    assert.equal(hasAttempt1, true, 'attempt 3 cannot exist without preserved attempt 1 evidence');
+    assert.equal(hasAttempt2, true, 'attempt 3 cannot exist without preserved attempt 2 evidence');
+    assert.deepEqual(activeD500Workflows, ['d500-acceptance.yml']);
+    assertAttempt2Token(fs.readFileSync('.github/d500/launch-02.txt', 'utf8'));
+    assertAttempt3Token(fs.readFileSync('.github/d500/launch-03.txt', 'utf8'));
+  } else if (hasAttempt2) {
     assert.equal(hasAttempt1, true, 'attempt 2 cannot exist without preserved attempt 1 evidence');
     assert.deepEqual(activeD500Workflows, ['d500-acceptance.yml']);
     assertAttempt2Token(fs.readFileSync('.github/d500/launch-02.txt', 'utf8'));
@@ -119,16 +139,16 @@ test('D-500 workflow surface preserves preparation phase-lock or immutable launc
   if (hasAttempt1) assert.equal(fs.existsSync('.github/d500/launch-02.template.txt'), true);
 });
 
-test('attempt-3 D-500 workflow pins the qualified repair and preserves the successful D-200 path plus the minimal scale delta', () => {
-  if (!fs.existsSync('.github/d500/launch-01.txt')) return;
+test('attempt-4 D-500 workflow pins the qualified generational repair and preserves the strict scale contract', () => {
+  if (!fs.existsSync('.github/d500/launch-03.txt')) return;
   const workflow = fs.readFileSync('.github/workflows/d500-acceptance.yml', 'utf8');
-  assert.match(workflow, /\.github\/d500\/launch-03\.txt/);
-  assert.match(workflow, /TASK_ID: truyn-d500-acceptance-260922-a3/);
-  assert.match(workflow, /TESTED_COMMIT: 0f17a41b91df4e7ff914e43b0dcab3da39cea4cb/);
-  assert.match(workflow, /TESTED_TREE_SHA: c28d71f49804cbac81a8fd783ca30d912acc5201/);
-  assert.match(workflow, /EXACT_MAIN_CI_RUN: '35690793896'/);
-  assert.match(workflow, /EXACT_MAIN_FIVE_PATCH_RUN: '35690793984'/);
-  assert.match(workflow, /EXACT_MAIN_CODEQL_RUN: '35690793647'/);
+  assert.match(workflow, /\.github\/d500\/launch-04\.txt/);
+  assert.match(workflow, /TASK_ID: truyn-d500-acceptance-260922-a4/);
+  assert.match(workflow, /TESTED_COMMIT: 299070c7820ee37ae392d99a6b1ffa0a1ca37485/);
+  assert.match(workflow, /TESTED_TREE_SHA: 86fe8fa5f473ed219854605bc71555a45303dd53/);
+  assert.match(workflow, /EXACT_MAIN_CI_RUN: '35692822112'/);
+  assert.match(workflow, /EXACT_MAIN_FIVE_PATCH_RUN: '35692822113'/);
+  assert.match(workflow, /EXACT_MAIN_CODEQL_RUN: '35692821730'/);
   assert.match(workflow, /REFERENCE_D200_RUN: '35503894414'/);
   assert.match(workflow, /REFERENCE_D200_REPEATABILITY_RUN: '35517248924'/);
   assert.match(workflow, /NODES_PER_HOST: '25'/);
