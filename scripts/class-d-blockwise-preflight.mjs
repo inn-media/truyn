@@ -35,12 +35,12 @@ const BLOCKS = {
   B06_SECURITY: { title: 'Security / anti-weakening suite', probes: [['security-suite', 'npm run test:security']] },
   B07_COMPONENT: { title: 'Component suite', probes: [['component-suite', 'npm run test:component']] },
   B08_INTEGRATION: { title: 'Integration / E2E suite', probes: [['integration-suite', 'npm run test:integration']] },
-  B09_SDK: { title: 'SDK / conformance suite', probes: [['sdk-suite', 'npm run test:sdk']] },
+  B09_SDK: { title: 'SDK / conformance suite', probes: [['sdk-suite', 'PYTHONPATH="sdk/python/src${PYTHONPATH:+:$PYTHONPATH}" npm run test:sdk']] },
   B10_FAST_GOVERNANCE: { title: 'Fast governance / hygiene suite', probes: [['fast-suite', 'npm run test:fast']] },
   B11_CLASS_D_ACCEPTANCE: {
     title: 'Class-D/D-200/D-500/D-1000 acceptance contracts',
     probes: [
-      ['class-d-tests', `set -Eeuo pipefail; mapfile -t f < <(find tests -maxdepth 1 -type f \( -name '*d200*.test.js' -o -name '*d500*.test.js' -o -name '*d1000*.test.js' -o -name 'class-d*.test.js' \) | sort); test "${'${#f[@]}'}" -gt 0; node --test "${'${f[@]}'}"`]
+      ['class-d-tests', `set -Eeuo pipefail; mapfile -t f < <(find tests -maxdepth 1 -type f -name '*.test.js' | grep -E '/([^/]*(d200|d500|d1000)[^/]*|class-d[^/]*)\\.test\\.js$' | sort); test "${'${#f[@]}'}" -gt 0; node --test "${'${f[@]}'}"`]
     ]
   },
   B12_WORKFLOW_CONTRACT: {
