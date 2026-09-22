@@ -47,6 +47,7 @@ PY
 EOS
 )
   (
+    trap - ERR
     set +e
     remote "${VMS[$i]}" "$script" >"$retention_dir/$i.out" 2>"$retention_dir/$i.err"
     printf '%s\n' "$?" >"$retention_dir/$i.rc"

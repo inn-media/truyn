@@ -40,6 +40,7 @@ exit 0
 EOS
 )
   (
+    trap - ERR
     set +e
     remote "${VMS[$i]}" "$script" >"$resources_dir/$i.out" 2>"$resources_dir/$i.err"
     printf '%s\n' "$?" >"$resources_dir/$i.rc"

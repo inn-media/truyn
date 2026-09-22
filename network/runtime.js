@@ -424,7 +424,7 @@ export class TruynNetworkNode {
     if (!this.started || this.closing || !record) return;
     // Readiness must close synchronously when live discovery changes the required
     // placement set; the queued operation below is control-plane dissemination.
-    this.#stagePeerRecordPropagation(record);
+    const propagationChanged = this.#stagePeerRecordPropagation(record);
     if (this.peerRecordPropagationQueued) return;
     const recordId = record.recordId;
     this.peerRecordPropagationQueued = true;
@@ -436,7 +436,11 @@ export class TruynNetworkNode {
       const propagation = this.peerRecordLifecycle.propagation;
       const currentTargets = propagation?.recordId === recordId ? [...(propagation.targetNodeIds || [])].sort() : [];
       const unchangedTargets = targets.length === currentTargets.length && targets.every((nodeId, index) => nodeId === currentTargets[index]);
-      if (unchangedTargets && propagation?.ready) return;
+      // Do not let unrelated peer-record churn repeatedly cancel and restart an
+      // already scheduled required-placement retry. If the required target set
+      // itself changed, publish immediately; otherwise the existing bounded retry
+      // owns recovery until it ACKs or the local record generation changes.
+      if (!propagationChanged && unchangedTargets && (propagation?.ready || this.peerRecordRecoveryRetryTimer)) return;
       void this.#publishCurrentPeerRecord(record).catch((error) => {
         if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
         this.peerRecordLifecycle.lastError = {
@@ -451,7 +455,19 @@ export class TruynNetworkNode {
   #scheduleBackgroundPeerRecordDissemination(record, recoveryPeers) {
     if (!record || !this.started || this.closing || this.peerRecordBackgroundDisseminationQueued) return;
     const required = new Set(this.#peerRecordPropagationPeers(record).map((peer) => peer.nodeId));
-    const backgroundPeers = recoveryPeers.filter((peer) => peer?.nodeId && peer.nodeId !== this.identity.nodeId && !required.has(peer.nodeId));
+    // Required placement is already closest(self, publishFanout). Broadcasting a
+    // restarted node's new generation to every restored peer turns a mass restart
+    // into O(restartedNodes * peerCount) simultaneous QUIC/DHT work. Keep immediate
+    // recovery inside the canonical Kademlia k-neighborhood; arbitrary peers can
+    // rehydrate the fresh signed generation through normal lookup/lease recovery.
+    const recovered = new Map((recoveryPeers || [])
+      .filter((peer) => peer?.nodeId && peer.nodeId !== this.identity.nodeId)
+      .map((peer) => [peer.nodeId, peer]));
+    const backgroundBudget = Math.max(0, this.discovery.k - required.size);
+    const backgroundPeers = this.discovery.closest(record.nodeId, this.discovery.k)
+      .filter((peer) => recovered.has(peer?.nodeId) && !required.has(peer.nodeId))
+      .slice(0, backgroundBudget)
+      .map((peer) => recovered.get(peer.nodeId));
     if (backgroundPeers.length === 0) return;
     const recordId = record.recordId;
     this.peerRecordBackgroundDisseminationQueued = true;
@@ -497,7 +513,9 @@ export class TruynNetworkNode {
     }
 
     const pendingNodeIds = new Set(failedNodeIds || []);
-    const peers = recoveryPeers.filter((peer) => pendingNodeIds.has(peer?.nodeId));
+    const peers = recoveryPeers
+      .filter((peer) => pendingNodeIds.has(peer?.nodeId))
+      .map((peer) => this.discovery.get(peer.nodeId) || peer);
     if (peers.length === 0) return;
 
     const recordId = record.recordId;
