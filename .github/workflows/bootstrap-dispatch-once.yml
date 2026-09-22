@@ -24,11 +24,14 @@ jobs:
           set -Eeuo pipefail
           main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
           [[ "$main_sha" == "$SOURCE_SHA" ]]
-          existing="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/class-d-bootstrap-qualification.yml/runs?event=workflow_dispatch&branch=main&per_page=100" --jq '[.workflow_runs[] | select(.head_sha == env.SOURCE_SHA)] | length')"
-          [[ "$existing" == 0 ]]
+          runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/class-d-bootstrap-qualification.yml/runs?event=workflow_dispatch&branch=main&per_page=100")"
+          blocking="$(jq --arg sha "$SOURCE_SHA" '[.workflow_runs[] | select(.head_sha == $sha and (.status != "completed" or .conclusion != "startup_failure"))] | length' <<<"$runs")"
+          startup_failures="$(jq --arg sha "$SOURCE_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed" and .conclusion == "startup_failure")] | length' <<<"$runs")"
+          [[ "$blocking" == 0 ]]
+          [[ "$startup_failures" -le 1 ]]
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/actions/workflows/class-d-bootstrap-qualification.yml/dispatches" \
             -f ref=main \
             -f "inputs[source_sha]=$SOURCE_SHA" \
             -f 'inputs[scale]=d500'
-          echo "TRUYN_CLASS_D_BOOTSTRAP_DISPATCH source_sha=$SOURCE_SHA scale=d500 status=PASS"
+          echo "TRUYN_CLASS_D_BOOTSTRAP_DISPATCH source_sha=$SOURCE_SHA scale=d500 prior_startup_failures=$startup_failures status=PASS"
