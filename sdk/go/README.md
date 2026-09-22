@@ -8,7 +8,7 @@ The Go SDK is one of the five required first-party Developer Release clients. It
 - authenticated relay registration/session use;
 - authorization-aware discovery;
 - `OFFER` / `NEED` / verified provider event / correlated `RESULT`;
-- requester-owned direct NEED cancellation;
+- requester-owned direct NEED cancellation through canonical signed `REVOKE` semantics;
 - stable API-v1 object/artifact reference shapes;
 - Agent Descriptor HTTP retrieval, schema/version/expiry validation, identity-key signature verification and protocol/interface negotiation;
 - normalized fail-closed errors.
@@ -25,7 +25,7 @@ Consumers can install with:
 go get github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1
 ```
 
-`TRUYN/1` remains draft and this package line is pre-stable.
+This is a pre-stable `0.x` SDK. The bounded SDK API-v1 surface follows the accepted TRUYN/1, first-class REST/API, and interoperability contracts, while protocol/profile stability and final Open 1.0 release status remain governed by their own exact-head qualification gates. Provider authorization, visibility and billing remain server/runtime policy, never client-supplied authority.
 
 Run the Go source/fixture conformance gate:
 
