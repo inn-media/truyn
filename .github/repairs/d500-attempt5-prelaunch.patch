@@ -1,13 +1,19 @@
 diff --git a/.github/workflows/d500-acceptance.yml b/.github/workflows/d500-acceptance.yml
 --- a/.github/workflows/d500-acceptance.yml
 +++ b/.github/workflows/d500-acceptance.yml
-@@ -4,4 +4,4 @@ on:
+@@ -1,43 +1,43 @@
+ name: D-500 Acceptance
+ 
+ on:
    push:
      branches: [main]
      paths:
 -      - '.github/d500/launch-04.txt'
 +      - '.github/d500/launch-05.txt'
-@@ -12,18 +12,18 @@ permissions:
+ 
+ permissions:
+   contents: read
+   actions: read
    id-token: write
  
  concurrency:
@@ -33,19 +39,28 @@ diff --git a/.github/workflows/d500-acceptance.yml b/.github/workflows/d500-acce
    D500_CONTRACT_SHA256: 469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e913fd8f85
    AZURE_RESOURCE_GROUP: truyn
    NODES_PER_HOST: '25'
-@@ -39,7 +39,7 @@ jobs:
+ 
+ jobs:
+   d500-acceptance:
+     runs-on: ubuntu-22.04
+     timeout-minutes: 420
+     steps:
+       - name: Enforce immutable D-500 one-shot launch
+         env:
+           GH_TOKEN: '${{ github.token }}'
          shell: bash
          run: |
            set -Eeuo pipefail
 -          token='.github/d500/launch-04.txt'
 +          token='.github/d500/launch-05.txt'
            workflow='.github/workflows/d500-acceptance.yml'
-           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
-           [[ "$GITHUB_EVENT_NAME" == push ]]
 diff --git a/tests/d500-prelaunch.test.js b/tests/d500-prelaunch.test.js
 --- a/tests/d500-prelaunch.test.js
 +++ b/tests/d500-prelaunch.test.js
-@@ -141,16 +141,16 @@ test('D-500 workflow surface preserves immutable launch history', () => {
+@@ -136,21 +136,21 @@
+ 
+   assert.equal(fs.existsSync('.github/d500/d500-acceptance.template.yml'), true);
+   assert.equal(fs.existsSync('.github/d500/launch-01.template.txt'), true);
    if (hasAttempt1) assert.equal(fs.existsSync('.github/d500/launch-02.template.txt'), true);
  });
  
@@ -71,3 +86,5 @@ diff --git a/tests/d500-prelaunch.test.js b/tests/d500-prelaunch.test.js
    assert.match(workflow, /REFERENCE_D200_RUN: '35503894414'/);
    assert.match(workflow, /REFERENCE_D200_REPEATABILITY_RUN: '35517248924'/);
    assert.match(workflow, /NODES_PER_HOST: '25'/);
+   assert.match(workflow, /client-id: '\$\{\{ secrets\.AZURE_CLIENT_ID \}\}'/);
+   for (const [field, role] of [['tenant-id', 'TENANT'], ['subscription-id', 'SUBSCRIPTION']]) {
