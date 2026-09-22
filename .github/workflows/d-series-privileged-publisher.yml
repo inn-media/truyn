@@ -1,0 +1,45 @@
+name: D-Series Privileged Gate Publisher
+
+on:
+  push:
+    branches:
+      - automation/autorepair/d-series-blockwise-gate-260922
+    paths:
+      - '.github/workflows/d-series-privileged-publisher.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB }}
+
+      - name: Requalify exact repair and publish clean branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          base='6b92794bcc3415b51824fbacdbe7f77416b48c86'
+          git fetch origin main --quiet
+          [[ "$(git rev-parse origin/main)" == "$base" ]]
+          git apply --check .github/repairs/d-series-blockwise-gate.patch
+          git apply .github/repairs/d-series-blockwise-gate.patch
+          git diff --check
+          bash -n scripts/class-d-1000-final-acceptance.sh
+          bash -n scripts/verify-d-series-blockwise-preflight-run.sh
+          node --check scripts/d-series-block-runner.mjs
+          node --check scripts/d-series-block-aggregate.mjs
+          node --test tests/d-series-blockwise-preflight.test.js tests/d500-prelaunch.test.js tests/class-d-1000-run-command-boundary.test.js tests/class-d-1000-diagnostic-sizing.test.js
+          rm -f .github/repairs/d-series-blockwise-gate.patch .github/repairs/d-series-blockwise-gate.env .github/workflows/d-series-privileged-publisher.yml
+          git diff --check
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add -A
+          git commit -s -m 'feat(class-d): enforce permanent blockwise preflight'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
