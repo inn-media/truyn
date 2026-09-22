@@ -6,9 +6,12 @@ const source = await readFile(new URL('../network/testnet/node-service.js', impo
 
 test('testnet node service exposes custom DHT refresh endpoint with before/after stats', () => {
   assert.match(source, /const refreshDht = async \(body = \{\}\) => \{/);
-  assert.match(source, /node\.discovery\.refreshRoutingTable\(\{/);
+  assert.match(source, /const options = \{/);
+  assert.match(source, /node\.discovery\.refreshRoutingTable\(options\)/);
   assert.match(source, /targetCount: int\(body\.targetCount, node\.discovery\.k, \{ min: 0, max: 256 \}\)/);
   assert.match(source, /maxRounds: int\(body\.maxRounds, 4, \{ min: 0, max: 64 \}\)/);
+  assert.match(source, /targetConcurrency: int\(body\.targetConcurrency, 1, \{ min: 1, max: 16 \}\)/);
+  assert.match(source, /timeoutMs: body\.timeoutMs == null \? null : int\(body\.timeoutMs, 240_000, \{ min: 1_000, max: 300_000 \}\)/);
   assert.match(source, /await node\.persistState\(\)/);
   assert.match(source, /if \(req\.method === 'POST' && url\.pathname === '\/dht\/refresh'\) return json\(res, 200, await refreshDht\(await readJson\(req\)\)\);/);
 });

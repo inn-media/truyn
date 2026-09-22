@@ -11,6 +11,7 @@ const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.c
 const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/autonomous-repair.yml',
   '.github/workflows/ci.yml',
+  '.github/workflows/class-d-bootstrap-qualification.yml',
   '.github/workflows/class-d-five-patch-preflight.yml',
   '.github/workflows/d200-acceptance.yml',
   '.github/workflows/d200-repeatability-01.yml',
@@ -31,6 +32,7 @@ const ALLOWED_WORKFLOWS = new Set([
 ]);
 const BENCHMARK_EVIDENCE_DIR = 'docs/benchmarks/';
 const STATIC_AZURE_OIDC_WORKFLOWS = new Set([
+  '.github/workflows/class-d-bootstrap-qualification.yml',
   '.github/workflows/d200-repeatability-02.yml',
   '.github/workflows/d500-acceptance.yml'
 ]);
