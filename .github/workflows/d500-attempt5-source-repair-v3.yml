@@ -1,0 +1,139 @@
+name: D500 Attempt5 Exact Source Repair v3
+
+on:
+  push:
+    branches:
+      - repair/d500-attempt5-source-260922
+    paths:
+      - .github/workflows/d500-attempt5-source-repair-v3.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: d500-attempt5-source-repair-v3
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+
+      - name: Verify exact base and isolated controls
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BASE=3cd6899784cc3a07b3ef5bb023fd872602ad4c44
+          git fetch origin main --quiet
+          [[ "$(git rev-parse origin/main)" == "$BASE" ]]
+          [[ "$(git merge-base HEAD origin/main)" == "$BASE" ]]
+          mapfile -t changed < <(git diff --name-only origin/main...HEAD | sort)
+          printf '%s\n' "${changed[@]}"
+          [[ "${changed[*]}" == ".github/workflows/d500-attempt5-source-repair-v2.yml .github/workflows/d500-attempt5-source-repair-v3.yml .github/workflows/d500-attempt5-source-repair.yml" ]]
+
+      - name: Apply exact repair with alpha preserved
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/d500-attempt5-source-repair.yml').read_text()
+          marker = "          python3 - <<'PY'\n"
+          start = source.index(marker) + len(marker)
+          end = source.index("\n          PY\n", start)
+          body = source[start:end]
+          lines = []
+          for line in body.splitlines():
+              if line.startswith('          '):
+                  line = line[10:]
+              lines.append(line)
+          Path('/tmp/d500-apply.py').write_text('\n'.join(lines) + '\n')
+          PY
+          python3 /tmp/d500-apply.py
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, got {count}: {old!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # Preserve the accepted D-200 alpha<=3 announcement concurrency invariant.
+          replace_once(
+              'network/runtime.js',
+              'const DEFAULT_PEER_RECORD_ANNOUNCE_CONCURRENCY = 8;',
+              'const DEFAULT_PEER_RECORD_ANNOUNCE_TIMEOUT_MS = 2_000;'
+          )
+          replace_once(
+              'network/runtime.js',
+              '    const workerCount = Math.max(1, Math.min(candidates.length, Math.max(this.alpha, DEFAULT_PEER_RECORD_ANNOUNCE_CONCURRENCY)));',
+              '    const workerCount = Math.max(1, Math.min(this.alpha, candidates.length));'
+          )
+          replace_once(
+              'network/runtime.js',
+              "          settled[index] = { status: 'fulfilled', value: await this.rpc.announce(candidates[index], record) };",
+              "          settled[index] = { status: 'fulfilled', value: await this.rpc.announce(candidates[index], record, { timeoutMs: DEFAULT_PEER_RECORD_ANNOUNCE_TIMEOUT_MS }) };"
+          )
+
+          test_path = Path('tests/d500-recovery-tail.test.js')
+          test_text = test_path.read_text()
+          old = """test('restart peer-record publication uses bounded concurrency above lookup alpha without changing recovery schedule', async () => {\n  const source = await readFile(new URL('../network/runtime.js', import.meta.url), 'utf8');\n  assert.match(source, /DEFAULT_PEER_RECORD_ANNOUNCE_CONCURRENCY\\s*=\\s*8/);\n  assert.match(source, /peerRecordRecoveryRetryDelaysMs\\s*=\\s*\\[500, 1_500, 5_000, 10_000, 20_000\\]/);\n});"""
+          new = """test('restart peer-record publication preserves lookup alpha and bounds each announcement without changing recovery schedule', async () => {\n  const source = await readFile(new URL('../network/runtime.js', import.meta.url), 'utf8');\n  assert.match(source, /DEFAULT_PEER_RECORD_ANNOUNCE_TIMEOUT_MS\\s*=\\s*2_000/);\n  assert.match(source, /Math\\.max\\(1, Math\\.min\\(this\\.alpha, candidates\\.length\\)\\)/, 'announcement concurrency must remain bounded by alpha');\n  assert.match(source, /rpc\\.announce\\(candidates\\[index\\], record, \\{ timeoutMs: DEFAULT_PEER_RECORD_ANNOUNCE_TIMEOUT_MS \\}\\)/);\n  assert.match(source, /peerRecordRecoveryRetryDelaysMs\\s*=\\s*\\[500, 1_500, 5_000, 10_000, 20_000\\]/, 'unchanged retry schedule remains fail-closed');\n});"""
+          if test_text.count(old) != 1:
+              raise SystemExit('expected one old D500 announcement test')
+          test_path.write_text(test_text.replace(old, new, 1))
+          PY
+          git diff --check
+
+      - name: Install exact dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm ci
+
+      - name: Remove temporary workflows before contract tests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm .github/workflows/d500-attempt5-source-repair.yml
+          rm .github/workflows/d500-attempt5-source-repair-v2.yml
+          rm .github/workflows/d500-attempt5-source-repair-v3.yml
+          git diff --check
+
+      - name: Run targeted and full regressions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --test \
+            tests/class-d-remote-errtrace.test.js \
+            tests/d500-recovery-tail.test.js \
+            tests/d200-mass-restart-propagation.test.js \
+            tests/p2p-connection-lifecycle.test.js \
+            tests/quic-rpc-connection-lifecycle.test.js \
+            tests/quic-rpc-connect-coalescing.test.js \
+            tests/peer-record-propagation-readiness.test.js \
+            tests/d200-*.test.js \
+            tests/d500-*.test.js
+          npm test
+          git diff --check
+
+      - name: Commit clean source repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -s -m 'fix(d500): bound restart recovery tail'
+          git push origin HEAD:repair/d500-attempt5-source-260922
