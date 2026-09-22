@@ -56,6 +56,19 @@ test('full launch gate accepts only one exact-main successful push preflight', (
   assert.match(verifier, /blocks=16\/16/);
 });
 
+test('future D-500 and live D-1000 entrypoints enforce the exact blockwise preflight', () => {
+  const d500Template = fs.readFileSync('.github/d500/d500-acceptance.template.yml', 'utf8');
+  const d1000 = fs.readFileSync('scripts/class-d-1000-final-acceptance.sh', 'utf8');
+  assert.match(d500Template, /D_SERIES_BLOCKWISE_PREFLIGHT_RUN: '__D_SERIES_BLOCKWISE_PREFLIGHT_RUN__'/);
+  assert.match(d500Template, /verify-d-series-blockwise-preflight-run\.sh "\$TESTED_COMMIT"/);
+  assert.match(d500Template, /value D_SERIES_BLOCKWISE_PREFLIGHT_RUN/);
+  assert.match(d1000, /verify-d-series-blockwise-preflight-run\.sh/);
+  const prepareOnly = d1000.indexOf('TRUYN_CLASS_D1000_PREPARE_ONLY');
+  const launchGate = d1000.indexOf('verify-d-series-blockwise-preflight-run.sh');
+  const provision = d1000.indexOf('source "$TMP/provision.sh"');
+  assert.ok(prepareOnly >= 0 && launchGate > prepareOnly && provision > launchGate);
+});
+
 test('blockwise preflight does not weaken D-500 acceptance thresholds', () => {
   const d500 = fs.readFileSync('.github/workflows/d500-acceptance.yml', 'utf8');
   assert.match(d500, /baselineSuccessRatio>=\.99/);
