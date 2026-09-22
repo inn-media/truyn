@@ -57,7 +57,7 @@ diff --git a/.github/d500/d500-acceptance.template.yml b/.github/d500/d500-accep
 diff --git a/scripts/class-d-1000-final-acceptance.sh b/scripts/class-d-1000-final-acceptance.sh
 --- a/scripts/class-d-1000-final-acceptance.sh
 +++ b/scripts/class-d-1000-final-acceptance.sh
-@@ -354,6 +354,9 @@ if [[ "${TRUYN_CLASS_D1000_PREPARE_ONLY:-0}" == 1 ]]; then
+@@ -354,5 +354,8 @@ if [[ "${TRUYN_CLASS_D1000_PREPARE_ONLY:-0}" == 1 ]]; then
    exit 0
  fi
  
