@@ -1,0 +1,101 @@
+name: D500 Attempt5 Exact Source Repair v2
+
+on:
+  push:
+    branches:
+      - repair/d500-attempt5-source-260922
+    paths:
+      - .github/workflows/d500-attempt5-source-repair-v2.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: d500-attempt5-source-repair-v2
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+
+      - name: Verify exact base and isolated repair controls
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BASE=3cd6899784cc3a07b3ef5bb023fd872602ad4c44
+          git fetch origin main --quiet
+          [[ "$(git rev-parse origin/main)" == "$BASE" ]]
+          [[ "$(git merge-base HEAD origin/main)" == "$BASE" ]]
+          mapfile -t changed < <(git diff --name-only origin/main...HEAD | sort)
+          printf '%s\n' "${changed[@]}"
+          [[ "${changed[*]}" == ".github/workflows/d500-attempt5-source-repair-v2.yml .github/workflows/d500-attempt5-source-repair.yml" ]]
+
+      - name: Reapply exact fail-closed repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/d500-attempt5-source-repair.yml').read_text()
+          marker = "          python3 - <<'PY'\n"
+          start = source.index(marker) + len(marker)
+          end = source.index("\n          PY\n", start)
+          body = source[start:end]
+          lines = []
+          for line in body.splitlines():
+              if line.startswith('          '):
+                  line = line[10:]
+              lines.append(line)
+          Path('/tmp/d500-apply.py').write_text('\n'.join(lines) + '\n')
+          PY
+          python3 /tmp/d500-apply.py
+          git diff --check
+
+      - name: Install exact dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm ci
+
+      - name: Remove temporary D500 workflows before contract tests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm .github/workflows/d500-attempt5-source-repair.yml
+          rm .github/workflows/d500-attempt5-source-repair-v2.yml
+          git diff --check
+
+      - name: Run targeted and Class-D regressions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --test \
+            tests/class-d-remote-errtrace.test.js \
+            tests/d500-recovery-tail.test.js \
+            tests/p2p-connection-lifecycle.test.js \
+            tests/quic-rpc-connection-lifecycle.test.js \
+            tests/quic-rpc-connect-coalescing.test.js \
+            tests/peer-record-propagation-readiness.test.js \
+            tests/d200-*.test.js \
+            tests/d500-*.test.js
+          npm test
+          git diff --check
+
+      - name: Commit clean source repair only
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add -A
+          [[ -z "$(git diff --cached --name-only | grep '^\.github/workflows/d500-attempt5-source-repair' || true)" ]]
+          git diff --cached --check
+          git commit -s -m 'fix(d500): bound restart recovery tail'
+          git push origin HEAD:repair/d500-attempt5-source-260922
