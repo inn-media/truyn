@@ -28,7 +28,7 @@ jobs:
 
       - name: Validate exact immutable launch token and dispatch
         env:
-          GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+          GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
         shell: bash
         run: |
           set -Eeuo pipefail
