@@ -1,0 +1,335 @@
+name: D500 Attempt5 Exact Source Repair
+
+on:
+  push:
+    branches:
+      - repair/d500-attempt5-source-260922
+    paths:
+      - .github/workflows/d500-attempt5-source-repair.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: d500-attempt5-source-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+
+      - name: Verify exact base
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git fetch origin main --quiet
+          [[ "$(git rev-parse origin/main)" == "3cd6899784cc3a07b3ef5bb023fd872602ad4c44" ]]
+          [[ "$(git rev-parse HEAD^)" == "3cd6899784cc3a07b3ef5bb023fd872602ad4c44" ]]
+
+      - name: Apply fail-closed D500 recovery repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, got {count}: {old[:80]!r}')
+              p.write_text(s.replace(old, new, 1))
+
+          def replace_n(path, old, new, expected):
+              p = Path(path)
+              s = p.read_text()
+              count = s.count(old)
+              if count != expected:
+                  raise SystemExit(f'{path}: expected {expected} matches, got {count}: {old[:80]!r}')
+              p.write_text(s.replace(old, new))
+
+          # 1. Azure control-plane retry must survive inherited ERR traps.
+          replace_once(
+              'benchmarks/scale/class-d-azure-1000-provision.sh',
+              '''    set +e\n    output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1)\n    rc=$?\n    set -e\n''',
+              '''    if output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1); then\n      rc=0\n    else\n      rc=$?\n    fi\n'''
+          )
+          replace_once(
+              'benchmarks/scale/class-d-azure-1000-campaign.sh',
+              '''  (remote "${VMS[$i]}" "$script" >"${d200_write_dir}/${i}.out" 2>"${d200_write_dir}/${i}.err") &\n''',
+              '''  (trap - ERR; remote "${VMS[$i]}" "$script" >"${d200_write_dir}/${i}.out" 2>"${d200_write_dir}/${i}.err") &\n'''
+          )
+          for path, marker in [
+              ('benchmarks/scale/d200-post-restart-routing-stage.sh', '    remote "${VMS[$i]}" "$script" >"$post_dir/$i.out"'),
+              ('benchmarks/scale/d200-resources-stage.sh', '    remote "${VMS[$i]}" "$script" >"$resources_dir/$i.out"'),
+              ('benchmarks/scale/d200-restart-recovery-stage.sh', '    remote "${VMS[$i]}" "$script" >"$restart_dir/$i.out"'),
+              ('benchmarks/scale/d200-write-retention-stage.sh', '    remote "${VMS[$i]}" "$script" >"$retention_dir/$i.out"'),
+          ]:
+              p = Path(path)
+              s = p.read_text()
+              needle = '  (\n    set +e\n' + marker
+              replacement = '  (\n    trap - ERR\n    set +e\n' + marker
+              if s.count(needle) != 1:
+                  raise SystemExit(f'{path}: expected one background rc-capture block')
+              p.write_text(s.replace(needle, replacement, 1))
+
+          # 2. Native QUIC connects are actually cancelled at the route/RPC deadline.
+          replace_once(
+              'network/transport/quic.js',
+              "  constructor({ identity, host = '0.0.0.0', port = 0, tls, maxMessageBytes = 1_048_576, maxInboundInFlight = 64, maxInboundQueued = 256 } = {}) {",
+              "  constructor({ identity, host = '0.0.0.0', port = 0, tls, maxMessageBytes = 1_048_576, maxInboundInFlight = 64, maxInboundQueued = 256, connectTimeoutMs = 5_000 } = {}) {"
+          )
+          replace_once(
+              'network/transport/quic.js',
+              "    if (!tls?.key || !tls?.cert) throw new Error('QUIC server TLS key and certificate are required');\n    this.identity = identity;",
+              "    if (!tls?.key || !tls?.cert) throw new Error('QUIC server TLS key and certificate are required');\n    if (!Number.isInteger(connectTimeoutMs) || connectTimeoutMs < 100 || connectTimeoutMs > 120_000) throw new Error('QUIC connectTimeoutMs must be between 100 and 120000');\n    this.identity = identity;"
+          )
+          replace_once(
+              'network/transport/quic.js',
+              '    this.maxMessageBytes = maxMessageBytes;\n    this.socket = new TruynQuicSocket({});',
+              '    this.maxMessageBytes = maxMessageBytes;\n    this.connectTimeoutMs = connectTimeoutMs;\n    this.socket = new TruynQuicSocket({});'
+          )
+          old_connect = '''  async connect({ host, port, serverName = host, ca = this.tls.ca } = {}) {\n    const client = await QUICClient.createQUICClient({\n      host,\n      port,\n      serverName,\n      socket: this.socket,\n      crypto: clientCrypto,\n      config: {\n        ca,\n        verifyPeer: Boolean(ca),\n        applicationProtos: [TRUYN_QUIC_ALPN],\n        maxIdleTimeout: 30_000,\n        keepAliveIntervalTime: 10_000\n      }\n    });\n'''
+          new_connect = '''  async connect({ host, port, serverName = host, ca = this.tls.ca } = {}, { signal = null, timeoutMs = this.connectTimeoutMs } = {}) {\n    const effectiveTimeoutMs = Number.isFinite(timeoutMs) ? Math.max(1, Math.floor(timeoutMs)) : this.connectTimeoutMs;\n    let client;\n    try {\n      client = await QUICClient.createQUICClient({\n        host,\n        port,\n        serverName,\n        socket: this.socket,\n        crypto: clientCrypto,\n        config: {\n          ca,\n          verifyPeer: Boolean(ca),\n          applicationProtos: [TRUYN_QUIC_ALPN],\n          maxIdleTimeout: 30_000,\n          keepAliveIntervalTime: 10_000\n        }\n      }, {\n        timer: effectiveTimeoutMs,\n        ...(signal ? { signal } : {})\n      });\n    } catch (error) {\n      if (signal?.aborted && signal.reason instanceof Error) throw signal.reason;\n      if (error?.constructor?.name === 'ErrorQUICClientCreateTimeout') {\n        const timeout = new Error('quic_connect_timeout', { cause: error });\n        timeout.code = 'ETIMEDOUT';\n        timeout.transient = true;\n        throw timeout;\n      }\n      throw error;\n    }\n'''
+          replace_once('network/transport/quic.js', old_connect, new_connect)
+
+          # Direct route timeout aborts the underlying connect rather than leaving it alive.
+          replace_once(
+              'network/transport/p2p.js',
+              '    let timer = null;\n    let timedOut = false;\n    const operation = Promise.resolve().then(() => this.quic.connect(endpoint));',
+              '    let timer = null;\n    let timedOut = false;\n    const controller = new AbortController();\n    const operation = Promise.resolve().then(() => this.quic.connect(endpoint, { signal: controller.signal, timeoutMs }));'
+          )
+          replace_once(
+              'network/transport/p2p.js',
+              "            error.code = 'TRUYN_P2P_CONNECT_TIMEOUT';\n            reject(error);",
+              "            error.code = 'TRUYN_P2P_CONNECT_TIMEOUT';\n            controller.abort(error);\n            reject(error);"
+          )
+          replace_once(
+              'network/transport/p2p.js',
+              '      if (timer) clearTimeout(timer);\n      if (timedOut) void operation.then((client) => this.#disconnectClient(client)).catch(() => {});',
+              '      if (timer) clearTimeout(timer);\n      if (timedOut && !controller.signal.aborted) controller.abort();\n      if (timedOut) void operation.then((client) => this.#disconnectClient(client)).catch(() => {});'
+          )
+
+          # Cached direct sessions get a bounded control-plane liveness check before a new NEED is dispatched.
+          replace_once(
+              'network/transport/p2p.js',
+              'const DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS = 20_000;\nconst DEFAULT_SUPERSEDED_RETRIES = 2;',
+              'const DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS = 20_000;\nconst DEFAULT_DIRECT_REUSE_PROBE_TIMEOUT_MS = 1_000;\nconst DEFAULT_SUPERSEDED_RETRIES = 2;'
+          )
+          replace_once(
+              'network/transport/p2p.js',
+              '    directConnectAttempts = DEFAULT_DIRECT_CONNECT_ATTEMPTS,\n    directConnectionReuseIdleMs = DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS,\n    supersededRetries = DEFAULT_SUPERSEDED_RETRIES',
+              '    directConnectAttempts = DEFAULT_DIRECT_CONNECT_ATTEMPTS,\n    directConnectionReuseIdleMs = DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS,\n    directReuseProbeTimeoutMs = DEFAULT_DIRECT_REUSE_PROBE_TIMEOUT_MS,\n    supersededRetries = DEFAULT_SUPERSEDED_RETRIES'
+          )
+          replace_once(
+              'network/transport/p2p.js',
+              "    if (!Number.isInteger(directConnectionReuseIdleMs) || directConnectionReuseIdleMs < 10 || directConnectionReuseIdleMs > 120_000) {\n      throw new Error('directConnectionReuseIdleMs must be between 10 and 120000');\n    }\n    if (!Number.isInteger(supersededRetries)",
+              "    if (!Number.isInteger(directConnectionReuseIdleMs) || directConnectionReuseIdleMs < 10 || directConnectionReuseIdleMs > 120_000) {\n      throw new Error('directConnectionReuseIdleMs must be between 10 and 120000');\n    }\n    if (!Number.isInteger(directReuseProbeTimeoutMs) || directReuseProbeTimeoutMs < 10 || directReuseProbeTimeoutMs > 5_000) {\n      throw new Error('directReuseProbeTimeoutMs must be between 10 and 5000');\n    }\n    if (!Number.isInteger(supersededRetries)"
+          )
+          replace_once(
+              'network/transport/p2p.js',
+              '    this.directConnectionReuseIdleMs = directConnectionReuseIdleMs;\n    this.supersededRetries = supersededRetries;',
+              '    this.directConnectionReuseIdleMs = directConnectionReuseIdleMs;\n    this.directReuseProbeTimeoutMs = directReuseProbeTimeoutMs;\n    this.supersededRetries = supersededRetries;'
+          )
+          replace_once(
+              'network/transport/p2p.js',
+              '''      if (Date.now() - lastUsedAt < this.directConnectionReuseIdleMs) {\n        existing.lastUsedAt = Date.now();\n        return existing.client;\n      }\n      await this.#discardBinding(peerRecord.nodeId, binding);''',
+              '''      if (Date.now() - lastUsedAt < this.directConnectionReuseIdleMs) {\n        const reusable = typeof this.quic.requestControl !== 'function'\n          ? true\n          : await this.#boundedPhase(\n            peerRecord.nodeId,\n            deadlineAt,\n            'direct-reuse-probe',\n            () => this.quic.requestControl(existing.client, 'dht.ping', null),\n            this.directReuseProbeTimeoutMs\n          ).then((value) => value?.pong === true).catch(() => false);\n        if (reusable) {\n          existing.lastUsedAt = Date.now();\n          return existing.client;\n        }\n      }\n      await this.#discardBinding(peerRecord.nodeId, binding);'''
+          )
+
+          # DHT control connects inherit and honor the same bounded deadline.
+          replace_once('network/discovery/quic-rpc.js', '  async client(peer) {', '  async client(peer, { timeoutMs = null, signal = null } = {}) {')
+          replace_once(
+              'network/discovery/quic-rpc.js',
+              '    state.promise = (async () => {\n      const client = await this.quic.connect(selected.endpoint);',
+              "    state.promise = (async () => {\n      const connectTimeoutMs = this.#effectiveTimeout(timeoutMs);\n      if (connectTimeoutMs <= 0) {\n        const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peer.nodeId}`);\n        error.code = 'TRUYN_DHT_RPC_TIMEOUT';\n        throw error;\n      }\n      const client = await this.quic.connect(selected.endpoint, { timeoutMs: connectTimeoutMs, signal });"
+          )
+          replace_once(
+              'network/discovery/quic-rpc.js',
+              '    while (true) {\n      let timer = null;',
+              '    while (true) {\n      const abortController = new AbortController();\n      let timer = null;'
+          )
+          replace_once('network/discovery/quic-rpc.js', '          operation(),', '          operation({ signal: abortController.signal, timeoutMs: remaining }),')
+          replace_once(
+              'network/discovery/quic-rpc.js',
+              "              if (state) state.cancelledError = error;\n              reject(error);",
+              "              if (state) state.cancelledError = error;\n              abortController.abort(error);\n              reject(error);"
+          )
+          replace_once(
+              'network/discovery/quic-rpc.js',
+              '      } catch (error) {\n        if (state?.client) this.#retireClient(peer.nodeId, state.client);',
+              "      } catch (error) {\n        if (error?.code === 'TRUYN_DHT_RPC_TIMEOUT') this.forget(peer.nodeId);\n        else if (state?.client) this.#retireClient(peer.nodeId, state.client);"
+          )
+          replace_once(
+              'network/discovery/quic-rpc.js',
+              '  async #leasedClient(peer, state) {\n    const client = await this.client(peer);',
+              '  async #leasedClient(peer, state, connectContext = {}) {\n    const client = await this.client(peer, connectContext);'
+          )
+          replace_n('network/discovery/quic-rpc.js', 'return this.bounded(peer, async () => {', 'return this.bounded(peer, async (connectContext) => {', 5)
+          replace_n('network/discovery/quic-rpc.js', 'const client = await this.#leasedClient(peer, state);', 'const client = await this.#leasedClient(peer, state, connectContext);', 5)
+
+          # Separate announcement concurrency from Kademlia lookup alpha. Acceptance and retry schedule stay unchanged.
+          replace_once(
+              'network/runtime.js',
+              "import { DirectFirstP2P } from './transport/p2p.js';\n\nexport class TruynNetworkNode",
+              "import { DirectFirstP2P } from './transport/p2p.js';\n\nconst DEFAULT_PEER_RECORD_ANNOUNCE_CONCURRENCY = 8;\n\nexport class TruynNetworkNode"
+          )
+          replace_once(
+              'network/runtime.js',
+              '    const workerCount = Math.max(1, Math.min(this.alpha, candidates.length));',
+              '    const workerCount = Math.max(1, Math.min(candidates.length, Math.max(this.alpha, DEFAULT_PEER_RECORD_ANNOUNCE_CONCURRENCY)));'
+          )
+
+          Path('tests/class-d-remote-errtrace.test.js').write_text(r'''import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { mkdtemp, writeFile, chmod, readFile, rm } from 'node:fs/promises';
+          import { tmpdir } from 'node:os';
+          import { join } from 'node:path';
+          import { spawnSync } from 'node:child_process';
+
+          test('Class-D remote retries transient az failure despite inherited ERR trap', async () => {
+            const dir = await mkdtemp(join(tmpdir(), 'truyn-remote-errtrace-'));
+            try {
+              const provision = await readFile('benchmarks/scale/class-d-azure-1000-provision.sh', 'utf8');
+              const remoteFn = provision.match(/^remote\(\) \{[\s\S]*?^\}/m)?.[0];
+              assert.ok(remoteFn);
+              await writeFile(join(dir, 'az'), '#!/usr/bin/env bash\nif [[ ! -f "$STATE/failed" ]]; then touch "$STATE/failed"; echo Conflict >&2; exit 1; fi\necho OK_MARKER=1\n');
+              await chmod(join(dir, 'az'), 0o755);
+              const script = `${remoteFn}\nsleep() { :; }\nRG=rg\n(\n trap 'exit 97' ERR\n set -Eeuo pipefail\n (remote vm-h0 true >"${dir}/out") &\n wait $! || { echo KILLED; exit 1; }\n grep -q OK_MARKER=1 "${dir}/out"\n echo STAGE_OK\n)\n`;
+              const run = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, STATE: dir } });
+              assert.match(run.stdout, /STAGE_OK/, `stdout=${run.stdout} stderr=${run.stderr}`);
+              assert.doesNotMatch(run.stdout, /KILLED/);
+            } finally {
+              await rm(dir, { recursive: true, force: true });
+            }
+          });
+          ''')
+
+          Path('tests/d500-recovery-tail.test.js').write_text(r'''import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { readFile } from 'node:fs/promises';
+          import { DirectFirstP2P } from '../network/transport/p2p.js';
+          import { QuicDiscoveryRpc } from '../network/discovery/quic-rpc.js';
+
+          const peer = { nodeId: 'truyn:node:d500-timeout-peer', endpoints: ['quic://127.0.0.1:4433'], sequence: 1 };
+
+          test('direct P2P timeout aborts native connect before relay fallback', async () => {
+            let aborted = false;
+            let relayCalls = 0;
+            const quic = {
+              connect(_endpoint, { signal } = {}) {
+                return new Promise((_resolve, reject) => signal?.addEventListener('abort', () => {
+                  aborted = true;
+                  reject(signal.reason || Object.assign(new Error('aborted'), { code: 'ETIMEDOUT' }));
+                }, { once: true }));
+              },
+              async disconnect() {}
+            };
+            const discovery = { get: (id) => id === peer.nodeId ? peer : null };
+            const router = new DirectFirstP2P({ quicTransport: quic, discovery, relayFallback: async () => { relayCalls += 1; return { ok: true }; }, directConnectTimeoutMs: 20, directConnectAttempts: 1, routeAttemptTimeoutMs: 100 });
+            const result = await router.send(peer.nodeId, { type: 'NEED' });
+            assert.equal(result.transport, 'relay-fallback');
+            assert.equal(relayCalls, 1);
+            assert.equal(aborted, true);
+          });
+
+          test('DHT timeout evicts a stuck in-flight connect and reconnects', async () => {
+            let firstResolve;
+            let connectCalls = 0;
+            const disconnects = [];
+            const first = { id: 'first' };
+            const second = { id: 'second' };
+            const quic = {
+              connect() {
+                connectCalls += 1;
+                if (connectCalls === 1) return new Promise((resolve) => { firstResolve = resolve; });
+                return Promise.resolve(second);
+              },
+              async disconnect(client) { disconnects.push(client.id); },
+              async requestControl() { return { pong: true }; }
+            };
+            const rpc = new QuicDiscoveryRpc({ quicTransport: quic, timeoutMs: 100 });
+            await assert.rejects(rpc.ping(peer), (error) => error?.code === 'TRUYN_DHT_RPC_TIMEOUT');
+            assert.equal(await rpc.ping(peer), true);
+            assert.equal(connectCalls, 2);
+            firstResolve(first);
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            assert.ok(disconnects.includes('first'));
+          });
+
+          test('cached direct connection is probed before a second application dispatch', async () => {
+            let connects = 0;
+            const sent = [];
+            const disconnected = [];
+            const quic = {
+              async connect() { return { serial: ++connects }; },
+              async disconnect(client) { disconnected.push(client.serial); },
+              async requestControl(client) { if (client.serial === 1) return new Promise(() => {}); return { pong: true }; },
+              async sendEnvelope(client) { sent.push(client.serial); return { ok: true }; }
+            };
+            const discovery = { get: (id) => id === peer.nodeId ? peer : null };
+            const router = new DirectFirstP2P({ quicTransport: quic, discovery, directConnectTimeoutMs: 50, directConnectAttempts: 1, routeAttemptTimeoutMs: 500, directReuseProbeTimeoutMs: 20 });
+            await router.send(peer.nodeId, { id: 1 }, { allowRelayFallback: false });
+            await router.send(peer.nodeId, { id: 2 }, { allowRelayFallback: false });
+            assert.deepEqual(sent, [1, 2]);
+            assert.ok(disconnected.includes(1));
+          });
+
+          test('restart peer-record publication uses bounded concurrency above lookup alpha without changing recovery schedule', async () => {
+            const source = await readFile(new URL('../network/runtime.js', import.meta.url), 'utf8');
+            assert.match(source, /DEFAULT_PEER_RECORD_ANNOUNCE_CONCURRENCY\s*=\s*8/);
+            assert.match(source, /peerRecordRecoveryRetryDelaysMs\s*=\s*\[500, 1_500, 5_000, 10_000, 20_000\]/);
+          });
+          ''')
+          PY
+          git diff --check
+          git status --short
+
+      - name: Run targeted and Class-D regressions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --test \
+            tests/class-d-remote-errtrace.test.js \
+            tests/d500-recovery-tail.test.js \
+            tests/p2p-connection-lifecycle.test.js \
+            tests/quic-rpc-connection-lifecycle.test.js \
+            tests/quic-rpc-connect-coalescing.test.js \
+            tests/peer-record-propagation-readiness.test.js \
+            tests/d200-*.test.js \
+            tests/d500-*.test.js
+          npm test -- --runInBand || npm test
+          git diff --check
+
+      - name: Commit clean source repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm .github/workflows/d500-attempt5-source-repair.yml
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add -- \
+            network/transport/quic.js \
+            network/transport/p2p.js \
+            network/discovery/quic-rpc.js \
+            network/runtime.js \
+            benchmarks/scale/class-d-azure-1000-provision.sh \
+            benchmarks/scale/class-d-azure-1000-campaign.sh \
+            benchmarks/scale/d200-post-restart-routing-stage.sh \
+            benchmarks/scale/d200-resources-stage.sh \
+            benchmarks/scale/d200-restart-recovery-stage.sh \
+            benchmarks/scale/d200-write-retention-stage.sh \
+            tests/class-d-remote-errtrace.test.js \
+            tests/d500-recovery-tail.test.js \
+            .github/workflows/d500-attempt5-source-repair.yml
+          git diff --cached --check
+          git commit -s -m 'fix(d500): bound restart recovery tail'
+          git push origin HEAD:repair/d500-attempt5-source-260922
