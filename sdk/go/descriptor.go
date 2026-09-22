@@ -47,11 +47,18 @@ func parseDescriptorTime(value any) (time.Time, bool) {
 	parsed, err := time.Parse(time.RFC3339, text); return parsed, err == nil
 }
 
+func validDescriptorInterface(value any) bool {
+	candidate, ok := value.(map[string]any); if !ok { return false }
+	kind, ok := candidate["type"].(string); if !ok || strings.TrimSpace(kind) == "" { return false }
+	endpoint, ok := candidate["endpoint"].(string); return ok && strings.TrimSpace(endpoint) != ""
+}
+
 func validateDescriptor(raw map[string]any, now time.Time) error {
 	if raw["schema"] != AgentDescriptorSchema || raw["descriptorVersion"] != "1" { return NewError(VersionMismatch, "unsupported Agent Descriptor schema/version", false) }
 	identity, ok := raw["identity"].(string); if !ok || !strings.HasPrefix(identity, "truyn:node:") { return NewError(InvalidArgument, "invalid Agent Descriptor identity", false) }
 	protocols, ok := raw["protocols"].([]any); if !ok || len(protocols) == 0 { return NewError(InvalidArgument, "Agent Descriptor protocols are required", false) }
 	interfaces, ok := raw["interfaces"].([]any); if !ok || len(interfaces) == 0 { return NewError(InvalidArgument, "Agent Descriptor interfaces are required", false) }
+	for _, candidate := range interfaces { if !validDescriptorInterface(candidate) { return NewError(InvalidArgument, "Agent Descriptor interfaces are invalid", false) } }
 	if _, ok := raw["capabilities"].([]any); !ok { return NewError(InvalidArgument, "Agent Descriptor capabilities are invalid", false) }
 	issued, ok := parseDescriptorTime(raw["issuedAt"]); if !ok { return NewError(InvalidArgument, "Agent Descriptor issuedAt is invalid", false) }
 	expires, ok := parseDescriptorTime(raw["expiresAt"]); if !ok || !expires.After(issued) { return NewError(InvalidArgument, "Agent Descriptor expiry window is invalid", false) }
