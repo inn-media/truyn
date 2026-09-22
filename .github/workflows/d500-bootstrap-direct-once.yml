@@ -1,0 +1,223 @@
+name: D-500 Bootstrap Qualification Direct Once
+
+on:
+  push:
+    branches:
+      - automation/d500-bootstrap-direct-af5591fc
+    paths:
+      - .github/bootstrap/direct.txt
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  SOURCE_SHA: af5591fc605acf055372f736cdaf274618fc3383
+  SCALE: d500
+  CLASS_LABEL: D-500
+  NODES_PER_HOST: '25'
+  EXPECTED_NODES: '500'
+  AZURE_RESOURCE_GROUP: truyn
+
+jobs:
+  bootstrap-qualification:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: af5591fc605acf055372f736cdaf274618fc3383
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Validate exact main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$main_sha" == "$SOURCE_SHA" ]]
+          echo "TRUYN_CLASS_D_BOOTSTRAP_EXACT_MAIN source_sha=$SOURCE_SHA scale=$SCALE status=PASS"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify bootstrap qualification contract locally
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          node --test tests/peer-discovery-refresh.test.js tests/peer-discovery-refresh-bounds.test.js tests/class-d-bootstrap-qualification.test.js tests/dht-readiness-testnet-endpoint.test.js tests/dht-refresh-testnet-endpoint.test.js
+          bash -n benchmarks/scale/class-d-azure-1000-provision.sh
+          git diff --check
+
+      - name: Build immutable runtime bundle
+        id: runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bundle="$RUNNER_TEMP/truyn-class-d-bootstrap-runtime.tgz"
+          TRUYN_TESTED_COMMIT="$SOURCE_SHA" scripts/build-class-d-1000-runtime-bundle.sh "$bundle"
+          sha="$(awk '{print $1}' "${bundle}.sha256")"
+          [[ "$sha" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s  %s\n' "$sha" "$bundle" | sha256sum -c -
+          tmp="$(mktemp -d)"
+          tar -xzf "$bundle" -C "$tmp"
+          jq -e --arg s "$SOURCE_SHA" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$s' "$tmp/manifest.json" >/dev/null
+          rm -rf "$tmp"
+          echo "path=$bundle" >>"$GITHUB_OUTPUT"
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Select fail-closed 20-host placement
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ok=false
+          for location in eastus2 eastus westus2 centralus northcentralus southcentralus westeurope northeurope; do
+            usage="$(az vm list-usage -l "$location" -o json --only-show-errors)" || continue
+            regional_current="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].currentValue//-1' <<<"$usage")"
+            regional_limit="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].limit//-1' <<<"$usage")"
+            for size in Standard_D4as_v5 Standard_D4s_v5 Standard_E2as_v7; do
+              sku="$(az vm list-skus -l "$location" --size "$size" --all -o json --only-show-errors)" || continue
+              [[ "$(jq length <<<"$sku")" -ge 1 ]] || continue
+              vcpus="$(jq -r '[.[].capabilities[]?|select(.name=="vCPUs")|.value][0]//empty' <<<"$sku")"
+              family="$(jq -r '.[0].family//empty' <<<"$sku")"
+              [[ -n "$vcpus" && -n "$family" ]] || continue
+              family_current="$(jq -r --arg f "$family" '[.[]|select(.name.value==$f)][0].currentValue//-1' <<<"$usage")"
+              family_limit="$(jq -r --arg f "$family" '[.[]|select(.name.value==$f)][0].limit//-1' <<<"$usage")"
+              blocks="$(jq '[.[].restrictions[]?|select(.type=="Location" and .reasonCode=="NotAvailableForSubscription")]|length' <<<"$sku")"
+              need=$((vcpus*20))
+              echo "TRUYN_CLASS_D_BOOTSTRAP_CAPACITY scale=$SCALE location=$location size=$size required=$need regionalRemaining=$((regional_limit-regional_current)) familyRemaining=$((family_limit-family_current)) blocks=$blocks"
+              if [[ "$blocks" == 0 && "$regional_current" -ge 0 && "$family_current" -ge 0 && $((regional_limit-regional_current)) -ge "$need" && $((family_limit-family_current)) -ge "$need" ]]; then
+                echo "TRUYN_BOOTSTRAP_LOCATION=$location" >>"$GITHUB_ENV"
+                echo "TRUYN_BOOTSTRAP_VM_SIZE=$size" >>"$GITHUB_ENV"
+                ok=true
+                break 2
+              fi
+            done
+          done
+          [[ "$ok" == true ]]
+
+      - name: Stage immutable runtime bundle
+        env:
+          TRUYN_D200_LOCATION: ${{ env.TRUYN_BOOTSTRAP_LOCATION }}
+          TRUYN_D200_VM_SIZE: ${{ env.TRUYN_BOOTSTRAP_VM_SIZE }}
+          RUNTIME_BUNDLE: ${{ steps.runtime.outputs.path }}
+          RUNTIME_SHA: ${{ steps.runtime.outputs.sha }}
+        shell: bash
+        run: bash scripts/d200-stage-runtime-bundle.sh
+
+      - name: Execute isolated D-500 bootstrap qualification
+        id: bootstrap
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          TRUYN_AZURE_RESOURCE_GROUP="$AZURE_RESOURCE_GROUP" \
+          TRUYN_CLASS_D1000_LOCATION="$TRUYN_BOOTSTRAP_LOCATION" \
+          TRUYN_CLASS_D1000_VM_SIZE="$TRUYN_BOOTSTRAP_VM_SIZE" \
+          TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" \
+          TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" \
+          TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" \
+          TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY=1 \
+          TESTED_COMMIT="$SOURCE_SHA" \
+          bash -c 'set -Eeuo pipefail; source benchmarks/scale/class-d-azure-1000-provision.sh' 2>&1 | tee class-d-bootstrap-qualification.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "run_rc=$rc" >>"$GITHUB_OUTPUT"
+
+      - name: Record bootstrap evidence
+        id: evidence
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          log=class-d-bootstrap-qualification.log
+          marker=false
+          hosts=0
+          retries=0
+          resource_cleanup=false
+          resource_remaining=-1
+          if [[ -f "$log" ]]; then
+            grep -q "TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION class=${CLASS_LABEL} .* status=PASS" "$log" && marker=true || true
+            hosts="$(grep -c 'TRUYN_CLASS_D_1000 stage=bootstrap host=.*refresh=per-node' "$log" || true)"
+            retries="$(grep -c 'TRUYN_D200_BOOTSTRAP_REFRESH_RETRY' "$log" || true)"
+            cleanup_line="$(grep 'TRUYN_CLASS_D_1000_CLEANUP confirmed=' "$log" | tail -1 || true)"
+            if [[ "$cleanup_line" == *'confirmed=true remaining=0'* ]]; then resource_cleanup=true; resource_remaining=0; fi
+          fi
+          jq -n \
+            --arg sourceSha "$SOURCE_SHA" \
+            --arg scale "$CLASS_LABEL" \
+            --argjson expectedNodes "$EXPECTED_NODES" \
+            --argjson nodesPerHost "$NODES_PER_HOST" \
+            --argjson bootstrapHosts "$hosts" \
+            --argjson retryEvents "$retries" \
+            --argjson marker "$marker" \
+            --argjson cleanup "$resource_cleanup" \
+            --argjson remaining "$resource_remaining" \
+            '{schema:"truyn.class-d.bootstrap-qualification.v1",sourceSha:$sourceSha,scale:$scale,hostCount:20,expectedNodes:$expectedNodes,nodesPerHost:$nodesPerHost,bootstrapHosts:$bootstrapHosts,retryEvents:$retryEvents,qualificationMarker:$marker,cleanup:{confirmed:$cleanup,remainingResources:$remaining}}' > class-d-bootstrap-qualification.json
+          echo "marker=$marker" >>"$GITHUB_OUTPUT"
+          echo "hosts=$hosts" >>"$GITHUB_OUTPUT"
+          echo "retries=$retries" >>"$GITHUB_OUTPUT"
+          echo "cleanup=$resource_cleanup" >>"$GITHUB_OUTPUT"
+          echo "remaining=$resource_remaining" >>"$GITHUB_OUTPUT"
+
+      - name: Cleanup runtime staging fail-closed
+        id: staging_cleanup
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          account="${TRUYN_D200_STAGING_ACCOUNT:-td2d200${GITHUB_RUN_ID}}"
+          az storage account delete -g "$AZURE_RESOURCE_GROUP" -n "$account" --yes --only-show-errors >/dev/null 2>&1 || true
+          confirmed=false
+          remaining=-1
+          for _ in $(seq 1 60); do
+            if ! az storage account show -g "$AZURE_RESOURCE_GROUP" -n "$account" --only-show-errors -o json >/dev/null 2>&1; then confirmed=true; remaining=0; break; fi
+            sleep 5
+          done
+          echo "confirmed=$confirmed" >>"$GITHUB_OUTPUT"
+          echo "remaining=$remaining" >>"$GITHUB_OUTPUT"
+
+      - name: Upload bootstrap qualification artifact
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: class-d-bootstrap-d500-${{ env.SOURCE_SHA }}-${{ github.run_id }}
+          path: |
+            class-d-bootstrap-qualification.log
+            class-d-bootstrap-qualification.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Record strict bootstrap terminal marker
+        if: always()
+        env:
+          RUN_RC: ${{ steps.bootstrap.outputs.run_rc }}
+          MARKER: ${{ steps.evidence.outputs.marker }}
+          BOOTSTRAP_HOSTS: ${{ steps.evidence.outputs.hosts }}
+          RETRY_EVENTS: ${{ steps.evidence.outputs.retries }}
+          RESOURCE_CLEANUP: ${{ steps.evidence.outputs.cleanup }}
+          RESOURCE_REMAINING: ${{ steps.evidence.outputs.remaining }}
+          STAGING_CLEANUP: ${{ steps.staging_cleanup.outputs.confirmed }}
+          STAGING_REMAINING: ${{ steps.staging_cleanup.outputs.remaining }}
+          DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          result=FAIL
+          if [[ "${RUN_RC:-99}" == 0 && "$MARKER" == true && "$BOOTSTRAP_HOSTS" == 20 && "$RESOURCE_CLEANUP" == true && "$RESOURCE_REMAINING" == 0 && "$STAGING_CLEANUP" == true && "$STAGING_REMAINING" == 0 && "$DIGEST" =~ ^(sha256:)?[0-9a-f]{64}$ ]]; then
+            result=PASS
+          fi
+          echo "TRUYN_CLASS_D_BOOTSTRAP_TERMINAL scale=$CLASS_LABEL result=$result source_sha=$SOURCE_SHA run_rc=${RUN_RC:-99} bootstrap_hosts=${BOOTSTRAP_HOSTS:-0}/20 retry_events=${RETRY_EVENTS:-0} resource_cleanup=${RESOURCE_CLEANUP:-false} resource_remaining=${RESOURCE_REMAINING:--1} staging_cleanup=${STAGING_CLEANUP:-false} staging_remaining=${STAGING_REMAINING:--1} artifact_digest=${DIGEST:-missing}"
+          [[ "$result" == PASS ]]
