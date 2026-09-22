@@ -1,0 +1,3 @@
+source_sha=af5591fc605acf055372f736cdaf274618fc3383
+scale=d500
+purpose=isolated-bootstrap-qualification
