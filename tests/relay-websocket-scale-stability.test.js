@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRelay } from '../network/relay/server.js';
 import { TruynNode } from '../node/client.js';
+import { TruynAdapterHost, createFunctionAdapter } from '../adapters/sdk/index.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -51,4 +52,41 @@ test('queued oversized event deterministically identifies socket_backpressure cl
   console.log('WS_BACKPRESSURE_TELEMETRY=' + JSON.stringify({ closes, relaySockets: relay.state.providerSockets.size }));
   assert.deepEqual(closes.map(({ code, reason }) => ({ code, reason })), [{ code: 1013, reason: 'socket_backpressure' }]);
   requester.closeFastSocket();
+});
+
+test('provider socket reconnect does not duplicate an already dequeued execution', { timeout: 15_000 }, async (t) => {
+  const relay = createRelay({ localDevelopmentMode: true, exposeDiagnostics: true });
+  const relayUrl = await relay.listen({ port: 0 });
+  t.after(async () => relay.close());
+  const provider = new TruynNode({ relayUrl });
+  const requester = new TruynNode({ relayUrl });
+  let executions = 0;
+  let executionStarted;
+  const started = new Promise((resolve) => { executionStarted = resolve; });
+  const adapter = createFunctionAdapter({
+    name: 'reconnect-exactly-once',
+    capabilities: ['diagnostic.reconnect-once'],
+    execute: async () => {
+      executions += 1;
+      executionStarted();
+      await sleep(150);
+      return { output: 'done', metadata: { executions } };
+    }
+  });
+  const host = new TruynAdapterHost({ node: provider, adapter, fastPath: true, socketPath: true, socketReconnectDelayMs: 10 });
+  await requester.register({ name: 'reconnect-requester' });
+  await host.start();
+  t.after(async () => host.stop());
+  const matched = await requester.compactNeed('diagnostic.reconnect-once', { value: 1 }, {}, { waitMs: 0 });
+  await started;
+  const firstSocket = provider.fastSocket;
+  const closeEvents = [];
+  firstSocket.on('close', (code, reason) => closeEvents.push({ code, reason: reason.toString() }));
+  firstSocket.close(1013, 'diagnostic_backpressure');
+  await sleep(500);
+  const result = await requester.pollCompact({ waitMs: 1000 });
+  console.log('WS_RECONNECT_TELEMETRY=' + JSON.stringify({ executions, closeEvents, resultEvents: result.events.map((event) => ({ kind: event.kind, id: event.frame?.i })) }));
+  assert.equal(executions, 1, 'accepted work must execute exactly once across socket reconnect');
+  assert.equal(result.events.filter((event) => event.kind === 'RESULT' && event.frame?.i === matched.needId).length, 1);
+  assert.equal(host.running, true, 'host must remain running after recoverable socket close');
 });
