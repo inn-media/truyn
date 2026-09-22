@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/d500/launch-05.txt'
+      - '.github/d500/launch-06.txt'
 
 permissions:
   contents: read
@@ -12,18 +12,19 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d500-9549dda6-attempt5-single-shot
+  group: truyn-d500-e0ed95f4-attempt6-single-shot
   cancel-in-progress: false
 
 env:
-  TASK_ID: truyn-d500-acceptance-260922-a5
+  TASK_ID: truyn-d500-acceptance-260923-a6
   REFERENCE_D200_RUN: '35503894414'
   REFERENCE_D200_REPEATABILITY_RUN: '35517248924'
-  TESTED_COMMIT: 9549dda6d53780ec116aebe21cbcc7d77f4dee28
-  TESTED_TREE_SHA: 3292ec0af4f8bb8d1683250efc448861735ad2e7
-  EXACT_MAIN_CI_RUN: '35719191962'
-  EXACT_MAIN_FIVE_PATCH_RUN: '35719191909'
-  EXACT_MAIN_CODEQL_RUN: '35719190942'
+  TESTED_COMMIT: e0ed95f40473010e394c32df1fed9ae7a5a745be
+  TESTED_TREE_SHA: 5f76cf61560928d5bff0bb79d0a8cd1c464fa2dc
+  EXACT_MAIN_CI_RUN: '35776648238'
+  EXACT_MAIN_FIVE_PATCH_RUN: '35776648213'
+  EXACT_MAIN_CODEQL_RUN: '35776648103'
+  EXACT_MAIN_BLOCKWISE_RUN: '35776648082'
   D500_CONTRACT_SHA256: 469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e913fd8f85
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '25'
@@ -39,7 +40,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          token='.github/d500/launch-05.txt'
+          token='.github/d500/launch-06.txt'
           workflow='.github/workflows/d500-acceptance.yml'
           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
           [[ "$GITHUB_EVENT_NAME" == push ]]
@@ -58,6 +59,7 @@ jobs:
           [[ "$(value EXACT_MAIN_CI_RUN)" == "$EXACT_MAIN_CI_RUN" ]]
           [[ "$(value EXACT_MAIN_FIVE_PATCH_RUN)" == "$EXACT_MAIN_FIVE_PATCH_RUN" ]]
           [[ "$(value EXACT_MAIN_CODEQL_RUN)" == "$EXACT_MAIN_CODEQL_RUN" ]]
+          [[ "$(value EXACT_MAIN_BLOCKWISE_RUN)" == "$EXACT_MAIN_BLOCKWISE_RUN" ]]
           [[ "$(value D500_CONTRACT_SHA256)" == "$D500_CONTRACT_SHA256" ]]
           expected_workflow_blob="$(value WORKFLOW_BLOB_SHA)"
           [[ "$expected_workflow_blob" =~ ^[0-9a-f]{40}$ ]]
@@ -86,11 +88,13 @@ jobs:
           ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
           fp="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_FIVE_PATCH_RUN}")"
           cq="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}")"
+          bw="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_BLOCKWISE_RUN}")"
           d200="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${REFERENCE_D200_RUN}")"
           repeat="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${REFERENCE_D200_REPEATABILITY_RUN}")"
           jq -e --arg s "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$ci" >/dev/null
           jq -e --arg s "$TESTED_COMMIT" '.name=="Class D Five-Patch Preflight" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$fp" >/dev/null
           jq -e --arg s "$TESTED_COMMIT" '.name=="Push on main" and .head_branch=="main" and .head_sha==$s and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$cq" >/dev/null
+          jq -e --arg s "$TESTED_COMMIT" '.name=="Class D Blockwise Preflight" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$bw" >/dev/null
           jq -e '.id==35503894414 and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$d200" >/dev/null
           jq -e '.id==35517248924 and .name=="D-200 Repeatability 02" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$repeat" >/dev/null
           actual_contract_sha="$(sha256sum config/d500-contract.json | awk '{print $1}')"
