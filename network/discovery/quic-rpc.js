@@ -268,10 +268,13 @@ export class QuicDiscoveryRpc {
       const client = await this.#leasedClient(peer, state);
       const result = await this.quic.requestControl(client, QUIC_DISCOVERY_METHOD_FIND_NODE, { targetNodeId });
       const records = [];
+      const hints = [];
       for (const record of result?.records || []) {
         if (verifyPeerRecord(record).ok) records.push(record);
+        // Signed but lease-expired: a routing contact only, never authoritative state.
+        else if (verifyPeerRecord(record, { allowExpired: true }).ok) hints.push(record);
       }
-      return { records };
+      return { records, hints };
     }, { ...options, state });
   }
 
@@ -350,11 +353,13 @@ export function createQuicDiscoveryControlHandler(discovery, {
         const self = resolveLocalPeerRecord(localPeerRecord);
         if (self) return { records: [self] };
       }
-      const direct = discovery.get(targetNodeId);
+      const direct = discovery.get(targetNodeId) || discovery.hint?.(targetNodeId);
       if (direct) return { records: [direct] };
+      // Lease-expired signed records are still returned as contacts: after a lease cliff
+      // live-only responses dead-end the lookup. Receivers never ingest them as authority.
       const records = [];
       for (const peer of discovery.closest(targetNodeId, limit)) {
-        const record = discovery.get(peer.nodeId);
+        const record = discovery.get(peer.nodeId) || discovery.hint?.(peer.nodeId);
         if (record) records.push(record);
       }
       return { records };

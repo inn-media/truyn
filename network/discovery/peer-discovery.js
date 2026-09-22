@@ -124,6 +124,12 @@ export class PeerDiscovery {
     return record && leaseLive(record, now) ? structuredClone(record) : null;
   }
 
+  // Non-authoritative routing contact: the stored signed record even if its lease expired.
+  hint(nodeId) {
+    const record = this.records.get(nodeId);
+    return record ? structuredClone(record) : null;
+  }
+
   bootstrap(records, options = {}) { return (records || []).map((record) => this.ingest(record, options)); }
   closest(targetNodeId, count = this.k) { return this.routing.closest(targetNodeId, count); }
 
@@ -481,6 +487,7 @@ export class PeerDiscovery {
     }
 
     const queried = new Set();
+    const hints = new Map();
     let responsesReceived = 0;
     let rounds = 0;
     let frontier = this.closest(targetNodeId, this.k);
@@ -495,6 +502,11 @@ export class PeerDiscovery {
         if (!response) continue;
         responsesReceived += 1;
         for (const record of response.records || []) this.ingest(record);
+        for (const record of response.hints || []) {
+          if (record?.nodeId && record.nodeId !== this.identity.nodeId && !this.get(record.nodeId)) {
+            hints.set(record.nodeId, { nodeId: record.nodeId, endpoints: record.endpoints, publicKey: record.publicKey });
+          }
+        }
         const found = this.get(targetNodeId);
         if (found && stopOnFound) {
           return {
@@ -506,7 +518,10 @@ export class PeerDiscovery {
           };
         }
       }
-      frontier = this.closest(targetNodeId, this.k)
+      // Asking a stale hint for the target itself returns the target's current signed self-record.
+      const merged = new Map(this.closest(targetNodeId, this.k).map((peer) => [peer.nodeId, peer]));
+      for (const [nodeId, peer] of hints) if (!merged.has(nodeId)) merged.set(nodeId, peer);
+      frontier = [...merged.values()]
         .filter((peer) => !queried.has(peer.nodeId))
         .sort((a, b) => {
           const da = xorDistance(a.nodeId, targetNodeId);
