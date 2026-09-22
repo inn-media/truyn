@@ -1,0 +1,2 @@
+source_sha=af5591fc605acf055372f736cdaf274618fc3383
+workflow=.github/workflows/class-d-bootstrap-qualification.yml
