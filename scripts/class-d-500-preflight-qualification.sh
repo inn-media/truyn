@@ -33,38 +33,67 @@ grep -Fq 'acceptanceWeakened' scripts/d200-stage-isolated-campaign.sh
 phase="${D500_PREFLIGHT_PHASE:-prepare}"
 mapfile -t active_d500_workflows < <(find .github/workflows -maxdepth 1 -type f \( -iname 'd500*.yml' -o -iname 'd500*.yaml' -o -iname 'd-500*.yml' -o -iname 'd-500*.yaml' \) -printf '%f\n' | sort)
 
+# Treat every prior one-shot launch token as immutable history. Require a contiguous
+# 01..N sequence so a future attempt cannot skip, replace, or reuse an identity.
+shopt -s nullglob
+launch_tokens=(.github/d500/launch-[0-9][0-9].txt)
+shopt -u nullglob
+if [[ "${#launch_tokens[@]}" -gt 0 ]]; then
+  mapfile -t launch_tokens < <(printf '%s\n' "${launch_tokens[@]}" | sort)
+fi
+latest=0
+for token_path in "${launch_tokens[@]}"; do
+  token_name="${token_path##*/}"
+  token_number="${token_name#launch-}"
+  token_number="${token_number%.txt}"
+  number=$((10#$token_number))
+  expected=$((latest + 1))
+  if [[ "$number" -ne "$expected" ]]; then
+    printf 'TRUYN_D500_PREFLIGHT=FAIL non_contiguous_history expected=%02d actual=%02d\n' "$expected" "$number" >&2
+    exit 1
+  fi
+  grep -Eq '^TASK_ID=truyn-d500-' "$token_path"
+  grep -Eq '^WORKFLOW_BLOB_SHA=[0-9a-f]{40}$' "$token_path"
+  latest="$number"
+done
+
+launch_name(){ printf 'launch-%02d.txt' "$1"; }
+workflow='.github/workflows/d500-acceptance.yml'
+
 case "$phase" in
   prepare)
-    # Support both the original pre-launch tree and the post-attempt-1 repair tree.
-    # Attempt 1 is immutable history; attempt 2 must not be launchable yet.
-    if [[ "${#active_d500_workflows[@]}" -eq 0 ]]; then
-      [[ ! -e .github/d500/launch-01.txt ]]
-    elif [[ "${#active_d500_workflows[@]}" -eq 1 && "${active_d500_workflows[0]}" == 'd500-acceptance.yml' ]]; then
-      [[ -e .github/d500/launch-01.txt ]]
+    # A source tree with no launch history is valid before attempt 1. Once an attempt
+    # exists, exactly one D-500 workflow must remain and must still point at the latest
+    # immutable token. The next token must not exist yet.
+    if [[ "$latest" -eq 0 ]]; then
+      [[ "${#active_d500_workflows[@]}" -eq 0 ]]
     else
-      printf 'TRUYN_D500_PREFLIGHT=FAIL phase=prepare active_workflows=%s\n' "${active_d500_workflows[*]}" >&2
-      exit 1
+      [[ "${#active_d500_workflows[@]}" -eq 1 && "${active_d500_workflows[0]}" == 'd500-acceptance.yml' ]]
+      current_token="$(launch_name "$latest")"
+      [[ -e ".github/d500/${current_token}" ]]
+      grep -Fq "'.github/d500/${current_token}'" "$workflow"
     fi
-    [[ ! -e .github/d500/launch-02.txt ]]
+    next=$((latest + 1))
+    next_token="$(launch_name "$next")"
+    [[ ! -e ".github/d500/${next_token}" ]]
     launchable=false
     ;;
   launch)
-    if [[ "${#active_d500_workflows[@]}" -ne 1 || "${active_d500_workflows[0]}" != 'd500-acceptance.yml' ]]; then
-      printf 'TRUYN_D500_PREFLIGHT=FAIL phase=launch active_workflows=%s\n' "${active_d500_workflows[*]}" >&2
-      exit 1
-    fi
-    [[ -e .github/d500/launch-01.txt ]]
-    [[ ! -e .github/d500/launch-02.txt ]]
-    test -f .github/d500/launch-02.template.txt
-    grep -Fq "'.github/d500/launch-02.txt'" .github/workflows/d500-acceptance.yml
-    grep -Fq 'secrets.AZURE_CLIENT_ID' .github/workflows/d500-acceptance.yml
+    # Pre-launch review may target only the immediate successor N+1. Historical tokens
+    # remain present and immutable; the successor token itself must still be absent.
+    [[ "${#active_d500_workflows[@]}" -eq 1 && "${active_d500_workflows[0]}" == 'd500-acceptance.yml' ]]
+    next=$((latest + 1))
+    next_token="$(launch_name "$next")"
+    [[ ! -e ".github/d500/${next_token}" ]]
+    grep -Fq "'.github/d500/${next_token}'" "$workflow"
+    grep -Fq 'secrets.AZURE_CLIENT_ID' "$workflow"
     for role in TENANT SUBSCRIPTION; do
       secret_name="AZURE_${role}_ID"
-      grep -Fq "secrets.${secret_name}" .github/workflows/d500-acceptance.yml
+      grep -Fq "secrets.${secret_name}" "$workflow"
     done
-    grep -Fq 'TRUYN_D200_LOCATION:' .github/workflows/d500-acceptance.yml
-    grep -Fq 'env.TRUYN_D500_LOCATION' .github/workflows/d500-acceptance.yml
-    launchable=reviewed-attempt2-workflow-only
+    grep -Fq 'TRUYN_D200_LOCATION:' "$workflow"
+    grep -Fq 'env.TRUYN_D500_LOCATION' "$workflow"
+    launchable="reviewed-attempt${next}-workflow-only"
     ;;
   *)
     echo "TRUYN_D500_PREFLIGHT=FAIL invalid_phase=${phase}" >&2
@@ -73,4 +102,4 @@ case "$phase" in
 esac
 
 node --test tests/d500-prelaunch.test.js
-printf 'TRUYN_D500_PREFLIGHT_QUALIFICATION=PASS phase=%s topology=20x25 process_target=500 max_peers=32 d200_floor_preserved=true inheritance=true five_patch=true launchable=%s\n' "$phase" "$launchable"
+printf 'TRUYN_D500_PREFLIGHT_QUALIFICATION=PASS phase=%s topology=20x25 process_target=500 max_peers=32 d200_floor_preserved=true inheritance=true five_patch=true history_count=%s launchable=%s\n' "$phase" "$latest" "$launchable"
