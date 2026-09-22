@@ -53,11 +53,12 @@ diff --git a/.github/d500/d500-acceptance.template.yml b/.github/d500/d500-accep
 +          bash scripts/verify-d-series-blockwise-preflight-run.sh "$TESTED_COMMIT"
            ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
            fp="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_FIVE_PATCH_RUN}")"
-           cq="$(gh api "repos/${GITHUB_REPOSITORY}/check-runs/${QUALIFIED_TREE_CODEQL_CHECK}")"
+           cq="$(gh api "repos/${GITHUB_REPOSITORY}/check-runs/${QUALIFIED_TREE_CODEQL_CHECK})"
 diff --git a/scripts/class-d-1000-final-acceptance.sh b/scripts/class-d-1000-final-acceptance.sh
 --- a/scripts/class-d-1000-final-acceptance.sh
 +++ b/scripts/class-d-1000-final-acceptance.sh
-@@ -354,5 +354,8 @@ if [[ "${TRUYN_CLASS_D1000_PREPARE_ONLY:-0}" == 1 ]]; then
+@@ -355,5 +355,8 @@ if [[ "${TRUYN_CLASS_D1000_PREPARE_ONLY:-0}" == 1 ]]; then
+   rm -rf "$TMP"
    exit 0
  fi
  
