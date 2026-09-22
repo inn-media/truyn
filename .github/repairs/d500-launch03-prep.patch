@@ -1,0 +1,42 @@
+diff --git a/.github/workflows/d500-acceptance.yml b/.github/workflows/d500-acceptance.yml
+--- a/.github/workflows/d500-acceptance.yml
++++ b/.github/workflows/d500-acceptance.yml
+@@ -4,7 +4,7 @@ on:
+   push:
+     branches: [main]
+     paths:
+-      - '.github/d500/launch-02.txt'
++      - '.github/d500/launch-03.txt'
+@@ -13,16 +13,16 @@ permissions:
+   id-token: write
+ 
+ concurrency:
+-  group: truyn-d500-585e8b98-attempt2-single-shot
++  group: truyn-d500-0f17a41b-attempt3-single-shot
+   cancel-in-progress: false
+ 
+ env:
+-  TASK_ID: truyn-d500-acceptance-260920-a2
++  TASK_ID: truyn-d500-acceptance-260922-a3
+   REFERENCE_D200_RUN: '35503894414'
+   REFERENCE_D200_REPEATABILITY_RUN: '35517248924'
+-  TESTED_COMMIT: 585e8b9865a47d8abe390d3dd548c2e57fdd9a32
+-  TESTED_TREE_SHA: 3fdea23cd2f4740a7f89f88c1c92dc98b4a0a8b3
+-  EXACT_MAIN_CI_RUN: '35525208894'
+-  EXACT_MAIN_FIVE_PATCH_RUN: '35525209011'
+-  EXACT_MAIN_CODEQL_RUN: '35525208504'
++  TESTED_COMMIT: 0f17a41b91df4e7ff914e43b0dcab3da39cea4cb
++  TESTED_TREE_SHA: c28d71f49804cbac81a8fd783ca30d912acc5201
++  EXACT_MAIN_CI_RUN: '35690793896'
++  EXACT_MAIN_FIVE_PATCH_RUN: '35690793984'
++  EXACT_MAIN_CODEQL_RUN: '35690793647'
+   D500_CONTRACT_SHA256: 469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e913fd8f85
+   AZURE_RESOURCE_GROUP: truyn
+   NODES_PER_HOST: '25'
+@@ -36,7 +36,7 @@ jobs:
+         run: |
+           set -Eeuo pipefail
+-          token='.github/d500/launch-02.txt'
++          token='.github/d500/launch-03.txt'
+           workflow='.github/workflows/d500-acceptance.yml'
+           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
