@@ -51,6 +51,7 @@ PY
 EOS
 )
   (
+    trap - ERR
     set +e
     remote "${VMS[$i]}" "$script" >"$post_dir/$i.out" 2>"$post_dir/$i.err"
     printf '%s\n' "$?" >"$post_dir/$i.rc"

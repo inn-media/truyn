@@ -99,9 +99,10 @@ test('D-200 mass restart: 50% peer generations changed, pending drains to zero w
     assert.ok(afterStart.targetNodeIds.length <= 8, `required readiness targets must remain bounded, got ${afterStart.targetNodeIds.length}`);
     assert.ok(Date.now() - startedAt < 120_000, 'recovery must stay inside the unchanged 120s acceptance bound');
 
-    await waitFor(() => attempts >= halfRestarted.length, 5_000);
+    await waitFor(() => attempts >= afterStart.targetNodeIds.length, 5_000);
     assert.ok(maxActive <= 3, `announcement concurrency must stay <= alpha=3, observed ${maxActive}`);
-    assert.equal(attempts, halfRestarted.length, 'required + background lanes should announce each recovered peer once when all ACK');
+    assert.equal(attempts, afterStart.targetNodeIds.length, 'immediate restart dissemination must stay within required Kademlia placement when publishFanout equals k');
+    assert.ok(attempts <= restarted.k, `restart dissemination must not scale with every recovered peer, observed ${attempts}`);
 
     const finalPropagation = restarted.peerRecordLifecycleSnapshot().propagation;
     assert.deepEqual(finalPropagation.targetNodeIds, afterStart.targetNodeIds, 'background dissemination must not expand readiness targets');

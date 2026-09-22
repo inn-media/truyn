@@ -58,10 +58,13 @@ remote() {
   remote_script="${remote_script//truyn/truyn}"
   remote_script="${remote_script//truyn/truyn}"
   for attempt in 1 2 3 4 5; do
-    set +e
-    output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1)
-    rc=$?
-    set -e
+    # Keep the command in an if-condition: set +e only disables errexit, while
+    # stage runners use errtrace and may inherit an ERR trap into remote().
+    if output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1); then
+      rc=0
+    else
+      rc=$?
+    fi
     printf '%s\n' "$output" >&2
     if [[ $rc -eq 0 ]]; then
       printf '%s\n' "$output"

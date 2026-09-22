@@ -296,7 +296,8 @@ export async function createTestnetNodeService({
   const replicate = async (body = {}) => {
     const record = node.createRecord(body.namespace, body.key, body.value, {
       sequence: int(body.sequence, 1),
-      ttlMs: int(body.ttlMs, 300_000)
+      ttlMs: int(body.ttlMs, 300_000),
+      issuedAt: typeof body.issuedAt === 'string' && body.issuedAt.trim() ? body.issuedAt.trim() : undefined
     });
     const result = await node.replicateRecord(record, {
       replicationFactor: int(body.replicationFactor, dhtReplicationFactor),
