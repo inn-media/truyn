@@ -7,7 +7,7 @@ diff --git a/.github/workflows/d500-acceptance.yml b/.github/workflows/d500-acce
      paths:
 -      - '.github/d500/launch-02.txt'
 +      - '.github/d500/launch-03.txt'
-@@ -14,13 +14,13 @@
+@@ -14,14 +14,14 @@
  concurrency:
 -  group: truyn-d500-585e8b98-attempt2-single-shot
 +  group: truyn-d500-0f17a41b-attempt3-single-shot
