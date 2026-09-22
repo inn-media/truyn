@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createRelay } from '../network/relay/server.js';
 import { TruynNode } from '../node/client.js';
 import { TruynAdapterHost, createFunctionAdapter } from '../adapters/sdk/index.js';
+import { createProviderAccessPolicy } from '../core/security/provider-access.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -74,7 +75,14 @@ test('1013 socket_backpressure reconnect reconciles with zero duplicate provider
       return { output: 'done', metadata: { providerExecutions } };
     }
   });
-  const host = new TruynAdapterHost({ node: provider, adapter, fastPath: true, socketPath: true, socketReconnectDelayMs: 10 });
+  const host = new TruynAdapterHost({
+    node: provider,
+    adapter,
+    accessPolicy: createProviderAccessPolicy({ mode: 'public' }),
+    fastPath: true,
+    socketPath: true,
+    socketReconnectDelayMs: 10
+  });
   await requester.register({ name: 'reconnect-requester' });
   await host.start();
   t.after(async () => {
