@@ -6,6 +6,8 @@ This directory is the language-neutral source of truth for shared first-party SD
 
 The SDK program began with shared DTO/fixture mapping and later skeleton parity, but current main has progressed beyond that state. TypeScript/JavaScript, Python, Go, Java and C#/.NET now implement the bounded Developer Release relay-client semantics and are exercised by one real five-language E2E gate.
 
+S96-S99 aligned every first-party language surface to the same accepted public contract. S100 treats the five-language executable gate as the cross-language acceptance boundary: no individual SDK may silently fork signing, correlation, cancellation, Descriptor negotiation, object/artifact reference semantics, or provider-authority rules.
+
 This conformance layer does **not** redefine network protocol message kinds, provider authorization, billing authority, routing behavior or D-1000 semantics. SDKs consume the existing TRUYN contracts.
 
 The current mapping is:
