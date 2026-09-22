@@ -1,0 +1,225 @@
+diff --git a/benchmarks/scale/class-d-azure-1000-provision.sh b/benchmarks/scale/class-d-azure-1000-provision.sh
+index f9dc08e..0000000 100755
+--- a/benchmarks/scale/class-d-azure-1000-provision.sh
++++ b/benchmarks/scale/class-d-azure-1000-provision.sh
+@@ -60,6 +60,7 @@ remote() {
+   for attempt in 1 2 3 4 5; do
+-    set +e
+-    output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1)
+-    rc=$?
+-    set -e
++    if output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1); then
++      rc=0
++    else
++      rc=$?
++    fi
+     printf '%s\n' "$output" >&2
+     if [[ $rc -eq 0 ]]; then
+diff --git a/network/transport/quic.js b/network/transport/quic.js
+index bbc5c80..0000000 100644
+--- a/network/transport/quic.js
++++ b/network/transport/quic.js
+@@ -1,5 +1,5 @@
+ import { createHmac, randomFillSync, randomBytes, timingSafeEqual } from 'node:crypto';
+-import { QUICSocket, QUICServer, QUICClient, events } from '@matrixai/quic';
++import { QUICSocket, QUICServer, QUICClient, events, errors as quicErrors } from '@matrixai/quic';
+ import { verifyEnvelope } from '../../core/protocol/index.js';
+ import { BoundedAdmissionQueue } from '../admission/bounded-queue.js';
+ import { createSessionHello, createSessionAccept, verifySessionHello, verifySessionAccept, sessionHandshakeBinding, sessionId, SessionReplayCache } from '../sessions/authenticated-session.js';
+@@ -100,11 +100,13 @@ function boundedHandlerError(error, fallback) {
+ export class TruynQuicTransport {
+-  constructor({ identity, host = '0.0.0.0', port = 0, tls, maxMessageBytes = 1_048_576, maxInboundInFlight = 64, maxInboundQueued = 256 } = {}) {
++  constructor({ identity, host = '0.0.0.0', port = 0, tls, maxMessageBytes = 1_048_576, maxInboundInFlight = 64, maxInboundQueued = 256, connectTimeoutMs = 5_000 } = {}) {
+     if (!identity?.nodeId || !identity?.publicKeyPem || !identity?.privateKeyPem) throw new Error('QUIC transport identity is required');
+     if (!tls?.key || !tls?.cert) throw new Error('QUIC server TLS key and certificate are required');
++    if (!Number.isInteger(connectTimeoutMs) || connectTimeoutMs < 100 || connectTimeoutMs > 120_000) throw new Error('QUIC connectTimeoutMs must be between 100 and 120000');
+     this.identity = identity;
+     this.host = host;
+     this.port = port;
+     this.tls = tls;
+     this.maxMessageBytes = maxMessageBytes;
++    this.connectTimeoutMs = connectTimeoutMs;
+     this.socket = new TruynQuicSocket({});
+@@ -222,16 +224,32 @@ export class TruynQuicTransport {
+-  async connect({ host, port, serverName = host, ca = this.tls.ca } = {}) {
+-    const client = await QUICClient.createQUICClient({
+-      host,
+-      port,
+-      serverName,
+-      socket: this.socket,
+-      crypto: clientCrypto,
+-      config: {
+-        ca,
+-        verifyPeer: Boolean(ca),
+-        applicationProtos: [TRUYN_QUIC_ALPN],
+-        maxIdleTimeout: 30_000,
+-        keepAliveIntervalTime: 10_000
++  async connect({ host, port, serverName = host, ca = this.tls.ca } = {}, { signal = null, timeoutMs = this.connectTimeoutMs } = {}) {
++    const effectiveTimeoutMs = Number.isFinite(timeoutMs) ? Math.max(1, Math.floor(timeoutMs)) : this.connectTimeoutMs;
++    let client;
++    try {
++      client = await QUICClient.createQUICClient({
++        host,
++        port,
++        serverName,
++        socket: this.socket,
++        crypto: clientCrypto,
++        config: {
++          ca,
++          verifyPeer: Boolean(ca),
++          applicationProtos: [TRUYN_QUIC_ALPN],
++          maxIdleTimeout: 30_000,
++          keepAliveIntervalTime: 10_000
++        }
++      }, {
++        timer: effectiveTimeoutMs,
++        ...(signal ? { signal } : {})
++      });
++    } catch (error) {
++      if (signal?.aborted && signal.reason instanceof Error) throw signal.reason;
++      if (error instanceof quicErrors.ErrorQUICClientCreateTimeout) {
++        const timeout = new Error('quic_connect_timeout', { cause: error });
++        timeout.code = 'ETIMEDOUT';
++        timeout.transient = true;
++        throw timeout;
+       }
+-    });
++      throw error;
++    }
+     this.clients.add(client);
+diff --git a/network/transport/p2p.js b/network/transport/p2p.js
+index f8e97a2..0000000 100644
+--- a/network/transport/p2p.js
++++ b/network/transport/p2p.js
+@@ -173,23 +173,26 @@ export class DirectFirstP2P {
+   async #boundedConnect(peerNodeId, endpoint, deadlineAt) {
+     const timeoutMs = Math.min(this.directConnectTimeoutMs, this.#remainingMs(deadlineAt));
+     if (timeoutMs <= 0) throw routeDeadlineError(peerNodeId, 'direct-connect');
+     let timer = null;
+     let timedOut = false;
+-    const operation = Promise.resolve().then(() => this.quic.connect(endpoint));
++    const controller = new AbortController();
++    const operation = Promise.resolve().then(() => this.quic.connect(endpoint, { signal: controller.signal, timeoutMs }));
+     try {
+       return await Promise.race([
+         operation,
+         new Promise((_, reject) => {
+           timer = setTimeout(() => {
+             timedOut = true;
+             const error = new Error(`p2p_connect_timeout:${peerNodeId}`);
+             error.code = 'TRUYN_P2P_CONNECT_TIMEOUT';
++            controller.abort(error);
+             reject(error);
+           }, timeoutMs);
+         })
+       ]);
+     } finally {
+       if (timer) clearTimeout(timer);
++      if (timedOut && !controller.signal.aborted) controller.abort();
+       if (timedOut) void operation.then((client) => this.#disconnectClient(client)).catch(() => {});
+     }
+   }
+diff --git a/network/discovery/quic-rpc.js b/network/discovery/quic-rpc.js
+index 7acccc6..0000000 100644
+--- a/network/discovery/quic-rpc.js
++++ b/network/discovery/quic-rpc.js
+@@ -224,3 +224,4 @@ export class QuicDiscoveryRpc {
+       } catch (error) {
+-        if (state?.client) this.#retireClient(peer.nodeId, state.client);
++        if (error?.code === 'TRUYN_DHT_RPC_TIMEOUT') this.forget(peer.nodeId);
++        else if (state?.client) this.#retireClient(peer.nodeId, state.client);
+         if (error?.code === 'TRUYN_DISCOVERY_CONNECTION_SUPERSEDED' && supersededAttempt < this.supersededRetries && Date.now() < deadlineAt) {
+diff --git a/tests/class-d-remote-errtrace.test.js b/tests/class-d-remote-errtrace.test.js
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/tests/class-d-remote-errtrace.test.js
+@@ -0,0 +1,25 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { mkdtemp, writeFile, chmod, readFile, rm } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { spawnSync } from 'node:child_process';
++
++test('Class-D remote retries a transient az failure despite inherited ERR trap', async () => {
++  const dir = await mkdtemp(join(tmpdir(), 'truyn-remote-errtrace-'));
++  try {
++    const provision = await readFile('benchmarks/scale/class-d-azure-1000-provision.sh', 'utf8');
++    const remoteFn = provision.match(/^remote\(\) \{[\s\S]*?^\}/m)?.[0];
++    assert.ok(remoteFn);
++    await writeFile(join(dir, 'az'), '#!/usr/bin/env bash\nif [[ ! -f "$STATE/failed" ]]; then touch "$STATE/failed"; echo Conflict >&2; exit 1; fi\necho OK_MARKER=1\n');
++    await chmod(join(dir, 'az'), 0o755);
++    const script = `${remoteFn}\nsleep() { :; }\nRG=rg\n(\n trap 'exit 97' ERR\n set -Eeuo pipefail\n (remote vm-h0 true >"${dir}/out") &\n wait $! || { echo KILLED; exit 1; }\n grep -q OK_MARKER=1 "${dir}/out"\n echo STAGE_OK\n)\n`;
++    const run = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, STATE: dir } });
++    assert.match(run.stdout, /STAGE_OK/, `stdout=${run.stdout} stderr=${run.stderr}`);
++    assert.doesNotMatch(run.stdout, /KILLED/);
++  } finally {
++    await rm(dir, { recursive: true, force: true });
++  }
++});
+diff --git a/tests/d500-connect-timeout-recovery.test.js b/tests/d500-connect-timeout-recovery.test.js
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/tests/d500-connect-timeout-recovery.test.js
+@@ -0,0 +1,67 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++import { DirectFirstP2P } from '../network/transport/p2p.js';
++import { QuicDiscoveryRpc } from '../network/discovery/quic-rpc.js';
++
++const peer = { nodeId: 'truyn:node:d500-timeout-peer', endpoints: ['quic://127.0.0.1:4433'], sequence: 1 };
++
++test('direct P2P timeout aborts the underlying connect before relay fallback', async () => {
++  let aborted = false;
++  let relayCalls = 0;
++  const quic = {
++    connect(_endpoint, { signal } = {}) {
++      return new Promise((_resolve, reject) => {
++        signal?.addEventListener('abort', () => {
++          aborted = true;
++          reject(signal.reason || Object.assign(new Error('aborted'), { code: 'ETIMEDOUT' }));
++        }, { once: true });
++      });
++    },
++    async disconnect() {}
++  };
++  const discovery = { get: (id) => id === peer.nodeId ? peer : null };
++  const router = new DirectFirstP2P({ quicTransport: quic, discovery, relayFallback: async () => { relayCalls += 1; return { ok: true }; }, directConnectTimeoutMs: 20, directConnectAttempts: 1, routeAttemptTimeoutMs: 100 });
++  const result = await router.send(peer.nodeId, { type: 'NEED' });
++  assert.equal(result.transport, 'relay-fallback');
++  assert.equal(relayCalls, 1);
++  assert.equal(aborted, true);
++});
++
++test('DHT timeout evicts a stuck coalesced connect so the next operation reconnects', async () => {
++  let firstResolve;
++  let connectCalls = 0;
++  const disconnects = [];
++  const first = { id: 'first' };
++  const second = { id: 'second' };
++  const quic = {
++    connect() {
++      connectCalls += 1;
++      if (connectCalls === 1) return new Promise((resolve) => { firstResolve = resolve; });
++      return Promise.resolve(second);
++    },
++    async disconnect(client) { disconnects.push(client.id); },
++    async requestControl() { return { pong: true }; }
++  };
++  const rpc = new QuicDiscoveryRpc({ quicTransport: quic, timeoutMs: 100 });
++  await assert.rejects(rpc.ping(peer), (error) => error?.code === 'TRUYN_DHT_RPC_TIMEOUT');
++  assert.equal(await rpc.ping(peer), true);
++  assert.equal(connectCalls, 2);
++  firstResolve(first);
++  await new Promise((resolve) => setTimeout(resolve, 20));
++  assert.ok(disconnects.includes('first'));
++});
++
++test('QUIC transport wires bounded timer/signal into @matrixai/quic create', async () => {
++  const source = await readFile(new URL('../network/transport/quic.js', import.meta.url), 'utf8');
++  assert.match(source, /createQUICClient\([\s\S]*timer:\s*effectiveTimeoutMs[\s\S]*signal/);
++  assert.match(source, /ErrorQUICClientCreateTimeout/);
++});
