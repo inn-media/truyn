@@ -1,3 +1,4 @@
+// S-Series diagnostic: local-only, zero paid/provider calls; preserve all close telemetry.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRelay } from '../network/relay/server.js';
