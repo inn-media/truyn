@@ -1,0 +1,69 @@
+name: Class D Bootstrap Qualification Launcher
+
+on:
+  push:
+    branches:
+      - 'bootstrap-launch/**'
+    paths:
+      - '.github/class-d-bootstrap/launch-d500-*.txt'
+      - '.github/class-d-bootstrap/launch-d1000-*.txt'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: class-d-bootstrap-launcher-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Validate exact immutable launch token and dispatch
+        env:
+          GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -n "${GH_TOKEN:-}" ]]
+
+          mapfile -t tokens < <(jq -r '.commits[]?.added[]?' "$GITHUB_EVENT_PATH" | grep -E '^\.github/class-d-bootstrap/launch-d(500|1000)-[A-Za-z0-9._-]+\.txt$' | sort -u)
+          [[ ${#tokens[@]} -eq 1 ]]
+          token="${tokens[0]}"
+          [[ -f "$token" ]]
+
+          source_sha="$(sed -n 's/^SOURCE_SHA=//p' "$token" | tail -1)"
+          scale="$(sed -n 's/^SCALE=//p' "$token" | tail -1)"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$scale" == d500 || "$scale" == d1000 ]]
+
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$main_sha" == "$source_sha" ]]
+          parent_sha="$(git rev-parse HEAD^)"
+          [[ "$parent_sha" == "$source_sha" ]]
+          mapfile -t changed < <(git diff --name-only "$source_sha" "$GITHUB_SHA")
+          [[ ${#changed[@]} -eq 1 && "${changed[0]}" == "$token" ]]
+
+          case "$token" in
+            .github/class-d-bootstrap/launch-d500-*.txt) [[ "$scale" == d500 ]] ;;
+            .github/class-d-bootstrap/launch-d1000-*.txt) [[ "$scale" == d1000 ]] ;;
+            *) exit 1 ;;
+          esac
+
+          active="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/class-d-bootstrap-qualification.yml/runs?branch=main&event=workflow_dispatch&per_page=20" --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+          [[ "$active" == 0 ]]
+
+          gh workflow run class-d-bootstrap-qualification.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f source_sha="$source_sha" \
+            -f scale="$scale"
+
+          echo "TRUYN_CLASS_D_BOOTSTRAP_DISPATCH scale=$scale source_sha=$source_sha token=$token status=DISPATCHED"
