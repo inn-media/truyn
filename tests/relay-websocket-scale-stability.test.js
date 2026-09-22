@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRelay } from '../network/relay/server.js';
 import { TruynNode } from '../node/client.js';
+import { TruynAdapterHost, createFunctionAdapter } from '../adapters/sdk/index.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -16,7 +17,7 @@ function observe(node, label, events) {
 
 test('50 fast sockets remain healthy across at least three relay heartbeat cycles', { timeout: 50_000 }, async (t) => {
   const relay = createRelay({ localDevelopmentMode: true, exposeDiagnostics: true });
-  const relayUrl = await relay.listen();
+  const relayUrl = await relay.listen({ port: 0 });
   t.after(async () => relay.close());
   const nodes = Array.from({ length: 50 }, () => new TruynNode({ relayUrl }));
   const events = [];
@@ -34,7 +35,7 @@ test('50 fast sockets remain healthy across at least three relay heartbeat cycle
 
 test('queued event identifies socket_backpressure close branch', { timeout: 10_000 }, async (t) => {
   const relay = createRelay({ localDevelopmentMode: true, exposeDiagnostics: true, maxSocketBufferedBytes: 1 });
-  const relayUrl = await relay.listen();
+  const relayUrl = await relay.listen({ port: 0 });
   t.after(async () => relay.close());
   const provider = new TruynNode({ relayUrl });
   const requester = new TruynNode({ relayUrl });
@@ -49,4 +50,42 @@ test('queued event identifies socket_backpressure close branch', { timeout: 10_0
   await sleep(250);
   console.log('WS_BACKPRESSURE_TELEMETRY=' + JSON.stringify({ closes, relaySockets: relay.state.providerSockets.size }));
   assert.deepEqual(closes, [{ code: 1013, reason: 'socket_backpressure' }]);
+});
+
+test('provider reconnect preserves exactly-once execution after recoverable socket close', { timeout: 15_000 }, async (t) => {
+  const relay = createRelay({ localDevelopmentMode: true, exposeDiagnostics: true });
+  const relayUrl = await relay.listen({ port: 0 });
+  t.after(async () => relay.close());
+  const provider = new TruynNode({ relayUrl });
+  const requester = new TruynNode({ relayUrl });
+  let executions = 0;
+  let markStarted;
+  const started = new Promise((resolve) => { markStarted = resolve; });
+  const adapter = createFunctionAdapter({
+    name: 'reconnect-exactly-once',
+    capabilities: ['diagnostic.reconnect-once'],
+    execute: async () => {
+      executions += 1;
+      markStarted();
+      await sleep(150);
+      return { output: 'done', metadata: { executions } };
+    }
+  });
+  const host = new TruynAdapterHost({ node: provider, adapter, fastPath: true, socketPath: true, socketReconnectDelayMs: 10 });
+  await requester.register({ name: 'reconnect-requester' });
+  await host.start();
+  t.after(async () => host.stop());
+  const matched = await requester.compactNeed('diagnostic.reconnect-once', { value: 1 }, {}, { waitMs: 0 });
+  await started;
+  const firstSocket = provider.fastSocket;
+  const closes = [];
+  firstSocket.on('close', (code, reason) => closes.push({ code, reason: reason.toString() }));
+  firstSocket.close(1013, 'diagnostic_backpressure');
+  await sleep(500);
+  const result = await requester.pollCompact({ waitMs: 1000 });
+  const matchingResults = result.events.filter((event) => event.kind === 'RESULT' && event.frame?.i === matched.needId);
+  console.log('WS_RECONNECT_TELEMETRY=' + JSON.stringify({ executions, closes, resultCount: matchingResults.length, hostRunning: host.running }));
+  assert.equal(executions, 1);
+  assert.equal(matchingResults.length, 1);
+  assert.equal(host.running, true);
 });
