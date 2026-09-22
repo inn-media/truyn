@@ -625,7 +625,7 @@ for j in \$(seq 0 $((NODES_PER_HOST-1))); do
   total_bytes=\$((total_bytes + bytes))
   control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
   curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" "\${control_url}/bootstrap" >/dev/null
-  refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,seed:\$seed}')
+  refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,targetConcurrency:4,timeoutMs:240000,seed:\$seed}')
   refresh_result=''
   refresh_rc=1
   for refresh_attempt in 1 2 3; do
@@ -633,8 +633,13 @@ for j in \$(seq 0 $((NODES_PER_HOST-1))); do
     refresh_result=\$(curl -fsS --max-time 300 -H 'content-type: application/json' --data-binary "\$refresh_payload" "\${control_url}/dht/refresh")
     refresh_rc=\$?
     set -e
-    if [[ "\$refresh_rc" -eq 0 ]]; then break; fi
-    echo "TRUYN_D200_BOOTSTRAP_REFRESH_RETRY host=${i} node=\$j attempt=\$refresh_attempt rc=\$refresh_rc" >&2
+    refresh_reason=none
+    if [[ "\$refresh_rc" -eq 0 ]]; then
+      refresh_reason=\$(printf '%s' "\$refresh_result" | jq -r '.reason // "none"' 2>/dev/null || echo invalid-json)
+      if printf '%s' "\$refresh_result" | jq -e '.refreshed == true' >/dev/null 2>&1; then break; fi
+      refresh_rc=70
+    fi
+    echo "TRUYN_D200_BOOTSTRAP_REFRESH_RETRY host=${i} node=\$j attempt=\$refresh_attempt rc=\$refresh_rc reason=\$refresh_reason" >&2
     [[ "\$refresh_attempt" -lt 3 ]] && sleep \$((refresh_attempt * 2))
   done
   [[ "\$refresh_rc" -eq 0 ]]
@@ -698,6 +703,13 @@ done
 for pid in "${bootstrap_pids[@]}"; do wait "$pid"; done
 for i in $(seq 0 $((HOST_COUNT-1))); do cat "$bootstrap_dir/$i"; done
 rm -rf "$bootstrap_dir"
+
+if [[ "${TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY:-0}" == 1 ]]; then
+  qualification_class=D-1000
+  [[ "$NODES_PER_HOST" == 25 ]] && qualification_class=D-500
+  echo "TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION class=${qualification_class} hosts=${HOST_COUNT} nodes=${NODE_COUNT} nodesPerHost=${NODES_PER_HOST} maxPeers=${BOOTSTRAP_MAX_PEERS_PER_NODE} targetConcurrency=4 serverDeadlineMs=240000 clientDeadlineMs=300000 status=PASS"
+  return 0 2>/dev/null || exit 0
+fi
 
 STAGE=bandwidth-meter
 meter_dir=$(mktemp -d)

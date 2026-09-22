@@ -414,8 +414,11 @@ export class PeerDiscovery {
     return this.refreshTargetPlan(options).targets;
   }
 
-  async refreshRoutingTable({ targets = null, targetCount = this.k, maxRounds = 4, now = Date.now(), seed = 'truyn-refresh', expiryTargetCount = null } = {}) {
-    const before = this.routingSnapshot({ now });
+  async refreshRoutingTable({ targets = null, targetCount = this.k, maxRounds = 4, now = Date.now(), seed = 'truyn-refresh', expiryTargetCount = null, targetConcurrency = 1, timeoutMs = null } = {}) {
+    const normalizedTimeoutMs = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0 ? Math.floor(Number(timeoutMs)) : null;
+    const deadlineAt = normalizedTimeoutMs == null ? null : Date.now() + normalizedTimeoutMs;
+    const execute = async () => {
+      const before = this.routingSnapshot({ now });
     const limit = Math.max(0, Number.isInteger(targetCount) ? targetCount : this.k);
     const targetPlan = Array.isArray(targets)
       ? {
@@ -450,35 +453,52 @@ export class PeerDiscovery {
     }
 
     const rounds = Math.max(0, Number.isInteger(maxRounds) ? maxRounds : 4);
-    const walks = [];
-    for (const targetNodeId of selectedTargets) {
-      const result = await this.walk(targetNodeId, { maxRounds: rounds, stopOnFound: false });
-      walks.push({
-        targetNodeId,
-        found: Boolean(result.found),
-        foundNodeId: result.found?.nodeId || null,
-        queried: result.queried,
-        rounds: result.rounds,
-        responses: result.responses
-      });
-    }
+    const concurrency = Math.max(1, Math.min(selectedTargets.length || 1, boundedInteger(targetConcurrency, 1, { min: 1, max: 16 })));
+    const walks = new Array(selectedTargets.length);
+    let nextTargetIndex = 0;
+    let deadlineExceeded = false;
+    const worker = async () => {
+      while (true) {
+        if (deadlineAt != null && Date.now() >= deadlineAt) { deadlineExceeded = true; return; }
+        const index = nextTargetIndex++;
+        if (index >= selectedTargets.length) return;
+        const targetNodeId = selectedTargets[index];
+        const result = await this.walk(targetNodeId, { maxRounds: rounds, stopOnFound: false });
+        walks[index] = {
+          targetNodeId,
+          found: Boolean(result.found),
+          foundNodeId: result.found?.nodeId || null,
+          queried: result.queried,
+          rounds: result.rounds,
+          responses: result.responses
+        };
+        if (deadlineAt != null && Date.now() >= deadlineAt) deadlineExceeded = true;
+      }
+    };
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    const completedWalks = walks.filter(Boolean);
 
     const after = this.routingSnapshot({ now });
-    const queriedPeers = uniqueNonEmptyStrings(walks.flatMap((walk) => walk.queried));
-    const responses = walks.reduce((sum, walk) => sum + walk.responses, 0);
+    const queriedPeers = uniqueNonEmptyStrings(completedWalks.flatMap((walk) => walk.queried));
+    const responses = completedWalks.reduce((sum, walk) => sum + walk.responses, 0);
 
     return {
-      refreshed: true,
+      refreshed: !deadlineExceeded,
+      reason: deadlineExceeded ? 'refresh_deadline_exceeded' : null,
       before,
       after,
       targets: selectedTargets,
       targetSelection,
-      walks,
+      walks: completedWalks,
       queriedPeers,
       responses,
       routingSizeDelta: after.routingSize - before.routingSize,
       validPeersDelta: after.validPeers - before.validPeers
     };
+    };
+
+    if (deadlineAt != null && typeof this.rpc?.withDeadline === 'function') return this.rpc.withDeadline(deadlineAt, execute);
+    return execute();
   }
 
   async walk(targetNodeId, { maxRounds = 16, stopOnFound = true } = {}) {
