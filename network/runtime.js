@@ -64,6 +64,13 @@ export class TruynNetworkNode {
       : 'truyn-periodic-refresh';
     this.peerRecordRenewTimer = null;
     this.peerRecordRenewalInFlight = null;
+    // Lease keeper: a renewal is announced only to closest(owner, fanout), so every other
+    // node's copy of that record silently expires at issuedAt + TTL. Records minted together
+    // expire together and validPeers collapses network-wide. Re-fetch expiring copies from
+    // their owners (PING carries the owner's current signed record) before the cliff.
+    this.leaseKeeperTimer = null;
+    this.leaseKeeperInFlight = null;
+    this.leaseKeeperStats = { ticks: 0, pinged: 0, refreshed: 0, failed: 0 };
     this.peerRecordRecoveryRetryTimer = null;
     this.peerRecordPropagationQueued = false;
     this.peerRecordBackgroundDisseminationQueued = false;
@@ -124,7 +131,13 @@ export class TruynNetworkNode {
       // Any first-seen or changed valid peer record can change the Kademlia
       // placement set for our own current record. Reconcile it on the control
       // plane and fail readiness closed until the required placements ACK.
-      this.#schedulePeerRecordPropagation();
+      // Records are often ingested inside a lookup's AsyncLocalStorage deadline; the
+      // propagation/retry chain must not inherit it, or every later RPC in that chain
+      // times out instantly once the lookup deadline has passed.
+      const reconcile = () => this.#schedulePeerRecordPropagation();
+      const deadlineContext = this.rpc?.deadlineContext;
+      if (deadlineContext?.getStore?.() != null && typeof deadlineContext.exit === 'function') deadlineContext.exit(reconcile);
+      else reconcile();
     };
     this.recordStore = new KademliaRecordStore({ onChange: onStateChange });
     this.quic = new TruynQuicTransport({ identity, host, port, tls });
@@ -240,6 +253,56 @@ export class TruynNetworkNode {
     }
     if (!this.workInbox) return this.envelopeHandler(envelope, context);
     return this.workInbox.run(envelope, context, this.envelopeHandler);
+  }
+
+  #leaseKeeperIntervalMs() {
+    return Math.max(250, Math.min(30_000, Math.floor(this.peerRecordTtlMs / 10)));
+  }
+
+  async #leaseKeeperTick({ maxPeers = 64, concurrency = 4 } = {}) {
+    if (!this.started || this.closing) return;
+    const now = Date.now();
+    // Never race the control plane: skip owners we are still placing our own record with.
+    const placing = new Set(this.peerRecordLifecycle.propagation?.pendingNodeIds || []);
+    const horizon = 2 * this.#leaseKeeperIntervalMs() + this.peerRecordRenewBeforeMs;
+    const due = [...this.discovery.records.values()]
+      .filter((record) => record.nodeId !== this.identity.nodeId && !placing.has(record.nodeId))
+      .map((record) => ({ record, expires: Date.parse(record.expiresAt) }))
+      .filter(({ expires }) => Number.isFinite(expires) && expires - now <= horizon && now - expires <= horizon)
+      .sort((a, b) => a.expires - b.expires)
+      .slice(0, maxPeers);
+    let cursor = 0;
+    await Promise.all(Array.from({ length: Math.min(concurrency, due.length) }, async () => {
+      while (cursor < due.length && this.started && !this.closing) {
+        const { record, expires } = due[cursor++];
+        this.leaseKeeperStats.pinged += 1;
+        try {
+          await this.rpc.ping(record);
+          await new Promise((resolve) => setImmediate(resolve));
+          const current = this.discovery.records.get(record.nodeId);
+          if (current && Date.parse(current.expiresAt) > expires) this.leaseKeeperStats.refreshed += 1;
+        } catch {
+          this.leaseKeeperStats.failed += 1;
+        }
+      }
+    }));
+    this.leaseKeeperStats.ticks += 1;
+  }
+
+  #scheduleLeaseKeeper(delayMs = this.#leaseKeeperIntervalMs()) {
+    if (this.leaseKeeperTimer) clearTimeout(this.leaseKeeperTimer);
+    if (!this.started || this.closing) return;
+    this.leaseKeeperTimer = setTimeout(() => {
+      this.leaseKeeperTimer = null;
+      this.leaseKeeperInFlight = this.#leaseKeeperTick()
+        .catch(() => {})
+        .finally(() => { this.leaseKeeperInFlight = null; this.#scheduleLeaseKeeper(); });
+    }, delayMs);
+    this.leaseKeeperTimer.unref?.();
+  }
+
+  leaseKeeperSnapshot() {
+    return { intervalMs: this.#leaseKeeperIntervalMs(), ...this.leaseKeeperStats };
   }
 
   #clearPeerRecordRenewTimer() {
@@ -558,6 +621,7 @@ export class TruynNetworkNode {
       });
     }
     this.#schedulePeerRecordRenewal();
+    this.#scheduleLeaseKeeper();
     return structuredClone(this.localPeerRecord);
   }
 
@@ -671,10 +735,20 @@ export class TruynNetworkNode {
     // Resolve stale or missing signed peer state on the control plane before the
     // application envelope exists on the transport path. This is discovery, not
     // an application retry: NEED is still sent at most once.
+    // Bounded so the lookup plus the router's own deadline stay inside a client budget; when
+    // resolution fails, fail closed only if no signed relay path is allowed (relay fallback
+    // is the designed answer for direct-impossible peers and must stay reachable).
     if (!this.discovery.get(nodeId)) {
-      const peer = await this.findPeer(nodeId);
-      if (!peer) {
-        const error = new Error('peer_not_found');
+      // Plain timer, NOT rpc.withDeadline(): an AsyncLocalStorage deadline would be inherited
+      // by every timer/propagation chain started while ingesting lookup results.
+      let timer = null;
+      const peer = await Promise.race([
+        this.findPeer(nodeId).catch(() => null),
+        new Promise((resolve) => { timer = setTimeout(() => resolve(null), 9_000); timer.unref?.(); })
+      ]).finally(() => { if (timer) clearTimeout(timer); });
+      const relayAllowed = options.allowRelayFallback !== false && typeof this.relayFallback === 'function';
+      if (!peer && !relayAllowed) {
+        const error = new Error('peer_not_discovered');
         error.code = 'TRUYN_PEER_NOT_FOUND';
         throw error;
       }
@@ -709,6 +783,8 @@ export class TruynNetworkNode {
     this.peerRecordPropagationQueued = false;
     this.peerRecordBackgroundDisseminationQueued = false;
     this.discovery.close();
+    if (this.leaseKeeperTimer) { clearTimeout(this.leaseKeeperTimer); this.leaseKeeperTimer = null; }
+    if (this.leaseKeeperInFlight) { try { await this.leaseKeeperInFlight; } catch { /* shutdown */ } }
     if (this.peerRecordRenewalInFlight) {
       try { await this.peerRecordRenewalInFlight; } catch { /* renewal failure must not prevent shutdown */ }
     }
