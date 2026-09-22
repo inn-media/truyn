@@ -68,7 +68,7 @@ diff --git a/network/testnet/node-service.js b/network/testnet/node-service.js
 diff --git a/benchmarks/scale/class-d-azure-1000-campaign.sh b/benchmarks/scale/class-d-azure-1000-campaign.sh
 --- a/benchmarks/scale/class-d-azure-1000-campaign.sh
 +++ b/benchmarks/scale/class-d-azure-1000-campaign.sh
-@@ -862,16 +862,33 @@
+@@ -862,16 +862,28 @@
  set -Euo pipefail
  ok=0
  for j in \$(seq 0 4); do
@@ -84,12 +84,7 @@ diff --git a/benchmarks/scale/class-d-azure-1000-campaign.sh b/benchmarks/scale/
 +  attempt=1
 +  while true; do
 +    rm -f "\$f"
-+    if code=\$(curl -sS --max-time 45 -o "\$f" -w '%{http_code}' -H 'content-type: application/json' --data-binary "\$body" http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/replicate); then
-+      :
-+    else
-+      curl_rc=\$?
-+      code="curl_rc_\${curl_rc}"
-+    fi
++    code=\$(curl -sS --max-time 45 -o "\$f" -w '%{http_code}' -H 'content-type: application/json' --data-binary "\$body" http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/replicate) || code="curl_rc_\$?"
 +    a=\$(jq -r '.result.acknowledgements // 0' "\$f" 2>/dev/null || echo 0)
 +    echo "TRUYN_D200_WRITE host=${i} node=\$j attempt=\$attempt http=\$code acks=\$a body=\$(head -c 300 "\$f" 2>/dev/null | tr -d '\n')"
 +    if [[ "\$code" == 200 && "\$a" -ge 2 ]]; then ok=\$((ok+1)); break; fi
