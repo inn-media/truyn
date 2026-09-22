@@ -8,7 +8,7 @@ The Python SDK is one of the five required first-party clients. Its bounded Deve
 - authenticated relay registration/session use;
 - authorization-aware discovery;
 - `OFFER` / `NEED` / verified provider event / correlated `RESULT`;
-- requester-owned direct NEED cancellation;
+- requester-owned direct NEED cancellation through canonical signed `REVOKE` semantics;
 - stable API-v1 object/artifact reference shapes;
 - authenticated event/stream helpers;
 - Agent Descriptor HTTP retrieval, schema/version/expiry validation, identity-key signature verification and protocol/interface negotiation;
@@ -45,6 +45,6 @@ node sdk/conformance/run-five-language-e2e.mjs
 
 Ordinary CI builds and verifies the Python wheel/sdist as part of the common release bundle and records exact source SHA, byte size and SHA-256 provenance. Public PyPI availability for `truyn-sdk==0.1.0a1` is already accepted; stable release status remains separate.
 
-This is a pre-stable `0.x` SDK and `TRUYN/1` remains draft. Provider authorization, visibility and billing remain server/runtime policy, never client-supplied authority.
+This is a pre-stable `0.x` SDK. The bounded SDK API-v1 surface follows the accepted TRUYN/1, first-class REST/API, and interoperability contracts, while protocol/profile stability and final Open 1.0 release status remain governed by their own exact-head qualification gates. Provider authorization, visibility and billing remain server/runtime policy, never client-supplied authority.
 
 See `../README.md`, `../conformance/README.md`, `../../docs/getting-started/SDK_QUICKSTART.md`, `../../docs/compatibility/SDK_PACKAGING.md` and `../../docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`.
