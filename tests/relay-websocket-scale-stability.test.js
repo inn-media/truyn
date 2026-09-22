@@ -17,7 +17,7 @@ function observe(node, label, events) {
 
 test('50 fast sockets remain healthy across at least three relay heartbeat cycles', { timeout: 50_000 }, async (t) => {
   const relay = createRelay({ localDevelopmentMode: true, exposeDiagnostics: true });
-  const relayUrl = await relay.listen();
+  const relayUrl = await relay.listen({ port: 0 });
   t.after(async () => relay.close());
   const nodes = Array.from({ length: 50 }, () => new TruynNode({ relayUrl }));
   const events = [];
@@ -35,7 +35,7 @@ test('50 fast sockets remain healthy across at least three relay heartbeat cycle
 
 test('queued oversized event deterministically identifies socket_backpressure close branch', { timeout: 10_000 }, async (t) => {
   const relay = createRelay({ localDevelopmentMode: true, exposeDiagnostics: true, maxSocketBufferedBytes: 1 });
-  const relayUrl = await relay.listen();
+  const relayUrl = await relay.listen({ port: 0 });
   t.after(async () => relay.close());
   const provider = new TruynNode({ relayUrl });
   const requester = new TruynNode({ relayUrl });
