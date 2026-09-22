@@ -377,6 +377,9 @@ if [[ "${TRUYN_CLASS_D1000_PREPARE_ONLY:-0}" == 1 ]]; then
   exit 0
 fi
 
+export TRUYN_D_SERIES_BLOCKWISE_PREFLIGHT_RUN="${TRUYN_D_SERIES_BLOCKWISE_PREFLIGHT_RUN:-}"
+bash "$ROOT/scripts/verify-d-series-blockwise-preflight-run.sh" "${TESTED_COMMIT:-${GITHUB_SHA:-}}"
+
 source "$TMP/provision.sh"
 source "$TMP/campaign.sh"
 rm -rf "$TMP"
