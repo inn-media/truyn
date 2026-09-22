@@ -119,11 +119,16 @@ test('D-500 workflow surface preserves preparation phase-lock or immutable launc
   if (hasAttempt1) assert.equal(fs.existsSync('.github/d500/launch-02.template.txt'), true);
 });
 
-test('attempt-2 D-500 workflow is the successful D-200 path plus the minimal scale delta', () => {
+test('attempt-3 D-500 workflow pins the qualified repair and preserves the successful D-200 path plus the minimal scale delta', () => {
   if (!fs.existsSync('.github/d500/launch-01.txt')) return;
   const workflow = fs.readFileSync('.github/workflows/d500-acceptance.yml', 'utf8');
-  assert.match(workflow, /\.github\/d500\/launch-02\.txt/);
-  assert.match(workflow, /TASK_ID: truyn-d500-acceptance-260920-a2/);
+  assert.match(workflow, /\.github\/d500\/launch-03\.txt/);
+  assert.match(workflow, /TASK_ID: truyn-d500-acceptance-260922-a3/);
+  assert.match(workflow, /TESTED_COMMIT: 0f17a41b91df4e7ff914e43b0dcab3da39cea4cb/);
+  assert.match(workflow, /TESTED_TREE_SHA: c28d71f49804cbac81a8fd783ca30d912acc5201/);
+  assert.match(workflow, /EXACT_MAIN_CI_RUN: '35690793896'/);
+  assert.match(workflow, /EXACT_MAIN_FIVE_PATCH_RUN: '35690793984'/);
+  assert.match(workflow, /EXACT_MAIN_CODEQL_RUN: '35690793647'/);
   assert.match(workflow, /REFERENCE_D200_RUN: '35503894414'/);
   assert.match(workflow, /REFERENCE_D200_REPEATABILITY_RUN: '35517248924'/);
   assert.match(workflow, /NODES_PER_HOST: '25'/);
