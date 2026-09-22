@@ -3,7 +3,7 @@ name: Class D Bootstrap Qualification Launcher
 on:
   push:
     branches:
-      - main
+      - 'bootstrap-launch/**'
     paths:
       - '.github/class-d-bootstrap/launch-d500-*.txt'
       - '.github/class-d-bootstrap/launch-d1000-*.txt'
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: class-d-bootstrap-launcher-${{ github.sha }}
+  group: class-d-bootstrap-launcher-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -33,8 +33,6 @@ jobs:
         run: |
           set -Eeuo pipefail
           [[ -n "${GH_TOKEN:-}" ]]
-          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-          [[ "$main_sha" == "$GITHUB_SHA" ]]
 
           mapfile -t tokens < <(jq -r '.commits[]?.added[]?' "$GITHUB_EVENT_PATH" | grep -E '^\.github/class-d-bootstrap/launch-d(500|1000)-[A-Za-z0-9._-]+\.txt$' | sort -u)
           [[ ${#tokens[@]} -eq 1 ]]
@@ -44,8 +42,15 @@ jobs:
           source_sha="$(sed -n 's/^SOURCE_SHA=//p' "$token" | tail -1)"
           scale="$(sed -n 's/^SCALE=//p' "$token" | tail -1)"
           [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$source_sha" == "$GITHUB_SHA" ]]
           [[ "$scale" == d500 || "$scale" == d1000 ]]
+
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$main_sha" == "$source_sha" ]]
+          parent_sha="$(git rev-parse HEAD^)"
+          [[ "$parent_sha" == "$source_sha" ]]
+          mapfile -t changed < <(git diff --name-only "$source_sha" "$GITHUB_SHA")
+          [[ ${#changed[@]} -eq 1 && "${changed[0]}" == "$token" ]]
+
           case "$token" in
             .github/class-d-bootstrap/launch-d500-*.txt) [[ "$scale" == d500 ]] ;;
             .github/class-d-bootstrap/launch-d1000-*.txt) [[ "$scale" == d1000 ]] ;;
