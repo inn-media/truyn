@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/d500/launch-03.txt'
+      - '.github/d500/launch-04.txt'
 
 permissions:
   contents: read
@@ -12,18 +12,18 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d500-0f17a41b-attempt3-single-shot
+  group: truyn-d500-299070c7-attempt4-single-shot
   cancel-in-progress: false
 
 env:
-  TASK_ID: truyn-d500-acceptance-260922-a3
+  TASK_ID: truyn-d500-acceptance-260922-a4
   REFERENCE_D200_RUN: '35503894414'
   REFERENCE_D200_REPEATABILITY_RUN: '35517248924'
-  TESTED_COMMIT: 0f17a41b91df4e7ff914e43b0dcab3da39cea4cb
-  TESTED_TREE_SHA: c28d71f49804cbac81a8fd783ca30d912acc5201
-  EXACT_MAIN_CI_RUN: '35690793896'
-  EXACT_MAIN_FIVE_PATCH_RUN: '35690793984'
-  EXACT_MAIN_CODEQL_RUN: '35690793647'
+  TESTED_COMMIT: 299070c7820ee37ae392d99a6b1ffa0a1ca37485
+  TESTED_TREE_SHA: 86fe8fa5f473ed219854605bc71555a45303dd53
+  EXACT_MAIN_CI_RUN: '35692822112'
+  EXACT_MAIN_FIVE_PATCH_RUN: '35692822113'
+  EXACT_MAIN_CODEQL_RUN: '35692821730'
   D500_CONTRACT_SHA256: 469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e913fd8f85
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '25'
@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          token='.github/d500/launch-03.txt'
+          token='.github/d500/launch-04.txt'
           workflow='.github/workflows/d500-acceptance.yml'
           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
           [[ "$GITHUB_EVENT_NAME" == push ]]
