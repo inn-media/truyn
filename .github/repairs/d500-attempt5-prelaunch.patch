@@ -1,7 +1,7 @@
 diff --git a/.github/workflows/d500-acceptance.yml b/.github/workflows/d500-acceptance.yml
 --- a/.github/workflows/d500-acceptance.yml
 +++ b/.github/workflows/d500-acceptance.yml
-@@ -4,7 +4,7 @@ on:
+@@ -4,4 +4,4 @@ on:
    push:
      branches: [main]
      paths:
@@ -45,7 +45,7 @@ diff --git a/.github/workflows/d500-acceptance.yml b/.github/workflows/d500-acce
 diff --git a/tests/d500-prelaunch.test.js b/tests/d500-prelaunch.test.js
 --- a/tests/d500-prelaunch.test.js
 +++ b/tests/d500-prelaunch.test.js
-@@ -141,18 +141,18 @@ test('D-500 workflow surface preserves immutable launch history', () => {
+@@ -141,16 +141,16 @@ test('D-500 workflow surface preserves immutable launch history', () => {
    if (hasAttempt1) assert.equal(fs.existsSync('.github/d500/launch-02.template.txt'), true);
  });
  
