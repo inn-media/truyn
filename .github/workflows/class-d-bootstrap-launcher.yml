@@ -28,11 +28,13 @@ jobs:
 
       - name: Validate exact immutable launch token and dispatch
         env:
-          GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+          GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+          ORG_AUTOPILOT_TOKEN_PRESENT: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB != '' }}
         shell: bash
         run: |
           set -Eeuo pipefail
           [[ -n "${GH_TOKEN:-}" ]]
+          echo "TRUYN_CLASS_D_BOOTSTRAP_AUTH source=$([[ "$ORG_AUTOPILOT_TOKEN_PRESENT" == true ]] && echo organization_pat || echo scoped_github_token) actions=write"
 
           mapfile -t tokens < <(jq -r '.commits[]?.added[]?' "$GITHUB_EVENT_PATH" | grep -E '^\.github/class-d-bootstrap/launch-d(500|1000)-[A-Za-z0-9._-]+\.txt$' | sort -u)
           [[ ${#tokens[@]} -eq 1 ]]
