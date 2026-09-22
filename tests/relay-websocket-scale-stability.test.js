@@ -15,10 +15,14 @@ function observe(node, label, events) {
   socket.on('close', (code, reason) => events.push({ label, type: 'close', code, reason: reason.toString(), atMs: Date.now() - startedAt, readyState: socket.readyState, bufferedAmount: socket.bufferedAmount }));
 }
 
+async function closeRelayIfListening(relay) {
+  if (relay?.server?.listening) await relay.close();
+}
+
 test('50 fast sockets remain healthy across at least three relay heartbeat cycles', { timeout: 50_000 }, async (t) => {
   const relay = createRelay({ localDevelopmentMode: true, exposeDiagnostics: true });
   const relayUrl = await relay.listen({ port: 0 });
-  t.after(async () => relay.close());
+  t.after(async () => closeRelayIfListening(relay));
   const nodes = Array.from({ length: 50 }, () => new TruynNode({ relayUrl }));
   const events = [];
   await Promise.all(nodes.map((node, i) => node.register({ name: `ws-scale-${i + 1}` })));
@@ -36,7 +40,7 @@ test('50 fast sockets remain healthy across at least three relay heartbeat cycle
 test('queued event identifies socket_backpressure close branch', { timeout: 10_000 }, async (t) => {
   const relay = createRelay({ localDevelopmentMode: true, exposeDiagnostics: true, maxSocketBufferedBytes: 1 });
   const relayUrl = await relay.listen({ port: 0 });
-  t.after(async () => relay.close());
+  t.after(async () => closeRelayIfListening(relay));
   const provider = new TruynNode({ relayUrl });
   const requester = new TruynNode({ relayUrl });
   await provider.register({ name: 'backpressure-provider' });
@@ -52,40 +56,49 @@ test('queued event identifies socket_backpressure close branch', { timeout: 10_0
   assert.deepEqual(closes, [{ code: 1013, reason: 'socket_backpressure' }]);
 });
 
-test('provider reconnect preserves exactly-once execution after recoverable socket close', { timeout: 15_000 }, async (t) => {
+test('1013 socket_backpressure reconnect reconciles with zero duplicate provider execution', { timeout: 15_000 }, async (t) => {
   const relay = createRelay({ localDevelopmentMode: true, exposeDiagnostics: true });
   const relayUrl = await relay.listen({ port: 0 });
-  t.after(async () => relay.close());
   const provider = new TruynNode({ relayUrl });
   const requester = new TruynNode({ relayUrl });
-  let executions = 0;
+  let providerExecutions = 0;
   let markStarted;
   const started = new Promise((resolve) => { markStarted = resolve; });
   const adapter = createFunctionAdapter({
     name: 'reconnect-exactly-once',
     capabilities: ['diagnostic.reconnect-once'],
     execute: async () => {
-      executions += 1;
+      providerExecutions += 1;
       markStarted();
       await sleep(150);
-      return { output: 'done', metadata: { executions } };
+      return { output: 'done', metadata: { providerExecutions } };
     }
   });
   const host = new TruynAdapterHost({ node: provider, adapter, fastPath: true, socketPath: true, socketReconnectDelayMs: 10 });
   await requester.register({ name: 'reconnect-requester' });
   await host.start();
-  t.after(async () => host.stop());
+  t.after(async () => {
+    await host.stop();
+    await closeRelayIfListening(relay);
+  });
   const matched = await requester.compactNeed('diagnostic.reconnect-once', { value: 1 }, {}, { waitMs: 0 });
   await started;
   const firstSocket = provider.fastSocket;
   const closes = [];
   firstSocket.on('close', (code, reason) => closes.push({ code, reason: reason.toString() }));
-  firstSocket.close(1013, 'diagnostic_backpressure');
+  firstSocket.close(1013, 'socket_backpressure');
   await sleep(500);
+  const reconnectedSocket = provider.fastSocket;
   const result = await requester.pollCompact({ waitMs: 1000 });
   const matchingResults = result.events.filter((event) => event.kind === 'RESULT' && event.frame?.i === matched.needId);
-  console.log('WS_RECONNECT_TELEMETRY=' + JSON.stringify({ executions, closes, resultCount: matchingResults.length, hostRunning: host.running }));
-  assert.equal(executions, 1);
-  assert.equal(matchingResults.length, 1);
+  await sleep(250);
+  const status = await requester.compactRequestStatus(matched.needId);
+  const zeroDuplicateProviderExecution = providerExecutions === 1;
+  console.log('WS_RECONCILIATION_TELEMETRY=' + JSON.stringify({ providerExecutions, zeroDuplicateProviderExecution, closes, resultCount: matchingResults.length, reconnected: Boolean(reconnectedSocket && reconnectedSocket !== firstSocket), hostRunning: host.running, requestStatus: status.status || null }));
+  assert.deepEqual(closes, [{ code: 1013, reason: 'socket_backpressure' }]);
+  assert.ok(reconnectedSocket && reconnectedSocket !== firstSocket, 'provider must reconnect after confirmed 1013 socket_backpressure');
+  assert.equal(providerExecutions, 1, 'zero duplicate provider execution: provider executions must equal exactly 1');
+  assert.equal(zeroDuplicateProviderExecution, true);
+  assert.equal(matchingResults.length, 1, 'requester must observe exactly one terminal RESULT');
   assert.equal(host.running, true);
 });

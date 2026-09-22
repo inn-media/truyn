@@ -43,7 +43,9 @@ test('hybrid retriever exceeds 99% top-1 accuracy without block ids in the query
 
 test('question + root CID retrieves verified context with provenance end-to-end', async (t) => {
   const relay = createRelay({ localDevelopmentMode: true });
-  const relayUrl = await relay.listen();
+  // Tests run concurrently in CI. Bind an ephemeral port so this test cannot
+  // collide with another relay using the development default (8787).
+  const relayUrl = await relay.listen({ port: 0 });
   t.after(async () => relay.close());
   const owner = new TruynNode({ relayUrl });
   const provider = new TruynNode({ relayUrl });
