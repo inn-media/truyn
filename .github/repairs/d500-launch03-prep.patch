@@ -1,15 +1,13 @@
 diff --git a/.github/workflows/d500-acceptance.yml b/.github/workflows/d500-acceptance.yml
 --- a/.github/workflows/d500-acceptance.yml
 +++ b/.github/workflows/d500-acceptance.yml
-@@ -4,7 +4,7 @@ on:
+@@ -4,4 +4,4 @@
    push:
      branches: [main]
      paths:
 -      - '.github/d500/launch-02.txt'
 +      - '.github/d500/launch-03.txt'
-@@ -13,16 +13,16 @@ permissions:
-   id-token: write
- 
+@@ -14,13 +14,13 @@
  concurrency:
 -  group: truyn-d500-585e8b98-attempt2-single-shot
 +  group: truyn-d500-0f17a41b-attempt3-single-shot
@@ -31,12 +29,9 @@ diff --git a/.github/workflows/d500-acceptance.yml b/.github/workflows/d500-acce
 +  EXACT_MAIN_FIVE_PATCH_RUN: '35690793984'
 +  EXACT_MAIN_CODEQL_RUN: '35690793647'
    D500_CONTRACT_SHA256: 469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e913fd8f85
-   AZURE_RESOURCE_GROUP: truyn
-   NODES_PER_HOST: '25'
-@@ -36,7 +36,7 @@ jobs:
+@@ -40,4 +40,4 @@
          run: |
            set -Eeuo pipefail
 -          token='.github/d500/launch-02.txt'
 +          token='.github/d500/launch-03.txt'
            workflow='.github/workflows/d500-acceptance.yml'
-           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
