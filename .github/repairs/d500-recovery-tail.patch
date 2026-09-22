@@ -1,0 +1,250 @@
+diff --git a/network/transport/p2p.js b/network/transport/p2p.js
+--- a/network/transport/p2p.js
++++ b/network/transport/p2p.js
+@@ -7,6 +7,7 @@ const DEFAULT_ROUTE_ATTEMPT_TIMEOUT_MS = 12_500;
+ const DEFAULT_DIRECT_CONNECT_TIMEOUT_MS = 5_000;
+ const DEFAULT_DIRECT_CONNECT_ATTEMPTS = 3;
+ const DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS = 20_000;
++const DEFAULT_DIRECT_REUSE_PROBE_TIMEOUT_MS = 1_000;
+ const DEFAULT_SUPERSEDED_RETRIES = 2;
+@@ -71,6 +72,7 @@ export class DirectFirstP2P {
+     directConnectTimeoutMs = DEFAULT_DIRECT_CONNECT_TIMEOUT_MS,
+     directConnectAttempts = DEFAULT_DIRECT_CONNECT_ATTEMPTS,
+     directConnectionReuseIdleMs = DEFAULT_DIRECT_CONNECTION_REUSE_IDLE_MS,
++    directReuseProbeTimeoutMs = DEFAULT_DIRECT_REUSE_PROBE_TIMEOUT_MS,
+     supersededRetries = DEFAULT_SUPERSEDED_RETRIES
+   } = {}) {
+@@ -96,6 +98,9 @@ export class DirectFirstP2P {
+     if (!Number.isInteger(directConnectionReuseIdleMs) || directConnectionReuseIdleMs < 10 || directConnectionReuseIdleMs > 120_000) {
+       throw new Error('directConnectionReuseIdleMs must be between 10 and 120000');
+     }
++    if (!Number.isInteger(directReuseProbeTimeoutMs) || directReuseProbeTimeoutMs < 10 || directReuseProbeTimeoutMs > 5_000) {
++      throw new Error('directReuseProbeTimeoutMs must be between 10 and 5000');
++    }
+     if (!Number.isInteger(supersededRetries) || supersededRetries < 0 || supersededRetries > 4) {
+       throw new Error('supersededRetries must be between 0 and 4');
+     }
+@@ -108,6 +113,7 @@ export class DirectFirstP2P {
+     this.directConnectTimeoutMs = directConnectTimeoutMs;
+     this.directConnectAttempts = directConnectAttempts;
+     this.directConnectionReuseIdleMs = directConnectionReuseIdleMs;
++    this.directReuseProbeTimeoutMs = directReuseProbeTimeoutMs;
+     this.supersededRetries = supersededRetries;
+@@ -231,8 +237,20 @@ export class DirectFirstP2P {
+     const existing = this.connections.get(peerRecord.nodeId);
+     if (existing?.binding === binding) {
+       const lastUsedAt = Number.isFinite(existing.lastUsedAt) ? existing.lastUsedAt : 0;
+       if (Date.now() - lastUsedAt < this.directConnectionReuseIdleMs) {
+-        existing.lastUsedAt = Date.now();
+-        return existing.client;
++        // A peer can restart while its previous signed lease is still valid. Reusing a
++        // cached QUIC client blindly can then dispatch an application NEED onto a dead
++        // transport and make delivery ambiguous. Probe only the control plane first;
++        // a failed probe is safe to discard/reconnect because no application envelope
++        // has been sent yet.
++        const reusable = typeof this.quic.requestControl !== 'function'
++          ? true
++          : await this.#boundedPhase(
++            peerRecord.nodeId,
++            deadlineAt,
++            'direct-reuse-probe',
++            () => this.quic.requestControl(existing.client, 'dht.ping', null),
++            this.directReuseProbeTimeoutMs
++          ).then((value) => value?.pong === true).catch(() => false);
++        if (reusable) {
++          existing.lastUsedAt = Date.now();
++          return existing.client;
++        }
+       }
+       await this.#discardBinding(peerRecord.nodeId, binding);
+     } else if (existing) {
+diff --git a/network/runtime.js b/network/runtime.js
+--- a/network/runtime.js
++++ b/network/runtime.js
+@@ -9,6 +9,8 @@ import { DurableNetworkState } from './state/persistent-state.js';
+ import { TruynQuicTransport } from './transport/quic.js';
+ import { DirectFirstP2P } from './transport/p2p.js';
+ 
++const DEFAULT_PEER_RECORD_ANNOUNCE_CONCURRENCY = 8;
++
+ export class TruynNetworkNode {
+@@ -401,7 +403,12 @@ export class TruynNetworkNode {
+   async #settlePeerRecordAnnouncements(candidates, record) {
+     const settled = new Array(candidates.length);
+     if (candidates.length === 0) return settled;
+     let nextIndex = 0;
+-    const workerCount = Math.max(1, Math.min(this.alpha, candidates.length));
++    // Kademlia alpha=3 is appropriate for iterative lookup, but it serializes a
++    // 20-peer restart publication into too many 5s RPC waves. Keep announcements
++    // separately bounded while allowing the required signed placement set to settle
++    // comfortably inside the unchanged 120s Class-D recovery ceiling.
++    const workerCount = Math.max(
++      1,
++      Math.min(candidates.length, Math.max(this.alpha, DEFAULT_PEER_RECORD_ANNOUNCE_CONCURRENCY))
++    );
+     const worker = async () => {
+diff --git a/benchmarks/scale/class-d-azure-1000-provision.sh b/benchmarks/scale/class-d-azure-1000-provision.sh
+--- a/benchmarks/scale/class-d-azure-1000-provision.sh
++++ b/benchmarks/scale/class-d-azure-1000-provision.sh
+@@ -58,10 +58,15 @@ remote() {
+   remote_script="${remote_script//truyn/truyn}"
+   remote_script="${remote_script//truyn/truyn}"
+   for attempt in 1 2 3 4 5; do
+-    set +e
+-    output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1)
+-    rc=$?
+-    set -e
++    # `set +e` disables errexit but not an inherited ERR trap under `set -E`.
++    # Keep the transient Azure failure inside an if-condition so the retry loop
++    # records rc and retries instead of an inherited trap terminating the subshell.
++    if output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1); then
++      rc=0
++    else
++      rc=$?
++    fi
+     printf '%s\n' "$output" >&2
+     if [[ $rc -eq 0 ]]; then
+       printf '%s\n' "$output"
+diff --git a/benchmarks/scale/class-d-azure-1000-campaign.sh b/benchmarks/scale/class-d-azure-1000-campaign.sh
+--- a/benchmarks/scale/class-d-azure-1000-campaign.sh
++++ b/benchmarks/scale/class-d-azure-1000-campaign.sh
+@@ -874,7 +874,7 @@ done
+ echo WRITES=\$ok
+ EOS
+ )
+-  (remote "${VMS[$i]}" "$script" >"${d200_write_dir}/${i}.out" 2>"${d200_write_dir}/${i}.err") &
++  (trap - ERR; remote "${VMS[$i]}" "$script" >"${d200_write_dir}/${i}.out" 2>"${d200_write_dir}/${i}.err") &
+   d200_write_pids+=("$!")
+ done
+ d200_write_remote_failed=0
+diff --git a/benchmarks/scale/d200-post-restart-routing-stage.sh b/benchmarks/scale/d200-post-restart-routing-stage.sh
+--- a/benchmarks/scale/d200-post-restart-routing-stage.sh
++++ b/benchmarks/scale/d200-post-restart-routing-stage.sh
+@@ -51,6 +51,7 @@ PY
+ EOS
+ )
+   (
++    trap - ERR
+     set +e
+     remote "${VMS[$i]}" "$script" >"$post_dir/$i.out" 2>"$post_dir/$i.err"
+     printf '%s\n' "$?" >"$post_dir/$i.rc"
+diff --git a/benchmarks/scale/d200-resources-stage.sh b/benchmarks/scale/d200-resources-stage.sh
+--- a/benchmarks/scale/d200-resources-stage.sh
++++ b/benchmarks/scale/d200-resources-stage.sh
+@@ -40,6 +40,7 @@ exit 0
+ EOS
+ )
+   (
++    trap - ERR
+     set +e
+     remote "${VMS[$i]}" "$script" >"$resources_dir/$i.out" 2>"$resources_dir/$i.err"
+     printf '%s\n' "$?" >"$resources_dir/$i.rc"
+diff --git a/benchmarks/scale/d200-restart-recovery-stage.sh b/benchmarks/scale/d200-restart-recovery-stage.sh
+--- a/benchmarks/scale/d200-restart-recovery-stage.sh
++++ b/benchmarks/scale/d200-restart-recovery-stage.sh
+@@ -152,6 +152,7 @@ exit 0
+ EOS
+ )
+   (
++    trap - ERR
+     set +e
+     remote "${VMS[$i]}" "$script" >"$restart_dir/$i.out" 2>"$restart_dir/$i.err"
+     printf '%s\n' "$?" >"$restart_dir/$i.remote_rc"
+diff --git a/benchmarks/scale/d200-write-retention-stage.sh b/benchmarks/scale/d200-write-retention-stage.sh
+--- a/benchmarks/scale/d200-write-retention-stage.sh
++++ b/benchmarks/scale/d200-write-retention-stage.sh
+@@ -47,6 +47,7 @@ PY
+ EOS
+ )
+   (
++    trap - ERR
+     set +e
+     remote "${VMS[$i]}" "$script" >"$retention_dir/$i.out" 2>"$retention_dir/$i.err"
+     printf '%s\n' "$?" >"$retention_dir/$i.rc"
+diff --git a/tests/class-d-remote-errtrace.test.js b/tests/class-d-remote-errtrace.test.js
+new file mode 100644
+--- /dev/null
++++ b/tests/class-d-remote-errtrace.test.js
+@@ -0,0 +1,25 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { mkdtemp, writeFile, chmod, readFile, rm } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { spawnSync } from 'node:child_process';
++
++test('Class-D remote() retries a transient run-command failure under an inherited ERR trap', async () => {
++  const dir = await mkdtemp(join(tmpdir(), 'truyn-remote-errtrace-'));
++  try {
++    const provision = await readFile('benchmarks/scale/class-d-azure-1000-provision.sh', 'utf8');
++    const remoteFn = provision.match(/^remote\(\) \{[\s\S]*?^\}/m)?.[0];
++    assert.ok(remoteFn, 'remote() must exist in the shared provisioner');
++    await writeFile(join(dir, 'az'), '#!/usr/bin/env bash\nif [[ ! -f "$STATE/failed" ]]; then touch "$STATE/failed"; echo "ERROR: (Conflict) Run command extension execution is in progress." >&2; exit 1; fi\necho OK_MARKER=1\n');
++    await chmod(join(dir, 'az'), 0o755);
++    const script = `${remoteFn}\nsleep() { :; }\nRG=rg\n(\n  trap 'exit 97' ERR\n  set -Eeuo pipefail\n  (remote vm-h0 'true' >"${dir}/out") &\n  wait $! || { echo BACKGROUND_REMOTE_KILLED; exit 1; }\n  grep -q OK_MARKER=1 "${dir}/out"\n  echo STAGE_OK\n)\n`;
++    const run = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, STATE: dir } });
++    assert.match(run.stdout, /STAGE_OK/, `stdout=${run.stdout} stderr=${run.stderr}`);
++    assert.doesNotMatch(run.stdout, /BACKGROUND_REMOTE_KILLED/);
++  } finally {
++    await rm(dir, { recursive: true, force: true });
++  }
++});
+diff --git a/tests/d500-recovery-tail.test.js b/tests/d500-recovery-tail.test.js
+new file mode 100644
+--- /dev/null
++++ b/tests/d500-recovery-tail.test.js
+@@ -0,0 +1,56 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++import { DirectFirstP2P } from '../network/transport/p2p.js';
++
++test('cached direct session is control-probed before a second application dispatch', async () => {
++  let connects = 0;
++  const disconnects = [];
++  const applicationClients = [];
++  const record = {
++    nodeId: 'truyn:node:d500-recovery-target',
++    endpoints: ['quic://127.0.0.1:4100'],
++    instanceId: 'instance-before-observed-refresh',
++    sequence: 7
++  };
++  const discovery = { get: (nodeId) => nodeId === record.nodeId ? record : null };
++  const quicTransport = {
++    async connect(endpoint) { return { serial: ++connects, endpoint }; },
++    async disconnect(client) { disconnects.push(client.serial); },
++    async requestControl(client, method) {
++      assert.equal(method, 'dht.ping');
++      if (client.serial === 1) return new Promise(() => {});
++      return { pong: true };
++    },
++    async sendEnvelope(client) {
++      applicationClients.push(client.serial);
++      return { echoed: true };
++    }
++  };
++  const router = new DirectFirstP2P({
++    quicTransport,
++    discovery,
++    routeAttemptTimeoutMs: 500,
++    directConnectTimeoutMs: 100,
++    directConnectAttempts: 1,
++    directConnectionReuseIdleMs: 20_000,
++    directReuseProbeTimeoutMs: 20
++  });
++
++  await router.send(record.nodeId, { id: 'first' }, { allowRelayFallback: false });
++  await router.send(record.nodeId, { id: 'second' }, { allowRelayFallback: false });
++
++  assert.equal(connects, 2, 'stale cached client must be replaced before second application dispatch');
++  assert.deepEqual(applicationClients, [1, 2], 'application envelope must never be retried on the stale client');
++  assert.ok(disconnects.includes(1), 'failed control probe must retire the stale cached client');
++});
++
++test('restart peer-record announcement fanout has a bounded concurrency floor above lookup alpha', async () => {
++  const source = await readFile(new URL('../network/runtime.js', import.meta.url), 'utf8');
++  assert.match(source, /DEFAULT_PEER_RECORD_ANNOUNCE_CONCURRENCY\s*=\s*8/);
++  assert.match(source, /Math\.min\(candidates\.length, Math\.max\(this\.alpha, DEFAULT_PEER_RECORD_ANNOUNCE_CONCURRENCY\)\)/);
++  assert.match(source, /peerRecordRecoveryRetryDelaysMs\s*=\s*\[500, 1_500, 5_000, 10_000, 20_000\]/,
++    'unchanged retry schedule remains bounded by the Class-D recovery contract');
++});
