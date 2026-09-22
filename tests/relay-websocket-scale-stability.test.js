@@ -86,6 +86,8 @@ test('1013 socket_backpressure reconnect reconciles with zero duplicate provider
   await requester.register({ name: 'reconnect-requester' });
   await host.start();
   t.after(async () => {
+    provider.closeFastSocket();
+    requester.closeFastSocket();
     await host.stop();
     await closeRelayIfListening(relay);
   });
