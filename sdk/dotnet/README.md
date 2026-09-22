@@ -8,7 +8,7 @@ The .NET SDK is one of the five required first-party Developer Release clients. 
 - authenticated relay registration/session use;
 - authorization-aware discovery;
 - `OFFER` / `NEED` / verified provider event / correlated `RESULT`;
-- requester-owned direct NEED cancellation;
+- requester-owned direct NEED cancellation through canonical signed `REVOKE` semantics;
 - stable API-v1 object/artifact reference shapes;
 - Agent Descriptor HTTP retrieval, schema/version/expiry validation, identity-key signature verification and protocol/interface negotiation;
 - normalized fail-closed errors.
@@ -19,7 +19,7 @@ Current alpha coordinate:
 Truyn.Sdk 0.1.0-alpha.1
 ```
 
-`TRUYN/1` remains draft and this package line is pre-stable.
+This package line is pre-stable. The bounded SDK API-v1 surface follows the accepted TRUYN/1, first-class REST/API, and interoperability contracts, while protocol/profile stability and final Open 1.0 release status remain governed by their own exact-head qualification gates. Provider authorization, visibility and billing remain server/runtime policy, never client-supplied authority.
 
 Run the .NET source/fixture conformance gate:
 
