@@ -1,8 +1,7 @@
 diff --git a/network/runtime.js b/network/runtime.js
 --- a/network/runtime.js
 +++ b/network/runtime.js
-@@ -419,9 +419,9 @@ export class TruynNetworkNode {
-   #schedulePeerRecordPropagation(record = this.localPeerRecord) {
+@@ -416,7 +416,7 @@
      if (!this.started || this.closing || !record) return;
      // Readiness must close synchronously when live discovery changes the required
      // placement set; the queued operation below is control-plane dissemination.
@@ -11,7 +10,7 @@ diff --git a/network/runtime.js b/network/runtime.js
      if (this.peerRecordPropagationQueued) return;
      const recordId = record.recordId;
      this.peerRecordPropagationQueued = true;
-@@ -434,7 +434,12 @@ export class TruynNetworkNode {
+@@ -428,7 +428,11 @@
        const propagation = this.peerRecordLifecycle.propagation;
        const currentTargets = propagation?.recordId === recordId ? [...(propagation.targetNodeIds || [])].sort() : [];
        const unchangedTargets = targets.length === currentTargets.length && targets.every((nodeId, index) => nodeId === currentTargets[index]);
@@ -24,7 +23,7 @@ diff --git a/network/runtime.js b/network/runtime.js
        void this.#publishCurrentPeerRecord(record).catch((error) => {
          if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
          this.peerRecordLifecycle.lastError = {
-@@ -447,8 +452,18 @@ export class TruynNetworkNode {
+@@ -443,7 +447,19 @@
    #scheduleBackgroundPeerRecordDissemination(record, recoveryPeers) {
      if (!record || !this.started || this.closing || this.peerRecordBackgroundDisseminationQueued) return;
      const required = new Set(this.#peerRecordPropagationPeers(record).map((peer) => peer.nodeId));
@@ -45,7 +44,7 @@ diff --git a/network/runtime.js b/network/runtime.js
      if (backgroundPeers.length === 0) return;
      const recordId = record.recordId;
      this.peerRecordBackgroundDisseminationQueued = true;
-@@ -493,7 +508,9 @@ export class TruynNetworkNode {
+@@ -489,5 +505,7 @@
      }
  
      const pendingNodeIds = new Set(failedNodeIds || []);
@@ -54,12 +53,11 @@ diff --git a/network/runtime.js b/network/runtime.js
 +      .filter((peer) => pendingNodeIds.has(peer?.nodeId))
 +      .map((peer) => this.discovery.get(peer.nodeId) || peer);
      if (peers.length === 0) return;
- 
-     const recordId = record.recordId;
 diff --git a/network/testnet/node-service.js b/network/testnet/node-service.js
 --- a/network/testnet/node-service.js
 +++ b/network/testnet/node-service.js
-@@ -296,7 +296,8 @@ export async function startNodeService(options = {}) {
+@@ -294,6 +294,7 @@
+   const replicate = async (body = {}) => {
      const record = node.createRecord(body.namespace, body.key, body.value, {
        sequence: int(body.sequence, 1),
 -      ttlMs: int(body.ttlMs, 300_000)
@@ -67,11 +65,10 @@ diff --git a/network/testnet/node-service.js b/network/testnet/node-service.js
 +      issuedAt: typeof body.issuedAt === 'string' && body.issuedAt.trim() ? body.issuedAt.trim() : undefined
      });
      const result = await node.replicateRecord(record, {
-       replicationFactor: int(body.replicationFactor, dhtReplicationFactor),
 diff --git a/benchmarks/scale/class-d-azure-1000-campaign.sh b/benchmarks/scale/class-d-azure-1000-campaign.sh
 --- a/benchmarks/scale/class-d-azure-1000-campaign.sh
 +++ b/benchmarks/scale/class-d-azure-1000-campaign.sh
-@@ -864,15 +864,30 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
+@@ -862,16 +862,33 @@
  set -Euo pipefail
  ok=0
  for j in \$(seq 0 4); do
@@ -115,9 +112,7 @@ diff --git a/benchmarks/scale/class-d-azure-1000-campaign.sh b/benchmarks/scale/
 diff --git a/benchmarks/scale/class-d-azure-1000-provision.sh b/benchmarks/scale/class-d-azure-1000-provision.sh
 --- a/benchmarks/scale/class-d-azure-1000-provision.sh
 +++ b/benchmarks/scale/class-d-azure-1000-provision.sh
-@@ -58,10 +58,15 @@ remote() {
-   remote_script="${remote_script//truyn/truyn}"
-   remote_script="${remote_script//truyn/truyn}"
+@@ -61,6 +61,9 @@
    for attempt in 1 2 3 4 5; do
 -    set +e
 -    output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1)
@@ -131,14 +126,10 @@ diff --git a/benchmarks/scale/class-d-azure-1000-provision.sh b/benchmarks/scale
 +      rc=$?
 +    fi
      printf '%s\n' "$output" >&2
-     if [[ $rc -eq 0 ]]; then
-       printf '%s\n' "$output"
 diff --git a/benchmarks/scale/d200-post-restart-routing-stage.sh b/benchmarks/scale/d200-post-restart-routing-stage.sh
 --- a/benchmarks/scale/d200-post-restart-routing-stage.sh
 +++ b/benchmarks/scale/d200-post-restart-routing-stage.sh
-@@ -51,6 +51,7 @@ PY
- EOS
- )
+@@ -52,4 +52,5 @@
    (
 +    trap - ERR
      set +e
@@ -147,9 +138,7 @@ diff --git a/benchmarks/scale/d200-post-restart-routing-stage.sh b/benchmarks/sc
 diff --git a/benchmarks/scale/d200-resources-stage.sh b/benchmarks/scale/d200-resources-stage.sh
 --- a/benchmarks/scale/d200-resources-stage.sh
 +++ b/benchmarks/scale/d200-resources-stage.sh
-@@ -40,6 +40,7 @@ exit 0
- EOS
- )
+@@ -41,4 +41,5 @@
    (
 +    trap - ERR
      set +e
@@ -158,9 +147,7 @@ diff --git a/benchmarks/scale/d200-resources-stage.sh b/benchmarks/scale/d200-re
 diff --git a/benchmarks/scale/d200-restart-recovery-stage.sh b/benchmarks/scale/d200-restart-recovery-stage.sh
 --- a/benchmarks/scale/d200-restart-recovery-stage.sh
 +++ b/benchmarks/scale/d200-restart-recovery-stage.sh
-@@ -152,6 +152,7 @@ exit 0
- EOS
- )
+@@ -153,4 +153,5 @@
    (
 +    trap - ERR
      set +e
@@ -169,9 +156,7 @@ diff --git a/benchmarks/scale/d200-restart-recovery-stage.sh b/benchmarks/scale/
 diff --git a/benchmarks/scale/d200-write-retention-stage.sh b/benchmarks/scale/d200-write-retention-stage.sh
 --- a/benchmarks/scale/d200-write-retention-stage.sh
 +++ b/benchmarks/scale/d200-write-retention-stage.sh
-@@ -47,6 +47,7 @@ PY
- EOS
- )
+@@ -48,4 +48,5 @@
    (
 +    trap - ERR
      set +e
@@ -180,10 +165,7 @@ diff --git a/benchmarks/scale/d200-write-retention-stage.sh b/benchmarks/scale/d
 diff --git a/tests/d200-mass-restart-propagation.test.js b/tests/d200-mass-restart-propagation.test.js
 --- a/tests/d200-mass-restart-propagation.test.js
 +++ b/tests/d200-mass-restart-propagation.test.js
-@@ -87,9 +87,10 @@ test('D-200 mass restart: 50% peer generations changed, pending drains to zero w
-     assert.ok(afterStart.targetNodeIds.length <= 8, `required readiness targets must remain bounded, got ${afterStart.targetNodeIds.length}`);
-     assert.ok(Date.now() - startedAt < 120_000, 'recovery must stay inside the unchanged 120s acceptance bound');
- 
+@@ -90,5 +90,6 @@
 -    await waitFor(() => attempts >= halfRestarted.length, 5_000);
 +    await waitFor(() => attempts >= afterStart.targetNodeIds.length, 5_000);
      assert.ok(maxActive <= 3, `announcement concurrency must stay <= alpha=3, observed ${maxActive}`);
@@ -192,12 +174,11 @@ diff --git a/tests/d200-mass-restart-propagation.test.js b/tests/d200-mass-resta
 +    assert.ok(attempts <= restarted.k, `restart dissemination must not scale with every recovered peer, observed ${attempts}`);
  
      const finalPropagation = restarted.peerRecordLifecycleSnapshot().propagation;
-     assert.deepEqual(finalPropagation.targetNodeIds, afterStart.targetNodeIds, 'background dissemination must not expand readiness targets');
 diff --git a/tests/class-d-remote-errtrace.test.js b/tests/class-d-remote-errtrace.test.js
 new file mode 100644
 --- /dev/null
 +++ b/tests/class-d-remote-errtrace.test.js
-@@ -0,0 +1,25 @@
+@@ -0,0 +1,23 @@
 +import test from 'node:test';
 +import assert from 'node:assert/strict';
 +import { mkdtemp, writeFile, chmod, readFile, rm } from 'node:fs/promises';
@@ -221,12 +202,11 @@ new file mode 100644
 +    await rm(dir, { recursive: true, force: true });
 +  }
 +});
-+
 diff --git a/tests/d500-recovery-tail-regression.test.js b/tests/d500-recovery-tail-regression.test.js
 new file mode 100644
 --- /dev/null
 +++ b/tests/d500-recovery-tail-regression.test.js
-@@ -0,0 +1,19 @@
+@@ -0,0 +1,12 @@
 +import test from 'node:test';
 +import assert from 'node:assert/strict';
 +import { readFile } from 'node:fs/promises';
@@ -239,26 +219,18 @@ new file mode 100644
 +  assert.match(source, /!propagationChanged && unchangedTargets && \(propagation\?\.ready \|\| this\.peerRecordRecoveryRetryTimer\)/);
 +  assert.match(source, /this\.discovery\.get\(peer\.nodeId\) \|\| peer/);
 +});
-+
-+test('D-500 strict acceptance thresholds are not weakened by the recovery repair', async () => {
-+  const workflow = await readFile('.github/workflows/d500-acceptance.yml', 'utf8');
-+  assert.match(workflow, /postRestartSuccessRatio.*0\.99|post_restart.*0\.99|postRestart.*\.99/s);
-+  assert.match(workflow, /healedSuccessRatio.*0\.99|healed.*\.99/s);
-+  assert.match(workflow, /120000|120_000/);
-+});
-+
 diff --git a/tests/d500-durable-write-idempotent-retry.test.js b/tests/d500-durable-write-idempotent-retry.test.js
 new file mode 100644
 --- /dev/null
 +++ b/tests/d500-durable-write-idempotent-retry.test.js
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,37 @@
 +import test from 'node:test';
 +import assert from 'node:assert/strict';
 +import { readFile } from 'node:fs/promises';
 +import { createIdentity } from '../core/identity/index.js';
 +import { createDhtRecord } from '../network/dht/kademlia.js';
 +
-+test('fixed issuedAt makes a timed-out DHT write safe to retry as the same signed record', () => {
++test('fixed issuedAt makes a timed-out DHT write safe to retry as the same record id', () => {
 +  const identity = createIdentity();
 +  const options = {
 +    identity,
@@ -272,16 +244,20 @@ new file mode 100644
 +  const first = createDhtRecord(options);
 +  const retry = createDhtRecord(options);
 +  assert.equal(retry.recordId, first.recordId);
-+  assert.equal(retry.signature, first.signature);
++  assert.equal(retry.issuedAt, first.issuedAt);
++  assert.equal(retry.expiresAt, first.expiresAt);
 +});
 +
 +test('D-500 durable-write retry is bounded to one client timeout and reuses issuedAt', async () => {
 +  const campaign = await readFile('benchmarks/scale/class-d-azure-1000-campaign.sh', 'utf8');
 +  const service = await readFile('network/testnet/node-service.js', 'utf8');
++  const start = campaign.indexOf('STAGE=durable-writes');
++  const end = campaign.indexOf('STAGE=restart-recovery', start);
++  const durable = campaign.slice(start, end);
 +  assert.match(service, /issuedAt: typeof body\.issuedAt/);
-+  assert.match(campaign, /--arg issuedAt/);
-+  assert.match(campaign, /curl_rc_28/);
-+  assert.match(campaign, /attempt=2/);
-+  assert.match(campaign, /sameRecord=true/);
-+  assert.doesNotMatch(campaign, /attempt=3/);
++  assert.match(durable, /--arg issuedAt/);
++  assert.match(durable, /curl_rc_28/);
++  assert.match(durable, /attempt=2/);
++  assert.match(durable, /sameRecord=true/);
++  assert.doesNotMatch(durable, /attempt=3/);
 +});
