@@ -1,0 +1,26 @@
+name: Bootstrap Actionlint Once
+
+on:
+  push:
+    branches:
+      - automation/bootstrap-lint-af5591fc
+    paths:
+      - .github/bootstrap/lint.txt
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: af5591fc605acf055372f736cdaf274618fc3383
+          persist-credentials: false
+      - name: Lint Class-D bootstrap workflow
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color .github/workflows/class-d-bootstrap-qualification.yml
