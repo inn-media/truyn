@@ -11,6 +11,7 @@ const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.c
 const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/autonomous-repair.yml',
   '.github/workflows/ci.yml',
+  '.github/workflows/class-d-blockwise-preflight.yml',
   '.github/workflows/class-d-bootstrap-launcher.yml',
   '.github/workflows/class-d-bootstrap-qualification.yml',
   '.github/workflows/class-d-five-patch-preflight.yml',
