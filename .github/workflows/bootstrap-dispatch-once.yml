@@ -1,0 +1,34 @@
+name: Bootstrap Dispatch Once
+
+on:
+  push:
+    branches:
+      - automation/bootstrap-dispatch-af5591fc
+    paths:
+      - .github/bootstrap/dispatch.txt
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Dispatch exact-main D-500 bootstrap qualification
+        env:
+          GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+          SOURCE_SHA: af5591fc605acf055372f736cdaf274618fc3383
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$main_sha" == "$SOURCE_SHA" ]]
+          existing="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/class-d-bootstrap-qualification.yml/runs?event=workflow_dispatch&branch=main&per_page=100" --jq '[.workflow_runs[] | select(.head_sha == env.SOURCE_SHA)] | length')"
+          [[ "$existing" == 0 ]]
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/class-d-bootstrap-qualification.yml/dispatches" \
+            -f ref=main \
+            -f "inputs[source_sha]=$SOURCE_SHA" \
+            -f 'inputs[scale]=d500'
+          echo "TRUYN_CLASS_D_BOOTSTRAP_DISPATCH source_sha=$SOURCE_SHA scale=d500 status=PASS"
