@@ -139,16 +139,16 @@ test('D-500 workflow surface preserves immutable launch history', () => {
   if (hasAttempt1) assert.equal(fs.existsSync('.github/d500/launch-02.template.txt'), true);
 });
 
-test('attempt-4 D-500 workflow pins the qualified generational repair and preserves the strict scale contract', () => {
-  if (!fs.existsSync('.github/d500/launch-03.txt')) return;
+test('attempt-5 D-500 workflow pins the qualified recovery repair and preserves the strict scale contract', () => {
+  if (!fs.existsSync('.github/d500/launch-04.txt')) return;
   const workflow = fs.readFileSync('.github/workflows/d500-acceptance.yml', 'utf8');
-  assert.match(workflow, /\.github\/d500\/launch-04\.txt/);
-  assert.match(workflow, /TASK_ID: truyn-d500-acceptance-260922-a4/);
-  assert.match(workflow, /TESTED_COMMIT: 299070c7820ee37ae392d99a6b1ffa0a1ca37485/);
-  assert.match(workflow, /TESTED_TREE_SHA: 86fe8fa5f473ed219854605bc71555a45303dd53/);
-  assert.match(workflow, /EXACT_MAIN_CI_RUN: '35692822112'/);
-  assert.match(workflow, /EXACT_MAIN_FIVE_PATCH_RUN: '35692822113'/);
-  assert.match(workflow, /EXACT_MAIN_CODEQL_RUN: '35692821730'/);
+  assert.match(workflow, /\.github\/d500\/launch-05\.txt/);
+  assert.match(workflow, /TASK_ID: truyn-d500-acceptance-260922-a5/);
+  assert.match(workflow, /TESTED_COMMIT: 9549dda6d53780ec116aebe21cbcc7d77f4dee28/);
+  assert.match(workflow, /TESTED_TREE_SHA: 3292ec0af4f8bb8d1683250efc448861735ad2e7/);
+  assert.match(workflow, /EXACT_MAIN_CI_RUN: '35719191962'/);
+  assert.match(workflow, /EXACT_MAIN_FIVE_PATCH_RUN: '35719191909'/);
+  assert.match(workflow, /EXACT_MAIN_CODEQL_RUN: '35719190942'/);
   assert.match(workflow, /REFERENCE_D200_RUN: '35503894414'/);
   assert.match(workflow, /REFERENCE_D200_REPEATABILITY_RUN: '35517248924'/);
   assert.match(workflow, /NODES_PER_HOST: '25'/);
