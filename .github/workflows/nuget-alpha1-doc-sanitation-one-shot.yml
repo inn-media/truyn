@@ -1,0 +1,218 @@
+name: NuGet alpha.1 documentation sanitation one-shot
+
+on:
+  push:
+    branches:
+      - docs/nuget-alpha1-accepted-sanitation-20260923
+
+permissions:
+  contents: write
+
+jobs:
+  sanitize:
+    if: github.repository == 'inn-media/truyn'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/nuget-alpha1-accepted-sanitation-20260923
+          fetch-depth: 0
+
+      - name: Reconcile NuGet publication state across documentation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+
+          evidence = '`sdk/release/evidence/nuget-alpha1-2026-09-23.json`'
+          accepted = 'NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease'
+
+          md_files = [Path(p) for p in subprocess.check_output(['git','ls-files','*.md'], text=True).splitlines()]
+
+          replacements = [
+              ('Maven Central and NuGet.org publication remain open.', f'{accepted}; Maven Central publication remains open.'),
+              ('Maven Central and NuGet.org remain open.', f'{accepted}; Maven Central remains open.'),
+              ('Maven Central/NuGet.org remain open', f'Maven Central remains open; {accepted}'),
+              ('Maven Central and NuGet.org remain external release gates', f'Maven Central remains an external release gate; {accepted}'),
+              ('Maven Central, NuGet and public-site activation remain external release gates', f'NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public release; Maven Central and public-site activation remain external release gates'),
+              ('Maven Central/NuGet.org publication gates', 'Maven Central publication gate'),
+              ('Maven Central / NuGet publication gates', 'Maven Central publication gate'),
+              ('NuGet.org publication open', 'NuGet.org accepted immutable public release'),
+              ('NuGet publication open', 'NuGet.org accepted immutable public release'),
+              ('not yet claimed as a publicly published NuGet release', 'published and independently verified as the immutable public NuGet prerelease `Truyn.Sdk 0.1.0-alpha.1`'),
+              ('- [ ] NuGet.org publication evidence;', '- [x] NuGet.org publication evidence (`Truyn.Sdk 0.1.0-alpha.1`; independent verification run `35905748486`);'),
+              ('- [ ] NuGet.org publication evidence', '- [x] NuGet.org publication evidence (`Truyn.Sdk 0.1.0-alpha.1`; independent verification run `35905748486`)'),
+          ]
+
+          for p in md_files:
+              s = p.read_text()
+              old = s
+              for a, b in replacements:
+                  s = s.replace(a, b)
+
+              # Common factual-boundary phrasings.
+              s = re.sub(
+                  r'npm, PyPI and Go have accepted immutable public (releases|evidence), while Maven Central(?:,| and) NuGet(?:\.org)?(?: and public-site activation)? remain[^.]*\.',
+                  lambda m: f'npm, PyPI, Go and NuGet.org have accepted immutable public {m.group(1)}; Maven Central remains open.',
+                  s,
+              )
+              s = s.replace(
+                  'PyPI, Go and npm alpha.2 have accepted immutable public evidence.',
+                  'PyPI, Go, npm alpha.2 and NuGet alpha.1 have accepted immutable public evidence.'
+              )
+              s = s.replace(
+                  'PyPI, Go and npm alpha.2 public alphas are accepted immutable releases;',
+                  'PyPI, Go, npm alpha.2 and NuGet alpha.1 public alphas are accepted immutable releases;'
+              )
+              s = s.replace(
+                  'npm alpha.2, PyPI alpha and Go alpha are separately accepted from observed immutable public evidence, while Maven Central and NuGet.org remain open.',
+                  'npm alpha.2, PyPI alpha, Go alpha and NuGet alpha.1 are separately accepted from observed immutable public evidence, while Maven Central remains open.'
+              )
+
+              # Split combined OPEN status rows so NuGet has its own accepted state.
+              s = re.sub(
+                  r'^\| Maven Central / NuGet \| \*\*OPEN\*\* \|\s*$',
+                  '| Maven Central | **OPEN** |\n| NuGet.org `Truyn.Sdk 0.1.0-alpha.1` | **Accepted immutable public release** |',
+                  s, flags=re.M
+              )
+              s = re.sub(
+                  r'^\| Maven Central / NuGet \| \*\*OPEN\*\* \|([^\n]*)$',
+                  lambda m: f'| Maven Central | **OPEN** |{m.group(1)}\n| NuGet.org `Truyn.Sdk 0.1.0-alpha.1` | **Accepted immutable public release** | publication + independent verification evidence PASS |',
+                  s, flags=re.M
+              )
+
+              if s != old:
+                  p.write_text(s)
+
+          # Rewrite the terminal NuGet section of the canonical publication contract from observed evidence.
+          p = Path('sdk/release/PUBLISHING.md')
+          s = p.read_text()
+          s = s.replace(
+              '**Status:** npm/PyPI alpha registry closure completed on 2026-09-05; Go public prerelease accepted; Maven Central/NuGet.org remain open  ',
+              '**Status:** npm/PyPI/Go/NuGet public prereleases accepted; Maven Central remains open  '
+          )
+          s = s.replace(
+              '| NuGet.org | `Truyn.Sdk` | `0.1.0-alpha.1` | **OPEN** |',
+              '| NuGet.org | `Truyn.Sdk` | `0.1.0-alpha.1` | **Accepted immutable public prerelease** |'
+          )
+          s = s.replace(
+              'The machine-readable authority for this coordinate-specific boundary is `sdk/release/public-coordinates.json`. Maven and NuGet coordinates above are reserved target coordinates, not accepted public distributions until their real registry publication and independent verification evidence is accepted.',
+              'The machine-readable authority for this coordinate-specific boundary is `sdk/release/public-coordinates.json`. NuGet.org `Truyn.Sdk@0.1.0-alpha.1` is accepted from real public publication plus independent verification evidence; Maven Central remains a reserved target coordinate until its own public publication and independent verification are accepted.'
+          )
+          marker = '## NuGet.org (`Truyn.Sdk`)'
+          if marker not in s:
+              raise SystemExit('NuGet section marker missing in PUBLISHING.md')
+          head = s.split(marker, 1)[0].rstrip()
+          nuget = r'''## NuGet.org (`Truyn.Sdk`)
+
+**State:** **ACCEPTED IMMUTABLE PUBLIC PRERELEASE.** `Truyn.Sdk 0.1.0-alpha.1` is publicly available on NuGet.org and is bound to exact source `953ed548a52e4c3440a414ec2401ea324120155e` by immutable tag `sdk/nuget/v0.1.0-alpha.1`.
+
+The accepted release chain is:
+
+- ordinary CI run `35903671988` — GREEN on the exact source SHA and produced the canonical `Truyn.Sdk.0.1.0-alpha.1.nupkg`;
+- hosted CodeQL run `35903670985` — GREEN on the same source SHA;
+- NuGet Trusted Publishing run `35904855105` — pushed the exact CI package through GitHub Actions OIDC / `NuGet/login@v1`;
+- independent verification run `35905748486` — fetched the public package without registry mutation, proved content identity excluding the expected NuGet.org repository signature, verified the repository signature with `dotnet nuget verify --all`, and completed a clean-room restore plus runtime load of `Truyn.Sdk.TruynClient`.
+
+Canonical committed evidence: `sdk/release/evidence/nuget-alpha1-2026-09-23.json`.
+
+The publication run itself successfully mutated the registry. Its terminal clean-room verification step failed only because that historical verifier used obsolete `dotnet add package --packages` syntax. This did **not** invalidate the already-completed push. The independent verification run used `NUGET_PACKAGES` instead, performed no registry mutation, and closed the acceptance gate GREEN.
+
+Repository-side path remains `.github/workflows/publish-nuget.yml`. Authentication is **NuGet Trusted Publishing**: `NuGet/login@v1` exchanges the job's GitHub OIDC token for a short-lived API key. No long-lived NuGet API key is part of the release contract.
+
+Permanent release rules:
+
+1. publish only a fresh immutable `sdk/nuget/v<version>` tag targeting exact current merged `main` with same-SHA ordinary CI and hosted CodeQL GREEN;
+2. consume the exact verified ordinary-CI package artifact; do not rebuild package bytes in the publication job;
+3. never use `--skip-duplicate`; an existing coordinate must compare identical or fail closed;
+4. account for the expected NuGet.org repository signature `.signature.p7s`, while requiring every other package entry to match the CI package;
+5. require `dotnet nuget verify --all` and a clean-room `dotnet add package` restore/runtime probe;
+6. preserve evidence and never move, delete or reuse an accepted release tag;
+7. materially different package bytes require a new version/tag.
+
+Configured Trusted Publishing identity for this accepted release and future releases:
+
+- NuGet package owner: `truyn.org`;
+- Repository Owner: `inn-media`;
+- Repository: `truyn`;
+- Workflow File: `publish-nuget.yml`;
+- Environment: `sdk-release`;
+- GitHub environment variable: `NUGET_USER=truyn`.
+
+NuGet.org is therefore no longer an external Developer Release publication gate. Maven Central remains the open registry publication gate.
+'''
+          p.write_text(head + '\n\n' + nuget)
+
+          # Make the .NET package README directly usable from the public registry.
+          p = Path('sdk/dotnet/README.md')
+          s = p.read_text()
+          if 'Accepted public NuGet prerelease' not in s:
+              anchor = 'Truyn.Sdk 0.1.0-alpha.1\n```'
+              if anchor in s:
+                  s = s.replace(anchor, anchor + '\n\n**Accepted public NuGet prerelease:** independently verified on NuGet.org.\n\n```bash\ndotnet add package Truyn.Sdk --version 0.1.0-alpha.1\n```\n\nRelease evidence: `../release/evidence/nuget-alpha1-2026-09-23.json`.', 1)
+              p.write_text(s)
+
+          # Normalize exact known compatibility matrix and package-state facts.
+          p = Path('spec/compatibility/matrix.md')
+          s = p.read_text()
+          s = s.replace(
+              '| NuGet `Truyn.Sdk@0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | source/build/conformance proven; NuGet.org accepted immutable public release |',
+              '| NuGet `Truyn.Sdk@0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |'
+          )
+          s = s.replace(
+              'Package build/provenance does not by itself prove public registry availability; npm alpha.2, PyPI alpha and Go alpha are separately accepted from observed immutable public evidence, while Maven Central and NuGet.org remain open.',
+              'Package build/provenance does not by itself prove public registry availability; npm alpha.2, PyPI alpha, Go alpha and NuGet alpha.1 are separately accepted from observed immutable public evidence, while Maven Central remains open.'
+          )
+          p.write_text(s)
+
+          # Fix the known post-publication verifier syntax for future NuGet releases.
+          p = Path('.github/workflows/publish-nuget.yml')
+          s = p.read_text()
+          old = '          dotnet add package "$NUGET_ID" --version "$VERSION" --packages "$clean/packages"'
+          new = '          export NUGET_PACKAGES="$clean/packages"\n          dotnet add package "$NUGET_ID" --version "$VERSION" --source "$NUGET_SOURCE"'
+          if old not in s:
+              raise SystemExit('expected obsolete NuGet clean-room syntax not found')
+          p.write_text(s.replace(old, new, 1))
+
+          # Remove this one-shot workflow from the resulting tree.
+          Path('.github/workflows/nuget-alpha1-doc-sanitation-one-shot.yml').unlink()
+          PY
+
+      - name: Sanitation assertions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import json, pathlib, re, subprocess
+          c = json.loads(pathlib.Path('sdk/release/public-coordinates.json').read_text())
+          assert c['coordinates']['nuget']['publicationState'] == 'accepted'
+          assert c['coordinates']['maven']['publicationState'] == 'open'
+          assert pathlib.Path('sdk/release/evidence/nuget-alpha1-2026-09-23.json').is_file()
+          assert '--packages "$clean/packages"' not in pathlib.Path('.github/workflows/publish-nuget.yml').read_text()
+          stale = []
+          for name in subprocess.check_output(['git','ls-files','*.md'], text=True).splitlines():
+              text = pathlib.Path(name).read_text()
+              for pat in [r'NuGet(?:\.org)? publication open', r'NuGet(?:\.org)? remain(?:s)? open', r'Maven Central / NuGet \| \*\*OPEN\*\*', r'not yet claimed as a publicly published NuGet release', r'\[ \] NuGet\.org publication evidence']:
+                  if re.search(pat, text, re.I): stale.append((name, pat))
+          if stale:
+              raise SystemExit('stale NuGet documentation remains: ' + repr(stale))
+          print('TRUYN_NUGET_DOC_SANITATION=PASS')
+          PY
+          node --test tests/maven-nuget-publication-workflow.test.js
+
+      - name: Commit sanitized state
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'No sanitation changes to commit'
+            exit 0
+          fi
+          git commit -m 'docs(release): close NuGet alpha.1 publication state' -m 'Record accepted immutable NuGet.org evidence, synchronize stale SDK/documentation boundaries, and fix the future clean-room restore syntax without changing release acceptance.' -m 'Signed-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
+          git push origin HEAD:docs/nuget-alpha1-accepted-sanitation-20260923
