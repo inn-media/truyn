@@ -35,7 +35,7 @@ Website: https://truyn.org/
 | Five first-party SDK clients | **Implemented / executable conformance** |
 | PyPI / Go / npm alpha.2 | **Accepted immutable public releases** |
 | Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.1`** |
-| NuGet | **Status reconciled independently** |
+| NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** | — |
 | Open 1.0 productization | **S01–S102 complete; S103 active; stable 1.0 not reached** |
 | Governance | **G1 / bootstrap Founding Stewardship** |
 | Stable mainnet | **Not yet** |
@@ -79,7 +79,7 @@ This is not a stable NLWeb-v1 claim and does not make NLWeb a TRUYN transport or
 
 ## SDK / developer experience
 
-TypeScript/JavaScript, Python, Go, Java and C#/.NET first-party clients participate in shared executable conformance. PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2` are accepted immutable public releases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet status is reconciled independently.
+TypeScript/JavaScript, Python, Go, Java and C#/.NET first-party clients participate in shared executable conformance. PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2` are accepted immutable public releases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 
 Open 1.0 productization is still in progress. The durable task anchor records S01–S102 complete and S103 active; stable Open 1.0 is not declared until the remaining sequence and final independent reconciliation close.
 

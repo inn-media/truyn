@@ -18,7 +18,7 @@ The bounded alpha family is:
 
 The npm `0.1.0-alpha.1` artifact is immutable but superseded for installation because clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. That defect is repaired by the distinct `0.1.0-alpha.2` version; the immutable alpha.1 bytes are never overwritten. npm alpha.2 is now an accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import. The other ecosystem coordinates are unchanged because this repair is npm-packaging-specific.
 
-These coordinates describe the current source/package family. Registry state is verified independently; source/build conformance cannot substitute for public publication evidence. PyPI, Go and npm have accepted public alpha evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet status is reconciled independently.
+These coordinates describe the current source/package family. Registry state is verified independently; source/build conformance cannot substitute for public publication evidence. PyPI, Go and npm have accepted public alpha evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 
 ## Compatibility declaration required for every release
 
