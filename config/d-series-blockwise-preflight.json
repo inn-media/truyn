@@ -1,0 +1,161 @@
+{
+  "schema": "truyn.d-series.blockwise-preflight.v1",
+  "classes": [200, 500, 1000],
+  "blocks": [
+    {
+      "id": "B01",
+      "name": "contracts-repository",
+      "domain": "contracts",
+      "commands": [
+        {"label":"D-200 contract","argv":["node","scripts/check-d200-contract.mjs"]},
+        {"label":"D-500 contract","argv":["node","scripts/check-d500-contract.mjs"]},
+        {"label":"D-500 inheritance","argv":["node","scripts/check-d500-inheritance.mjs"]},
+        {"label":"Class-D five-patch contract","argv":["node","scripts/check-class-d-five-patches.mjs"]},
+        {"label":"repository hygiene","argv":["node","scripts/check-repository-hygiene.mjs"]},
+        {"label":"open/private boundary","argv":["node","scripts/check-open-private-boundary.mjs"]}
+      ]
+    },
+    {
+      "id": "B02",
+      "name": "runtime-bundle-staging",
+      "domain": "runtime",
+      "commands": [
+        {"label":"runtime bundle syntax","argv":["bash","-n","scripts/build-class-d-1000-runtime-bundle.sh"]},
+        {"label":"staging syntax","argv":["bash","-n","scripts/d200-stage-runtime-bundle.sh"]},
+        {"label":"runtime/staging regressions","argv":["node","--test","tests/class-d-1000-hermetic-bootstrap.test.js","tests/class-d-1000-remote-manifest-heredoc.test.js","tests/d200-staging-robustness.test.js"],"timeoutMs":180000}
+      ]
+    },
+    {
+      "id": "B03",
+      "name": "cloud-oidc-capacity",
+      "domain": "cloud-control-plane",
+      "commands": [
+        {"label":"Azure OIDC contract","argv":["node","scripts/check-d200-cloud-contract.mjs"]},
+        {"label":"bootstrap workflow contract","argv":["node","--test","tests/class-d-bootstrap-qualification.test.js"]}
+      ]
+    },
+    {
+      "id": "B04",
+      "name": "topology-placement",
+      "domain": "topology",
+      "commands": [
+        {"label":"placement regressions","argv":["node","--test","tests/class-d-1000-placement.test.js","tests/class-d-canonical-pin-regression.test.js","tests/class-d-accepted-entrypoint-regression.test.js"]},
+        {"label":"local topology","classes":[200,500,1000],"argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","{class}","--scenario","topology","--nodes","6"],"timeoutMs":120000}
+      ]
+    },
+    {
+      "id": "B05",
+      "name": "process-startup-identity",
+      "domain": "process-lifecycle",
+      "commands": [
+        {"label":"run-command boundary","argv":["node","--test","tests/class-d-1000-run-command-boundary.test.js"]},
+        {"label":"local real process identity","classes":[200,500,1000],"argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","{class}","--scenario","topology","--nodes","6"],"timeoutMs":120000}
+      ]
+    },
+    {
+      "id": "B06",
+      "name": "bootstrap-refresh",
+      "domain": "bootstrap",
+      "liveQualification": "class-d-bootstrap-qualification.yml",
+      "commands": [
+        {"label":"bootstrap/refresh regressions","argv":["node","--test","tests/class-d-1000-bootstrap.test.js","tests/class-d-1000-hermetic-bootstrap.test.js","tests/peer-discovery-refresh-bounds.test.js","tests/class-d-bootstrap-qualification.test.js","tests/dht-readiness-testnet-endpoint.test.js"],"timeoutMs":180000},
+        {"label":"local bootstrap path","classes":[200,500,1000],"argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","{class}","--scenario","readiness","--nodes","6"],"timeoutMs":120000}
+      ]
+    },
+    {
+      "id": "B07",
+      "name": "readiness-leases",
+      "domain": "readiness",
+      "commands": [
+        {"label":"peer propagation readiness","argv":["node","--test","tests/d200-peer-propagation-readiness-barrier.test.js","tests/dht-readiness-testnet-endpoint.test.js"]},
+        {"label":"local readiness","classes":[200,500,1000],"argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","{class}","--scenario","readiness","--nodes","6"],"timeoutMs":120000}
+      ]
+    },
+    {
+      "id": "B08",
+      "name": "baseline-routing",
+      "domain": "routing",
+      "commands": [
+        {"label":"route repair invariants","argv":["node","--test","tests/d200-route-repair-acceptance-invariants.test.js"]},
+        {"label":"local baseline routing","classes":[200,500,1000],"argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","{class}","--scenario","routing","--nodes","6"],"timeoutMs":120000}
+      ]
+    },
+    {
+      "id": "B09",
+      "name": "restart-injection",
+      "domain": "restart",
+      "commands": [
+        {"label":"restart stage syntax","argv":["bash","-n","benchmarks/scale/d200-restart-recovery-stage.sh"]},
+        {"label":"restart generation regressions","argv":["node","--test","tests/d200-generation-supersession-race.test.js","tests/d200-mass-restart-propagation.test.js"],"timeoutMs":180000}
+      ]
+    },
+    {
+      "id": "B10",
+      "name": "post-restart-routing",
+      "domain": "post-restart-routing",
+      "commands": [
+        {"label":"post-restart stage syntax","argv":["bash","-n","benchmarks/scale/d200-post-restart-routing-stage.sh"]},
+        {"label":"restart routing regressions","argv":["node","--test","tests/d200-generation-supersession-race.test.js","tests/d200-route-repair-acceptance-invariants.test.js"]},
+        {"label":"local recovery routing","classes":[200,500,1000],"argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","{class}","--scenario","recovery","--nodes","6"],"timeoutMs":120000}
+      ]
+    },
+    {
+      "id": "B11",
+      "name": "healing-convergence-recovery",
+      "domain": "recovery",
+      "commands": [
+        {"label":"adversarial recovery regressions","argv":["node","--test","tests/randomized-adversarial.test.js","tests/d200-mass-restart-propagation.test.js"],"timeoutMs":180000},
+        {"label":"local healing/recovery","classes":[200,500,1000],"argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","{class}","--scenario","recovery","--nodes","6"],"timeoutMs":120000}
+      ]
+    },
+    {
+      "id": "B12",
+      "name": "durable-writes-retention",
+      "domain": "durability",
+      "commands": [
+        {"label":"DHT durability","argv":["node","--test","tests/dht-replication-keyspace.test.js","tests/class-d-terminal-verifier.test.js"]},
+        {"label":"local durable writes","classes":[200,500,1000],"argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","{class}","--scenario","durability","--nodes","6"],"timeoutMs":120000}
+      ]
+    },
+    {
+      "id": "B13",
+      "name": "adversarial-partition",
+      "domain": "adversarial",
+      "commands": [
+        {"label":"adversarial tests","argv":["node","--test","tests/randomized-adversarial.test.js"],"timeoutMs":180000},
+        {"label":"local partition/heal","classes":[200,500,1000],"argv":["node","scripts/class-d-local-multiprocess-repro.mjs","--class","{class}","--scenario","recovery","--nodes","6"],"timeoutMs":120000}
+      ]
+    },
+    {
+      "id": "B14",
+      "name": "safety-security-negative",
+      "domain": "safety-security",
+      "commands": [
+        {"label":"security suite","argv":["npm","run","test:security"],"timeoutMs":600000},
+        {"label":"terminal safety predicates","argv":["node","--test","tests/class-d-terminal-verifier.test.js"]}
+      ]
+    },
+    {
+      "id": "B15",
+      "name": "resources-telemetry-evidence",
+      "domain": "observability",
+      "commands": [
+        {"label":"evidence evaluator syntax","argv":["node","--check","benchmarks/scale/class-d-1000-evidence.js"]},
+        {"label":"strict evaluator syntax","argv":["node","--check","benchmarks/scale/evaluate-class-d-1000-evidence.js"]},
+        {"label":"terminal verifier syntax","argv":["node","--check","benchmarks/scale/verify-class-d-1000-terminal.js"]},
+        {"label":"campaign syntax","argv":["bash","-n","benchmarks/scale/class-d-azure-1000-campaign.sh"]}
+      ]
+    },
+    {
+      "id": "B16",
+      "name": "cleanup-terminal-assembly",
+      "domain": "terminal-assembly",
+      "commands": [
+        {"label":"provision cleanup syntax","argv":["bash","-n","benchmarks/scale/class-d-azure-1000-provision.sh"]},
+        {"label":"isolated campaign syntax","argv":["bash","-n","scripts/d200-stage-isolated-campaign.sh"]},
+        {"label":"terminal/cleanup regressions","argv":["node","--test","tests/class-d-terminal-verifier.test.js","tests/d500-prelaunch.test.js"],"timeoutMs":180000},
+        {"label":"repository diff check","argv":["git","diff","--check"]}
+      ]
+    }
+  ]
+}

@@ -16,6 +16,15 @@ const normalize = (value) => String(value ?? '')
   .trim()
   .slice(0, 600);
 
+function checkedOutSourceSha(cwd = process.cwd()) {
+  const explicit = String(process.env.TRUYN_D_SERIES_SOURCE_SHA || '').trim();
+  if (/^[0-9a-f]{40}$/.test(explicit)) return explicit;
+  const git = spawnSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' });
+  const sha = String(git.stdout || '').trim();
+  if (git.status === 0 && /^[0-9a-f]{40}$/.test(sha)) return sha;
+  return process.env.GITHUB_SHA || null;
+}
+
 export function loadLane(configPath, laneId) {
   const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
   if (config.schema !== 'truyn.d200.bug-hunt.v1' || !Array.isArray(config.lanes)) throw new Error('invalid D-200 bug-hunt config');
@@ -25,7 +34,8 @@ export function loadLane(configPath, laneId) {
   return lane;
 }
 
-export function runLane({ lane, sourceSha = process.env.GITHUB_SHA || null, cwd = process.cwd() }) {
+export function runLane({ lane, sourceSha = null, cwd = process.cwd() }) {
+  sourceSha ??= checkedOutSourceSha(cwd);
   const startedAt = new Date().toISOString();
   const commands = [];
   let status = 'PASS';
@@ -98,7 +108,7 @@ function main(argv = process.argv.slice(2)) {
   } catch (error) {
     const signature = normalize(error?.stack || error?.message || error);
     result = {
-      schema: 'truyn.d200.bug-hunt.result.v1', laneId, domain: 'orchestration', status: 'INFRA', sourceSha: process.env.GITHUB_SHA || null,
+      schema: 'truyn.d200.bug-hunt.result.v1', laneId, domain: 'orchestration', status: 'INFRA', sourceSha: checkedOutSourceSha(),
       startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(),
       fingerprint: crypto.createHash('sha256').update(`orchestration|${signature}`).digest('hex'),
       firstFailure: { label: 'orchestration', exitCode: null, signature }, commands: []

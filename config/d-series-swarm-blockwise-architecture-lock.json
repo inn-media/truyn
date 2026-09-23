@@ -1,0 +1,32 @@
+{
+  "schema": "truyn.d-series.swarm-blockwise-architecture-lock.v1",
+  "state": "LOCKED",
+  "authority": "D-Series",
+  "effectiveUntil": "ALL_D_SERIES_TESTS_COMPLETE",
+  "primaryEngine": "sanitation-swarm",
+  "subordinateAdmissionGate": "blockwise-b01-b16",
+  "priorityOnConflict": "sanitation-swarm",
+  "canonicalChain": [
+    "SOURCE_CHANGE",
+    "SANITATION_SWARM",
+    "ROOT_CAUSE_DEDUP",
+    "ACCEPTANCE_PRESERVING_REPAIR",
+    "TARGETED_BLOCK_QUALIFICATION",
+    "FULL_B01_B16_EXACT_SHA",
+    "ISOLATED_LIVE_QUALIFICATION_WHERE_REQUIRED",
+    "SHARED_CAPACITY_COLLISION_CHECK",
+    "ONE_REAL_D_SERIES_RUN",
+    "IMMUTABLE_EVIDENCE"
+  ],
+  "invariants": {
+    "swarmOwnsDiagnosticsAndRepair": true,
+    "blockwiseMayNotReplaceSwarm": true,
+    "fullBlockwiseRequiresCleanExactShaSwarm": true,
+    "targetedBlockGreenIsNotLaunchAuthorization": true,
+    "realScaleRunRequiresAdmission": true,
+    "realScaleRunIsSingleShot": true,
+    "acceptanceThresholdWeakeningForbidden": true,
+    "silentArchitectureReplacementForbidden": true
+  },
+  "changePolicy": "This lock may be removed or materially changed before ALL_D_SERIES_TESTS_COMPLETE only by an explicit user-authorized architecture change. Ordinary refactors, repairs, optimizations, sprint transitions, D-500/D-1000 launcher work, or CI cleanup MUST preserve it."
+}

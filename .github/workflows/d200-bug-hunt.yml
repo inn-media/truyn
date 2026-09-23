@@ -1,29 +1,45 @@
-name: D-200 Bug Hunt Swarm
+name: D-Series Sanitation Swarm
+
 on:
   pull_request: {}
   workflow_dispatch:
     inputs:
+      source_sha:
+        description: Exact current main SHA to diagnose; defaults to dispatch SHA
+        required: false
+        type: string
+      scale:
+        description: Class-D scope
+        required: true
+        default: all
+        type: choice
+        options: [all, d200, d500, d1000]
       resume_run_id:
-        description: 'Previous Bug Hunt run id whose stage checkpoint should be resumed'
+        description: Previous Swarm run id whose stage checkpoint should be resumed
         required: false
         type: string
       resume_from:
-        description: 'Optional stage id to invalidate and rerun with all descendants'
+        description: Optional stage id to invalidate and rerun with all descendants
         required: false
         type: string
       resume_across_sha:
-        description: 'Allow reuse of unaffected PASS stages when source SHA changed'
+        description: Allow reuse of unaffected PASS stages when source SHA changed
         required: false
         default: false
         type: boolean
+
 permissions:
   contents: read
   actions: read
+
+concurrency:
+  group: d-series-swarm-${{ github.event_name }}-${{ github.event.pull_request.head.sha || inputs.source_sha || github.sha }}-${{ inputs.scale || 'all' }}
+  cancel-in-progress: false
+
 jobs:
-  swarm:
+  d200-lanes:
     name: d200-${{ matrix.lane }}
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'automation/d200-parallel-closure-') || startsWith(github.head_ref, 'automation/d200-autorepair-control-') || startsWith(github.head_ref, 'automation/d200-durable-write-') || startsWith(github.head_ref, 'automation/d200-stage-') || startsWith(github.head_ref, 'automation/class-d-five-patches-')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -42,53 +58,128 @@ jobs:
           - evidence-evaluator
           - campaign-runtime-syntax
     steps:
+      - name: Select D-200 legacy diagnostic lane
+        id: selection
+        shell: bash
+        env:
+          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+        run: |
+          set -Eeuo pipefail
+          selected=false
+          case "$SCALE_INPUT" in
+            all|d200) selected=true ;;
+            d500|d1000) ;;
+            *) echo "invalid scale=$SCALE_INPUT" >&2; exit 2 ;;
+          esac
+          echo "selected=$selected" >>"$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
+        if: steps.selection.outputs.selected == 'true'
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+
       - uses: actions/setup-node@v4
-        with: {node-version: '22'}
-      - run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Run bounded lane without cancelling peers
+        if: steps.selection.outputs.selected == 'true'
+        with:
+          node-version: '22'
+
+      - name: Validate exact source and install dependencies
+        if: steps.selection.outputs.selected == 'true'
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+          if [[ "$EVENT" == workflow_dispatch ]]; then
+            main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+            [[ "$main_sha" == "$EXPECTED_SHA" ]]
+          fi
+          npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Run bounded D-200 lane without cancelling peers
+        if: steps.selection.outputs.selected == 'true'
         env:
           D200_LANE_RESULT: d200-lane-${{ matrix.lane }}.json
+          GITHUB_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
         run: node scripts/d200-bug-hunt-lane.mjs '${{ matrix.lane }}'
-      - name: Upload lane evidence
-        if: always()
+
+      - name: Upload D-200 lane evidence
+        if: always() && steps.selection.outputs.selected == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: d200-lane-${{ matrix.lane }}-${{ github.run_id }}
           path: d200-lane-${{ matrix.lane }}.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
-  stage-plan:
+  d200-stage-plan:
     name: d200-resumable-stage-plan
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'automation/d200-parallel-closure-') || startsWith(github.head_ref, 'automation/d200-autorepair-control-') || startsWith(github.head_ref, 'automation/d200-durable-write-') || startsWith(github.head_ref, 'automation/d200-stage-') || startsWith(github.head_ref, 'automation/class-d-five-patches-')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
+      - name: Select D-200 canonical stage plan
+        id: selection
+        shell: bash
+        env:
+          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+        run: |
+          set -Eeuo pipefail
+          selected=false
+          case "$SCALE_INPUT" in
+            all|d200) selected=true ;;
+            d500|d1000) ;;
+            *) echo "invalid scale=$SCALE_INPUT" >&2; exit 2 ;;
+          esac
+          echo "selected=$selected" >>"$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
+        if: steps.selection.outputs.selected == 'true'
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+
       - uses: actions/setup-node@v4
-        with: {node-version: '22'}
-      - run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Download previous resumable checkpoint
-        if: github.event_name == 'workflow_dispatch' && inputs.resume_run_id != ''
+        if: steps.selection.outputs.selected == 'true'
+        with:
+          node-version: '22'
+
+      - name: Validate exact source and install dependencies
+        if: steps.selection.outputs.selected == 'true'
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+          if [[ "$EVENT" == workflow_dispatch ]]; then
+            [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]
+          fi
+          npm install --ignore-scripts --no-audit --no-fund
+          node scripts/check-class-d-five-patches.mjs
+
+      - name: Download previous D-200 resumable checkpoint
+        if: steps.selection.outputs.selected == 'true' && github.event_name == 'workflow_dispatch' && inputs.resume_run_id != ''
         uses: actions/download-artifact@v4
         with:
           name: d200-stage-checkpoint-${{ inputs.resume_run_id }}
           path: d200-resume
           run-id: ${{ inputs.resume_run_id }}
           github-token: ${{ github.token }}
-      - name: Execute canonical resumable Class D DAG and collect all reachable failures
+
+      - name: Execute canonical resumable D-200 DAG and collect all reachable failures
+        if: steps.selection.outputs.selected == 'true'
         shell: bash
         env:
-          TRUYN_CLASS_D_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
           RESUME_RUN_ID: ${{ inputs.resume_run_id || '' }}
           RESUME_FROM: ${{ inputs.resume_from || '' }}
           RESUME_ACROSS_SHA: ${{ inputs.resume_across_sha || false }}
@@ -98,62 +189,307 @@ jobs:
           if [[ -n "$RESUME_RUN_ID" ]]; then
             test -f d200-resume/d200-stage-checkpoint.json
             cp d200-resume/d200-stage-checkpoint.json d200-stage-checkpoint.json
-            if [[ -n "$RESUME_FROM" ]]; then
-              args+=(--from "$RESUME_FROM")
-            else
-              args+=(--resume)
-            fi
-            if [[ "$RESUME_ACROSS_SHA" == "true" ]]; then
-              args+=(--resume-across-sha)
-            fi
+            if [[ -n "$RESUME_FROM" ]]; then args+=(--from "$RESUME_FROM"); else args+=(--resume); fi
+            if [[ "$RESUME_ACROSS_SHA" == true ]]; then args+=(--resume-across-sha); fi
           elif [[ -n "$RESUME_FROM" ]]; then
             echo 'resume_from requires resume_run_id' >&2
             exit 2
           fi
-          node scripts/class-d-stage-runner.mjs "${args[@]}"
-      - name: Upload resumable stage checkpoint
-        if: always()
+          TRUYN_CLASS_D_SOURCE_SHA="$EXPECTED_SHA" node scripts/class-d-stage-runner.mjs "${args[@]}"
+
+      - name: Upload D-200 resumable stage checkpoint
+        if: always() && steps.selection.outputs.selected == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: d200-stage-checkpoint-${{ github.run_id }}
           path: d200-stage-checkpoint.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
 
-  aggregate:
+  d200-aggregate:
     name: d200-bug-hunt-aggregate
-    needs: [swarm, stage-plan]
-    if: always() && (github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'automation/d200-parallel-closure-') || startsWith(github.head_ref, 'automation/d200-autorepair-control-') || startsWith(github.head_ref, 'automation/d200-durable-write-') || startsWith(github.head_ref, 'automation/d200-stage-') || startsWith(github.head_ref, 'automation/class-d-five-patches-'))
-    runs-on: ubuntu-latest
+    needs: [d200-lanes, d200-stage-plan]
+    if: always()
+    runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
+      - name: Select D-200 aggregate
+        id: selection
+        shell: bash
+        env:
+          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+        run: |
+          set -Eeuo pipefail
+          selected=false
+          case "$SCALE_INPUT" in all|d200) selected=true ;; d500|d1000) ;; *) exit 2 ;; esac
+          echo "selected=$selected" >>"$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
+        if: steps.selection.outputs.selected == 'true'
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+
       - uses: actions/setup-node@v4
-        with: {node-version: '22'}
+        if: steps.selection.outputs.selected == 'true'
+        with:
+          node-version: '22'
+
       - uses: actions/download-artifact@v4
+        if: steps.selection.outputs.selected == 'true'
         with:
           pattern: d200-lane-*-${{ github.run_id }}
           path: d200-results
           merge-multiple: true
+
       - uses: actions/download-artifact@v4
+        if: steps.selection.outputs.selected == 'true'
         with:
           name: d200-stage-checkpoint-${{ github.run_id }}
           path: d200-stage-plan
-      - name: Aggregate all terminal lane evidence and enforce clean candidate
+
+      - name: Aggregate all terminal D-200 lane evidence and enforce clean candidate
+        if: steps.selection.outputs.selected == 'true'
         run: node scripts/d200-bug-hunt-aggregate.mjs d200-results --output d200-bug-hunt-aggregate.json --enforce
-      - name: Enforce resumable stage plan evidence from exact tested SHA
+
+      - name: Enforce D-200 resumable stage plan evidence from exact tested SHA
+        if: steps.selection.outputs.selected == 'true'
         env:
-          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
         run: node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('d200-stage-plan/d200-stage-checkpoint.json','utf8'));if(Number(p.classSize)!==200||p.sourceSha!==process.env.EXPECTED_SHA||p.summary?.clean!==true)process.exit(1);"
-      - name: Upload aggregate evidence
-        if: always()
+
+      - name: Upload legacy D-200 aggregate evidence
+        if: always() && steps.selection.outputs.selected == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: d200-bug-hunt-aggregate-${{ github.run_id }}
           path: d200-bug-hunt-aggregate.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
+
+  class-stage-swarm:
+    name: d-series-swarm-stage-${{ matrix.class_size }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        class_size: [500, 1000]
+    steps:
+      - name: Select class
+        id: selection
+        shell: bash
+        env:
+          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+          CLASS_SIZE: ${{ matrix.class_size }}
+        run: |
+          set -Eeuo pipefail
+          selected=false
+          case "$SCALE_INPUT" in
+            all) selected=true ;;
+            d500) [[ "$CLASS_SIZE" == 500 ]] && selected=true ;;
+            d1000) [[ "$CLASS_SIZE" == 1000 ]] && selected=true ;;
+            d200) ;;
+            *) echo "invalid scale=$SCALE_INPUT" >&2; exit 2 ;;
+          esac
+          echo "selected=$selected" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.selection.outputs.selected == 'true'
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-node@v4
+        if: steps.selection.outputs.selected == 'true'
+        with:
+          node-version: '22'
+
+      - name: Validate exact source and install dependencies
+        if: steps.selection.outputs.selected == 'true'
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+          if [[ "$EVENT" == workflow_dispatch ]]; then
+            [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]
+          fi
+          npm install --ignore-scripts --no-audit --no-fund
+          node scripts/check-class-d-five-patches.mjs
+
+      - name: Download previous class checkpoint
+        if: steps.selection.outputs.selected == 'true' && github.event_name == 'workflow_dispatch' && inputs.resume_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: d-series-swarm-stage-${{ matrix.class_size }}-${{ inputs.resume_run_id }}
+          path: d-series-swarm-resume-${{ matrix.class_size }}
+          run-id: ${{ inputs.resume_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Execute canonical fail-collect Class-D DAG
+        if: steps.selection.outputs.selected == 'true'
+        shell: bash
+        env:
+          CLASS_SIZE: ${{ matrix.class_size }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          RESUME_RUN_ID: ${{ inputs.resume_run_id || '' }}
+          RESUME_FROM: ${{ inputs.resume_from || '' }}
+          RESUME_ACROSS_SHA: ${{ inputs.resume_across_sha || false }}
+        run: |
+          set -Eeuo pipefail
+          checkpoint="d-series-swarm-stage-${CLASS_SIZE}.json"
+          args=(--class "$CLASS_SIZE" --checkpoint "$checkpoint" --concurrency 1)
+          if [[ -n "$RESUME_RUN_ID" ]]; then
+            prior="d-series-swarm-resume-${CLASS_SIZE}/${checkpoint}"
+            test -f "$prior"
+            cp "$prior" "$checkpoint"
+            if [[ -n "$RESUME_FROM" ]]; then args+=(--from "$RESUME_FROM"); else args+=(--resume); fi
+            if [[ "$RESUME_ACROSS_SHA" == true ]]; then args+=(--resume-across-sha); fi
+          elif [[ -n "$RESUME_FROM" ]]; then
+            echo 'resume_from requires resume_run_id' >&2
+            exit 2
+          fi
+          TRUYN_CLASS_D_SOURCE_SHA="$EXPECTED_SHA" node scripts/class-d-stage-runner.mjs "${args[@]}"
+
+      - name: Upload class stage evidence
+        if: always() && steps.selection.outputs.selected == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-swarm-stage-${{ matrix.class_size }}-${{ github.run_id }}
+          path: d-series-swarm-stage-${{ matrix.class_size }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  block-diagnostics:
+    name: d-series-swarm-${{ matrix.block }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        block: [B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12, B13, B14, B15, B16]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate exact source and install dependencies
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+          if [[ "$EVENT" == workflow_dispatch ]]; then
+            [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]
+          fi
+          npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Run Blockwise domain as Swarm diagnostic shard
+        shell: bash
+        env:
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+          BLOCK_ID: ${{ matrix.block }}
+        run: |
+          set -Eeuo pipefail
+          case "$SCALE_INPUT" in
+            all) scale=all ;;
+            d200) scale=200 ;;
+            d500) scale=500 ;;
+            d1000) scale=1000 ;;
+            *) echo "invalid scale=$SCALE_INPUT" >&2; exit 2 ;;
+          esac
+          node scripts/d-series-block-runner.mjs "$BLOCK_ID" --scale "$scale" --result "d-series-block-${BLOCK_ID}.json"
+
+      - name: Upload diagnostic shard evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-swarm-block-${{ matrix.block }}-${{ github.run_id }}
+          path: d-series-block-${{ matrix.block }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  swarm-aggregate:
+    name: d-series-swarm-aggregate
+    needs: [d200-lanes, d200-stage-plan, d200-aggregate, class-stage-swarm, block-diagnostics]
+    if: always()
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/download-artifact@v4
+        if: inputs.scale == 'all' || inputs.scale == 'd200' || github.event_name == 'pull_request'
+        with:
+          pattern: d200-stage-checkpoint-${{ github.run_id }}
+          path: d-series-swarm-stages
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        if: inputs.scale == 'all' || inputs.scale == 'd500' || inputs.scale == 'd1000' || github.event_name == 'pull_request'
+        with:
+          pattern: d-series-swarm-stage-*-${{ github.run_id }}
+          path: d-series-swarm-stages
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        if: inputs.scale == 'all' || inputs.scale == 'd200' || github.event_name == 'pull_request'
+        with:
+          pattern: d200-lane-*-${{ github.run_id }}
+          path: d-series-swarm-lanes
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: d-series-swarm-block-*-${{ github.run_id }}
+          path: d-series-swarm-blocks
+          merge-multiple: true
+
+      - name: Deduplicate root causes and enforce clean Swarm
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/d-series-swarm-aggregate.mjs \
+            --stages d-series-swarm-stages \
+            --blocks d-series-swarm-blocks \
+            --lanes d-series-swarm-lanes \
+            --source-sha "$EXPECTED_SHA" \
+            --scale "$SCALE_INPUT" \
+            --output d-series-swarm-summary.json \
+            --enforce
+
+      - name: Upload Swarm summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-swarm-summary-${{ inputs.scale || 'all' }}-${{ github.run_id }}
+          path: d-series-swarm-summary.json
+          if-no-files-found: error
+          retention-days: 90

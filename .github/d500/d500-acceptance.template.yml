@@ -27,6 +27,7 @@ env:
   EXACT_MAIN_FIVE_PATCH_RUN: '__EXACT_MAIN_FIVE_PATCH_RUN__'
   QUALIFIED_TREE_CODEQL_CHECK: '__QUALIFIED_TREE_CODEQL_CHECK__'
   QUALIFIED_TREE_CODEQL_SHA: __QUALIFIED_TREE_CODEQL_SHA__
+  D_SERIES_BLOCKWISE_PREFLIGHT_RUN: '__D_SERIES_BLOCKWISE_PREFLIGHT_RUN__'
   D500_CONTRACT_SHA256: __D500_CONTRACT_SHA256__
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '25'
@@ -60,6 +61,7 @@ jobs:
           [[ "$(value EXACT_MAIN_FIVE_PATCH_RUN)" == "$EXACT_MAIN_FIVE_PATCH_RUN" ]]
           [[ "$(value QUALIFIED_TREE_CODEQL_CHECK)" == "$QUALIFIED_TREE_CODEQL_CHECK" ]]
           [[ "$(value QUALIFIED_TREE_CODEQL_SHA)" == "$QUALIFIED_TREE_CODEQL_SHA" ]]
+          [[ "$(value D_SERIES_BLOCKWISE_PREFLIGHT_RUN)" == "$D_SERIES_BLOCKWISE_PREFLIGHT_RUN" ]]
           [[ "$(value D500_CONTRACT_SHA256)" == "$D500_CONTRACT_SHA256" ]]
           expected_workflow_blob="$(value WORKFLOW_BLOB_SHA)"
           [[ "$expected_workflow_blob" =~ ^[0-9a-f]{40}$ ]]
@@ -85,6 +87,8 @@ jobs:
           set -Eeuo pipefail
           [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}^{tree}")" == "$TESTED_TREE_SHA" ]]
+          export TRUYN_D_SERIES_BLOCKWISE_PREFLIGHT_RUN="$D_SERIES_BLOCKWISE_PREFLIGHT_RUN"
+          bash scripts/verify-d-series-blockwise-preflight-run.sh "$TESTED_COMMIT"
           ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
           fp="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_FIVE_PATCH_RUN}")"
           cq="$(gh api "repos/${GITHUB_REPOSITORY}/check-runs/${QUALIFIED_TREE_CODEQL_CHECK}")"
