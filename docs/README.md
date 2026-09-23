@@ -55,7 +55,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - five first-party SDK clients + shared conformance — **IMPLEMENTED**.
 - PyPI alpha + Go alpha + npm alpha.2 — **accepted immutable public releases**.
 - npm alpha.1 — immutable historical artifact with failed required clean-room ESM import.
-- Maven Central / NuGet — **OPEN**.
+- Maven Central — **accepted immutable public release** (`org.truyn:truyn-sdk:0.1.0-alpha.1`); NuGet — **status reconciled independently**.
 - Open 1.0 productization — **S01–S102 complete; S103 active; stable 1.0 not reached**.
 - Production Trust Authority — **OPEN** unless/until separately accepted by canonical evidence.
 - governance — **G1 / bootstrap Founding Stewardship**.

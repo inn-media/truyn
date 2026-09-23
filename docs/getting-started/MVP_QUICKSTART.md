@@ -143,7 +143,7 @@ The first-party Developer Release layer is implemented for:
 - Java;
 - C# / .NET.
 
-These are no longer architecture/scaffolding-only targets. All five have implemented bounded relay clients and participate in the shared executable conformance gate. Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` are accepted immutable public prereleases; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` and NuGet.org `Truyn.Sdk 0.1.0-alpha.1` remain open publication gates.
+These are no longer architecture/scaffolding-only targets. All five have implemented bounded relay clients and participate in the shared executable conformance gate. Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` are accepted immutable public prereleases; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an accepted immutable public release. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` status is reconciled independently.
 
 The bounded onboarding flow is now implemented:
 
@@ -197,6 +197,6 @@ signed RESULT
 verification + demo Trustability metadata
 ```
 
-It should not be used as proof of the broader system's production readiness, Internet-scale behavior, completion of the still-open Maven Central/NuGet.org publication gates, or stable compatibility.
+It should not be used as proof of the broader system's production readiness, Internet-scale behavior, completion of any remaining registry-publication gates; Maven Central is already accepted, or stable compatibility.
 
 For the actual implemented/proven/open matrix, use `../architecture/IMPLEMENTATION_STATUS.md`. For the current primary engineering sequence, use `../../ROADMAP.md`.

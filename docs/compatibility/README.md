@@ -15,7 +15,7 @@ Compatibility is tracked separately for protocol/node behavior, adapters/externa
 - SDK API-v1 bounded primitives are implemented across five first-party clients.
 - PyPI, Go and npm alpha.2 have accepted immutable public evidence.
 - npm alpha.1 remains immutable historical evidence whose required clean-room ESM import failed and is superseded without overwrite.
-- Maven Central and NuGet remain open.
+- Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet status is reconciled independently.
 
 External evidence names concrete tested versions/source. Per-build provenance, immutable publication, clean-room usability and stable compatibility are separate concepts.
 
