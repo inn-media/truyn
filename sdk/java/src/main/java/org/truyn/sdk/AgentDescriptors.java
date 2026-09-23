@@ -63,6 +63,10 @@ public final class AgentDescriptors {
     List<?> interfaces = list(raw.get("interfaces"));
     if (protocols.isEmpty() || interfaces.isEmpty() || !(raw.get("capabilities") instanceof List<?>))
       throw new TruynException(TruynException.Code.INVALID_ARGUMENT, "invalid Agent Descriptor discovery fields", false);
+    for (Object value : interfaces) {
+      if (!(value instanceof Map<?,?> map) || text(map.get("type")) == null || text(map.get("endpoint")) == null)
+        throw new TruynException(TruynException.Code.INVALID_ARGUMENT, "Agent Descriptor interfaces require non-empty type and endpoint", false);
+    }
     Instant issued = instant(raw.get("issuedAt"));
     Instant expires = instant(raw.get("expiresAt"));
     if (issued == null || expires == null || !expires.isAfter(issued))
