@@ -1,25 +1,24 @@
 name: Publish .NET SDK to NuGet.org via Trusted Publishing
 
-# Publishes the EXACT CI-built Truyn.Sdk.<version>.nupkg (sdk/release/build-release.sh output of the
-# successful exact-main CI run) to nuget.org. Authentication is NuGet Trusted Publishing:
-# a GitHub OIDC token is exchanged by NuGet/login for a single-use API key valid for one hour.
-# No long-lived NuGet API key exists in this repository or its environments.
-# Contract: sdk/release/PUBLISHING.md § "NuGet.org".
-# workflow_dispatch is intentionally supported only when the selected ref is the immutable
-# sdk/nuget/v<version> tag; resolve-release-gates.sh fails closed for any non-tag ref.
+# TEMPORARY BRANCH-LOCAL TRANSPORT ONLY.
+# This preserves the trusted publisher workflow identity (`publish-nuget.yml`) while executing
+# the already-created immutable tag `sdk/nuget/v0.1.0-alpha.1`. It is never merged to main.
+# All release authority remains fail-closed on exact main/tag/CI/CodeQL and exact CI artifact bytes.
 
 on:
   push:
-    tags:
-      - 'sdk/nuget/v*'
-  workflow_dispatch:
+    branches:
+      - release/nuget-tag-launch-20260923
+    paths:
+      - .github/workflows/publish-nuget.yml
 
 permissions:
   contents: read
   actions: read
+  id-token: write
 
 concurrency:
-  group: publish-nuget
+  group: publish-nuget-0.1.0-alpha.1
   cancel-in-progress: false
 
 jobs:
@@ -28,110 +27,141 @@ jobs:
     runs-on: ubuntu-latest
     environment: sdk-release
     timeout-minutes: 90
-    permissions:
-      contents: read
-      actions: read
-      id-token: write
     env:
       GH_TOKEN: ${{ github.token }}
+      EXPECTED_SHA: 953ed548a52e4c3440a414ec2401ea324120155e
+      TAG: sdk/nuget/v0.1.0-alpha.1
+      VERSION: 0.1.0-alpha.1
+      CI_RUN_ID: '35903671988'
+      CODEQL_RUN_ID: '35903670985'
       NUGET_ID: Truyn.Sdk
       NUGET_SOURCE: https://api.nuget.org/v3/index.json
       NUGET_FLAT: https://api.nuget.org/v3-flatcontainer
       RELEASE_ROOT: /tmp/truyn-nuget-release
     steps:
-      - name: Checkout release source
+      - name: Checkout launcher branch for release helpers
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate immutable tag, exact current main, CI and CodeQL gates
+      - name: Validate immutable tag exact current main CI CodeQL and registry absence
         id: gates
-        run: bash sdk/release/resolve-release-gates.sh sdk/nuget/v nuget
+        shell: bash
+        env:
+          NUGET_USER_VALUE: ${{ vars.NUGET_USER }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$NUGET_USER_VALUE" || { echo '::error::NUGET_USER missing in sdk-release environment'; exit 1; }
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" = "$EXPECTED_SHA" || {
+            echo '::error::main moved from the immutable NuGet release source'; exit 1;
+          }
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')" = "$EXPECTED_SHA" || {
+            echo '::error::immutable NuGet tag does not point at exact release source'; exit 1;
+          }
+          for run_id in "$CI_RUN_ID" "$CODEQL_RUN_ID"; do
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.head_sha')" = "$EXPECTED_SHA"
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.status')" = completed
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.conclusion')" = success
+          done
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.path')" = '.github/workflows/ci.yml'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.event')" = push
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.head_branch')" = main
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CODEQL_RUN_ID" --jq '.path')" = 'dynamic/github-code-scanning/codeql'
 
-      - name: Set up .NET (push + clean-room verification only; nothing is rebuilt)
+          declared="$(git show "$EXPECTED_SHA:sdk/dotnet/Truyn.Sdk.csproj" | python3 -c 'import sys,xml.etree.ElementTree as E; print(E.fromstring(sys.stdin.read()).find("./PropertyGroup/Version").text.strip())')"
+          test "$declared" = "$VERSION" || { echo "::error::declared NuGet version $declared != $VERSION"; exit 1; }
+
+          id_lower="$(printf '%s' "$NUGET_ID" | tr '[:upper:]' '[:lower:]')"
+          v_lower="$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]')"
+          code="$(curl --connect-timeout 5 --max-time 15 -sS -o "$RUNNER_TEMP/nuget-index.json" -w '%{http_code}' "$NUGET_FLAT/$id_lower/index.json" || true)"
+          if [[ "$code" == 200 ]] && jq -e --arg v "$v_lower" '.versions | index($v)' "$RUNNER_TEMP/nuget-index.json" >/dev/null; then
+            echo '::error::NuGet coordinate already exists before this bounded publication transport; refusing duplicate push.'
+            exit 1
+          fi
+          [[ "$code" == 200 || "$code" == 404 ]] || { echo "::error::Unexpected nuget.org response $code"; exit 1; }
+          echo "TRUYN_NUGET_RELEASE_GATE=PASS source_sha=$EXPECTED_SHA tag=$TAG ci_run=$CI_RUN_ID codeql_run=$CODEQL_RUN_ID"
+
+      - name: Checkout exact immutable release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Revalidate exact source immediately before artifact/auth boundary
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" = "$EXPECTED_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')" = "$EXPECTED_SHA"
+          echo 'TRUYN_NUGET_IMMUTABLE_SOURCE=PASS'
+
+      - name: Set up .NET
         uses: actions/setup-dotnet@v4
-        with: {dotnet-version: '8.0.x'}
+        with:
+          dotnet-version: '8.0.x'
 
       - name: Download and verify exact CI release artifact
         id: artifact
         shell: bash
-        env:
-          SOURCE_SHA: ${{ steps.gates.outputs.source_sha }}
-          VERSION: ${{ steps.gates.outputs.version }}
-          CI_RUN_ID: ${{ steps.gates.outputs.ci_run_id }}
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
           rm -rf "$RELEASE_ROOT"; mkdir -p "$RELEASE_ROOT/ci" "$RELEASE_ROOT/registry"
           gh run download "$CI_RUN_ID" --name "truyn-sdk-release-$CI_RUN_ID" --dir "$RELEASE_ROOT/ci"
           node sdk/release/verify-release.mjs "$RELEASE_ROOT/ci"
-          jq -e --arg s "$SOURCE_SHA" --arg v "$VERSION" '.sourceSha == $s and .release == $v' "$RELEASE_ROOT/ci/manifest.json" >/dev/null
+          jq -e --arg s "$EXPECTED_SHA" --arg v "$VERSION" '.sourceSha == $s and .release == $v' "$RELEASE_ROOT/ci/manifest.json" >/dev/null
           package="$RELEASE_ROOT/ci/dotnet/$NUGET_ID.$VERSION.nupkg"
           test -s "$package"
-          # The package must embed the exact source commit (SourceLink / nuspec <repository commit=...>).
-          unzip -p "$package" "$NUGET_ID.nuspec" | grep -q "commit=\"$SOURCE_SHA\""
+          unzip -p "$package" "$NUGET_ID.nuspec" | grep -q "commit=\"$EXPECTED_SHA\""
           echo "package=$package" >> "$GITHUB_OUTPUT"
           echo "sha256=$(sha256sum "$package" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "TRUYN_NUGET_EXACT_CI_ARTIFACT=PASS sha256=$(sha256sum "$package" | awk '{print $1}')"
 
-      - name: Detect immutable registry state
-        id: registry
+      - name: Final immutable registry check before OIDC exchange
         shell: bash
-        env:
-          VERSION: ${{ steps.gates.outputs.version }}
-          PACKAGE: ${{ steps.artifact.outputs.package }}
         run: |
-          set -euo pipefail
-          id_lower="$(tr '[:upper:]' '[:lower:]' <<<"$NUGET_ID")"; v_lower="$(tr '[:upper:]' '[:lower:]' <<<"$VERSION")"
-          code="$(curl -sS -o "$RELEASE_ROOT/registry/index.json" -w '%{http_code}' "$NUGET_FLAT/$id_lower/index.json")"
-          exists=false
+          set -Eeuo pipefail
+          id_lower="$(printf '%s' "$NUGET_ID" | tr '[:upper:]' '[:lower:]')"; v_lower="$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]')"
+          code="$(curl --connect-timeout 5 --max-time 15 -sS -o "$RELEASE_ROOT/registry/index.json" -w '%{http_code}' "$NUGET_FLAT/$id_lower/index.json" || true)"
           if [[ "$code" == 200 ]] && jq -e --arg v "$v_lower" '.versions | index($v)' "$RELEASE_ROOT/registry/index.json" >/dev/null; then
-            exists=true
-          elif [[ "$code" != 200 && "$code" != 404 ]]; then
-            echo "Unexpected nuget.org response $code" >&2; exit 1
+            echo '::error::NuGet coordinate appeared after preflight; refusing push.'; exit 1
           fi
-          if [[ "$exists" == true ]]; then
-            curl -sSf -o "$RELEASE_ROOT/registry/existing.nupkg" "$NUGET_FLAT/$id_lower/$v_lower/$id_lower.$v_lower.nupkg"
-            bash sdk/release/compare-nupkg.sh "$PACKAGE" "$RELEASE_ROOT/registry/existing.nupkg"
-          fi
-          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+          [[ "$code" == 200 || "$code" == 404 ]]
+          echo 'TRUYN_NUGET_REGISTRY_PREAUTH=PASS'
 
       - name: Exchange GitHub OIDC token for a short-lived NuGet API key
-        if: steps.registry.outputs.exists == 'false'
         id: login
         uses: NuGet/login@v1
         with:
           user: ${{ vars.NUGET_USER }}
 
       - name: Push exact verified package
-        if: steps.registry.outputs.exists == 'false'
         shell: bash
         env:
           PACKAGE: ${{ steps.artifact.outputs.package }}
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
           test -n "$NUGET_API_KEY"
-          # Never skip duplicates: an existing version was handled above; anything else must fail closed.
           dotnet nuget push "$PACKAGE" --api-key "$NUGET_API_KEY" --source "$NUGET_SOURCE"
+          echo 'TRUYN_NUGET_PUSH_ACCEPTED=PASS'
 
-      - name: Verify public package, repository signature and clean-room restore
+      - name: Verify public package repository signature and clean-room restore
         shell: bash
         env:
-          VERSION: ${{ steps.gates.outputs.version }}
           PACKAGE: ${{ steps.artifact.outputs.package }}
         run: |
-          set -euo pipefail
-          id_lower="$(tr '[:upper:]' '[:lower:]' <<<"$NUGET_ID")"; v_lower="$(tr '[:upper:]' '[:lower:]' <<<"$VERSION")"
+          set -Eeuo pipefail
+          id_lower="$(printf '%s' "$NUGET_ID" | tr '[:upper:]' '[:lower:]')"; v_lower="$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]')"
           public="$RELEASE_ROOT/registry/public.nupkg"
           visible=false
-          # nuget.org validation + indexing typically takes 5-20 minutes.
           for attempt in $(seq 1 120); do
-            if curl -sSf -o "$public" "$NUGET_FLAT/$id_lower/$v_lower/$id_lower.$v_lower.nupkg"; then visible=true; break; fi
+            if curl --connect-timeout 5 --max-time 30 -sSf -o "$public" "$NUGET_FLAT/$id_lower/$v_lower/$id_lower.$v_lower.nupkg"; then visible=true; break; fi
             sleep 30
           done
           test "$visible" = true
-          # nuget.org adds a repository signature (.signature.p7s), so raw bytes differ by design;
-          # every other entry must be byte-identical to the CI package.
           bash sdk/release/compare-nupkg.sh "$PACKAGE" "$public"
           dotnet nuget verify --all "$public"
 
@@ -146,22 +176,18 @@ jobs:
           Console.WriteLine(typeof(Truyn.Sdk.TruynClient).FullName == "Truyn.Sdk.TruynClient" ? "TRUYN_NUGET_CLEANROOM=PASS" : "FAIL");
           CS
           dotnet run --configuration Release | grep -qx 'TRUYN_NUGET_CLEANROOM=PASS'
+          echo 'TRUYN_NUGET_PUBLIC_VERIFICATION=PASS'
 
       - name: Write release evidence
         shell: bash
         env:
-          VERSION: ${{ steps.gates.outputs.version }}
-          SOURCE_SHA: ${{ steps.gates.outputs.source_sha }}
-          CI_RUN_ID: ${{ steps.gates.outputs.ci_run_id }}
-          CODEQL_RUN_ID: ${{ steps.gates.outputs.codeql_run_id }}
           SHA256: ${{ steps.artifact.outputs.sha256 }}
-          ALREADY_PUBLISHED: ${{ steps.registry.outputs.exists }}
         run: |
-          set -euo pipefail
-          jq -n --arg coordinate "$NUGET_ID@$VERSION" --arg version "$VERSION" --arg sourceSha "$SOURCE_SHA" \
-            --arg releaseTag "${GITHUB_REF#refs/tags/}" --arg ciRunId "$CI_RUN_ID" --arg codeqlRunId "$CODEQL_RUN_ID" \
-            --arg publicationRunId "$GITHUB_RUN_ID" --arg sha256 "$SHA256" --arg alreadyPublished "$ALREADY_PUBLISHED" \
-            '{registry:"NuGet.org",coordinate:$coordinate,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,ciRunId:$ciRunId,codeqlRunId:$codeqlRunId,publicationRunId:$publicationRunId,publicationAuthentication:"NuGet Trusted Publishing (GitHub Actions OIDC)",alreadyPublished:($alreadyPublished=="true"),ciPackageSha256:$sha256,contentIdentityExcludingRepositorySignature:"PASS",repositorySignatureVerification:"PASS",cleanRoomRestore:"PASS"}' \
+          set -Eeuo pipefail
+          jq -n --arg coordinate "$NUGET_ID@$VERSION" --arg version "$VERSION" --arg sourceSha "$EXPECTED_SHA" \
+            --arg releaseTag "$TAG" --arg ciRunId "$CI_RUN_ID" --arg codeqlRunId "$CODEQL_RUN_ID" \
+            --arg publicationRunId "$GITHUB_RUN_ID" --arg sha256 "$SHA256" \
+            '{registry:"NuGet.org",coordinate:$coordinate,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,ciRunId:$ciRunId,codeqlRunId:$codeqlRunId,publicationRunId:$publicationRunId,publicationAuthentication:"NuGet Trusted Publishing (GitHub Actions OIDC)",ciPackageSha256:$sha256,contentIdentityExcludingRepositorySignature:"PASS",repositorySignatureVerification:"PASS",cleanRoomRestore:"PASS",transport:"branch-local trusted-workflow-identity fallback after tag-dispatch startup_failure"}' \
             > "$RELEASE_ROOT/nuget-trusted-publishing-evidence.json"
           cat "$RELEASE_ROOT/nuget-trusted-publishing-evidence.json"
 
