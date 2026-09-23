@@ -22,7 +22,7 @@ jobs:
         run: python3 scripts/maintenance/nuget-alpha1-sanitation.py
       - name: Targeted release tests
         run: node --test tests/maven-nuget-publication-workflow.test.js
-      - name: Commit sanitized tree
+      - name: Commit sanitized non-workflow tree
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -31,14 +31,20 @@ jobs:
             docs/compatibility/SDK_COMPATIBILITY.md \
             docs/compatibility/SDK_PACKAGING.md \
             sdk/release/PUBLISHING.md
-          rm -f .github/workflows/nuget-alpha1-doc-sanitation-one-shot.yml
-          rm -f .github/workflows/nuget-alpha1-doc-sanitation-v2.yml
-          rm -f .github/workflows/nuget-alpha1-doc-sanitation-v3.yml
-          rm -f scripts/maintenance/nuget-alpha1-sanitation.py
-          rm -f scripts/maintenance/nuget-alpha1-dx3-prepatch.py
+
+          # GitHub's default Actions token cannot write workflow files. Keep the
+          # canonical workflow byte-identical in this commit; the one-line
+          # clean-room syntax repair is applied separately through the repository
+          # write path after the documentation commit lands.
+          git restore --source=HEAD -- .github/workflows/publish-nuget.yml
+
           git config user.name 'Iluco Mutcnas'
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
           git add -A
           git diff --cached --check
-          git commit -m 'docs(release): close NuGet alpha.1 publication state' -m 'Record accepted immutable NuGet.org evidence, synchronize stale SDK and compatibility documentation, and repair future clean-room restore syntax without weakening acceptance.' -m 'Signed-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
+          if git diff --cached --quiet; then
+            echo 'TRUYN_NUGET_DOC_COMMIT=NOOP'
+            exit 0
+          fi
+          git commit -m 'docs(release): close NuGet alpha.1 publication state' -m 'Record accepted immutable NuGet.org evidence and synchronize stale SDK, compatibility, quickstart and release documentation.' -m 'Signed-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
           git push origin HEAD:docs/nuget-alpha1-accepted-sanitation-20260923
