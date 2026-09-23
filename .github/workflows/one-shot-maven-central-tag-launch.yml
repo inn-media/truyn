@@ -1,0 +1,85 @@
+name: One-shot Maven Central immutable tag launcher
+
+on:
+  push:
+    branches:
+      - release/maven-central-tag-launch-20260923
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_SHA: 6739b81bb8b2c9f4d8c07efb4298f12c9b85fa53
+      TAG: sdk/maven/v0.1.0-alpha.1
+      CI_RUN_ID: '35899556881'
+      CODEQL_RUN_ID: '35899557154'
+      GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+    steps:
+      - name: Checkout launcher branch with privileged credential
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+
+      - name: Validate exact immutable release gates
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -n "$GH_TOKEN"
+          test "$GITHUB_REPOSITORY" = 'inn-media/truyn'
+          test "$GITHUB_REF_NAME" = 'release/maven-central-tag-launch-20260923'
+
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$current_main" = "$EXPECTED_SHA" || {
+            echo "::error::main moved: expected=$EXPECTED_SHA actual=$current_main"
+            exit 1
+          }
+
+          ci_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.head_sha')"
+          ci_status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.status')"
+          ci_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.conclusion')"
+          test "$ci_sha" = "$EXPECTED_SHA" && test "$ci_status" = 'completed' && test "$ci_conclusion" = 'success' || {
+            echo '::error::Exact-main ordinary CI is not terminal GREEN.'
+            exit 1
+          }
+
+          codeql_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CODEQL_RUN_ID" --jq '.head_sha')"
+          codeql_status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CODEQL_RUN_ID" --jq '.status')"
+          codeql_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CODEQL_RUN_ID" --jq '.conclusion')"
+          test "$codeql_sha" = "$EXPECTED_SHA" && test "$codeql_status" = 'completed' && test "$codeql_conclusion" = 'success' || {
+            echo '::error::Exact-main hosted CodeQL is not terminal GREEN.'
+            exit 1
+          }
+
+          git cat-file -e "$EXPECTED_SHA^{commit}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Immutable release tag already exists: $TAG"
+            exit 1
+          fi
+
+          test "$(git show "$EXPECTED_SHA:sdk/java/pom.xml" | sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' | head -1)" = '0.1.0-alpha.1'
+          echo "TRUYN_MAVEN_TAG_PREFLIGHT=PASS source_sha=$EXPECTED_SHA ci_run=$CI_RUN_ID codeql_run=$CODEQL_RUN_ID tag=$TAG"
+
+      - name: Create exactly one immutable Maven release tag
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git tag "$TAG" "$EXPECTED_SHA"
+          git push origin "refs/tags/$TAG"
+          remote_sha="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}')"
+          test "$remote_sha" = "$EXPECTED_SHA"
+          echo "TRUYN_MAVEN_TAG_CREATED=PASS source_sha=$EXPECTED_SHA tag=$TAG"
+
+      - name: Remove one-shot launcher branch
+        if: success()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git push origin --delete "$GITHUB_REF_NAME" || true
+          echo 'TRUYN_MAVEN_LAUNCHER_CLEANUP=PASS'
