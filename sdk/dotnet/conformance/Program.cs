@@ -1,6 +1,9 @@
+using System.Reflection;
+using System.Text.Json;
 using Truyn.Sdk;
 
 if (args.Length != 1) throw new ArgumentException("relay URL is required");
+AssertSharedEndpointFixtures();
 var relay = new Uri(args[0]);
 var descriptorUrl = Environment.GetEnvironmentVariable("TRUYN_CONFORMANCE_DESCRIPTOR_URL");
 var descriptorPublicKey = Environment.GetEnvironmentVariable("TRUYN_CONFORMANCE_DESCRIPTOR_PUBLIC_KEY");
@@ -22,3 +25,34 @@ if (result.Provider != provider.NodeId) throw new InvalidOperationException("inv
 var cancelReceipt = await requester.NeedAsync(capability, new Dictionary<string, object> { ["cancel"] = true });
 await requester.CancelNeedAsync(cancelReceipt.NeedId, "sdk_conformance_cancel");
 Console.WriteLine("PASS dotnet developer-release conformance");
+
+static void AssertSharedEndpointFixtures()
+{
+    var required = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "descriptor.interface-endpoint-missing",
+        "descriptor.interface-endpoint-blank",
+        "descriptor.interface-type-blank"
+    };
+    using var fixture = JsonDocument.Parse(File.ReadAllText("sdk/conformance/v1/agent-descriptor-runtime-fixtures.json"));
+    var validate = typeof(AgentDescriptors).GetMethod("Validate", BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new InvalidOperationException("Agent Descriptor production validation gate is unavailable");
+    var checkedCases = 0;
+    foreach (var testCase in fixture.RootElement.GetProperty("descriptorRuntimeCases").EnumerateArray())
+    {
+        var id = testCase.GetProperty("id").GetString();
+        if (id is null || !required.Contains(id)) continue;
+        checkedCases++;
+        try
+        {
+            validate.Invoke(null, new object[] { testCase.GetProperty("value") });
+            throw new InvalidOperationException($".NET accepted invalid shared descriptor fixture {id}");
+        }
+        catch (TargetInvocationException invocation) when (invocation.InnerException is TruynException error)
+        {
+            if (error.Code != TruynErrorCode.InvalidResponse || !error.Message.Contains("interfaces require non-empty type and endpoint", StringComparison.Ordinal))
+                throw new InvalidOperationException($".NET rejected shared descriptor fixture for the wrong reason {id}", error);
+        }
+    }
+    if (checkedCases != required.Count) throw new InvalidOperationException($"missing shared endpoint parity fixtures: checked={checkedCases}");
+}
