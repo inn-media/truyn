@@ -1,0 +1,80 @@
+diff --git a/.github/workflows/d200-bug-hunt.yml b/.github/workflows/d200-bug-hunt.yml
+--- a/.github/workflows/d200-bug-hunt.yml
++++ b/.github/workflows/d200-bug-hunt.yml
+@@ -1,3 +1,4 @@
+ name: D-Series Sanitation Swarm
++# D_SERIES_AUTOCHAIN_REPAIR_MARKER
+ 
+ on:
+diff --git a/.github/workflows/d-series-blockwise-preflight.yml b/.github/workflows/d-series-blockwise-preflight.yml
+--- a/.github/workflows/d-series-blockwise-preflight.yml
++++ b/.github/workflows/d-series-blockwise-preflight.yml
+@@ -1,3 +1,4 @@
+ name: D-Series Blockwise Preflight
++# D_SERIES_AUTOCHAIN_REPAIR_MARKER
+ 
+ on:
+diff --git a/.github/workflows/class-d-bootstrap-qualification.yml b/.github/workflows/class-d-bootstrap-qualification.yml
+--- a/.github/workflows/class-d-bootstrap-qualification.yml
++++ b/.github/workflows/class-d-bootstrap-qualification.yml
+@@ -1,3 +1,4 @@
+ name: Class D Bootstrap Qualification
++# D_SERIES_AUTOCHAIN_REPAIR_MARKER
+ 
+ on:
+diff --git a/.github/workflows/class-d-bootstrap-launcher.yml b/.github/workflows/class-d-bootstrap-launcher.yml
+--- a/.github/workflows/class-d-bootstrap-launcher.yml
++++ b/.github/workflows/class-d-bootstrap-launcher.yml
+@@ -1,3 +1,4 @@
+ name: Class D Bootstrap Qualification Launcher
++# D_SERIES_AUTOCHAIN_REPAIR_MARKER
+ 
+ on:
+diff --git a/scripts/verify-d-series-swarm-run.sh b/scripts/verify-d-series-swarm-run.sh
+--- a/scripts/verify-d-series-swarm-run.sh
++++ b/scripts/verify-d-series-swarm-run.sh
+@@ -1,3 +1,4 @@
+ #!/usr/bin/env bash
++# D_SERIES_AUTOCHAIN_REPAIR_MARKER
+ set -Eeuo pipefail
+ 
+diff --git a/scripts/verify-d-series-blockwise-preflight-run.sh b/scripts/verify-d-series-blockwise-preflight-run.sh
+--- a/scripts/verify-d-series-blockwise-preflight-run.sh
++++ b/scripts/verify-d-series-blockwise-preflight-run.sh
+@@ -1,3 +1,4 @@
+ #!/usr/bin/env bash
++# D_SERIES_AUTOCHAIN_REPAIR_MARKER
+ set -Eeuo pipefail
+ 
+diff --git a/tests/d-series-swarm-integration.test.js b/tests/d-series-swarm-integration.test.js
+--- a/tests/d-series-swarm-integration.test.js
++++ b/tests/d-series-swarm-integration.test.js
+@@ -1,3 +1,4 @@
++// D_SERIES_AUTOCHAIN_REPAIR_MARKER
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+diff --git a/tests/d-series-blockwise-preflight.test.js b/tests/d-series-blockwise-preflight.test.js
+--- a/tests/d-series-blockwise-preflight.test.js
++++ b/tests/d-series-blockwise-preflight.test.js
+@@ -1,3 +1,4 @@
++// D_SERIES_AUTOCHAIN_REPAIR_MARKER
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+diff --git a/tests/class-d-bootstrap-qualification.test.js b/tests/class-d-bootstrap-qualification.test.js
+--- a/tests/class-d-bootstrap-qualification.test.js
++++ b/tests/class-d-bootstrap-qualification.test.js
+@@ -1,3 +1,4 @@
++// D_SERIES_AUTOCHAIN_REPAIR_MARKER
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { readFile } from 'node:fs/promises';
+diff --git a/docs/operations/class-d/D_SERIES_SANITATION_SWARM.md b/docs/operations/class-d/D_SERIES_SANITATION_SWARM.md
+--- a/docs/operations/class-d/D_SERIES_SANITATION_SWARM.md
++++ b/docs/operations/class-d/D_SERIES_SANITATION_SWARM.md
+@@ -1,3 +1,4 @@
+ # D-Series Sanitation / Swarm
++<!-- D_SERIES_AUTOCHAIN_REPAIR_MARKER -->
+ 
+ **Permanent architecture lock:** issue #737.
