@@ -3,7 +3,7 @@ name: Temporary cancel orphaned run 32558383377
 on:
   push:
     branches:
-      - ops/cancel-orphaned-ci-32558383377
+      - automation/autorepair/cancel-orphaned-ci-32558383377
     paths:
       - .github/workflows/tmp-cancel-orphaned-run-32558383377.yml
 
@@ -14,11 +14,13 @@ permissions:
 jobs:
   cancel-orphaned-run:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Cancel stale orphaned workflow run
+      - name: Cancel only the proven stale orphaned workflow run
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_RUN_ID: '32558383377'
+          EXPECTED_HEAD_SHA: '23360cbe86e725f79ef0c6772a51f70825b92aef'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -28,13 +30,24 @@ jobs:
           conclusion="$(jq -r '.conclusion // ""' <<<"$run")"
           head_sha="$(jq -r '.head_sha' <<<"$run")"
           created_at="$(jq -r '.created_at' <<<"$run")"
-          echo "target status=${status} conclusion=${conclusion} head_sha=${head_sha} created_at=${created_at}"
+          main_sha="$(gh api "repos/${repo}/commits/main" --jq '.sha')"
+          jobs_count="$(gh api "repos/${repo}/actions/runs/${TARGET_RUN_ID}/jobs?per_page=100" --jq '.total_count')"
+          artifacts_count="$(gh api "repos/${repo}/actions/runs/${TARGET_RUN_ID}/artifacts?per_page=100" --jq '.total_count')"
+
+          echo "target status=${status} conclusion=${conclusion} head_sha=${head_sha} created_at=${created_at} jobs=${jobs_count} artifacts=${artifacts_count} current_main=${main_sha}"
+
+          [[ "$head_sha" == "$EXPECTED_HEAD_SHA" ]]
+          [[ "$main_sha" != "$head_sha" ]]
+          [[ "$created_at" == 2026-08-22T* ]]
+          [[ "$jobs_count" == 0 ]]
+          [[ "$artifacts_count" == 0 ]]
 
           if [[ "$status" == "completed" ]]; then
-            echo "Target already terminal; nothing to cancel."
+            echo "Target already terminal; preserving historical record without rerun."
             exit 0
           fi
 
+          [[ "$status" == "queued" ]]
           gh api -X POST "repos/${repo}/actions/runs/${TARGET_RUN_ID}/cancel"
 
           for _ in {1..30}; do
@@ -45,6 +58,7 @@ jobs:
             echo "post-cancel status=${status} conclusion=${conclusion}"
             if [[ "$status" == "completed" ]]; then
               [[ "$conclusion" == "cancelled" ]]
+              echo "TRUYN_ORPHANED_ACTIONS_RUN_CANCELLED run_id=${TARGET_RUN_ID} result=PASS"
               exit 0
             fi
           done
