@@ -1,0 +1,76 @@
+name: D-Series Swarm One-Shot Launcher
+
+on:
+  push:
+    branches:
+      - 'automation/d-series-dispatch/**'
+    paths:
+      - '.github/d-series-dispatch/request.env'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: d-series-swarm-one-shot-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: validate-one-shot-provenance
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    outputs:
+      source_sha: ${{ steps.request.outputs.source_sha }}
+      scale: ${{ steps.request.outputs.scale }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Validate exact-main one-commit request
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          request=.github/d-series-dispatch/request.env
+          [[ -s "$request" ]]
+
+          source_sha="$(sed -n 's/^SOURCE_SHA=//p' "$request")"
+          scale="$(sed -n 's/^SCALE=//p' "$request")"
+          mode="$(sed -n 's/^MODE=//p' "$request")"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
+          case "$scale" in d200|d500|d1000|all) ;; *) exit 2 ;; esac
+          [[ "$mode" == swarm ]]
+          [[ "$(grep -c '^SOURCE_SHA=' "$request")" == 1 ]]
+          [[ "$(grep -c '^SCALE=' "$request")" == 1 ]]
+          [[ "$(grep -c '^MODE=' "$request")" == 1 ]]
+          [[ "$(wc -l < "$request" | tr -d ' ')" == 3 ]]
+          diff -u <(printf 'SOURCE_SHA=%s\nSCALE=%s\nMODE=swarm\n' "$source_sha" "$scale") "$request"
+
+          expected_branch="automation/d-series-dispatch/${source_sha:0:8}-${scale}-swarm"
+          [[ "$GITHUB_REF_NAME" == "$expected_branch" ]]
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$main_sha" == "$source_sha" ]]
+          [[ "$(git rev-parse HEAD^)" == "$source_sha" ]]
+          [[ "$(git rev-list --count "${source_sha}..HEAD")" == 1 ]]
+          changed="$(git diff --name-only "$source_sha" HEAD)"
+          [[ "$changed" == .github/d-series-dispatch/request.env ]]
+
+          echo "source_sha=$source_sha" >>"$GITHUB_OUTPUT"
+          echo "scale=$scale" >>"$GITHUB_OUTPUT"
+          echo "TRUYN_D_SERIES_SWARM_CALLER=PASS source_sha=$source_sha scale=$scale head=$GITHUB_SHA branch=$GITHUB_REF_NAME"
+
+  swarm:
+    name: canonical-sanitation-swarm
+    needs: plan
+    uses: ./.github/workflows/d200-bug-hunt.yml
+    with:
+      source_sha: ${{ needs.plan.outputs.source_sha }}
+      scale: ${{ needs.plan.outputs.scale }}
+      resume_run_id: ''
+      resume_from: ''
+      resume_across_sha: false
