@@ -30,9 +30,10 @@ test('Class D bootstrap qualification is a permanent exact-main D-500/D-1000 gat
 
   assert.match(launcher, /name: Class D Bootstrap Qualification Launcher/);
   assert.match(launcher, /Validate exact immutable bootstrap request/);
-  assert.match(launcher, /git rev-parse HEAD\^/);
+  assert.match(launcher, /parent="\$\(git rev-parse HEAD\^\)"/);
+  assert.match(launcher, /git diff --name-only "\$parent" "\$GITHUB_SHA"/);
   assert.match(launcher, /git rev-list --count/);
-  assert.match(launcher, /git diff --name-only/);
+  assert.doesNotMatch(launcher, /\.commits\[\]\?\.added/);
   assert.doesNotMatch(launcher, /ORGANIZATION_AUTOPILOT_TOKEN_GITHUB/);
   assert.doesNotMatch(launcher, /gh workflow run/);
   assert.doesNotMatch(launcher, /actions: write/);
