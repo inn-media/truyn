@@ -15,6 +15,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/class-d-bootstrap-launcher.yml',
   '.github/workflows/class-d-bootstrap-qualification.yml',
   '.github/workflows/class-d-five-patch-preflight.yml',
+  '.github/workflows/d-series-blockwise-one-shot-launcher.yml',
   '.github/workflows/d-series-blockwise-preflight.yml',
   '.github/workflows/d-series-swarm-one-shot-launcher.yml',
   '.github/workflows/d200-acceptance.yml',
