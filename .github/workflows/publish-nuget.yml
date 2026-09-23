@@ -141,7 +141,8 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <configuration><packageSources><clear /><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>
           XML
-          dotnet add package "$NUGET_ID" --version "$VERSION" --packages "$clean/packages"
+          export NUGET_PACKAGES="$clean/packages"
+          dotnet add package "$NUGET_ID" --version "$VERSION" --source "$NUGET_SOURCE"
           cat > Program.cs <<'CS'
           Console.WriteLine(typeof(Truyn.Sdk.TruynClient).FullName == "Truyn.Sdk.TruynClient" ? "TRUYN_NUGET_CLEANROOM=PASS" : "FAIL");
           CS

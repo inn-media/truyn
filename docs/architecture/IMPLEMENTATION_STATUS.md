@@ -53,7 +53,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | npm alpha.1 | **Immutable historical artifact; clean-room Node 22 ESM failed** | superseded, never overwritten |
 | npm alpha.2 | **Accepted immutable public release** | — |
 | Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.1`** |
-| NuGet | **Status reconciled independently** | public publication evidence |
+| NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** | — |
 | Agent Descriptor | **Bounded valid-profile implemented** | endpoint/interface parity + refresh/re-sign + full serving parity |
 | Open 1.0 productization | **S01–S102 completed; S103 active on task branch; not yet stable 1.0** | S103 qualification → remaining S104–S200 → final G1–G34 reconciliation |
 | Live developer site | **OPEN** | deployment/liveness evidence |
@@ -94,7 +94,7 @@ A setup/qualification run, provider smoke or isolated paid call is not a substit
 
 Issue #615 is the durable Open 1.0 task anchor. On this snapshot, S01–S102 are completed and S103 is active on a task branch; `main` has not yet accepted S103. Stable Open 1.0 remains forbidden until all applicable S01–S200 work and independent G1–G34 final reconciliation are complete.
 
-Five first-party clients and shared executable conformance already exist. Accepted immutable releases remain PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet status is reconciled independently.
+Five first-party clients and shared executable conformance already exist. Accepted immutable releases remain PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 
 ## A2A / MCP boundary
 

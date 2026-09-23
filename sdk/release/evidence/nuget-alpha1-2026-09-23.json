@@ -1,0 +1,23 @@
+{
+  "schema": "truyn.sdk-registry-evidence/v1",
+  "registry": "NuGet.org",
+  "coordinate": "Truyn.Sdk@0.1.0-alpha.1",
+  "version": "0.1.0-alpha.1",
+  "status": "accepted",
+  "sourceSha": "953ed548a52e4c3440a414ec2401ea324120155e",
+  "releaseTag": "sdk/nuget/v0.1.0-alpha.1",
+  "ciRunId": "35903671988",
+  "codeqlRunId": "35903670985",
+  "publicationRunId": "35904855105",
+  "independentVerificationRunId": "35905748486",
+  "publicationAuthentication": "NuGet Trusted Publishing (GitHub Actions OIDC)",
+  "ciPackageSha256": "76900369384c1ea190bb41a3985087baf667e9334db083ee1f43a0c4345726ce",
+  "publicPackageSha256": "adcc9348ce3d37e3064b36adcc1530c48cdc49ec796f50bc56178ea8f2e2bd23",
+  "contentIdentityExcludingRepositorySignature": "PASS",
+  "repositorySignatureVerification": "PASS",
+  "cleanRoomRestore": "PASS",
+  "publicationPush": "PASS",
+  "verificationArtifact": "truyn-sdk-nuget-alpha1-verification-35905748486",
+  "immutability": "The published coordinate is immutable and must never be overwritten; materially different bytes require a new version/tag.",
+  "note": "The original publication run pushed successfully. Its final clean-room step failed only because that verifier used obsolete dotnet add package --packages syntax. Independent run 35905748486 performed no registry mutation and independently verified public availability, content identity apart from NuGet.org repository signing, repository signature, and clean-room restore/runtime load."
+}

@@ -9,7 +9,7 @@ const runner = new URL('../sdk/conformance/run-conformance.mjs', import.meta.url
 const manifestUrl = new URL('../sdk/conformance/languages.json', import.meta.url);
 
 const requiredLanguages = ['typescript', 'python', 'go', 'java', 'dotnet'];
-const acceptedPublicDistributionLanguages = ['typescript', 'python', 'go'];
+const acceptedPublicDistributionLanguages = ['typescript', 'python', 'go', 'java', 'dotnet'];
 
 async function runConformance(args = []) {
   const { stdout } = await execFileAsync(process.execPath, [runner.pathname, '--json', ...args], {
