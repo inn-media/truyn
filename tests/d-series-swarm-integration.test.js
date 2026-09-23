@@ -1,8 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 const read = (file) => fs.readFileSync(file, 'utf8');
+
+test('D-Series Swarm-Blockwise architecture lock remains active until all D-Series tests complete', () => {
+  const lock = JSON.parse(read('config/d-series-swarm-blockwise-architecture-lock.json'));
+  assert.equal(lock.schema, 'truyn.d-series.swarm-blockwise-architecture-lock.v1');
+  assert.equal(lock.state, 'LOCKED');
+  assert.equal(lock.effectiveUntil, 'ALL_D_SERIES_TESTS_COMPLETE');
+  assert.equal(lock.primaryEngine, 'sanitation-swarm');
+  assert.equal(lock.subordinateAdmissionGate, 'blockwise-b01-b16');
+  assert.equal(lock.priorityOnConflict, 'sanitation-swarm');
+  assert.equal(lock.invariants.swarmOwnsDiagnosticsAndRepair, true);
+  assert.equal(lock.invariants.blockwiseMayNotReplaceSwarm, true);
+  assert.equal(lock.invariants.fullBlockwiseRequiresCleanExactShaSwarm, true);
+  assert.equal(lock.invariants.targetedBlockGreenIsNotLaunchAuthorization, true);
+  assert.equal(lock.invariants.realScaleRunRequiresAdmission, true);
+  assert.equal(lock.invariants.realScaleRunIsSingleShot, true);
+  assert.equal(lock.invariants.acceptanceThresholdWeakeningForbidden, true);
+  assert.equal(lock.invariants.silentArchitectureReplacementForbidden, true);
+
+  const verification = spawnSync(process.execPath, ['scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs'], {
+    encoding: 'utf8'
+  });
+  assert.equal(verification.status, 0, verification.stderr || verification.stdout);
+  assert.match(verification.stdout, /TRUYN_D_SERIES_ARCHITECTURE_LOCK=PASS/);
+});
 
 test('Sanitation Swarm remains the primary D-Series engine and consumes Blockwise domains', () => {
   const workflow = read('.github/workflows/d200-bug-hunt.yml');
@@ -17,6 +42,8 @@ test('Sanitation Swarm remains the primary D-Series engine and consumes Blockwis
   ]) assert.ok(workflow.includes(marker), `Swarm workflow lost marker: ${marker}`);
   assert.ok(docs.includes('Sanitation / Swarm is the primary D-Series diagnostic and repair engine'));
   assert.ok(docs.includes('Blockwise B01-B16 is subordinate to it'));
+  assert.ok(docs.includes('LOCKED until `ALL_D_SERIES_TESTS_COMPLETE`'));
+  assert.ok(docs.includes('competing `blockwise-only` or launcher-direct architecture is forbidden'));
 });
 
 test('full Blockwise admission is impossible without exact-SHA GREEN Swarm provenance', () => {
@@ -32,6 +59,14 @@ test('full Blockwise admission is impossible without exact-SHA GREEN Swarm prove
   assert.ok(verifier.includes('.event == "workflow_dispatch"'));
   assert.ok(verifier.includes('d-series-blockwise-admission-${RUN_ID}'));
   assert.ok(verifier.includes('swarm_provenance=true'));
+});
+
+test('real D-500 and D-1000 acceptance surfaces remain downstream of Blockwise admission', () => {
+  const d500 = read('.github/d500/d500-acceptance.template.yml');
+  const d1000 = read('scripts/class-d-1000-final-acceptance.sh');
+  for (const surface of [d500, d1000]) {
+    assert.ok(surface.includes('verify-d-series-blockwise-preflight-run.sh'), 'real D-Series acceptance surface bypassed Blockwise admission');
+  }
 });
 
 test('Swarm verifier binds admission evidence to exact main and requested scale', () => {
