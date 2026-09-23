@@ -1,0 +1,36 @@
+name: NuGet alpha.1 final current-main reconciliation
+
+on:
+  push:
+    branches:
+      - docs/nuget-alpha1-reconcile-current-main-20260923
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/nuget-alpha1-reconcile-current-main-20260923
+          fetch-depth: 0
+      - name: Reconcile accepted NuGet state on current main base
+        run: python3 scripts/maintenance/nuget-alpha1-final-reconcile.py
+      - name: Targeted release tests
+        run: node --test tests/maven-nuget-publication-workflow.test.js
+      - name: Commit non-workflow reconciliation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'TRUYN_NUGET_RECONCILIATION_COMMIT=NOOP'
+            exit 0
+          fi
+          git commit -m 'docs(release): reconcile accepted NuGet alpha.1' -m 'Close the NuGet coordinate from committed public evidence across current SDK, compatibility, quickstart and release documentation while preserving accepted Maven Central state.' -m 'Signed-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
+          git push origin HEAD:docs/nuget-alpha1-reconcile-current-main-20260923
