@@ -24,8 +24,9 @@ When current-status prose disagrees with accepted code/evidence, update the pros
 - `runtime/` — provider/relay composition plus managed authority service/client/readiness surfaces.
 - `adapters/mcp/`, `adapters/a2a/`, `adapters/providers/` — external protocol/provider edges.
 - `sdk/` — five-language first-party Developer Release clients.
-- `trust/` — Trustability/provenance/receipts/lifecycle components.
-- `storage/` — persistent state/objects/index/cache.
+- `trust/` — Trustability design ownership notes; implemented slices live in `core/trust/`, `core/provenance/`, `node/*trust*` (see `trust/README.md`).
+- `storage/` — persistence design ownership notes; implemented persistence lives in `network/state/`, `core/security/durable-json-store.js`, `core/claims/`, `core/context/*-store.js` (see `storage/README.md`).
+- `docs/architecture/PLANNED_MODULES.md` — registry of planned paths that have no code yet. Directories are created with their first real file; empty `.gitkeep` placeholders are rejected by repository hygiene.
 - `observability/` — metrics/traces/logging/error-budget instrumentation.
 - `tests/`, `benchmarks/`, `scripts/`, `.github/` — executable conformance/evidence/operations support.
 
