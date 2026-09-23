@@ -1,0 +1,63 @@
+{
+  "schema": "truyn.s-series.swarm-blockwise-architecture-lock.v1",
+  "purpose": "S-Series campaign admission discipline; not a network runtime",
+  "isolation": {
+    "series": "S",
+    "executionNamespace": ".github/s-series/",
+    "mustNotReuseDLauncherNamespace": true,
+    "sharedPublicSubstrateModulesAllowed": true,
+    "publicMayDependOnPrivate": false,
+    "privateMayDependOnPublic": true
+  },
+  "sourceBinding": {
+    "exactPublicSourceShaRequired": true,
+    "exactPrivateExecutionShaRequired": true,
+    "mainMovementInvalidatesAdmission": true,
+    "historicalCampaignsAreImmutable": true
+  },
+  "swarm": {
+    "mode": "fail-collect",
+    "failFast": false,
+    "collectAllDiagnosticsBeforeVerdict": true,
+    "mustPrecedeBlockwiseAdmission": true
+  },
+  "blockwise": {
+    "requiredGreenBlocks": 22,
+    "campaignAllowedOnlyWhenAllGreen": true,
+    "sharedSubstrate": [
+      {"id":"B01","name":"contracts-repository"},
+      {"id":"B02","name":"runtime-bundle-staging"},
+      {"id":"B03","name":"cloud-control-plane"},
+      {"id":"B04","name":"topology-placement"},
+      {"id":"B05","name":"process-startup-identity"},
+      {"id":"B06","name":"bootstrap-refresh-heartbeat"},
+      {"id":"B07","name":"readiness-leases-backpressure"},
+      {"id":"B08","name":"baseline-routing"},
+      {"id":"B09","name":"restart-injection"},
+      {"id":"B10","name":"post-restart-routing"},
+      {"id":"B11","name":"healing-convergence-recovery"},
+      {"id":"B12","name":"durable-writes-retention"},
+      {"id":"B13","name":"adversarial-partition-collision"},
+      {"id":"B14","name":"safety-security-negative"},
+      {"id":"B15","name":"resources-telemetry-evidence"},
+      {"id":"B16","name":"cleanup-terminal-assembly"}
+    ],
+    "sSeriesExtensions": [
+      {"id":"B17","name":"provider-access-quota","acceptance":"all seven required provider families ready; blocked_access/missing quota/missing deployment is RED; no substitution"},
+      {"id":"B18","name":"provider-websocket-pressure","acceptance":"50 persistent sockets survive heartbeat; 1013 socket_backpressure reconnects; exactly one provider execution"},
+      {"id":"B19","name":"correctness-retrieval","acceptance":"answer/retrieval correctness >= 99%"},
+      {"id":"B20","name":"provenance-minimal-context","acceptance":"provenance verification = 100%; minimal-context correctness = 100%"},
+      {"id":"B21","name":"zero-block-id-leakage","acceptance":"internal block-ID leakage = 0"},
+      {"id":"B22","name":"paired-economics","acceptance":"paired provider input-token reduction >= 90% and comparable variable inference-cost reduction >= 90%"}
+    ]
+  },
+  "providerFamilies": ["GPT","Gemini","Grok","DeepSeek","Llama","Mistral","Kimi"],
+  "campaignRule": "A paid S-Series campaign may start exactly once only after a clean fail-collect Swarm and 22/22 GREEN Blockwise admission for the same exact public/private source pair, followed by a fresh collision/capacity check.",
+  "forbidden": [
+    "provider substitution under the seven-vendor gate",
+    "campaign dispatch from stale admission evidence",
+    "reuse of D-Series launcher or evidence namespaces",
+    "rerun of immutable historical S attempts",
+    "weakening acceptance to obtain GREEN"
+  ]
+}
