@@ -18,14 +18,13 @@ jobs:
       TAG: sdk/maven/v0.1.0-alpha.1
       CI_RUN_ID: '35899556881'
       CODEQL_RUN_ID: '35899557154'
-      GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+      GH_TOKEN: ${{ secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB }}
     steps:
-      - name: Checkout launcher branch with privileged credential
+      - name: Checkout one-shot launcher source
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: true
-          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+          persist-credentials: false
 
       - name: Validate exact immutable release gates
         shell: bash
@@ -58,21 +57,24 @@ jobs:
           }
 
           git cat-file -e "$EXPECTED_SHA^{commit}"
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "::error::Immutable release tag already exists: $TAG"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/tmp/existing-tag.json 2>/dev/null; then
+            existing_sha="$(jq -r '.object.sha' /tmp/existing-tag.json)"
+            test "$existing_sha" = "$EXPECTED_SHA"
+            echo "::error::Immutable release tag already exists at exact source; refusing duplicate launcher run."
             exit 1
           fi
 
           test "$(git show "$EXPECTED_SHA:sdk/java/pom.xml" | sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' | head -1)" = '0.1.0-alpha.1'
           echo "TRUYN_MAVEN_TAG_PREFLIGHT=PASS source_sha=$EXPECTED_SHA ci_run=$CI_RUN_ID codeql_run=$CODEQL_RUN_ID tag=$TAG"
 
-      - name: Create exactly one immutable Maven release tag
+      - name: Create exactly one immutable Maven release tag via PAT
         shell: bash
         run: |
           set -Eeuo pipefail
-          git tag "$TAG" "$EXPECTED_SHA"
-          git push origin "refs/tags/$TAG"
-          remote_sha="$(git ls-remote --tags origin "refs/tags/$TAG" | awk '{print $1}')"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$TAG" \
+            -f sha="$EXPECTED_SHA" >/tmp/created-tag.json
+          remote_sha="$(jq -r '.object.sha' /tmp/created-tag.json)"
           test "$remote_sha" = "$EXPECTED_SHA"
           echo "TRUYN_MAVEN_TAG_CREATED=PASS source_sha=$EXPECTED_SHA tag=$TAG"
 
@@ -81,5 +83,5 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          git push origin --delete "$GITHUB_REF_NAME" || true
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/release/maven-central-tag-launch-20260923" || true
           echo 'TRUYN_MAVEN_LAUNCHER_CLEANUP=PASS'
