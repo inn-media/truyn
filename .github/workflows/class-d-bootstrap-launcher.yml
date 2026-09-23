@@ -9,7 +9,6 @@ on:
       - '.github/class-d-bootstrap/launch-d1000-*.txt'
 
 permissions:
-  actions: write
   contents: read
 
 concurrency:
@@ -17,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  dispatch:
+  validate:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
@@ -26,44 +25,37 @@ jobs:
           persist-credentials: false
           fetch-depth: 2
 
-      - name: Validate exact immutable launch token and dispatch
+      - name: Validate exact immutable bootstrap request
         env:
-          GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ -n "${GH_TOKEN:-}" ]]
 
-          mapfile -t tokens < <(jq -r '.commits[]?.added[]?' "$GITHUB_EVENT_PATH" | grep -E '^\.github/class-d-bootstrap/launch-d(500|1000)-[A-Za-z0-9._-]+\.txt$' | sort -u)
+          mapfile -t tokens < <(jq -r '.commits[]?.added[]?' "$GITHUB_EVENT_PATH" | grep -E '^\.github/class-d-bootstrap/launch-d(500|1000)-[0-9a-f]{8}\.txt$' | sort -u)
           [[ ${#tokens[@]} -eq 1 ]]
           token="${tokens[0]}"
           [[ -f "$token" ]]
 
-          source_sha="$(sed -n 's/^SOURCE_SHA=//p' "$token" | tail -1)"
-          scale="$(sed -n 's/^SCALE=//p' "$token" | tail -1)"
+          source_sha="$(sed -n 's/^SOURCE_SHA=//p' "$token")"
+          scale="$(sed -n 's/^SCALE=//p' "$token")"
           [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
           [[ "$scale" == d500 || "$scale" == d1000 ]]
+          [[ "$(grep -c '^SOURCE_SHA=' "$token")" == 1 ]]
+          [[ "$(grep -c '^SCALE=' "$token")" == 1 ]]
+          [[ "$(wc -l < "$token" | tr -d ' ')" == 2 ]]
+          diff -u <(printf 'SOURCE_SHA=%s\nSCALE=%s\n' "$source_sha" "$scale") "$token"
+
+          expected_branch="bootstrap-launch/${source_sha:0:8}-${scale}"
+          expected_token=".github/class-d-bootstrap/launch-${scale}-${source_sha:0:8}.txt"
+          [[ "$GITHUB_REF_NAME" == "$expected_branch" ]]
+          [[ "$token" == "$expected_token" ]]
 
           main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
           [[ "$main_sha" == "$source_sha" ]]
-          parent_sha="$(git rev-parse HEAD^)"
-          [[ "$parent_sha" == "$source_sha" ]]
+          [[ "$(git rev-parse HEAD^)" == "$source_sha" ]]
+          [[ "$(git rev-list --count "${source_sha}..HEAD")" == 1 ]]
           mapfile -t changed < <(git diff --name-only "$source_sha" "$GITHUB_SHA")
           [[ ${#changed[@]} -eq 1 && "${changed[0]}" == "$token" ]]
 
-          case "$token" in
-            .github/class-d-bootstrap/launch-d500-*.txt) [[ "$scale" == d500 ]] ;;
-            .github/class-d-bootstrap/launch-d1000-*.txt) [[ "$scale" == d1000 ]] ;;
-            *) exit 1 ;;
-          esac
-
-          active="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/class-d-bootstrap-qualification.yml/runs?branch=main&event=workflow_dispatch&per_page=20" --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
-          [[ "$active" == 0 ]]
-
-          gh workflow run class-d-bootstrap-qualification.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref main \
-            -f source_sha="$source_sha" \
-            -f scale="$scale"
-
-          echo "TRUYN_CLASS_D_BOOTSTRAP_DISPATCH scale=$scale source_sha=$source_sha token=$token status=DISPATCHED"
+          echo "TRUYN_CLASS_D_BOOTSTRAP_REQUEST scale=$scale source_sha=$source_sha token=$token status=VALIDATED"

@@ -4,19 +4,39 @@ import { readFile } from 'node:fs/promises';
 
 test('Class D bootstrap qualification is a permanent exact-main D-500/D-1000 gate', async () => {
   const workflow = await readFile('.github/workflows/class-d-bootstrap-qualification.yml', 'utf8');
+  const launcher = await readFile('.github/workflows/class-d-bootstrap-launcher.yml', 'utf8');
   const provision = await readFile('benchmarks/scale/class-d-azure-1000-provision.sh', 'utf8');
   const service = await readFile('network/testnet/node-service.js', 'utf8');
 
   assert.match(workflow, /name: Class D Bootstrap Qualification/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /Class D Bootstrap Qualification Launcher/);
   assert.match(workflow, /source_sha:/);
   assert.match(workflow, /- d500/);
   assert.match(workflow, /- d1000/);
   assert.match(workflow, /NODES_PER_HOST=25/);
   assert.match(workflow, /NODES_PER_HOST=50/);
-  assert.match(workflow, /\[\[ "\$main_sha" == "\$SOURCE_SHA" \]\]/);
+  assert.match(workflow, /\[\[ "\$main_sha" == "\$source_sha" \]\]/);
+  assert.match(workflow, /\[\[ "\$GITHUB_SHA" == "\$source_sha" \]\]/);
+  assert.match(workflow, /caller provenance/i);
+  assert.match(workflow, /\.workflow_run\.head_repository\.id == \.repository\.id/);
+  assert.match(workflow, /\.ahead_by==1/);
+  assert.match(workflow, /\.files\|length\)==1/);
+  assert.match(workflow, /bootstrap-launch\/\$\{source_sha:0:8\}-\$\{scale\}/);
   assert.match(workflow, /TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY=1/);
   assert.match(workflow, /TRUYN_CLASS_D_BOOTSTRAP_TERMINAL/);
   assert.match(workflow, /BOOTSTRAP_HOSTS.*== 20/);
+
+  assert.match(launcher, /name: Class D Bootstrap Qualification Launcher/);
+  assert.match(launcher, /Validate exact immutable bootstrap request/);
+  assert.match(launcher, /git rev-parse HEAD\^/);
+  assert.match(launcher, /git rev-list --count/);
+  assert.match(launcher, /git diff --name-only/);
+  assert.doesNotMatch(launcher, /ORGANIZATION_AUTOPILOT_TOKEN_GITHUB/);
+  assert.doesNotMatch(launcher, /gh workflow run/);
+  assert.doesNotMatch(launcher, /actions: write/);
+  assert.doesNotMatch(launcher, /id-token: write/);
 
   assert.match(provision, /targetConcurrency:4/);
   assert.match(provision, /timeoutMs:240000/);
