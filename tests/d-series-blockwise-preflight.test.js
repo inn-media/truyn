@@ -28,7 +28,11 @@ test('B06 is the permanent isolated bootstrap qualification block', () => {
 
 test('blockwise workflow runs all blocks in parallel without fail-fast and supports targeted repair', () => {
   assert.match(workflow, /name: D-Series Blockwise Preflight/);
-  assert.match(workflow, /branches: \[main\]/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /push:\s*\n\s*branches: \[main\]/);
+  assert.match(workflow, /swarm_run_id:/);
+  assert.match(workflow, /Require clean Swarm before full admission/);
+  assert.match(workflow, /verify-d-series-swarm-run\.sh/);
   assert.match(workflow, /fail-fast: false/);
   for (let i = 1; i <= 16; i += 1) assert.match(workflow, new RegExp(`B${String(i).padStart(2, '0')}`));
   assert.match(workflow, /Run complete block cycle and retain all failures/);
@@ -45,15 +49,17 @@ test('block runners retain failures while the aggregate alone fails closed', () 
   assert.match(aggregate, /if \(enforce && !clean\) process\.exitCode = 1/);
 });
 
-test('full launch gate accepts only one exact-main successful push preflight', () => {
+test('full launch gate accepts only exact-main successful manual admission with Swarm provenance', () => {
   assert.match(verifier, /D-Series Blockwise Preflight/);
   assert.match(verifier, /\.head_branch == "main"/);
   assert.match(verifier, /\.head_sha == \$source/);
-  assert.match(verifier, /\.event == "push"/);
+  assert.match(verifier, /\.event == "workflow_dispatch"/);
   assert.match(verifier, /\.conclusion == "success"/);
   assert.match(verifier, /\.run_attempt == 1/);
   assert.match(verifier, /d-series-blockwise-summary-/);
+  assert.match(verifier, /d-series-blockwise-admission-/);
   assert.match(verifier, /blocks=16\/16/);
+  assert.match(verifier, /swarm_provenance=true/);
 });
 
 test('future D-500 and live D-1000 entrypoints enforce the exact blockwise preflight', () => {
