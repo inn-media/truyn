@@ -26,6 +26,11 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          sed -i '3s/[[:space:]]*$//' \
+            docs/architecture/SDK_DEVELOPER_EXPERIENCE.md \
+            docs/compatibility/SDK_COMPATIBILITY.md \
+            docs/compatibility/SDK_PACKAGING.md \
+            sdk/release/PUBLISHING.md
           rm -f .github/workflows/nuget-alpha1-doc-sanitation-one-shot.yml
           rm -f .github/workflows/nuget-alpha1-doc-sanitation-v2.yml
           rm -f .github/workflows/nuget-alpha1-doc-sanitation-v3.yml
