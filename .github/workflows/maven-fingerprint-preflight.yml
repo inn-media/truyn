@@ -1,0 +1,35 @@
+name: Maven signing fingerprint preflight
+
+on:
+  push:
+    branches: [release/maven-central-tag-launch-20260923]
+    paths: [.github/workflows/maven-fingerprint-preflight.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: sdk-release
+    steps:
+      - name: Verify configured signing identity
+        shell: bash
+        env:
+          PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          CONFIGURED_LONG_KEY: ${{ secrets.MAVEN_GPG_PUBLIC_LONG_KEY }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$PRIVATE_KEY"
+          test -n "$CONFIGURED_LONG_KEY"
+          export GNUPGHOME="$RUNNER_TEMP/maven-gpg-probe"
+          mkdir -p -m 700 "$GNUPGHOME"
+          printf '%s\n' "$PRIVATE_KEY" | gpg --batch --quiet --import
+          fpr="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^fpr/{print toupper($10);exit}')"
+          long_id="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/{print toupper($5);exit}')"
+          configured="$(printf '%s' "$CONFIGURED_LONG_KEY" | tr -d '[:space:]' | sed 's/^0[xX]//' | tr '[:lower:]' '[:upper:]')"
+          test -n "$fpr"; test -n "$long_id"
+          test "$long_id" = "$configured" || [[ "$fpr" == *"$configured" ]]
+          test "$(curl -sS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr")" = '200'
+          echo "TRUYN_MAVEN_SIGNING_FINGERPRINT=$fpr"
+          echo 'TRUYN_MAVEN_SIGNING_IDENTITY=PASS'
