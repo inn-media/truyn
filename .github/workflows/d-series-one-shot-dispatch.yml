@@ -1,0 +1,58 @@
+name: D-Series One-Shot Dispatch Launcher
+
+on:
+  push:
+    branches:
+      - 'automation/d-series-dispatch/**'
+    paths:
+      - '.github/workflows/d-series-one-shot-dispatch.yml'
+      - '.github/d-series-dispatch/request.env'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: d-series-one-shot-dispatch-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Validate exact request and dispatch canonical workflow
+        env:
+          GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -n "${GH_TOKEN:-}" ]]
+          request=.github/d-series-dispatch/request.env
+          [[ -s "$request" ]]
+          source "$request"
+          [[ "${SOURCE_SHA:-}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${SCALE:-}" == d500 ]]
+          [[ "${MODE:-}" == swarm || "${MODE:-}" == blockwise ]]
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$main_sha" == "$SOURCE_SHA" ]]
+          [[ "$(git merge-base HEAD "$SOURCE_SHA")" == "$SOURCE_SHA" ]]
+          case "$MODE" in
+            swarm)
+              active="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/d200-bug-hunt.yml/runs?branch=main&event=workflow_dispatch&per_page=20" --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+              [[ "$active" == 0 ]]
+              gh workflow run d200-bug-hunt.yml --repo "$GITHUB_REPOSITORY" --ref main -f source_sha="$SOURCE_SHA" -f scale="$SCALE" -f resume_across_sha=false
+              ;;
+            blockwise)
+              [[ "${SWARM_RUN_ID:-}" =~ ^[0-9]+$ ]]
+              active="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/d-series-blockwise-preflight.yml/runs?branch=main&event=workflow_dispatch&per_page=20" --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+              [[ "$active" == 0 ]]
+              gh workflow run d-series-blockwise-preflight.yml --repo "$GITHUB_REPOSITORY" --ref main -f source_sha="$SOURCE_SHA" -f scale="$SCALE" -f block=all -f swarm_run_id="$SWARM_RUN_ID"
+              ;;
+          esac
+          echo "TRUYN_D_SERIES_ONE_SHOT mode=$MODE scale=$SCALE source_sha=$SOURCE_SHA status=DISPATCHED"
