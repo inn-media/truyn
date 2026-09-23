@@ -1,6 +1,6 @@
 # TRUYN SDK publication contract
 
-**Status:** npm/PyPI alpha registry closure completed on 2026-09-05; Go public prerelease accepted; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is accepted as an immutable public release; NuGet.org status is reconciled independently  
+**Status:** npm/PyPI alpha registry closure completed on 2026-09-05; Go public prerelease accepted; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is accepted as an immutable public release; NuGet.org `Truyn.Sdk@0.1.0-alpha.1` is an accepted immutable public release
 **Canonical repository:** `inn-media/truyn`  
 **Protocol status:** `TRUYN/1` draft
 
@@ -14,9 +14,9 @@ A native SDK release is accepted only when its package bytes are bound to an exa
 | PyPI | `truyn-sdk` | `0.1.0a1` | **Accepted immutable public prerelease** |
 | Go modules | `github.com/inn-media/truyn/sdk/go` | `v0.1.0-alpha.1` | **Accepted immutable public prerelease** |
 | Maven Central | `org.truyn:truyn-sdk` | `0.1.0-alpha.1` | **Accepted immutable public prerelease** |
-| NuGet.org | `Truyn.Sdk` | `0.1.0-alpha.1` | **OPEN** |
+| NuGet.org | `Truyn.Sdk` | `0.1.0-alpha.1` | **Accepted immutable public prerelease** |
 
-The machine-readable authority for this coordinate-specific boundary is `sdk/release/public-coordinates.json`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an accepted immutable public distribution. NuGet publication status is reconciled independently.
+The machine-readable authority for this coordinate-specific boundary is `sdk/release/public-coordinates.json`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an accepted immutable public distribution. NuGet.org `Truyn.Sdk@0.1.0-alpha.1` is an **accepted immutable public release**.
 
 npm `0.1.0-alpha.1` remains public and immutable but is superseded: clean-room Node 22 ESM import proved it unusable because `ws` had been bundled through a CommonJS dynamic require. It is never overwritten. `0.1.0-alpha.2` externalizes `ws` and is the accepted npm alpha.
 
@@ -135,7 +135,7 @@ One-time maintainer steps:
 
 ## NuGet.org (`Truyn.Sdk`)
 
-**State:** OPEN. `dotnet pack` already produces `Truyn.Sdk.<v>.nupkg` in ordinary CI. The package now also embeds `README.md`, XML docs, embedded PDB and SourceLink, and its nuspec records the exact source commit.
+**State:** ACCEPTED IMMUTABLE PUBLIC RELEASE. `Truyn.Sdk@0.1.0-alpha.1` was published to NuGet.org and independently verified on 2026-09-23. Canonical evidence: `docs/releases/NUGET_0.1.0_ALPHA_1.md`. `dotnet pack` already produces `Truyn.Sdk.<v>.nupkg` in ordinary CI. The package now also embeds `README.md`, XML docs, embedded PDB and SourceLink, and its nuspec records the exact source commit.
 
 Repository-side path: `.github/workflows/publish-nuget.yml`, triggered only by an immutable `sdk/nuget/v<version>` tag on exact current `main`. The gates and exact-CI-artifact rules are the same as for Maven. Authentication is **NuGet Trusted Publishing**: `NuGet/login@v1` exchanges the job's GitHub OIDC token for a single-use API key valid for one hour. No long-lived NuGet API key exists anywhere.
 

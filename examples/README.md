@@ -16,7 +16,7 @@ Operational cross-cloud proofs, owner-cloud deployment workflows, private provid
 
 ## Package-publication boundary
 
-The repository can build and verify the five Developer Release package artifacts with exact source/digest provenance. Public prerelease coordinates are accepted for npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org status is reconciled independently. These examples intentionally remain source-checkout examples so local onboarding is reproducible without depending on any registry.
+The repository can build and verify the five Developer Release package artifacts with exact source/digest provenance. Public prerelease coordinates are accepted for npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk@0.1.0-alpha.1` is an accepted immutable public release. These examples intentionally remain source-checkout examples so local onboarding is reproducible without depending on any registry.
 
 ## Security rules
 

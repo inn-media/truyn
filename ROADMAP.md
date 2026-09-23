@@ -17,7 +17,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Provider authority | **repository/runtime semantics accepted** | live managed deployment evidence |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + ecosystem evidence |
 | NLWeb | **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later profiles require explicit requalification |
-| SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 accepted** | Maven/NuGet + Descriptor/site completeness |
+| SDK/DX | **Five clients/conformance implemented; all five native public prereleases accepted** | Descriptor/site completeness + remaining release hardening |
 | Commercial proof / T-series | **FOUNDATION ACTIVE / no result claim** | telemetry qualification → pilots → immutable final T/BREAK-EVEN, T/HEAD-TO-HEAD, T/PREDICT |
 | Hidden-value / H-series | **FOUNDATION ACTIVE / no result claim** | telemetry + private runner qualification → isolated pilots → immutable H/CACHE-COMPOUND, H/SECOND-OPINION, H/ARBITRAGE, H/CHAOS-FUZZ |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
@@ -184,7 +184,7 @@ The accepted claim is bounded to the pinned 0.5 profile. Stable NLWeb v1 and lat
 
 ## SDK / developer release
 
-Implemented: TypeScript/JavaScript, Python, Go, Java and C#/.NET clients with shared conformance. Accepted immutable releases include PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet status is reconciled independently.
+Implemented: TypeScript/JavaScript, Python, Go, Java and C#/.NET clients with shared conformance. Accepted immutable releases include PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk@0.1.0-alpha.1` is an **accepted immutable public release**.
 
 ## T-series commercial proof
 
