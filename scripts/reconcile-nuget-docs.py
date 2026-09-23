@@ -158,6 +158,13 @@ for rel in targets:
         s = s.replace("- Maven Central and NuGet immutable public native package publication;\n", "")
 
     if s != before:
+        had_final_newline = s.endswith("\n")
+        normalized = []
+        for line in s.splitlines():
+            if line.startswith("**Status:**") and ("NuGet" in line or "all five required ecosystem prereleases" in line):
+                line = line.rstrip()
+            normalized.append(line)
+        s = "\n".join(normalized) + ("\n" if had_final_newline else "")
         p.write_text(s)
 
 stale_tokens = [
