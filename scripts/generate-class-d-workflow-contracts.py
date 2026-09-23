@@ -2,6 +2,7 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# Generator version 2: bounded catalog + B03 parallel evidence.
 
 
 def replace_once(text, old, new, label):
