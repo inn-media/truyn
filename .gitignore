@@ -17,3 +17,24 @@ build/
 .vscode/
 .idea/
 node_modules/
+
+# Language build outputs (never commit; CI rebuilds them from source)
+# .NET
+bin/
+obj/
+*.nupkg
+*.snupkg
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Java
+*.class
+*.jar
+
+# SDK release staging (built by sdk/release/build-release.sh, shipped via CI artifact)
+sdk/release/dist/
+sdk/typescript/dist/
