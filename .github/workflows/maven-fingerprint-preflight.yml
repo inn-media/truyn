@@ -12,6 +12,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     environment: sdk-release
+    timeout-minutes: 5
     steps:
       - name: Canonicalize and verify signing identity
         shell: bash
@@ -36,20 +37,21 @@ jobs:
           fpr="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^fpr/{print toupper($10);exit}')"
           long_id="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/{print toupper($5);exit}')"
           configured="$(printf '%s' "$CONFIGURED_LONG_KEY" | tr -d '[:space:]' | sed 's/^0[xX]//' | tr '[:lower:]' '[:upper:]')"
-          test -n "$fpr"; test -n "$long_id"
-          [[ "$configured" =~ ^[0-9A-F]+$ ]]
+          test -n "$fpr"; test -n "$long_id"; [[ "$configured" =~ ^[0-9A-F]+$ ]]
           test "$long_id" = "$configured" || [[ "$fpr" == *"$configured" ]]
           echo 'TRUYN_MAVEN_LONG_KEY_PIN=PASS'
 
-          openpgp="$(curl -LsS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr" || true)"
-          ubuntu="$(curl -LsS -o "$RUNNER_TEMP/ubuntu-key.asc" -w '%{http_code}' "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fpr" || true)"
-          mit="$(curl -LsS -o "$RUNNER_TEMP/mit-key.asc" -w '%{http_code}' "https://pgp.mit.edu/pks/lookup?op=get&search=0x$fpr" || true)"
+          probe() { curl --connect-timeout 5 --max-time 10 -LsS -o "$2" -w '%{http_code}' "$1" 2>/dev/null || true; }
+          openpgp="$(probe "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr" "$RUNNER_TEMP/openpgp-key.asc")"
+          ubuntu="$(probe "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fpr" "$RUNNER_TEMP/ubuntu-key.asc")"
+          mit="$(probe "https://pgp.mit.edu/pks/lookup?op=get&search=0x$fpr" "$RUNNER_TEMP/mit-key.asc")"
           echo "TRUYN_MAVEN_KEYSERVER_STATUS openpgp=$openpgp ubuntu=$ubuntu mit=$mit"
           visible=false
-          if test "$openpgp" = 200; then visible=true; fi
-          if test "$ubuntu" = 200 && grep -q '^-----BEGIN PGP PUBLIC KEY BLOCK-----' "$RUNNER_TEMP/ubuntu-key.asc"; then visible=true; fi
-          if test "$mit" = 200 && grep -q '^-----BEGIN PGP PUBLIC KEY BLOCK-----' "$RUNNER_TEMP/mit-key.asc"; then visible=true; fi
-          rm -f "$RUNNER_TEMP/ubuntu-key.asc" "$RUNNER_TEMP/mit-key.asc"
+          for pair in "$openpgp:$RUNNER_TEMP/openpgp-key.asc" "$ubuntu:$RUNNER_TEMP/ubuntu-key.asc" "$mit:$RUNNER_TEMP/mit-key.asc"; do
+            code="${pair%%:*}"; file="${pair#*:}"
+            if test "$code" = 200 && grep -q '^-----BEGIN PGP PUBLIC KEY BLOCK-----' "$file" 2>/dev/null; then visible=true; fi
+          done
+          rm -f "$RUNNER_TEMP/openpgp-key.asc" "$RUNNER_TEMP/ubuntu-key.asc" "$RUNNER_TEMP/mit-key.asc"
           test "$visible" = true
           echo "TRUYN_MAVEN_SIGNING_FINGERPRINT=$fpr"
           echo 'TRUYN_MAVEN_SIGNING_IDENTITY=PASS'
