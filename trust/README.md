@@ -2,7 +2,23 @@
 
 TRUYN Trustability is claim-centric, domain-scoped, policy-dependent and continuously revisable.
 
-Implementation ownership:
+## Where the code is today
+
+This directory currently holds **design ownership notes only**. The implemented, tested Trustability slices live in `core/` and `node/`:
+
+| Concern | Implementation |
+|---|---|
+| Trust evaluation, network trust | `core/trust/index.js`, `core/trust/network.js`, `node/active-trust-network.js` |
+| Claim verification / relying-party checks | `core/trust/claim-verification.js`, `node/trust-verification.js` |
+| Trust Receipts v2 | `core/trust/receipt-v2.js` |
+| Lifecycle / revocation | `core/trust/lifecycle.js`, `node/revoke.js` |
+| Source-owner PKI | `core/trust/source-owner-pki.js` |
+| Transparency log | `core/trust/transparency-log.js`, `network/replication/transparency-replication.js` |
+| Provenance / lineage | `core/provenance/index.js` |
+
+Extend those modules. Components with no code yet (independence, Sybil, anomaly, reputation, scoring engine) are tracked in [`docs/architecture/PLANNED_MODULES.md`](../docs/architecture/PLANNED_MODULES.md); their directories are created with their first real file.
+
+## Target ownership (design)
 
 - `engine/` — orchestration of trust evaluation.
 - `scoring/` — vector/score calculations; no globally fixed weights.
