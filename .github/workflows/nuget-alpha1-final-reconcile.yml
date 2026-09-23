@@ -24,6 +24,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          sed -i 's/[[:space:]]*$//' \
+            docs/architecture/SDK_DEVELOPER_EXPERIENCE.md \
+            docs/compatibility/SDK_PACKAGING.md \
+            sdk/release/PUBLISHING.md
           git config user.name 'Iluco Mutcnas'
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
           git add -A
