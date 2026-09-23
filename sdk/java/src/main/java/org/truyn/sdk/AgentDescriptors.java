@@ -53,6 +53,10 @@ public final class AgentDescriptors {
     }
   }
 
+  static void validateForConformance(Map<String,Object> raw) {
+    validate(raw);
+  }
+
   private static void validate(Map<String,Object> raw) {
     if (!"truyn.agent-descriptor/v1".equals(raw.get("schema")) || !"1".equals(raw.get("descriptorVersion")))
       throw new TruynException(TruynException.Code.VERSION_MISMATCH, "unsupported Agent Descriptor schema/version", false);
