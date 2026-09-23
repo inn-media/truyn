@@ -35,7 +35,7 @@ Website: https://truyn.org/
 | Five first-party SDK clients | **Implemented / executable conformance** |
 | PyPI / Go / npm alpha.2 | **Accepted immutable public releases** |
 | Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.1`** |
-| NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** | — |
+| NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** |
 | Open 1.0 productization | **S01–S102 complete; S103 active; stable 1.0 not reached** |
 | Governance | **G1 / bootstrap Founding Stewardship** |
 | Stable mainnet | **Not yet** |
