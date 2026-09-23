@@ -1,4 +1,4 @@
-name: One-shot Maven Central immutable tag launcher
+name: One-shot Maven Central immutable publication
 
 on:
   push:
@@ -6,82 +6,236 @@ on:
       - release/maven-central-tag-launch-20260923
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
+concurrency:
+  group: one-shot-maven-central-publication
+  cancel-in-progress: false
+
 jobs:
-  launch:
+  publish:
+    if: github.repository == 'inn-media/truyn'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    environment: sdk-release
+    timeout-minutes: 150
     env:
       EXPECTED_SHA: 6739b81bb8b2c9f4d8c07efb4298f12c9b85fa53
       TAG: sdk/maven/v0.1.0-alpha.1
+      VERSION: 0.1.0-alpha.1
       CI_RUN_ID: '35899556881'
       CODEQL_RUN_ID: '35899557154'
-      GH_TOKEN: ${{ secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB }}
+      GH_TOKEN: ${{ github.token }}
+      MAVEN_GROUP_PATH: org/truyn
+      MAVEN_ARTIFACT: truyn-sdk
+      CENTRAL_API: https://central.sonatype.com/api/v1/publisher
+      CENTRAL_REPO: https://repo1.maven.org/maven2
+      RELEASE_ROOT: /tmp/truyn-maven-release
     steps:
-      - name: Checkout one-shot launcher source
+      - name: Checkout launcher source
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate exact immutable release gates
+      - name: Fail closed before immutable tag creation
         shell: bash
+        env:
+          CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+          EXPECTED_FPR: ${{ vars.MAVEN_GPG_FINGERPRINT }}
         run: |
           set -Eeuo pipefail
-          test -n "$GH_TOKEN"
-          test "$GITHUB_REPOSITORY" = 'inn-media/truyn'
-          test "$GITHUB_REF_NAME" = 'release/maven-central-tag-launch-20260923'
-
+          for value in "$CENTRAL_USERNAME" "$CENTRAL_PASSWORD" "$MAVEN_GPG_PRIVATE_KEY" "$MAVEN_GPG_PASSPHRASE" "$EXPECTED_FPR"; do
+            test -n "$value"
+          done
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          test "$current_main" = "$EXPECTED_SHA" || {
-            echo "::error::main moved: expected=$EXPECTED_SHA actual=$current_main"
-            exit 1
-          }
-
-          ci_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.head_sha')"
-          ci_status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.status')"
-          ci_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.conclusion')"
-          test "$ci_sha" = "$EXPECTED_SHA" && test "$ci_status" = 'completed' && test "$ci_conclusion" = 'success' || {
-            echo '::error::Exact-main ordinary CI is not terminal GREEN.'
-            exit 1
-          }
-
-          codeql_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CODEQL_RUN_ID" --jq '.head_sha')"
-          codeql_status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CODEQL_RUN_ID" --jq '.status')"
-          codeql_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CODEQL_RUN_ID" --jq '.conclusion')"
-          test "$codeql_sha" = "$EXPECTED_SHA" && test "$codeql_status" = 'completed' && test "$codeql_conclusion" = 'success' || {
-            echo '::error::Exact-main hosted CodeQL is not terminal GREEN.'
-            exit 1
-          }
-
-          git cat-file -e "$EXPECTED_SHA^{commit}"
+          test "$current_main" = "$EXPECTED_SHA" || { echo "::error::main moved: expected=$EXPECTED_SHA actual=$current_main"; exit 1; }
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.head_sha')" = "$EXPECTED_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.status')" = completed
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CODEQL_RUN_ID" --jq '.head_sha')" = "$EXPECTED_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CODEQL_RUN_ID" --jq '.status')" = completed
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CODEQL_RUN_ID" --jq '.conclusion')" = success
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/tmp/existing-tag.json 2>/dev/null; then
             existing_sha="$(jq -r '.object.sha' /tmp/existing-tag.json)"
             test "$existing_sha" = "$EXPECTED_SHA"
-            echo "::error::Immutable release tag already exists at exact source; refusing duplicate launcher run."
+            echo "::error::Immutable Maven release tag already exists; refusing a duplicate publication launch."
             exit 1
           fi
+          test "$(git show "$EXPECTED_SHA:sdk/java/pom.xml" | sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' | head -1)" = "$VERSION"
+          echo "TRUYN_MAVEN_PRETAG_GATE=PASS source_sha=$EXPECTED_SHA ci_run=$CI_RUN_ID codeql_run=$CODEQL_RUN_ID"
 
-          test "$(git show "$EXPECTED_SHA:sdk/java/pom.xml" | sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' | head -1)" = '0.1.0-alpha.1'
-          echo "TRUYN_MAVEN_TAG_PREFLIGHT=PASS source_sha=$EXPECTED_SHA ci_run=$CI_RUN_ID codeql_run=$CODEQL_RUN_ID tag=$TAG"
-
-      - name: Create exactly one immutable Maven release tag via PAT
+      - name: Create exactly one immutable Maven release tag
         shell: bash
         run: |
           set -Eeuo pipefail
-          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
-            -f ref="refs/tags/$TAG" \
-            -f sha="$EXPECTED_SHA" >/tmp/created-tag.json
-          remote_sha="$(jq -r '.object.sha' /tmp/created-tag.json)"
-          test "$remote_sha" = "$EXPECTED_SHA"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$EXPECTED_SHA" >/tmp/created-tag.json
+          test "$(jq -r '.object.sha' /tmp/created-tag.json)" = "$EXPECTED_SHA"
           echo "TRUYN_MAVEN_TAG_CREATED=PASS source_sha=$EXPECTED_SHA tag=$TAG"
 
-      - name: Remove one-shot launcher branch
-        if: success()
+      - name: Checkout exact tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Revalidate immutable tag and exact current main
         shell: bash
         run: |
           set -Eeuo pipefail
-          gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/release/maven-central-tag-launch-20260923" || true
-          echo 'TRUYN_MAVEN_LAUNCHER_CLEANUP=PASS'
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" = "$EXPECTED_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')" = "$EXPECTED_SHA"
+          test "$(sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' sdk/java/pom.xml | head -1)" = "$VERSION"
+          echo "TRUYN_MAVEN_IMMUTABLE_SOURCE=PASS"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download and verify exact CI release artifact
+        id: artifact
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -rf "$RELEASE_ROOT"; mkdir -p "$RELEASE_ROOT/ci" "$RELEASE_ROOT/registry"
+          gh run download "$CI_RUN_ID" --name "truyn-sdk-release-$CI_RUN_ID" --dir "$RELEASE_ROOT/ci"
+          node sdk/release/verify-release.mjs "$RELEASE_ROOT/ci"
+          jq -e --arg s "$EXPECTED_SHA" --arg v "$VERSION" '.sourceSha == $s and .release == $v' "$RELEASE_ROOT/ci/manifest.json" >/dev/null
+          jar="$RELEASE_ROOT/ci/java/$MAVEN_ARTIFACT-$VERSION.jar"
+          for f in "$jar" "${jar%.jar}-sources.jar" "${jar%.jar}-javadoc.jar" "$RELEASE_ROOT/ci/java/$MAVEN_ARTIFACT-$VERSION.pom"; do test -s "$f"; done
+          echo "jar=$jar" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$jar" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Detect immutable registry state
+        id: registry
+        shell: bash
+        env:
+          JAR: ${{ steps.artifact.outputs.jar }}
+        run: |
+          set -Eeuo pipefail
+          url="$CENTRAL_REPO/$MAVEN_GROUP_PATH/$MAVEN_ARTIFACT/$VERSION/$MAVEN_ARTIFACT-$VERSION.jar"
+          code="$(curl -sS -o "$RELEASE_ROOT/registry/existing.jar" -w '%{http_code}' "$url")"
+          case "$code" in
+            200) cmp "$JAR" "$RELEASE_ROOT/registry/existing.jar"; echo 'exists=true' >> "$GITHUB_OUTPUT" ;;
+            404) echo 'exists=false' >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unexpected Maven Central response $code for $url" >&2; exit 1 ;;
+          esac
+
+      - name: Import and pin OpenPGP signing key
+        id: gpg
+        shell: bash
+        env:
+          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          EXPECTED_FPR: ${{ vars.MAVEN_GPG_FINGERPRINT }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$MAVEN_GPG_PRIVATE_KEY"; test -n "$EXPECTED_FPR"
+          export GNUPGHOME="$RELEASE_ROOT/gnupg"; mkdir -p -m 700 "$GNUPGHOME"
+          printf '%s\n' "$MAVEN_GPG_PRIVATE_KEY" | gpg --batch --quiet --import
+          fpr="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
+          test "$fpr" = "$EXPECTED_FPR"
+          test "$(curl -sS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr")" = '200'
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          echo "fingerprint=$fpr" >> "$GITHUB_OUTPUT"
+
+      - name: Build signed Central bundle from exact CI bytes
+        id: bundle
+        shell: bash
+        env:
+          MAVEN_GPG_KEY_ID: ${{ steps.gpg.outputs.fingerprint }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: |
+          set -Eeuo pipefail
+          bundle="$RELEASE_ROOT/central-bundle-$VERSION.zip"
+          bash sdk/release/build-maven-bundle.sh "$RELEASE_ROOT/ci" "$VERSION" "$bundle"
+          unzip -p "$bundle" "$MAVEN_GROUP_PATH/$MAVEN_ARTIFACT/$VERSION/$MAVEN_ARTIFACT-$VERSION.jar" | cmp - "$RELEASE_ROOT/ci/java/$MAVEN_ARTIFACT-$VERSION.jar"
+          echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
+
+      - name: Upload bundle to Central Portal and wait for PUBLISHED
+        if: steps.registry.outputs.exists == 'false'
+        id: central
+        shell: bash
+        env:
+          BUNDLE: ${{ steps.bundle.outputs.bundle }}
+          CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$CENTRAL_USERNAME"; test -n "$CENTRAL_PASSWORD"
+          bearer="$(printf '%s:%s' "$CENTRAL_USERNAME" "$CENTRAL_PASSWORD" | base64 -w0)"
+          echo "::add-mask::$bearer"
+          deployment="$(curl -sS --fail-with-body -X POST "$CENTRAL_API/upload?publishingType=AUTOMATIC&name=$MAVEN_ARTIFACT-$VERSION" -H "Authorization: Bearer $bearer" -F "bundle=@$BUNDLE;type=application/octet-stream")"
+          [[ "$deployment" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo "Unexpected upload response: $deployment" >&2; exit 1; }
+          echo "deployment_id=$deployment" >> "$GITHUB_OUTPUT"
+          for attempt in $(seq 1 270); do
+            status="$(curl -sS --fail-with-body -X POST "$CENTRAL_API/status?id=$deployment" -H "Authorization: Bearer $bearer")"
+            state="$(jq -r '.deploymentState' <<<"$status")"
+            echo "deployment $deployment: $state"
+            case "$state" in
+              PUBLISHED) exit 0 ;;
+              FAILED) jq '.errors' <<<"$status" >&2; exit 1 ;;
+            esac
+            sleep 20
+          done
+          echo 'Timed out waiting for PUBLISHED' >&2; exit 1
+
+      - name: Verify public bytes signature and clean-room resolution
+        shell: bash
+        env:
+          JAR: ${{ steps.artifact.outputs.jar }}
+          EXPECTED_SHA256: ${{ steps.artifact.outputs.sha256 }}
+        run: |
+          set -Eeuo pipefail
+          base="$CENTRAL_REPO/$MAVEN_GROUP_PATH/$MAVEN_ARTIFACT/$VERSION/$MAVEN_ARTIFACT-$VERSION"
+          visible=false
+          for attempt in $(seq 1 120); do
+            if curl -sSf -o "$RELEASE_ROOT/registry/public.jar" "$base.jar"; then visible=true; break; fi
+            sleep 30
+          done
+          test "$visible" = true
+          cmp "$JAR" "$RELEASE_ROOT/registry/public.jar"
+          test "$(sha256sum "$RELEASE_ROOT/registry/public.jar" | awk '{print $1}')" = "$EXPECTED_SHA256"
+          test "$(curl -sSf "$base.jar.sha1")" = "$(sha1sum "$JAR" | awk '{print $1}')"
+          curl -sSf -o "$RELEASE_ROOT/registry/public.jar.asc" "$base.jar.asc"
+          gpg --batch --verify "$RELEASE_ROOT/registry/public.jar.asc" "$RELEASE_ROOT/registry/public.jar"
+          for suffix in -sources.jar -javadoc.jar .pom; do curl -sSf -o /dev/null "$base$suffix"; done
+          clean="$RELEASE_ROOT/cleanroom"; rm -rf "$clean"; mkdir -p "$clean/src"
+          mvn -q -B -Dmaven.repo.local="$clean/m2" dependency:get -Dartifact="org.truyn:$MAVEN_ARTIFACT:$VERSION" -Dtransitive=false
+          cat > "$clean/src/Probe.java" <<'JAVA'
+          public class Probe { public static void main(String[] a) throws Exception { Class.forName("org.truyn.sdk.TruynClient"); Class.forName("org.truyn.sdk.AgentDescriptors"); System.out.println("TRUYN_MAVEN_CLEANROOM=PASS"); } }
+          JAVA
+          cp_jar="$clean/m2/$MAVEN_GROUP_PATH/$MAVEN_ARTIFACT/$VERSION/$MAVEN_ARTIFACT-$VERSION.jar"
+          cmp "$JAR" "$cp_jar"
+          javac -d "$clean/out" -cp "$cp_jar" "$clean/src/Probe.java"
+          java -cp "$clean/out:$cp_jar" Probe | grep -qx TRUYN_MAVEN_CLEANROOM=PASS
+
+      - name: Write release evidence
+        shell: bash
+        env:
+          SHA256: ${{ steps.artifact.outputs.sha256 }}
+          FPR: ${{ steps.gpg.outputs.fingerprint }}
+          DEPLOYMENT_ID: ${{ steps.central.outputs.deployment_id }}
+          ALREADY_PUBLISHED: ${{ steps.registry.outputs.exists }}
+        run: |
+          set -Eeuo pipefail
+          jq -n --arg coordinate "org.truyn:$MAVEN_ARTIFACT:$VERSION" --arg version "$VERSION" --arg sourceSha "$EXPECTED_SHA" --arg releaseTag "$TAG" --arg ciRunId "$CI_RUN_ID" --arg codeqlRunId "$CODEQL_RUN_ID" --arg publicationRunId "$GITHUB_RUN_ID" --arg sha256 "$SHA256" --arg signingKey "$FPR" --arg deploymentId "$DEPLOYMENT_ID" --arg alreadyPublished "$ALREADY_PUBLISHED" '{registry:"Maven Central",coordinate:$coordinate,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,ciRunId:$ciRunId,codeqlRunId:$codeqlRunId,publicationRunId:$publicationRunId,publicationAuthentication:"Central Portal user token (sdk-release environment secret)",centralDeploymentId:$deploymentId,alreadyPublished:($alreadyPublished=="true"),jarSha256:$sha256,openPgpFingerprint:$signingKey,byteIdentity:"PASS",signatureVerification:"PASS",cleanRoomResolution:"PASS",launchMode:"bounded-one-shot-protected-environment"}' > "$RELEASE_ROOT/maven-central-publication-evidence.json"
+          cat "$RELEASE_ROOT/maven-central-publication-evidence.json"
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-sdk-maven-central-${{ github.run_id }}
+          path: /tmp/truyn-maven-release/maven-central-publication-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Remove signing material
+        if: always()
+        run: rm -rf /tmp/truyn-maven-release/gnupg
