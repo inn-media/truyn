@@ -52,8 +52,7 @@ class_d_phase_event() {
   echo "TRUYN_CLASS_D_PHASE scale=$scale phase=$phase status=$status deadlineMs=$deadline_ms elapsedMs=$elapsed_ms rc=$rc${detail:+ detail=$detail}"
 }
 
-# Execute a command under the evidence-derived phase deadline. A deadline breach
-# is always rc=124 and writes evidence before the caller's ERR trap can fire.
+# Execute an external command under the evidence-derived phase deadline.
 class_d_run_with_deadline() {
   local phase="$1"; shift
   local deadline_ms seconds started ended elapsed rc
@@ -76,4 +75,47 @@ class_d_run_with_deadline() {
   fi
   class_d_phase_event "$phase" FAIL "$deadline_ms" "$elapsed" "$rc" "phase command returned non-zero"
   return "$rc"
+}
+
+# Wait for a fan-out set of background jobs under one global barrier deadline.
+# This preserves the required wall-clock model: max(worker duration), never sum.
+class_d_wait_pid_barrier() {
+  local phase="$1"; shift
+  local pids=("$@") deadline_ms seconds started ended elapsed watchdog marker rc=0 timed_out=0 pid
+  [[ ${#pids[@]} -gt 0 ]] || { echo "TRUYN_CLASS_D_PHASE empty barrier phase=$phase" >&2; return 2; }
+  deadline_ms="$(class_d_deadline_ms "$phase")" || return $?
+  seconds=$(( (deadline_ms + 999) / 1000 ))
+  started="$(date +%s%3N)"
+  marker="$(mktemp)"
+  class_d_phase_event "$phase" START "$deadline_ms" 0 0 "fanout=${#pids[@]}"
+  (
+    sleep "$seconds"
+    printf 'timeout\n' >"$marker"
+    for pid in "${pids[@]}"; do kill -TERM "$pid" >/dev/null 2>&1 || true; done
+    sleep 10
+    for pid in "${pids[@]}"; do kill -KILL "$pid" >/dev/null 2>&1 || true; done
+  ) &
+  watchdog=$!
+  set +e
+  for pid in "${pids[@]}"; do
+    wait "$pid"
+    child_rc=$?
+    [[ "$child_rc" == 0 ]] || rc="$child_rc"
+  done
+  set -e
+  if [[ -s "$marker" ]]; then timed_out=1; rc=124; fi
+  kill "$watchdog" >/dev/null 2>&1 || true
+  wait "$watchdog" >/dev/null 2>&1 || true
+  rm -f "$marker"
+  ended="$(date +%s%3N)"; elapsed=$((ended-started))
+  if [[ "$timed_out" == 1 ]]; then
+    class_d_phase_event "$phase" TIMEOUT "$deadline_ms" "$elapsed" 124 "global fanout barrier deadline exceeded"
+    return 124
+  fi
+  if [[ "$rc" != 0 ]]; then
+    class_d_phase_event "$phase" FAIL "$deadline_ms" "$elapsed" "$rc" "one or more fanout workers failed"
+    return "$rc"
+  fi
+  class_d_phase_event "$phase" PASS "$deadline_ms" "$elapsed" 0 "fanout=${#pids[@]}"
+  return 0
 }
