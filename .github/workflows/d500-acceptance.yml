@@ -32,7 +32,7 @@ env:
 jobs:
   d500-acceptance:
     runs-on: ubuntu-22.04
-    timeout-minutes: 420
+    timeout-minutes: 120
     steps:
       - name: Enforce immutable D-500 one-shot launch
         env:
@@ -185,6 +185,7 @@ jobs:
           TRUYN_CLASS_D1000_LOCATION="$TRUYN_D500_LOCATION" \
           TRUYN_CLASS_D1000_VM_SIZE="$TRUYN_D500_VM_SIZE" \
           TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" \
+          TRUYN_CLASS_D_SCALE=d500 \
           TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" \
           TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" \
           bash -c 'set -Eeuo pipefail; source benchmarks/scale/class-d-azure-1000-provision.sh; source scripts/d200-stage-isolated-campaign.sh' 2>&1 | tee class-d-500-diagnostic.log
@@ -251,6 +252,7 @@ jobs:
             class-d-200-*.txt
             class-d-200-*.log
             class-d-1000-evidence.json
+            class-d-phase-events.jsonl
           if-no-files-found: error
           retention-days: 90
 

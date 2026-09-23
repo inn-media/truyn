@@ -32,7 +32,7 @@ env:
 jobs:
   bootstrap-qualification:
     runs-on: ubuntu-22.04
-    timeout-minutes: 240
+    timeout-minutes: ${{ inputs.scale == 'd500' && 120 || 240 }}
     steps:
       - name: Validate exact main and scale
         env:
@@ -147,6 +147,7 @@ jobs:
           TRUYN_CLASS_D1000_LOCATION="$TRUYN_BOOTSTRAP_LOCATION" \
           TRUYN_CLASS_D1000_VM_SIZE="$TRUYN_BOOTSTRAP_VM_SIZE" \
           TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" \
+          TRUYN_CLASS_D_SCALE="$SCALE" \
           TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" \
           TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" \
           TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY=1 \
@@ -169,7 +170,7 @@ jobs:
           resource_cleanup=false
           resource_remaining=-1
           if [[ -f "$log" ]]; then
-            grep -q "TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION class=${CLASS_LABEL} .* status=PASS" "$log" && marker=true || true
+            grep -q "TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION class=${CLASS_LABEL} .* executionMode=parallel-nodes nodeConcurrency=${NODES_PER_HOST} .* status=PASS" "$log" && marker=true || true
             hosts="$(grep -c 'TRUYN_CLASS_D_1000 stage=bootstrap host=.*refresh=per-node' "$log" || true)"
             retries="$(grep -c 'TRUYN_D200_BOOTSTRAP_REFRESH_RETRY' "$log" || true)"
             cleanup_line="$(grep 'TRUYN_CLASS_D_1000_CLEANUP confirmed=' "$log" | tail -1 || true)"
@@ -217,6 +218,7 @@ jobs:
           path: |
             class-d-bootstrap-qualification.log
             class-d-bootstrap-qualification.json
+            class-d-phase-events.jsonl
           if-no-files-found: warn
           retention-days: 90
 
@@ -238,5 +240,5 @@ jobs:
           if [[ "${RUN_RC:-99}" == 0 && "$MARKER" == true && "$BOOTSTRAP_HOSTS" == 20 && "$RESOURCE_CLEANUP" == true && "$RESOURCE_REMAINING" == 0 && "$STAGING_CLEANUP" == true && "$STAGING_REMAINING" == 0 && "$DIGEST" =~ ^(sha256:)?[0-9a-f]{64}$ ]]; then
             result=PASS
           fi
-          echo "TRUYN_CLASS_D_BOOTSTRAP_TERMINAL scale=$CLASS_LABEL result=$result source_sha=$SOURCE_SHA run_rc=${RUN_RC:-99} bootstrap_hosts=${BOOTSTRAP_HOSTS:-0}/20 resource_cleanup=${RESOURCE_CLEANUP:-false} resource_remaining=${RESOURCE_REMAINING:--1} staging_cleanup=${STAGING_CLEANUP:-false} staging_remaining=${STAGING_REMAINING:--1} artifact_digest=${DIGEST:-missing}"
+          echo "TRUYN_CLASS_D_BOOTSTRAP_TERMINAL block=B03 architecture=parallel-fanout-global-barrier scale=$CLASS_LABEL result=$result source_sha=$SOURCE_SHA run_rc=${RUN_RC:-99} bootstrap_hosts=${BOOTSTRAP_HOSTS:-0}/20 resource_cleanup=${RESOURCE_CLEANUP:-false} resource_remaining=${RESOURCE_REMAINING:--1} staging_cleanup=${STAGING_CLEANUP:-false} staging_remaining=${STAGING_REMAINING:--1} artifact_digest=${DIGEST:-missing}"
           [[ "$result" == PASS ]]
