@@ -52,10 +52,12 @@ class_d_phase_event() {
   echo "TRUYN_CLASS_D_PHASE scale=$scale phase=$phase status=$status deadlineMs=$deadline_ms elapsedMs=$elapsed_ms rc=$rc${detail:+ detail=$detail}"
 }
 
-# Execute an external command under the evidence-derived phase deadline.
+# Execute an external command under the evidence-derived phase deadline without
+# changing the caller's errexit mode.
 class_d_run_with_deadline() {
   local phase="$1"; shift
-  local deadline_ms seconds started ended elapsed rc
+  local deadline_ms seconds started ended elapsed rc had_errexit=0
+  [[ $- == *e* ]] && had_errexit=1
   deadline_ms="$(class_d_deadline_ms "$phase")" || return $?
   seconds=$(( (deadline_ms + 999) / 1000 ))
   started="$(date +%s%3N)"
@@ -63,7 +65,7 @@ class_d_run_with_deadline() {
   set +e
   timeout --foreground --signal=TERM --kill-after=10s "${seconds}s" "$@"
   rc=$?
-  set -e
+  if [[ "$had_errexit" == 1 ]]; then set -e; else set +e; fi
   ended="$(date +%s%3N)"; elapsed=$((ended-started))
   if [[ "$rc" == 0 ]]; then
     class_d_phase_event "$phase" PASS "$deadline_ms" "$elapsed" 0
@@ -78,10 +80,12 @@ class_d_run_with_deadline() {
 }
 
 # Wait for a fan-out set of background jobs under one global barrier deadline.
-# This preserves the required wall-clock model: max(worker duration), never sum.
+# This preserves the required wall-clock model: max(worker duration), never sum,
+# and preserves the caller's errexit mode (cleanup deliberately uses set +e).
 class_d_wait_pid_barrier() {
   local phase="$1"; shift
-  local pids=("$@") deadline_ms seconds started ended elapsed watchdog marker rc=0 timed_out=0 pid
+  local pids=("$@") deadline_ms seconds started ended elapsed watchdog marker rc=0 timed_out=0 pid child_rc had_errexit=0
+  [[ $- == *e* ]] && had_errexit=1
   [[ ${#pids[@]} -gt 0 ]] || { echo "TRUYN_CLASS_D_PHASE empty barrier phase=$phase" >&2; return 2; }
   deadline_ms="$(class_d_deadline_ms "$phase")" || return $?
   seconds=$(( (deadline_ms + 999) / 1000 ))
@@ -102,7 +106,7 @@ class_d_wait_pid_barrier() {
     child_rc=$?
     [[ "$child_rc" == 0 ]] || rc="$child_rc"
   done
-  set -e
+  if [[ "$had_errexit" == 1 ]]; then set -e; else set +e; fi
   if [[ -s "$marker" ]]; then timed_out=1; rc=124; fi
   kill "$watchdog" >/dev/null 2>&1 || true
   wait "$watchdog" >/dev/null 2>&1 || true
