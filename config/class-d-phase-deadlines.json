@@ -1,0 +1,42 @@
+{
+  "schema": "truyn.class-d.phase-deadlines.v1",
+  "policy": {
+    "architecture": "parallel-fanout-global-barrier",
+    "hostCount": 20,
+    "d500": {
+      "outerWatchdogMs": 7200000,
+      "formula": "historicalMs * 1.20"
+    },
+    "d1000": {
+      "outerWatchdogMs": 14400000,
+      "formula": "historicalMs * 2.00 * 1.20"
+    },
+    "timeoutBehavior": "deterministic-fail-with-evidence"
+  },
+  "historicalEvidence": {
+    "acceptedD200Run": 35503894414,
+    "nearPassD500Run": 35723251517,
+    "notes": [
+      "D-500 bootstrap historicalMs is the healthy-host p95 from Attempt 5; the 2522748 ms timeout-path outlier is failure evidence, not a deadline baseline.",
+      "Phases converted from serial host loops use historical max-host wall-clock, not sum-of-host wall-clock, because the required architecture is fan-out then one barrier."
+    ]
+  },
+  "phases": {
+    "provision": {"historicalMs": 69000, "d500DeadlineMs": 82800, "d1000DeadlineMs": 165600},
+    "install": {"historicalMs": 34000, "d500DeadlineMs": 40800, "d1000DeadlineMs": 81600},
+    "bootstrap": {"historicalMs": 968401, "d500DeadlineMs": 1162081, "d1000DeadlineMs": 2324162},
+    "topology": {"historicalMs": 32800, "d500DeadlineMs": 39360, "d1000DeadlineMs": 78720},
+    "readiness": {"historicalMs": 39636, "d500DeadlineMs": 47564, "d1000DeadlineMs": 95127},
+    "convergence": {"historicalMs": 38132, "d500DeadlineMs": 45759, "d1000DeadlineMs": 91517},
+    "baseline": {"historicalMs": 39700, "d500DeadlineMs": 47640, "d1000DeadlineMs": 95280},
+    "safety": {"historicalMs": 38000, "d500DeadlineMs": 45600, "d1000DeadlineMs": 91200},
+    "restart": {"historicalMs": 67600, "d500DeadlineMs": 81120, "d1000DeadlineMs": 162240},
+    "recovery": {"historicalMs": 28717, "d500DeadlineMs": 34461, "d1000DeadlineMs": 68921},
+    "postRestart": {"historicalMs": 38500, "d500DeadlineMs": 46200, "d1000DeadlineMs": 92400},
+    "adversarial": {"historicalMs": 128600, "d500DeadlineMs": 154320, "d1000DeadlineMs": 308640},
+    "healedRouting": {"historicalMs": 33000, "d500DeadlineMs": 39600, "d1000DeadlineMs": 79200},
+    "retention": {"historicalMs": 39300, "d500DeadlineMs": 47160, "d1000DeadlineMs": 94320},
+    "resources": {"historicalMs": 38800, "d500DeadlineMs": 46560, "d1000DeadlineMs": 93120},
+    "cleanup": {"historicalMs": 322000, "d500DeadlineMs": 386400, "d1000DeadlineMs": 772800}
+  }
+}
