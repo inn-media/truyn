@@ -16,6 +16,8 @@ jobs:
         with:
           ref: docs/nuget-alpha1-accepted-sanitation-20260923
           fetch-depth: 0
+      - name: Reconcile final DX3 boundary
+        run: python3 scripts/maintenance/nuget-alpha1-dx3-prepatch.py
       - name: Reconcile accepted NuGet state
         run: python3 scripts/maintenance/nuget-alpha1-sanitation.py
       - name: Targeted release tests
@@ -28,6 +30,7 @@ jobs:
           rm -f .github/workflows/nuget-alpha1-doc-sanitation-v2.yml
           rm -f .github/workflows/nuget-alpha1-doc-sanitation-v3.yml
           rm -f scripts/maintenance/nuget-alpha1-sanitation.py
+          rm -f scripts/maintenance/nuget-alpha1-dx3-prepatch.py
           git config user.name 'Iluco Mutcnas'
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
           git add -A
