@@ -49,7 +49,7 @@ jobs:
             swarm)
               active="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/d200-bug-hunt.yml/runs?branch=main&event=workflow_dispatch&per_page=20" --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
               [[ "$active" == 0 ]]
-              gh workflow run d200-bug-hunt.yml --repo "$GITHUB_REPOSITORY" --ref main -f source_sha="$SOURCE_SHA" -f scale="$SCALE" -f resume_across_sha=false
+              gh workflow run d200-bug-hunt.yml --repo "$GITHUB_REPOSITORY" --ref main -f source_sha="$SOURCE_SHA" -f scale="$SCALE"
               ;;
             blockwise)
               [[ "${SWARM_RUN_ID:-}" =~ ^[0-9]+$ ]]
