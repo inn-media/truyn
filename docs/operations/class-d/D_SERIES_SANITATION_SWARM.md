@@ -6,6 +6,25 @@ Sanitation / Swarm is the primary D-Series diagnostic and repair engine. Blockwi
 
 If Swarm and Blockwise semantics ever conflict, preserve the stricter safety/acceptance rule and prefer the Swarm execution model: fail-collect, maximum parallel diagnosis, root-cause deduplication, resumable checkpoints, exact-SHA evidence and no silent weakening.
 
+## Permanent architecture lock
+
+This architecture is a repository invariant for the remainder of the D-Series program. It is **LOCKED until `ALL_D_SERIES_TESTS_COMPLETE`**.
+
+The machine-readable authority is `config/d-series-swarm-blockwise-architecture-lock.json`; `scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs` verifies it fail-closed.
+
+Until all D-Series tests are complete, ordinary refactors, repairs, CI cleanup, optimizations, launcher changes, sprint transitions, D-500 work and D-1000 work MUST preserve all of the following:
+
+- Sanitation / Swarm remains the primary diagnostic and repair engine.
+- Blockwise B01-B16 remains subordinate to Swarm.
+- Swarm owns massively parallel diagnostics, fail-collect execution, root-cause classification/deduplication and the repair loop.
+- Targeted Bxx runs are repair accelerators only and can never authorize a real D-Series launch.
+- Full B01-B16 exact-SHA remains a mandatory admission gate after a clean exact-SHA Swarm.
+- D-500/D-1000 remain final real-scale proofs after live qualification and collision/capacity checks.
+- Acceptance thresholds may never be weakened to preserve this architecture or obtain GREEN.
+- A competing `blockwise-only` or launcher-direct architecture is forbidden while this lock is active.
+
+Removal or material modification of this lock before `ALL_D_SERIES_TESTS_COMPLETE` requires an explicit user-authorized architecture change. It must not happen implicitly as part of another repair or refactor.
+
 ## Canonical chain
 
 1. SOURCE CHANGE
