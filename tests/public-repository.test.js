@@ -24,6 +24,8 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/d200-live-preflight.yml',
   '.github/workflows/d500-acceptance.yml',
   '.github/workflows/publish-npm.yml',
+  '.github/workflows/publish-maven.yml',
+  '.github/workflows/publish-nuget.yml',
   '.github/workflows/production-authority-image.yml',
   '.github/workflows/production-authority-source-discovery.yml',
   '.github/workflows/production-dr-foundation.yml',

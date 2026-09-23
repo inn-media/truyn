@@ -1,0 +1,216 @@
+name: Publish Java SDK to Maven Central
+
+# Publishes the EXACT CI-built org.truyn:truyn-sdk jars (sdk/release/build-release.sh output of the
+# successful exact-main CI run) to Maven Central through the Central Portal Publisher API.
+# Contract: sdk/release/PUBLISHING.md § "Maven Central".
+#
+# Maven Central has no OIDC trusted publishing. The Central Portal user token and the OpenPGP
+# signing key therefore live ONLY as secrets of the protected `sdk-release` environment
+# (required reviewers, main-only deployment branch/tag policy). They are never exposed to
+# pull_request events, never written to disk except the GNUPGHOME of this job, and the token is
+# rotated after each release.
+
+on:
+  push:
+    tags:
+      - 'sdk/maven/v*'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: publish-maven
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'inn-media/truyn'
+    runs-on: ubuntu-latest
+    environment: sdk-release
+    timeout-minutes: 150
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MAVEN_GROUP_PATH: org/truyn
+      MAVEN_ARTIFACT: truyn-sdk
+      CENTRAL_API: https://central.sonatype.com/api/v1/publisher
+      CENTRAL_REPO: https://repo1.maven.org/maven2
+      RELEASE_ROOT: /tmp/truyn-maven-release
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate immutable tag, exact current main, CI and CodeQL gates
+        id: gates
+        run: bash sdk/release/resolve-release-gates.sh sdk/maven/v maven
+
+      - name: Set up Java (clean-room verification only; nothing is rebuilt)
+        uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+
+      - name: Download and verify exact CI release artifact
+        id: artifact
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.gates.outputs.source_sha }}
+          VERSION: ${{ steps.gates.outputs.version }}
+          CI_RUN_ID: ${{ steps.gates.outputs.ci_run_id }}
+        run: |
+          set -euo pipefail
+          rm -rf "$RELEASE_ROOT"; mkdir -p "$RELEASE_ROOT/ci" "$RELEASE_ROOT/registry"
+          gh run download "$CI_RUN_ID" --name "truyn-sdk-release-$CI_RUN_ID" --dir "$RELEASE_ROOT/ci"
+          node sdk/release/verify-release.mjs "$RELEASE_ROOT/ci"
+          jq -e --arg s "$SOURCE_SHA" --arg v "$VERSION" '.sourceSha == $s and .release == $v' "$RELEASE_ROOT/ci/manifest.json" >/dev/null
+          jar="$RELEASE_ROOT/ci/java/$MAVEN_ARTIFACT-$VERSION.jar"
+          for f in "$jar" "${jar%.jar}-sources.jar" "${jar%.jar}-javadoc.jar" "$RELEASE_ROOT/ci/java/$MAVEN_ARTIFACT-$VERSION.pom"; do test -s "$f"; done
+          echo "jar=$jar" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$jar" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Detect immutable registry state
+        id: registry
+        shell: bash
+        env:
+          VERSION: ${{ steps.gates.outputs.version }}
+          JAR: ${{ steps.artifact.outputs.jar }}
+        run: |
+          set -euo pipefail
+          url="$CENTRAL_REPO/$MAVEN_GROUP_PATH/$MAVEN_ARTIFACT/$VERSION/$MAVEN_ARTIFACT-$VERSION.jar"
+          code="$(curl -sS -o "$RELEASE_ROOT/registry/existing.jar" -w '%{http_code}' "$url")"
+          case "$code" in
+            200) cmp "$JAR" "$RELEASE_ROOT/registry/existing.jar"; echo 'exists=true' >> "$GITHUB_OUTPUT" ;;
+            404) echo 'exists=false' >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unexpected Maven Central response $code for $url" >&2; exit 1 ;;
+          esac
+
+      - name: Import and pin OpenPGP signing key
+        id: gpg
+        shell: bash
+        env:
+          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          EXPECTED_FPR: ${{ vars.MAVEN_GPG_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+          test -n "$MAVEN_GPG_PRIVATE_KEY"; test -n "$EXPECTED_FPR"
+          export GNUPGHOME="$RELEASE_ROOT/gnupg"; mkdir -p -m 700 "$GNUPGHOME"
+          printf '%s\n' "$MAVEN_GPG_PRIVATE_KEY" | gpg --batch --quiet --import
+          fpr="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
+          test "$fpr" = "$EXPECTED_FPR"
+          # Central validates signatures against public keyservers; fail before upload if the key is not discoverable.
+          test "$(curl -sS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr")" = '200'
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          echo "fingerprint=$fpr" >> "$GITHUB_OUTPUT"
+
+      - name: Build signed Central bundle from exact CI bytes
+        id: bundle
+        shell: bash
+        env:
+          VERSION: ${{ steps.gates.outputs.version }}
+          MAVEN_GPG_KEY_ID: ${{ steps.gpg.outputs.fingerprint }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          bundle="$RELEASE_ROOT/central-bundle-$VERSION.zip"
+          bash sdk/release/build-maven-bundle.sh "$RELEASE_ROOT/ci" "$VERSION" "$bundle"
+          unzip -p "$bundle" "$MAVEN_GROUP_PATH/$MAVEN_ARTIFACT/$VERSION/$MAVEN_ARTIFACT-$VERSION.jar" | cmp - "$RELEASE_ROOT/ci/java/$MAVEN_ARTIFACT-$VERSION.jar"
+          echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
+
+      - name: Upload bundle to Central Portal and wait for PUBLISHED
+        if: steps.registry.outputs.exists == 'false'
+        id: central
+        shell: bash
+        env:
+          VERSION: ${{ steps.gates.outputs.version }}
+          BUNDLE: ${{ steps.bundle.outputs.bundle }}
+          CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$CENTRAL_USERNAME"; test -n "$CENTRAL_PASSWORD"
+          bearer="$(printf '%s:%s' "$CENTRAL_USERNAME" "$CENTRAL_PASSWORD" | base64 -w0)"
+          echo "::add-mask::$bearer"
+          deployment="$(curl -sS --fail-with-body -X POST \
+            "$CENTRAL_API/upload?publishingType=AUTOMATIC&name=$MAVEN_ARTIFACT-$VERSION" \
+            -H "Authorization: Bearer $bearer" \
+            -F "bundle=@$BUNDLE;type=application/octet-stream")"
+          [[ "$deployment" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo "Unexpected upload response: $deployment" >&2; exit 1; }
+          echo "deployment_id=$deployment" >> "$GITHUB_OUTPUT"
+          for attempt in $(seq 1 270); do
+            status="$(curl -sS --fail-with-body -X POST "$CENTRAL_API/status?id=$deployment" -H "Authorization: Bearer $bearer")"
+            state="$(jq -r '.deploymentState' <<<"$status")"
+            echo "deployment $deployment: $state"
+            case "$state" in
+              PUBLISHED) exit 0 ;;
+              FAILED) jq '.errors' <<<"$status" >&2; exit 1 ;;
+              VALIDATED) echo "VALIDATED with publishingType=AUTOMATIC should not stall" >&2 ;;
+            esac
+            sleep 20
+          done
+          echo "Timed out waiting for PUBLISHED" >&2; exit 1
+
+      - name: Verify public bytes, signature and clean-room resolution
+        shell: bash
+        env:
+          VERSION: ${{ steps.gates.outputs.version }}
+          JAR: ${{ steps.artifact.outputs.jar }}
+          EXPECTED_SHA256: ${{ steps.artifact.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          base="$CENTRAL_REPO/$MAVEN_GROUP_PATH/$MAVEN_ARTIFACT/$VERSION/$MAVEN_ARTIFACT-$VERSION"
+          visible=false
+          for attempt in $(seq 1 120); do
+            if curl -sSf -o "$RELEASE_ROOT/registry/public.jar" "$base.jar"; then visible=true; break; fi
+            sleep 30
+          done
+          test "$visible" = true
+          cmp "$JAR" "$RELEASE_ROOT/registry/public.jar"
+          test "$(sha256sum "$RELEASE_ROOT/registry/public.jar" | awk '{print $1}')" = "$EXPECTED_SHA256"
+          test "$(curl -sSf "$base.jar.sha1")" = "$(sha1sum "$JAR" | awk '{print $1}')"
+          curl -sSf -o "$RELEASE_ROOT/registry/public.jar.asc" "$base.jar.asc"
+          gpg --batch --verify "$RELEASE_ROOT/registry/public.jar.asc" "$RELEASE_ROOT/registry/public.jar"
+          for suffix in -sources.jar -javadoc.jar .pom; do curl -sSf -o /dev/null "$base$suffix"; done
+
+          clean="$RELEASE_ROOT/cleanroom"; rm -rf "$clean"; mkdir -p "$clean/src"
+          mvn -q -B -Dmaven.repo.local="$clean/m2" dependency:get -Dartifact="org.truyn:$MAVEN_ARTIFACT:$VERSION" -Dtransitive=false
+          cat > "$clean/src/Probe.java" <<'JAVA'
+          public class Probe { public static void main(String[] a) throws Exception { Class.forName("org.truyn.sdk.TruynClient"); Class.forName("org.truyn.sdk.AgentDescriptors"); System.out.println("TRUYN_MAVEN_CLEANROOM=PASS"); } }
+          JAVA
+          cp_jar="$clean/m2/$MAVEN_GROUP_PATH/$MAVEN_ARTIFACT/$VERSION/$MAVEN_ARTIFACT-$VERSION.jar"
+          cmp "$JAR" "$cp_jar"
+          javac -d "$clean/out" -cp "$cp_jar" "$clean/src/Probe.java"
+          java -cp "$clean/out:$cp_jar" Probe | grep -qx 'TRUYN_MAVEN_CLEANROOM=PASS'
+
+      - name: Write release evidence
+        shell: bash
+        env:
+          VERSION: ${{ steps.gates.outputs.version }}
+          SOURCE_SHA: ${{ steps.gates.outputs.source_sha }}
+          CI_RUN_ID: ${{ steps.gates.outputs.ci_run_id }}
+          CODEQL_RUN_ID: ${{ steps.gates.outputs.codeql_run_id }}
+          SHA256: ${{ steps.artifact.outputs.sha256 }}
+          FPR: ${{ steps.gpg.outputs.fingerprint }}
+          DEPLOYMENT_ID: ${{ steps.central.outputs.deployment_id }}
+          ALREADY_PUBLISHED: ${{ steps.registry.outputs.exists }}
+        run: |
+          set -euo pipefail
+          jq -n --arg coordinate "org.truyn:$MAVEN_ARTIFACT:$VERSION" --arg version "$VERSION" --arg sourceSha "$SOURCE_SHA" \
+            --arg releaseTag "${GITHUB_REF#refs/tags/}" --arg ciRunId "$CI_RUN_ID" --arg codeqlRunId "$CODEQL_RUN_ID" \
+            --arg publicationRunId "$GITHUB_RUN_ID" --arg sha256 "$SHA256" --arg signingKey "$FPR" \
+            --arg deploymentId "$DEPLOYMENT_ID" --arg alreadyPublished "$ALREADY_PUBLISHED" \
+            '{registry:"Maven Central",coordinate:$coordinate,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,ciRunId:$ciRunId,codeqlRunId:$codeqlRunId,publicationRunId:$publicationRunId,publicationAuthentication:"Central Portal user token (sdk-release environment secret)",centralDeploymentId:$deploymentId,alreadyPublished:($alreadyPublished=="true"),jarSha256:$sha256,openPgpFingerprint:$signingKey,byteIdentity:"PASS",signatureVerification:"PASS",cleanRoomResolution:"PASS"}' \
+            > "$RELEASE_ROOT/maven-central-publication-evidence.json"
+          cat "$RELEASE_ROOT/maven-central-publication-evidence.json"
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-sdk-maven-central-${{ github.run_id }}
+          path: /tmp/truyn-maven-release/maven-central-publication-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Remove signing material
+        if: always()
+        run: rm -rf /tmp/truyn-maven-release/gnupg

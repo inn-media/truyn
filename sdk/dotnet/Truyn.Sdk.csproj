@@ -14,11 +14,22 @@
     <PackageTags>truyn;ai;agents;intelligence-network</PackageTags>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <!-- nuget.org package page + reproducibility/source-link (NuGet Package Explorer "health" checks) -->
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Deterministic>true</Deterministic>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>embedded</DebugType>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- conformance/ is a separate project nested in this folder; keep its sources and build output out of this package -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);conformance/**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="conformance/**/*.cs" />
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <None Include="LICENSE" Pack="true" PackagePath="" />
     <None Include="NOTICE" Pack="true" PackagePath="" />
+    <None Include="README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 </Project>

@@ -100,3 +100,60 @@ The recorded historical PyPI publication source remains `fda6b75fda5331dd9cdc7e6
 ## Permanent evidence
 
 Canonical machine-readable closure evidence is committed at `sdk/release/evidence/npm-alpha2-2026-09-05.json`. It records source/tag identity, exact CI and CodeQL run IDs, publication and independent-verification run IDs, publication workflow identity, registry hashes/integrity, public dist-tags, provenance/signature/clean-room results, PyPI distribution hashes and artifact digests. It contains no credentials or private operational topology.
+
+## Maven Central (`org.truyn:truyn-sdk`)
+
+**State:** OPEN. The Java SDK already builds `truyn-sdk-<v>.jar`, `-sources.jar`, `-javadoc.jar` and the POM in ordinary CI (`sdk/release/build-release.sh`), and the POM already carries the metadata Central requires (name, description, url, license, developers, scm). What was missing was the publication path itself and the account-side identity.
+
+Repository-side path: `.github/workflows/publish-maven.yml`, triggered only by an immutable `sdk/maven/v<version>` tag on exact current `main`.
+
+1. `sdk/release/resolve-release-gates.sh` checks that the tag version equals `sdk/java/pom.xml` `<version>`, that the tag targets exact current `main`, and that same-SHA ordinary CI and hosted CodeQL are green.
+2. The job downloads the exact CI artifact `truyn-sdk-release-<ci run>`, re-runs `verify-release.mjs` and binds `manifest.json` to the source SHA. Nothing is rebuilt.
+3. If the version already exists on `repo1.maven.org`, the public jar must be byte-identical or the job fails. A coordinate is never overwritten.
+4. `sdk/release/build-maven-bundle.sh` wraps the exact CI bytes into a Central Portal bundle (Maven layout, `.asc`, `.md5`, `.sha1`, `.sha256`, `.sha512`).
+5. The bundle is uploaded to the Central Portal Publisher API with `publishingType=AUTOMATIC`. The job polls `/status` until `PUBLISHED` and fails on `FAILED`.
+6. Independent verification: public jar bytes and SHA-256 equal the CI jar, the `.sha1` matches, `gpg --verify` of the public `.asc` passes, sources/javadoc/POM resolve, and a clean-room `mvn dependency:get` plus `javac`/`java` probe loads `org.truyn.sdk.TruynClient`.
+7. The evidence JSON is uploaded as `truyn-sdk-maven-central-<run>`.
+
+Maven Central has **no OIDC trusted publishing**, so this is the one registry path that uses stored credentials. They exist only as secrets of the protected `sdk-release` environment:
+
+| Name | Kind | Value |
+|---|---|---|
+| `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` | environment secret | Central Portal **user token** pair (not the account password) |
+| `MAVEN_GPG_PRIVATE_KEY` | environment secret | ASCII-armoured private key of a dedicated release signing key |
+| `MAVEN_GPG_PASSPHRASE` | environment secret | its passphrase |
+| `MAVEN_GPG_FINGERPRINT` | environment variable | full fingerprint; the job refuses any other key |
+
+One-time maintainer steps:
+
+1. Sign in at `central.sonatype.com`. Add namespace `org.truyn` and prove control of `truyn.org` with the DNS TXT record the Portal shows. If `truyn.org` DNS is not controllable, change `groupId` to the auto-verified `io.github.inn-media` **before** the first release, because a published groupId cannot be renamed.
+2. Generate a dedicated signing key (`gpg --quick-gen-key "TRUYN Release Signing <…>" ed25519 sign 2y`). Publish it with `gpg --keyserver keys.openpgp.org --send-keys <FPR>`, confirm the address in the keys.openpgp.org e-mail, and also send it to `keyserver.ubuntu.com`. Keep an offline revocation certificate.
+3. In the Portal, generate a user token (Account → Generate User Token).
+4. In GitHub Settings → Environments → `sdk-release`: add the secrets and variable above, keep required reviewers, and restrict deployment refs to `main` and `sdk/*/v*` tags.
+5. Release: `git tag sdk/maven/v0.1.0-alpha.1 <exact-main-sha> && git push origin sdk/maven/v0.1.0-alpha.1`. A tag pushed by a person triggers the workflow. A tag created by `GITHUB_TOKEN` would be recursion-suppressed.
+6. After the release is verified, rotate the Portal user token and set `coordinates.maven.publicationState` to `accepted` in `public-coordinates.json`, with committed evidence.
+
+## NuGet.org (`Truyn.Sdk`)
+
+**State:** OPEN. `dotnet pack` already produces `Truyn.Sdk.<v>.nupkg` in ordinary CI. The package now also embeds `README.md`, XML docs, embedded PDB and SourceLink, and its nuspec records the exact source commit.
+
+Repository-side path: `.github/workflows/publish-nuget.yml`, triggered only by an immutable `sdk/nuget/v<version>` tag on exact current `main`. The gates and exact-CI-artifact rules are the same as for Maven. Authentication is **NuGet Trusted Publishing**: `NuGet/login@v1` exchanges the job's GitHub OIDC token for a single-use API key valid for one hour. No long-lived NuGet API key exists anywhere.
+
+- The push is never `--skip-duplicate`. An existing version is compared with `sdk/release/compare-nupkg.sh` and the job fails on any difference.
+- nuget.org repository-signs each package by adding `.signature.p7s`, so raw bytes differ by design. Every other entry must be byte-identical to the CI package, and `dotnet nuget verify --all` must pass on the public copy.
+- A clean-room `dotnet add package` restore plus a probe that loads `Truyn.Sdk.TruynClient` must pass.
+- The evidence JSON is uploaded as `truyn-sdk-nuget-trusted-publishing-<run>`.
+
+One-time maintainer steps:
+
+1. Sign in to nuget.org with the organisation account that will own `Truyn.Sdk`, with 2FA on. Optionally request ID-prefix reservation for `Truyn.*`.
+2. Go to nuget.org → *Trusted Publishing* → *Create* and bind exactly:
+   - Repository Owner: `inn-media`
+   - Repository: `truyn`
+   - Workflow File: `publish-nuget.yml`
+   - Environment: `sdk-release`
+3. In GitHub Settings → Environments → `sdk-release`, add the variable `NUGET_USER` = the nuget.org profile name (not an e-mail).
+4. Release: `git tag sdk/nuget/v0.1.0-alpha.1 <exact-main-sha> && git push origin sdk/nuget/v0.1.0-alpha.1`.
+5. After independent verification, set `coordinates.nuget.publicationState` to `accepted`, with committed evidence.
+
+Until those account-side steps are complete, both coordinates stay **OPEN** in `public-coordinates.json`. The workflows fail closed; they never fall back to another credential path.
