@@ -1,0 +1,52 @@
+name: Class D Parallel Liveness Source Repair
+
+on:
+  push:
+    branches:
+      - automation/d-series-parallel-liveness-260923
+    paths:
+      - scripts/apply-class-d-parallel-liveness-repair.py
+      - .github/workflows/class-d-parallel-liveness-source-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-source-repair:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: automation/d-series-parallel-liveness-260923
+          fetch-depth: 0
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply fail-closed source repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/apply-class-d-parallel-liveness-repair.py
+          bash -n benchmarks/scale/class-d-azure-1000-provision.sh
+          bash -n benchmarks/scale/class-d-bootstrap-host.sh
+          bash -n scripts/class-d-phase-watchdog.sh
+          git diff --check
+          grep -q 'TRUYN_CLASS_D_PARALLEL_LIVENESS_V1=1' benchmarks/scale/class-d-azure-1000-provision.sh
+          grep -q 'class_d_wait_pid_barrier bootstrap' benchmarks/scale/class-d-azure-1000-provision.sh
+          grep -q 'mode=parallel-hosts' benchmarks/scale/class-d-azure-1000-provision.sh
+          grep -q 'timeout-minutes: 120' .github/workflows/d500-acceptance.yml
+
+      - name: Commit repaired canonical sources
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -n "$(git status --porcelain)"
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add benchmarks/scale/class-d-azure-1000-provision.sh .github/workflows/d500-acceptance.yml .github/d500/d500-acceptance.template.yml .github/workflows/class-d-bootstrap-qualification.yml
+          git commit -m 'fix(class-d): restore parallel fanout and bounded watchdogs' -m 'Signed-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
+          git push origin HEAD:automation/d-series-parallel-liveness-260923
