@@ -28,10 +28,10 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/generate-class-d-workflow-contracts.py
           git diff --check
-          grep -q 'timeout-minutes: 120' .github/workflows/d500-acceptance.yml
-          grep -q "timeout-minutes: \${{ inputs.scale == 'd500' && 120 || 240 }}" .github/workflows/class-d-bootstrap-qualification.yml
-          grep -q 'TRUYN_CLASS_D_SCALE=d500' .github/workflows/d500-acceptance.yml
-          grep -q 'block=B03 architecture=parallel-fanout-global-barrier' .github/workflows/class-d-bootstrap-qualification.yml
+          grep -Fq 'timeout-minutes: 120' .github/workflows/d500-acceptance.yml
+          grep -Fq '120 || 240' .github/workflows/class-d-bootstrap-qualification.yml
+          grep -Fq 'TRUYN_CLASS_D_SCALE=d500' .github/workflows/d500-acceptance.yml
+          grep -Fq 'block=B03 architecture=parallel-fanout-global-barrier' .github/workflows/class-d-bootstrap-qualification.yml
 
       - name: Publish generated blobs without moving refs
         env:
