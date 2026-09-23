@@ -2,11 +2,29 @@ package truyn
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 )
+
+func TestDescriptorEndpointParityFixtures(t *testing.T) {
+	data, err := os.ReadFile("../conformance/v1/agent-descriptor-runtime-fixtures.json")
+	if err != nil { t.Fatal(err) }
+	var fixture struct { DescriptorRuntimeCases []struct { ID string `json:"id"`; Operation string `json:"operation"`; Now string `json:"now"`; Value map[string]any `json:"value"`; Expect struct { Accepted bool `json:"accepted"`; Reason string `json:"reason"` } `json:"expect"` } `json:"descriptorRuntimeCases"` }
+	if err := json.Unmarshal(data, &fixture); err != nil { t.Fatal(err) }
+	wanted := map[string]bool{"descriptor.interface-endpoint-missing":true, "descriptor.interface-endpoint-blank":true, "descriptor.interface-type-blank":true}
+	seen := map[string]bool{}
+	for _, tc := range fixture.DescriptorRuntimeCases {
+		if !wanted[tc.ID] { continue }
+		seen[tc.ID] = true
+		if tc.Operation != "parseDescriptor" || tc.Expect.Accepted || tc.Expect.Reason != "invalid_descriptor_interfaces" { t.Fatalf("fixture %s has unexpected contract", tc.ID) }
+		now, err := time.Parse(time.RFC3339Nano, tc.Now); if err != nil { t.Fatal(err) }
+		if err := validateDescriptor(tc.Value, now); err == nil { t.Fatalf("fixture %s must be rejected", tc.ID) }
+	}
+	for id := range wanted { if !seen[id] { t.Fatalf("shared descriptor fixture missing %s", id) } }
+}
 
 func TestDeveloperReleaseConformance(t *testing.T) {
 	relay := os.Getenv("TRUYN_CONFORMANCE_RELAY")
