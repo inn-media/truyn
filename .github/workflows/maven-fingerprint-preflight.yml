@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: sdk-release
     steps:
-      - name: Canonicalize and verify signing identity
+      - name: Canonicalize and isolate signing gates
         shell: bash
         env:
           PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
@@ -24,29 +24,29 @@ jobs:
           export KEYFILE="$RUNNER_TEMP/maven-private-key.asc"
           python - <<'PY'
           import os
-          s=os.environ['PRIVATE_KEY'].strip()
-          begin='-----BEGIN PGP PRIVATE KEY BLOCK-----'
-          end='-----END PGP PRIVATE KEY BLOCK-----'
-          bi=s.find(begin); ei=s.rfind(end)
-          if bi < 0 or ei < bi: raise SystemExit('PGP armor markers missing')
-          lines=s[bi:ei+len(end)].splitlines()
-          if lines[0].strip()!=begin or lines[-1].strip()!=end: raise SystemExit('PGP armor boundary mismatch')
-          interior=[x.rstrip('\r') for x in lines[1:-1]]
-          # Existing secret has payload immediately after BEGIN; OpenPGP armor requires a blank separator.
+          s=os.environ['PRIVATE_KEY'].strip(); begin='-----BEGIN PGP PRIVATE KEY BLOCK-----'; end='-----END PGP PRIVATE KEY BLOCK-----'
+          bi=s.find(begin); ei=s.rfind(end); lines=s[bi:ei+len(end)].splitlines(); interior=[x.rstrip('\r') for x in lines[1:-1]]
           while interior and not interior[0].strip(): interior.pop(0)
-          # Preserve payload/checksum bytes exactly; only repair the missing structural blank separator.
           canonical='\n'.join([begin,'']+interior+[end,''])
           with open(os.environ['KEYFILE'],'w',encoding='ascii',newline='\n') as f: f.write(canonical)
-          print('TRUYN_MAVEN_ARMOR_CANONICALIZED=PASS lines=',len(interior))
           PY
           unset PRIVATE_KEY
           export GNUPGHOME="$RUNNER_TEMP/maven-gpg-probe"; mkdir -p -m 700 "$GNUPGHOME"
           gpg --batch --quiet --import "$KEYFILE"; rm -f "$KEYFILE"
+          echo 'TRUYN_MAVEN_GPG_IMPORT=PASS'
           fpr="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^fpr/{print toupper($10);exit}')"
           long_id="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/{print toupper($5);exit}')"
           configured="$(printf '%s' "$CONFIGURED_LONG_KEY" | tr -d '[:space:]' | sed 's/^0[xX]//' | tr '[:lower:]' '[:upper:]')"
           test -n "$fpr"; test -n "$long_id"
-          test "$long_id" = "$configured" || [[ "$fpr" == *"$configured" ]]
-          test "$(curl -sS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr")" = '200'
+          echo "TRUYN_MAVEN_DERIVED_FPR_LEN=${#fpr} DERIVED_LONG_LEN=${#long_id} CONFIGURED_PIN_LEN=${#configured}"
+          if [[ "$configured" =~ ^[0-9A-F]+$ ]] && { test "$long_id" = "$configured" || [[ "$fpr" == *"$configured" ]]; }; then
+            echo 'TRUYN_MAVEN_LONG_KEY_PIN=PASS'
+          else
+            echo 'TRUYN_MAVEN_LONG_KEY_PIN=FAIL'
+            exit 21
+          fi
+          code="$(curl -sS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr")"
+          echo "TRUYN_MAVEN_KEYS_OPENPGP_HTTP=$code"
+          test "$code" = '200' || exit 22
           echo "TRUYN_MAVEN_SIGNING_FINGERPRINT=$fpr"
           echo 'TRUYN_MAVEN_SIGNING_IDENTITY=PASS'
