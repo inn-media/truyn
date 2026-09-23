@@ -13,6 +13,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Network | **Class C + D-100 + D-200 accepted** | D-500 / D-1000 external scale qualification |
 | Semantic Scale (S-Series) | **Architecture + benchmark/telemetry contract defined; no S PASS claimed** | S-50 `ECON` + `MIX`, then remaining S-50 scenario matrix |
 | Efficiency Limits (E-Series) | **FOUNDATION DEFINED / no E result claim** | instrumentation + isolation qualification → E/DECOMPOSE → E/PER-RESULT → E/KNEE → E/DEGRADE |
+| Emergent Network (N-Series) | **Foundation architecture/methodology/telemetry/isolation defined; no N PASS claimed** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
 | Production operations | **contracts implemented** | live evidence |
 | Provider authority | **repository/runtime semantics accepted** | live managed deployment evidence |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + ecosystem evidence |
@@ -137,6 +138,41 @@ Canonical public contract: [`docs/benchmarks/E_SERIES_EFFICIENCY.md`](docs/bench
 E-Series lanes may execute in parallel with D, S, T and H on disjoint state/resources. Shared R1 services require attribution and an active interference detector. Any capacity change, cache/index mutation or fault target shared with another active measured series is R2-exclusive; E records `WAITING_SHARED_RESOURCE` rather than cancelling or perturbing the owner run.
 
 Foundation documents are not benchmark results.
+
+## Emergent Network (N-Series)
+
+N-Series measures behavior that should emerge from a real multi-provider TRUYN network rather than being hard-coded into a requester or benchmark runner.
+
+Scenarios and initial progression:
+
+- [ ] **N/SOVEREIGNTY** — first 50-node then 100-node cells; jurisdiction/data-residency, fail-closed impossible policy, compute-near-data and actual data-plane egress proof.
+- [ ] **N/MARKETPLACE** — 50 then 100 nodes; capability-only specialist discovery, composite capability DAGs, anti-flood fan-out and equal-policy load balance.
+- [ ] **N/TRUST-DECAY** — 50 then 100 nodes; independent hidden oracle, domain-specific trust decay, dispute abuse resistance, false-penalty control and rehabilitation.
+- [ ] **N/SUSTAINED-CHURN** — 100 then 200 nodes; continuous NEED load through repeated join/leave cycles over at least `max(2h, 12*peer-record TTL)` and exact supported/break churn rates.
+
+The common substrate is the accepted D-200 network architecture plus the heterogeneous semantic/provider path. **Neither substrate grants an N PASS.**
+
+Hard scenario gates include:
+
+- MARKETPLACE specialist-hit >=99%, zero incapable dispatches, composite completion >=99%, 100% step provenance, zero all-node broadcast and Jain fairness >=0.90 in the explicit equal-policy arm;
+- SOVEREIGNTY policy compliance 100%, zero forbidden provider execution, zero observed forbidden data egress, 100% fail-closed impossible-policy outcomes, 100% feasible compute-near-data success and zero restricted-content leakage to forbidden sinks;
+- TRUST-DECAY bad-provider traffic <=1% by the frozen learning window and in the final 25% of rounds, false-penalty <=0.5%, unauthorized dispute score mutation =0, domain isolation within the frozen tolerance and rehabilitation to >=90% of matched-good traffic share inside the frozen recovery window;
+- SUSTAINED-CHURN routing >=99% at every claimed supported rate, recovery p95 <=120 s, orphaned requests <=1%, newcomer readiness p95 <=120 s and no slow long-window degradation according to the frozen quartile gates.
+
+N binds to the common `BENCHMARK_SERIES_ISOLATION.md` contract. It uses `N/<benchmark>/<run_id>`, series-scoped concurrency, R1 interference detection and exclusive R2 leases. A resource conflict produces `WAITING_SHARED_RESOURCE`; N never cancels or mutates an unrelated D/S/T/H/E run.
+
+Public `inn-media/truyn` owns reproducible methodology, metric formulas, public-safe telemetry/reference evaluation and sanitized evidence. Private `inn-media/truyn-platform` owns real managed topology, packet/flow evidence, hidden oracle/seed material, provider identities/quota/spend and proprietary routing/trust operations.
+
+Canonical documents:
+
+- [`docs/architecture/N_SERIES_EMERGENT_NETWORK.md`](docs/architecture/N_SERIES_EMERGENT_NETWORK.md)
+- [`docs/architecture/N_SERIES_OPEN_PRIVATE_BOUNDARY.md`](docs/architecture/N_SERIES_OPEN_PRIVATE_BOUNDARY.md)
+- [`docs/benchmarks/N_SERIES_EMERGENT_BEHAVIOR_CONTRACT.md`](docs/benchmarks/N_SERIES_EMERGENT_BEHAVIOR_CONTRACT.md)
+- [`docs/benchmarks/N_SERIES_TELEMETRY.md`](docs/benchmarks/N_SERIES_TELEMETRY.md)
+- [`docs/operations/N_SERIES_EXECUTION_AND_ISOLATION.md`](docs/operations/N_SERIES_EXECUTION_AND_ISOLATION.md)
+- [`docs/roadmap/N_SERIES_ROADMAP.md`](docs/roadmap/N_SERIES_ROADMAP.md)
+
+No N-Series PASS is currently claimed.
 
 ## A2A / MCP
 
