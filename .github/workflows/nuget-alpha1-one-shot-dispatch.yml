@@ -1,0 +1,81 @@
+name: One-shot NuGet alpha.1 release dispatch
+
+on:
+  push:
+    branches:
+      - 'automation/nuget-release-dispatch/**'
+    paths:
+      - '.github/workflows/nuget-alpha1-one-shot-dispatch.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      SOURCE_SHA: 953ed548a52e4c3440a414ec2401ea324120155e
+      VERSION: 0.1.0-alpha.1
+      RELEASE_TAG: sdk/nuget/v0.1.0-alpha.1
+      EXPECTED_BRANCH: automation/nuget-release-dispatch/953ed548-alpha1
+      EXPECTED_CI_RUN: '35903671988'
+      EXPECTED_CODEQL_RUN: '35903670985'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact launcher branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fail closed unless exact release source is current and fully qualified
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REPOSITORY" == "inn-media/truyn" ]]
+          [[ "$GITHUB_REF_NAME" == "$EXPECTED_BRANCH" ]]
+          git fetch origin main --tags --force --quiet
+          [[ "$(git rev-parse origin/main)" == "$SOURCE_SHA" ]]
+          [[ "$(git rev-parse HEAD^)" == "$SOURCE_SHA" ]]
+          mapfile -t changed < <(git diff --name-only "$SOURCE_SHA" HEAD)
+          [[ ${#changed[@]} -eq 1 && "${changed[0]}" == ".github/workflows/nuget-alpha1-one-shot-dispatch.yml" ]]
+
+          declared="$(python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          print(ET.parse('sdk/dotnet/Truyn.Sdk.csproj').getroot().find('./PropertyGroup/Version').text.strip())
+          PY
+          )"
+          [[ "$declared" == "$VERSION" ]]
+
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release tag already exists; refusing duplicate launch" >&2
+            exit 1
+          fi
+
+          ci_state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$EXPECTED_CI_RUN" --jq '[.head_sha,.head_branch,.event,.status,.conclusion] | @tsv')"
+          [[ "$ci_state" == "$SOURCE_SHA"$'\tmain\tpush\tcompleted\tsuccess' ]]
+          codeql_state="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$EXPECTED_CODEQL_RUN" --jq '[.head_sha,.path,.status,.conclusion] | @tsv')"
+          [[ "$codeql_state" == "$SOURCE_SHA"$'\tdynamic/github-code-scanning/codeql\tcompleted\tsuccess' ]]
+
+          echo "NUGET_ALPHA1_PREFLIGHT=PASS source=$SOURCE_SHA ci=$EXPECTED_CI_RUN codeql=$EXPECTED_CODEQL_RUN"
+
+      - name: Create exactly one immutable NuGet release tag
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'TRUYN Release Automation'
+          git config user.email 'release@truyn.org'
+          git tag -a "$RELEASE_TAG" "$SOURCE_SHA" -m "TRUYN .NET SDK $VERSION"
+          git push origin "refs/tags/$RELEASE_TAG"
+          echo "NUGET_RELEASE_TAG_CREATED=$RELEASE_TAG source=$SOURCE_SHA"
+
+      - name: Dispatch canonical Trusted Publishing workflow on immutable tag
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gh workflow run publish-nuget.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$RELEASE_TAG"
+          echo "NUGET_CANONICAL_DISPATCH=PASS ref=$RELEASE_TAG"
