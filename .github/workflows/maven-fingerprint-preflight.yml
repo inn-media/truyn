@@ -24,7 +24,10 @@ jobs:
           test -n "$CONFIGURED_LONG_KEY"
           export GNUPGHOME="$RUNNER_TEMP/maven-gpg-probe"
           mkdir -p -m 700 "$GNUPGHOME"
-          printf '%s\n' "$PRIVATE_KEY" | gpg --batch --quiet --import
+          normalized="$PRIVATE_KEY"
+          if [[ "$normalized" == *'\n'* ]]; then normalized="${normalized//\\n/$'\n'}"; fi
+          printf '%s\n' "$normalized" | gpg --batch --quiet --import
+          unset normalized
           fpr="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^fpr/{print toupper($10);exit}')"
           long_id="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/{print toupper($5);exit}')"
           configured="$(printf '%s' "$CONFIGURED_LONG_KEY" | tr -d '[:space:]' | sed 's/^0[xX]//' | tr '[:lower:]' '[:upper:]')"
