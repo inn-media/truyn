@@ -1,0 +1,82 @@
+name: One-shot NuGet alpha.1 tag launcher
+
+on:
+  push:
+    branches:
+      - 'automation/nuget-release-launch/**'
+    paths:
+      - '.github/workflows/nuget-tag-one-shot-launcher.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  launch:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      SOURCE_SHA: 6739b81bb8b2c9f4d8c07efb4298f12c9b85fa53
+      VERSION: 0.1.0-alpha.1
+      RELEASE_TAG: sdk/nuget/v0.1.0-alpha.1
+      EXPECTED_BRANCH: automation/nuget-release-launch/6739b81b-alpha1
+      GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+    steps:
+      - name: Checkout launcher branch with privileged token
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+
+      - name: Fail closed unless exact release source is still current and qualified
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -n "${GH_TOKEN:-}"
+          [[ "$GITHUB_REPOSITORY" == "inn-media/truyn" ]]
+          [[ "$GITHUB_REF_NAME" == "$EXPECTED_BRANCH" ]]
+
+          git fetch origin main --tags --force --quiet
+          [[ "$(git rev-parse origin/main)" == "$SOURCE_SHA" ]]
+          [[ "$(git rev-parse HEAD^)" == "$SOURCE_SHA" ]]
+          [[ "$(git diff --name-only "$SOURCE_SHA" HEAD)" == ".github/workflows/nuget-tag-one-shot-launcher.yml" ]]
+
+          declared="$(python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          print(ET.parse('sdk/dotnet/Truyn.Sdk.csproj').getroot().find('PropertyGroup/Version').text.strip())
+          PY
+          )"
+          [[ "$declared" == "$VERSION" ]]
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "release tag already exists" >&2
+            exit 1
+          fi
+
+          ci="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100" --jq '[.workflow_runs[] | select(.name=="CI" and .status=="completed" and .conclusion=="success")][0].id // empty')"
+          codeql="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&per_page=100" --jq '[.workflow_runs[] | select(.name=="CodeQL" and .status=="completed" and .conclusion=="success")][0].id // empty')"
+          test -n "$ci"
+          test -n "$codeql"
+          [[ "$ci" == "35899556881" ]]
+          [[ "$codeql" == "35899557154" ]]
+
+          echo "NUGET_ONE_SHOT_PREFLIGHT=PASS source=$SOURCE_SHA ci=$ci codeql=$codeql tag=$RELEASE_TAG"
+
+      - name: Create exactly one immutable release tag on exact current main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'TRUYN Release Automation'
+          git config user.email 'release@truyn.org'
+          git tag -a "$RELEASE_TAG" "$SOURCE_SHA" -m "TRUYN .NET SDK $VERSION"
+          git push origin "refs/tags/$RELEASE_TAG"
+          echo "NUGET_RELEASE_TAG_PUSHED=$RELEASE_TAG source=$SOURCE_SHA"
+
+      - name: Remove transient launcher branch
+        if: success()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git push origin --delete "$EXPECTED_BRANCH"
+          echo "NUGET_ONE_SHOT_LAUNCHER_CLEANUP=PASS"
