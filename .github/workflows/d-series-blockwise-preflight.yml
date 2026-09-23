@@ -24,6 +24,27 @@ on:
         description: Exact-SHA GREEN D-Series Sanitation Swarm run; required only for full admission
         required: false
         type: string
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact current main SHA to qualify
+        required: true
+        type: string
+      scale:
+        description: Local Class-D scale coverage
+        required: false
+        default: all
+        type: string
+      block:
+        description: Run all blocks or only one targeted block
+        required: false
+        default: all
+        type: string
+      swarm_run_id:
+        description: Exact-SHA GREEN D-Series Sanitation Swarm provenance run
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -43,25 +64,25 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
 
       - name: Validate exact source
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
-          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
+          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
-          if [[ "$EVENT" == workflow_dispatch ]]; then
+          if [[ "$EVENT" != pull_request ]]; then
             main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
             [[ "$main_sha" == "$EXPECTED_SHA" ]]
           fi
 
       - name: Require clean Swarm before full admission
-        if: github.event_name == 'workflow_dispatch' && inputs.block == 'all'
+        if: github.event_name != 'pull_request' && inputs.block == 'all'
         shell: bash
         env:
           TRUYN_D_SERIES_SWARM_RUN: ${{ inputs.swarm_run_id }}
@@ -71,7 +92,7 @@ jobs:
           bash scripts/verify-d-series-swarm-run.sh "${{ inputs.source_sha }}"
 
       - name: Mark diagnostic-only execution
-        if: github.event_name != 'workflow_dispatch' || inputs.block != 'all'
+        if: github.event_name == 'pull_request' || inputs.block != 'all'
         run: echo 'TRUYN_D_SERIES_BLOCKWISE_MODE=DIAGNOSTIC_ONLY'
 
   blocks:
@@ -94,7 +115,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           selected=true
-          if [[ "$EVENT" == workflow_dispatch && "$REQUESTED_BLOCK" != all && "$REQUESTED_BLOCK" != "$MATRIX_BLOCK" ]]; then selected=false; fi
+          if [[ "$EVENT" != pull_request && "$REQUESTED_BLOCK" != all && "$REQUESTED_BLOCK" != "$MATRIX_BLOCK" ]]; then selected=false; fi
           echo "selected=$selected" >>"$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v4
@@ -102,7 +123,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
 
       - uses: actions/setup-node@v4
         if: steps.selection.outputs.selected == 'true'
@@ -114,13 +135,13 @@ jobs:
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
-          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
+          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
-          if [[ "$EVENT" == workflow_dispatch ]]; then
+          if [[ "$EVENT" != pull_request ]]; then
             main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
             [[ "$main_sha" == "$EXPECTED_SHA" ]]
           fi
@@ -130,7 +151,7 @@ jobs:
         if: steps.selection.outputs.selected == 'true'
         shell: bash
         env:
-          TRUYN_CLASS_D_SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
           SCALE_INPUT: ${{ inputs.scale || 'all' }}
           BLOCK_ID: ${{ matrix.block }}
         run: |
@@ -164,7 +185,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -179,19 +200,19 @@ jobs:
       - name: Aggregate exact-SHA block evidence and enforce terminal state
         shell: bash
         env:
-          TRUYN_CLASS_D_SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
           EVENT: ${{ github.event_name }}
           REQUESTED_BLOCK: ${{ inputs.block || 'all' }}
         run: |
           set -Eeuo pipefail
-          if [[ "$EVENT" == workflow_dispatch && "$REQUESTED_BLOCK" != all ]]; then
+          if [[ "$EVENT" != pull_request && "$REQUESTED_BLOCK" != all ]]; then
             node scripts/d-series-block-aggregate.mjs d-series-results --output d-series-blockwise-summary.json --source-sha "$TRUYN_CLASS_D_SOURCE_SHA" --scope targeted --selected-block "$REQUESTED_BLOCK" --enforce
           else
             node scripts/d-series-block-aggregate.mjs d-series-results --output d-series-blockwise-summary.json --source-sha "$TRUYN_CLASS_D_SOURCE_SHA" --scope full --enforce
           fi
 
       - name: Create launch-eligible admission provenance
-        if: github.event_name == 'workflow_dispatch' && inputs.block == 'all'
+        if: github.event_name != 'pull_request' && inputs.block == 'all'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -216,7 +237,7 @@ jobs:
           retention-days: 90
 
       - name: Upload admission provenance
-        if: github.event_name == 'workflow_dispatch' && inputs.block == 'all'
+        if: github.event_name != 'pull_request' && inputs.block == 'all'
         uses: actions/upload-artifact@v4
         with:
           name: d-series-blockwise-admission-${{ github.run_id }}

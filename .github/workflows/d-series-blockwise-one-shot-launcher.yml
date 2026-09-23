@@ -1,0 +1,84 @@
+name: D-Series Blockwise One-Shot Launcher
+
+on:
+  push:
+    branches:
+      - 'automation/d-series-blockwise/**'
+    paths:
+      - '.github/d-series-blockwise-dispatch/request.env'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: d-series-blockwise-one-shot-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: validate-blockwise-one-shot-provenance
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    outputs:
+      source_sha: ${{ steps.request.outputs.source_sha }}
+      scale: ${{ steps.request.outputs.scale }}
+      swarm_run_id: ${{ steps.request.outputs.swarm_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Validate exact-main request and Swarm provenance
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          request=.github/d-series-blockwise-dispatch/request.env
+          [[ -s "$request" ]]
+
+          source_sha="$(sed -n 's/^SOURCE_SHA=//p' "$request")"
+          scale="$(sed -n 's/^SCALE=//p' "$request")"
+          mode="$(sed -n 's/^MODE=//p' "$request")"
+          swarm_run_id="$(sed -n 's/^SWARM_RUN_ID=//p' "$request")"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
+          case "$scale" in d200|d500|d1000|all) ;; *) exit 2 ;; esac
+          [[ "$mode" == blockwise ]]
+          [[ "$swarm_run_id" =~ ^[1-9][0-9]+$ ]]
+          [[ "$(grep -c '^SOURCE_SHA=' "$request")" == 1 ]]
+          [[ "$(grep -c '^SCALE=' "$request")" == 1 ]]
+          [[ "$(grep -c '^MODE=' "$request")" == 1 ]]
+          [[ "$(grep -c '^SWARM_RUN_ID=' "$request")" == 1 ]]
+          [[ "$(wc -l < "$request" | tr -d ' ')" == 4 ]]
+          diff -u <(printf 'SOURCE_SHA=%s\nSCALE=%s\nMODE=blockwise\nSWARM_RUN_ID=%s\n' "$source_sha" "$scale" "$swarm_run_id") "$request"
+
+          expected_branch="automation/d-series-blockwise/${source_sha:0:8}-${scale}-${swarm_run_id}"
+          [[ "$GITHUB_REF_NAME" == "$expected_branch" ]]
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$main_sha" == "$source_sha" ]]
+          [[ "$(git rev-parse HEAD^)" == "$source_sha" ]]
+          [[ "$(git rev-list --count "${source_sha}..HEAD")" == 1 ]]
+          changed="$(git diff --name-only "$source_sha" HEAD)"
+          [[ "$changed" == .github/d-series-blockwise-dispatch/request.env ]]
+
+          TRUYN_D_SERIES_SWARM_RUN="$swarm_run_id" \
+          TRUYN_D_SERIES_SWARM_SCALE="$scale" \
+            bash scripts/verify-d-series-swarm-run.sh "$source_sha"
+
+          echo "source_sha=$source_sha" >>"$GITHUB_OUTPUT"
+          echo "scale=$scale" >>"$GITHUB_OUTPUT"
+          echo "swarm_run_id=$swarm_run_id" >>"$GITHUB_OUTPUT"
+          echo "TRUYN_D_SERIES_BLOCKWISE_CALLER=PASS source_sha=$source_sha scale=$scale swarm_run_id=$swarm_run_id head=$GITHUB_SHA branch=$GITHUB_REF_NAME"
+
+  blockwise:
+    name: canonical-blockwise-admission
+    needs: plan
+    uses: ./.github/workflows/d-series-blockwise-preflight.yml
+    with:
+      source_sha: ${{ needs.plan.outputs.source_sha }}
+      scale: ${{ needs.plan.outputs.scale }}
+      block: all
+      swarm_run_id: ${{ needs.plan.outputs.swarm_run_id }}

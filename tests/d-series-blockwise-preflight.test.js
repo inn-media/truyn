@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 const config = JSON.parse(fs.readFileSync('config/d-series-blockwise-preflight.json', 'utf8'));
 const workflow = fs.readFileSync('.github/workflows/d-series-blockwise-preflight.yml', 'utf8');
+const launcher = fs.readFileSync('.github/workflows/d-series-blockwise-one-shot-launcher.yml', 'utf8');
 const runner = fs.readFileSync('scripts/d-series-block-runner.mjs', 'utf8');
 const aggregate = fs.readFileSync('scripts/d-series-block-aggregate.mjs', 'utf8');
 const verifier = fs.readFileSync('scripts/verify-d-series-blockwise-preflight-run.sh', 'utf8');
@@ -29,6 +30,7 @@ test('B06 is the permanent isolated bootstrap qualification block', () => {
 test('blockwise workflow runs all blocks in parallel without fail-fast and supports targeted repair', () => {
   assert.match(workflow, /name: D-Series Blockwise Preflight/);
   assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /workflow_call:/);
   assert.doesNotMatch(workflow, /push:\s*\n\s*branches: \[main\]/);
   assert.match(workflow, /swarm_run_id:/);
   assert.match(workflow, /Require clean Swarm before full admission/);
@@ -38,7 +40,7 @@ test('blockwise workflow runs all blocks in parallel without fail-fast and suppo
   assert.match(workflow, /Run complete block cycle and retain all failures/);
   assert.match(workflow, /--scope targeted --selected-block/);
   assert.match(workflow, /--scope full --enforce/);
-  assert.match(workflow, /main_sha.*SOURCE_SHA/s);
+  assert.match(workflow, /main_sha.*EXPECTED_SHA/s);
 });
 
 test('block runners retain failures while the aggregate alone fails closed', () => {
@@ -49,17 +51,43 @@ test('block runners retain failures while the aggregate alone fails closed', () 
   assert.match(aggregate, /if \(enforce && !clean\) process\.exitCode = 1/);
 });
 
-test('full launch gate accepts only exact-main successful manual admission with Swarm provenance', () => {
+test('canonical Blockwise caller is transport-only and preserves exact-main plus Swarm provenance', () => {
+  for (const marker of [
+    'name: D-Series Blockwise One-Shot Launcher',
+    "- 'automation/d-series-blockwise/**'",
+    "- '.github/d-series-blockwise-dispatch/request.env'",
+    'git rev-parse HEAD^',
+    'git rev-list --count',
+    'git diff --name-only',
+    'verify-d-series-swarm-run.sh',
+    'uses: ./.github/workflows/d-series-blockwise-preflight.yml',
+    'block: all',
+    'swarm_run_id:'
+  ]) assert.ok(launcher.includes(marker), `missing canonical Blockwise caller marker: ${marker}`);
+  assert.doesNotMatch(launcher, /d500-acceptance\.yml/);
+  assert.doesNotMatch(launcher, /class-d-1000-final-acceptance/);
+  assert.doesNotMatch(launcher, /class-d-bootstrap-qualification\.yml/);
+  assert.doesNotMatch(launcher, /d-series-block-runner\.mjs/);
+});
+
+test('full launch gate accepts only exact-main successful admission with fail-closed Swarm provenance', () => {
   assert.match(verifier, /D-Series Blockwise Preflight/);
   assert.match(verifier, /\.head_branch == "main"/);
   assert.match(verifier, /\.head_sha == \$source/);
   assert.match(verifier, /\.event == "workflow_dispatch"/);
+  assert.match(verifier, /D-Series Blockwise One-Shot Launcher/);
+  assert.match(verifier, /automation\/d-series-blockwise\//);
+  assert.match(verifier, /caller_parent_not_exact_main/);
+  assert.match(verifier, /caller_delta_not_single_request/);
+  assert.match(verifier, /caller_request_mismatch/);
+  assert.match(verifier, /verify-d-series-swarm-run\.sh/);
   assert.match(verifier, /\.conclusion == "success"/);
   assert.match(verifier, /\.run_attempt == 1/);
   assert.match(verifier, /d-series-blockwise-summary-/);
   assert.match(verifier, /d-series-blockwise-admission-/);
   assert.match(verifier, /blocks=16\/16/);
   assert.match(verifier, /swarm_provenance=true/);
+  assert.match(verifier, /provenance=\$provenance/);
 });
 
 test('future D-500 and live D-1000 entrypoints enforce the exact blockwise preflight', () => {

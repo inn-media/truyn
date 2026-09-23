@@ -16,7 +16,25 @@ The canonical definition is `config/d-series-blockwise-preflight.json`. Local bl
 
 Cloud-dependent behavior has isolated live qualification. B06 uses `Class D Bootstrap Qualification`: D-500 runs 20 hosts x 25 real processes, D-1000 runs 20 x 50, and the harness exits after bootstrap/readiness/cleanup rather than continuing into full acceptance.
 
-For development and repair, pull-request runs and targeted workflow-dispatch runs are diagnostic only. A launch-eligible full Blockwise run must be a manual exact-main workflow dispatch and must verify a preceding exact-SHA GREEN `D-Series Sanitation Swarm` run. Only such a run emits the `d-series-blockwise-admission-*` provenance artifact consumed by launcher verification.
+## Canonical full-admission transport
+
+The canonical `D-Series Blockwise Preflight` workflow supports both direct `workflow_dispatch` and reusable `workflow_call`, but the reusable surface is not independently launch-authoritative. The only supported automated caller is `D-Series Blockwise One-Shot Launcher`.
+
+A one-shot caller run is launch-eligible Blockwise provenance only when all of the following are proven fail-closed by `scripts/verify-d-series-blockwise-preflight-run.sh`:
+
+- the tested source SHA is still exact current `main`;
+- the caller branch is exactly `automation/d-series-blockwise/<source-prefix>-<scale>-<swarm-run-id>`;
+- the caller commit has exactly one parent and that parent is the tested source SHA;
+- the caller is exactly one commit ahead of that source SHA;
+- the only changed file is `.github/d-series-blockwise-dispatch/request.env`;
+- the request contains exactly `SOURCE_SHA`, `SCALE`, `MODE=blockwise` and `SWARM_RUN_ID`;
+- the supplied Swarm run passes the canonical exact-SHA Swarm verifier for the same source and scale;
+- the top-level Blockwise caller run is attempt 1, terminal success, from the same repository;
+- the full Blockwise aggregate emits both retained `d-series-blockwise-summary-*` and `d-series-blockwise-admission-*` artifacts.
+
+The caller is transport-only. It cannot run isolated live qualification, collision/capacity checks, D-500 acceptance, D-1000 acceptance, or copy B01-B16 logic. Those boundaries remain separate gates.
+
+For development and repair, pull-request runs and targeted executions are diagnostic only. A launch-eligible full Blockwise run must be exact-current-main and must verify a preceding exact-SHA GREEN `D-Series Sanitation Swarm` run. Either a direct exact-main manual dispatch or the strictly verified canonical one-shot reusable caller may produce launch-eligible admission evidence; no other reusable caller is accepted.
 
 Repair loop: identify all RED Swarm/root-cause domains -> repair without weakening thresholds -> rerun only affected Bxx blocks for fast confirmation -> revalidate the affected Swarm evidence until clean -> re-read exact main -> run full B01-B16 -> isolated live qualification if required -> fresh collision/capacity check -> only then prepare one full D-500/D-1000 launch.
 
