@@ -85,6 +85,7 @@ jobs:
         if: github.event_name != 'pull_request' && inputs.block == 'all'
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           TRUYN_D_SERIES_SWARM_RUN: ${{ inputs.swarm_run_id }}
           TRUYN_D_SERIES_SWARM_SCALE: ${{ inputs.scale }}
         run: |
