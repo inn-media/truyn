@@ -1,0 +1,475 @@
+from pathlib import Path
+import json
+import math
+import re
+
+
+def load(path):
+    return Path(path).read_text(encoding='utf-8')
+
+
+def save(path, text):
+    Path(path).write_text(text, encoding='utf-8')
+
+
+def replace_once(text, old, new, label):
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f'{label}: expected exactly one match, found {count}')
+    return text.replace(old, new, 1)
+
+
+# Overall workflow watchdogs.
+for path in ['.github/workflows/d500-acceptance.yml', '.github/d500/d500-acceptance.template.yml']:
+    text = load(path)
+    text = replace_once(text, 'timeout-minutes: 420', 'timeout-minutes: 120', f'{path} D-500 watchdog')
+    save(path, text)
+
+path = '.github/workflows/class-d-bootstrap-qualification.yml'
+text = load(path)
+text = replace_once(text, 'timeout-minutes: 240', "timeout-minutes: ${{ inputs.scale == 'd500' && 120 || 240 }}", 'bootstrap qualification watchdog')
+save(path, text)
+
+path = 'scripts/class-d-1000-strict-acceptance.sh'
+text = load(path)
+text = replace_once(
+    text,
+    'bash scripts/class-d-1000-final-acceptance.sh 2>&1 | tee "$LOG"',
+    'timeout --signal=TERM --kill-after=60s 4h bash scripts/class-d-1000-final-acceptance.sh 2>&1 | tee "$LOG"',
+    'D-1000 strict overall watchdog',
+)
+save(path, text)
+
+# Historical phase budgets. D-500 = historical +20%; D-1000 = historical*2 +20%.
+historical = {
+    'bootstrap': 2520,
+    'topology': 112,
+    'baseline': 145,
+    'restart': 69,
+    'recovery': 40,
+    'adversarial': 800,
+    'cleanup': 323,
+}
+cfg = {
+    'schema': 'truyn.class-d.phase-deadlines.v1',
+    'sourceEvidence': {
+        'bootstrap': 'D-500 Attempt 5 healthy setup+bootstrap envelope; stalled 300s refresh calls excluded from the healthy reference window',
+        'postBootstrap': 'accepted D-200 run 35503894414 wall-clock phase history; retained as fail-closed fallback until first full D-500/D-1000 PASS replaces it',
+    },
+    'historicalSeconds': historical,
+    'd200': {
+        'formula': 'historical*1.20',
+        'overallSeconds': 18000,
+        'deadlinesSeconds': {k: math.ceil(v * 1.20) for k, v in historical.items()},
+    },
+    'd500': {
+        'formula': 'historical*1.20',
+        'overallSeconds': 7200,
+        'deadlinesSeconds': {k: math.ceil(v * 1.20) for k, v in historical.items()},
+    },
+    'd1000': {
+        'formula': 'historical*2*1.20',
+        'overallSeconds': 14400,
+        'deadlinesSeconds': {k: math.ceil(v * 2 * 1.20) for k, v in historical.items()},
+    },
+    'phaseOrder': ['bootstrap', 'topology', 'baseline', 'restart', 'recovery', 'adversarial', 'cleanup'],
+}
+Path('config/class-d-phase-deadlines.json').write_text(json.dumps(cfg, indent=2) + '\n', encoding='utf-8')
+
+# Shared provisioner: deadline helpers and bounded RunCommand.
+path = 'benchmarks/scale/class-d-azure-1000-provision.sh'
+text = load(path)
+phase_helpers = r'''STAGE=init
+
+CLASS_D_PHASE_CONFIG="${TRUYN_CLASS_D_PHASE_CONFIG:-config/class-d-phase-deadlines.json}"
+case "$NODES_PER_HOST" in
+  10) CLASS_D_SCALE=d200 ;;
+  25) CLASS_D_SCALE=d500 ;;
+  50) CLASS_D_SCALE=d1000 ;;
+  *) echo "TRUYN_CLASS_D_PHASE invalid nodesPerHost=${NODES_PER_HOST}" >&2; exit 1 ;;
+esac
+[[ -s "$CLASS_D_PHASE_CONFIG" ]]
+TRUYN_ACTIVE_PHASE=''
+TRUYN_ACTIVE_PHASE_STARTED_MS=0
+TRUYN_ACTIVE_PHASE_DEADLINE_MS=0
+
+class_d_phase_budget_sec() {
+  local phase="$1"
+  jq -er --arg scale "$CLASS_D_SCALE" --arg phase "$phase" '.[$scale].deadlinesSeconds[$phase] | select(type=="number" and .>0)' "$CLASS_D_PHASE_CONFIG"
+}
+
+class_d_phase_remaining_sec() {
+  local now remaining
+  if [[ -z "${TRUYN_ACTIVE_PHASE:-}" || "${TRUYN_ACTIVE_PHASE_DEADLINE_MS:-0}" -le 0 ]]; then echo 86400; return 0; fi
+  now=$(date +%s%3N)
+  remaining=$((TRUYN_ACTIVE_PHASE_DEADLINE_MS-now))
+  if [[ "$remaining" -le 0 ]]; then echo 0; else echo $(((remaining+999)/1000)); fi
+}
+
+class_d_phase_begin() {
+  local phase="$1" budget now
+  now=$(date +%s%3N)
+  if [[ "${TRUYN_ACTIVE_PHASE:-}" == "$phase" && "${TRUYN_ACTIVE_PHASE_DEADLINE_MS:-0}" -gt "$now" ]]; then return 0; fi
+  budget=$(class_d_phase_budget_sec "$phase")
+  TRUYN_ACTIVE_PHASE="$phase"
+  TRUYN_ACTIVE_PHASE_STARTED_MS="$now"
+  TRUYN_ACTIVE_PHASE_DEADLINE_MS=$((now+budget*1000))
+  echo "TRUYN_CLASS_D_PHASE phase=${phase} scale=${CLASS_D_SCALE} event=BEGIN budgetSec=${budget} deadlineMs=${TRUYN_ACTIVE_PHASE_DEADLINE_MS}"
+}
+
+class_d_phase_complete() {
+  local phase="$1" now elapsed
+  now=$(date +%s%3N)
+  elapsed=$((now-TRUYN_ACTIVE_PHASE_STARTED_MS))
+  echo "TRUYN_CLASS_D_PHASE phase=${phase} scale=${CLASS_D_SCALE} event=PASS elapsedMs=${elapsed} deadlineMs=${TRUYN_ACTIVE_PHASE_DEADLINE_MS}"
+  TRUYN_ACTIVE_PHASE=''
+  TRUYN_ACTIVE_PHASE_STARTED_MS=0
+  TRUYN_ACTIVE_PHASE_DEADLINE_MS=0
+}
+
+phase_exec() {
+  local cap="$1" remaining effective rc
+  shift
+  remaining=$(class_d_phase_remaining_sec)
+  if [[ "$remaining" -le 0 ]]; then
+    echo "TRUYN_CLASS_D_PHASE_DEADLINE phase=${TRUYN_ACTIVE_PHASE:-unknown} scale=${CLASS_D_SCALE} status=FAIL reason=no-progress-window-exhausted" >&2
+    return 124
+  fi
+  effective="$cap"
+  [[ "$remaining" -lt "$effective" ]] && effective="$remaining"
+  set +e
+  timeout --signal=TERM --kill-after=15s "${effective}s" "$@"
+  rc=$?
+  set -e
+  if [[ "$rc" == 124 ]]; then
+    echo "TRUYN_CLASS_D_PHASE_DEADLINE phase=${TRUYN_ACTIVE_PHASE:-unknown} scale=${CLASS_D_SCALE} status=FAIL reason=command-timeout capSec=${effective}" >&2
+  fi
+  return "$rc"
+}
+'''
+text = replace_once(text, 'STAGE=init\n', phase_helpers, 'phase helper insertion')
+
+old_remote = "if output=$(az vm run-command invoke -g \"$RG\" -n \"$vm\" --command-id RunShellScript --scripts \"$remote_script\" --query 'value[0].message' -o tsv --only-show-errors 2>&1); then"
+new_remote = "remaining=$(class_d_phase_remaining_sec)\n    if [[ \"$remaining\" -le 0 ]]; then echo \"TRUYN_CLASS_D_PHASE_DEADLINE phase=${TRUYN_ACTIVE_PHASE:-unknown} scale=${CLASS_D_SCALE} status=FAIL reason=run-command-no-budget vm=${vm}\" >&2; return 124; fi\n    call_timeout=420; [[ \"$remaining\" -lt \"$call_timeout\" ]] && call_timeout=\"$remaining\"\n    if output=$(timeout --signal=TERM --kill-after=15s \"${call_timeout}s\" az vm run-command invoke -g \"$RG\" -n \"$vm\" --command-id RunShellScript --scripts \"$remote_script\" --query 'value[0].message' -o tsv --only-show-errors 2>&1); then"
+text = replace_once(text, old_remote, new_remote, 'bounded remote run-command')
+
+cleanup_old = '''  CLEANUP_CONFIRMED=false
+  for vm in "${VMS[@]}"; do az vm delete -g "$RG" -n "$vm" --yes --force-deletion --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vm name=${vm}" >&2; done
+  for nic in "${NICS[@]}"; do az network nic delete -g "$RG" -n "$nic" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nic name=${nic}" >&2; done
+  for disk in "${DISKS[@]}"; do az disk delete -g "$RG" -n "$disk" --yes --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=disk name=${disk}" >&2; done
+  az network vnet delete -g "$RG" -n "$VNET" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vnet name=${VNET}" >&2
+  az network nsg delete -g "$RG" -n "$NSG" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nsg name=${NSG}" >&2
+'''
+cleanup_new = '''  CLEANUP_CONFIRMED=false
+  class_d_phase_begin cleanup || true
+  cleanup_delete_group() {
+    local kind="$1"; shift
+    local name remaining cap failed=0
+    local pids=()
+    for name in "$@"; do
+      (
+        remaining=$(class_d_phase_remaining_sec)
+        [[ "$remaining" -gt 0 ]] || exit 124
+        cap=120; [[ "$remaining" -lt "$cap" ]] && cap="$remaining"
+        case "$kind" in
+          vm) timeout --signal=TERM --kill-after=15s "${cap}s" az vm delete -g "$RG" -n "$name" --yes --force-deletion --only-show-errors >/dev/null 2>&1 ;;
+          nic) timeout --signal=TERM --kill-after=15s "${cap}s" az network nic delete -g "$RG" -n "$name" --only-show-errors >/dev/null 2>&1 ;;
+          disk) timeout --signal=TERM --kill-after=15s "${cap}s" az disk delete -g "$RG" -n "$name" --yes --only-show-errors >/dev/null 2>&1 ;;
+        esac
+      ) &
+      pids+=("$!")
+    done
+    for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
+    if [[ "$failed" != 0 ]]; then echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=${kind} mode=parallel-barrier" >&2; fi
+    return "$failed"
+  }
+  cleanup_delete_group vm "${VMS[@]}" || true
+  cleanup_delete_group nic "${NICS[@]}" || true
+  cleanup_delete_group disk "${DISKS[@]}" || true
+  cleanup_network_pids=()
+  (phase_exec 120 az network vnet delete -g "$RG" -n "$VNET" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vnet name=${VNET}" >&2) & cleanup_network_pids+=("$!")
+  (phase_exec 120 az network nsg delete -g "$RG" -n "$NSG" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nsg name=${NSG}" >&2) & cleanup_network_pids+=("$!")
+  for pid in "${cleanup_network_pids[@]}"; do wait "$pid" || true; done
+'''
+text = replace_once(text, cleanup_old, cleanup_new, 'parallel cleanup')
+
+network_old = '''STAGE=network
+az network nsg create -g "$RG" -n "$NSG" -l "$LOCATION" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
+az network vnet create -g "$RG" -n "$VNET" -l "$LOCATION" --address-prefixes 10.252.0.0/16 --subnet-name "$SUBNET" --subnet-prefixes 10.252.1.0/24 --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
+az network vnet subnet update -g "$RG" --vnet-name "$VNET" -n "$SUBNET" --network-security-group "$NSG" --service-endpoints Microsoft.Storage --only-show-errors >/dev/null
+'''
+network_new = '''class_d_phase_begin bootstrap
+STAGE=network
+phase_exec 300 az network nsg create -g "$RG" -n "$NSG" -l "$LOCATION" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
+phase_exec 300 az network vnet create -g "$RG" -n "$VNET" -l "$LOCATION" --address-prefixes 10.252.0.0/16 --subnet-name "$SUBNET" --subnet-prefixes 10.252.1.0/24 --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
+phase_exec 180 az network vnet subnet update -g "$RG" --vnet-name "$VNET" -n "$SUBNET" --network-security-group "$NSG" --service-endpoints Microsoft.Storage --only-show-errors >/dev/null
+'''
+text = replace_once(text, network_old, network_new, 'bootstrap phase start/network bounds')
+
+# Provision 20 hosts concurrently, then one deterministic barrier.
+provision_pattern = re.compile(r'STAGE=provision\n.*?\nSTAGE=install\n', re.S)
+provision_match = provision_pattern.search(text)
+if not provision_match:
+    raise SystemExit('provision block not found')
+provision_new = '''STAGE=provision
+provision_dir=$(mktemp -d)
+provision_pids=()
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  (
+    phase_exec 300 az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
+    created=0
+    for size in "$VM_SIZE" Standard_D4s_v5; do
+      if phase_exec 900 az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
+        created=1
+        echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
+        break
+      fi
+    done
+    [[ $created == 1 ]]
+    private_ip="$(phase_exec 120 az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)"
+    [[ -n "$private_ip" ]]
+    printf '%s\n' "$private_ip" >"$provision_dir/$i.ip"
+  ) >"$provision_dir/$i.log" 2>&1 &
+  provision_pids+=("$!")
+done
+provision_failed=0
+for pid in "${provision_pids[@]}"; do wait "$pid" || provision_failed=1; done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  cat "$provision_dir/$i.log" >&2 || true
+  [[ -s "$provision_dir/$i.ip" ]] || provision_failed=1
+  PRIV+=("$(cat "$provision_dir/$i.ip" 2>/dev/null || true)")
+done
+rm -rf "$provision_dir"
+[[ "$provision_failed" == 0 ]]
+[[ "${#PRIV[@]}" == "$HOST_COUNT" ]]
+echo "TRUYN_CLASS_D_1000 stage=provision mode=parallel-hosts hosts=${HOST_COUNT}/${HOST_COUNT} status=PASS"
+
+STAGE=install
+'''
+text = text[:provision_match.start()] + provision_new + text[provision_match.end():]
+
+# Wrap existing install body in 20 host workers, then one barrier.
+install_match = re.search(r'STAGE=install\n(.*?)\nSTAGE=bootstrap-record-refresh\n', text, re.S)
+if not install_match:
+    raise SystemExit('install block not found')
+install_body = install_match.group(1)
+header = 'for i in $(seq 0 $((HOST_COUNT-1))); do\n'
+if not install_body.startswith(header):
+    raise SystemExit('install loop header changed')
+body = install_body[len(header):]
+if not body.rstrip().endswith('done'):
+    raise SystemExit('install loop trailer changed')
+body = body.rstrip()[:-4].rstrip('\n')
+install_new = 'STAGE=install\ninstall_dir=$(mktemp -d)\ninstall_pids=()\nfor i in $(seq 0 $((HOST_COUNT-1))); do\n  (\n' + body + '''
+  ) >"$install_dir/$i.log" 2>&1 &
+  install_pids+=("$!")
+done
+install_failed=0
+for pid in "${install_pids[@]}"; do wait "$pid" || install_failed=1; done
+for i in $(seq 0 $((HOST_COUNT-1))); do cat "$install_dir/$i.log" >&2 || true; done
+rm -rf "$install_dir"
+[[ "$install_failed" == 0 ]]
+echo "TRUYN_CLASS_D_1000 stage=install mode=parallel-hosts hosts=${HOST_COUNT}/${HOST_COUNT} status=PASS"
+
+STAGE=bootstrap-record-refresh
+'''
+text = text[:install_match.start()] + install_new + text[install_match.end():]
+
+# Parallelize all node bootstrap/refresh operations inside each host worker.
+loop_header = 't0=\\$(date +%s%3N)\nfor j in \\$(seq 0 $((NODES_PER_HOST-1))); do\n'
+loop_tail = '  refresh_count=\\$((refresh_count + 1))\ndone\nt1=\\$(date +%s%3N)'
+start = text.find(loop_header)
+if start < 0:
+    raise SystemExit('bootstrap node loop header not found')
+body_start = start + len(loop_header)
+end = text.find(loop_tail, body_start)
+if end < 0:
+    raise SystemExit('bootstrap node loop trailer not found')
+node_body = text[body_start:end]
+node_parallel = r'''t0=\$(date +%s%3N)
+bootstrap_node_dir=/tmp/truyn-bootstrap-node-results
+rm -rf "\$bootstrap_node_dir"; mkdir -p "\$bootstrap_node_dir"
+bootstrap_node_worker() {
+  local j="\$1"
+''' + node_body + r'''  refresh_count=\$((refresh_count + 1))
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "\$records" "\$bytes" "\$valid" "\$buckets" "\$endpoints" "\$hosts" >"\$bootstrap_node_dir/\$j.metrics"
+}
+bootstrap_node_pids=()
+for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+  (bootstrap_node_worker "\$j") >"\$bootstrap_node_dir/\$j.log" 2>&1 &
+  bootstrap_node_pids+=("\$!")
+done
+bootstrap_node_failed=0
+for pid in "\${bootstrap_node_pids[@]}"; do wait "\$pid" || bootstrap_node_failed=1; done
+for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+  cat "\$bootstrap_node_dir/\$j.log" >&2 || true
+  [[ -s "\$bootstrap_node_dir/\$j.metrics" ]] || { bootstrap_node_failed=1; continue; }
+  IFS=\$'\t' read -r node_records node_bytes node_valid node_buckets node_endpoints node_hosts <"\$bootstrap_node_dir/\$j.metrics"
+  [[ "\$node_records" -lt "\$min_records" ]] && min_records="\$node_records"
+  [[ "\$node_records" -gt "\$max_records" ]] && max_records="\$node_records"
+  [[ "\$node_bytes" -lt "\$min_bytes" ]] && min_bytes="\$node_bytes"
+  [[ "\$node_bytes" -gt "\$max_bytes" ]] && max_bytes="\$node_bytes"
+  total_bytes=\$((total_bytes + node_bytes))
+  [[ "\$node_valid" -lt "\$refresh_min_valid" ]] && refresh_min_valid="\$node_valid"
+  [[ "\$node_valid" -gt "\$refresh_max_valid" ]] && refresh_max_valid="\$node_valid"
+  [[ "\$node_buckets" -lt "\$refresh_min_buckets" ]] && refresh_min_buckets="\$node_buckets"
+  [[ "\$node_buckets" -gt "\$refresh_max_buckets" ]] && refresh_max_buckets="\$node_buckets"
+  [[ "\$node_endpoints" -lt "\$refresh_min_endpoints" ]] && refresh_min_endpoints="\$node_endpoints"
+  [[ "\$node_endpoints" -gt "\$refresh_max_endpoints" ]] && refresh_max_endpoints="\$node_endpoints"
+  [[ "\$node_hosts" -lt "\$refresh_min_hosts" ]] && refresh_min_hosts="\$node_hosts"
+  [[ "\$node_hosts" -gt "\$refresh_max_hosts" ]] && refresh_max_hosts="\$node_hosts"
+  refresh_count=\$((refresh_count + 1))
+done
+rm -rf "\$bootstrap_node_dir"
+[[ "\$bootstrap_node_failed" == 0 ]]
+t1=\$(date +%s%3N)'''
+text = text[:start] + node_parallel + text[end + len(loop_tail):]
+
+text = replace_once(text, 'targetConcurrency:4,timeoutMs:240000', 'targetConcurrency:4,timeoutMs:90000', 'bootstrap server request bound')
+text = replace_once(text, 'curl -fsS --max-time 300 -H', 'curl -fsS --max-time 120 -H', 'bootstrap client request bound')
+text = replace_once(text, 'serverDeadlineMs=240000 clientDeadlineMs=300000', 'serverDeadlineMs=90000 clientDeadlineMs=120000', 'bootstrap qualification marker bounds')
+
+finish_old = '''for pid in "${bootstrap_pids[@]}"; do wait "$pid"; done
+for i in $(seq 0 $((HOST_COUNT-1))); do cat "$bootstrap_dir/$i"; done
+rm -rf "$bootstrap_dir"
+
+if [[ "${TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY:-0}" == 1 ]]; then'''
+finish_new = '''bootstrap_failed=0
+for pid in "${bootstrap_pids[@]}"; do wait "$pid" || bootstrap_failed=1; done
+for i in $(seq 0 $((HOST_COUNT-1))); do cat "$bootstrap_dir/$i"; done
+rm -rf "$bootstrap_dir"
+[[ "$bootstrap_failed" == 0 ]]
+echo "TRUYN_CLASS_D_1000 stage=bootstrap mode=parallel-hosts-nodes hosts=${HOST_COUNT}/${HOST_COUNT} nodes=${NODE_COUNT}/${NODE_COUNT} status=PASS"
+class_d_phase_complete bootstrap
+
+if [[ "${TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY:-0}" == 1 ]]; then'''
+text = replace_once(text, finish_old, finish_new, 'bootstrap global barrier')
+text = replace_once(text, '\nSTAGE=bandwidth-meter\n', '\nclass_d_phase_begin topology\nSTAGE=bandwidth-meter\n', 'topology deadline begins before bandwidth barrier')
+save(path, text)
+
+# Stage isolation: monotonic phase sequence + hard per-phase watchdog with evidence.
+path = 'scripts/d200-stage-isolated-campaign.sh'
+text = load(path)
+anchor = "d200_first_failure_line=0\n"
+phase_code = r'''
+
+d200_phase_for_stage() {
+  case "$1" in
+    topology|readiness-barrier|convergence) echo topology ;;
+    baseline-routing|invalid-signed-state|local-safety-invariants|durable-writes) echo baseline ;;
+    restart-recovery) echo restart ;;
+    post-restart-routing) echo recovery ;;
+    packet-partition|healed-routing|write-retention|resources|evidence) echo adversarial ;;
+    *) echo adversarial ;;
+  esac
+}
+
+d200_enter_stage_phase() {
+  local stage="$1" phase
+  phase="$(d200_phase_for_stage "$stage")"
+  if [[ "${TRUYN_ACTIVE_PHASE:-}" != "$phase" ]]; then
+    [[ -z "${TRUYN_ACTIVE_PHASE:-}" ]] || class_d_phase_complete "$TRUYN_ACTIVE_PHASE"
+    class_d_phase_begin "$phase"
+  fi
+}
+'''
+text = replace_once(text, anchor, anchor + phase_code, 'stage phase mapping')
+
+old_decl = '  local stage="$1" stage_file="$2" state_file="$D200_STAGE_TMP/state-${stage}.sh" failure_file="$D200_STAGE_TMP/failure-${stage}.txt"\n  local rc failure_rc failure_line command_b64\n  rm -f "$state_file" "$failure_file"\n'
+new_decl = '  local stage="$1" stage_file="$2" state_file="$D200_STAGE_TMP/state-${stage}.sh" failure_file="$D200_STAGE_TMP/failure-${stage}.txt" phase_timeout_file="$D200_STAGE_TMP/phase-timeout-${stage}.txt"\n  local rc failure_rc failure_line command_b64 failure_reason\n  rm -f "$state_file" "$failure_file" "$phase_timeout_file"\n'
+text = replace_once(text, old_decl, new_decl, 'stage timeout state')
+
+old_subshell = '''    d200_stage_failure_file="$failure_file"
+    d200_stage_state_file="$state_file"
+    trap 'rc=$?; cmd_b64=$(printf "%s" "$BASH_COMMAND" | base64 -w0); printf "rc=%s\\nline=%s\\ncommand_b64=%s\\n" "$rc" "$LINENO" "$cmd_b64" >"$d200_stage_failure_file"; exit "$rc"' ERR
+    trap 'rc=$?; trap - EXIT; d200_stage_dump_state "$d200_stage_state_file"; exit "$rc"' EXIT
+    set -Eeuo pipefail
+    source "$stage_file"
+'''
+new_subshell = '''    d200_stage_failure_file="$failure_file"
+    d200_stage_state_file="$state_file"
+    d200_phase_timeout_file="$phase_timeout_file"
+    d200_stage_shell_pid=$BASHPID
+    remaining_ms=$((TRUYN_ACTIVE_PHASE_DEADLINE_MS-$(date +%s%3N)))
+    if [[ "$remaining_ms" -le 0 ]]; then
+      printf 'phase=%s reason=no-progress-window-exhausted deadlineMs=%s\\n' "$TRUYN_ACTIVE_PHASE" "$TRUYN_ACTIVE_PHASE_DEADLINE_MS" >"$d200_phase_timeout_file"
+      exit 124
+    fi
+    (
+      trap - ERR EXIT TERM
+      sleep $(((remaining_ms+999)/1000))
+      printf 'phase=%s reason=no-progress-window-exhausted deadlineMs=%s\\n' "$TRUYN_ACTIVE_PHASE" "$TRUYN_ACTIVE_PHASE_DEADLINE_MS" >"$d200_phase_timeout_file"
+      kill -TERM "$d200_stage_shell_pid" >/dev/null 2>&1 || true
+    ) &
+    d200_stage_watchdog=$!
+    trap 'rc=$?; cmd_b64=$(printf "%s" "$BASH_COMMAND" | base64 -w0); printf "rc=%s\\nline=%s\\ncommand_b64=%s\\n" "$rc" "$LINENO" "$cmd_b64" >"$d200_stage_failure_file"; exit "$rc"' ERR
+    trap 'printf "phase=%s reason=no-progress-window-exhausted deadlineMs=%s\\n" "$TRUYN_ACTIVE_PHASE" "$TRUYN_ACTIVE_PHASE_DEADLINE_MS" >"$d200_phase_timeout_file"; exit 124' TERM
+    trap 'rc=$?; trap - EXIT TERM; kill "$d200_stage_watchdog" >/dev/null 2>&1 || true; wait "$d200_stage_watchdog" 2>/dev/null || true; d200_stage_dump_state "$d200_stage_state_file"; exit "$rc"' EXIT
+    set -Eeuo pipefail
+    source "$stage_file"
+'''
+text = replace_once(text, old_subshell, new_subshell, 'stage phase watchdog')
+
+old_reason = '''    D200_STAGE_STATUS["$stage"]=RED
+    d200_append_stage_result "$stage" RED "${failure_rc:-$rc}" "${failure_line:-0}" "$command_b64" 'stage returned non-zero'
+    echo "TRUYN_D200_STAGE_RESULT stage=${stage} status=RED rc=${failure_rc:-$rc} line=${failure_line:-0}" >&2
+'''
+new_reason = '''    D200_STAGE_STATUS["$stage"]=RED
+    failure_reason='stage returned non-zero'
+    if [[ -s "$phase_timeout_file" ]]; then
+      failure_reason="phase deadline exceeded: $(tr '\n' ' ' <"$phase_timeout_file")"
+      echo "TRUYN_CLASS_D_PHASE_DEADLINE phase=${TRUYN_ACTIVE_PHASE:-unknown} stage=${stage} scale=${CLASS_D_SCALE} status=FAIL evidence=$(tr '\n' ' ' <"$phase_timeout_file")" >&2
+    fi
+    d200_append_stage_result "$stage" RED "${failure_rc:-$rc}" "${failure_line:-0}" "$command_b64" "$failure_reason"
+    echo "TRUYN_D200_STAGE_RESULT stage=${stage} status=RED rc=${failure_rc:-$rc} line=${failure_line:-0}" >&2
+'''
+text = replace_once(text, old_reason, new_reason, 'timeout reason evidence')
+text = replace_once(text, '      d200_run_stage "$stage" "$stage_file"\n', '      d200_enter_stage_phase "$stage"\n      d200_run_stage "$stage" "$stage_file"\n', 'enter phase before stage')
+text = replace_once(text, '\nrm -rf "$D200_STAGE_TMP"\n', '\n[[ -z "${TRUYN_ACTIVE_PHASE:-}" ]] || class_d_phase_complete "$TRUYN_ACTIVE_PHASE"\nrm -rf "$D200_STAGE_TMP"\n', 'complete final campaign phase')
+save(path, text)
+
+# Contract test guards architecture and formulas.
+test = r'''import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+const read = (p) => readFile(p, 'utf8');
+
+test('Class-D scale liveness is parallel and phase-deadline bounded', async () => {
+  const [provision, stages, d500, template, bootstrap, d1000, cfgRaw] = await Promise.all([
+    read('benchmarks/scale/class-d-azure-1000-provision.sh'),
+    read('scripts/d200-stage-isolated-campaign.sh'),
+    read('.github/workflows/d500-acceptance.yml'),
+    read('.github/d500/d500-acceptance.template.yml'),
+    read('.github/workflows/class-d-bootstrap-qualification.yml'),
+    read('scripts/class-d-1000-strict-acceptance.sh'),
+    read('config/class-d-phase-deadlines.json'),
+  ]);
+  const cfg = JSON.parse(cfgRaw);
+  assert.deepEqual(cfg.phaseOrder, ['bootstrap','topology','baseline','restart','recovery','adversarial','cleanup']);
+  for (const [phase, historical] of Object.entries(cfg.historicalSeconds)) {
+    assert.equal(cfg.d500.deadlinesSeconds[phase], Math.ceil(historical * 1.2));
+    assert.equal(cfg.d1000.deadlinesSeconds[phase], Math.ceil(historical * 2 * 1.2));
+  }
+  assert.equal(cfg.d500.overallSeconds, 7200);
+  assert.equal(cfg.d1000.overallSeconds, 14400);
+  assert.match(d500, /timeout-minutes: 120/);
+  assert.match(template, /timeout-minutes: 120/);
+  assert.match(bootstrap, /inputs\.scale == 'd500' && 120 \|\| 240/);
+  assert.match(d1000, /timeout .* 4h bash scripts\/class-d-1000-final-acceptance\.sh/);
+  assert.match(provision, /provision_pids=\(\)/);
+  assert.match(provision, /install_pids=\(\)/);
+  assert.match(provision, /bootstrap_pids=\(\)/);
+  assert.match(provision, /bootstrap_node_pids=\(\)/);
+  assert.match(provision, /cleanup_delete_group vm/);
+  assert.match(provision, /stage=bootstrap mode=parallel-hosts-nodes/);
+  assert.match(provision, /timeoutMs:90000/);
+  assert.match(provision, /--max-time 120/);
+  assert.doesNotMatch(provision, /for vm in "\$\{VMS\[@\]\}"; do az vm delete/);
+  assert.match(stages, /topology\|readiness-barrier\|convergence\) echo topology/);
+  assert.match(stages, /restart-recovery\) echo restart/);
+  assert.match(stages, /TRUYN_CLASS_D_PHASE_DEADLINE/);
+  assert.match(stages, /d200_stage_watchdog/);
+});
+'''
+Path('tests/class-d-parallel-phase-deadlines.test.js').write_text(test, encoding='utf-8')
