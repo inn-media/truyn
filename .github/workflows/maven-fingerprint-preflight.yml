@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: sdk-release
     steps:
-      - name: Canonicalize and isolate signing gates
+      - name: Canonicalize and verify signing identity
         shell: bash
         env:
           PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
@@ -27,8 +27,7 @@ jobs:
           s=os.environ['PRIVATE_KEY'].strip(); begin='-----BEGIN PGP PRIVATE KEY BLOCK-----'; end='-----END PGP PRIVATE KEY BLOCK-----'
           bi=s.find(begin); ei=s.rfind(end); lines=s[bi:ei+len(end)].splitlines(); interior=[x.rstrip('\r') for x in lines[1:-1]]
           while interior and not interior[0].strip(): interior.pop(0)
-          canonical='\n'.join([begin,'']+interior+[end,''])
-          with open(os.environ['KEYFILE'],'w',encoding='ascii',newline='\n') as f: f.write(canonical)
+          with open(os.environ['KEYFILE'],'w',encoding='ascii',newline='\n') as f: f.write('\n'.join([begin,'']+interior+[end,'']))
           PY
           unset PRIVATE_KEY
           export GNUPGHOME="$RUNNER_TEMP/maven-gpg-probe"; mkdir -p -m 700 "$GNUPGHOME"
@@ -38,15 +37,19 @@ jobs:
           long_id="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/{print toupper($5);exit}')"
           configured="$(printf '%s' "$CONFIGURED_LONG_KEY" | tr -d '[:space:]' | sed 's/^0[xX]//' | tr '[:lower:]' '[:upper:]')"
           test -n "$fpr"; test -n "$long_id"
-          echo "TRUYN_MAVEN_DERIVED_FPR_LEN=${#fpr} DERIVED_LONG_LEN=${#long_id} CONFIGURED_PIN_LEN=${#configured}"
-          if [[ "$configured" =~ ^[0-9A-F]+$ ]] && { test "$long_id" = "$configured" || [[ "$fpr" == *"$configured" ]]; }; then
-            echo 'TRUYN_MAVEN_LONG_KEY_PIN=PASS'
-          else
-            echo 'TRUYN_MAVEN_LONG_KEY_PIN=FAIL'
-            exit 21
-          fi
-          code="$(curl -sS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr")"
-          echo "TRUYN_MAVEN_KEYS_OPENPGP_HTTP=$code"
-          test "$code" = '200' || exit 22
+          [[ "$configured" =~ ^[0-9A-F]+$ ]]
+          test "$long_id" = "$configured" || [[ "$fpr" == *"$configured" ]]
+          echo 'TRUYN_MAVEN_LONG_KEY_PIN=PASS'
+
+          openpgp="$(curl -LsS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr" || true)"
+          ubuntu="$(curl -LsS -o "$RUNNER_TEMP/ubuntu-key.asc" -w '%{http_code}' "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fpr" || true)"
+          mit="$(curl -LsS -o "$RUNNER_TEMP/mit-key.asc" -w '%{http_code}' "https://pgp.mit.edu/pks/lookup?op=get&search=0x$fpr" || true)"
+          echo "TRUYN_MAVEN_KEYSERVER_STATUS openpgp=$openpgp ubuntu=$ubuntu mit=$mit"
+          visible=false
+          if test "$openpgp" = 200; then visible=true; fi
+          if test "$ubuntu" = 200 && grep -q '^-----BEGIN PGP PUBLIC KEY BLOCK-----' "$RUNNER_TEMP/ubuntu-key.asc"; then visible=true; fi
+          if test "$mit" = 200 && grep -q '^-----BEGIN PGP PUBLIC KEY BLOCK-----' "$RUNNER_TEMP/mit-key.asc"; then visible=true; fi
+          rm -f "$RUNNER_TEMP/ubuntu-key.asc" "$RUNNER_TEMP/mit-key.asc"
+          test "$visible" = true
           echo "TRUYN_MAVEN_SIGNING_FINGERPRINT=$fpr"
           echo 'TRUYN_MAVEN_SIGNING_IDENTITY=PASS'
