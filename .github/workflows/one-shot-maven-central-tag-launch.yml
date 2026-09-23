@@ -39,18 +39,17 @@ jobs:
           persist-credentials: false
 
       - name: Fail closed before immutable tag creation
+        id: pretag
         shell: bash
         env:
           CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-          EXPECTED_FPR: ${{ vars.MAVEN_GPG_FINGERPRINT }}
+          CONFIGURED_LONG_KEY: ${{ secrets.MAVEN_GPG_PUBLIC_LONG_KEY }}
         run: |
           set -Eeuo pipefail
-          for value in "$CENTRAL_USERNAME" "$CENTRAL_PASSWORD" "$MAVEN_GPG_PRIVATE_KEY" "$MAVEN_GPG_PASSPHRASE" "$EXPECTED_FPR"; do
-            test -n "$value"
-          done
+          for value in "$CENTRAL_USERNAME" "$CENTRAL_PASSWORD" "$MAVEN_GPG_PRIVATE_KEY" "$MAVEN_GPG_PASSPHRASE" "$CONFIGURED_LONG_KEY"; do test -n "$value"; done
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           test "$current_main" = "$EXPECTED_SHA" || { echo "::error::main moved: expected=$EXPECTED_SHA actual=$current_main"; exit 1; }
           test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.head_sha')" = "$EXPECTED_SHA"
@@ -62,11 +61,41 @@ jobs:
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/tmp/existing-tag.json 2>/dev/null; then
             existing_sha="$(jq -r '.object.sha' /tmp/existing-tag.json)"
             test "$existing_sha" = "$EXPECTED_SHA"
-            echo "::error::Immutable Maven release tag already exists; refusing a duplicate publication launch."
+            echo "::error::Immutable Maven release tag already exists; refusing duplicate publication launch."
             exit 1
           fi
           test "$(git show "$EXPECTED_SHA:sdk/java/pom.xml" | sed -n 's:.*<version>\([^<]*\)</version>.*:\1:p' | head -1)" = "$VERSION"
-          echo "TRUYN_MAVEN_PRETAG_GATE=PASS source_sha=$EXPECTED_SHA ci_run=$CI_RUN_ID codeql_run=$CODEQL_RUN_ID"
+
+          export KEYFILE="$RUNNER_TEMP/maven-pretag-key.asc"
+          python - <<'PY'
+          import os
+          s=os.environ['MAVEN_GPG_PRIVATE_KEY'].strip(); begin='-----BEGIN PGP PRIVATE KEY BLOCK-----'; end='-----END PGP PRIVATE KEY BLOCK-----'
+          bi=s.find(begin); ei=s.rfind(end)
+          if bi < 0 or ei < bi: raise SystemExit('PGP armor markers missing')
+          lines=s[bi:ei+len(end)].splitlines(); interior=[x.rstrip('\r') for x in lines[1:-1]]
+          while interior and not interior[0].strip(): interior.pop(0)
+          with open(os.environ['KEYFILE'],'w',encoding='ascii',newline='\n') as f: f.write('\n'.join([begin,'']+interior+[end,'']))
+          PY
+          probe_home="$RUNNER_TEMP/maven-pretag-gnupg"; mkdir -p -m 700 "$probe_home"; export GNUPGHOME="$probe_home"
+          gpg --batch --quiet --import "$KEYFILE"; rm -f "$KEYFILE"
+          fpr="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^fpr/{print toupper($10);exit}')"
+          long_id="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/{print toupper($5);exit}')"
+          configured="$(printf '%s' "$CONFIGURED_LONG_KEY" | tr -d '[:space:]' | sed 's/^0[xX]//' | tr '[:lower:]' '[:upper:]')"
+          test -n "$fpr"; test -n "$long_id"; [[ "$configured" =~ ^[0-9A-F]+$ ]]
+          test "$long_id" = "$configured" || [[ "$fpr" == *"$configured" ]]
+          probe() { curl --connect-timeout 5 --max-time 10 -LsS -o "$2" -w '%{http_code}' "$1" 2>/dev/null || true; }
+          openpgp="$(probe "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr" "$RUNNER_TEMP/openpgp-key.asc")"
+          ubuntu="$(probe "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fpr" "$RUNNER_TEMP/ubuntu-key.asc")"
+          mit="$(probe "https://pgp.mit.edu/pks/lookup?op=get&search=0x$fpr" "$RUNNER_TEMP/mit-key.asc")"
+          visible=false
+          for pair in "$openpgp:$RUNNER_TEMP/openpgp-key.asc" "$ubuntu:$RUNNER_TEMP/ubuntu-key.asc" "$mit:$RUNNER_TEMP/mit-key.asc"; do
+            code="${pair%%:*}"; file="${pair#*:}"
+            if test "$code" = 200 && grep -q '^-----BEGIN PGP PUBLIC KEY BLOCK-----' "$file" 2>/dev/null; then visible=true; fi
+          done
+          rm -rf "$probe_home" "$RUNNER_TEMP/openpgp-key.asc" "$RUNNER_TEMP/ubuntu-key.asc" "$RUNNER_TEMP/mit-key.asc"
+          test "$visible" = true
+          echo "fingerprint=$fpr" >> "$GITHUB_OUTPUT"
+          echo "TRUYN_MAVEN_PRETAG_GATE=PASS source_sha=$EXPECTED_SHA ci_run=$CI_RUN_ID codeql_run=$CODEQL_RUN_ID keyserver_openpgp=$openpgp keyserver_ubuntu=$ubuntu keyserver_mit=$mit"
 
       - name: Create exactly one immutable Maven release tag
         shell: bash
@@ -133,15 +162,24 @@ jobs:
         shell: bash
         env:
           MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          EXPECTED_FPR: ${{ vars.MAVEN_GPG_FINGERPRINT }}
+          EXPECTED_FPR: ${{ steps.pretag.outputs.fingerprint }}
         run: |
           set -Eeuo pipefail
           test -n "$MAVEN_GPG_PRIVATE_KEY"; test -n "$EXPECTED_FPR"
+          export KEYFILE="$RUNNER_TEMP/maven-signing-key.asc"
+          python - <<'PY'
+          import os
+          s=os.environ['MAVEN_GPG_PRIVATE_KEY'].strip(); begin='-----BEGIN PGP PRIVATE KEY BLOCK-----'; end='-----END PGP PRIVATE KEY BLOCK-----'
+          bi=s.find(begin); ei=s.rfind(end)
+          if bi < 0 or ei < bi: raise SystemExit('PGP armor markers missing')
+          lines=s[bi:ei+len(end)].splitlines(); interior=[x.rstrip('\r') for x in lines[1:-1]]
+          while interior and not interior[0].strip(): interior.pop(0)
+          with open(os.environ['KEYFILE'],'w',encoding='ascii',newline='\n') as f: f.write('\n'.join([begin,'']+interior+[end,'']))
+          PY
           export GNUPGHOME="$RELEASE_ROOT/gnupg"; mkdir -p -m 700 "$GNUPGHOME"
-          printf '%s\n' "$MAVEN_GPG_PRIVATE_KEY" | gpg --batch --quiet --import
-          fpr="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
+          gpg --batch --quiet --import "$KEYFILE"; rm -f "$KEYFILE"
+          fpr="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/{print toupper($10); exit}')"
           test "$fpr" = "$EXPECTED_FPR"
-          test "$(curl -sS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr")" = '200'
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
           echo "fingerprint=$fpr" >> "$GITHUB_OUTPUT"
 
