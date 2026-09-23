@@ -1,0 +1,142 @@
+name: One-shot guarded NuGet immutable tag dispatch
+
+on:
+  push:
+    branches:
+      - release/nuget-tag-launch-20260923
+    paths:
+      - .github/workflows/one-shot-nuget-tag-dispatch.yml
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: one-shot-nuget-tag-dispatch-0.1.0-alpha.1
+  cancel-in-progress: false
+
+jobs:
+  launch:
+    if: github.repository == 'inn-media/truyn'
+    runs-on: ubuntu-latest
+    environment: sdk-release
+    timeout-minutes: 10
+    env:
+      EXPECTED_SHA: 953ed548a52e4c3440a414ec2401ea324120155e
+      VERSION: 0.1.0-alpha.1
+      TAG: sdk/nuget/v0.1.0-alpha.1
+      CI_RUN_ID: '35903671988'
+      CODEQL_RUN_ID: '35903670985'
+      GH_TOKEN: ${{ github.token }}
+      NUGET_ID: Truyn.Sdk
+      NUGET_FLAT: https://api.nuget.org/v3-flatcontainer
+      NUGET_USER_VALUE: ${{ vars.NUGET_USER }}
+    steps:
+      - name: Checkout launcher source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate exact immutable NuGet launch gates
+        id: gate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -n "$NUGET_USER_VALUE" || { echo '::error::NUGET_USER is missing in sdk-release environment.'; exit 1; }
+          test "$GITHUB_REF_NAME" = 'release/nuget-tag-launch-20260923'
+
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$current_main" = "$EXPECTED_SHA" || {
+            echo "::error::main moved: expected=$EXPECTED_SHA actual=$current_main"
+            exit 1
+          }
+
+          for run_id in "$CI_RUN_ID" "$CODEQL_RUN_ID"; do
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.head_sha')" = "$EXPECTED_SHA"
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.status')" = 'completed'
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.conclusion')" = 'success'
+          done
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.path')" = '.github/workflows/ci.yml'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.event')" = 'push'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.head_branch')" = 'main'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CODEQL_RUN_ID" --jq '.path')" = 'dynamic/github-code-scanning/codeql'
+
+          declared="$(python3 -c 'import xml.etree.ElementTree as E; print(E.parse("sdk/dotnet/Truyn.Sdk.csproj").getroot().find("./PropertyGroup/Version").text.strip())')"
+          test "$declared" = "$VERSION" || { echo "::error::NuGet declared version $declared != $VERSION"; exit 1; }
+
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/tmp/tag.json 2>/dev/null; then
+            tag_sha="$(jq -r '.object.sha' /tmp/tag.json)"
+            test "$tag_sha" = "$EXPECTED_SHA" || { echo '::error::NuGet tag exists at a different SHA.'; exit 1; }
+            echo 'tag_exists=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'tag_exists=false' >> "$GITHUB_OUTPUT"
+          fi
+
+          id_lower="$(printf '%s' "$NUGET_ID" | tr '[:upper:]' '[:lower:]')"
+          v_lower="$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]')"
+          code="$(curl --connect-timeout 5 --max-time 15 -sS -o /tmp/nuget-index.json -w '%{http_code}' "$NUGET_FLAT/$id_lower/index.json" || true)"
+          if [[ "$code" == 200 ]] && jq -e --arg v "$v_lower" '.versions | index($v)' /tmp/nuget-index.json >/dev/null; then
+            echo '::error::NuGet coordinate already exists; refusing a new publication launch.'
+            exit 1
+          fi
+          [[ "$code" == 200 || "$code" == 404 ]] || { echo "::error::Unexpected nuget.org response $code"; exit 1; }
+
+          previous="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/publish-nuget.yml/runs?per_page=100")"
+          duplicate="$(jq -r --arg s "$EXPECTED_SHA" '[.workflow_runs[] | select(.head_sha == $s and (.event == "workflow_dispatch" or .event == "push"))] | length' <<<"$previous")"
+          test "$duplicate" = 0 || { echo "::error::A canonical NuGet publication run already exists for $EXPECTED_SHA; refusing duplicate dispatch."; exit 1; }
+
+          echo "TRUYN_NUGET_PRETAG_GATE=PASS source_sha=$EXPECTED_SHA ci_run=$CI_RUN_ID codeql_run=$CODEQL_RUN_ID"
+
+      - name: Create exactly one immutable NuGet tag and dispatch canonical publisher
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Re-read main immediately before the irreversible boundary.
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" = "$EXPECTED_SHA" || {
+            echo '::error::main moved immediately before NuGet tag creation.'
+            exit 1
+          }
+
+          if [[ "${{ steps.gate.outputs.tag_exists }}" != 'true' ]]; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$TAG" \
+              -f sha="$EXPECTED_SHA" >/tmp/created-tag.json
+            test "$(jq -r '.object.sha' /tmp/created-tag.json)" = "$EXPECTED_SHA"
+            echo "TRUYN_NUGET_TAG_CREATED=PASS source_sha=$EXPECTED_SHA tag=$TAG"
+          else
+            echo "TRUYN_NUGET_TAG_REUSED_EXACT_SOURCE=PASS source_sha=$EXPECTED_SHA tag=$TAG"
+          fi
+
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')" = "$EXPECTED_SHA"
+
+          # workflow_dispatch is deliberately used because a tag created by GITHUB_TOKEN does not recursively
+          # trigger push workflows. The canonical workflow itself revalidates tag == exact current main,
+          # ordinary CI, hosted CodeQL, exact CI artifact bytes and Trusted Publishing.
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/publish-nuget.yml/dispatches" \
+            -f ref="$TAG"
+          echo "TRUYN_NUGET_CANONICAL_DISPATCH=PASS tag=$TAG"
+
+      - name: Prove exactly one canonical run was created
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          found=''
+          for attempt in $(seq 1 30); do
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/publish-nuget.yml/runs?per_page=30")"
+            matches="$(jq -r --arg s "$EXPECTED_SHA" '[.workflow_runs[] | select(.head_sha == $s and .event == "workflow_dispatch")]' <<<"$runs")"
+            count="$(jq 'length' <<<"$matches")"
+            if [[ "$count" == 1 ]]; then
+              found="$(jq -r '.[0].id' <<<"$matches")"
+              break
+            fi
+            if [[ "$count" -gt 1 ]]; then
+              echo '::error::More than one canonical NuGet workflow_dispatch run exists for this exact SHA.'
+              exit 1
+            fi
+            sleep 2
+          done
+          test -n "$found" || { echo '::error::Canonical NuGet dispatch did not materialize.'; exit 1; }
+          echo "TRUYN_NUGET_CANONICAL_RUN_ID=$found"
+          echo "canonical_run_id=$found" >> "$GITHUB_OUTPUT"
