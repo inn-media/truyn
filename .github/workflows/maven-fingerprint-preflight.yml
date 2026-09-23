@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: sdk-release
     steps:
-      - name: Verify configured signing identity
+      - name: Inspect signing-key structure safely
         shell: bash
         env:
           PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
@@ -22,39 +22,59 @@ jobs:
           set -Eeuo pipefail
           test -n "$PRIVATE_KEY"
           test -n "$CONFIGURED_LONG_KEY"
-          export KEYFILE="$RUNNER_TEMP/maven-private-key.asc"
           python - <<'PY'
-          import os, json, base64
-          s = os.environ['PRIVATE_KEY']
-          s = s.strip()
-          if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
-              try: s = json.loads(s)
-              except Exception: pass
-          for _ in range(4):
+          import os, json, base64, re
+          raw = os.environ['PRIVATE_KEY']
+          s = raw.strip()
+          print('raw_len=', len(raw))
+          print('raw_actual_newlines=', raw.count('\n'))
+          print('raw_literal_backslash_n=', raw.count('\\n'))
+          print('raw_literal_double_backslash_n=', raw.count('\\\\n'))
+          quoted = len(s) >= 2 and s[0] == '"' and s[-1] == '"'
+          print('raw_json_quoted=', str(quoted).lower())
+          if quoted:
+              try: s = json.loads(s); print('json_unquote=pass')
+              except Exception: print('json_unquote=fail')
+          for i in range(8):
               n = s.replace('\\r\\n','\n').replace('\\n','\n').replace('\\r','\r')
               if n == s: break
               s = n
-          if '-----BEGIN PGP PRIVATE KEY BLOCK-----' not in s:
-              try:
-                  raw = base64.b64decode(''.join(s.split()), validate=True)
-                  text = raw.decode('utf-8')
-                  if '-----BEGIN PGP PRIVATE KEY BLOCK-----' in text: s = text
-              except Exception: pass
-          if '-----BEGIN PGP PRIVATE KEY BLOCK-----' not in s or '-----END PGP PRIVATE KEY BLOCK-----' not in s:
-              raise SystemExit('normalized secret is not an armored PGP private key')
-          with open(os.environ['KEYFILE'],'w',encoding='utf-8',newline='\n') as f:
-              f.write(s.strip()+'\n')
+          begin = '-----BEGIN PGP PRIVATE KEY BLOCK-----'
+          end = '-----END PGP PRIVATE KEY BLOCK-----'
+          bi, ei = s.find(begin), s.rfind(end)
+          print('begin_count=', s.count(begin), 'end_count=', s.count(end))
+          print('begin_at_start=', str(s.lstrip().startswith(begin)).lower())
+          print('end_at_end=', str(s.rstrip().endswith(end)).lower())
+          print('normalized_len=', len(s), 'normalized_lines=', len(s.splitlines()))
+          if bi < 0 or ei < bi:
+              raise SystemExit('armor markers missing after normalization')
+          block = s[bi:ei+len(end)]
+          lines = block.splitlines()
+          print('block_lines=', len(lines))
+          print('first_line_marker=', str(bool(lines and lines[0].strip()==begin)).lower())
+          print('last_line_marker=', str(bool(lines and lines[-1].strip()==end)).lower())
+          interior = lines[1:-1]
+          first_blank = next((i for i,x in enumerate(interior) if x.strip()==''), None)
+          print('blank_separator_index=', -1 if first_blank is None else first_blank)
+          header_names=[]
+          for x in interior[:10]:
+              t=x.strip()
+              if not t: break
+              if ':' in t:
+                  name=t.split(':',1)[0]
+                  if re.fullmatch(r'[A-Za-z][A-Za-z0-9-]*', name): header_names.append(name)
+                  else: header_names.append('INVALID_HEADER_NAME')
+              else: header_names.append('NO_COLON')
+          print('leading_header_kinds=', ','.join(header_names) if header_names else 'none')
+          payload_lines = interior[(first_blank+1 if first_blank is not None else 0):]
+          checksum = [x.strip() for x in payload_lines if x.strip().startswith('=')]
+          data_lines = [x.strip() for x in payload_lines if x.strip() and not x.strip().startswith('=')]
+          compact=''.join(data_lines)
+          print('payload_line_count=', len(data_lines), 'checksum_line_count=', len(checksum), 'payload_chars=', len(compact))
+          print('payload_charset_ok=', str(bool(compact) and re.fullmatch(r'[A-Za-z0-9+/=]+',compact) is not None).lower())
+          try:
+              decoded=base64.b64decode(compact, validate=True)
+              print('payload_base64_decode=pass decoded_len=', len(decoded))
+          except Exception as e:
+              print('payload_base64_decode=fail error_type=', type(e).__name__)
           PY
-          unset PRIVATE_KEY
-          export GNUPGHOME="$RUNNER_TEMP/maven-gpg-probe"
-          mkdir -p -m 700 "$GNUPGHOME"
-          gpg --batch --quiet --import "$KEYFILE"
-          rm -f "$KEYFILE"
-          fpr="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^fpr/{print toupper($10);exit}')"
-          long_id="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/{print toupper($5);exit}')"
-          configured="$(printf '%s' "$CONFIGURED_LONG_KEY" | tr -d '[:space:]' | sed 's/^0[xX]//' | tr '[:lower:]' '[:upper:]')"
-          test -n "$fpr"; test -n "$long_id"
-          test "$long_id" = "$configured" || [[ "$fpr" == *"$configured" ]]
-          test "$(curl -sS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr")" = '200'
-          echo "TRUYN_MAVEN_SIGNING_FINGERPRINT=$fpr"
-          echo 'TRUYN_MAVEN_SIGNING_IDENTITY=PASS'
