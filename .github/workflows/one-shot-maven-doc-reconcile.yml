@@ -1,0 +1,172 @@
+name: One-shot Maven Central documentation reconciliation
+
+on:
+  push:
+    branches:
+      - docs/maven-central-accepted-20260923
+    paths:
+      - '.github/workflows/one-shot-maven-doc-reconcile.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    env:
+      EXPECTED_MAIN: 0fb469c41c05d5bdd3f52b5ecd1c3c0ade86e26c
+      COORD: org.truyn:truyn-sdk:0.1.0-alpha.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fail closed if main moved
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN" || {
+            echo "::error::main moved; rebase/reconcile before editing docs"
+            exit 1
+          }
+
+      - name: Reconcile current Maven status surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          coord = 'org.truyn:truyn-sdk:0.1.0-alpha.1'
+          accepted = f'Maven Central `{coord}` is an **accepted immutable public release**'
+          files = [
+              'README.md',
+              'ROADMAP.md',
+              'STRUCTURE.md',
+              'sdk/README.md',
+              'docs/README.md',
+              'examples/README.md',
+              'examples/sdk/README.md',
+              'sdk/release/PUBLISHING.md',
+              'spec/compatibility/matrix.md',
+              'docs/compatibility/README.md',
+              'docs/getting-started/DX3_SDK.md',
+              'docs/getting-started/MVP_QUICKSTART.md',
+              'docs/compatibility/SDK_PACKAGING.md',
+              'docs/compatibility/SDK_COMPATIBILITY.md',
+              'docs/getting-started/SDK_QUICKSTART.md',
+              'docs/architecture/IMPLEMENTATION_STATUS.md',
+              'docs/architecture/ARCHITECTURE_CONTRACT.md',
+              'docs/architecture/SDK_DEVELOPER_EXPERIENCE.md',
+          ]
+
+          exact = {
+              '| Maven Central / NuGet | **OPEN** |':
+                  f'| Maven Central | **Accepted immutable public release — `{coord}`** |\n| NuGet | **Status reconciled independently** |',
+              'Maven Central and NuGet remain open.':
+                  f'{accepted}. NuGet status is reconciled independently.',
+              'Maven Central and NuGet.org remain open.':
+                  f'{accepted}. NuGet.org status is reconciled independently.',
+              'Maven Central/NuGet.org remain open':
+                  f'Maven Central `{coord}` is accepted as an immutable public release; NuGet.org status is reconciled independently',
+              'Maven Central / NuGet — **OPEN**':
+                  f'Maven Central — **accepted immutable public release** (`{coord}`); NuGet — **status reconciled independently**',
+              'Maven Central and NuGet.org remain separate open native-publication gates.':
+                  f'Maven Central `{coord}` is an accepted immutable public release. NuGet.org publication status is reconciled independently.',
+              'completion of the still-open Maven Central/NuGet.org publication gates':
+                  'completion of any remaining registry-publication gates; Maven Central is already accepted',
+              'Maven and NuGet coordinates above are reserved target coordinates, not accepted public distributions until their real registry publication and independent verification evidence is accepted.':
+                  f'Maven Central `{coord}` is an accepted immutable public distribution. NuGet publication status is reconciled independently.',
+              '| Maven Central | `org.truyn:truyn-sdk` | `0.1.0-alpha.1` | **OPEN** |':
+                  '| Maven Central | `org.truyn:truyn-sdk` | `0.1.0-alpha.1` | **Accepted immutable public prerelease** |',
+              '| Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | source/build/conformance proven; Maven Central publication open |':
+                  '| Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |',
+              'Package build/provenance does not by itself prove public registry availability; npm alpha.2, PyPI alpha and Go alpha are separately accepted from observed immutable public evidence, while Maven Central and NuGet.org remain open.':
+                  f'Package build/provenance does not by itself prove public registry availability; npm alpha.2, PyPI alpha, Go alpha and Maven Central `{coord}` are separately accepted from observed immutable public evidence. NuGet.org status is reconciled independently.',
+          }
+
+          changed = []
+          for name in files:
+              p = Path(name)
+              if not p.exists():
+                  continue
+              text = p.read_text(encoding='utf-8')
+              old = text
+              for a, b in exact.items():
+                  text = text.replace(a, b)
+
+              if name == 'sdk/release/PUBLISHING.md':
+                  text = text.replace(
+                      '**State:** OPEN. The Java SDK already builds `truyn-sdk-<v>.jar`, `-sources.jar`, `-javadoc.jar` and the POM in ordinary CI (`sdk/release/build-release.sh`), and the POM already carries the metadata Central requires (name, description, url, license, developers, scm). What was missing was the publication path itself and the account-side identity.',
+                      f'**State:** ACCEPTED IMMUTABLE PUBLIC RELEASE. `{coord}` was published and independently verified on 2026-09-23. The Java SDK builds `truyn-sdk-<v>.jar`, `-sources.jar`, `-javadoc.jar` and the POM in ordinary CI (`sdk/release/build-release.sh`), and publication consumed the exact qualified CI bytes without rebuilding. Canonical evidence: `docs/releases/MAVEN_CENTRAL_0.1.0_ALPHA_1.md`.'
+                  )
+                  text = text.replace(
+                      '**Status:** npm/PyPI alpha registry closure completed on 2026-09-05; Go public prerelease accepted; Maven Central/NuGet.org remain open  ',
+                      f'**Status:** npm/PyPI alpha registry closure completed on 2026-09-05; Go public prerelease accepted; Maven Central `{coord}` accepted on 2026-09-23; NuGet.org status reconciled independently  '
+                  )
+
+              # Common prose variants which carried the old combined gate.
+              text = re.sub(
+                  r'Maven Central(?: and | / |/)(?:NuGet(?:\.org)?) (?:remain|remains|are|is) (?:separate )?(?:still-)?open',
+                  f'Maven Central `{coord}` is an accepted immutable public release; NuGet status is reconciled independently',
+                  text,
+                  flags=re.I,
+              )
+              text = re.sub(
+                  r'Maven Central publication (?:remains )?open',
+                  f'Maven Central publication is accepted (`{coord}`)',
+                  text,
+                  flags=re.I,
+              )
+              text = re.sub(
+                  r'Maven Central (?:remains|is) open',
+                  f'Maven Central `{coord}` is an accepted immutable public release',
+                  text,
+                  flags=re.I,
+              )
+
+              if text != old:
+                  p.write_text(text, encoding='utf-8')
+                  changed.append(name)
+
+          # Canonical release evidence and machine-readable coordinate must exist and agree.
+          ev = Path('docs/releases/MAVEN_CENTRAL_0.1.0_ALPHA_1.md')
+          assert ev.exists(), 'missing canonical Maven release evidence doc'
+          pc = Path('sdk/release/public-coordinates.json').read_text(encoding='utf-8')
+          assert '"maven"' in pc and '"publicationState":"accepted"' in pc and coord in pc
+
+          # Fail if a current-status surface still claims Maven Central itself is OPEN.
+          stale = []
+          for name in files:
+              p = Path(name)
+              if not p.exists():
+                  continue
+              for no, line in enumerate(p.read_text(encoding='utf-8').splitlines(), 1):
+                  low = line.lower()
+                  if 'maven central' in low and re.search(r'\bopen\b', low):
+                      stale.append(f'{name}:{no}:{line}')
+                  if 'maven `org.truyn:truyn-sdk:0.1.0-alpha.1`' in low and 'publication open' in low:
+                      stale.append(f'{name}:{no}:{line}')
+          if stale:
+              raise SystemExit('stale Maven OPEN claims remain:\n' + '\n'.join(stale))
+
+          print('TRUYN_MAVEN_DOC_RECONCILE=PASS')
+          print('changed=' + ','.join(changed))
+          PY
+
+      - name: Remove one-shot workflow and commit docs only
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/one-shot-maven-doc-reconcile.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md ROADMAP.md STRUCTURE.md sdk/README.md docs/README.md examples/README.md examples/sdk/README.md sdk/release/PUBLISHING.md sdk/release/public-coordinates.json spec/compatibility/matrix.md docs/compatibility/README.md docs/getting-started/DX3_SDK.md docs/getting-started/MVP_QUICKSTART.md docs/compatibility/SDK_PACKAGING.md docs/compatibility/SDK_COMPATIBILITY.md docs/getting-started/SDK_QUICKSTART.md docs/architecture/IMPLEMENTATION_STATUS.md docs/architecture/ARCHITECTURE_CONTRACT.md docs/architecture/SDK_DEVELOPER_EXPERIENCE.md docs/releases/MAVEN_CENTRAL_0.1.0_ALPHA_1.md .github/workflows/one-shot-maven-doc-reconcile.yml
+          if git diff --cached --quiet; then
+            echo '::error::no reconciliation changes produced'
+            exit 1
+          fi
+          git commit -m 'docs(release): reconcile accepted Maven Central alpha.1' -m 'Signed-off-by: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
+          git push origin HEAD:docs/maven-central-accepted-20260923
