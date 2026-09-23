@@ -7,6 +7,9 @@ const workflow = fs.readFileSync('.github/workflows/d-series-blockwise-preflight
 const runner = fs.readFileSync('scripts/d-series-block-runner.mjs', 'utf8');
 const aggregate = fs.readFileSync('scripts/d-series-block-aggregate.mjs', 'utf8');
 const verifier = fs.readFileSync('scripts/verify-d-series-blockwise-preflight-run.sh', 'utf8');
+const swarmVerifier = fs.readFileSync('scripts/verify-d-series-swarm-run.sh', 'utf8');
+const d500SwarmLaunch = fs.readFileSync('.github/workflows/d500-swarm-launch.yml', 'utf8');
+const d500BlockwiseLaunch = fs.readFileSync('.github/workflows/d500-blockwise-launch.yml', 'utf8');
 
 test('D-Series permanently defines exactly sixteen independently testable blocks', () => {
   assert.equal(config.schema, 'truyn.d-series.blockwise-preflight.v1');
@@ -49,17 +52,40 @@ test('block runners retain failures while the aggregate alone fails closed', () 
   assert.match(aggregate, /if \(enforce && !clean\) process\.exitCode = 1/);
 });
 
-test('full launch gate accepts only exact-main successful manual admission with Swarm provenance', () => {
+test('full launch gate accepts exact-main successful admission with Swarm provenance', () => {
   assert.match(verifier, /D-Series Blockwise Preflight/);
-  assert.match(verifier, /\.head_branch == "main"/);
-  assert.match(verifier, /\.head_sha == \$source/);
-  assert.match(verifier, /\.event == "workflow_dispatch"/);
-  assert.match(verifier, /\.conclusion == "success"/);
-  assert.match(verifier, /\.run_attempt == 1/);
+  assert.match(verifier, /workflow_dispatch/);
+  assert.match(verifier, /push/);
+  assert.match(verifier, /d500-blockwise-launch\.yml/);
+  assert.match(verifier, /launch_commit_provenance_invalid/);
+  assert.match(verifier, /source_not_current_main/);
   assert.match(verifier, /d-series-blockwise-summary-/);
   assert.match(verifier, /d-series-blockwise-admission-/);
   assert.match(verifier, /blocks=16\/16/);
   assert.match(verifier, /swarm_provenance=true/);
+});
+
+test('immutable D-500 launch paths bind both Swarm and Blockwise to the parent exact main', () => {
+  for (const [launch, mode] of [[d500SwarmLaunch, 'swarm'], [d500BlockwiseLaunch, 'blockwise']]) {
+    assert.match(launch, /github\.event\.before/);
+    assert.match(launch, /git rev-parse HEAD\^/);
+    assert.match(launch, /commits\/main/);
+    assert.match(launch, /git diff --name-only/);
+    assert.match(launch, /changed\[@\].*-eq 1/s);
+    assert.match(launch, new RegExp(`MODE=\\/\\/p.*${mode}|MODE`, 's'));
+    assert.doesNotMatch(launch, /gh workflow run/);
+    assert.doesNotMatch(launch, /AUTOPILOT_TOKEN_GITHUB/);
+  }
+  assert.match(d500SwarmLaunch, /d-series-launch\/swarm-d500/);
+  assert.match(d500SwarmLaunch, /d-series-swarm-aggregate\.mjs/);
+  assert.match(d500SwarmLaunch, /--scale d500/);
+  assert.match(d500BlockwiseLaunch, /d-series-launch\/blockwise-d500/);
+  assert.match(d500BlockwiseLaunch, /SWARM_RUN_ID/);
+  assert.match(d500BlockwiseLaunch, /verify-d-series-swarm-run\.sh/);
+  assert.match(d500BlockwiseLaunch, /--scope full/);
+  assert.match(swarmVerifier, /d500-swarm-launch\.yml/);
+  assert.match(swarmVerifier, /launch_commit_provenance_invalid/);
+  assert.match(swarmVerifier, /source_not_current_main/);
 });
 
 test('future D-500 and live D-1000 entrypoints enforce the exact blockwise preflight', () => {

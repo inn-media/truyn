@@ -7,8 +7,9 @@ import { validate, D500_TOPOLOGY } from '../scripts/check-d500-contract.mjs';
 const d200 = JSON.parse(fs.readFileSync('config/d200-contract.json', 'utf8'));
 const d500 = JSON.parse(fs.readFileSync('config/d500-contract.json', 'utf8'));
 const clone = (value) => JSON.parse(JSON.stringify(value));
+// Qualification launchers are pre-admission diagnostics, not immutable D-500 acceptance attempts.
 const activeD500Workflows = fs.existsSync('.github/workflows')
-  ? fs.readdirSync('.github/workflows').filter((name) => /^d-?500.*\.ya?ml$/i.test(name)).sort()
+  ? fs.readdirSync('.github/workflows').filter((name) => /^d-?500-acceptance\.ya?ml$/i.test(name)).sort()
   : [];
 const phase = process.env.D500_PREFLIGHT_PHASE || 'prepare';
 

@@ -31,7 +31,9 @@ grep -Fq 'class-d-200-stage-results.json' scripts/d200-stage-isolated-campaign.s
 grep -Fq 'acceptanceWeakened' scripts/d200-stage-isolated-campaign.sh
 
 phase="${D500_PREFLIGHT_PHASE:-prepare}"
-mapfile -t active_d500_workflows < <(find .github/workflows -maxdepth 1 -type f \( -iname 'd500*.yml' -o -iname 'd500*.yaml' -o -iname 'd-500*.yml' -o -iname 'd-500*.yaml' \) -printf '%f\n' | sort)
+# Qualification launchers are pre-admission diagnostics. Immutable D-500 attempt
+# history is represented only by the canonical acceptance workflow plus launch tokens.
+mapfile -t active_d500_workflows < <(find .github/workflows -maxdepth 1 -type f \( -iname 'd500-acceptance.yml' -o -iname 'd500-acceptance.yaml' -o -iname 'd-500-acceptance.yml' -o -iname 'd-500-acceptance.yaml' \) -printf '%f\n' | sort)
 
 # Treat every prior one-shot launch token as immutable history. Require a contiguous
 # 01..N sequence so a future attempt cannot skip, replace, or reuse an identity.
@@ -63,8 +65,8 @@ workflow='.github/workflows/d500-acceptance.yml'
 case "$phase" in
   prepare)
     # A source tree with no launch history is valid before attempt 1. Once an attempt
-    # exists, exactly one D-500 workflow must remain and must still point at the latest
-    # immutable token. The next token must not exist yet.
+    # exists, exactly one D-500 acceptance workflow must remain and must still point at
+    # the latest immutable token. Qualification launchers are deliberately excluded.
     if [[ "$latest" -eq 0 ]]; then
       [[ "${#active_d500_workflows[@]}" -eq 0 ]]
     else

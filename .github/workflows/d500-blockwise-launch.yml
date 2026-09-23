@@ -1,0 +1,197 @@
+name: D-Series Blockwise Preflight
+
+on:
+  push:
+    branches:
+      - 'd-series-launch/blockwise-d500/**'
+    paths:
+      - '.github/d-series-launch/blockwise-d500-*.txt'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: d-series-blockwise-launch-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  launch-contract:
+    name: d500-blockwise-launch-contract
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    outputs:
+      source_sha: ${{ steps.contract.outputs.source_sha }}
+      swarm_run_id: ${{ steps.contract.outputs.swarm_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Validate immutable exact-main launch token
+        id: contract
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/d-series-launch/blockwise-d500/* ]]
+          source_sha="${{ github.event.before }}"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ && "$source_sha" != 0000000000000000000000000000000000000000 ]]
+          [[ "$(git rev-parse HEAD^)" == "$source_sha" ]]
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$source_sha" ]]
+
+          mapfile -t changed < <(git diff --name-only "$source_sha" "$GITHUB_SHA")
+          [[ ${#changed[@]} -eq 1 ]]
+          token="${changed[0]}"
+          [[ "$token" =~ ^\.github/d-series-launch/blockwise-d500-[A-Za-z0-9._-]+\.txt$ ]]
+          [[ -f "$token" ]]
+          [[ "$(sed -n 's/^MODE=//p' "$token" | tail -1)" == blockwise ]]
+          [[ "$(sed -n 's/^SCALE=//p' "$token" | tail -1)" == d500 ]]
+          [[ "$(sed -n 's/^SOURCE_SHA=//p' "$token" | tail -1)" == "$source_sha" ]]
+          swarm_run_id="$(sed -n 's/^SWARM_RUN_ID=//p' "$token" | tail -1)"
+          [[ "$swarm_run_id" =~ ^[1-9][0-9]+$ ]]
+          [[ "$(grep -Ec '^(MODE|SCALE|SOURCE_SHA|SWARM_RUN_ID)=' "$token")" -eq 4 ]]
+          echo "source_sha=$source_sha" >>"$GITHUB_OUTPUT"
+          echo "swarm_run_id=$swarm_run_id" >>"$GITHUB_OUTPUT"
+          echo "TRUYN_D500_BLOCKWISE_LAUNCH_CONTRACT=PASS source_sha=$source_sha swarm_run_id=$swarm_run_id token=$token"
+
+  swarm-prerequisite:
+    name: d-series-swarm-prerequisite
+    needs: [launch-contract]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ needs.launch-contract.outputs.source_sha }}
+
+      - name: Require clean exact-SHA D-500 Swarm
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUYN_D_SERIES_SWARM_RUN: ${{ needs.launch-contract.outputs.swarm_run_id }}
+          TRUYN_D_SERIES_SWARM_SCALE: d500
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "${{ needs.launch-contract.outputs.source_sha }}" ]]
+          bash scripts/verify-d-series-swarm-run.sh "${{ needs.launch-contract.outputs.source_sha }}"
+
+  blocks:
+    name: d-series-${{ matrix.block }}
+    needs: [launch-contract, swarm-prerequisite]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        block: [B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12, B13, B14, B15, B16]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ needs.launch-contract.outputs.source_sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate exact source and install dependencies
+        env:
+          EXPECTED_SHA: ${{ needs.launch-contract.outputs.source_sha }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]
+          npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Run complete D-500 block cycle and retain all failures
+        env:
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ needs.launch-contract.outputs.source_sha }}
+          BLOCK_ID: ${{ matrix.block }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/d-series-block-runner.mjs "$BLOCK_ID" --scale 500 --result "d-series-block-${BLOCK_ID}.json"
+
+      - name: Upload block evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-block-${{ matrix.block }}-${{ github.run_id }}
+          path: d-series-block-${{ matrix.block }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: d-series-blockwise-aggregate
+    needs: [launch-contract, swarm-prerequisite, blocks]
+    if: always() && needs.launch-contract.result == 'success' && needs.swarm-prerequisite.result == 'success'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ needs.launch-contract.outputs.source_sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: d-series-block-*-${{ github.run_id }}
+          path: d-series-results
+          merge-multiple: true
+
+      - name: Aggregate exact-SHA D-500 block evidence and enforce 16/16
+        env:
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ needs.launch-contract.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/d-series-block-aggregate.mjs d-series-results \
+            --output d-series-blockwise-summary.json \
+            --source-sha "$TRUYN_CLASS_D_SOURCE_SHA" \
+            --scope full \
+            --enforce
+
+      - name: Create launch-eligible admission provenance
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > d-series-blockwise-admission.json <<EOF
+          {
+            "schema": "truyn.d-series.blockwise-admission.v1",
+            "sourceSha": "${{ needs.launch-contract.outputs.source_sha }}",
+            "scale": "d500",
+            "swarmRunId": "${{ needs.launch-contract.outputs.swarm_run_id }}",
+            "blockwiseRunId": "${{ github.run_id }}",
+            "blocks": "16/16"
+          }
+          EOF
+
+      - name: Upload aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-blockwise-summary-${{ github.run_id }}
+          path: d-series-blockwise-summary.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload admission provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-blockwise-admission-${{ github.run_id }}
+          path: d-series-blockwise-admission.json
+          if-no-files-found: error
+          retention-days: 90

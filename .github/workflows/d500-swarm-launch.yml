@@ -1,0 +1,204 @@
+name: D-Series Sanitation Swarm
+
+on:
+  push:
+    branches:
+      - 'd-series-launch/swarm-d500/**'
+    paths:
+      - '.github/d-series-launch/swarm-d500-*.txt'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: d-series-swarm-launch-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  launch-contract:
+    name: d500-swarm-launch-contract
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    outputs:
+      source_sha: ${{ steps.contract.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Validate immutable exact-main launch token
+        id: contract
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/d-series-launch/swarm-d500/* ]]
+          source_sha="${{ github.event.before }}"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ && "$source_sha" != 0000000000000000000000000000000000000000 ]]
+          [[ "$(git rev-parse HEAD^)" == "$source_sha" ]]
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$source_sha" ]]
+
+          mapfile -t changed < <(git diff --name-only "$source_sha" "$GITHUB_SHA")
+          [[ ${#changed[@]} -eq 1 ]]
+          token="${changed[0]}"
+          [[ "$token" =~ ^\.github/d-series-launch/swarm-d500-[A-Za-z0-9._-]+\.txt$ ]]
+          [[ -f "$token" ]]
+          [[ "$(sed -n 's/^MODE=//p' "$token" | tail -1)" == swarm ]]
+          [[ "$(sed -n 's/^SCALE=//p' "$token" | tail -1)" == d500 ]]
+          [[ "$(sed -n 's/^SOURCE_SHA=//p' "$token" | tail -1)" == "$source_sha" ]]
+          [[ "$(grep -Ec '^(MODE|SCALE|SOURCE_SHA)=' "$token")" -eq 3 ]]
+          echo "source_sha=$source_sha" >>"$GITHUB_OUTPUT"
+          echo "TRUYN_D500_SWARM_LAUNCH_CONTRACT=PASS source_sha=$source_sha token=$token"
+
+  class-stage-swarm:
+    name: d-series-swarm-stage-500
+    needs: [launch-contract]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ needs.launch-contract.outputs.source_sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate exact source and install dependencies
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ needs.launch-contract.outputs.source_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]
+          npm install --ignore-scripts --no-audit --no-fund
+          node scripts/check-class-d-five-patches.mjs
+
+      - name: Execute canonical fail-collect D-500 DAG
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ needs.launch-contract.outputs.source_sha }}
+        run: |
+          set -Eeuo pipefail
+          TRUYN_CLASS_D_SOURCE_SHA="$EXPECTED_SHA" node scripts/class-d-stage-runner.mjs \
+            --class 500 \
+            --checkpoint d-series-swarm-stage-500.json \
+            --concurrency 1
+
+      - name: Upload D-500 stage evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-swarm-stage-500-${{ github.run_id }}
+          path: d-series-swarm-stage-500.json
+          if-no-files-found: error
+          retention-days: 90
+
+  block-diagnostics:
+    name: d-series-swarm-${{ matrix.block }}
+    needs: [launch-contract]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        block: [B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12, B13, B14, B15, B16]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ needs.launch-contract.outputs.source_sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate exact source and install dependencies
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ needs.launch-contract.outputs.source_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]
+          npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Run Blockwise domain as Swarm diagnostic shard
+        shell: bash
+        env:
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ needs.launch-contract.outputs.source_sha }}
+          BLOCK_ID: ${{ matrix.block }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/d-series-block-runner.mjs "$BLOCK_ID" --scale 500 --result "d-series-block-${BLOCK_ID}.json"
+
+      - name: Upload diagnostic shard evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-swarm-block-${{ matrix.block }}-${{ github.run_id }}
+          path: d-series-block-${{ matrix.block }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  swarm-aggregate:
+    name: d-series-swarm-aggregate
+    needs: [launch-contract, class-stage-swarm, block-diagnostics]
+    if: always() && needs.launch-contract.result == 'success'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ needs.launch-contract.outputs.source_sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: d-series-swarm-stage-500-${{ github.run_id }}
+          path: d-series-swarm-stages
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: d-series-swarm-block-*-${{ github.run_id }}
+          path: d-series-swarm-blocks
+          merge-multiple: true
+
+      - name: Deduplicate root causes and enforce clean D-500 Swarm
+        env:
+          EXPECTED_SHA: ${{ needs.launch-contract.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p d-series-swarm-lanes
+          node scripts/d-series-swarm-aggregate.mjs \
+            --stages d-series-swarm-stages \
+            --blocks d-series-swarm-blocks \
+            --lanes d-series-swarm-lanes \
+            --source-sha "$EXPECTED_SHA" \
+            --scale d500 \
+            --output d-series-swarm-summary.json \
+            --enforce
+
+      - name: Upload Swarm summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-swarm-summary-d500-${{ github.run_id }}
+          path: d-series-swarm-summary.json
+          if-no-files-found: error
+          retention-days: 90

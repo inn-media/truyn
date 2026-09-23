@@ -56,9 +56,15 @@ test('full Blockwise admission is impossible without exact-SHA GREEN Swarm prove
     'd-series-blockwise-admission-${{ github.run_id }}'
   ]) assert.ok(workflow.includes(marker), `Blockwise admission lost marker: ${marker}`);
   assert.ok(!workflow.includes('push:\n    branches: [main]'), 'Blockwise must not race Swarm as an automatic main push admission');
-  assert.ok(verifier.includes('.event == "workflow_dispatch"'));
-  assert.ok(verifier.includes('d-series-blockwise-admission-${RUN_ID}'));
-  assert.ok(verifier.includes('swarm_provenance=true'));
+  for (const marker of [
+    'workflow_dispatch)',
+    'push)',
+    'd500-blockwise-launch.yml',
+    'launch_commit_provenance_invalid',
+    'source_not_current_main',
+    'd-series-blockwise-admission-${RUN_ID}',
+    'swarm_provenance=true'
+  ]) assert.ok(verifier.includes(marker), `Blockwise verifier lost marker: ${marker}`);
 });
 
 test('real D-500 and D-1000 acceptance surfaces remain downstream of Blockwise admission', () => {
@@ -69,13 +75,17 @@ test('real D-500 and D-1000 acceptance surfaces remain downstream of Blockwise a
   }
 });
 
-test('Swarm verifier binds admission evidence to exact main and requested scale', () => {
+test('Swarm verifier binds both manual and immutable-launch evidence to exact main and requested scale', () => {
   const verifier = read('scripts/verify-d-series-swarm-run.sh');
   for (const marker of [
     '.name == "D-Series Sanitation Swarm"',
+    'workflow_dispatch)',
     '.head_branch == "main"',
     '.head_sha == $source',
-    '.event == "workflow_dispatch"',
+    'push)',
+    'd500-swarm-launch.yml',
+    'launch_commit_provenance_invalid',
+    'source_not_current_main',
     'd-series-swarm-summary-${EXPECTED_SCALE}-${RUN_ID}',
     'd-series-swarm-summary-all-${RUN_ID}'
   ]) assert.ok(verifier.includes(marker), `Swarm verifier lost marker: ${marker}`);
