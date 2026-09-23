@@ -22,12 +22,34 @@ jobs:
           set -Eeuo pipefail
           test -n "$PRIVATE_KEY"
           test -n "$CONFIGURED_LONG_KEY"
+          export KEYFILE="$RUNNER_TEMP/maven-private-key.asc"
+          python - <<'PY'
+          import os, json, base64
+          s = os.environ['PRIVATE_KEY']
+          s = s.strip()
+          if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
+              try: s = json.loads(s)
+              except Exception: pass
+          for _ in range(4):
+              n = s.replace('\\r\\n','\n').replace('\\n','\n').replace('\\r','\r')
+              if n == s: break
+              s = n
+          if '-----BEGIN PGP PRIVATE KEY BLOCK-----' not in s:
+              try:
+                  raw = base64.b64decode(''.join(s.split()), validate=True)
+                  text = raw.decode('utf-8')
+                  if '-----BEGIN PGP PRIVATE KEY BLOCK-----' in text: s = text
+              except Exception: pass
+          if '-----BEGIN PGP PRIVATE KEY BLOCK-----' not in s or '-----END PGP PRIVATE KEY BLOCK-----' not in s:
+              raise SystemExit('normalized secret is not an armored PGP private key')
+          with open(os.environ['KEYFILE'],'w',encoding='utf-8',newline='\n') as f:
+              f.write(s.strip()+'\n')
+          PY
+          unset PRIVATE_KEY
           export GNUPGHOME="$RUNNER_TEMP/maven-gpg-probe"
           mkdir -p -m 700 "$GNUPGHOME"
-          normalized="$PRIVATE_KEY"
-          if [[ "$normalized" == *'\n'* ]]; then normalized="${normalized//\\n/$'\n'}"; fi
-          printf '%s\n' "$normalized" | gpg --batch --quiet --import
-          unset normalized
+          gpg --batch --quiet --import "$KEYFILE"
+          rm -f "$KEYFILE"
           fpr="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^fpr/{print toupper($10);exit}')"
           long_id="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/{print toupper($5);exit}')"
           configured="$(printf '%s' "$CONFIGURED_LONG_KEY" | tr -d '[:space:]' | sed 's/^0[xX]//' | tr '[:lower:]' '[:upper:]')"
