@@ -1,0 +1,122 @@
+name: NuGet alpha.1 post-publication verification
+
+on:
+  push:
+    branches:
+      - release/nuget-tag-launch-20260923
+    paths:
+      - .github/workflows/nuget-post-publication-verify.yml
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_SHA: 953ed548a52e4c3440a414ec2401ea324120155e
+      TAG: sdk/nuget/v0.1.0-alpha.1
+      VERSION: 0.1.0-alpha.1
+      CI_RUN_ID: '35903671988'
+      CODEQL_RUN_ID: '35903670985'
+      PUBLICATION_RUN_ID: '35904855105'
+      CI_NUPKG_SHA256: 76900369384c1ea190bb41a3985087baf667e9334db083ee1f43a0c4345726ce
+      NUGET_ID: Truyn.Sdk
+      NUGET_SOURCE: https://api.nuget.org/v3/index.json
+      NUGET_FLAT: https://api.nuget.org/v3-flatcontainer
+      ROOT: /tmp/truyn-nuget-verify
+    steps:
+      - name: Checkout exact immutable release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate immutable historical release authority
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')" = "$SOURCE_SHA"
+          for run_id in "$CI_RUN_ID" "$CODEQL_RUN_ID"; do
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.head_sha')" = "$SOURCE_SHA"
+            test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.conclusion')" = success
+          done
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_RUN_ID" --jq '.name')" = 'Publish .NET SDK to NuGet.org via Trusted Publishing'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_RUN_ID" --jq '.status')" = completed
+          echo 'TRUYN_NUGET_HISTORICAL_AUTHORITY=PASS'
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Fetch exact CI package and public package
+        id: packages
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -rf "$ROOT"; mkdir -p "$ROOT/ci" "$ROOT/public"
+          gh run download "$CI_RUN_ID" --name "truyn-sdk-release-$CI_RUN_ID" --dir "$ROOT/ci"
+          node sdk/release/verify-release.mjs "$ROOT/ci"
+          ci="$ROOT/ci/dotnet/$NUGET_ID.$VERSION.nupkg"
+          test -s "$ci"
+          test "$(sha256sum "$ci" | awk '{print $1}')" = "$CI_NUPKG_SHA256"
+
+          id_lower="$(printf '%s' "$NUGET_ID" | tr '[:upper:]' '[:lower:]')"
+          v_lower="$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]')"
+          public="$ROOT/public/$NUGET_ID.$VERSION.nupkg"
+          curl --retry 10 --retry-delay 15 --retry-all-errors --connect-timeout 5 --max-time 30 -sSf -o "$public" "$NUGET_FLAT/$id_lower/$v_lower/$id_lower.$v_lower.nupkg"
+          test -s "$public"
+          public_sha="$(sha256sum "$public" | awk '{print $1}')"
+          echo "ci=$ci" >> "$GITHUB_OUTPUT"
+          echo "public=$public" >> "$GITHUB_OUTPUT"
+          echo "public_sha256=$public_sha" >> "$GITHUB_OUTPUT"
+          echo "TRUYN_NUGET_PUBLIC_FETCH=PASS public_sha256=$public_sha"
+
+      - name: Verify content identity and NuGet.org repository signature
+        shell: bash
+        env:
+          CI_PACKAGE: ${{ steps.packages.outputs.ci }}
+          PUBLIC_PACKAGE: ${{ steps.packages.outputs.public }}
+        run: |
+          set -Eeuo pipefail
+          bash sdk/release/compare-nupkg.sh "$CI_PACKAGE" "$PUBLIC_PACKAGE"
+          dotnet nuget verify --all "$PUBLIC_PACKAGE"
+          echo 'TRUYN_NUGET_CONTENT_AND_SIGNATURE=PASS'
+
+      - name: Clean-room install and runtime load probe
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          clean="$ROOT/cleanroom"
+          rm -rf "$clean"; mkdir -p "$clean"; cd "$clean"
+          export NUGET_PACKAGES="$clean/packages"
+          dotnet new console --framework net8.0 --name Probe --output . >/dev/null
+          dotnet add package "$NUGET_ID" --version "$VERSION" --source "$NUGET_SOURCE"
+          cat > Program.cs <<'CS'
+          Console.WriteLine(typeof(Truyn.Sdk.TruynClient).FullName == "Truyn.Sdk.TruynClient" ? "TRUYN_NUGET_CLEANROOM=PASS" : "FAIL");
+          CS
+          dotnet run --configuration Release | grep -qx 'TRUYN_NUGET_CLEANROOM=PASS'
+          echo 'TRUYN_NUGET_CLEANROOM_INSTALL=PASS'
+
+      - name: Write immutable verification evidence
+        shell: bash
+        env:
+          PUBLIC_SHA256: ${{ steps.packages.outputs.public_sha256 }}
+        run: |
+          set -Eeuo pipefail
+          jq -n --arg registry 'NuGet.org' --arg coordinate "$NUGET_ID@$VERSION" --arg version "$VERSION" --arg sourceSha "$SOURCE_SHA" --arg releaseTag "$TAG" --arg ciRunId "$CI_RUN_ID" --arg codeqlRunId "$CODEQL_RUN_ID" --arg publicationRunId "$PUBLICATION_RUN_ID" --arg verificationRunId "$GITHUB_RUN_ID" --arg ciPackageSha256 "$CI_NUPKG_SHA256" --arg publicPackageSha256 "$PUBLIC_SHA256" '{registry:$registry,coordinate:$coordinate,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,ciRunId:$ciRunId,codeqlRunId:$codeqlRunId,publicationRunId:$publicationRunId,verificationRunId:$verificationRunId,publicationAuthentication:"NuGet Trusted Publishing (GitHub Actions OIDC)",ciPackageSha256:$ciPackageSha256,publicPackageSha256:$publicPackageSha256,contentIdentityExcludingRepositorySignature:"PASS",repositorySignatureVerification:"PASS",cleanRoomRestore:"PASS",publicationPush:"PASS",note:"Original publication run pushed successfully; its final clean-room step failed only because the verifier used obsolete dotnet add package --packages syntax. This independent verification uses NUGET_PACKAGES and performs no registry mutation."}' > "$ROOT/nuget-alpha1-verification-evidence.json"
+          cat "$ROOT/nuget-alpha1-verification-evidence.json"
+
+      - name: Upload verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-sdk-nuget-alpha1-verification-${{ github.run_id }}
+          path: /tmp/truyn-nuget-verify/nuget-alpha1-verification-evidence.json
+          if-no-files-found: error
+          retention-days: 90
