@@ -1,0 +1,496 @@
+name: D-Series Parallel Liveness Repair
+
+on:
+  push:
+    branches:
+      - 'automation/autorepair/d-series-parallel-liveness-260923'
+    paths:
+      - '.github/workflows/d-series-parallel-liveness-repair.yml'
+
+permissions:
+  contents: write
+
+env:
+  BASE_SHA: 3a1f7e67b80cecf678d373e33db9ceb09098e8a4
+
+jobs:
+  repair:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+
+      - name: Verify exact base
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git fetch origin main --quiet
+          [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
+          [[ "$(git merge-base HEAD "$BASE_SHA")" == "$BASE_SHA" ]]
+
+      - name: Apply fail-closed parallel liveness transformation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path, old, new, expected=1):
+              p=Path(path); text=p.read_text()
+              count=text.count(old)
+              if count != expected:
+                  raise SystemExit(f'{path}: expected {expected} occurrence(s), found {count}: {old[:120]!r}')
+              p.write_text(text.replace(old,new,expected))
+
+          provision='benchmarks/scale/class-d-azure-1000-provision.sh'
+          replace_exact(provision,
+          '''QUIC_BASE=4400
+          CONTROL_BASE=8700
+          EVIDENCE="${GITHUB_WORKSPACE:-$PWD}/class-d-1000-evidence.json"
+          ''',
+          '''QUIC_BASE=4400
+          CONTROL_BASE=8700
+          BOOTSTRAP_NODE_PARALLELISM="${TRUYN_CLASS_D1000_NODE_REFRESH_PARALLELISM:-8}"
+          if ! [[ "$BOOTSTRAP_NODE_PARALLELISM" =~ ^[0-9]+$ ]] || (( BOOTSTRAP_NODE_PARALLELISM < 1 || BOOTSTRAP_NODE_PARALLELISM > NODES_PER_HOST )); then
+            echo "TRUYN_CLASS_D_LIVENESS invalid nodeRefreshParallelism=${BOOTSTRAP_NODE_PARALLELISM} nodesPerHost=${NODES_PER_HOST}" >&2
+            exit 1
+          fi
+          source "${TRUYN_CLASS_D_REPO_ROOT:-$PWD}/scripts/lib/class-d-phase-deadlines.sh"
+          EVIDENCE="${GITHUB_WORKSPACE:-$PWD}/class-d-1000-evidence.json"
+          ''')
+
+          replace_exact(provision,
+          '''  set +e
+            STAGE=cleanup
+            CLEANUP_CONFIRMED=false
+          ''',
+          '''  set +e
+            STAGE=cleanup
+            CLEANUP_CONFIRMED=false
+            cleanup_deadline_seconds="$(class_d_phase_deadline_seconds cleanup)"
+            cleanup_deadline_epoch=$(( $(date +%s) + cleanup_deadline_seconds ))
+            cleanup_az() {
+              local remaining=$(( cleanup_deadline_epoch - $(date +%s) ))
+              if (( remaining <= 0 )); then
+                echo "TRUYN_CLASS_D_PHASE_DEADLINE phase=cleanup family=cleanup seconds=${cleanup_deadline_seconds}" >&2
+                return 124
+              fi
+              timeout --signal=TERM --kill-after=15s "${remaining}s" az "$@"
+            }
+          ''')
+          for old,new in [
+              ('do az vm delete ', 'do cleanup_az vm delete '),
+              ('do az network nic delete ', 'do cleanup_az network nic delete '),
+              ('do az disk delete ', 'do cleanup_az disk delete '),
+              ('  az network vnet delete ', '  cleanup_az network vnet delete '),
+              ('  az network nsg delete ', '  cleanup_az network nsg delete '),
+              ('list_output=$(az resource list ', 'list_output=$(cleanup_az resource list '),
+          ]:
+              replace_exact(provision, old, new)
+          replace_exact(provision,
+              'echo "TRUYN_CLASS_D_1000_CLEANUP confirmed=${CLEANUP_CONFIRMED} remaining=${left}"',
+              'echo "TRUYN_CLASS_D_1000_CLEANUP confirmed=${CLEANUP_CONFIRMED} remaining=${left} deadlineSeconds=${cleanup_deadline_seconds}"')
+
+          replace_exact(provision,
+          '''STAGE=provision
+          for i in $(seq 0 $((HOST_COUNT-1))); do
+            az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
+            created=0
+            for size in "$VM_SIZE" Standard_D4s_v5; do
+              if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
+                created=1
+                echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
+                break
+              fi
+            done
+            [[ $created == 1 ]]
+            PRIV+=("$(az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)")
+            [[ -n "${PRIV[$i]}" ]]
+          done
+
+          STAGE=install
+          for i in $(seq 0 $((HOST_COUNT-1))); do
+          ''',
+          '''STAGE=provision
+          provision_dir=$(mktemp -d)
+          provision_pids=()
+          for i in $(seq 0 $((HOST_COUNT-1))); do
+            (
+              set -Eeuo pipefail
+              az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
+              created=0
+              for size in "$VM_SIZE" Standard_D4s_v5; do
+                if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
+                  created=1
+                  echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
+                  break
+                fi
+              done
+              [[ $created == 1 ]]
+              ip="$(az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)"
+              [[ -n "$ip" ]]
+              printf '%s\n' "$ip" >"$provision_dir/$i.ip"
+            ) >"$provision_dir/$i.log" 2>&1 &
+            provision_pids+=("$!")
+          done
+          if ! class_d_wait_barrier provision "$(class_d_phase_deadline_seconds provision)" "${provision_pids[@]}"; then
+            cat "$provision_dir"/*.log >&2 || true
+            rm -rf "$provision_dir"
+            false
+          fi
+          for i in $(seq 0 $((HOST_COUNT-1))); do
+            PRIV[$i]="$(cat "$provision_dir/$i.ip")"
+            [[ -n "${PRIV[$i]}" ]]
+            cat "$provision_dir/$i.log"
+          done
+          rm -rf "$provision_dir"
+
+          STAGE=install
+          install_dir=$(mktemp -d)
+          install_pids=()
+          for i in $(seq 0 $((HOST_COUNT-1))); do
+          ''')
+
+          replace_exact(provision,
+          '''  script="${script//truyn/truyn}"
+            out=$(remote "${VMS[$i]}" "$script")
+            [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
+            echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
+          done
+
+          STAGE=bootstrap-record-refresh
+          ''',
+          '''  script="${script//truyn/truyn}"
+            (
+              out=$(remote "${VMS[$i]}" "$script")
+              [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
+              echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
+            ) >"$install_dir/$i" 2>&1 &
+            install_pids+=("$!")
+          done
+          if ! class_d_wait_barrier install "$(class_d_phase_deadline_seconds install)" "${install_pids[@]}"; then
+            cat "$install_dir"/* >&2 || true
+            rm -rf "$install_dir"
+            false
+          fi
+          for i in $(seq 0 $((HOST_COUNT-1))); do cat "$install_dir/$i"; done
+          rm -rf "$install_dir"
+
+          STAGE=bootstrap-record-refresh
+          ''')
+
+          replace_exact(provision,
+          '''bootstrap_record_refresh_failed=0
+          for pid in "${bootstrap_record_refresh_pids[@]}"; do
+            if ! wait "$pid"; then bootstrap_record_refresh_failed=1; fi
+          done
+          bootstrap_record_refresh_hosts=0
+          ''',
+          '''bootstrap_record_refresh_failed=0
+          if ! class_d_wait_barrier bootstrap-record-refresh "$(class_d_phase_deadline_seconds bootstrap-record-refresh)" "${bootstrap_record_refresh_pids[@]}"; then
+            bootstrap_record_refresh_failed=1
+          fi
+          if [[ "$bootstrap_record_refresh_failed" != 0 ]]; then
+            cat "$bootstrap_record_refresh_dir"/* >&2 || true
+            rm -rf "$bootstrap_record_refresh_dir"
+            false
+          fi
+          bootstrap_record_refresh_hosts=0
+          ''')
+
+          replace_exact(provision,
+          '''STAGE=bootstrap
+          IPS_JSON=$(printf '%s\\n' "${PRIV[@]}" | jq -R . | jq -s -c .)
+          bootstrap_dir=$(mktemp -d)
+          ''',
+          '''STAGE=bootstrap
+          BOOTSTRAP_PHASE_DEADLINE_SECONDS="$(class_d_phase_deadline_seconds bootstrap)"
+          IPS_JSON=$(printf '%s\\n' "${PRIV[@]}" | jq -R . | jq -s -c .)
+          bootstrap_dir=$(mktemp -d)
+          ''')
+
+          replace_exact(provision,
+          '''t0=\\$(date +%s%3N)
+          for j in \\$(seq 0 $((NODES_PER_HOST-1))); do
+          ''',
+          '''t0=\\$(date +%s%3N)
+          bootstrap_deadline_epoch=\\$(( \\$(date +%s) + ${BOOTSTRAP_PHASE_DEADLINE_SECONDS} ))
+          node_refresh_dir=\\$(mktemp -d)
+          node_refresh_pids=()
+          node_refresh_failed=0
+          bootstrap_refresh_node() {
+            local j="\\$1" node_id payload records control_url refresh_payload refresh_result refresh_rc refresh_reason refresh_attempt remaining refresh_timeout
+            node_id=\\$(jq -r --argjson host ${i} --argjson node "\\$j" '.[\\$host][\\$node].nodeId' /tmp/records-by-host.json)
+            payload=\\$(jq -c --arg node "\\$node_id" '{records:.[\\$node]}' /tmp/bootstrap-plan-by-node.json)
+            records=\\$(jq -r --arg node "\\$node_id" '.[\\$node] | length' /tmp/bootstrap-plan-by-node.json)
+            [[ "\\$records" -eq ${BOOTSTRAP_MAX_PEERS_PER_NODE} ]]
+            control_url="http://127.0.0.1:\\$(( ${CONTROL_BASE} + j ))"
+            remaining=\\$((bootstrap_deadline_epoch - \\$(date +%s)))
+            (( remaining > 0 ))
+            bootstrap_timeout=\\$remaining
+            (( bootstrap_timeout > 90 )) && bootstrap_timeout=90
+            curl -fsS --max-time "\\$bootstrap_timeout" -H 'content-type: application/json' --data-binary "\\$payload" "\\${control_url}/bootstrap" >/dev/null
+            refresh_payload=\\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,targetConcurrency:4,timeoutMs:240000,seed:\\$seed}')
+            refresh_result=''
+            refresh_rc=1
+            for refresh_attempt in 1 2 3; do
+              remaining=\\$((bootstrap_deadline_epoch - \\$(date +%s)))
+              if (( remaining <= 0 )); then refresh_rc=124; break; fi
+              refresh_timeout=\\$remaining
+              (( refresh_timeout > 300 )) && refresh_timeout=300
+              set +e
+              refresh_result=\\$(curl -fsS --max-time "\\$refresh_timeout" -H 'content-type: application/json' --data-binary "\\$refresh_payload" "\\${control_url}/dht/refresh")
+              refresh_rc=\\$?
+              set -e
+              refresh_reason=none
+              if [[ "\\$refresh_rc" -eq 0 ]]; then
+                refresh_reason=\\$(printf '%s' "\\$refresh_result" | jq -r '.reason // "none"' 2>/dev/null || echo invalid-json)
+                if printf '%s' "\\$refresh_result" | jq -e '.refreshed == true' >/dev/null 2>&1; then break; fi
+                refresh_rc=70
+              fi
+              echo "TRUYN_D200_BOOTSTRAP_REFRESH_RETRY host=${i} node=\\$j attempt=\\$refresh_attempt rc=\\$refresh_rc reason=\\$refresh_reason" >&2
+              [[ "\\$refresh_attempt" -lt 3 ]] && sleep \\$((refresh_attempt * 2))
+            done
+            [[ "\\$refresh_rc" -eq 0 ]]
+            [[ "\\$(printf '%s' "\\$refresh_result" | jq -r '.refreshed')" == true ]]
+            printf '%s' "\\$refresh_result" >"\\$node_refresh_dir/\\$j.refresh.json"
+          }
+          for j in \\$(seq 0 $((NODES_PER_HOST-1))); do
+            (bootstrap_refresh_node "\\$j" >"\\$node_refresh_dir/\\$j.log" 2>&1) &
+            node_refresh_pids+=("\\$!")
+            if [[ "\\${#node_refresh_pids[@]}" -ge ${BOOTSTRAP_NODE_PARALLELISM} || "\\$j" -eq $((NODES_PER_HOST-1)) ]]; then
+              for pid in "\\${node_refresh_pids[@]}"; do
+                if ! wait "\\$pid"; then node_refresh_failed=1; fi
+              done
+              node_refresh_pids=()
+              [[ "\\$node_refresh_failed" == 0 ]] || break
+            fi
+          done
+          if [[ "\\$node_refresh_failed" != 0 ]]; then
+            cat "\\$node_refresh_dir"/*.log >&2 || true
+            exit 1
+          fi
+          for j in \\$(seq 0 $((NODES_PER_HOST-1))); do
+          ''')
+
+          replace_exact(provision,
+          '''  control_url="http://127.0.0.1:\\$(( ${CONTROL_BASE} + j ))"
+            curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\\$payload" "\\${control_url}/bootstrap" >/dev/null
+            refresh_payload=\\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,targetConcurrency:4,timeoutMs:240000,seed:\\$seed}')
+            refresh_result=''
+            refresh_rc=1
+            for refresh_attempt in 1 2 3; do
+              set +e
+              refresh_result=\\$(curl -fsS --max-time 300 -H 'content-type: application/json' --data-binary "\\$refresh_payload" "\\${control_url}/dht/refresh")
+              refresh_rc=\\$?
+              set -e
+              refresh_reason=none
+              if [[ "\\$refresh_rc" -eq 0 ]]; then
+                refresh_reason=\\$(printf '%s' "\\$refresh_result" | jq -r '.reason // "none"' 2>/dev/null || echo invalid-json)
+                if printf '%s' "\\$refresh_result" | jq -e '.refreshed == true' >/dev/null 2>&1; then break; fi
+                refresh_rc=70
+              fi
+              echo "TRUYN_D200_BOOTSTRAP_REFRESH_RETRY host=${i} node=\\$j attempt=\\$refresh_attempt rc=\\$refresh_rc reason=\\$refresh_reason" >&2
+              [[ "\\$refresh_attempt" -lt 3 ]] && sleep \\$((refresh_attempt * 2))
+            done
+            [[ "\\$refresh_rc" -eq 0 ]]
+            [[ "\\$(printf '%s' "\\$refresh_result" | jq -r '.refreshed')" == true ]]
+          ''',
+          '''  control_url="http://127.0.0.1:\\$(( ${CONTROL_BASE} + j ))"
+            refresh_result=\\$(cat "\\$node_refresh_dir/\\$j.refresh.json")
+            refresh_rc=0
+            [[ "\\$(printf '%s' "\\$refresh_result" | jq -r '.refreshed')" == true ]]
+          ''')
+          replace_exact(provision,
+          '''  refresh_count=\\$((refresh_count + 1))
+          done
+          t1=\\$(date +%s%3N)
+          ''',
+          '''  refresh_count=\\$((refresh_count + 1))
+          done
+          rm -rf "\\$node_refresh_dir"
+          t1=\\$(date +%s%3N)
+          ''')
+          replace_exact(provision,
+          '''for pid in "${bootstrap_pids[@]}"; do wait "$pid"; done
+          for i in $(seq 0 $((HOST_COUNT-1))); do cat "$bootstrap_dir/$i"; done
+          ''',
+          '''if ! class_d_wait_barrier bootstrap "$BOOTSTRAP_PHASE_DEADLINE_SECONDS" "${bootstrap_pids[@]}"; then
+            cat "$bootstrap_dir"/* >&2 || true
+            rm -rf "$bootstrap_dir"
+            false
+          fi
+          for i in $(seq 0 $((HOST_COUNT-1))); do cat "$bootstrap_dir/$i"; done
+          ''')
+          replace_exact(provision,
+              'targetConcurrency=4 serverDeadlineMs=240000 clientDeadlineMs=300000 status=PASS',
+              'targetConcurrency=4 nodeParallelism=${BOOTSTRAP_NODE_PARALLELISM} phaseDeadlineSeconds=${BOOTSTRAP_PHASE_DEADLINE_SECONDS} serverDeadlineMs=240000 clientDeadlineMs=300000 status=PASS')
+
+          orchestrator='scripts/d200-stage-isolated-campaign.sh'
+          replace_exact(orchestrator,
+          ''': "${EVIDENCE:?source class-d-azure-1000-provision.sh first}"
+
+          D200_CAMPAIGN_SOURCE=''',
+          ''': "${EVIDENCE:?source class-d-azure-1000-provision.sh first}"
+          source "${TRUYN_CLASS_D_REPO_ROOT:-$PWD}/scripts/lib/class-d-phase-deadlines.sh"
+
+          D200_CAMPAIGN_SOURCE=''')
+          replace_exact(orchestrator,
+          '''  set +e
+            (
+              trap - ERR EXIT
+              d200_stage_failure_file="$failure_file"
+              d200_stage_state_file="$state_file"
+              trap 'rc=$?; cmd_b64=$(printf "%s" "$BASH_COMMAND" | base64 -w0); printf "rc=%s\\nline=%s\\ncommand_b64=%s\\n" "$rc" "$LINENO" "$cmd_b64" >"$d200_stage_failure_file"; exit "$rc"' ERR
+              trap 'rc=$?; trap - EXIT; d200_stage_dump_state "$d200_stage_state_file"; exit "$rc"' EXIT
+              set -Eeuo pipefail
+              source "$stage_file"
+            )
+            rc=$?
+            set -e
+          ''',
+          '''  local deadline_seconds family
+            deadline_seconds="$(class_d_phase_deadline_seconds "$stage")"
+            family="$(class_d_phase_family "$stage")"
+            set +e
+            (
+              trap - ERR EXIT TERM
+              d200_stage_failure_file="$failure_file"
+              d200_stage_state_file="$state_file"
+              stage_pid=$BASHPID
+              watchdog_pid=''
+              d200_stage_deadline() {
+                trap - TERM
+                echo "TRUYN_CLASS_D_PHASE_DEADLINE phase=${stage} family=${family} seconds=${deadline_seconds}" >&2
+                while IFS= read -r child; do kill -TERM "$child" 2>/dev/null || true; done < <(jobs -pr)
+                exit 124
+              }
+              trap d200_stage_deadline TERM
+              trap 'rc=$?; cmd_b64=$(printf "%s" "$BASH_COMMAND" | base64 -w0); printf "rc=%s\\nline=%s\\ncommand_b64=%s\\n" "$rc" "$LINENO" "$cmd_b64" >"$d200_stage_failure_file"; exit "$rc"' ERR
+              trap 'rc=$?; trap - EXIT TERM; if [[ -n "$watchdog_pid" ]]; then kill "$watchdog_pid" 2>/dev/null || true; wait "$watchdog_pid" 2>/dev/null || true; fi; d200_stage_dump_state "$d200_stage_state_file"; exit "$rc"' EXIT
+              ( sleep "$deadline_seconds"; kill -TERM "$stage_pid" 2>/dev/null || true ) &
+              watchdog_pid=$!
+              echo "TRUYN_CLASS_D_PHASE_START phase=${stage} family=${family} deadlineSeconds=${deadline_seconds}"
+              set -Eeuo pipefail
+              source "$stage_file"
+            )
+            rc=$?
+            set -e
+          ''')
+
+          strict='scripts/class-d-1000-strict-acceptance.sh'
+          replace_exact(strict,
+            '''bash scripts/class-d-1000-final-acceptance.sh 2>&1 | tee "$LOG"
+          campaign_rc=${PIPESTATUS[0]}
+          ''',
+            '''echo "TRUYN_CLASS_D_OUTER_WATCHDOG class=D-1000 minutes=240"
+          timeout --signal=TERM --kill-after=300s 240m bash scripts/class-d-1000-final-acceptance.sh 2>&1 | tee "$LOG"
+          campaign_rc=${PIPESTATUS[0]}
+          ''')
+
+          for path in ['.github/workflows/d500-acceptance.yml','.github/d500/d500-acceptance.template.yml']:
+              replace_exact(path, '    timeout-minutes: 420\n', '    timeout-minutes: 120\n')
+
+          blockwise='scripts/class-d-blockwise-preflight.mjs'
+          replace_exact(blockwise,
+            "      ['dht-readiness-endpoint', 'node --test tests/dht-readiness-testnet-endpoint.test.js']\n",
+            "      ['dht-readiness-endpoint', 'node --test tests/dht-readiness-testnet-endpoint.test.js'],\n      ['parallel-liveness-contract', 'node --test tests/class-d-parallel-liveness.test.js']\n")
+          replace_exact(blockwise,
+            "      ['provision-shell-syntax', 'bash -n benchmarks/scale/class-d-azure-1000-provision.sh'],\n",
+            "      ['provision-shell-syntax', 'bash -n benchmarks/scale/class-d-azure-1000-provision.sh'],\n      ['liveness-shell-syntax', 'bash -n scripts/lib/class-d-phase-deadlines.sh scripts/d200-stage-isolated-campaign.sh scripts/class-d-1000-strict-acceptance.sh'],\n")
+
+          workflow='.github/workflows/class-d-blockwise-preflight.yml'
+          gate_jobs=r'''jobs:
+            b02_gate:
+              name: B02_BOOTSTRAP_REFRESH_GATE
+              runs-on: ubuntu-22.04
+              timeout-minutes: 30
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    ref: ${{ env.SOURCE_SHA }}
+                    persist-credentials: false
+                    fetch-depth: 0
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: '22'
+                    cache: npm
+                - run: npm ci --ignore-scripts --no-audit --no-fund
+                - name: Run B02 exact-source gate
+                  env:
+                    BLOCK_ID: B02_BOOTSTRAP_REFRESH
+                    BLOCK_OUT_DIR: blockwise-gate
+                  run: node scripts/class-d-blockwise-preflight.mjs
+                - name: Enforce B02 GREEN
+                  run: jq -e '.status=="GREEN" and .harnessReturnCode==0 and .probeCompletion.complete==true' blockwise-gate/B02_BOOTSTRAP_REFRESH/block.json >/dev/null
+
+            b03_gate:
+              name: B03_RUNTIME_BUNDLE_GATE
+              needs: [b02_gate]
+              runs-on: ubuntu-22.04
+              timeout-minutes: 45
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    ref: ${{ env.SOURCE_SHA }}
+                    persist-credentials: false
+                    fetch-depth: 0
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: '22'
+                    cache: npm
+                - run: npm ci --ignore-scripts --no-audit --no-fund
+                - name: Run B03 exact-source gate
+                  env:
+                    BLOCK_ID: B03_RUNTIME_BUNDLE
+                    BLOCK_OUT_DIR: blockwise-gate
+                  run: node scripts/class-d-blockwise-preflight.mjs
+                - name: Enforce B03 GREEN
+                  run: jq -e '.status=="GREEN" and .harnessReturnCode==0 and .probeCompletion.complete==true' blockwise-gate/B03_RUNTIME_BUNDLE/block.json >/dev/null
+
+            block:
+              needs: [b03_gate]
+          '''
+          replace_exact(workflow, 'jobs:\n  block:\n', gate_jobs)
+
+          for path in [provision,orchestrator,strict,'.github/workflows/d500-acceptance.yml','.github/d500/d500-acceptance.template.yml',blockwise,workflow]:
+              text=Path(path).read_text()
+              if '\r' in text: raise SystemExit(f'{path}: CRLF introduced')
+          PY
+          git diff --check
+
+      - name: Validate transformed harness
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n benchmarks/scale/class-d-azure-1000-provision.sh
+          bash -n scripts/lib/class-d-phase-deadlines.sh
+          bash -n scripts/d200-stage-isolated-campaign.sh
+          bash -n scripts/class-d-1000-strict-acceptance.sh
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --test tests/class-d-parallel-liveness.test.js
+          node --test tests/class-d-bootstrap-qualification.test.js tests/class-d-1000-bootstrap.test.js tests/d200-stage-isolation.test.js
+          git diff --check
+
+      - name: Commit repaired canonical sources
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git rm .github/workflows/d-series-parallel-liveness-repair.yml
+          git add -- \
+            benchmarks/scale/class-d-azure-1000-provision.sh \
+            scripts/d200-stage-isolated-campaign.sh \
+            scripts/class-d-1000-strict-acceptance.sh \
+            scripts/class-d-blockwise-preflight.mjs \
+            .github/workflows/class-d-blockwise-preflight.yml \
+            .github/workflows/d500-acceptance.yml \
+            .github/d500/d500-acceptance.template.yml
+          git diff --cached --check
+          git commit -s -m 'fix(class-d): parallelize D-series liveness phases'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
