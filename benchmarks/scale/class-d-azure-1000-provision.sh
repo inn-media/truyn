@@ -38,6 +38,8 @@ START_MS=$(date +%s%3N)
 RUNTIME_URL_B64="$(printf '%s' "$TRUYN_CLASS_D1000_RUNTIME_URL" | base64 -w0)"
 CLEANUP_CONFIRMED=false
 STAGE=init
+TRUYN_CLASS_D_PARALLEL_LIVENESS_V1=1
+source "${GITHUB_WORKSPACE:-$PWD}/scripts/class-d-phase-watchdog.sh"
 
 VMS=(); NICS=(); DISKS=(); PRIV=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
@@ -244,11 +246,29 @@ cleanup() {
   set +e
   STAGE=cleanup
   CLEANUP_CONFIRMED=false
-  for vm in "${VMS[@]}"; do az vm delete -g "$RG" -n "$vm" --yes --force-deletion --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vm name=${vm}" >&2; done
-  for nic in "${NICS[@]}"; do az network nic delete -g "$RG" -n "$nic" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nic name=${nic}" >&2; done
-  for disk in "${DISKS[@]}"; do az disk delete -g "$RG" -n "$disk" --yes --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=disk name=${disk}" >&2; done
-  az network vnet delete -g "$RG" -n "$VNET" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vnet name=${VNET}" >&2
-  az network nsg delete -g "$RG" -n "$NSG" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nsg name=${NSG}" >&2
+  cleanup_worker_rc=0
+  (
+    set +e
+    trap 'jobs -pr | xargs -r kill -TERM >/dev/null 2>&1 || true' TERM INT EXIT
+    wave=()
+    for vm in "${VMS[@]}"; do
+      (az vm delete -g "$RG" -n "$vm" --yes --force-deletion --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vm name=${vm}" >&2) & wave+=("$!")
+    done
+    wave_rc=0; for pid in "${wave[@]}"; do wait "$pid" || wave_rc=1; done
+    wave=()
+    for nic in "${NICS[@]}"; do (az network nic delete -g "$RG" -n "$nic" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nic name=${nic}" >&2) & wave+=("$!"); done
+    for disk in "${DISKS[@]}"; do (az disk delete -g "$RG" -n "$disk" --yes --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=disk name=${disk}" >&2) & wave+=("$!"); done
+    for pid in "${wave[@]}"; do wait "$pid" || wave_rc=1; done
+    wave=()
+    (az network vnet delete -g "$RG" -n "$VNET" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vnet name=${VNET}" >&2) & wave+=("$!")
+    (az network nsg delete -g "$RG" -n "$NSG" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nsg name=${NSG}" >&2) & wave+=("$!")
+    for pid in "${wave[@]}"; do wait "$pid" || wave_rc=1; done
+    trap - TERM INT EXIT
+    exit "$wave_rc"
+  ) &
+  cleanup_worker_pid=$!
+  class_d_wait_pid_barrier cleanup "$cleanup_worker_pid" || cleanup_worker_rc=$?
+  [[ "$cleanup_worker_rc" == 0 ]] || echo "TRUYN_CLASS_D_1000_CLEANUP_DEADLINE rc=${cleanup_worker_rc}" >&2
   list_output=$(az resource list -g "$RG" --query "[?starts_with(name, '${PREFIX}')].name" -o tsv --only-show-errors 2>&1)
   list_rc=$?
   if [[ $list_rc -ne 0 ]]; then
@@ -290,22 +310,41 @@ az network vnet create -g "$RG" -n "$VNET" -l "$LOCATION" --address-prefixes 10.
 az network vnet subnet update -g "$RG" --vnet-name "$VNET" -n "$SUBNET" --network-security-group "$NSG" --service-endpoints Microsoft.Storage --only-show-errors >/dev/null
 
 STAGE=provision
+provision_dir=$(mktemp -d)
+provision_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
-  created=0
-  for size in "$VM_SIZE" Standard_D4s_v5; do
-    if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
-      created=1
-      echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
-      break
-    fi
-  done
-  [[ $created == 1 ]]
-  PRIV+=("$(az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)")
-  [[ -n "${PRIV[$i]}" ]]
+  (
+    set -Eeuo pipefail
+    az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
+    created=0
+    for size in "$VM_SIZE" Standard_D4s_v5; do
+      if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
+        created=1
+        echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
+        break
+      fi
+    done
+    [[ $created == 1 ]]
+    priv="$(az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)"
+    [[ -n "$priv" ]]
+    printf '%s
+' "$priv" >"$provision_dir/$i.ip"
+  ) >"$provision_dir/$i.log" 2>&1 &
+  provision_pids+=("$!")
 done
+class_d_wait_pid_barrier provision "${provision_pids[@]}"
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  cat "$provision_dir/$i.log"
+  PRIV+=("$(cat "$provision_dir/$i.ip")")
+done
+rm -rf "$provision_dir"
+[[ "${#PRIV[@]}" == "$HOST_COUNT" ]]
+
+echo "TRUYN_CLASS_D_1000 stage=provision mode=parallel-hosts hosts=${HOST_COUNT}/${HOST_COUNT} status=PASS"
 
 STAGE=install
+install_dir=$(mktemp -d)
+install_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -449,10 +488,17 @@ echo PROCESSES=\$proc
 EOS
 )
   script="${script//truyn/truyn}"
-  out=$(remote "${VMS[$i]}" "$script")
-  [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
-  echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
+  (
+    out=$(remote "${VMS[$i]}" "$script")
+    [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
+    echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
+  ) >"$install_dir/$i" 2>&1 &
+  install_pids+=("$!")
 done
+class_d_wait_pid_barrier install "${install_pids[@]}"
+for i in $(seq 0 $((HOST_COUNT-1))); do cat "$install_dir/$i"; done
+rm -rf "$install_dir"
+echo "TRUYN_CLASS_D_1000 stage=install mode=parallel-hosts hosts=${HOST_COUNT}/${HOST_COUNT} status=PASS"
 
 STAGE=bootstrap-record-refresh
 D200_PEER_LEASE_FRESHNESS_REPAIR=1
@@ -593,96 +639,16 @@ NODE
 cp /tmp/records-by-host.json /var/lib/truyn-d1000/records-by-host.json
 cp /tmp/bootstrap-plan-by-node.json /var/lib/truyn-d1000/bootstrap-plan-by-node.json
 cp /tmp/bootstrap-plan-summary.json /var/lib/truyn-d1000/bootstrap-plan-summary.json
-min_records=999999
-max_records=0
-min_bytes=999999999
-max_bytes=0
-total_bytes=0
-refresh_count=0
-refresh_min_valid=999999
-refresh_max_valid=0
-refresh_min_buckets=999999
-refresh_max_buckets=0
-refresh_min_endpoints=999999
-refresh_max_endpoints=0
-refresh_min_hosts=999999
-refresh_max_hosts=0
-t0=\$(date +%s%3N)
-for j in \$(seq 0 $((NODES_PER_HOST-1))); do
-  node_id=\$(jq -r --argjson host ${i} --argjson node "\$j" '.[\$host][\$node].nodeId' /tmp/records-by-host.json)
-  payload=\$(jq -c --arg node "\$node_id" '{records:.[\$node]}' /tmp/bootstrap-plan-by-node.json)
-  records=\$(jq -r --arg node "\$node_id" '.[\$node] | length' /tmp/bootstrap-plan-by-node.json)
-  [[ "\$records" -eq ${BOOTSTRAP_MAX_PEERS_PER_NODE} ]]
-  if printf '%s' "\$payload" | jq -e --arg node "\$node_id" '.records | any(.nodeId == \$node)' >/dev/null; then echo "self peer leaked for \$node_id" >&2; exit 1; fi
-  unique=\$(printf '%s' "\$payload" | jq -r '.records[].nodeId' | sort -u | wc -l | tr -d ' ')
-  [[ "\$unique" -eq "\$records" ]]
-  bytes=\$(printf '%s' "\$payload" | wc -c | tr -d ' ')
-  [[ "\$bytes" -lt 900000 ]]
-  if [[ "\$records" -lt "\$min_records" ]]; then min_records="\$records"; fi
-  if [[ "\$records" -gt "\$max_records" ]]; then max_records="\$records"; fi
-  if [[ "\$bytes" -lt "\$min_bytes" ]]; then min_bytes="\$bytes"; fi
-  if [[ "\$bytes" -gt "\$max_bytes" ]]; then max_bytes="\$bytes"; fi
-  total_bytes=\$((total_bytes + bytes))
-  control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
-  curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" "\${control_url}/bootstrap" >/dev/null
-  refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,targetConcurrency:4,timeoutMs:240000,seed:\$seed}')
-  refresh_result=''
-  refresh_rc=1
-  for refresh_attempt in 1 2 3; do
-    set +e
-    refresh_result=\$(curl -fsS --max-time 300 -H 'content-type: application/json' --data-binary "\$refresh_payload" "\${control_url}/dht/refresh")
-    refresh_rc=\$?
-    set -e
-    refresh_reason=none
-    if [[ "\$refresh_rc" -eq 0 ]]; then
-      refresh_reason=\$(printf '%s' "\$refresh_result" | jq -r '.reason // "none"' 2>/dev/null || echo invalid-json)
-      if printf '%s' "\$refresh_result" | jq -e '.refreshed == true' >/dev/null 2>&1; then break; fi
-      refresh_rc=70
-    fi
-    echo "TRUYN_D200_BOOTSTRAP_REFRESH_RETRY host=${i} node=\$j attempt=\$refresh_attempt rc=\$refresh_rc reason=\$refresh_reason" >&2
-    [[ "\$refresh_attempt" -lt 3 ]] && sleep \$((refresh_attempt * 2))
-  done
-  [[ "\$refresh_rc" -eq 0 ]]
-  [[ "\$(printf '%s' "\$refresh_result" | jq -r '.refreshed')" == true ]]
-  readiness=\$(curl -fsS --max-time 20 "\${control_url}/dht/readiness")
-  [[ "\$(printf '%s' "\$readiness" | jq -r '.refresh.status')" == refreshed ]]
-  valid=\$(printf '%s' "\$readiness" | jq -r '.validPeers')
-  buckets=\$(printf '%s' "\$readiness" | jq -r '.populatedBuckets')
-  endpoints=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.endpointCount')
-  hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount')
-  [[ "\$valid" -ge "\$records" ]]
-  if [[ "\$valid" -lt "\$refresh_min_valid" ]]; then refresh_min_valid="\$valid"; fi
-  if [[ "\$valid" -gt "\$refresh_max_valid" ]]; then refresh_max_valid="\$valid"; fi
-  if [[ "\$buckets" -lt "\$refresh_min_buckets" ]]; then refresh_min_buckets="\$buckets"; fi
-  if [[ "\$buckets" -gt "\$refresh_max_buckets" ]]; then refresh_max_buckets="\$buckets"; fi
-  if [[ "\$endpoints" -lt "\$refresh_min_endpoints" ]]; then refresh_min_endpoints="\$endpoints"; fi
-  if [[ "\$endpoints" -gt "\$refresh_max_endpoints" ]]; then refresh_max_endpoints="\$endpoints"; fi
-  if [[ "\$hosts" -lt "\$refresh_min_hosts" ]]; then refresh_min_hosts="\$hosts"; fi
-  if [[ "\$hosts" -gt "\$refresh_max_hosts" ]]; then refresh_max_hosts="\$hosts"; fi
-  refresh_count=\$((refresh_count + 1))
-done
-t1=\$(date +%s%3N)
-mean_bytes=\$((total_bytes / ${NODES_PER_HOST}))
-echo BOOTSTRAP_MS=\$((t1-t0))
-echo BOOTSTRAP_PLAN_NODE_COUNT=\$(jq -r '.nodeCount' /tmp/bootstrap-plan-summary.json)
-echo BOOTSTRAP_PLAN_MIN_RECORDS=\$min_records
-echo BOOTSTRAP_PLAN_MAX_RECORDS=\$max_records
-echo BOOTSTRAP_PLAN_ALL_TO_ALL=\$(jq -r '.allToAll' /tmp/bootstrap-plan-summary.json)
-echo BOOTSTRAP_PLAN_MIN_FAILURE_DOMAINS=\$(jq -r '.minFailureDomains' /tmp/bootstrap-plan-summary.json)
-echo BOOTSTRAP_PLAN_MAX_FAILURE_DOMAINS=\$(jq -r '.maxFailureDomains' /tmp/bootstrap-plan-summary.json)
-echo BOOTSTRAP_MIN_BYTES=\$min_bytes
-echo BOOTSTRAP_MAX_BYTES=\$max_bytes
-echo BOOTSTRAP_MEAN_BYTES=\$mean_bytes
-echo BOOTSTRAP_REFRESH_COUNT=\$refresh_count
-echo BOOTSTRAP_REFRESH_STATUS=refreshed
-echo BOOTSTRAP_REFRESH_MIN_VALID=\$refresh_min_valid
-echo BOOTSTRAP_REFRESH_MAX_VALID=\$refresh_max_valid
-echo BOOTSTRAP_REFRESH_MIN_BUCKETS=\$refresh_min_buckets
-echo BOOTSTRAP_REFRESH_MAX_BUCKETS=\$refresh_max_buckets
-echo BOOTSTRAP_REFRESH_MIN_ENDPOINTS=\$refresh_min_endpoints
-echo BOOTSTRAP_REFRESH_MAX_ENDPOINTS=\$refresh_max_endpoints
-echo BOOTSTRAP_REFRESH_MIN_HOSTS=\$refresh_min_hosts
-echo BOOTSTRAP_REFRESH_MAX_HOSTS=\$refresh_max_hosts
+HOST_INDEX=${i} \
+NODES_PER_HOST=${NODES_PER_HOST} \
+CONTROL_BASE=${CONTROL_BASE} \
+BOOTSTRAP_MAX_PEERS_PER_NODE=${BOOTSTRAP_MAX_PEERS_PER_NODE} \
+BOOTSTRAP_PLAN_SEED='${GITHUB_SHA}' \
+BOOTSTRAP_REQUEST_TIMEOUT_S=90 \
+REFRESH_SERVER_TIMEOUT_MS=120000 \
+REFRESH_CLIENT_TIMEOUT_S=135 \
+REFRESH_ATTEMPTS=2 \
+/opt/truyn/app/benchmarks/scale/class-d-bootstrap-host.sh
 EOS
 )
   script="${script//truyn/truyn}"
@@ -700,14 +666,14 @@ EOS
   ) >"$bootstrap_dir/$i" &
   bootstrap_pids+=("$!")
 done
-for pid in "${bootstrap_pids[@]}"; do wait "$pid"; done
+class_d_wait_pid_barrier bootstrap "${bootstrap_pids[@]}"
 for i in $(seq 0 $((HOST_COUNT-1))); do cat "$bootstrap_dir/$i"; done
 rm -rf "$bootstrap_dir"
 
 if [[ "${TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY:-0}" == 1 ]]; then
   qualification_class=D-1000
   [[ "$NODES_PER_HOST" == 25 ]] && qualification_class=D-500
-  echo "TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION class=${qualification_class} hosts=${HOST_COUNT} nodes=${NODE_COUNT} nodesPerHost=${NODES_PER_HOST} maxPeers=${BOOTSTRAP_MAX_PEERS_PER_NODE} targetConcurrency=4 serverDeadlineMs=240000 clientDeadlineMs=300000 status=PASS"
+  echo "TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION class=${qualification_class} hosts=${HOST_COUNT} nodes=${NODE_COUNT} nodesPerHost=${NODES_PER_HOST} maxPeers=${BOOTSTRAP_MAX_PEERS_PER_NODE} executionMode=parallel-nodes nodeConcurrency=${NODES_PER_HOST} targetConcurrency=4 serverDeadlineMs=120000 clientDeadlineMs=135000 status=PASS"
   return 0 2>/dev/null || exit 0
 fi
 

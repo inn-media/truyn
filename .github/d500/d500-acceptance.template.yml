@@ -34,7 +34,7 @@ env:
 jobs:
   d500-acceptance:
     runs-on: ubuntu-22.04
-    timeout-minutes: 420
+    timeout-minutes: 120
     steps:
       - name: Enforce immutable D-500 single-shot launch
         env:
