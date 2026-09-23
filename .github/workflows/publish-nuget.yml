@@ -1,0 +1,171 @@
+name: Publish .NET SDK to NuGet.org via Trusted Publishing
+
+# Publishes the EXACT CI-built Truyn.Sdk.<version>.nupkg (sdk/release/build-release.sh output of the
+# successful exact-main CI run) to nuget.org. Authentication is NuGet Trusted Publishing:
+# a GitHub OIDC token is exchanged by NuGet/login for a single-use API key valid for one hour.
+# No long-lived NuGet API key exists in this repository or its environments.
+# Contract: sdk/release/PUBLISHING.md § "NuGet.org".
+
+on:
+  push:
+    tags:
+      - 'sdk/nuget/v*'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: publish-nuget
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'inn-media/truyn'
+    runs-on: ubuntu-latest
+    environment: sdk-release
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NUGET_ID: Truyn.Sdk
+      NUGET_SOURCE: https://api.nuget.org/v3/index.json
+      NUGET_FLAT: https://api.nuget.org/v3-flatcontainer
+      RELEASE_ROOT: /tmp/truyn-nuget-release
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate immutable tag, exact current main, CI and CodeQL gates
+        id: gates
+        run: bash sdk/release/resolve-release-gates.sh sdk/nuget/v nuget
+
+      - name: Set up .NET (push + clean-room verification only; nothing is rebuilt)
+        uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+
+      - name: Download and verify exact CI release artifact
+        id: artifact
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.gates.outputs.source_sha }}
+          VERSION: ${{ steps.gates.outputs.version }}
+          CI_RUN_ID: ${{ steps.gates.outputs.ci_run_id }}
+        run: |
+          set -euo pipefail
+          rm -rf "$RELEASE_ROOT"; mkdir -p "$RELEASE_ROOT/ci" "$RELEASE_ROOT/registry"
+          gh run download "$CI_RUN_ID" --name "truyn-sdk-release-$CI_RUN_ID" --dir "$RELEASE_ROOT/ci"
+          node sdk/release/verify-release.mjs "$RELEASE_ROOT/ci"
+          jq -e --arg s "$SOURCE_SHA" --arg v "$VERSION" '.sourceSha == $s and .release == $v' "$RELEASE_ROOT/ci/manifest.json" >/dev/null
+          package="$RELEASE_ROOT/ci/dotnet/$NUGET_ID.$VERSION.nupkg"
+          test -s "$package"
+          # The package must embed the exact source commit (SourceLink / nuspec <repository commit=...>).
+          unzip -p "$package" "$NUGET_ID.nuspec" | grep -q "commit=\"$SOURCE_SHA\""
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$package" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Detect immutable registry state
+        id: registry
+        shell: bash
+        env:
+          VERSION: ${{ steps.gates.outputs.version }}
+          PACKAGE: ${{ steps.artifact.outputs.package }}
+        run: |
+          set -euo pipefail
+          id_lower="$(tr '[:upper:]' '[:lower:]' <<<"$NUGET_ID")"; v_lower="$(tr '[:upper:]' '[:lower:]' <<<"$VERSION")"
+          code="$(curl -sS -o "$RELEASE_ROOT/registry/index.json" -w '%{http_code}' "$NUGET_FLAT/$id_lower/index.json")"
+          exists=false
+          if [[ "$code" == 200 ]] && jq -e --arg v "$v_lower" '.versions | index($v)' "$RELEASE_ROOT/registry/index.json" >/dev/null; then
+            exists=true
+          elif [[ "$code" != 200 && "$code" != 404 ]]; then
+            echo "Unexpected nuget.org response $code" >&2; exit 1
+          fi
+          if [[ "$exists" == true ]]; then
+            curl -sSf -o "$RELEASE_ROOT/registry/existing.nupkg" "$NUGET_FLAT/$id_lower/$v_lower/$id_lower.$v_lower.nupkg"
+            bash sdk/release/compare-nupkg.sh "$PACKAGE" "$RELEASE_ROOT/registry/existing.nupkg"
+          fi
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+
+      - name: Exchange GitHub OIDC token for a short-lived NuGet API key
+        if: steps.registry.outputs.exists == 'false'
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Push exact verified package
+        if: steps.registry.outputs.exists == 'false'
+        shell: bash
+        env:
+          PACKAGE: ${{ steps.artifact.outputs.package }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$NUGET_API_KEY"
+          # Never skip duplicates: an existing version was handled above; anything else must fail closed.
+          dotnet nuget push "$PACKAGE" --api-key "$NUGET_API_KEY" --source "$NUGET_SOURCE"
+
+      - name: Verify public package, repository signature and clean-room restore
+        shell: bash
+        env:
+          VERSION: ${{ steps.gates.outputs.version }}
+          PACKAGE: ${{ steps.artifact.outputs.package }}
+        run: |
+          set -euo pipefail
+          id_lower="$(tr '[:upper:]' '[:lower:]' <<<"$NUGET_ID")"; v_lower="$(tr '[:upper:]' '[:lower:]' <<<"$VERSION")"
+          public="$RELEASE_ROOT/registry/public.nupkg"
+          visible=false
+          # nuget.org validation + indexing typically takes 5-20 minutes.
+          for attempt in $(seq 1 120); do
+            if curl -sSf -o "$public" "$NUGET_FLAT/$id_lower/$v_lower/$id_lower.$v_lower.nupkg"; then visible=true; break; fi
+            sleep 30
+          done
+          test "$visible" = true
+          # nuget.org adds a repository signature (.signature.p7s), so raw bytes differ by design;
+          # every other entry must be byte-identical to the CI package.
+          bash sdk/release/compare-nupkg.sh "$PACKAGE" "$public"
+          dotnet nuget verify --all "$public"
+
+          clean="$RELEASE_ROOT/cleanroom"; rm -rf "$clean"; mkdir -p "$clean"; cd "$clean"
+          dotnet new console --framework net8.0 --name Probe --output . >/dev/null
+          cat > nuget.config <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration><packageSources><clear /><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>
+          XML
+          dotnet add package "$NUGET_ID" --version "$VERSION" --packages "$clean/packages"
+          cat > Program.cs <<'CS'
+          Console.WriteLine(typeof(Truyn.Sdk.TruynClient).FullName == "Truyn.Sdk.TruynClient" ? "TRUYN_NUGET_CLEANROOM=PASS" : "FAIL");
+          CS
+          dotnet run --configuration Release | grep -qx 'TRUYN_NUGET_CLEANROOM=PASS'
+
+      - name: Write release evidence
+        shell: bash
+        env:
+          VERSION: ${{ steps.gates.outputs.version }}
+          SOURCE_SHA: ${{ steps.gates.outputs.source_sha }}
+          CI_RUN_ID: ${{ steps.gates.outputs.ci_run_id }}
+          CODEQL_RUN_ID: ${{ steps.gates.outputs.codeql_run_id }}
+          SHA256: ${{ steps.artifact.outputs.sha256 }}
+          ALREADY_PUBLISHED: ${{ steps.registry.outputs.exists }}
+        run: |
+          set -euo pipefail
+          jq -n --arg coordinate "$NUGET_ID@$VERSION" --arg version "$VERSION" --arg sourceSha "$SOURCE_SHA" \
+            --arg releaseTag "${GITHUB_REF#refs/tags/}" --arg ciRunId "$CI_RUN_ID" --arg codeqlRunId "$CODEQL_RUN_ID" \
+            --arg publicationRunId "$GITHUB_RUN_ID" --arg sha256 "$SHA256" --arg alreadyPublished "$ALREADY_PUBLISHED" \
+            '{registry:"NuGet.org",coordinate:$coordinate,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,ciRunId:$ciRunId,codeqlRunId:$codeqlRunId,publicationRunId:$publicationRunId,publicationAuthentication:"NuGet Trusted Publishing (GitHub Actions OIDC)",alreadyPublished:($alreadyPublished=="true"),ciPackageSha256:$sha256,contentIdentityExcludingRepositorySignature:"PASS",repositorySignatureVerification:"PASS",cleanRoomRestore:"PASS"}' \
+            > "$RELEASE_ROOT/nuget-trusted-publishing-evidence.json"
+          cat "$RELEASE_ROOT/nuget-trusted-publishing-evidence.json"
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-sdk-nuget-trusted-publishing-${{ github.run_id }}
+          path: /tmp/truyn-nuget-release/nuget-trusted-publishing-evidence.json
+          if-no-files-found: error
+          retention-days: 90
