@@ -1,0 +1,25 @@
+name: NuGet login action policy probe
+
+on:
+  push:
+    branches: [release/nuget-tag-launch-20260923]
+    paths: [.github/workflows/nuget-login-policy-probe.yml]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    environment: sdk-release
+    timeout-minutes: 5
+    steps:
+      - name: NuGet OIDC login policy probe
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+      - name: Confirm action executed
+        if: always()
+        run: echo 'TRUYN_NUGET_LOGIN_ACTION_EXECUTED=PASS'
