@@ -1,6 +1,6 @@
 # TRUYN Semantic Scale S-Series Architecture
 
-Status: **DEFINED / NOT YET EXECUTED**  
+Status: **EXECUTED / DIAGNOSTIC / NO ACCEPTED S PASS**  
 Track: **S-Series (Semantic Scale)**  
 Target ladder: **S-50 → S-100 → S-200 → S-500**
 
@@ -205,6 +205,19 @@ Benchmark evidence remains append-only and follows the repository rule: **redact
 
 Private raw telemetry and managed operational detail remain in `inn-media/truyn-platform`; public reports contain only sanitized, reproducible evidence or cryptographic identities for withheld raw artifacts.
 
-## Current status
+## Current execution status
 
-Architecture and measurement contract are being defined. **No S-50, S-100, S-200 or S-500 PASS is claimed by this document.**
+S-Series is no longer merely a defined architecture. S-50 has been executed diagnostically.
+
+Durable issue #726 records immutable S-50 Attempt 13 as a real 50-actor benchmark failure with `fast_socket_closed` after setup gates passed. The bounded public repair scope covers generic relay/client WebSocket heartbeat/backpressure telemetry, 50-socket scale stability and reconnect/reconciliation semantics without duplicate accepted execution.
+
+Current `main` contains public WebSocket scale diagnostic/regression work associated with that repair. This is **diagnostic/repair evidence, not an accepted S-50 result**.
+
+Therefore:
+
+- S-50 — **executed / diagnostic / OPEN**;
+- S-100 — **OPEN / not accepted**;
+- S-200 — **OPEN / not accepted**;
+- S-500 — **OPEN / not accepted**.
+
+No S-Series PASS is claimed until a fresh exact-qualified run satisfies the fixed contract and produces immutable reconciled evidence.

@@ -1,16 +1,19 @@
 # TRUYN Network-Scale Operational Status
 
-This is the single repository-owned source for **current network-scale operational status**. Stable architecture, roadmap, and top-level documentation must link here rather than copy ephemeral run state.
+This is the single repository-owned source for **current D-Series operational acceptance**. Architecture, roadmap and top-level documentation must link here rather than copy ephemeral run state.
 
-## Current state
+**Snapshot:** 2026-09-23  
+**Snapshot main:** `eb25f0f8ad5bedb643f007ddfb0da107dab44b89`
 
-Class C heterogeneous WAN, Class D-100, and **Class D-200 are accepted**.
+## Accepted baseline
+
+Class C heterogeneous WAN, Class D-100 and **Class D-200 are accepted**.
 
 **D-200 status: CLOSED / COMPLETE / REPEATABILITY CONFIRMED.**
 
-The canonical D-200 closure task `truyn-d200-parallel-closure-260914-a7f3`, anchored by issue #536, is COMPLETE / PASS. The accepted immutable single-shot run is `35503894414`, `run_attempt=1`, with strict terminal marker `TRUYN_D200_TERMINAL result=PASS`.
+The canonical D-200 closure task `truyn-d200-parallel-closure-260914-a7f3`, anchored by issue #536, is COMPLETE / PASS. Accepted single-shot run: `35503894414`, `run_attempt=1`, strict terminal marker `TRUYN_D200_TERMINAL result=PASS`.
 
-The separate repeatability task, anchored by issue #676, is also complete. Repeatability 02 run `35517248924`, `run_attempt=1`, executed the same frozen source/tree/runtime and the same strict acceptance contract and emitted `TRUYN_D200_REPEAT_TERMINAL result=PASS`.
+Independent repeatability run `35517248924`, `run_attempt=1`, executed the same frozen source/tree/runtime and strict acceptance contract and also passed.
 
 Accepted D-200 identity:
 
@@ -23,37 +26,69 @@ Accepted D-200 identity:
 - independent repeat artifact: `10607664333`
 - independent repeat artifact digest: `sha256:62808cb3e8c49c7a6218bd259365bfcb1a73ac267ea55ce33e11fe6c4f674010`
 - shared runtime digest: `sha256:296e7684229eaea00be02ce573b255461e340eae1b07b88da395c0f1102598c3`
-- repeat placement: `eastus2 / Standard_E2as_v7`
 
-The accepted reference proved 20/20 hosts, 200 real processes, readiness 200/200, baseline 400/400, post-restart 100/100 first-attempt with zero application retries, healed 200/200, convergence p95 `256.43 ms`, restart recovery p95 `28,717 ms`, packet-partition recovery `32,159 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign/staging cleanup.
-
-The independent repeat reproduced the same strict PASS with convergence p95 `302.045 ms`, baseline p95 `642.338 ms`, restart recovery p95 `28,798 ms`, partition recovery `32,130 ms`, healed p95 `220.542 ms`, 100/100 retained writes, zero acknowledged loss, zero safety violations, and zero remaining campaign/staging resources.
+The accepted reference proved 20/20 hosts, 200 real processes, readiness 200/200, baseline 400/400, post-restart 100/100 first-attempt with zero application retries, healed 200/200, convergence p95 `256.43 ms`, restart recovery p95 `28,717 ms`, packet-partition recovery `32,159 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete cleanup.
 
 Durable public evidence:
 
-- canonical accepted report: [`../benchmarks/CLASS_D_200_2026-09-20.md`](../benchmarks/CLASS_D_200_2026-09-20.md)
-- independent repeat report: [`../benchmarks/CLASS_D_200_REPEAT_02_2026-09-20.md`](../benchmarks/CLASS_D_200_REPEAT_02_2026-09-20.md)
-- side-by-side matrix: [`../benchmarks/CLASS_D_200_REPEATABILITY_MATRIX.md`](../benchmarks/CLASS_D_200_REPEATABILITY_MATRIX.md)
-- final closure record: [`d200/D200_FINAL_CLOSURE.md`](d200/D200_FINAL_CLOSURE.md)
+- [`../benchmarks/CLASS_D_200_2026-09-20.md`](../benchmarks/CLASS_D_200_2026-09-20.md)
+- [`../benchmarks/CLASS_D_200_REPEAT_02_2026-09-20.md`](../benchmarks/CLASS_D_200_REPEAT_02_2026-09-20.md)
+- [`../benchmarks/CLASS_D_200_REPEATABILITY_MATRIX.md`](../benchmarks/CLASS_D_200_REPEATABILITY_MATRIX.md)
+- [`d200/D200_FINAL_CLOSURE.md`](d200/D200_FINAL_CLOSURE.md)
 
-Class D-500 and Class D-1000 remain **OPEN** and are separate gates. D-200 closure does not imply stable/mainnet or long-duration operational stability acceptance.
+## D-500 current boundary
+
+**D-500 status: ACTIVE QUALIFICATION / OPEN.**
+
+The repository now contains the dedicated D-500 contract/workflow, immutable launch generations and D-Series qualification machinery. This is materially beyond the original “preparation only” state, but it is **not an accepted D-500 result**.
+
+Issue #737 permanently locks the D-Series execution architecture while remaining D-Series campaigns are active:
+
+`Swarm diagnostic/repair engine → targeted block qualification during repair → clean exact-SHA Swarm revalidation → full B01–B16 exact-SHA admission → isolated LIVE qualification where required → shared-resource/capacity collision check → exactly one real D-Series run → immutable evidence`.
+
+Important distinctions:
+
+- targeted Bxx GREEN is diagnostic only;
+- a launcher token/workflow is execution machinery, not acceptance;
+- full B01–B16 admission requires clean exact-SHA Swarm provenance;
+- no D-500 PASS exists until a fresh real campaign emits its own strict terminal PASS and durable public evidence is reconciled;
+- D-200 evidence must not be reused as D-500 proof.
+
+D-500 therefore remains OPEN despite active qualification and multiple immutable launch generations.
+
+## D-1000 current boundary
+
+**D-1000 status: OPEN.**
+
+D-1000 is a distinct scale gate. It does not inherit PASS from D-200 or from any D-500 preparation/qualification activity. A future D-1000 acceptance requires its own exact-SHA qualification, single-shot launch identity, strict terminal PASS, immutable artifacts, cleanup proof and durable evidence.
 
 ## Historical immutable failures
 
-Historical D-200 failures remain immutable negative evidence and are not rewritten by the accepted/repeat PASS results.
+Historical D-Series failures remain immutable negative evidence and are not rewritten by later successful results.
 
-Repeatability 01 run `35515705123` is preserved as a pre-provisioning FAIL. Its cloud campaign never started; it failed at OIDC identifier delivery and therefore is not benchmark-regression evidence.
+Repeatability 01 run `35515705123` remains preserved as a pre-provisioning failure and is not benchmark-regression evidence. Earlier D-200 failures/diagnostics remain audit history. D-500 failed/diagnostic attempts likewise must remain immutable and must never be silently converted into acceptance.
 
-Earlier failed/diagnostic D-200 runs remain historical evidence. Closed diagnostic issues are retained for audit history.
+## Execution model
 
-## Execution model retained
+The old sequential pattern — run a full scale campaign until first failure, repair one defect, relaunch — is rejected.
 
-The old sequential pattern — full D-200 until first failure, repair one defect, then relaunch — remains rejected. Future D-scale work should retain bounded parallel/non-fail-fast diagnostics, complete lane evidence aggregation, root-cause grouping, targeted requalification, exact-SHA qualification, and fresh single-shot acceptance only after the final candidate is green.
+Current D-Series work must retain:
+
+- massively parallel/non-fail-fast Swarm diagnostics;
+- root-cause grouping/deduplication;
+- minimal acceptance-preserving repairs;
+- targeted B01–B16 checks during repair;
+- clean exact-SHA Swarm revalidation;
+- full B01–B16 mandatory admission;
+- exact-SHA CI/CodeQL/required qualification;
+- fresh live/collision checks;
+- exactly one real acceptance run after admission;
+- immutable evidence and cleanup.
 
 ## Evidence policy
 
-Benchmark and acceptance evidence is preserved under **redact-not-delete**. Operational secrets and private topology must not be published. Raw diagnostic logs remain in immutable Actions artifacts; durable public reports retain safe structured telemetry, artifact identifiers and cryptographic digests.
+Benchmark and acceptance evidence is preserved under **redact-not-delete**. Operational secrets and private topology must not be published. Raw diagnostic logs remain in immutable Actions artifacts/private operational storage; durable public reports retain safe structured telemetry, artifact identifiers and cryptographic digests.
 
-## D-200 operational rule
+## Operational rule
 
-D-200 is closed. Runs `35503894414`, `35515705123`, and `35517248924` must not be rerun. Any future real scale campaign must be a distinct D-500 or D-1000 gate with new task identity, exact-SHA qualification, single-shot launch identity, immutable artifact, terminal marker, and durable evidence.
+D-200 is closed and immutable. D-500 and D-1000 are separate open gates. Any new real D-Series campaign requires a new task/launch identity and must pass the locked Swarm-Blockwise admission architecture without weakening thresholds.
