@@ -77,8 +77,9 @@ test('immutable D-500 launch paths bind both Swarm and Blockwise to the parent e
     assert.doesNotMatch(launch, /AUTOPILOT_TOKEN_GITHUB/);
   }
   assert.match(d500SwarmLaunch, /d-series-launch\/swarm-d500/);
-  assert.match(d500SwarmLaunch, /d-series-swarm-aggregate\.mjs/);
-  assert.match(d500SwarmLaunch, /--scale d500/);
+  assert.match(d500SwarmLaunch, /uses: \.\/\.github\/workflows\/d200-bug-hunt\.yml/);
+  assert.match(d500SwarmLaunch, /source_sha: \$\{\{ needs\.launch-contract\.outputs\.source_sha \}\}/);
+  assert.match(d500SwarmLaunch, /scale: d500/);
   assert.match(d500BlockwiseLaunch, /d-series-launch\/blockwise-d500/);
   assert.match(d500BlockwiseLaunch, /SWARM_RUN_ID/);
   assert.match(d500BlockwiseLaunch, /verify-d-series-swarm-run\.sh/);
