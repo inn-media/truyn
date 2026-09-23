@@ -1,377 +1,136 @@
 # TRUYN S-Series Execution Isolation and Telemetry
 
-Status: **DEFINED / IMPLEMENTATION NOT STARTED**  
-Applies to: `S-50`, `S-100`, `S-200`, `S-500`
+Status: **EXECUTION CONTRACT IMPLEMENTED / QUALIFICATION ACTIVE — NO S PASS**  
+Applies to: `S-50`, `S-100`, `S-200`, `S-500`  
+Documentation audit: **2026-09-23**
 
-This document is the operational foundation for running Semantic Scale benchmarks without interfering with the Class-D benchmark family.
+This document defines the operational boundary for Semantic Scale execution without contaminating D/E/T/H benchmark evidence.
 
 ## 1. Parallel-track rule
 
-D-Series and S-Series are independent benchmark tracks.
+D-Series and S-Series are independent:
 
 ```text
-D-Series
-  network scale / resilience
-  frozen D source + D evaluator + D evidence
-
-S-Series
-  live semantic-node scale
-  real seven-vendor inference + semantic retrieval/economics
+D-Series = network scale / resilience
+S-Series = live semantic-node scale / heterogeneous inference / semantics / economics
 ```
 
-They may execute at the same time only if their run identities, cloud resources, concurrency controls, capacity and evidence are independently attributable.
+They may overlap only when run identities, capacity, mutable resources, provider attribution and evidence are independently attributable. An S run never modifies/reuses a frozen D launcher, evaluator, launch token or accepted evidence file.
 
-S-Series never modifies or reuses a frozen D-Series launcher, evaluator, launch token or accepted evidence file.
+## 2. Namespace and isolation requirements
 
-## 2. Required namespaces
+S execution uses dedicated workflow/concurrency/resource/evidence namespaces. Concurrency groups begin with `truyn-s-series-` and never equal D-Series groups.
 
-Before the first S launch, implementation must provide dedicated namespaces for at least:
+Isolation covers compute/process hosts, relay/runtime staging, artifacts/storage, provider runtime instances where dedicated, benchmark requester identities and cleanup inventory.
 
-```text
-.github/workflows/s-series-*.yml
-.github/s-series/<run-or-launch-token>
-benchmarks/s-series/
-docs/operations/s-series/
-docs/benchmarks/SEMANTIC_SCALE_S_*.md
-```
+Shared dependency classification follows `docs/benchmarks/BENCHMARK_SERIES_ISOLATION.md`:
 
-Exact implementation filenames may follow repository conventions, but D-Series workflow/launch namespaces are forbidden for S execution.
+- R0 immutable/read-only can be shared;
+- R1 shared services require attribution + active interference detection;
+- R2 capacity/cache/index/fault mutation is exclusive.
 
-Concurrency groups must begin with:
+If a required shared mutable target is owned by another measured series, record/wait rather than cancelling or perturbing the owner run.
 
-```text
-truyn-s-series-
-```
+## 3. Provider-spend boundary
 
-and must not equal any D-Series concurrency group.
-
-## 3. Resource isolation
-
-Every S run must use an independently attributable ephemeral resource namespace. At minimum the run evidence must prove that names/IDs are distinct from concurrently active D resources without publishing sensitive resource identifiers.
-
-Isolation must cover:
-
-- compute/process hosts;
-- relay/runtime staging resources;
-- storage/artifact paths;
-- provider runtime instances where dedicated instances are used;
-- benchmark requester identities;
-- cleanup inventory.
-
-Shared cloud subscriptions/projects are allowed only if capacity/quota interference is prevented or explicitly bounded before launch.
-
-If an active D run can be starved or behaviorally altered by S-Series consumption of shared VM/provider/network quota, the S launch must wait or move to isolated capacity.
-
-## 4. Provider-spend boundary
-
-S-Series uses owner-authorized benchmark provider access only.
-
-The existing authorization invariant is unchanged:
+S-Series uses owner-authorized benchmark provider access. The fail-closed invariant remains:
 
 ```text
 unauthorized requester
 → authorization DENY
 → adapter.execute() not called
-→ provider request count 0
-→ owner-funded tokens 0
+→ provider calls = 0
+→ owner-funded tokens/cost = 0
 ```
 
-Every S run must record unauthorized-provider-execution count, with required value `0`.
+Credentials, real service identities, private endpoints, allowlists, quotas and spend ceilings never enter public evidence.
 
-Provider credentials, service identities, endpoints, private resource names and allowlists remain outside public evidence.
+## 4. Telemetry contract
 
-## 5. Telemetry layers
+Every measured record carries immutable run identity plus enough ordering/timestamp information to reconstruct the run.
 
-S-Series telemetry is normalized at five levels:
+Required evidence layers:
 
-1. **node**;
-2. **request/provider call**;
-3. **chain**;
-4. **network/run**;
-5. **economic pair**.
+1. node/readiness identity and placement class;
+2. request/provider call timing/usage/status;
+3. semantic retrieval/provenance correctness where exercised;
+4. chain/hop correlation where exercised;
+5. network/run routing/recovery/write/safety/cleanup state;
+6. paired DIRECT/TRUYN economic evidence for ECON.
 
-Every row/event must carry a run identity and timestamp or monotonic event ordering sufficient to reconstruct the measured scenario.
+Provider usage uses authoritative provider values where available; unknown values are `null`, never fabricated estimates.
 
-## 6. Node telemetry
+Headline calculations preserve their raw inputs. Gross/list-price-equivalent provider cost and net cash/credit-covered cost remain separate fields.
 
-Required normalized fields:
+## 5. Common hard gates
 
-```text
-runId
-sLevel
-scenario
-nodeIdHash/public-safe-node-ordinal
-providerFamily
-providerVendor
-cloud
-region
-countryOrJurisdiction (sanitized label when publishable)
-processOrdinal
-hostOrdinal
-capabilities
-status
-readyAt
-lastSeenAt
-rssBytes (when measured)
-cpuMeasurement (when measured)
-networkRxBytes (when measured)
-networkTxBytes (when measured)
-```
+The exact benchmark contract remains authoritative, but the common S-Series boundary retains:
 
-Public evidence may use stable ordinals/hashes instead of internal addresses/resource names.
+- routing success `>=99%` where exercised;
+- recovery p95 `<=120 s` where exercised;
+- semantic retrieval/answer correctness `>=99%` where exercised;
+- provenance/minimal-context correctness `100%`;
+- zero internal block-ID leakage;
+- zero acknowledged-write loss where exercised;
+- zero invalid/stale/unauthorized acceptance;
+- ECON paired input-token/provider-cost reduction `>=90%` for the frozen comparable workload;
+- zero unauthorized owner-funded provider execution.
 
-## 7. Request/provider telemetry
+No threshold may be weakened to close a run.
 
-Required fields:
+## 6. Spend preflight
 
-```text
-runId
-scenario
-requestId
-chainId (nullable)
-nodeOrdinal
-providerFamily
-providerVendor
-modelIdOrVersion
-cloud
-region
-startedAt
-completedAt
-status
-errorClass
-latencyMs
-providerLatencyMs
-truynLatencyMs
-retrievalLatencyMs
-requestBytes
-responseBytes
-inputTokens
-outputTokens
-totalTokens
-providerRequestId (only if safe to publish)
-retryLayer
-retryCount
-rateLimited
-cancelled
-```
+Before paid inference or large provisioning, every real run verifies:
 
-For provider usage fields, store authoritative provider values when available. `null` is preferred to fabricated estimation.
+- exact public/private source/release identities;
+- frozen benchmark source/config and manifest digests;
+- provider/model access and mapping;
+- compute/provider quota sufficient for the declared run;
+- D/E/T/H collision/interference state;
+- unique run/resource/artifact namespace;
+- cleanup path;
+- private budget/stop conditions.
 
-## 8. Semantic/provenance telemetry
+A failed prerequisite yields blocked/preparation failure and must not be reinterpreted as benchmark success.
 
-Where semantic retrieval is exercised, record:
+## 7. S-50 qualification and acceptance sequence
 
-```text
-rootCid
-manifestCid/query-proof identifiers as permitted
-queryHash
-selectedRank
-selectedBlockCid or safe proof reference
-materializedBlockCount
-provenanceVerified
-minimalContextCorrect
-internalBlockIdLeaked
-retrievalCorrect
-answerCorrect
-```
+The current sequence is stricter than the old documentation-only plan:
 
-Agent-facing request evidence must remain sufficient to prove that internal target block identifiers were not supplied by the caller.
+1. reconcile exact public/private heads and frozen benchmark-source SHA;
+2. execute the full blockwise prerequisite set (currently B01–B16) against the exact candidate;
+3. repair only materially failing blocks, preserving acceptance semantics;
+4. repeat exact-head qualification after material repairs;
+5. perform fresh shared-resource/capacity collision check;
+6. only after all prerequisites are GREEN, dispatch exactly one fresh immutable S-50 acceptance attempt;
+7. preserve terminal evidence and cleanup state even on failure;
+8. independently reconcile before any public PASS claim.
 
-## 9. Chain telemetry
+Historical attempts are immutable and are never rerun or relabeled.
 
-Required fields:
+## 8. Current factual state
 
-```text
-chainId
-requestIdRoot
-hopCount
-hopOrdinals
-providerFamiliesByHop
-nodeOrdinalsByHop
-startedAt
-completedAt
-e2eLatencyMs
-chainSuccess
-answerCorrect
-provenanceComplete
-receiptChainValid
-unauthorizedHopCount
-staleReceiptAcceptedCount
-```
+The prior statement **“IMPLEMENTATION NOT STARTED” is obsolete**.
 
-Per-hop request telemetry remains separately available; the chain row is a normalized summary.
+As of this audit:
 
-## 10. Network/run telemetry
+- S-50 managed execution and qualification tooling exists in `inn-media/truyn-platform`;
+- real S-50 attempt/repair/preflight history exists;
+- public `main@3a1f7e67b80cecf678d373e33db9ceb09098e8a4` contains S-Series-driven 50-socket heartbeat stability and `1013 socket_backpressure` reconnect/exactly-once regression coverage;
+- blockwise qualification is an active prerequisite model.
 
-Required normalized metrics:
+No S-50 acceptance PASS is claimed by this document. S-100/S-200/S-500 likewise remain open.
 
-```text
-targetNodes
-readyNodes
-uniqueIdentities
-uniqueEndpoints
-providerFamilyCount
-cloudCount
-regionCount
-countryOrJurisdictionCount
-routingAttempts
-routingSuccesses
-routingRatio
-convergenceP50Ms
-convergenceP95Ms
-convergenceP99Ms
-recoveryP50Ms
-recoveryP95Ms
-recoveryP99Ms
-partitionRecoveryMs
-acknowledgedWrites
-acknowledgedWriteLoss
-invalidSignedStateAccepted
-staleRevokedReceiptAccepted
-unauthorizedProviderExecutions
-campaignCleanupConfirmed
-campaignResourcesRemaining
-```
+## 9. Evidence closure
 
-Scenario-specific fields extend this object rather than replacing the common measurements.
+An accepted run must emit/freeze:
 
-## 11. Economic-pair telemetry
+- normalized telemetry/evidence;
+- exact source/config/run identities;
+- artifact digest manifest;
+- terminal PASS/FAIL/INVALID classification;
+- cleanup confirmation;
+- public sanitized report with limitations;
+- cryptographic identities for withheld unsafe raw artifacts where needed.
 
-Each DIRECT/TRUYN pair records:
-
-```text
-pairId
-workloadCaseId
-providerFamily
-modelIdOrVersion
-currency
-priceSnapshotDate
-priceSourceIdentifier
-
-directInputTokens
-directOutputTokens
-directProviderCostGross
-directNetCashCost (nullable)
-directLatencyMs
-directRequestBytes
-
-truynInputTokens
-truynOutputTokens
-truynProviderCostGross
-truynNetCashCost (nullable)
-truynLatencyMs
-truynRequestBytes
-truynRoutingCostGross
-truynRetrievalCostGross
-
-reusablePublicationBytes
-reusablePublicationCostGross
-reuseCountForAmortization
-amortizedTransferBytes
-amortizedTotalCostGross
-
-inputTokenReductionPct
-providerCostReductionPct
-amortizedCostReductionPct
-answerEquivalent
-```
-
-Gross/list-price-equivalent and net cash/credit-covered cost are never merged into one ambiguous field.
-
-## 12. Calculation definitions
-
-### Routing ratio
-
-```text
-routingRatio = routingSuccesses / routingAttempts
-```
-
-### Input-token reduction
-
-```text
-100 * (directInputTokens - truynInputTokens) / directInputTokens
-```
-
-### Provider-cost reduction
-
-```text
-100 * (directProviderCostGross - truynProviderCostGross) / directProviderCostGross
-```
-
-### Amortized total cost reduction
-
-The reusable publication/index component is divided only by the actual declared reuse count for the measured run, then added to TRUYN per-request routing/retrieval/provider cost before comparison.
-
-The evidence must preserve the exact formula inputs; percentage alone is insufficient.
-
-## 13. Scale-curve outputs
-
-Comparable S-50/S-100/S-200/S-500 runs should emit the same normalized fields so scale curves can be produced without changing definitions.
-
-At minimum compare across levels:
-
-- routing success;
-- readiness/convergence/recovery;
-- p50/p95/p99 E2E latency;
-- throughput/completion rate;
-- provider rate-limit pressure;
-- token reduction;
-- provider-cost reduction;
-- amortized transfer/cost reduction;
-- per-vendor answer accuracy;
-- per-vendor token-reduction spread;
-- RSS/network bytes per node and aggregate where measured;
-- cross-region/cross-cloud latency deltas;
-- failure/failover time.
-
-No interpolation/extrapolation is a substitute for an unexecuted S level.
-
-## 14. Preflight before spend
-
-Every real S run must perform a bounded preflight before provider inference or large cloud provisioning:
-
-- exact tested source/config resolved;
-- provider access for all required families;
-- provider/model mapping captured;
-- region/cloud availability captured;
-- VM/compute capacity sufficient for target node count;
-- provider quota sufficient for declared workload;
-- D-Series active-run/resource collision check;
-- resource-prefix collision check;
-- evidence/artifact destination writable;
-- cleanup path present;
-- cost/spend ceiling configured outside public evidence.
-
-A failed preflight produces `BLOCKED_ACCESS` or a failed preparation state; it must not partially launch a large benchmark and then reinterpret missing vendors as success.
-
-## 15. S-50 implementation order
-
-Implementation should be minimal and reuse-first:
-
-1. add S-specific configuration/runner around existing D network harness and existing semantic/provider runners;
-2. add normalized telemetry adapter/aggregation only where current fields are missing;
-3. add `ECON` paired workload runner;
-4. add `MIX` assignment profiles;
-5. qualify exact source/config;
-6. execute S-50 `ECON` + `MIX` first;
-7. only after clean evidence, execute the remaining S-50 scenario matrix.
-
-This sequence is not permission to rewrite D-Series code. Shared reusable modules may be called; D frozen campaign semantics remain untouched.
-
-## 16. Evidence closure
-
-Each scenario run produces:
-
-- normalized telemetry JSON;
-- safe per-node/per-provider rows where useful;
-- artifact SHA-256 manifest;
-- public evidence report;
-- explicit list of withheld unsafe raw artifacts with their digests when needed;
-- terminal PASS/FAIL/INVALID result;
-- cleanup confirmation.
-
-The public report is the durable record; temporary Actions artifacts are supplementary.
-
-## 17. Current state
-
-No S-Series runtime workflow or cloud campaign is created by this document. The current work is documentation/contract foundation only.
+The durable public report is the acceptance record. Temporary Actions artifacts are supplementary, not a substitute for explicit durable closure.

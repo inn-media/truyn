@@ -1,188 +1,115 @@
 # E-Series Execution Procedure
 
-Status: **FOUNDATION / no benchmark result**
+Status: **EXECUTION FOUNDATION + PUBLIC VALIDATOR/RECOMPUTE IMPLEMENTED / QUALIFIED; NO E BENCHMARK PASS**  
+Documentation audit: **2026-09-23**
 
 This is the public execution procedure. Private resource names, quotas, billing reconciliation, leases and raw traces live only in `inn-media/truyn-platform`.
 
-## 1. Required order
+## Current implementation boundary
+
+The original methodology-only foundation has progressed: public telemetry validation/recompute code exists under `benchmarks/e-series/` and was exact-head qualified in public commit `cdb1164f45b23c4335559e73edfea9cd71a07adb` (S20/S22 validator/recompute qualification; CI + Class-D Five-Patch GREEN).
+
+That qualification proves the public evidence validator/recompute implementation only. It does **not** prove E/DECOMPOSE, E/PER-RESULT, E/KNEE or E/DEGRADE results.
+
+Managed private qualification is active around exact-head, cross-series interference/collision guards and an exactly-once provider-smoke boundary. Until measured immutable evidence is independently reconciled, E-Series remains without a benchmark PASS.
+
+## Required order
 
 ```text
 E0 contract freeze
-  -> E1 instrumentation qualification
-  -> E2 cross-series isolation dry-run
-  -> E3 DECOMPOSE pilot/final
-  -> E4 PER-RESULT pilot/final
-  -> E5 KNEE pilot/final
-  -> E6 DEGRADE pilot/final
-  -> E7 independent reconciliation/export
+  → E1 instrumentation + public/private exact-head qualification
+  → E2 cross-series R0/R1/R2 isolation/collision qualification
+  → E3 provider-smoke / attribution proof
+  → E4 E/DECOMPOSE measured campaign
+  → E5 E/PER-RESULT measured campaign
+  → E6 E/KNEE measured campaign
+  → E7 E/DEGRADE measured campaign
+  → E8 independent reconciliation + safe export
 ```
 
-DECOMPOSE precedes KNEE so the mechanism behind any plateau can be diagnosed. PER-RESULT precedes KNEE because it defines the primary useful-efficiency curve.
+DECOMPOSE precedes KNEE so any plateau has a measured mechanism. PER-RESULT defines the useful-efficiency curve before KNEE analysis.
 
-## 2. E0 — contract freeze
+## Contract freeze
 
-Freeze and digest:
+Freeze/digest before measured work:
 
-- public source/release;
-- private runner identity/digest;
-- corpus/workload and oracle;
-- provider mix/model class;
-- regions/config classes;
-- all stage mappings;
+- public source/release and private runner identity;
+- corpus/workload/oracle;
+- provider mix/model/config class;
+- canonical stage mapping;
 - DIRECT control;
 - scale/load grids;
-- warmup policy;
-- sample minima/confidence method;
+- warmup/sample/confidence policy;
 - cost/compute attribution mode;
 - invalidation/stop rules.
 
-Any material change after freeze creates a new campaign identity.
+A material change creates a new campaign identity.
 
-## 3. E1 — instrumentation qualification
+## Instrumentation qualification
 
-Before paid/large-scale work, prove on a small bounded run that:
+Before paid/large-scale work, prove on a bounded run:
 
-- every logical NEED has one terminal outcome;
-- stage spans cover all canonical stages used by the workload;
-- durations use monotonic clocks;
-- retries remain attached to the original request;
-- cost/usage is attributable to request/run;
-- useful-result oracle can be independently recomputed;
-- provider-429 and internal saturation are distinguishable;
-- sanitized export can reproduce summary metrics;
-- no private resource identifier is required for public recomputation.
+- one terminal outcome per logical NEED;
+- canonical stage coverage;
+- monotonic-clock durations;
+- retries attributed to the original request;
+- request/run cost and usage attribution;
+- independently recomputable useful-result oracle;
+- provider-limit vs internal-saturation taxonomy;
+- sanitized export recomputes headline metrics;
+- no private identifier is required for public recomputation.
 
-Instrumentation qualification is not an E benchmark result.
+The existing public validator/recompute implementation is part of this gate, not a benchmark result.
 
-## 4. E2 — cross-series isolation dry-run
+## Cross-series isolation
 
-Classify every dependency R0/R1/R2 under `BENCHMARK_SERIES_ISOLATION.md`.
+Classify every dependency under `BENCHMARK_SERIES_ISOLATION.md`.
 
-Required preflight:
+- R0: immutable/read-only sharing allowed.
+- R1: shared services require distinct attribution + active interference detection.
+- R2: capacity/cache/index/fault mutation is exclusive.
 
-```text
-E namespace unique
-artifact prefix unique
-telemetry partition unique
-cache/index generation unique or immutable R0
-run/spend budget unique
-provider attribution unique
-R1 interference detector active
-R2 lease owned or no R2 mutation planned
-cleanup ownership scoped to E run
-foreign active D/S/T/H runs discovered
-```
+Immediately before any paid provider smoke or measured campaign, reread authoritative public/private heads, duplicate history and material foreign runs. Stale orphaned historical Actions records must not be treated as active interference; current material shared-resource runs must be.
 
-If a required R2 target is owned by another series, record `WAITING_SHARED_RESOURCE`. Do not cancel or mutate the foreign run.
+If a required R2 target is owned by another series, record `WAITING_SHARED_RESOURCE`. Do not cancel/mutate the foreign run.
 
-## 5. Per-run preflight
+## Exactly-once provider-smoke boundary
 
-Immediately before each measured run:
+Provider smoke is a prerequisite, not an E result. It must be dispatched only after exact-head + isolation gates are GREEN, with duplicate history checked immediately before dispatch.
 
-1. read authoritative public/private SHAs;
-2. verify frozen manifest digests;
-3. verify provider access and expected model class;
-4. verify all expected nodes/providers are ready;
-5. verify no configuration/capacity drift;
-6. verify E run namespace is empty/new;
-7. verify budget and stop conditions;
-8. snapshot R1/R2 ownership/interference state;
-9. record run identity before sending the first measured NEED.
+A failed or blocked smoke is never silently repeated as multiple paid calls. Exactly-once intent and provider billing attribution remain explicit.
 
-## 6. Warmup
+## Measured lanes
 
-Warmup executes the frozen workload shape without collecting headline samples. Warmup must not spill into another run namespace.
+### E/DECOMPOSE
 
-Start measured window only after the declared steady-state condition is met. Mark warmup records `measured=false`.
+At frozen scale points, measure canonical stage latency/bytes/tokens/cost and request-level TRUYN tax. Final claims require the sample minima and host aggregation rules fixed by the methodology.
 
-## 7. E/DECOMPOSE execution
+### E/PER-RESULT
 
-For each `N in {50,100,200,500}`:
+Pair TRUYN and DIRECT on the same useful-result gate. All failed/wrong/unverified work keeps its cost and receives zero useful-result credit.
 
-1. provision/attach exactly the frozen scale;
-2. hold offered load constant at the frozen non-saturating level;
-3. run warmup;
-4. execute >=5 independent measured batches and >=1,000 measured NEEDs total for final claims;
-5. capture stage spans, bytes, tokens/cost, terminal outcomes and interference state;
-6. compute per-host stage quantiles and conservative cross-host max-of-host-quantiles;
-7. export request-level TRUYN tax distribution and stage shares;
-8. cleanup only E-owned ephemeral state.
+### E/KNEE
 
-Do not optimize between final scale points. Repairs require a new qualified campaign/version.
+Use the precommitted dense scale grid and breakpoint rule. Publish an observed knee/working range or explicitly `NO_KNEE_OBSERVED_IN_RANGE`; never invent/extrapolate one.
 
-## 8. E/PER-RESULT execution
+### E/DEGRADE
 
-For each frozen task pair:
+Use frozen offered-load ramps and measure success, latency, queues/backpressure, failure taxonomy, sustainable load and recovery/hysteresis. Provider external limits are labeled separately from internal TRUYN saturation.
 
-1. randomize/counterbalance TRUYN vs DIRECT order;
-2. execute both arms under the same provider/task/output/oracle class;
-3. charge all retries and failed-answer cost to the originating request;
-4. adjudicate usefulness independently;
-5. compute cost/wall/compute per useful result;
-6. report wasted cost/compute from unusable results;
-7. retain pair identity for bootstrap/reconciliation.
+## Evidence closure
 
-## 9. E/KNEE execution
+Every final claim requires:
 
-For each `N in {50,75,100,150,200,350,500}`:
+- frozen exact source/runner/manifest identities;
+- complete safe telemetry or cryptographic identities for withheld raw evidence;
+- independent recomputation of headline metrics;
+- interference/lease/budget/cleanup reconciliation;
+- append-only sanitized public report;
+- explicit limitations/scope.
 
-- run the same frozen PER-RESULT workload/load level;
-- meet final evidence density;
-- record DECOMPOSE-compatible stage telemetry;
-- compute primary `G_cost(N)` and secondary curves;
-- apply the precommitted knee detector only after all valid points are closed.
+Public E evidence owns formulas and safe recomputation. Private actual billing, topology, service identities, quotas, budgets and raw traces remain private.
 
-If data do not support a knee, publish `NO_KNEE_OBSERVED_IN_RANGE` rather than selecting a visual breakpoint.
+## Non-claims
 
-## 10. E/DEGRADE execution
-
-For each `N in {50,100,200,500}`:
-
-1. establish measured low-load baseline;
-2. execute the frozen monotonically increasing offered-load ladder;
-3. keep each step long enough for the frozen measured window/request minimum;
-4. continue until stop rules are met;
-5. immediately restore baseline offered load;
-6. measure recovery/hysteresis until recovery criteria or timeout;
-7. distinguish provider/external throttling from internal saturation;
-8. export load windows and ordered failure modes.
-
-Never raise shared provider capacity during a measured ramp unless the capacity itself is an E-owned R2 target frozen into the methodology.
-
-## 11. Run termination states
-
-A run closes as one of:
-
-```text
-PASS
-FAIL
-INCOMPLETE
-INVALIDATED
-EXTERNAL_LIMITED
-WAITING_SHARED_RESOURCE
-```
-
-`WAITING_SHARED_RESOURCE` is not failure and does not authorize touching the owner run.
-
-## 12. Independent reconciliation
-
-Before any public E claim, a reconciliation step independent of the measured runner recomputes from sanitized/raw evidence as appropriate:
-
-- request and useful-result counts;
-- stage latency aggregates;
-- TRUYN tax;
-- cost/wall/compute per useful;
-- paired ratios and CIs;
-- knee detector result;
-- sustainable load and recovery time;
-- error taxonomy;
-- interference/invalidation state;
-- cleanup ownership.
-
-Mismatch blocks publication as PASS.
-
-## 13. Public export
-
-Public export contains only safe methodology/evidence and cryptographic identities. Private topology, credentials, account/service identities, exact quotas/cost ceilings, active lease backend and raw secret-bearing traces remain private.
-
-The public report explicitly states limitations and negative/blocked cells.
+Existence of methodology, validator code, exact-head qualification, provider-smoke or a pilot does not prove efficiency, bottleneck, scale knee, capacity or overload behavior. Those claims require their corresponding measured immutable campaign.

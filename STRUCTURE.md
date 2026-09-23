@@ -1,56 +1,63 @@
 # Repository Structure
 
-TRUYN is a **single evolving codebase**. Software releases, protocol generations, wire schemas, external adapters, SDKs and governance maturity are versioned independently.
+TRUYN is a **single evolving public codebase** whose protocol generation, software releases, SDK packages, interoperability profiles and benchmark maturity are versioned independently.
 
 ## Source-of-truth hierarchy
 
 1. `spec/protocol/<generation>/` — normative protocol semantics.
-2. `proto/<generation>/` — machine-readable wire schema.
-3. `GOVERNANCE.md` + `docs/governance/` — normative change process.
-4. `docs/architecture/ARCHITECTURE_CONTRACT.md` — architecture ownership/invariants.
-5. `docs/architecture/IMPLEMENTATION_STATUS.md` — canonical factual maturity/status.
-6. subsystem architecture documents.
+2. `proto/<generation>/` — machine-readable draft wire schemas.
+3. `docs/architecture/ARCHITECTURE_CONTRACT.md` — architecture ownership and invariants.
+4. `docs/architecture/IMPLEMENTATION_STATUS.md` — canonical current factual maturity.
+5. `docs/operations/NETWORK_SCALE_STATUS.md` — current D-Series operational state.
+6. subsystem architecture / execution contracts.
 7. `docs/benchmarks/` — durable measured evidence.
-8. `README.md` — public summary.
-9. `ROADMAP.md` — sequencing and next gates.
+8. `ROADMAP.md` — next gates.
+9. `README.md` and `docs/README.md` — summaries.
 
-When current-status prose disagrees with accepted code/evidence, update the prose. Open PR intent is not accepted implementation.
+When current-status prose disagrees with accepted code/evidence, update the prose. Historical benchmark reports remain historical evidence; open PR intent, workflow existence or launch intent is not accepted implementation/evidence by itself.
 
 ## Main implementation directories
 
-- `core/` — identity, capability, intent, objects, claims, provenance, trust/state/routing/security domain logic.
-- `core/security/` — Account/Tenant authority, provider access/billing, grants, entitlements, accounting, revocation and managed authority checkpoint/composition.
-- `network/` — QUIC, authenticated sessions, Kademlia/DHT, routing, relay, NAT traversal and testnet mechanics.
-- `runtime/` — provider/relay composition plus managed authority service/client/readiness surfaces.
-- `adapters/mcp/`, `adapters/a2a/`, `adapters/providers/` — external protocol/provider edges.
-- `sdk/` — five-language first-party Developer Release clients.
-- `trust/` — Trustability/provenance/receipts/lifecycle components.
-- `storage/` — persistent state/objects/index/cache.
+- `core/` — identity, capabilities, intent, objects, claims, provenance, trust/state/routing/security domain logic.
+- `core/security/` — public/reference authorization, provider ownership/access/billing boundaries, grants/revocation seams.
+- `network/` — QUIC, authenticated sessions, Kademlia/DHT, routing, relay, NAT/testnet mechanics.
+- `runtime/` — provider/relay composition, HTTP/runtime surfaces and Agent Descriptor lifecycle.
+- `adapters/mcp/`, `adapters/a2a/`, `adapters/nlweb/`, `adapters/providers/` — interoperability/provider edges.
+- `sdk/` — five required first-party clients plus shared conformance/release tooling; Rust is optional.
+- `trust/` — Trustability/provenance/receipt/lifecycle components.
+- `storage/` — persistent state/objects/index/cache reference surfaces.
 - `observability/` — metrics/traces/logging/error-budget instrumentation.
-- `tests/`, `benchmarks/`, `scripts/`, `.github/` — executable conformance/evidence/operations support.
+- `benchmarks/`, `tests/`, `scripts/`, `.github/` — executable qualification/evidence/operations support.
+- `docs/` — architecture, compatibility, operations and append-only public evidence.
 
-## Authority ownership
+## Public / private ownership
 
-PR `#425` owns the bounded Account → Organization → Tenant hierarchy. PR `#433` owns the durable single-filesystem Production Authority; PR `#456` owns correctness repairs. PR `#457` adds accepted managed authority repository/runtime support: Cosmos checkpointing over managed identity/AAD, monotonic revision/digest/ETag fencing, authority role/API, monotonic relay snapshot cache and fail-closed readiness.
+Public `inn-media/truyn` owns open protocol/reference behavior, Node/Relay/SDK/adapters, generic BYOK/owner-isolated provider behavior, conformance, reproducible benchmark semantics and sanitized evidence.
 
-`#457` does not prove a provisioned/live multi-region authority deployment, production migration/cutover, continuous backup or restore acceptance. Those remain deployment gates.
+Private `inn-media/truyn-platform` owns managed production authority/control plane, cloud orchestration, commercial entitlement/billing implementation, private topology/identities/quotas/budgets, proprietary managed optimization and raw/private telemetry.
 
-## Interoperability ownership
+The dependency rule is one-way:
 
-A2A and MCP are adapters, not TRUYN/1 primitives. Accepted bounded evidence includes C1–C8, independent official A2A/MCP black-box proofs, P2-E1/Sprint E referenced-artifact interoperability, P2-E2 `a2a-mcp-pre-v1/g1` compatibility and P2-E3 canonical documentation reconciliation.
-
-**Stable A2A/MCP v1 is not declared** because `TRUYN/1` remains draft.
-
-## SDK / developer surface
-
-All five required first-party SDKs — TypeScript/JavaScript, Python, Go, Java and C#/.NET — implement the bounded relay-client contract and participate in executable conformance. PyPI, Go and npm alpha.2 public alphas are accepted immutable releases. npm alpha.1 is immutable historical evidence whose required clean-room ESM import failed and is superseded without overwrite. Maven Central and NuGet remain open.
+```text
+private may consume accepted/versioned public surfaces
+public must never depend on private code
+```
 
 ## Current maturity boundary
 
-Class C and D-100 are accepted; D-1000 remains open. Production operations contracts exist but live 28-day/telemetry/pager/restore evidence remains open. Durable authority plus managed runtime support are implemented, while live managed deployment/multi-region/recovery/propagation evidence remains open. Production Trust Authority remains open in PR `#438`. Governance remains G1 bootstrap Founding Stewardship. Mainnet and stable `TRUYN/1` are not claimed.
+As of the 2026-09-23 documentation audit:
+
+- Class C, D-100 and D-200 are accepted; D-200 repeatability is confirmed.
+- D-500 has real immutable attempt history but no accepted PASS; latest run `35787480348` ended `cancelled`.
+- D-1000 remains open.
+- S-Series has moved from design-only into implementation/qualification; no S-Series acceptance PASS is claimed.
+- E-Series public validator/recompute code is implemented/qualified; no final E benchmark PASS is claimed.
+- five required SDK clients are implemented/conformance-tested; npm/PyPI/Go prereleases are accepted; Maven Central/NuGet publication remain open.
+- Agent Descriptor serving/fetch/signature and bounded automatic refresh/re-sign are implemented; complete usable-interface parity remains open.
+- A2A/MCP and pinned NLWeb 0.5 have bounded accepted interoperability evidence; stable TRUYN/1/A2A-MCP v1/mainnet remain unclaimed.
 
 Canonical current facts belong in `docs/architecture/IMPLEMENTATION_STATUS.md`.
 
 ## License
 
-Repository source, specification and first-party SDK surfaces are licensed under the **Apache License 2.0 (`Apache-2.0`)**. Distribution surfaces must retain the required `LICENSE` and `NOTICE` material.
+Repository source, specification and first-party SDK surfaces are licensed under Apache License 2.0 (`Apache-2.0`). Distribution surfaces retain `LICENSE` and `NOTICE`.

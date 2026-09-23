@@ -4,58 +4,64 @@
 
 > **The Internet was built to move data. TRUYN is being built to move intelligence.**
 
-TRUYN is a logical network for agent-to-agent communication, decentralized AI, capability discovery, content-addressed objects/state, provider execution, provenance and contextual Trustability.
+TRUYN provides signed agent identity, capability discovery, OFFER / NEED / RESULT exchange, relay/network transport, provider execution, semantic context retrieval, provenance, interoperability adapters and Trustability-oriented evidence surfaces.
 
 Website: https://truyn.org/
 
-[Manifesto](MANIFESTO.md) · [Whitepaper](WHITEPAPER.md) · [Architecture](STRUCTURE.md) · [Status](docs/architecture/IMPLEMENTATION_STATUS.md) · [Roadmap](ROADMAP.md) · [Open/Private Boundary](docs/architecture/OPEN_PRIVATE_BOUNDARY.md) · [Cross-Repo Routing](docs/architecture/CROSS_REPO_TASK_ROUTING.md) · [A2A/MCP](docs/architecture/A2A_MCP_INTEROPERABILITY.md) · [NLWeb](docs/architecture/NLWEB_INTEROPERABILITY.md) · [P2 Final Acceptance](docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md) · [SDK/DX](docs/architecture/SDK_DEVELOPER_EXPERIENCE.md) · [Governance](GOVERNANCE.md) · [Security](SECURITY.md)
+[Manifesto](MANIFESTO.md) · [Whitepaper](WHITEPAPER.md) · [Architecture](STRUCTURE.md) · [Status](docs/architecture/IMPLEMENTATION_STATUS.md) · [Roadmap](ROADMAP.md) · [Open/Private Boundary](docs/architecture/OPEN_PRIVATE_BOUNDARY.md) · [A2A/MCP](docs/architecture/A2A_MCP_INTEROPERABILITY.md) · [NLWeb](docs/architecture/NLWEB_INTEROPERABILITY.md) · [SDK/DX](docs/architecture/SDK_DEVELOPER_EXPERIENCE.md) · [Benchmarks](docs/benchmarks/README.md) · [Security](SECURITY.md)
 
 ## Current factual status
 
-**Snapshot:** 2026-09-20  
+**Documentation audit:** 2026-09-23  
+**Audited public main:** `3a1f7e67b80cecf678d373e33db9ceb09098e8a4`  
 **Protocol:** `TRUYN/1` draft  
-**A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`  
-**Stable A2A/MCP v1:** **not declared**
+**Stable A2A/MCP v1:** **not declared**  
+**Stable mainnet:** **not declared**
 
 | Area | Current state |
 |---|---|
-| Class C WAN | **Accepted / PASS** |
-| Class D-100 | **Accepted / PASS** |
-| Account → Organization → Tenant | **Implemented / accepted; managed implementation owned by TRUYN Platform** |
-| Managed authority runtime/accounting | **Implemented / accepted in TRUYN Platform; public repository exposes contracts/reference seams only** |
-| Managed authority live production deployment | **OPEN** |
-| SLI/SLO | **Defined** |
-| Observability / alerting | **Implemented contracts; live evidence open** |
-| Rotation / on-call | **Implemented contracts; live drills/roster open** |
-| Recovery / DR | **Implemented contract; live backup/restore evidence open** |
-| A2A/MCP C1–C8 + P2-E1/E2/E3 | **Accepted bounded profile** |
-| NLWeb interoperability | **Bounded pinned NLWeb 0.5 profile implemented / executable-evidence proven** |
-| Five first-party SDK clients | **Implemented / executable conformance** |
-| PyPI / Go / npm alpha.2 | **Accepted immutable public releases** |
-| Maven Central / NuGet | **OPEN** |
-| Stable mainnet | **Not yet** |
+| Class C WAN | **ACCEPTED / PASS** |
+| Class D-100 | **ACCEPTED / PASS** |
+| Class D-200 | **ACCEPTED / PASS + repeatability confirmed** |
+| Class D-500 | **OPEN** — six immutable attempts exist; attempt 6 run `35787480348` ended `cancelled`, so no acceptance PASS is claimed |
+| Class D-1000 | **OPEN** |
+| S-Series | **IMPLEMENTATION / QUALIFICATION ACTIVE; NO S-SERIES PASS** |
+| E-Series | **FOUNDATION + public validator/recompute IMPLEMENTED / QUALIFIED; NO E-BENCHMARK PASS** |
+| Semantic retrieval | **Implemented and benchmark-proven on bounded published workloads** |
+| Seven text-provider path | **Implemented / live-smoke and multi-actor evidence exists** |
+| A2A/MCP | **Accepted bounded pre-v1 profile** |
+| NLWeb | **Bounded pinned 0.5 profile implemented / executable-evidence proven** |
+| Five first-party SDK clients | **Implemented / shared executable conformance** |
+| npm / PyPI / Go prereleases | **Accepted immutable public releases** |
+| Maven Central / NuGet | **OPEN publication gates** |
+| Agent Descriptor | **Serving/fetch/signature + bounded automatic refresh/re-sign implemented; complete usable-interface parity still open** |
+| Managed/commercial control plane | **Private `inn-media/truyn-platform`; public repo keeps contracts/reference seams only** |
 
-The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Operational D-scale status remains delegated to [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md).
+The canonical status source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Current D-scale execution status is [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md). Measured evidence belongs in [docs/benchmarks](docs/benchmarks/README.md); historical reports are audit records and are not rewritten to match later state.
 
-## Authority boundary
+## Core boundary
 
-TRUYN authority comes from authenticated identity plus authoritative account/tenant/provider/grant/entitlement state. Requester/provider metadata is not authority. Managed production authority and commercial control-plane implementation belong to private `inn-media/truyn-platform`; public TRUYN retains open protocol/reference behavior, contracts and conformance. Public code never depends on private code.
+TRUYN is open protocol/reference infrastructure. A public relay or public protocol does **not** make an owner's paid AI provider public. Authorization and billing authority remain server-side; provider credentials never become TRUYN discovery metadata.
 
-## A2A + MCP + TRUYN
+Managed production authority, commercial entitlement/billing state, cloud orchestration, private topology and private/raw benchmark telemetry belong to `inn-media/truyn-platform`. Public TRUYN must not depend on private code.
 
-Accepted bounded evidence includes C1–C8, independent official A2A/MCP black-box proofs, P2-E1 bidirectional referenced-artifact proof, P2-E2 compatibility generation `a2a-mcp-pre-v1/g1`, and P2-E3 canonical reconciliation. **Stable A2A/MCP v1 is not declared.** `TRUYN/1` remains draft.
+## Interoperability
 
-## NLWeb + TRUYN
+A2A, MCP, NLWeb and conventional REST/HTTP are interfaces around TRUYN; none replaces the TRUYN network or becomes authorization authority.
 
-TRUYN Open now implements a **bounded pinned NLWeb 0.5 interoperability profile** against exact upstream `nlweb-ai/nlweb-typespec@d973d4fe811830eb3734c01a79133adfc474c197`.
-
-The accepted surface covers authorization-aware semantic WHO discovery over eligible TRUYN candidates, deterministic public/reference selection, WHO→ASK composition through canonical TRUYN authority/dispatch, exact profile negotiation, structured correlation/provenance preservation, private-provider invisibility, fail-closed unsupported profiles and explicitly tested bounded bridge mappings. Independent external black-box run `35487917472` completed SUCCESS against the exact qualified implementation.
-
-This is not a stable NLWeb-v1 claim and does not make NLWeb a TRUYN transport or `TRUYN/1` dependency. Crawling/ingestion, indexing, vector search, RAG corpus ownership, publisher/content rights, advertising/campaign data and Data Graph business semantics remain outside the TRUYN NLWeb layer. See [NLWeb Interoperability Architecture](docs/architecture/NLWEB_INTEROPERABILITY.md).
+Accepted bounded A2A/MCP evidence includes **P2-E1** bidirectional referenced-artifact proof and **P2-E2** compatibility generation `a2a-mcp-pre-v1/g1` (with P2-E3 canonical reconciliation). **Stable A2A/MCP v1 is not declared** while `TRUYN/1` remains draft. The NLWeb implementation is intentionally pinned to the accepted 0.5 profile; later upstream profiles require explicit compatibility work and requalification.
 
 ## SDK / developer experience
 
-TypeScript/JavaScript, Python, Go, Java and C#/.NET first-party clients participate in shared executable conformance. PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2` are accepted immutable public releases. Maven Central and NuGet remain open.
+First-party clients exist for JavaScript/TypeScript, Python, Go, Java and C#/.NET and participate in one executable conformance path. Accepted public prereleases are:
+
+- npm `@truyn/sdk@0.1.0-alpha.2`;
+- PyPI `truyn-sdk==0.1.0a1`;
+- Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`.
+
+Java and .NET implementations are present and conformance-aligned; Maven Central and NuGet publication evidence remain open.
+
+The Agent Descriptor runtime can serve `/.well-known/truyn-agent.json` only by explicit opt-in. It is identity-signed, bounded by TTL, filtered to public capabilities, and now refreshes/re-signs before expiry. Descriptor metadata never grants provider authorization.
 
 ## Quick local verification
 
@@ -64,19 +70,18 @@ npm install --ignore-scripts --no-audit --no-fund
 npm test
 ```
 
-## Documentation order
+## Documentation truth order
 
-1. `spec/protocol/v1/` — normative TRUYN/1 semantics;
+1. `spec/protocol/v1/` — normative draft protocol semantics;
 2. `docs/architecture/ARCHITECTURE_CONTRACT.md` — architecture invariants;
-3. `docs/architecture/OPEN_PRIVATE_BOUNDARY.md` — repository ownership/dependency boundary;
-4. `docs/architecture/CROSS_REPO_TASK_ROUTING.md` — OPEN / PRIVATE / BOTH routing contract;
-5. `docs/architecture/IMPLEMENTATION_STATUS.md` — current factual maturity;
-6. `docs/architecture/NLWEB_INTEROPERABILITY.md` — accepted bounded NLWeb 0.5 profile and evidence boundary;
-7. `docs/compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md` — P2 evidence;
-8. `docs/benchmarks/` — accepted/failed measured evidence;
-9. `ROADMAP.md` — next gates.
+3. `docs/architecture/IMPLEMENTATION_STATUS.md` — canonical current factual state;
+4. `docs/operations/NETWORK_SCALE_STATUS.md` — current D-scale operational state;
+5. subsystem architecture / execution contracts;
+6. `docs/benchmarks/` — immutable measured evidence ledger;
+7. `ROADMAP.md` — next gates, never evidence by itself;
+8. `README.md` / `docs/README.md` — summaries only.
 
-Historical issues/PRs/docs remain audit history and do not override later accepted evidence.
+If summary prose conflicts with accepted code/evidence, the summary must be corrected. Open PRs, launch intent, diagnostics and in-progress qualification are not PASS.
 
 ## License
 

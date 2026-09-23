@@ -1,331 +1,146 @@
 # TRUYN Roadmap
 
-This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`.
+This roadmap records **next bounded gates from current factual maturity**. It is not evidence. Normative semantics live in `spec/`; canonical current status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`.
 
-**Snapshot:** 2026-09-20  
+**Documentation audit:** 2026-09-23  
+**Audited public main:** `3a1f7e67b80cecf678d373e33db9ceb09098e8a4`  
 **Protocol:** `TRUYN/1` draft  
-**Stable A2A/MCP v1:** **not declared**
+**Stable A2A/MCP v1:** **not declared**  
+**Stable mainnet:** **not declared**
 
 ## Current top-level state
 
-| Track | Current state | Immediate next gate |
+| Track | Current factual state | Next bounded gate |
 |---|---|---|
-| Network | **Class C + D-100 + D-200 accepted** | D-500 / D-1000 external scale qualification |
-| Semantic Scale (S-Series) | **Architecture + benchmark/telemetry contract defined; no S PASS claimed** | S-50 `ECON` + `MIX`, then remaining S-50 scenario matrix |
-| Efficiency Limits (E-Series) | **FOUNDATION DEFINED / no E result claim** | instrumentation + isolation qualification → E/DECOMPOSE → E/PER-RESULT → E/KNEE → E/DEGRADE |
-| Production operations | **contracts implemented** | live evidence |
-| Provider authority | **repository/runtime semantics accepted** | live managed deployment evidence |
-| A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + ecosystem evidence |
-| NLWeb | **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later profiles require explicit requalification |
-| SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 accepted** | Maven/NuGet + Descriptor/site completeness |
-| Commercial proof / T-series | **FOUNDATION ACTIVE / no result claim** | telemetry qualification → pilots → immutable final T/BREAK-EVEN, T/HEAD-TO-HEAD, T/PREDICT |
-| Hidden-value / H-series | **FOUNDATION ACTIVE / no result claim** | telemetry + private runner qualification → isolated pilots → immutable H/CACHE-COMPOUND, H/SECOND-OPINION, H/ARBITRAGE, H/CHAOS-FUZZ |
-| Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
-| Mainnet | **Not productionized** | larger D-scale + live ops + release/governance gates |
+| Network / D-Series | Class C + D-100 + D-200 accepted; D-500 attempted but not accepted; D-1000 open | D-500 repair/requalification → fresh immutable PASS; then D-1000 |
+| Semantic Scale / S-Series | implementation + blockwise/exact-head qualification active; no S PASS | close exact-head/B01–B16/collision gates → one immutable S-50 acceptance campaign |
+| Efficiency / E-Series | methodology plus public validator/recompute implementation qualified; no E benchmark PASS | exact-head/isolation/provider qualification → measured E lanes |
+| SDK/DX | five clients/conformance implemented; npm/PyPI/Go accepted | usable-interface parity + Maven/NuGet + developer-site evidence |
+| Agent Descriptor | serving/fetch/signature + bounded refresh/re-sign implemented | complete endpoint/interface negative and mapping parity |
+| A2A/MCP | bounded pre-v1 profile accepted | stable-v1 only after TRUYN protocol/ecosystem stability |
+| NLWeb | pinned 0.5 bounded profile accepted | later upstream profile only via explicit requalification |
+| Production operations | contracts implemented | live SLO/alert/on-call/DR evidence |
+| Managed authority | private-platform implementation boundary | live managed deployment/reconciliation evidence |
+| T-Series | implementation/qualification work active; no final commercial benchmark PASS | exact-head + zero-paid/provider qualification → immutable measured campaigns |
+| H-Series | foundation/managed execution track; no final H PASS | isolated pilots → immutable evidence |
+| Governance | G1 bootstrap Founding Stewardship | external maintainers → multi-org TSC → neutral stewardship |
 
-## Network scale
+## 1. Network scale
 
-Accepted milestones:
+Accepted:
 
-- [x] Class C heterogeneous WAN — accepted.
-- [x] Class D-100 — accepted.
-- [x] **Class D-200 — accepted** on immutable single-shot run `35503894414`, attempt 1, strict terminal `TRUYN_D200_TERMINAL result=PASS`.
-- [ ] Class D-500 — open.
-- [ ] Class D-1000 — open.
-- [ ] long-duration operational stability / mainnet-scale closure — open.
+- [x] Class C heterogeneous WAN.
+- [x] Class D-100.
+- [x] Class D-200 canonical acceptance + independent repeatability.
 
-D-200 accepted evidence is frozen to source `e91c165c67c655deb80df4511ca346acb9f1f45b` / tree `3a402ba72502de12ed2277db3c9f472872f44b46`, with artifact ID `10603748497` and digest `sha256:386387165b729ed2167140747a310d85822d9d1987dce812812408f2468bccd4`.
+Open:
 
-The D-200 gate proved 20 hosts / 200 real processes, readiness 200/200, baseline routing 400/400, post-restart routing 100/100 first-attempt with zero application retries, healed routing 200/200, convergence p95 `256.43 ms`, restart recovery p95 `28,717 ms`, real packet-partition recovery `32,159 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign + staging cleanup with zero remaining resources.
+- [ ] **D-500** — historical immutable attempts exist; latest run `35787480348` ended `cancelled`, therefore no PASS. Next work is evidence-driven repair and fresh exact-head acceptance, never rerun/relabel of an old attempt.
+- [ ] **D-1000** — only after a qualified candidate; D-200/D-500 evidence never substitutes for this gate.
+- [ ] long-duration operational stability and mainnet closure.
 
-Evidence: [`docs/benchmarks/CLASS_D_200_2026-09-20.md`](docs/benchmarks/CLASS_D_200_2026-09-20.md).
+Canonical live status: `docs/operations/NETWORK_SCALE_STATUS.md`.
 
-## Semantic Scale (S-Series)
+## 2. S-Series semantic scale
 
-S-Series is a separate live semantic-node scale track that combines the already-proven Class-D network substrate with the already-proven seven-actor provider/semantic path. It does **not** replace D-Series and does not redefine TRUYN networking.
+S-Series is no longer design-only. Public runtime diagnostics and private managed S-50 execution/qualification machinery are active, but **no S-Series PASS is currently accepted**.
 
-Target ladder:
+Required order:
 
-- [ ] **S-50** — 50 real semantic nodes; first `ECON` + `MIX`, then the full bounded scenario matrix.
-- [ ] **S-100** — repeat comparable core workloads and produce scale curves.
-- [ ] **S-200** — semantic-node gate at the already-proven D-200 node count.
-- [ ] **S-500** — large semantic-network benchmark; preserve comparable `ECON`, `XBORDER` and `COST-ROUTING` evidence at minimum.
+1. [ ] reconcile public/private exact SHAs and frozen benchmark source;
+2. [ ] complete B01–B16/blockwise preflight on the exact candidate;
+3. [ ] confirm shared-resource/capacity collision state is clean;
+4. [ ] execute exactly one new immutable S-50 acceptance attempt when all gates are GREEN;
+5. [ ] publish/reconcile durable sanitized S-50 evidence;
+6. [ ] only then advance S-100 → S-200 → S-500 as separate gates.
 
-Required live text-provider families are GPT, Gemini, Grok, DeepSeek, Llama, Mistral and Kimi. Scenario families are `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION`, `LANG`.
+Scenario definitions remain `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION`, `LANG`; the benchmark contract remains authoritative for thresholds and evidence semantics.
 
-Common hard gates remain fixed across the ladder: routing >=99%, recovery p95 <=120 s, answer/retrieval correctness >=99% where exercised, provenance/minimal-context 100%, zero internal block-ID leakage, zero acknowledged-write loss where exercised, zero invalid/stale/unauthorized acceptance, and paired ECON input-token/provider-cost reduction >=90%.
+Architecture: `docs/architecture/SEMANTIC_SCALE_S_SERIES.md`.  
+Contract: `docs/benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md`.  
+Execution: `docs/operations/S_SERIES_EXECUTION_AND_TELEMETRY.md`.
 
-S-Series uses dedicated workflow/concurrency/resource/evidence namespaces so it can be qualified and run without mutating frozen D-Series campaigns or making concurrent D evidence ambiguous.
+## 3. E-Series efficiency limits
 
-Architecture: [`docs/architecture/SEMANTIC_SCALE_S_SERIES.md`](docs/architecture/SEMANTIC_SCALE_S_SERIES.md).  
-Benchmark contract: [`docs/benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md`](docs/benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md).  
-Execution/telemetry: [`docs/operations/S_SERIES_EXECUTION_AND_TELEMETRY.md`](docs/operations/S_SERIES_EXECUTION_AND_TELEMETRY.md).
+The public E-Series is beyond documentation-only foundation: the validator/recompute implementation under `benchmarks/e-series/` has been exact-head qualified. That **does not** constitute an E benchmark result.
 
-No S-Series PASS is currently claimed.
+Next gates:
 
-## E-series efficiency limits
+- [ ] finish exact public/private qualification and R0/R1/R2 isolation/collision checks;
+- [ ] finish the exactly-once provider-smoke boundary without duplicate paid calls;
+- [ ] qualify request/stage/cost attribution and sanitized recomputation;
+- [ ] run `E/DECOMPOSE` measured campaign;
+- [ ] run `E/PER-RESULT` paired useful-result campaign;
+- [ ] run `E/KNEE` only on frozen comparable scale points;
+- [ ] run `E/DEGRADE` overload/recovery campaign;
+- [ ] independently recompute and publish safe immutable evidence.
 
-E-Series measures **where efficiency stops scaling and why**. It is independent of D-Series network acceptance and S-Series semantic-scale acceptance; it reuses qualified substrate without redefining those gates.
+Canonical contract: `docs/benchmarks/E_SERIES_EFFICIENCY.md`.  
+Telemetry: `docs/benchmarks/E_SERIES_TELEMETRY.md`.  
+Execution: `docs/operations/E_SERIES_EXECUTION.md`.
 
-Canonical public contract: [`docs/benchmarks/E_SERIES_EFFICIENCY.md`](docs/benchmarks/E_SERIES_EFFICIENCY.md).
+## 4. SDK / Developer Release
 
-### E0 — Foundation — DEFINED
+Completed factual steps:
 
-- [x] define OPEN/PRIVATE ownership boundary;
-- [x] define common useful-result gate and DIRECT pairing rule;
-- [x] define canonical stage taxonomy and monotonic-clock rule;
-- [x] define E/DECOMPOSE methodology;
-- [x] define E/PER-RESULT methodology;
-- [x] define E/KNEE methodology and precommitted breakpoint rule;
-- [x] define E/DEGRADE sustainability/recovery methodology;
-- [x] define telemetry/evidence schema;
-- [x] bind E to common D/S/T/H/E R0/R1/R2 isolation contract;
-- [ ] implement/qualify stage instrumentation and deterministic exporter;
-- [ ] qualify private run identity, billing attribution and cross-series preflight.
+- [x] JavaScript/TypeScript, Python, Go, Java and C#/.NET first-party clients.
+- [x] shared five-language executable conformance.
+- [x] npm `@truyn/sdk@0.1.0-alpha.2` accepted immutable release.
+- [x] PyPI `truyn-sdk==0.1.0a1` accepted immutable release.
+- [x] Go `sdk/go@v0.1.0-alpha.1` accepted immutable release.
+- [x] Agent Descriptor signed serving/fetch verification.
+- [x] bounded automatic Descriptor refresh/re-sign before expiry.
 
-### E1 — Instrumentation and isolation qualification
+Open release/DX gates:
 
-- [ ] exact public contract/release pin in private runner;
-- [ ] request/retry/stage attribution with host-local monotonic clocks;
-- [ ] gross provider + private actual-billing attribution kept distinct;
-- [ ] provider-429 vs internal-saturation taxonomy proven;
-- [ ] cross-series R0/R1/R2 dry-run with zero namespace/cleanup collisions;
-- [ ] independent sanitized-evidence recomputation.
+- [ ] complete usable-interface endpoint validation/mapping parity across all five clients;
+- [ ] Maven Central immutable public publication evidence;
+- [ ] NuGet.org immutable public publication evidence;
+- [ ] generated-package byte-content leakage scanning closure;
+- [ ] live public developer-site activation/liveness evidence;
+- [ ] stable release only after protocol/ecosystem criteria are explicitly met.
 
-### E2 — E/DECOMPOSE
+## 5. A2A / MCP and NLWeb
 
-- [ ] final comparable cells at 50/100/200/500 real nodes;
-- [ ] fixed non-saturating load, corpus, oracle and provider mix;
-- [ ] per-stage p50/p95/(qualified p99), bytes/tokens/cost;
-- [ ] request-level `TRUYN tax` in ms and %;
-- [ ] dominant-stage growth and bottleneck interpretation;
-- [ ] immutable evidence + independent reconciliation.
+A2A/MCP C1–C8 + **P2-E1/P2-E2/P2-E3** are accepted as a bounded pre-v1 profile. P2-E2 fixes compatibility generation `a2a-mcp-pre-v1/g1`. **Stable A2A/MCP v1 is not declared** while `TRUYN/1` remains draft. NLWeb protocol 0.5 has bounded pinned executable evidence. Neither track is allowed to silently broaden itself through documentation wording.
 
-### E3 — E/PER-RESULT
+Open:
 
-- [ ] paired TRUYN vs DIRECT under identical useful-result gate;
-- [ ] `$ / useful result`, `wall-seconds / useful result`, `compute/proxy / useful result`;
-- [ ] wrong/unverified answers retain full cost but zero useful credit;
-- [ ] wasted-cost/compute accounting;
-- [ ] paired efficiency ratios + 95% CI.
+- [ ] stable A2A/MCP v1 after TRUYN/1 stability and ecosystem evidence;
+- [ ] later NLWeb upstream profiles only through explicit compatibility diff + black-box requalification.
 
-### E4 — E/KNEE
+## 6. Production operations / managed authority
 
-- [ ] dense grid `50/75/100/150/200/350/500`;
-- [ ] primary curve frozen as DIRECT `$ / useful` divided by TRUYN `$ / useful`;
-- [ ] precommitted segmented breakpoint + bootstrap support;
-- [ ] publish knee/working range or `NO_KNEE_OBSERVED_IN_RANGE`;
-- [ ] connect curve change to DECOMPOSE stage saturation.
+Repository contracts exist for SLI/SLO, observability/alerting, rotation/on-call and recovery/DR. Managed authority/commercial control-plane implementation lives in `inn-media/truyn-platform`.
 
-### E5 — E/DEGRADE
+Still required before production/mainnet claims:
 
-- [ ] separate load ramps at 50/100/200/500 nodes;
-- [ ] frozen offered-load ladder and baseline;
-- [ ] success, p95/p99, queue/backpressure and failure taxonomy per step;
-- [ ] max sustainable load under `success >=99%`, `p95 <=2x baseline`, zero safety violations and no uncontrolled queue growth;
-- [ ] provider external limits labeled separately from internal saturation;
-- [ ] return-to-baseline recovery/hysteresis measurement.
+- [ ] live deployed SLO telemetry and burn-rate evidence;
+- [ ] alert/pager test-fire and acknowledged on-call rotation evidence;
+- [ ] real backup/restore/failover drill evidence;
+- [ ] live managed authority deployment and reconciliation evidence;
+- [ ] bounded security/credential rotation evidence;
+- [ ] long-duration operational stability.
 
-### E6 — Efficiency evidence closure
+## 7. T-Series and H-Series
 
-- [ ] independent recomputation of every headline metric from frozen evidence;
-- [ ] interference/lease/budget/cleanup reconciliation;
-- [ ] safe append-only public reports + structured sanitized evidence + checksums;
-- [ ] private raw operational/billing/topology evidence retained only in `truyn-platform`;
-- [ ] no efficiency/knee/capacity claim exceeds observed workload/provider/scale scope.
+T/H are independent measured-value tracks. Their implementation/qualification activity must not be presented as final benchmark results.
 
-E-Series lanes may execute in parallel with D, S, T and H on disjoint state/resources. Shared R1 services require attribution and an active interference detector. Any capacity change, cache/index mutation or fault target shared with another active measured series is R2-exclusive; E records `WAITING_SHARED_RESOURCE` rather than cancelling or perturbing the owner run.
+- [ ] T/BREAK-EVEN, T/HEAD-TO-HEAD and T/PREDICT require frozen manifests and immutable evidence.
+- [ ] H/CACHE-COMPOUND, H/SECOND-OPINION, H/ARBITRAGE and H/CHAOS-FUZZ require isolated qualified pilots before final claims.
 
-Foundation documents are not benchmark results.
+All D/S/E/T/H work follows `docs/benchmarks/BENCHMARK_SERIES_ISOLATION.md`: R0 may be shared immutably; R1 requires attribution/interference detection; R2 mutation is exclusive.
 
-## A2A / MCP
+## 8. Governance and stable release
 
-Accepted bounded profile includes C1–C8, independent official A2A/MCP black-box proofs, P2-E1 referenced artifacts, P2-E2 compatibility generation `a2a-mcp-pre-v1/g1`, and P2-E3 canonical reconciliation. **Stable A2A/MCP v1 is not declared** because `TRUYN/1` remains draft.
+Stable `TRUYN/1`, stable mainnet and neutral governance are separate gates. None is implied by code volume, one benchmark family, SDK API version `1`, or a pre-release package.
 
-## NLWeb interoperability and semantic discovery
+Near-term governance path:
 
-NLWeb is an external interoperability profile around TRUYN, alongside A2A and MCP. It is **not** a TRUYN transport replacement and does not become a `TRUYN/1` wire dependency.
+- [ ] external maintainers;
+- [ ] multi-organization TSC;
+- [ ] documented neutral stewardship transition criteria.
 
-Accepted Open 1.0 scope is pinned to NLWeb protocol **0.5** at exact upstream source `nlweb-ai/nlweb-typespec@d973d4fe811830eb3734c01a79133adfc474c197`.
+## Roadmap rule
 
-```text
-NLWeb WHO
-   ↓
-TRUYN semantic/native discovery
-   ↓
-authorized + eligible providers / agents / endpoints
-   ↓
-deterministic public/reference selection
-   ↓
-NLWeb ASK
-   ↓
-TRUYN authority / routing / relay / execution
-```
-
-Canonical principle:
-
-> **NLWeb provides semantic discovery and interaction semantics; TRUYN provides distributed discovery, eligibility filtering, selection, execution and transport.**
-
-Development sequence:
-
-- [x] **NW-0 — Architecture/boundary:** public interoperability edge, semantic WHO over TRUYN, application/data concerns outside TRUYN, exact upstream pin;
-- [x] **NW-1 — Adapter core:** bounded client/provider contracts, exact profile negotiation and request/response/error/correlation normalization;
-- [x] **NW-2 — Semantic discovery/advertisement:** authorization-aware eligible discovery, capability/profile handling and deterministic public/reference selection;
-- [x] **NW-3 — `who → selection → ask`:** eligible candidate selection, canonical authority before dispatch, structured response/provenance/correlation preservation;
-- [x] **NW-4 — Routing/relay/security:** fail-closed negotiation, private-provider invisibility and zero unauthorized execution invariants;
-- [x] **NW-5 — Bridge profiles:** claimed NLWeb/TRUYN/MCP/A2A mappings tested; unsupported/lossy mappings remain explicit failures/non-claims;
-- [x] **NW-6 — External conformance:** independent pinned-profile NLWeb black-box run `35487917472` attempt 1 SUCCESS against exact qualified SUT `a28cba182b9cddde34bc34894180d14cfa166d2b`.
-
-TRUYN Open retains deterministic/reference selection so this profile is useful without the private platform. Any private managed ranking is an optimization over an already eligible candidate set and never an authorization source.
-
-Explicit non-goals: crawler/ingestion implementation, indexing, vector search, RAG corpus ownership, brand/news/product content models, publisher/content rights, advertising/campaign data and Data Graph business semantics.
-
-The accepted claim is bounded to the pinned 0.5 profile. Stable NLWeb v1 and later upstream profiles are not claimed and require explicit compatibility work plus executable requalification.
-
-## SDK / developer release
-
-Implemented: TypeScript/JavaScript, Python, Go, Java and C#/.NET clients with shared conformance. Accepted immutable releases include PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central and NuGet remain open.
-
-## T-series commercial proof
-
-The T-series converts existing technical evidence into reproducible commercial evidence without changing protocol acceptance criteria.
-
-Canonical public contract: [`docs/benchmarks/T_SERIES_COMMERCIAL_PROOF.md`](docs/benchmarks/T_SERIES_COMMERCIAL_PROOF.md).
-
-### T0 — Foundation — ACTIVE
-
-- [x] define open/private benchmark boundary;
-- [x] define normalized telemetry/evidence vocabulary;
-- [x] define T/BREAK-EVEN methodology;
-- [x] define T/HEAD-TO-HEAD methodology including NAIVE, bare MCP, bare A2A, NLWeb and NLWeb-over-TRUYN;
-- [x] define T/PREDICT methodology including p99, guardrails and controlled stress;
-- [ ] implement common telemetry emitters/exporters;
-- [ ] implement immutable run/acceptance/price/workload manifests;
-- [ ] qualify public-safe deterministic evidence export.
-
-### T1 — Comparator and billing qualification
-
-- [ ] pin exact comparator implementations/profiles;
-- [ ] qualify provider-reported billed-usage capture;
-- [ ] qualify public price-snapshot ingestion;
-- [ ] prove all TRUYN setup/fixed/variable overhead is attributable;
-- [ ] qualify paired-order randomization and cold/warm cache strata;
-- [ ] validate deterministic/blinded quality scoring.
-
-### T2 — T/BREAK-EVEN
-
-- [ ] pilot three corpus classes;
-- [ ] measured logarithmic volume sweep;
-- [ ] low/mainstream/premium price snapshots where available;
-- [ ] compute variable and fully-loaded `N*`;
-- [ ] final immutable run only after telemetry + billing qualification;
-- [ ] publish `$/request vs volume` curves and limitations.
-
-### T3 — T/HEAD-TO-HEAD
-
-- [ ] freeze multi-hop workload and comparator configs;
-- [ ] paired randomized runs across NAIVE/MCP/A2A/NLWeb/TRUYN;
-- [ ] separate NLWeb-over-TRUYN bridge run;
-- [ ] report tokens, gross cost, E2E latency, context duplication, quality and evidence capability matrix;
-- [ ] publish exact comparator pins/config and immutable evidence.
-
-### T4 — T/PREDICT
-
-- [ ] pilot >=1,000 samples/arm/condition;
-- [ ] final p99 proof >=10,000 measured samples/arm/condition;
-- [ ] baseline cost/latency distributions;
-- [ ] provider slowdown, rate-limit and path/region degradation stress;
-- [ ] max-cost/deadline/reroute/fail-closed guardrail proof;
-- [ ] publish percentile-band and p99-shift evidence.
-
-### T5 — Commercial evidence closure
-
-- [ ] independent reconciliation of all three T-series reports against raw evidence and frozen manifests;
-- [ ] safe public reports committed to append-only benchmark ledger;
-- [ ] private operational/raw evidence retained under `truyn-platform` policy;
-- [ ] no investor/client claim exceeds the exact measured scope.
-
-No T-series gate may weaken existing safety, authorization, provenance or benchmark-evidence requirements. Foundation documents are not benchmark results.
-
-## H-series hidden-value discovery
-
-The H-series tests emergent network value and adversarial robustness that are not guaranteed merely because the protocol works.
-
-Canonical public contract: [`docs/benchmarks/H_SERIES_HIDDEN_BENCHMARKS.md`](docs/benchmarks/H_SERIES_HIDDEN_BENCHMARKS.md).
-
-### H0 — Foundation — ACTIVE
-
-- [x] define OPEN/PRIVATE benchmark boundary;
-- [x] define paired-control and frozen-manifest rules;
-- [x] define common H telemetry/evidence schema;
-- [x] define H/CACHE-COMPOUND methodology;
-- [x] define H/SECOND-OPINION methodology;
-- [x] define H/ARBITRAGE methodology;
-- [x] define H/CHAOS-FUZZ methodology;
-- [x] bind H to the common D/S/T/H/E series-isolation contract;
-- [ ] implement H telemetry emitters and deterministic exporter;
-- [ ] implement private hidden seed/dataset/config precommitment;
-- [ ] qualify isolated private runner and evidence schemas.
-
-### H1 — Instrumentation and isolation qualification
-
-- [ ] dedicated H benchmark requester/provider attribution;
-- [ ] per-run cache/artifact/index/budget namespaces;
-- [ ] provider billed-usage and public price-snapshot capture;
-- [ ] cross-series R0/R1/R2 preflight and interference detector;
-- [ ] exact safe export from private raw evidence to public bundle;
-- [ ] negative authorization controls prove zero unauthorized owner-funded calls.
-
-### H2 — H/CACHE-COMPOUND
-
-- [ ] immutable corpus + controlled Zipf overlap generator;
-- [ ] 50/100/200-node cells with cold and steady-state strata;
-- [ ] reuse-disabled paired control;
-- [ ] same-node vs cross-node reuse attribution;
-- [ ] pilot effect-size/variance qualification;
-- [ ] immutable final campaign and independent metric recomputation.
-
-### H3 — H/SECOND-OPINION
-
-- [ ] hidden gold dataset with calibration/validation/holdout split;
-- [ ] all seven single-vendor baselines;
-- [ ] majority, trust-weighted and verify→dispute policies;
-- [ ] disagreement-subset and error-diversity telemetry;
-- [ ] accuracy lift, trust lift, cost multiplier and accuracy-per-dollar;
-- [ ] immutable holdout campaign with no gold leakage.
-
-### H4 — H/ARBITRAGE
-
-- [ ] pinned public price snapshot ingestion;
-- [ ] deterministic scripted price-shock timeline;
-- [ ] STATIC / TRUYN_COST_AWARE / ORACLE arms;
-- [ ] reaction-lag, misroute, regret and captured-arbitrage metrics;
-- [ ] herd/rate-limit/oscillation scenario;
-- [ ] separate live-price observational run when real price movement exists.
-
-### H5 — H/CHAOS-FUZZ
-
-- [ ] seeded generator families and invariant engine;
-- [ ] exclusive R2 fault-target leases;
-- [ ] protocol/provider/identity/timing/trust fault coverage matrix;
-- [ ] deterministic reproduction + minimization pipeline;
-- [ ] every confirmed defect becomes a permanent regression test;
-- [ ] final closure requires zero critical safety-invariant violations and closure of all acceptance-blocking findings.
-
-### H6 — Hidden-value evidence closure
-
-- [ ] independent reconciliation against frozen manifests and raw evidence;
-- [ ] preserve negative/failed campaigns under append-only evidence policy;
-- [ ] publish safe reports, sanitized per-sample evidence and cryptographic digests;
-- [ ] retain security-sensitive/raw operational material only in `truyn-platform`;
-- [ ] no moat/accuracy/arbitrage/robustness claim exceeds the exact measured scope.
-
-H-series lanes may progress in parallel with D, S, T and E on disjoint state/resources. H/CHAOS-FUZZ fault injection and any mutable shared capacity/cache operation require exclusive R2 ownership; waiting is `WAITING_SHARED_RESOURCE`, never a reason to cancel or contaminate another series.
-
-Foundation documents are not benchmark results.
-
-## Stable/mainnet gate
-
-Stable/mainnet remains gated by the remaining external D-scale/security/reliability qualification, live production operations/authority evidence, stable protocol/ecosystem compatibility, complete stable SDK/Descriptor/site evidence and appropriate governance maturity. D-200 acceptance and NLWeb 0.5 bounded interoperability acceptance do not by themselves declare stable TRUYN or mainnet.
-
-Operational network-scale status remains delegated to [docs/operations/NETWORK_SCALE_STATUS.md](docs/operations/NETWORK_SCALE_STATUS.md).
+A checked roadmap item means the bounded implementation/evidence named by that item is actually accepted. Historical sprint checkpoints remain useful audit history but do not override `docs/architecture/IMPLEMENTATION_STATUS.md`.

@@ -1,50 +1,71 @@
 # TRUYN Operations
 
-**Status:** current reference operations baseline; not a mainnet/SRE compliance claim. Numerical SLI/SLO, observability, alerting/error budgets, security rotation/on-call and recovery/DR contracts are implemented. Managed authority repository/runtime support is accepted through PR `#457`; live production authority/telemetry/pager/backup/restore evidence remains open.
+**Status:** current reference operations baseline; not a mainnet/SRE compliance claim.  
+**Documentation audit:** 2026-09-23
+
+Repository/runtime contracts exist for SLI/SLO, observability, alerting/error budgets, rotation/on-call and recovery/DR. Live deployment-specific telemetry/pager/backup/restore evidence remains a separate acceptance boundary.
 
 ## Implemented repository/runtime contracts
 
-- production SLI/SLO and 28-day error-budget contract (`PRODUCTION_SLO.md`, PR `#424`);
-- OpenTelemetry metrics/traces, structured logs, Prometheus endpoint and dashboards (`OBSERVABILITY.md`, PR `#434`);
-- service alerts and multi-window burn policy (`ALERTING.md`, PR `#434`);
-- credential/identity/trust rotation lifecycle (`ROTATION_LIFECYCLE.md`, PR `#440`);
-- PRIMARY/SECONDARY on-call ownership/escalation (`ON_CALL.md`, PR `#440`);
-- recovery/DR objectives and executable restore-drill contract (`RECOVERY_DR.md`, PR `#441`);
-- managed authority runtime architecture (`MANAGED_AUTHORITY_RUNTIME.md`, PR `#457`).
+- production SLI/SLO and error-budget contract (`PRODUCTION_SLO.md`);
+- OpenTelemetry metrics/traces, structured logs, Prometheus/dashboard surfaces (`OBSERVABILITY.md`);
+- alert and burn-rate policy (`ALERTING.md`);
+- credential/identity/trust rotation lifecycle (`ROTATION_LIFECYCLE.md`);
+- PRIMARY/SECONDARY on-call ownership/escalation contract (`ON_CALL.md`);
+- recovery/DR objectives and restore-drill contract (`RECOVERY_DR.md`);
+- managed authority runtime boundary (`MANAGED_AUTHORITY_RUNTIME.md`).
 
-## Benchmark execution contracts
+## Benchmark execution state
 
-- `S_SERIES_EXECUTION_AND_TELEMETRY.md` defines the operational boundary for the planned Semantic Scale S-50/100/200/500 family: dedicated S workflow/concurrency/resource/evidence namespaces, D-Series non-interference, normalized node/request/chain/network/economic telemetry, spend preflight and immutable evidence closure. It is a **defined benchmark contract, not executed S-Series evidence**.
+### D-Series
+
+Current accepted/active network-scale state belongs in `NETWORK_SCALE_STATUS.md`:
+
+- Class C / D-100 / D-200 accepted;
+- D-200 repeatability confirmed;
+- D-500 attempted but not accepted;
+- D-1000 open.
+
+### S-Series
+
+`S_SERIES_EXECUTION_AND_TELEMETRY.md` is no longer a planning-only document. Managed S-50 execution/qualification machinery and real attempt history exist, and public runtime repairs/regressions have been driven by S-Series qualification.
+
+Current truth: **execution/qualification active, no accepted S-Series PASS**.
+
+### E-Series
+
+`E_SERIES_EXECUTION.md` now reflects the implemented/qualified public validator/recompute layer plus active private exact-head/isolation/provider qualification. Current truth: **implementation/qualification exists, no measured E benchmark PASS**.
+
+All benchmark tracks use the common isolation contract in `../benchmarks/BENCHMARK_SERIES_ISOLATION.md`.
 
 ## Managed authority operations boundary
 
-PR `#457` supplies repository/runtime support for Cosmos checkpointing over managed identity/AAD, checkpoint digest/revision/ETag fencing, digest-bound bootstrap, private authority service/admin surface, monotonic relay cache and fail-closed readiness.
+Managed production authority/control-plane implementation belongs to private `inn-media/truyn-platform`. Public TRUYN keeps open/reference contracts and conformance seams.
 
-It does **not** prove:
+Repository/runtime support does **not** by itself prove:
 
-- production Cosmos provisioning;
-- multi-region writes/failover;
-- continuous backup;
-- migration of real production authority state;
-- live relay cutover;
-- restore/failover drill acceptance;
-- measured revocation/grant/entitlement propagation.
+- provisioned live production persistence;
+- multi-region write/failover behavior;
+- continuous backup acceptance;
+- real production state migration/cutover;
+- accepted restore/failover drills;
+- long-window authority/accounting reconciliation.
 
-Those remain operational acceptance gates.
+Those remain deployment-specific gates.
 
 ## Live production evidence still open
 
-- deployed metrics/log/trace backends with retention/access controls;
-- independent HTTP/WebSocket probes from multiple vantage points;
-- real pager delivery and controlled test-fire;
-- populated private PRIMARY/SECONDARY roster;
+- deployed telemetry backends with retention/access controls;
+- independent external HTTP/WebSocket probes for the target deployment;
+- real pager delivery/test-fire;
+- populated private on-call roster;
 - sanitized credential/authority rotation drills;
-- configured backups/replication and accepted live restore drills;
-- durable 28-day SLO/error-budget evidence tied to an identified deployment;
-- long-window authority/accounting reconciliation evidence.
+- configured backups/replication + accepted restore drills;
+- durable SLO/error-budget evidence tied to an identified deployment;
+- long-duration authority/accounting reconciliation.
 
-Public `/health` remains intentionally minimal; detailed operational state belongs in protected telemetry/control surfaces.
+Public `/health` remains intentionally minimal. Detailed operational state belongs in protected telemetry/control surfaces.
 
 ## Evidence rule
 
-Checked-in dashboards, runbooks and runtime support prove repository capability, not live production compliance. Production claims require deployment-specific evidence.
+Checked-in dashboards, runbooks, workflow code, qualification tools and runtime support prove repository capability only. A deployment/benchmark/release is **accepted** only when the corresponding immutable evidence gate is satisfied.
