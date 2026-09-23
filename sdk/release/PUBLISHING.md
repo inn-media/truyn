@@ -1,6 +1,6 @@
 # TRUYN SDK publication contract
 
-**Status:** npm/PyPI alpha registry closure completed on 2026-09-05; Go public prerelease accepted; Maven Central/NuGet.org remain open  
+**Status:** npm/PyPI alpha registry closure completed on 2026-09-05; Go public prerelease accepted; Maven Central remains open; NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease
 **Canonical repository:** `inn-media/truyn`  
 **Protocol status:** `TRUYN/1` draft
 
@@ -14,9 +14,9 @@ A native SDK release is accepted only when its package bytes are bound to an exa
 | PyPI | `truyn-sdk` | `0.1.0a1` | **Accepted immutable public prerelease** |
 | Go modules | `github.com/inn-media/truyn/sdk/go` | `v0.1.0-alpha.1` | **Accepted immutable public prerelease** |
 | Maven Central | `org.truyn:truyn-sdk` | `0.1.0-alpha.1` | **OPEN** |
-| NuGet.org | `Truyn.Sdk` | `0.1.0-alpha.1` | **OPEN** |
+| NuGet.org | `Truyn.Sdk` | `0.1.0-alpha.1` | **Accepted immutable public prerelease** |
 
-The machine-readable authority for this coordinate-specific boundary is `sdk/release/public-coordinates.json`. Maven and NuGet coordinates above are reserved target coordinates, not accepted public distributions until their real registry publication and independent verification evidence is accepted.
+The machine-readable authority for this coordinate-specific boundary is `sdk/release/public-coordinates.json`. NuGet.org `Truyn.Sdk@0.1.0-alpha.1` is accepted from real public publication plus independent verification evidence; Maven Central remains a reserved target coordinate until its own public publication and independent verification are accepted.
 
 npm `0.1.0-alpha.1` remains public and immutable but is superseded: clean-room Node 22 ESM import proved it unusable because `ws` had been bundled through a CommonJS dynamic require. It is never overwritten. `0.1.0-alpha.2` externalizes `ws` and is the accepted npm alpha.
 
@@ -135,25 +135,23 @@ One-time maintainer steps:
 
 ## NuGet.org (`Truyn.Sdk`)
 
-**State:** OPEN. `dotnet pack` already produces `Truyn.Sdk.<v>.nupkg` in ordinary CI. The package now also embeds `README.md`, XML docs, embedded PDB and SourceLink, and its nuspec records the exact source commit.
+**State:** **ACCEPTED IMMUTABLE PUBLIC PRERELEASE.** `Truyn.Sdk 0.1.0-alpha.1` is publicly available on NuGet.org and is bound to exact source `953ed548a52e4c3440a414ec2401ea324120155e` by immutable tag `sdk/nuget/v0.1.0-alpha.1`.
 
-Repository-side path: `.github/workflows/publish-nuget.yml`, triggered only by an immutable `sdk/nuget/v<version>` tag on exact current `main`. The gates and exact-CI-artifact rules are the same as for Maven. Authentication is **NuGet Trusted Publishing**: `NuGet/login@v1` exchanges the job's GitHub OIDC token for a single-use API key valid for one hour. No long-lived NuGet API key exists anywhere.
+Accepted release chain:
 
-- The push is never `--skip-duplicate`. An existing version is compared with `sdk/release/compare-nupkg.sh` and the job fails on any difference.
-- nuget.org repository-signs each package by adding `.signature.p7s`, so raw bytes differ by design. Every other entry must be byte-identical to the CI package, and `dotnet nuget verify --all` must pass on the public copy.
-- A clean-room `dotnet add package` restore plus a probe that loads `Truyn.Sdk.TruynClient` must pass.
-- The evidence JSON is uploaded as `truyn-sdk-nuget-trusted-publishing-<run>`.
+- ordinary CI run `35903671988` — GREEN on the exact source SHA and produced the canonical package;
+- hosted CodeQL run `35903670985` — GREEN on the same source SHA;
+- NuGet Trusted Publishing run `35904855105` — pushed the exact CI package through GitHub Actions OIDC / `NuGet/login@v1`;
+- independent verification run `35905748486` — fetched the public package without registry mutation, proved content identity excluding the expected NuGet.org repository signature, verified that repository signature with `dotnet nuget verify --all`, and completed clean-room restore plus runtime load of `Truyn.Sdk.TruynClient`.
 
-One-time maintainer steps:
+Canonical committed evidence: `sdk/release/evidence/nuget-alpha1-2026-09-23.json`.
 
-1. Sign in to nuget.org with the organisation account that will own `Truyn.Sdk`, with 2FA on. Optionally request ID-prefix reservation for `Truyn.*`.
-2. Go to nuget.org → *Trusted Publishing* → *Create* and bind exactly:
-   - Repository Owner: `inn-media`
-   - Repository: `truyn`
-   - Workflow File: `publish-nuget.yml`
-   - Environment: `sdk-release`
-3. In GitHub Settings → Environments → `sdk-release`, add the variable `NUGET_USER` = the nuget.org profile name (not an e-mail).
-4. Release: `git tag sdk/nuget/v0.1.0-alpha.1 <exact-main-sha> && git push origin sdk/nuget/v0.1.0-alpha.1`.
-5. After independent verification, set `coordinates.nuget.publicationState` to `accepted`, with committed evidence.
+The publication run successfully mutated the registry. Its terminal clean-room step failed only because that historical verifier used obsolete `dotnet add package --packages` syntax. The independent verification run used `NUGET_PACKAGES`, performed no registry mutation, and closed the acceptance gate GREEN.
 
-Until those account-side steps are complete, both coordinates stay **OPEN** in `public-coordinates.json`. The workflows fail closed; they never fall back to another credential path.
+Repository-side publication remains `.github/workflows/publish-nuget.yml` using NuGet Trusted Publishing. No long-lived NuGet API key is part of the release contract.
+
+Permanent rules: publish only immutable version tags on exact qualified main; consume exact CI package bytes; never skip duplicates; require package-entry identity apart from NuGet.org's repository signature; require `dotnet nuget verify --all`; require clean-room restore/runtime loading; preserve release evidence; and use a new version/tag for materially different bytes.
+
+Configured Trusted Publishing identity: package owner `truyn.org`, repository `inn-media/truyn`, workflow `publish-nuget.yml`, environment `sdk-release`, GitHub environment variable `NUGET_USER=truyn`.
+
+NuGet.org is no longer an external Developer Release publication gate. Maven Central remains the open registry publication gate.

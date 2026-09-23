@@ -1,6 +1,6 @@
 # TRUYN SDK Packaging and Versioning Policy
 
-**Status:** Developer Release package/build verification is implemented. The release family is split after the npm packaging repair: TypeScript/JavaScript uses `0.1.0-alpha.2`, Python uses `0.1.0a1`, and Go/Java/.NET remain on `0.1.0-alpha.1`. npm, PyPI and Go have accepted immutable public release evidence; Maven Central and NuGet remain open.  
+**Status:** Developer Release package/build verification is implemented. The release family is split after the npm packaging repair: TypeScript/JavaScript uses `0.1.0-alpha.2`, Python uses `0.1.0a1`, and Go/Java/.NET remain on `0.1.0-alpha.1`. npm, PyPI and Go have accepted immutable public release evidence; Maven Central remains open; NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 **Protocol:** `TRUYN/1` draft.  
 **Stable SDK API contract:** `1` (separate from protocol stability).
 

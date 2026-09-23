@@ -48,7 +48,7 @@ The common proven client contract includes:
 
 These are no longer skeleton-only or payload-only parity targets. The Developer Release Layer implements real relay clients in all three languages, including identity/signing, relay registration/session use, discovery, OFFER/NEED/RESULT, direct NEED cancellation calls and Agent Descriptor retrieval/verification against the accepted valid fixture, and exercises them in the shared five-language executable gate.
 
-Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` and NuGet.org `Truyn.Sdk 0.1.0-alpha.1` remain open publication gates. Complete malformed-interface validation/mapping parity is also separate from the valid-fixture happy path.
+Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` remains an open publication gate; NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease. Complete malformed-interface validation/mapping parity is also separate from the valid-fixture happy path.
 
 ## Object payload
 
@@ -166,7 +166,7 @@ The gate starts one real local relay and one valid signed Descriptor fixture, th
 
 Ordinary CI builds consumer **verification artifacts** for npm, PyPI, Go, Maven and NuGet. The manifest records the exact source SHA, coordinate/version, byte size and SHA-256 digest for each CI build.
 
-CI verification artifacts remain per-build evidence rather than consumer distribution channels. Accepted public coordinates are frozen independently: npm `0.1.0-alpha.2`, PyPI `0.1.0a1`, and Go `v0.1.0-alpha.1` are immutable accepted prereleases; Maven Central and NuGet.org remain open. A materially different package source or byte set must use a distinct version/tag and can never overwrite an accepted coordinate.
+CI verification artifacts remain per-build evidence rather than consumer distribution channels. Accepted public coordinates are frozen independently: npm `0.1.0-alpha.2`, PyPI `0.1.0a1`, and Go `v0.1.0-alpha.1` are immutable accepted prereleases; NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease; Maven Central remains open. A materially different package source or byte set must use a distinct version/tag and can never overwrite an accepted coordinate.
 
 ## Runtime bounds and failure semantics
 
@@ -192,12 +192,12 @@ The SDK/runtime must never:
 
 ## Stability and release boundary
 
-`TRUYN_SDK_STABLE_API_VERSION` versions the bounded public SDK surface described here. It does not declare `TRUYN/1` stable. npm, PyPI and Go have accepted immutable public prereleases; Java/Maven Central and C#/.NET/NuGet.org remain open public-distribution gates.
+`TRUYN_SDK_STABLE_API_VERSION` versions the bounded public SDK surface described here. It does not declare `TRUYN/1` stable. npm, PyPI and Go have accepted immutable public prereleases; Java/Maven Central remains an open public-distribution gate; C#/.NET/NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 
 Remaining release/lifecycle gates include:
 
 - automatic Descriptor refresh/re-signing plus complete usable-interface validation/mapping parity;
-- Maven Central and NuGet.org immutable public publication with observed provenance;
+- Maven Central immutable public publication with observed provenance;
 - live public developer-site activation/liveness evidence.
 
 Optional later contracts include chain-stage cancellation, standardized cross-provider tokenizer semantics and delegated Descriptor-signing keys.

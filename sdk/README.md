@@ -2,7 +2,7 @@
 
 Native first-party client libraries for applications that integrate directly with TRUYN without depending on an agent-specific provider adapter.
 
-**Current maturity:** Developer Release relay-client implementation is source/build complete. TypeScript/JavaScript, Python, Go, Java and C#/.NET are implemented first-party relay clients and share one executable five-language conformance path. PyPI, Go and npm alpha.2 have accepted immutable public release evidence; Maven Central and NuGet remain open. Agent Descriptor serving/fetch/signature happy paths exist, while automatic refresh and complete usable-interface validation/mapping parity remain open.
+**Current maturity:** Developer Release relay-client implementation is source/build complete. TypeScript/JavaScript, Python, Go, Java and C#/.NET are implemented first-party relay clients and share one executable five-language conformance path. PyPI, Go and npm alpha.2 have accepted immutable public release evidence; Maven Central remains open; NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease. Agent Descriptor serving/fetch/signature happy paths exist, while automatic refresh and complete usable-interface validation/mapping parity remain open.
 
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`  
 **Protocol:** `TRUYN/1` draft  
@@ -16,7 +16,7 @@ Native first-party client libraries for applications that integrate directly wit
 | Python | `python/` | PyPI `truyn-sdk==0.1.0a1` | **Implemented client + Descriptor valid-fixture verification + executable conformance; accepted immutable public release** |
 | Go | `go/` | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | **Implemented relay client + Descriptor valid-fixture verification + executable conformance; accepted immutable public release** |
 | Java | `java/` | Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | **Implemented relay client + Descriptor valid-fixture verification + executable conformance; Maven Central publication open** |
-| C# / .NET | `dotnet/` | NuGet `Truyn.Sdk 0.1.0-alpha.1` | **Implemented relay client + Descriptor valid-fixture verification + executable conformance; NuGet.org publication open** |
+| C# / .NET | `dotnet/` | NuGet `Truyn.Sdk 0.1.0-alpha.1` | **Implemented relay client + Descriptor valid-fixture verification + executable conformance; NuGet.org accepted immutable public release** |
 | Rust | `rust/` | optional | optional secondary track |
 
 The five required first-party targets are **JavaScript/TypeScript, Python, Go, Java and C#/.NET**. Rust may be maintained as an additional SDK but does not replace any required language.

@@ -1,6 +1,6 @@
 # TRUYN SDK Quickstart
 
-**Status:** Developer Release relay-client/package implementation is source/build complete across TypeScript/JavaScript, Python, Go, Java and C#/.NET. npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` are accepted immutable public prereleases. Maven Central and NuGet.org publication remain open. Agent Descriptor refresh/interface-validation parity still has explicit gaps described below, so repository-source onboarding remains the reproducible common path across all five SDKs.
+**Status:** Developer Release relay-client/package implementation is source/build complete across TypeScript/JavaScript, Python, Go, Java and C#/.NET. npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` are accepted immutable public prereleases. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease; Maven Central publication remains open. Agent Descriptor refresh/interface-validation parity still has explicit gaps described below, so repository-source onboarding remains the reproducible common path across all five SDKs.
 
 **Protocol:** `TRUYN/1` draft  
 **Stable SDK API contract:** `1`  
@@ -171,7 +171,7 @@ Current Descriptor limitations are explicit: the runtime signs the public Descri
 
 The TypeScript/Python copy-paste path proves a bounded local signed OFFER/NEED/RESULT transaction through a real local relay. The five-language E2E command proves that all five client implementations can execute the common happy-path relay flow and exercise the accepted Descriptor/cancellation calls described above; it is not a substitute for every negative/lifecycle regression.
 
-It does **not** prove stable `TRUYN/1` protocol compatibility, complete Agent Descriptor refresh/endpoint-negotiation parity, remote production relay onboarding, account/tenant control-plane behavior, QUIC/Kademlia/DHT behavior, D-1000 acceptance, or mainnet readiness. Public registry status is coordinate-specific: npm alpha.2, PyPI alpha and Go alpha are accepted immutable public releases; Maven Central and NuGet.org remain open.
+It does **not** prove stable `TRUYN/1` protocol compatibility, complete Agent Descriptor refresh/endpoint-negotiation parity, remote production relay onboarding, account/tenant control-plane behavior, QUIC/Kademlia/DHT behavior, D-1000 acceptance, or mainnet readiness. Public registry status is coordinate-specific: npm alpha.2, PyPI alpha and Go alpha are accepted immutable public releases; NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease; Maven Central remains open.
 
 ## Next developer paths
 

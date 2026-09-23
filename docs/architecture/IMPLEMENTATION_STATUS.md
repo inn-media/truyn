@@ -52,7 +52,8 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Go alpha | **Accepted immutable public release** | — |
 | npm alpha.1 | **Immutable historical artifact; clean-room Node 22 ESM failed** | superseded, never overwritten |
 | npm alpha.2 | **Accepted immutable public release** | — |
-| Maven Central / NuGet | **OPEN** | public publication evidence |
+| Maven Central | **OPEN** | public publication evidence |
+| NuGet.org `Truyn.Sdk 0.1.0-alpha.1` | **Accepted immutable public release** | publication + independent verification evidence PASS |
 | Agent Descriptor | **Bounded valid-profile implemented** | endpoint/interface parity + refresh/re-sign + full serving parity |
 | Open 1.0 productization | **S01–S102 completed; S103 active on task branch; not yet stable 1.0** | S103 qualification → remaining S104–S200 → final G1–G34 reconciliation |
 | Live developer site | **OPEN** | deployment/liveness evidence |
@@ -93,7 +94,7 @@ A setup/qualification run, provider smoke or isolated paid call is not a substit
 
 Issue #615 is the durable Open 1.0 task anchor. On this snapshot, S01–S102 are completed and S103 is active on a task branch; `main` has not yet accepted S103. Stable Open 1.0 remains forbidden until all applicable S01–S200 work and independent G1–G34 final reconciliation are complete.
 
-Five first-party clients and shared executable conformance already exist. Accepted immutable releases remain PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central and NuGet remain open.
+Five first-party clients and shared executable conformance already exist. Accepted immutable releases remain PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central remains open; NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 
 ## A2A / MCP boundary
 

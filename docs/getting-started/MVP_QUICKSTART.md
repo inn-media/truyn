@@ -197,6 +197,6 @@ signed RESULT
 verification + demo Trustability metadata
 ```
 
-It should not be used as proof of the broader system's production readiness, Internet-scale behavior, completion of the still-open Maven Central/NuGet.org publication gates, or stable compatibility.
+It should not be used as proof of the broader system's production readiness, Internet-scale behavior, completion of the still-open Maven Central publication gate, or stable compatibility.
 
 For the actual implemented/proven/open matrix, use `../architecture/IMPLEMENTATION_STATUS.md`. For the current primary engineering sequence, use `../../ROADMAP.md`.

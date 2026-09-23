@@ -1,6 +1,6 @@
 # TRUYN SDK Compatibility and Migration Policy
 
-**Status:** Developer Release policy implemented for the `0.1.0-alpha.x` family; npm, PyPI and Go have accepted immutable public releases, while Maven Central and NuGet remain evidence-gated.  
+**Status:** Developer Release policy implemented for the `0.1.0-alpha.x` family; npm, PyPI, Go and NuGet.org have accepted immutable public releases; Maven Central remains open.
 **Protocol:** `TRUYN/1` remains draft.  
 **Stable SDK API contract:** `1` is a separately versioned developer-facing contract and does not imply protocol stable-v1.
 
@@ -18,7 +18,7 @@ The bounded alpha family is:
 
 The npm `0.1.0-alpha.1` artifact is immutable but superseded for installation because clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. That defect is repaired by the distinct `0.1.0-alpha.2` version; the immutable alpha.1 bytes are never overwritten. npm alpha.2 is now an accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import. The other ecosystem coordinates are unchanged because this repair is npm-packaging-specific.
 
-These coordinates describe the current source/package family. Registry state is verified independently; source/build conformance cannot substitute for public publication evidence. PyPI, Go and npm have accepted public alpha evidence; Maven Central and NuGet remain open.
+These coordinates describe the current source/package family. Registry state is verified independently; source/build conformance cannot substitute for public publication evidence. PyPI, Go and npm have accepted public alpha evidence; Maven Central remains open; NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 
 ## Compatibility declaration required for every release
 

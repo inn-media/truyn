@@ -1,6 +1,6 @@
 # TRUYN C#/.NET SDK
 
-**Status:** implemented Developer Release relay client; source/build complete, pre-stable, and not yet claimed as a publicly published NuGet release.
+**Status:** implemented Developer Release relay client; source/build complete, pre-stable, and published and independently verified as the immutable public NuGet prerelease `Truyn.Sdk 0.1.0-alpha.1`.
 
 The .NET SDK is one of the five required first-party Developer Release clients. It implements the bounded common contract rather than a skeleton-only surface:
 
@@ -18,6 +18,14 @@ Current alpha coordinate:
 ```text
 Truyn.Sdk 0.1.0-alpha.1
 ```
+
+**Accepted public NuGet prerelease:** independently verified on NuGet.org.
+
+```bash
+dotnet add package Truyn.Sdk --version 0.1.0-alpha.1
+```
+
+Release evidence: `../release/evidence/nuget-alpha1-2026-09-23.json`.
 
 This package line is pre-stable. The bounded SDK API-v1 surface follows the accepted TRUYN/1, first-class REST/API, and interoperability contracts, while protocol/profile stability and final Open 1.0 release status remain governed by their own exact-head qualification gates. Provider authorization, visibility and billing remain server/runtime policy, never client-supplied authority.
 
