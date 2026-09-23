@@ -32,9 +32,11 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          mapfile -t tokens < <(jq -r '.commits[]?.added[]?' "$GITHUB_EVENT_PATH" | grep -E '^\.github/class-d-bootstrap/launch-d(500|1000)-[0-9a-f]{8}\.txt$' | sort -u)
-          [[ ${#tokens[@]} -eq 1 ]]
-          token="${tokens[0]}"
+          parent="$(git rev-parse HEAD^)"
+          mapfile -t changed < <(git diff --name-only "$parent" "$GITHUB_SHA")
+          [[ ${#changed[@]} -eq 1 ]]
+          token="${changed[0]}"
+          [[ "$token" =~ ^\.github/class-d-bootstrap/launch-d(500|1000)-[0-9a-f]{8}\.txt$ ]]
           [[ -f "$token" ]]
 
           source_sha="$(sed -n 's/^SOURCE_SHA=//p' "$token")"
@@ -53,9 +55,8 @@ jobs:
 
           main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
           [[ "$main_sha" == "$source_sha" ]]
-          [[ "$(git rev-parse HEAD^)" == "$source_sha" ]]
+          [[ "$parent" == "$source_sha" ]]
           [[ "$(git rev-list --count "${source_sha}..HEAD")" == 1 ]]
-          mapfile -t changed < <(git diff --name-only "$source_sha" "$GITHUB_SHA")
-          [[ ${#changed[@]} -eq 1 && "${changed[0]}" == "$token" ]]
+          [[ "${changed[0]}" == "$token" ]]
 
           echo "TRUYN_CLASS_D_BOOTSTRAP_REQUEST scale=$scale source_sha=$source_sha token=$token status=VALIDATED"
