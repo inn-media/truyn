@@ -28,7 +28,7 @@ jobs:
 
       - name: Validate exact request and dispatch canonical workflow
         env:
-          GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+          GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
         shell: bash
         run: |
           set -Eeuo pipefail
