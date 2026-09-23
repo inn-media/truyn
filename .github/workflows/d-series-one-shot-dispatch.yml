@@ -28,10 +28,13 @@ jobs:
 
       - name: Validate exact request and dispatch canonical workflow
         env:
-          GH_TOKEN: ${{ secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB || secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+          GH_TOKEN: ${{ secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB || secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+          HAS_GENERAL: ${{ secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB != '' }}
+          HAS_ORGANIZATION: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB != '' }}
         shell: bash
         run: |
           set -Eeuo pipefail
+          echo "privileged_credentials general=$HAS_GENERAL organization=$HAS_ORGANIZATION"
           [[ -n "${GH_TOKEN:-}" ]]
           request=.github/d-series-dispatch/request.env
           [[ -s "$request" ]]
