@@ -27,6 +27,32 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact current main SHA to diagnose
+        required: true
+        type: string
+      scale:
+        description: Class-D scope
+        required: false
+        default: all
+        type: string
+      resume_run_id:
+        description: Previous Swarm run id whose stage checkpoint should be resumed
+        required: false
+        default: ''
+        type: string
+      resume_from:
+        description: Optional stage id to invalidate and rerun with all descendants
+        required: false
+        default: ''
+        type: string
+      resume_across_sha:
+        description: Allow reuse of unaffected PASS stages when source SHA changed
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -78,7 +104,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         if: steps.selection.outputs.selected == 'true'
@@ -90,13 +116,13 @@ jobs:
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
-          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
-          if [[ "$EVENT" == workflow_dispatch ]]; then
+          if [[ "$EVENT" != pull_request ]]; then
             main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
             [[ "$main_sha" == "$EXPECTED_SHA" ]]
           fi
@@ -106,7 +132,7 @@ jobs:
         if: steps.selection.outputs.selected == 'true'
         env:
           D200_LANE_RESULT: d200-lane-${{ matrix.lane }}.json
-          GITHUB_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          GITHUB_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
         run: node scripts/d200-bug-hunt-lane.mjs '${{ matrix.lane }}'
 
       - name: Upload D-200 lane evidence
@@ -143,7 +169,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         if: steps.selection.outputs.selected == 'true'
@@ -155,19 +181,19 @@ jobs:
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
-          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
-          if [[ "$EVENT" == workflow_dispatch ]]; then
+          if [[ "$EVENT" != pull_request ]]; then
             [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]
           fi
           npm install --ignore-scripts --no-audit --no-fund
           node scripts/check-class-d-five-patches.mjs
 
       - name: Download previous D-200 resumable checkpoint
-        if: steps.selection.outputs.selected == 'true' && github.event_name == 'workflow_dispatch' && inputs.resume_run_id != ''
+        if: steps.selection.outputs.selected == 'true' && inputs.resume_run_id != ''
         uses: actions/download-artifact@v4
         with:
           name: d200-stage-checkpoint-${{ inputs.resume_run_id }}
@@ -179,7 +205,7 @@ jobs:
         if: steps.selection.outputs.selected == 'true'
         shell: bash
         env:
-          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           RESUME_RUN_ID: ${{ inputs.resume_run_id || '' }}
           RESUME_FROM: ${{ inputs.resume_from || '' }}
           RESUME_ACROSS_SHA: ${{ inputs.resume_across_sha || false }}
@@ -229,7 +255,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         if: steps.selection.outputs.selected == 'true'
@@ -256,7 +282,7 @@ jobs:
       - name: Enforce D-200 resumable stage plan evidence from exact tested SHA
         if: steps.selection.outputs.selected == 'true'
         env:
-          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
         run: node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('d200-stage-plan/d200-stage-checkpoint.json','utf8'));if(Number(p.classSize)!==200||p.sourceSha!==process.env.EXPECTED_SHA||p.summary?.clean!==true)process.exit(1);"
 
       - name: Upload legacy D-200 aggregate evidence
@@ -300,7 +326,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         if: steps.selection.outputs.selected == 'true'
@@ -312,19 +338,19 @@ jobs:
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
-          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
-          if [[ "$EVENT" == workflow_dispatch ]]; then
+          if [[ "$EVENT" != pull_request ]]; then
             [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]
           fi
           npm install --ignore-scripts --no-audit --no-fund
           node scripts/check-class-d-five-patches.mjs
 
       - name: Download previous class checkpoint
-        if: steps.selection.outputs.selected == 'true' && github.event_name == 'workflow_dispatch' && inputs.resume_run_id != ''
+        if: steps.selection.outputs.selected == 'true' && inputs.resume_run_id != ''
         uses: actions/download-artifact@v4
         with:
           name: d-series-swarm-stage-${{ matrix.class_size }}-${{ inputs.resume_run_id }}
@@ -337,7 +363,7 @@ jobs:
         shell: bash
         env:
           CLASS_SIZE: ${{ matrix.class_size }}
-          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           RESUME_RUN_ID: ${{ inputs.resume_run_id || '' }}
           RESUME_FROM: ${{ inputs.resume_from || '' }}
           RESUME_ACROSS_SHA: ${{ inputs.resume_across_sha || false }}
@@ -379,7 +405,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -389,12 +415,12 @@ jobs:
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
-          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
-          if [[ "$EVENT" == workflow_dispatch ]]; then
+          if [[ "$EVENT" != pull_request ]]; then
             [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]
           fi
           npm install --ignore-scripts --no-audit --no-fund
@@ -402,7 +428,7 @@ jobs:
       - name: Run Blockwise domain as Swarm diagnostic shard
         shell: bash
         env:
-          TRUYN_CLASS_D_SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           SCALE_INPUT: ${{ inputs.scale || 'all' }}
           BLOCK_ID: ${{ matrix.block }}
         run: |
@@ -436,7 +462,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -472,7 +498,7 @@ jobs:
       - name: Deduplicate root causes and enforce clean Swarm
         shell: bash
         env:
-          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && (inputs.source_sha || github.sha) || github.event.pull_request.head.sha }}
+          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
           SCALE_INPUT: ${{ inputs.scale || 'all' }}
         run: |
           set -Eeuo pipefail
