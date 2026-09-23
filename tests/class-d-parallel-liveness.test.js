@@ -22,10 +22,9 @@ test('Class-D canonical provisioner uses parallel host barriers and bounded para
   assert.match(provision, /class_d_phase_deadline_seconds cleanup/);
 });
 
-test('Class-D phase deadlines preserve requested D-500/D-1000 outer watchdogs', async () => {
+test('Class-D phase deadlines preserve requested future D-500 and D-1000 outer watchdogs', async () => {
   const deadlines = await read('scripts/lib/class-d-phase-deadlines.sh');
   const strictD1000 = await read('scripts/class-d-1000-strict-acceptance.sh');
-  const d500 = await read('.github/workflows/d500-acceptance.yml');
   const d500Template = await read('.github/d500/d500-acceptance.template.yml');
   const orchestrator = await read('scripts/d200-stage-isolated-campaign.sh');
 
@@ -35,7 +34,6 @@ test('Class-D phase deadlines preserve requested D-500/D-1000 outer watchdogs', 
     assert.ok(deadlines.includes(family), `missing phase family ${family}`);
   }
   assert.match(strictD1000, /timeout --signal=TERM --kill-after=300s 240m/);
-  assert.match(d500, /timeout-minutes: 120/);
   assert.match(d500Template, /timeout-minutes: 120/);
   assert.match(orchestrator, /class_d_phase_deadline_seconds/);
   assert.match(orchestrator, /TRUYN_CLASS_D_PHASE_DEADLINE/);
