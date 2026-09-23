@@ -1,0 +1,46 @@
+name: D-Series Parallel Liveness Repair Fix
+
+on:
+  push:
+    branches:
+      - 'automation/autorepair/d-series-parallel-liveness-260923'
+    paths:
+      - '.github/workflows/d-series-parallel-liveness-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+      - name: Escape generated workflow expression
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/d-series-parallel-liveness-repair.yml')
+          t=p.read_text()
+          needle='          ref: ' + '$' + '{{ env.SOURCE_SHA }}'
+          if t.count(needle) != 2:
+              raise SystemExit(f'expected 2 generated ref expressions, found {t.count(needle)}')
+          t=t.replace(needle, '          ref: __SOURCE_SHA_EXPR__')
+          anchor="'''\nreplace_exact(workflow, 'jobs:\\n  block:\\n', gate_jobs)"
+          replacement="'''\ngate_jobs=gate_jobs.replace('__SOURCE_SHA_EXPR__', '$' + '{{ env.SOURCE_SHA }}')\nreplace_exact(workflow, 'jobs:\\n  block:\\n', gate_jobs)"
+          if t.count(anchor) != 1:
+              raise SystemExit(f'gate replacement anchor mismatch: {t.count(anchor)}')
+          p.write_text(t.replace(anchor,replacement,1))
+          PY
+          git diff --check
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git rm .github/workflows/d-series-parallel-liveness-fix.yml
+          git add .github/workflows/d-series-parallel-liveness-repair.yml
+          git commit -s -m 'fix(class-d): preserve generated exact-source expression'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
