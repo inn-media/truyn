@@ -15,22 +15,24 @@ jq -e --arg source "$SOURCE_SHA" '
   .name == "D-Series Blockwise Preflight" and
   .head_branch == "main" and
   .head_sha == $source and
-  .event == "push" and
+  .event == "workflow_dispatch" and
   .status == "completed" and
   .conclusion == "success" and
   .run_attempt == 1
 ' <<<"$run" >/dev/null || {
-  echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=run_not_exact_green run_id=$RUN_ID source_sha=$SOURCE_SHA" >&2
+  echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=run_not_exact_admission_green run_id=$RUN_ID source_sha=$SOURCE_SHA" >&2
   exit 5
 }
 
 artifacts="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/artifacts?per_page=100")"
-expected="d-series-blockwise-summary-${RUN_ID}"
-jq -e --arg expected "$expected" '
-  [.artifacts[] | select(.name == $expected and .expired == false and (.size_in_bytes // 0) > 0)] | length == 1
+summary="d-series-blockwise-summary-${RUN_ID}"
+admission="d-series-blockwise-admission-${RUN_ID}"
+jq -e --arg summary "$summary" --arg admission "$admission" '
+  ([.artifacts[] | select(.name == $summary and .expired == false and (.size_in_bytes // 0) > 0)] | length == 1) and
+  ([.artifacts[] | select(.name == $admission and .expired == false and (.size_in_bytes // 0) > 0)] | length == 1)
 ' <<<"$artifacts" >/dev/null || {
-  echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=summary_artifact_missing run_id=$RUN_ID source_sha=$SOURCE_SHA" >&2
+  echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=admission_evidence_missing run_id=$RUN_ID source_sha=$SOURCE_SHA" >&2
   exit 6
 }
 
-echo "TRUYN_D_SERIES_BLOCKWISE_GATE=PASS run_id=$RUN_ID source_sha=$SOURCE_SHA blocks=16/16 exact_sha=true"
+echo "TRUYN_D_SERIES_BLOCKWISE_GATE=PASS run_id=$RUN_ID source_sha=$SOURCE_SHA blocks=16/16 swarm_provenance=true exact_sha=true"

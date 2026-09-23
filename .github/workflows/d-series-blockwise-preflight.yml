@@ -1,8 +1,6 @@
 name: D-Series Blockwise Preflight
 
 on:
-  push:
-    branches: [main]
   pull_request: {}
   workflow_dispatch:
     inputs:
@@ -22,6 +20,10 @@ on:
         default: all
         type: choice
         options: [all, B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12, B13, B14, B15, B16]
+      swarm_run_id:
+        description: Exact-SHA GREEN D-Series Sanitation Swarm run; required only for full admission
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -32,8 +34,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  swarm-prerequisite:
+    name: d-series-swarm-prerequisite
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
+
+      - name: Validate exact source
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+          if [[ "$EVENT" == workflow_dispatch ]]; then
+            main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+            [[ "$main_sha" == "$EXPECTED_SHA" ]]
+          fi
+
+      - name: Require clean Swarm before full admission
+        if: github.event_name == 'workflow_dispatch' && inputs.block == 'all'
+        shell: bash
+        env:
+          TRUYN_D_SERIES_SWARM_RUN: ${{ inputs.swarm_run_id }}
+          TRUYN_D_SERIES_SWARM_SCALE: ${{ inputs.scale }}
+        run: |
+          set -Eeuo pipefail
+          bash scripts/verify-d-series-swarm-run.sh "${{ inputs.source_sha }}"
+
+      - name: Mark diagnostic-only execution
+        if: github.event_name != 'workflow_dispatch' || inputs.block != 'all'
+        run: echo 'TRUYN_D_SERIES_BLOCKWISE_MODE=DIAGNOSTIC_ONLY'
+
   blocks:
     name: d-series-${{ matrix.block }}
+    needs: [swarm-prerequisite]
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     strategy:
@@ -59,7 +102,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
 
       - uses: actions/setup-node@v4
         if: steps.selection.outputs.selected == 'true'
@@ -71,7 +114,7 @@ jobs:
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
-          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
@@ -87,7 +130,7 @@ jobs:
         if: steps.selection.outputs.selected == 'true'
         shell: bash
         env:
-          TRUYN_CLASS_D_SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
           SCALE_INPUT: ${{ inputs.scale || 'all' }}
           BLOCK_ID: ${{ matrix.block }}
         run: |
@@ -112,7 +155,7 @@ jobs:
 
   aggregate:
     name: d-series-blockwise-aggregate
-    needs: [blocks]
+    needs: [swarm-prerequisite, blocks]
     if: always()
     runs-on: ubuntu-22.04
     timeout-minutes: 10
@@ -121,7 +164,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -136,7 +179,7 @@ jobs:
       - name: Aggregate exact-SHA block evidence and enforce terminal state
         shell: bash
         env:
-          TRUYN_CLASS_D_SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.pull_request.head.sha }}
           EVENT: ${{ github.event_name }}
           REQUESTED_BLOCK: ${{ inputs.block || 'all' }}
         run: |
@@ -147,11 +190,36 @@ jobs:
             node scripts/d-series-block-aggregate.mjs d-series-results --output d-series-blockwise-summary.json --source-sha "$TRUYN_CLASS_D_SOURCE_SHA" --scope full --enforce
           fi
 
+      - name: Create launch-eligible admission provenance
+        if: github.event_name == 'workflow_dispatch' && inputs.block == 'all'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > d-series-blockwise-admission.json <<EOF
+          {
+            "schema": "truyn.d-series.blockwise-admission.v1",
+            "sourceSha": "${{ inputs.source_sha }}",
+            "scale": "${{ inputs.scale }}",
+            "swarmRunId": "${{ inputs.swarm_run_id }}",
+            "blockwiseRunId": "${{ github.run_id }}",
+            "blocks": "16/16"
+          }
+          EOF
+
       - name: Upload aggregate evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: d-series-blockwise-summary-${{ github.run_id }}
           path: d-series-blockwise-summary.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload admission provenance
+        if: github.event_name == 'workflow_dispatch' && inputs.block == 'all'
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-blockwise-admission-${{ github.run_id }}
+          path: d-series-blockwise-admission.json
           if-no-files-found: error
           retention-days: 90
