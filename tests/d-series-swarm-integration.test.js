@@ -34,6 +34,7 @@ test('Sanitation Swarm remains the primary D-Series engine and consumes Blockwis
   const docs = read('docs/operations/class-d/D_SERIES_SANITATION_SWARM.md');
   for (const marker of [
     'name: D-Series Sanitation Swarm',
+    'workflow_call:',
     'scripts/class-d-stage-runner.mjs',
     'scripts/d-series-block-runner.mjs',
     'fail-fast: false',
@@ -61,6 +62,24 @@ test('full Blockwise admission is impossible without exact-SHA GREEN Swarm prove
   assert.ok(verifier.includes('swarm_provenance=true'));
 });
 
+test('canonical one-shot caller invokes only the reusable Swarm and preserves exact-main provenance', () => {
+  const launcher = read('.github/workflows/d-series-swarm-one-shot-launcher.yml');
+  for (const marker of [
+    'name: D-Series Swarm One-Shot Launcher',
+    "- 'automation/d-series-dispatch/**'",
+    "- '.github/d-series-dispatch/request.env'",
+    'git rev-parse HEAD^',
+    'git rev-list --count',
+    'git diff --name-only',
+    'uses: ./.github/workflows/d200-bug-hunt.yml',
+    'source_sha: ${{ needs.plan.outputs.source_sha }}',
+    'resume_across_sha: false'
+  ]) assert.ok(launcher.includes(marker), `canonical Swarm caller lost marker: ${marker}`);
+  assert.ok(!launcher.includes('gh workflow run'), 'canonical caller must not recursively dispatch another workflow');
+  assert.ok(!launcher.includes('d-series-blockwise-preflight.yml'), 'canonical caller must not bypass the Swarm-to-Blockwise boundary');
+  assert.ok(!launcher.includes('d500-acceptance'), 'canonical caller must not launch a real D-500 campaign');
+});
+
 test('real D-500 and D-1000 acceptance surfaces remain downstream of Blockwise admission', () => {
   const d500 = read('.github/d500/d500-acceptance.template.yml');
   const d1000 = read('scripts/class-d-1000-final-acceptance.sh');
@@ -69,13 +88,19 @@ test('real D-500 and D-1000 acceptance surfaces remain downstream of Blockwise a
   }
 });
 
-test('Swarm verifier binds admission evidence to exact main and requested scale', () => {
+test('Swarm verifier binds admission evidence to exact main, requested scale, and canonical caller provenance', () => {
   const verifier = read('scripts/verify-d-series-swarm-run.sh');
   for (const marker of [
     '.name == "D-Series Sanitation Swarm"',
+    '.path == ".github/workflows/d200-bug-hunt.yml"',
     '.head_branch == "main"',
     '.head_sha == $source',
     '.event == "workflow_dispatch"',
+    'D-Series Swarm One-Shot Launcher',
+    'd-series-swarm-one-shot-launcher.yml',
+    'caller_parent_not_exact_main',
+    'caller_delta_not_single_request',
+    'caller_request_mismatch',
     'd-series-swarm-summary-${EXPECTED_SCALE}-${RUN_ID}',
     'd-series-swarm-summary-all-${RUN_ID}'
   ]) assert.ok(verifier.includes(marker), `Swarm verifier lost marker: ${marker}`);
