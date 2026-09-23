@@ -1,0 +1,53 @@
+name: Temporary cancel orphaned run 32558383377
+
+on:
+  push:
+    branches:
+      - ops/cancel-orphaned-ci-32558383377
+    paths:
+      - .github/workflows/tmp-cancel-orphaned-run-32558383377.yml
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel-orphaned-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel stale orphaned workflow run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_RUN_ID: '32558383377'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          run="$(gh api "repos/${repo}/actions/runs/${TARGET_RUN_ID}")"
+          status="$(jq -r '.status' <<<"$run")"
+          conclusion="$(jq -r '.conclusion // ""' <<<"$run")"
+          head_sha="$(jq -r '.head_sha' <<<"$run")"
+          created_at="$(jq -r '.created_at' <<<"$run")"
+          echo "target status=${status} conclusion=${conclusion} head_sha=${head_sha} created_at=${created_at}"
+
+          if [[ "$status" == "completed" ]]; then
+            echo "Target already terminal; nothing to cancel."
+            exit 0
+          fi
+
+          gh api -X POST "repos/${repo}/actions/runs/${TARGET_RUN_ID}/cancel"
+
+          for _ in {1..30}; do
+            sleep 2
+            run="$(gh api "repos/${repo}/actions/runs/${TARGET_RUN_ID}")"
+            status="$(jq -r '.status' <<<"$run")"
+            conclusion="$(jq -r '.conclusion // ""' <<<"$run")"
+            echo "post-cancel status=${status} conclusion=${conclusion}"
+            if [[ "$status" == "completed" ]]; then
+              [[ "$conclusion" == "cancelled" ]]
+              exit 0
+            fi
+          done
+
+          echo "Target run did not reach completed/cancelled within bounded poll window" >&2
+          exit 1
