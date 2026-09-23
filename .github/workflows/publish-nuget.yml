@@ -5,11 +5,14 @@ name: Publish .NET SDK to NuGet.org via Trusted Publishing
 # a GitHub OIDC token is exchanged by NuGet/login for a single-use API key valid for one hour.
 # No long-lived NuGet API key exists in this repository or its environments.
 # Contract: sdk/release/PUBLISHING.md § "NuGet.org".
+# workflow_dispatch is intentionally supported only when the selected ref is the immutable
+# sdk/nuget/v<version> tag; resolve-release-gates.sh fails closed for any non-tag ref.
 
 on:
   push:
     tags:
       - 'sdk/nuget/v*'
+  workflow_dispatch:
 
 permissions:
   contents: read
