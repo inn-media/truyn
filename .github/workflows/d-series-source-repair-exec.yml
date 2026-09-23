@@ -1,0 +1,83 @@
+name: D-Series Source Repair Executor
+
+on:
+  push:
+    branches:
+      - 'automation/autorepair/d-series-parallel-liveness-260923'
+    paths:
+      - '.github/workflows/d-series-source-repair-exec.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair-source:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+
+      - name: Verify exact base is still authoritative
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git fetch origin main --quiet
+          [[ "$(git rev-parse origin/main)" == '3a1f7e67b80cecf678d373e33db9ceb09098e8a4' ]]
+          [[ "$(git merge-base HEAD origin/main)" == '3a1f7e67b80cecf678d373e33db9ceb09098e8a4' ]]
+
+      - name: Execute canonical transformation from repair definition
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/d-series-parallel-liveness-repair.yml')
+          lines=p.read_text().splitlines()
+          start=next(i for i,l in enumerate(lines) if l.strip() == '- name: Apply fail-closed parallel liveness transformation')
+          run=next(i for i in range(start+1,len(lines)) if lines[i].strip() == 'run: |')
+          end=next(i for i in range(run+1,len(lines)) if lines[i].startswith('      - name: Validate transformed harness'))
+          body=[]
+          for line in lines[run+1:end]:
+              if line.startswith('          '): body.append(line[10:])
+              elif not line.strip(): body.append('')
+              else: raise SystemExit(f'unexpected indentation: {line!r}')
+          Path('/tmp/class-d-transform.sh').write_text('\n'.join(body)+'\n')
+          PY
+          bash -n /tmp/class-d-transform.sh
+          bash /tmp/class-d-transform.sh
+          git diff --check
+
+      - name: Validate transformed source before commit
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n benchmarks/scale/class-d-azure-1000-provision.sh
+          bash -n scripts/lib/class-d-phase-deadlines.sh
+          bash -n scripts/d200-stage-isolated-campaign.sh
+          bash -n scripts/class-d-1000-strict-acceptance.sh
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --test tests/class-d-parallel-liveness.test.js
+          node --test tests/class-d-bootstrap-qualification.test.js tests/class-d-1000-bootstrap.test.js tests/d200-stage-isolation.test.js
+          git diff --check
+
+      - name: Commit source changes without workflow mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git checkout -- .github/workflows/d500-acceptance.yml .github/workflows/class-d-blockwise-preflight.yml
+          node --test tests/class-d-parallel-liveness.test.js
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add -- \
+            benchmarks/scale/class-d-azure-1000-provision.sh \
+            scripts/d200-stage-isolated-campaign.sh \
+            scripts/class-d-1000-strict-acceptance.sh \
+            scripts/class-d-blockwise-preflight.mjs \
+            .github/d500/d500-acceptance.template.yml
+          git diff --cached --check
+          git commit -s -m 'fix(class-d): parallelize D-series liveness phases'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
