@@ -35,6 +35,7 @@ test('blockwise workflow runs all blocks in parallel without fail-fast and suppo
   assert.match(workflow, /swarm_run_id:/);
   assert.match(workflow, /Require clean Swarm before full admission/);
   assert.match(workflow, /verify-d-series-swarm-run\.sh/);
+  assert.match(workflow, /- name: Require clean Swarm before full admission[\s\S]*?env:\s*\n\s*GH_TOKEN: \$\{\{ github\.token \}\}[\s\S]*?TRUYN_D_SERIES_SWARM_RUN/);
   assert.match(workflow, /fail-fast: false/);
   for (let i = 1; i <= 16; i += 1) assert.match(workflow, new RegExp(`B${String(i).padStart(2, '0')}`));
   assert.match(workflow, /Run complete block cycle and retain all failures/);
