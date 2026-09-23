@@ -54,6 +54,22 @@ The Swarm phase is a loop, not a single command. A RED Swarm is expected to prod
 
 The existing `scripts/class-d-stage-runner.mjs` remains the canonical stage engine. The Blockwise runner does not replace it. The historical `.github/workflows/d200-bug-hunt.yml` path is retained deliberately and promoted to the D-Series Sanitation Swarm entrypoint so the proven D-200 mechanics are not discarded.
 
+## Canonical one-shot caller
+
+`D-Series Swarm One-Shot Launcher` is a transport surface only. It does not implement diagnostics, admission, live qualification, collision checks or a real D-Series campaign. Its only material job is to validate a one-shot request and call the canonical reusable `.github/workflows/d200-bug-hunt.yml` Swarm.
+
+A caller run is valid Swarm provenance only when all of these conditions are proven fail-closed by `scripts/verify-d-series-swarm-run.sh`:
+
+- the launcher branch name is exactly `automation/d-series-dispatch/<source-prefix>-<scale>-swarm`;
+- the launcher commit has exactly one parent and that parent is the tested exact-main source SHA;
+- the launcher is exactly one commit ahead of that source SHA;
+- the only changed file is `.github/d-series-dispatch/request.env`;
+- the request contains exactly `SOURCE_SHA`, `SCALE` and `MODE=swarm` for the tested source and requested scale;
+- the top-level caller run is attempt 1, completed successfully, and uses the canonical launcher workflow;
+- the canonical Swarm summary artifact for that same run id and scale exists and is retained.
+
+This caller is not a launcher-direct architecture: it cannot run Blockwise, live qualification or D-500/D-1000 acceptance and it cannot contain a copied Swarm implementation. Any caller that bypasses the canonical reusable Swarm remains forbidden by the architecture lock.
+
 ## What Blockwise owns
 
 B01-B16 is the normalized domain model and final admission gate. During the Swarm, all B01-B16 domains run as diagnostic shards so one pass exposes as many independent failures as possible. During repair, one Bxx block may be rerun in targeted mode. A targeted GREEN is never launch authorization.
@@ -61,7 +77,7 @@ B01-B16 is the normalized domain model and final admission gate. During the Swar
 A full admission run is valid only when:
 
 - it is a `workflow_dispatch` on exact current `main`;
-- a successful exact-SHA `D-Series Sanitation Swarm` run is supplied as provenance;
+- a successful exact-SHA `D-Series Sanitation Swarm` provenance run is supplied, either as the canonical direct `workflow_dispatch` or the strictly verified canonical one-shot reusable caller described above;
 - the Swarm scope is the requested D-class or `all`;
 - the full Blockwise aggregate is 16/16 PASS on that same source SHA;
 - the admission provenance artifact is retained.
