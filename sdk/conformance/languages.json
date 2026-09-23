@@ -3,7 +3,7 @@
   "protocol": "TRUYN/1",
   "stableSdkApiVersion": "1",
   "requiredFirstPartyLanguages": ["typescript", "python", "go", "java", "dotnet"],
-  "acceptedPublicDistributionLanguages": ["typescript", "python", "go"],
+  "acceptedPublicDistributionLanguages": ["typescript", "python", "go", "java"],
   "foundationalDtos": ["Identity", "AgentDescriptor", "Capability", "Offer", "Need", "Result", "ArtifactRef", "NormalizedError"],
   "dx3PortablePayloadKinds": ["object", "artifact"],
   "developerReleaseExecutableConformance": "sdk/conformance/run-five-language-e2e.mjs",
@@ -46,7 +46,8 @@
       "root": "sdk/java",
       "sourceFiles": ["sdk/java/pom.xml", "sdk/java/src/main/java/org/truyn/sdk/TruynClient.java", "sdk/java/src/main/java/org/truyn/sdk/TruynModels.java", "sdk/java/src/main/java/org/truyn/sdk/TruynException.java", "sdk/java/src/main/java/org/truyn/sdk/Json.java", "sdk/java/src/main/java/org/truyn/sdk/AgentDescriptors.java", "sdk/java/src/test/java/org/truyn/sdk/ConformanceMain.java"],
       "requiredMarkers": ["artifactId>truyn-sdk</artifactId", "public final class TruynClient", "TruynClient connect", "cancelNeed", "AgentDescriptors", "Agent Descriptor retrieval", "record Identity", "record AgentDescriptor", "record OfferPayload", "record NeedPayload", "record ResultPayload", "record ArtifactRef", "record NormalizedError", "STABLE_SDK_API_VERSION", "record ObjectPayload", "record ArtifactPayload", "record StreamItem", "TRUYN/1", "truyn.agent-descriptor/v1"],
-      "publicDistribution": false
+      "publicDistribution": true,
+      "publicDistributionChannel": "pre-release"
     },
     {
       "id": "dotnet",
