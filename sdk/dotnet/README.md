@@ -38,3 +38,14 @@ Ordinary CI also compiles the .NET SDK and builds/verifies the NuGet package wit
 Package build success is not public registry publication. NuGet publication remains an external release/evidence gate and must not be inferred from this README.
 
 See `../README.md`, `../conformance/README.md`, `../../docs/compatibility/SDK_COMPATIBILITY.md` and `../../docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`.
+
+
+## Public NuGet prerelease
+
+**Accepted public NuGet prerelease:** `Truyn.Sdk 0.1.0-alpha.1`, independently verified on NuGet.org.
+
+```bash
+dotnet add package Truyn.Sdk --version 0.1.0-alpha.1
+```
+
+Release evidence: `../release/evidence/nuget-alpha1-2026-09-23.json`.

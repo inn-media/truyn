@@ -3,7 +3,7 @@
   "protocol": "TRUYN/1",
   "stableSdkApiVersion": "1",
   "requiredFirstPartyLanguages": ["typescript", "python", "go", "java", "dotnet"],
-  "acceptedPublicDistributionLanguages": ["typescript", "python", "go", "java"],
+  "acceptedPublicDistributionLanguages": ["typescript", "python", "go", "java", "dotnet"],
   "foundationalDtos": ["Identity", "AgentDescriptor", "Capability", "Offer", "Need", "Result", "ArtifactRef", "NormalizedError"],
   "dx3PortablePayloadKinds": ["object", "artifact"],
   "developerReleaseExecutableConformance": "sdk/conformance/run-five-language-e2e.mjs",
@@ -56,7 +56,8 @@
       "root": "sdk/dotnet",
       "sourceFiles": ["sdk/dotnet/Truyn.Sdk.csproj", "sdk/dotnet/Client.cs", "sdk/dotnet/Crypto.cs", "sdk/dotnet/Models.cs", "sdk/dotnet/AgentDescriptors.cs", "sdk/dotnet/TruynException.cs", "sdk/dotnet/conformance/Program.cs"],
       "requiredMarkers": ["<PackageId>Truyn.Sdk</PackageId>", "public sealed class TruynClient", "ConnectAsync", "CancelNeedAsync", "AgentDescriptors", "Native Agent Descriptor retrieval", "record Identity", "record AgentDescriptor", "record OfferPayload", "record NeedPayload", "record ResultPayload", "record ArtifactRef", "record NormalizedError", "class StableSdkApi", "record ObjectPayload", "record ArtifactPayload", "record StreamItem", "TRUYN/1", "truyn.agent-descriptor/v1"],
-      "publicDistribution": false
+      "publicDistribution": true,
+      "publicDistributionChannel": "pre-release"
     }
   ]
 }

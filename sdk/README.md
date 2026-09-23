@@ -2,7 +2,7 @@
 
 Native first-party client libraries for applications that integrate directly with TRUYN without depending on an agent-specific provider adapter.
 
-**Current maturity:** Developer Release relay-client implementation is source/build complete. TypeScript/JavaScript, Python, Go, Java and C#/.NET are implemented first-party relay clients and share one executable five-language conformance path. PyPI, Go and npm alpha.2 have accepted immutable public release evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet status is reconciled independently. Agent Descriptor serving/fetch/signature happy paths exist, while automatic refresh and complete usable-interface validation/mapping parity remain open.
+**Current maturity:** Developer Release relay-client implementation is source/build complete. TypeScript/JavaScript, Python, Go, Java and C#/.NET are implemented first-party relay clients and share one executable five-language conformance path. PyPI, Go and npm alpha.2 have accepted immutable public release evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease. Agent Descriptor serving/fetch/signature happy paths exist, while automatic refresh and complete usable-interface validation/mapping parity remain open.
 
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`  
 **Protocol:** `TRUYN/1` draft  
@@ -16,12 +16,12 @@ Native first-party client libraries for applications that integrate directly wit
 | Python | `python/` | PyPI `truyn-sdk==0.1.0a1` | **Implemented client + Descriptor valid-fixture verification + executable conformance; accepted immutable public release** |
 | Go | `go/` | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | **Implemented relay client + Descriptor valid-fixture verification + executable conformance; accepted immutable public release** |
 | Java | `java/` | Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | **Implemented relay client + Descriptor valid-fixture verification + executable conformance; Maven Central publication is accepted (`org.truyn:truyn-sdk:0.1.0-alpha.1`)** |
-| C# / .NET | `dotnet/` | NuGet `Truyn.Sdk 0.1.0-alpha.1` | **Implemented relay client + Descriptor valid-fixture verification + executable conformance; NuGet.org publication open** |
+| C# / .NET | `dotnet/` | NuGet `Truyn.Sdk 0.1.0-alpha.1` | **Implemented relay client + Descriptor valid-fixture verification + executable conformance; NuGet.org accepted immutable public release** |
 | Rust | `rust/` | optional | optional secondary track |
 
 The five required first-party targets are **JavaScript/TypeScript, Python, Go, Java and C#/.NET**. Rust may be maintained as an additional SDK but does not replace any required language.
 
-The npm `0.1.0-alpha.1` artifact is immutable and superseded for installation because clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. The TypeScript/JavaScript repair therefore used the distinct immutable coordinate `0.1.0-alpha.2`. That alpha.2 coordinate is now an accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import. Python and Go are also accepted public alphas; Java/Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is accepted as an immutable public release. .NET/NuGet status is reconciled independently.
+The npm `0.1.0-alpha.1` artifact is immutable and superseded for installation because clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. The TypeScript/JavaScript repair therefore used the distinct immutable coordinate `0.1.0-alpha.2`. That alpha.2 coordinate is now an accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import. Python and Go are also accepted public alphas; Java/Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is accepted as an immutable public release. .NET/NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 
 Ordinary CI rebuilds verification packages on different source SHAs, and the manifest binds each verification build to its exact reported source. Those CI artifacts are therefore **per-commit verification artifacts**, not proof of one immutable published release. Publication accepts only an explicitly frozen/tagged source and the exact green CI artifact selected for that source.
 
@@ -143,7 +143,7 @@ It does **not** unpack and scan every archived file byte using the source-tree c
 
 Native public registry publication is **not** implied by CI package build success. Public publication requires the separately accepted release-infrastructure path, external namespace ownership/trusted-publishing setup, an immutable version/source binding, package-content security review, and observed registry evidence.
 
-For npm alpha.2, that publication boundary is closed: the public registry artifact is accepted, registry bytes match the accepted artifact, provenance/signature evidence is recorded, and an independent clean-room Node 22 ESM install/import passed. Permanent npm closure evidence is in `release/evidence/npm-alpha2-2026-09-05.json`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an accepted immutable public release; NuGet status is reconciled independently publication gates.
+For npm alpha.2, that publication boundary is closed: the public registry artifact is accepted, registry bytes match the accepted artifact, provenance/signature evidence is recorded, and an independent clean-room Node 22 ESM install/import passed. Permanent npm closure evidence is in `release/evidence/npm-alpha2-2026-09-05.json`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an accepted immutable public release; NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease publication gates.
 
 Likewise, checked-in developer-site source is not proof that the public developer site is live.
 

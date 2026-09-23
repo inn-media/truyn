@@ -54,18 +54,21 @@ test('release gate rejects a tag whose version differs from the package manifest
   }
 });
 
-test('Maven and NuGet coordinates stay OPEN until real publication evidence exists', async () => {
+test('Maven and NuGet coordinates require accepted public evidence', async () => {
   const coords = JSON.parse(await read('sdk/release/public-coordinates.json')).coordinates;
   const pom = await read('sdk/java/pom.xml');
   const csproj = await read('sdk/dotnet/Truyn.Sdk.csproj');
-  assert.match(pom, new RegExp(`<version>${coords.maven.version.replaceAll('.', '\\.')}</version>`));
-  assert.match(csproj, new RegExp(`<Version>${coords.nuget.version.replaceAll('.', '\\.')}</Version>`));
-  // Flip to 'accepted' only together with committed registry evidence (see PUBLISHING.md).
-  assert.ok(['open', 'accepted'].includes(coords.maven.publicationState));
-  assert.ok(['open', 'accepted'].includes(coords.nuget.publicationState));
+  assert.match(pom, new RegExp(`<version>${coords.maven.version.replaceAll('.', '\.')}</version>`));
+  assert.match(csproj, new RegExp(`<Version>${coords.nuget.version.replaceAll('.', '\.')}</Version>`));
+  assert.equal(coords.maven.publicationState, 'accepted');
+  assert.equal(coords.nuget.publicationState, 'accepted');
+  const evidence = JSON.parse(await read('sdk/release/evidence/nuget-alpha1-2026-09-23.json'));
+  assert.equal(evidence.coordinate, 'Truyn.Sdk@0.1.0-alpha.1');
   const publishing = await read('sdk/release/PUBLISHING.md');
-  assert.match(publishing, /Workflow File: `publish-nuget\.yml`/);
-  assert.match(publishing, /Environment: `sdk-release`/);
+  assert.match(publishing, /NuGet\.org is no longer an external Developer Release publication gate/);
+  assert.match(publishing, /workflow `publish-nuget\.yml`/);
+  assert.match(publishing, /environment `sdk-release`/);
+  assert.match(publishing, /package owner `truyn\.org`/);
   assert.match(publishing, /namespace `org\.truyn`/);
 });
 

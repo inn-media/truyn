@@ -4,12 +4,49 @@
   "reconciledOnMainSha": "0fb469c41c05d5bdd3f52b5ecd1c3c0ade86e26c",
   "channel": "public-pre-release",
   "coordinates": {
-    "npm": {"registry":"npm","package":"@truyn/sdk","version":"0.1.0-alpha.2","coordinate":"@truyn/sdk@0.1.0-alpha.2","publicationState":"accepted"},
-    "pypi": {"registry":"PyPI","package":"truyn-sdk","version":"0.1.0a1","coordinate":"truyn-sdk==0.1.0a1","publicationState":"accepted"},
-    "go": {"registry":"Go module ecosystem","module":"github.com/inn-media/truyn/sdk/go","version":"v0.1.0-alpha.1","tag":"sdk/go/v0.1.0-alpha.1","coordinate":"github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1","publicationState":"accepted"},
-    "maven": {"registry":"Maven Central","groupId":"org.truyn","artifactId":"truyn-sdk","version":"0.1.0-alpha.1","coordinate":"org.truyn:truyn-sdk:0.1.0-alpha.1","publicationState":"accepted"},
-    "nuget": {"registry":"NuGet.org","package":"Truyn.Sdk","version":"0.1.0-alpha.1","coordinate":"Truyn.Sdk@0.1.0-alpha.1","publicationState":"open"}
+    "npm": {
+      "registry": "npm",
+      "package": "@truyn/sdk",
+      "version": "0.1.0-alpha.2",
+      "coordinate": "@truyn/sdk@0.1.0-alpha.2",
+      "publicationState": "accepted"
+    },
+    "pypi": {
+      "registry": "PyPI",
+      "package": "truyn-sdk",
+      "version": "0.1.0a1",
+      "coordinate": "truyn-sdk==0.1.0a1",
+      "publicationState": "accepted"
+    },
+    "go": {
+      "registry": "Go module ecosystem",
+      "module": "github.com/inn-media/truyn/sdk/go",
+      "version": "v0.1.0-alpha.1",
+      "tag": "sdk/go/v0.1.0-alpha.1",
+      "coordinate": "github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1",
+      "publicationState": "accepted"
+    },
+    "maven": {
+      "registry": "Maven Central",
+      "groupId": "org.truyn",
+      "artifactId": "truyn-sdk",
+      "version": "0.1.0-alpha.1",
+      "coordinate": "org.truyn:truyn-sdk:0.1.0-alpha.1",
+      "publicationState": "accepted"
+    },
+    "nuget": {
+      "registry": "NuGet.org",
+      "package": "Truyn.Sdk",
+      "version": "0.1.0-alpha.1",
+      "coordinate": "Truyn.Sdk@0.1.0-alpha.1",
+      "publicationState": "accepted",
+      "tag": "sdk/nuget/v0.1.0-alpha.1",
+      "sourceSha": "953ed548a52e4c3440a414ec2401ea324120155e",
+      "publicationRunId": "35904855105",
+      "verificationRunId": "35905748486",
+      "evidence": "sdk/release/evidence/nuget-alpha1-2026-09-23.json"
+    }
   },
   "immutabilityRule": "A coordinate is never overwritten. Any materially different package source or bytes require a new version/tag.",
-  "statusBoundary": "npm, PyPI, Go and Maven Central are accepted immutable public releases. NuGet.org status is reconciled independently."
+  "statusBoundary": "npm, PyPI, Go, Maven Central and NuGet.org are accepted immutable public prereleases/releases at the coordinates recorded above."
 }

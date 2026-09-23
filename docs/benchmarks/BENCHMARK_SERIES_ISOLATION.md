@@ -179,6 +179,41 @@ For metrics sensitive to shared capacity/latency, the run records enough environ
 
 Detected material interference produces `INCOMPLETE` or `INVALIDATED` unless the interference itself is a frozen part of the methodology.
 
+### 9.1 GitHub Actions status is not sufficient proof of liveness
+
+A GitHub Actions record MUST NOT be treated as R1/R2 interference merely because its API `status` is `queued`, `in_progress`, `pending`, `requested` or `waiting`.
+
+An Actions interference guard MUST combine all applicable evidence:
+
+1. exact current/campaign SHA membership;
+2. run/campaign freshness;
+3. workflow/run identity relevant to the benchmark;
+4. actual shared-resource overlap (R1/R2), not repository-wide presence;
+5. liveness/evidence checks for suspicious stale non-terminal records.
+
+For a stale non-terminal run on a SHA outside the current campaign, the guard MUST inspect its jobs and artifacts before deciding. When all of the following are true:
+
+```text
+status = non-terminal
+head_sha != current/campaign SHA
+age > configured freshness window
+material workflow/resource scope would otherwise match
+jobs = 0
+artifacts = 0
+```
+
+it is classified:
+
+```text
+ORPHANED_STALE
+```
+
+and MUST NOT block an otherwise clean R1/R2/collision gate. The historical Actions record is preserved and MUST NOT be rerun merely to clear the guard.
+
+If jobs/artifact liveness is unavailable for such a stale record, the guard fails closed as `STALE_UNVERIFIED_LIVENESS` until the record is enriched. If the run has jobs, artifacts, a current/campaign SHA, or independently proven shared-resource activity, it remains potentially material and MUST NOT be ignored solely because it is old.
+
+The canonical public classifier is `scripts/workflow-interference-guard.mjs`; benchmark automation should use the same semantics rather than implementing ad-hoc `status == queued|in_progress` checks.
+
 ## 10. Cleanup ownership
 
 Cleanup is owner-scoped.

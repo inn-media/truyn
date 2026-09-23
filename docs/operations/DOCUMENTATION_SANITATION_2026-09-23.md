@@ -52,7 +52,7 @@ Five first-party SDK clients are implemented and share executable conformance. A
 - Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`;
 - npm `@truyn/sdk@0.1.0-alpha.2`.
 
-Maven Central and NuGet remain open.
+Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` and NuGet.org `Truyn.Sdk 0.1.0-alpha.1` are accepted immutable public releases.
 
 ## Documentation-state vocabulary
 
