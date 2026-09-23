@@ -18,6 +18,7 @@ CURRENT = [
     Path("sdk/README.md"),
     Path("examples/README.md"),
     Path("examples/sdk/README.md"),
+    Path("spec/compatibility/matrix.md"),
 ]
 
 repls = [
@@ -30,12 +31,14 @@ repls = [
     ("NuGet publication remains open", ACCEPTED),
     ("NuGet.org publication open", "NuGet.org accepted immutable public release"),
     ("NuGet publication open", "NuGet.org accepted immutable public release"),
+    ("Maven Central and NuGet remain open.", "Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` and NuGet.org `Truyn.Sdk 0.1.0-alpha.1` are accepted immutable public releases."),
     ("not yet claimed as a publicly published NuGet release", "published and independently verified as the immutable public NuGet prerelease `Truyn.Sdk 0.1.0-alpha.1`"),
     ("- [ ] NuGet.org publication evidence;", "- [x] NuGet.org publication evidence (`Truyn.Sdk 0.1.0-alpha.1`; independent verification run `35905748486`);"),
     ("- [ ] NuGet.org publication evidence", "- [x] NuGet.org publication evidence (`Truyn.Sdk 0.1.0-alpha.1`; independent verification run `35905748486`)"),
     ("C#/.NET/NuGet.org remain open public-distribution gates", "C#/.NET/NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease"),
     ("Maven Central and NuGet.org remain external release gates", "Maven Central and NuGet.org have accepted immutable public prereleases"),
     ("Maven Central, NuGet and public-site activation remain external release gates", "Maven Central and NuGet.org have accepted immutable public prereleases; public-site activation remains an external release gate"),
+    ("| NuGet | **Status reconciled independently** | public publication evidence |", "| NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** | — |"),
 ]
 
 for p in CURRENT:
@@ -46,14 +49,8 @@ for p in CURRENT:
     for a, b in repls:
         s = s.replace(a, b)
     s = re.sub(
-        r"^\| NuGet(?:\.org)? \| \*\*(?:OPEN|Status reconciled independently)\*\* \|\s*$",
-        "| NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** |",
-        s,
-        flags=re.M,
-    )
-    s = re.sub(
-        r"^\| NuGet(?:\.org)? \| \*\*Status reconciled independently\*\* \|\s*$",
-        "| NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** |",
+        r"^\| NuGet(?:\.org)? \| \*\*(?:OPEN|Status reconciled independently)\*\* \|.*$",
+        "| NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** | — |",
         s,
         flags=re.M,
     )
@@ -144,6 +141,7 @@ s = s.replace(
     "Package build/provenance does not by itself prove public registry availability;",
     "Package build/provenance does not by itself prove public registry availability; accepted registry state below is backed by independent public evidence.",
 )
+s = s.replace("NuGet.org status is reconciled independently", "NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an **accepted immutable public release**")
 p.write_text(s)
 
 # Tighten the release-coordinate regression test now that both external registries are accepted.
@@ -189,7 +187,7 @@ stale_patterns = [
     r"\[ \] NuGet\.org publication evidence",
 ]
 stale = []
-for p in CURRENT + [Path("sdk/release/PUBLISHING.md"), Path("spec/compatibility/matrix.md")]:
+for p in CURRENT + [Path("sdk/release/PUBLISHING.md")]:
     if not p.exists():
         continue
     text = p.read_text()
