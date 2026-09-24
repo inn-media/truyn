@@ -4,38 +4,70 @@ Status: **architecture contract**
 
 Swarm-Blockwise is a campaign launch/qualification discipline. It is **not** a TRUYN network runtime, routing mode, provider runtime, or replacement for the S-Series benchmark contract.
 
+The canonical source-binding model for all S-Series work is [S-Series Frozen Candidate Qualification and Admission](S_SERIES_FROZEN_CANDIDATE_QUALIFICATION.md).
+
 ## Why S-Series uses it
 
-S-Series consumes real inference from the fixed seven-provider set: GPT, Gemini, Grok, DeepSeek, Llama, Mistral and Kimi. A transport or lifecycle defect discovered only after a full S campaign therefore costs materially more than the same defect discovered in a no-inference Class-D diagnostic run.
+S-Series consumes real inference from the fixed seven-provider set: GPT, Gemini, Grok, DeepSeek, Llama, Mistral and Kimi. A transport or lifecycle defect discovered only after a full S campaign therefore costs materially more than the same defect discovered in a no-inference diagnostic run.
 
 The S-50 WebSocket heartbeat/backpressure failure class is representative: persistent provider sockets, heartbeat closure, `1013 socket_backpressure`, reconnect and exactly-once reconciliation are admission concerns and must be exercised before a paid campaign.
 
-## Required sequence
+## Frozen Candidate -> Branch Qualification -> Admission to Main
+
+The expensive qualification target is an immutable candidate pair, not moving `main`:
 
 ```text
-exact public source SHA + exact private execution SHA
-                    |
-                    v
-          S-Series diagnostic Swarm
-             fail-collect DAG
-                    |
-              all diagnostics
-                    |
-                    v
-       S-Series Blockwise admission
-              B01 ... B22
-                    |
-              22/22 GREEN
-                    |
-        re-read exact source pair
-                    |
-     fresh collision/capacity check
-                    |
-                    v
-          ONE paid S campaign
+PUBLIC_BASE_SHA  -> PUBLIC_CANDIDATE_SHA
+PRIVATE_BASE_SHA -> PRIVATE_CANDIDATE_SHA
+                         |
+                         v
+                S-Series diagnostic Swarm
+                   fail-collect DAG
+                         |
+                  complete evidence
+                         |
+                         v
+                candidate Blockwise gate
+                    B01 ... B22
+                         |
+                    22/22 GREEN
+                         |
+              frozen candidate evidence
+                         |
+            main may move independently
+                         |
+                         v
+                Admission to current main
+          BASE_SHA -> current-main impact analysis
+          integration-candidate fingerprints
+                         |
+             +-----------+-----------+
+             |                       |
+      no sensitive drift       sensitive drift
+             |                       |
+      reuse candidate          targeted affected
+         evidence              blocks only
+             |                       |
+             +-----------+-----------+
+                         |
+               final current-main reread
+               collision/capacity check
+                         |
+                         v
+                  ONE paid campaign
 ```
 
-A RED block is localized and repaired without weakening acceptance. The affected blocks and aggregate are then requalified on the new exact source pair. Stale admission evidence never authorizes a campaign.
+**Main movement alone does not invalidate the frozen candidate.** It invalidates only an admission snapshot that was computed against an older main.
+
+A RED candidate block is localized and repaired without weakening acceptance. The affected blocks and aggregate are then requalified on the new frozen candidate pair. Historical candidate evidence remains immutable.
+
+## Automatic qualification manifest
+
+Every candidate/admission cycle must emit `truyn.s-series.qualification-manifest/v1` containing candidate/base identity, per-block fingerprints, BASE_SHA -> current-main changes, integration fingerprints, changed fingerprints, targeted blocks and reused evidence blocks.
+
+Fingerprints are content-derived from canonical sorted path/blob identities. Branch labels, timestamps and the mere fact that main moved are not qualification inputs.
+
+Before merge or campaign dispatch the final Admission Gate must recalculate fingerprints on the integration state. **An old GREEN branch SHA by itself can never authorize merge or launch.**
 
 ## B01-B16: shared accepted network substrate
 
@@ -103,6 +135,19 @@ A paired direct-vs-TRUYN micro qualification must prove before the campaign:
 
 This gate is deliberately small: it validates that the economic mechanism still works without paying for a full S campaign merely to discover a broken context path.
 
+## Targeted requalification after main movement
+
+Admission compares:
+
+```text
+PUBLIC_BASE_SHA  -> current public main
+PRIVATE_BASE_SHA -> current private main
+```
+
+Only changes intersecting an S-sensitive block surface can require requalification. Even then, the default response is **targeted block qualification**, not a full S rerun.
+
+Unchanged block fingerprints reuse the frozen candidate evidence. Changed block fingerprints must be cleared on the integration candidate. A fresh live S successor is required only when targeted/local proof cannot establish compatibility or the changed block explicitly requires new live evidence.
+
 ## Isolation
 
 S execution state belongs to the S namespace. In particular:
@@ -118,6 +163,15 @@ must not be replaced by D-Series launchers/namespaces. Reusable public network m
 
 ## Immutable campaign rule
 
-Historical S attempts remain immutable and are never reused as a cheap retry mechanism. A successor attempt receives a new attempt identity and is dispatchable only when the Swarm + Blockwise admission artifact proves the exact source pair and 22/22 GREEN.
+Historical S attempts remain immutable and are never reused as a cheap retry mechanism. A successor attempt receives a new attempt identity.
 
-After admission turns GREEN, both source heads and shared-resource/capacity state are checked again immediately before dispatch. Any material movement invalidates the admission and requires requalification.
+A paid campaign is dispatchable only when:
+
+1. frozen-candidate Swarm/live/Blockwise evidence is GREEN for the exact candidate pair;
+2. an Admission-to-Main manifest exists for the current public/private main snapshot;
+3. every changed S-sensitive fingerprint has targeted GREEN compatibility evidence;
+4. the final admission snapshot is still current;
+5. shared-resource/capacity collision checks are GREEN;
+6. duplicate/single-shot history is clean.
+
+If either main moves after admission analysis, **rerun the cheap admission analysis only**. The frozen candidate evidence remains valid unless the new analysis discovers a material sensitive change that cannot be cleared without a new live successor.
