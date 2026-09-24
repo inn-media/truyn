@@ -4,12 +4,22 @@ Status snapshot: **2026-09-25**
 
 This file is the current public status ledger for H-Series. Frozen methodology/contract documents remain immutable evidence inputs and may therefore retain historical pre-result status banners. Current measured-result status belongs here and in append-only result reports.
 
+## Qualification model
+
+All H-Series lanes use the binding execution model in [`H_SERIES_QUALIFICATION_POLICY.md`](H_SERIES_QUALIFICATION_POLICY.md):
+
+```text
+Frozen Candidate → Branch Qualification → Admission to Main
+```
+
+Expensive H qualification is evidence for an exact frozen candidate, not for a moving `main`. Main movement triggers `BASE_SHA → current main` admission analysis. If the delta does not touch an H-sensitive surface, candidate evidence is reused. If it does, only affected blocks are requalified first; a new live H run is not automatic. A fresh integration-state Admission Gate is mandatory before merge.
+
 | Lane | Current state | Durable public evidence | Next action |
 | --- | --- | --- | --- |
-| H/CACHE-COMPOUND | **PENDING FINAL** | methodology only | continue bounded H-Series execution |
-| H/SECOND-OPINION | **PENDING FINAL** | methodology only | continue bounded H-Series execution |
+| H/CACHE-COMPOUND | **PENDING FINAL** | methodology only | create/qualify lane-specific frozen candidate |
+| H/SECOND-OPINION | **PENDING FINAL / MOST EXECUTION-READY OPEN LANE** | methodology only | continue candidate-bound HS12 SECOND path |
 | H/ARBITRAGE | **PASS / CLOSED** | [`H_ARBITRAGE_2026-09-24.md`](H_ARBITRAGE_2026-09-24.md) + [`H_ARBITRAGE_2026-09-24.json`](H_ARBITRAGE_2026-09-24.json) | no ordinary rerun |
-| H/CHAOS-FUZZ | **PENDING FINAL** | methodology only | continue bounded H-Series execution |
+| H/CHAOS-FUZZ | **PENDING FINAL** | methodology only | create/qualify lane-specific frozen candidate |
 
 ## H/ARBITRAGE closure
 
@@ -58,3 +68,5 @@ A new H/ARBITRAGE final measurement is justified only after a material, versione
 - claim scope.
 
 Such a campaign must receive a new immutable run identity and may not overwrite the 2026-09-24 evidence.
+
+For open H lanes, movement of `main` alone is never a sufficient reason for a full live rerun. Admission fingerprints and affected-block requalification decide whether existing frozen-candidate evidence remains compatible.
