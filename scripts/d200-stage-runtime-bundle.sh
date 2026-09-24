@@ -8,6 +8,24 @@ set -Eeuo pipefail
 account="td2d200${GITHUB_RUN_ID}"; container=runtime; blob=truyn-d200-runtime.tgz
 max_attempts="${TRUYN_D200_STAGING_MAX_ATTEMPTS:-24}"; retry_delay_seconds="${TRUYN_D200_STAGING_RETRY_DELAY_SECONDS:-5}"
 [[ ${#account} -le 24 && "$max_attempts" =~ ^[1-9][0-9]*$ && "$retry_delay_seconds" =~ ^[0-9]+$ ]]
+refresh_github_oidc_login(){
+  [[ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" && -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]] || return 0
+  local subscription tenant client oidc separator
+  subscription="$(az account show --query id -o tsv --only-show-errors)"
+  tenant="$(az account show --query tenantId -o tsv --only-show-errors)"
+  client="$(az account show --query user.name -o tsv --only-show-errors)"
+  [[ -n "$subscription" && -n "$tenant" && -n "$client" ]]
+  separator='?'; [[ "$ACTIONS_ID_TOKEN_REQUEST_URL" == *\?* ]] && separator='&'
+  oidc="$(curl -fsSL -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}${separator}audience=api%3A%2F%2FAzureADTokenExchange" | jq -r '.value // empty')"
+  [[ -n "$oidc" ]]
+  az login --service-principal --username "$client" --tenant "$tenant" --federated-token "$oidc" --allow-no-subscriptions -o none --only-show-errors
+  az account set --subscription "$subscription" --only-show-errors
+  printf 'TRUYN_D200_STAGING_OIDC_REFRESH=PASS subscription=%s\n' "$subscription"
+}
+# GitHub's OIDC request assertion is intentionally short-lived. Capacity discovery can
+# exceed that window before staging starts, so reacquire a fresh assertion immediately
+# before the first new Azure token audience is needed. This preserves OIDC-only auth.
+refresh_github_oidc_login
 retry_command(){ local operation="$1"; shift; local attempt err rc; err="$(mktemp)"; for attempt in $(seq 1 "$max_attempts"); do rc=0; if "$@" 2>"$err"; then rm -f "$err"; printf 'TRUYN_D200_STAGING_READY operation=%s attempt=%s\n' "$operation" "$attempt"; return 0; else rc=$?; fi; printf 'TRUYN_D200_STAGING_RETRY operation=%s attempt=%s max_attempts=%s\n' "$operation" "$attempt" "$max_attempts" >&2; if [[ "$attempt" == "$max_attempts" ]]; then printf 'TRUYN_D200_STAGING_FAILURE operation=%s attempts=%s exit_code=%s\n' "$operation" "$attempt" "$rc" >&2; cat "$err" >&2; rm -f "$err"; return "$rc"; fi; sleep "$retry_delay_seconds"; done; }
 retry_capture(){ local __resultvar="$1" operation="$2"; shift 2; local attempt err rc value; err="$(mktemp)"; for attempt in $(seq 1 "$max_attempts"); do rc=0; value=''; if value="$("$@" 2>"$err")"; then if [[ -n "$value" ]]; then rm -f "$err"; printf -v "$__resultvar" '%s' "$value"; printf 'TRUYN_D200_STAGING_READY operation=%s attempt=%s\n' "$operation" "$attempt"; return 0; fi; rc=1; printf 'empty result from successful command\n' >"$err"; else rc=$?; fi; printf 'TRUYN_D200_STAGING_RETRY operation=%s attempt=%s max_attempts=%s\n' "$operation" "$attempt" "$max_attempts" >&2; if [[ "$attempt" == "$max_attempts" ]]; then printf 'TRUYN_D200_STAGING_FAILURE operation=%s attempts=%s exit_code=%s\n' "$operation" "$attempt" "$rc" >&2; cat "$err" >&2; rm -f "$err"; return "$rc"; fi; sleep "$retry_delay_seconds"; done; }
 az storage account create -g "$AZURE_RESOURCE_GROUP" -n "$account" -l "$TRUYN_D200_LOCATION" --sku Standard_LRS --kind StorageV2 --https-only true --min-tls-version TLS1_2 --allow-blob-public-access false -o none --only-show-errors
