@@ -1,0 +1,66 @@
+name: Repair Once Temp
+
+on:
+  push:
+    branches: [automation/autorepair/d500-attempt7-launcher-260924]
+    paths: ['.github/workflows/repair-once-temp.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  repair:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Rebuild fail closed
+        env:
+          GH_TOKEN: '${{ github.token }}'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git fetch origin main --quiet
+          [[ "$(git rev-parse origin/main)" == 'cbf1a1a63aa772f0118fede033665599e3d6210f' ]]
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/d500-acceptance.yml')
+          s=p.read_text()
+          replacements={
+          "      - '.github/d500/launch-06.txt'":"      - '.github/d500/launch-07.txt'",
+          "  group: truyn-d500-e0ed95f4-attempt6-single-shot":"  group: truyn-d500-cbf1a1a6-attempt7-single-shot",
+          "  TASK_ID: truyn-d500-acceptance-260923-a6":"  TASK_ID: truyn-d500-acceptance-260924-a7",
+          "  TESTED_COMMIT: e0ed95f40473010e394c32df1fed9ae7a5a745be":"  TESTED_COMMIT: cbf1a1a63aa772f0118fede033665599e3d6210f",
+          "  TESTED_TREE_SHA: 5f76cf61560928d5bff0bb79d0a8cd1c464fa2dc":"  TESTED_TREE_SHA: b036e71bbd46eeadc8c08f2336bb1bd3225263d1",
+          "  EXACT_MAIN_CI_RUN: '35776648238'":"  EXACT_MAIN_CI_RUN: '35990792182'",
+          "  EXACT_MAIN_FIVE_PATCH_RUN: '35776648213'":"  EXACT_MAIN_FIVE_PATCH_RUN: '35990792159'",
+          "  EXACT_MAIN_CODEQL_RUN: '35776648103'":"  EXACT_MAIN_CODEQL_RUN: '35990791106'",
+          "  EXACT_MAIN_BLOCKWISE_RUN: '35776648082'":"  EXACT_MAIN_BLOCKWISE_RUN: '35990792093'\n  D_SERIES_SWARM_RUN: '35991109924'\n  D_SERIES_BLOCKWISE_PREFLIGHT_RUN: '35991399533'\n  D500_LIVE_B06_RUN: '35991657587'",
+          "          token='.github/d500/launch-06.txt'":"          token='.github/d500/launch-07.txt'",
+          "          [[ \"$(value EXACT_MAIN_BLOCKWISE_RUN)\" == \"$EXACT_MAIN_BLOCKWISE_RUN\" ]]":"          [[ \"$(value EXACT_MAIN_BLOCKWISE_RUN)\" == \"$EXACT_MAIN_BLOCKWISE_RUN\" ]]\n          [[ \"$(value D_SERIES_SWARM_RUN)\" == \"$D_SERIES_SWARM_RUN\" ]]\n          [[ \"$(value D_SERIES_BLOCKWISE_PREFLIGHT_RUN)\" == \"$D_SERIES_BLOCKWISE_PREFLIGHT_RUN\" ]]\n          [[ \"$(value D500_LIVE_B06_RUN)\" == \"$D500_LIVE_B06_RUN\" ]]",
+          "          bw=\"$(gh api \"repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_BLOCKWISE_RUN}\")\"":"          bw=\"$(gh api \"repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_BLOCKWISE_RUN}\")\"\n          swarm=\"$(gh api \"repos/${GITHUB_REPOSITORY}/actions/runs/${D_SERIES_SWARM_RUN}\")\"\n          dbw=\"$(gh api \"repos/${GITHUB_REPOSITORY}/actions/runs/${D_SERIES_BLOCKWISE_PREFLIGHT_RUN}\")\"\n          live=\"$(gh api \"repos/${GITHUB_REPOSITORY}/actions/runs/${D500_LIVE_B06_RUN}\")\"",
+          "          jq -e --arg s \"$TESTED_COMMIT\" '.name==\"Class D Blockwise Preflight\" and .head_branch==\"main\" and .head_sha==$s and .event==\"push\" and .status==\"completed\" and .conclusion==\"success\" and .run_attempt==1' <<<\"$bw\" >/dev/null":"          jq -e --arg s \"$TESTED_COMMIT\" '.name==\"Class D Blockwise Preflight\" and .head_branch==\"main\" and .head_sha==$s and .event==\"push\" and .status==\"completed\" and .conclusion==\"success\" and .run_attempt==1' <<<\"$bw\" >/dev/null\n          jq -e '.name==\"D-Series Swarm One-Shot Launcher\" and .head_branch==\"automation/d-series-dispatch/cbf1a1a6-d500-swarm\" and .status==\"completed\" and .conclusion==\"success\" and .run_attempt==1' <<<\"$swarm\" >/dev/null\n          jq -e '.name==\"D-Series Blockwise One-Shot Launcher\" and .head_branch==\"automation/d-series-blockwise/cbf1a1a6-d500-35991109924\" and .status==\"completed\" and .conclusion==\"success\" and .run_attempt==1' <<<\"$dbw\" >/dev/null\n          jq -e --arg s \"$TESTED_COMMIT\" '.name==\"Class D Bootstrap Qualification\" and .head_branch==\"main\" and .head_sha==$s and .event==\"workflow_run\" and .status==\"completed\" and .conclusion==\"success\" and .run_attempt==1' <<<\"$live\" >/dev/null\n          [[ \"$(gh api repos/${GITHUB_REPOSITORY}/commits/5eae6c7cbb2f17f6db788d8f77c6f3927cb64f02 --jq '.parents[0].sha')\" == \"$TESTED_COMMIT\" ]]\n          [[ \"$(gh api repos/${GITHUB_REPOSITORY}/commits/ee6ea889e43693b6ba33e0f4986cee6c240925b6 --jq '.parents[0].sha')\" == \"$TESTED_COMMIT\" ]]\n          node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs",
+          "          [[ \"$ok\" == true ]]\n\n      - name: Stage immutable runtime bundle with OIDC data-plane auth":"          [[ \"$ok\" == true ]]\n\n      - name: Fresh collision capacity and duplicate guard\n        env:\n          GH_TOKEN: '${{ github.token }}'\n        shell: bash\n        run: |\n          set -Eeuo pipefail\n          active=\"$(gh api \"repos/${GITHUB_REPOSITORY}/actions/runs?per_page=100\")\"\n          conflicts=\"$(jq --arg id \"$GITHUB_RUN_ID\" '[.workflow_runs[] | select((.status==\"queued\" or .status==\"in_progress\") and (.id|tostring)!=$id) | select((.name|test(\"D-500 Acceptance|D-1000|S-Series|E-Series|T-Series|Class D Bootstrap Qualification\")))] | length' <<<\"$active\")\"\n          [[ \"$conflicts\" == 0 ]]\n          dup=\"$(jq --arg id \"$GITHUB_RUN_ID\" '[.workflow_runs[] | select(.name==\"D-500 Acceptance\") | select(.status==\"queued\" or .status==\"in_progress\") | select((.id|tostring)!=$id)] | length' <<<\"$active\")\"\n          [[ \"$dup\" == 0 ]]\n          echo \"TRUYN_D500_COLLISION_GUARD status=PASS tested_sha=$TESTED_COMMIT conflicts=$conflicts duplicates=$dup location=$TRUYN_D500_LOCATION size=$TRUYN_D500_VM_SIZE\"\n\n      - name: Refresh Azure OIDC immediately before runtime staging\n        uses: azure/login@v2\n        with:\n          client-id: '${{ secrets.AZURE_CLIENT_ID }}'\n          tenant-id: '${{ secrets.AZURE_TENANT_ID }}'\n          subscription-id: '${{ secrets.AZURE_SUBSCRIPTION_ID }}'\n\n      - name: Stage immutable runtime bundle with OIDC data-plane auth"
+          }
+          for a,b in replacements.items():
+              n=s.count(a)
+              if n != 1: raise SystemExit(f'fail-closed replacement count {n}: {a[:100]}')
+              s=s.replace(a,b)
+          p.write_text(s)
+          t=Path('tests/d500-prelaunch.test.js')
+          q=t.read_text()
+          old="  assert.equal(fs.existsSync(launchPath), true, `active launch token must exist: ${launchPath}`);"
+          new="  // PREPARED generation: the workflow may pin the next immutable token before the single-file arm commit exists.\n  // LAUNCHED generation: if present, that token remains immutable; strict scale assertions below always apply.\n  const launchTokenExists = fs.existsSync(launchPath);\n  assert.equal(typeof launchTokenExists, 'boolean');"
+          if q.count(old)!=1: raise SystemExit('fail-closed token assertion mismatch')
+          t.write_text(q.replace(old,new))
+          PY
+          rm -f .github/repairs/d500-attempt7-launcher-260924.env .github/repairs/d500-attempt7-launcher-260924.patch .github/workflows/d500-attempt7-repair-once.yml .github/workflows/d500-prepared-state-test-repair.yml .github/workflows/repair-once-temp.yml
+          node --test tests/d500-prelaunch.test.js tests/d-series-swarm-integration.test.js tests/d-series-blockwise-preflight.test.js
+          node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
+          git diff --check
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add -A
+          git commit -s -m 'ops(d500): rebuild attempt 7 launcher on qualified source'
+          git push origin HEAD
