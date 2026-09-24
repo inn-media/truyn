@@ -18,10 +18,16 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - [S-Series Open/Private Boundary](architecture/S_SERIES_OPEN_PRIVATE_BOUNDARY.md) — canonical repository ownership split for S-Series.
 - [S-Series Benchmark Contract](benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md) — fixed scenarios, acceptance gates and evidence rules.
 - [S-Series Execution & Telemetry](operations/S_SERIES_EXECUTION_AND_TELEMETRY.md) — D/S isolation, telemetry schemas and run closure.
+- [N-Series Emergent Network Architecture](architecture/N_SERIES_EMERGENT_NETWORK.md) — capability economy, sovereignty, adaptive trust and sustained churn.
+- [N-Series Open/Private Boundary](architecture/N_SERIES_OPEN_PRIVATE_BOUNDARY.md) — canonical public/private ownership split for N-Series.
+- [N-Series Benchmark Contract](benchmarks/N_SERIES_EMERGENT_BEHAVIOR_CONTRACT.md) — fixed metrics, acceptance and false-PASS traps.
+- [N-Series Telemetry](benchmarks/N_SERIES_TELEMETRY.md) — normalized event vocabulary and recomputable formulas.
+- [N-Series Execution & Isolation](operations/N_SERIES_EXECUTION_AND_ISOLATION.md) — full run procedure and cross-series R0/R1/R2 rules.
+- [N-Series Roadmap](roadmap/N_SERIES_ROADMAP.md) — bounded N0→N7 implementation/evidence sequence.
 - [E-Series Efficiency Contract](benchmarks/E_SERIES_EFFICIENCY.md) — DECOMPOSE / PER-RESULT / KNEE / DEGRADE definitions and public/private boundary.
 - [E-Series Telemetry](benchmarks/E_SERIES_TELEMETRY.md) — recomputable request/stage/cost/load/interference evidence contract.
 - [E-Series Execution](operations/E_SERIES_EXECUTION.md) — freeze, instrumentation, isolation, run and reconciliation procedure.
-- [Benchmark Series Isolation](benchmarks/BENCHMARK_SERIES_ISOLATION.md) — common D/S/T/H/E R0/R1/R2 concurrency contract.
+- [Benchmark Series Isolation](benchmarks/BENCHMARK_SERIES_ISOLATION.md) — common D/S/T/H/E/N R0/R1/R2 concurrency contract.
 - [Production Authority](architecture/PRODUCTION_AUTHORITY_CONTROL_PLANE.md) — durable + managed-runtime authority boundary.
 - [A2A/MCP Architecture](architecture/A2A_MCP_INTEROPERABILITY.md), [Compatibility](compatibility/A2A_MCP_COMPATIBILITY.md), [P2 Final Acceptance](compatibility/A2A_MCP_P2_FINAL_ACCEPTANCE.md).
 - [NLWeb Interoperability](architecture/NLWEB_INTEROPERABILITY.md) — bounded pinned 0.5 profile and explicit application/data non-goals.
@@ -38,6 +44,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - D-Series execution architecture — **Swarm diagnostics/repair → full B01–B16 exact-SHA admission → live/collision gates → exactly one real scale run**; durable lock tracked in issue #737.
 - Semantic Scale S-Series — **EXECUTED / DIAGNOSTIC; NO ACCEPTED S PASS**. S-50 Attempt 13 is immutable failure evidence (`fast_socket_closed`) under bounded public WebSocket repair/qualification tracked in issue #726.
 - Efficiency E-Series — **ACTIVE QUALIFICATION / NO FINAL E PASS**; qualification/isolation/provider-smoke work does not substitute for final DECOMPOSE/PER-RESULT/KNEE/DEGRADE evidence.
+- N-Series emergent network behavior — **FOUNDATION DEFINED / NOT YET EXECUTED**; N/SOVEREIGNTY, N/MARKETPLACE, N/TRUST-DECAY and N/SUSTAINED-CHURN have no PASS claim.
 - Account → Organization → Tenant — **IMPLEMENTED / accepted**.
 - durable grants/entitlements/accounting/revocation — **IMPLEMENTED / accepted**.
 - managed authority repository/runtime support — **IMPLEMENTED / accepted**.
@@ -91,6 +98,14 @@ E-Series measures **efficiency limits**, not protocol correctness by proxy. It k
 Current qualification/provider-smoke activity must not be described as a final E result. Final E claims require immutable comparable evidence and independent reconciliation.
 
 E can execute concurrently with D/S/T/H only through the common benchmark isolation contract. Read-only immutable dependencies are R0; shared services may be R1 only with distinct attribution and active interference detection; capacity/cache/index/fault mutation is R2-exclusive.
+
+## N-Series scope reminder
+
+N-Series tests emergent behavior rather than basic transport: sovereignty/data residency, capability-directed specialist discovery, trust adaptation and long-window convergence under continuous membership churn.
+
+The common substrate is D-200 plus the heterogeneous provider path, but N never inherits a PASS from either. Every N result uses its own frozen source/run/acceptance identity and the common [Benchmark Series Isolation Contract](benchmarks/BENCHMARK_SERIES_ISOLATION.md).
+
+Public N-Series owns reproducible methodology, public-safe telemetry/formulas and sanitized evidence. Real managed topology, packet/flow evidence, hidden oracle material, provider identities/quota/spend and proprietary trust/routing intelligence remain in private `inn-media/truyn-platform`.
 
 ## NLWeb scope reminder
 
