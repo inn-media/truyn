@@ -1,0 +1,80 @@
+{
+  "schema": "truyn.h-series.public-arbitrage-result/v1",
+  "seriesId": "H",
+  "benchmarkId": "H-ARBITRAGE",
+  "status": "PASS_CLOSED",
+  "measuredDate": "2026-09-24",
+  "frozenPublicMethodologyCommit": "3979bfaa1e0371ec2377fe5a0d3a38dc8eb2d8a7",
+  "workload": {
+    "scenarios": 3,
+    "tasksPerScenario": 120,
+    "pairedTasks": 360,
+    "measuredProviderCalls": 720,
+    "routingDecisionRows": 1080,
+    "telemetryEvents": 1800,
+    "scriptedPriceChanges": 6,
+    "measuredRetries": 0,
+    "duplicateMeasuredCalls": 0
+  },
+  "headline": {
+    "capturedArbitrage": 1.0,
+    "absoluteRegretVsOracle": 0,
+    "normalizedRegret": 0,
+    "misrouteRate": 0,
+    "switchCount": 18,
+    "oscillationRate": 0.05014,
+    "reactionLagMs": 0,
+    "staticQuality": 0.97222,
+    "truynQuality": 0.98056,
+    "qualityDeltaPercentagePoints": 0.833,
+    "modeledStaticCost": 0.01380612,
+    "modeledTruynCost": 0.01087812,
+    "modeledOracleCost": 0.01087812,
+    "modeledComparativeSavings": 0.002928,
+    "modeledComparativeSavingsRate": 0.21208,
+    "meanLatencyDeltaMs": 93.99,
+    "meanLatencyDeltaRate": 0.2223,
+    "totalTokenDelta": 537,
+    "totalTokenDeltaRate": 0.04286
+  },
+  "statistics": {
+    "bootstrapIterations": 20000,
+    "confidenceLevel": 0.95,
+    "meanPairedSaving": 0.000008133333333333332,
+    "saving95Ci": [0.000006574583333333333, 0.000009748611111111102],
+    "meanPairedQualityDelta": 0.008333333333333333,
+    "qualityDelta95Ci": [-0.002777777777777778, 0.022222222222222223],
+    "qualityNonInferiorityMargin": -0.05
+  },
+  "providerUsage": {
+    "gemini": {"calls": 570, "correct": 553, "incorrect": 17, "inputTokens": 17670, "outputTokens": 2177},
+    "gpt": {"calls": 150, "correct": 150, "incorrect": 0, "inputTokens": 5300, "outputTokens": 450}
+  },
+  "integrity": {
+    "materialForeignSeriesInterference": false,
+    "futureOracleInformationUsedByLiveRouter": false,
+    "realProviderPriceMutation": false,
+    "provenanceVerified": true,
+    "exactProviderPinsVerified": true,
+    "unexpectedMeasuredArms": 0
+  },
+  "evidence": {
+    "measuredRunId": 36039411026,
+    "logicalRunId": "h-arbitrage-final-36039411026-a1",
+    "sourceArtifactId": 10826811817,
+    "sourceArtifactSha256": "d5ca5f48ea043787efe553a6955b31ab0adfc47c2e72b1897ce0282d3fd157b4",
+    "telemetrySha256": "79fe3f1d2d76d7291b863211f6f4e0338b25d3608e2c0aa2ffcde7dc4a10c947",
+    "independentAuditRunId": 36043622812,
+    "independentAuditArtifactId": 10827117612,
+    "independentAuditArtifactSha256": "3c2f06c2e5d8239cad7f25c48a4e6878dfc018bc89d96a0a8c22ce01ebb18715",
+    "fullMetricsSha256": "dc449a37b7a17dcd589fdc70cfb79e66ddd1f7cf91ded429712f6c85f76992ca",
+    "billingAuditRunId": 36044260834,
+    "billingAuditArtifactId": 10827952475,
+    "billingAuditArtifactSha256": "5024dddaa272e46f922456baf6c33c6480e97690913421a349a6154e78106bf8"
+  },
+  "claimBoundary": {
+    "modeledComparativeSavingsClaimEligible": true,
+    "externalRealDollarSavingsClaimEligible": false
+  },
+  "rerunPolicy": "NO_ORDINARY_RERUN; new immutable run required after material methodology/provider/price/workload/seed/statistical/claim-scope change"
+}
