@@ -1,0 +1,99 @@
+diff --git a/.github/workflows/d500-acceptance.yml b/.github/workflows/d500-acceptance.yml
+index df886541b..000000000 100644
+--- a/.github/workflows/d500-acceptance.yml
++++ b/.github/workflows/d500-acceptance.yml
+@@ -4,7 +4,7 @@ on:
+   push:
+     branches: [main]
+     paths:
+-      - '.github/d500/launch-06.txt'
++      - '.github/d500/launch-07.txt'
+@@ -12,18 +12,20 @@ permissions:
+   id-token: write
+ 
+ concurrency:
+-  group: truyn-d500-e0ed95f4-attempt6-single-shot
++  group: truyn-d500-cbf1a1a6-attempt7-single-shot
+   cancel-in-progress: false
+ 
+ env:
+-  TASK_ID: truyn-d500-acceptance-260923-a6
++  TASK_ID: truyn-d500-acceptance-260924-a7
+   REFERENCE_D200_RUN: '35503894414'
+   REFERENCE_D200_REPEATABILITY_RUN: '35517248924'
+-  TESTED_COMMIT: e0ed95f40473010e394c32df1fed9ae7a5a745be
+-  TESTED_TREE_SHA: 5f76cf61560928d5bff0bb79d0a8cd1c464fa2dc
+-  EXACT_MAIN_CI_RUN: '35776648238'
+-  EXACT_MAIN_FIVE_PATCH_RUN: '35776648213'
+-  EXACT_MAIN_CODEQL_RUN: '35776648103'
+-  EXACT_MAIN_BLOCKWISE_RUN: '35776648082'
++  TESTED_COMMIT: cbf1a1a63aa772f0118fede033665599e3d6210f
++  TESTED_TREE_SHA: b036e71bbd46eeadc8c08f2336bb1bd3225263d1
++  EXACT_MAIN_CI_RUN: '35990792182'
++  EXACT_MAIN_FIVE_PATCH_RUN: '35990792159'
++  EXACT_MAIN_CODEQL_RUN: '35990791106'
++  D_SERIES_BLOCKWISE_PREFLIGHT_RUN: '35991399533'
++  D500_LIVE_B06_RUN: '35991657587'
+   D500_CONTRACT_SHA256: 469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e913fd8f85
+@@ -39,7 +41,7 @@ jobs:
+         shell: bash
+         run: |
+           set -Eeuo pipefail
+-          token='.github/d500/launch-06.txt'
++          token='.github/d500/launch-07.txt'
+           workflow='.github/workflows/d500-acceptance.yml'
+@@ -58,7 +60,8 @@ jobs:
+           [[ "$(value EXACT_MAIN_CI_RUN)" == "$EXACT_MAIN_CI_RUN" ]]
+           [[ "$(value EXACT_MAIN_FIVE_PATCH_RUN)" == "$EXACT_MAIN_FIVE_PATCH_RUN" ]]
+           [[ "$(value EXACT_MAIN_CODEQL_RUN)" == "$EXACT_MAIN_CODEQL_RUN" ]]
+-          [[ "$(value EXACT_MAIN_BLOCKWISE_RUN)" == "$EXACT_MAIN_BLOCKWISE_RUN" ]]
++          [[ "$(value D_SERIES_BLOCKWISE_PREFLIGHT_RUN)" == "$D_SERIES_BLOCKWISE_PREFLIGHT_RUN" ]]
++          [[ "$(value D500_LIVE_B06_RUN)" == "$D500_LIVE_B06_RUN" ]]
+           [[ "$(value D500_CONTRACT_SHA256)" == "$D500_CONTRACT_SHA256" ]]
+@@ -84,15 +87,20 @@ jobs:
+           set -Eeuo pipefail
+           [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+           [[ "$(git rev-parse "${TESTED_COMMIT}^{tree}")" == "$TESTED_TREE_SHA" ]]
++          bash scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs 2>/dev/null || node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
++          export TRUYN_D_SERIES_BLOCKWISE_PREFLIGHT_RUN="$D_SERIES_BLOCKWISE_PREFLIGHT_RUN"
++          bash scripts/verify-d-series-blockwise-preflight-run.sh "$TESTED_COMMIT"
+           ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
+           fp="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_FIVE_PATCH_RUN}")"
+           cq="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}")"
+-          bw="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_BLOCKWISE_RUN}")"
++          live="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${D500_LIVE_B06_RUN}")"
+           d200="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${REFERENCE_D200_RUN}")"
+           repeat="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${REFERENCE_D200_REPEATABILITY_RUN}")"
+           jq -e --arg s "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$ci" >/dev/null
+           jq -e --arg s "$TESTED_COMMIT" '.name=="Class D Five-Patch Preflight" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$fp" >/dev/null
+           jq -e --arg s "$TESTED_COMMIT" '.name=="Push on main" and .head_branch=="main" and .head_sha==$s and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$cq" >/dev/null
+-          jq -e --arg s "$TESTED_COMMIT" '.name=="Class D Blockwise Preflight" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$bw" >/dev/null
++          jq -e --arg s "$TESTED_COMMIT" '.name=="Class D Bootstrap Qualification" and .head_branch=="main" and .head_sha==$s and .event=="workflow_run" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$live" >/dev/null
+           jq -e '.id==35503894414 and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$d200" >/dev/null
+@@ -161,6 +169,44 @@ jobs:
+           done
+           [[ "$ok" == true ]]
+ 
++      - name: Fresh collision capacity and duplicate guard
++        env:
++          GH_TOKEN: '${{ github.token }}'
++        shell: bash
++        run: |
++          set -Eeuo pipefail
++          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
++          [[ "$main_sha" == "$GITHUB_SHA" ]]
++          active="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=100")"
++          conflicts="$(jq --arg id "$GITHUB_RUN_ID" '[.workflow_runs[] | select((.status=="queued" or .status=="in_progress") and (.id|tostring)!=$id) | select((.name|test("D-500 Acceptance|D-1000|S-Series|E-Series|T-Series|Class D Bootstrap Qualification"))) ] | length' <<<"$active")"
++          [[ "$conflicts" == 0 ]]
++          dup="$(jq --arg s "$TESTED_COMMIT" '[.workflow_runs[] | select(.name=="D-500 Acceptance") | select(.status=="queued" or .status=="in_progress") | select(.head_sha==$s)] | length' <<<"$active")"
++          [[ "$dup" == 0 ]]
++          echo "TRUYN_D500_COLLISION_GUARD status=PASS tested_sha=$TESTED_COMMIT conflicts=$conflicts duplicates=$dup location=$TRUYN_D500_LOCATION size=$TRUYN_D500_VM_SIZE"
++
++      - name: Refresh Azure OIDC immediately before runtime staging
++        uses: azure/login@v2
++        with:
++          client-id: '${{ secrets.AZURE_CLIENT_ID }}'
++          tenant-id: '${{ secrets.AZURE_TENANT_ID }}'
++          subscription-id: '${{ secrets.AZURE_SUBSCRIPTION_ID }}'
++
+       - name: Stage immutable runtime bundle with OIDC data-plane auth
