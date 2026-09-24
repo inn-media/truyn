@@ -144,8 +144,20 @@ test('current D-500 workflow preserves the strict scale contract for the immutab
   const workflow = fs.readFileSync('.github/workflows/d500-acceptance.yml', 'utf8');
   const launchMatch = workflow.match(/\.github\/d500\/launch-(\d{2})\.txt/);
   assert.ok(launchMatch, 'active D-500 workflow must pin an immutable launch token');
+  const launchNumber = Number(launchMatch[1]);
   const launchPath = `.github/d500/launch-${launchMatch[1]}.txt`;
-  assert.equal(fs.existsSync(launchPath), true, `active launch token must exist: ${launchPath}`);
+  const launchExists = fs.existsSync(launchPath);
+  if (phase === 'launch') {
+    assert.equal(launchExists, true, `launch phase requires active launch token: ${launchPath}`);
+  } else if (!launchExists) {
+    const existingLaunchNumbers = fs.readdirSync('.github/d500')
+      .map((name) => name.match(/^launch-(\d{2})\.txt$/))
+      .filter(Boolean)
+      .map((match) => Number(match[1]))
+      .sort((a, b) => a - b);
+    const latest = existingLaunchNumbers.at(-1) || 0;
+    assert.equal(launchNumber, latest + 1, `prepare phase may only arm the immediate successor launch token after launch-${String(latest).padStart(2, '0')}.txt`);
+  }
   assert.match(workflow, /REFERENCE_D200_RUN: '35503894414'/);
   assert.match(workflow, /REFERENCE_D200_REPEATABILITY_RUN: '35517248924'/);
   assert.match(workflow, /NODES_PER_HOST: '25'/);
