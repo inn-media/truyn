@@ -30,6 +30,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | D-Series execution architecture | **Swarm-Blockwise lock active** | preserve through remaining D-Series work |
 | Semantic Scale S-Series | **EXECUTED / DIAGNOSTIC; NO S PASS ACCEPTED** | repair current S-50 WebSocket scale defect, requalify exact head, then fresh single-shot S-50 |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
+| Emergent Network N-Series | **FOUNDATION DEFINED / NOT YET EXECUTED** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
 | Claim-centric + active Trustability | **Implemented bounded slices** | Production Trust Authority remains open |
 | Account → Organization → Tenant | **Historical public acceptance; managed ownership is TRUYN Platform** | public contract/reference seams |
@@ -90,6 +91,25 @@ E-Series is no longer accurately described as merely “not yet executed”. Qua
 
 A setup/qualification run, provider smoke or isolated paid call is not a substitute for a final benchmark result. Final E claims still require frozen workload/config, exact public/private pins, isolation guards, immutable evidence and independent reconciliation.
 
+## Emergent Network N-Series boundary
+
+N-Series is the emergent-network family:
+
+```text
+N/SOVEREIGNTY
+N/MARKETPLACE
+N/TRUST-DECAY
+N/SUSTAINED-CHURN
+```
+
+It reuses accepted network/provider substrate but tests new behavior: jurisdiction-aware compute/data routing, capability-only specialist discovery without provider-ID pre-seeding, adaptive domain-specific trust under independent ground truth, and long-window convergence while membership changes continuously under load.
+
+Public hard gates include routing >=99% and recovery p95 <=120 s when exercised, zero unauthorized execution and cross-series contamination, plus scenario-specific gates such as 100% sovereignty policy compliance with zero forbidden observed egress, marketplace specialist-hit >=99% with zero incapable dispatches and no all-node flood, trust-decay traffic to oracle-bad providers <=1% within a frozen learning window with false-penalty <=0.5%, and sustained-churn >=99% routing at every claimed supported rate across a long window of at least `max(2h, 12*peer TTL)`.
+
+The N foundation also fixes false-PASS controls: requester provider blindness, actual data-plane sovereignty evidence, independent hidden oracle, continuous load during churn and immutable acceptance before final execution.
+
+No N-Series run has executed or passed. Canonical foundation: `N_SERIES_EMERGENT_NETWORK.md`, `N_SERIES_OPEN_PRIVATE_BOUNDARY.md`, `../benchmarks/N_SERIES_EMERGENT_BEHAVIOR_CONTRACT.md`, `../benchmarks/N_SERIES_TELEMETRY.md`, `../operations/N_SERIES_EXECUTION_AND_ISOLATION.md`, `../roadmap/N_SERIES_ROADMAP.md`.
+
 ## Open 1.0 / SDK-DX boundary
 
 Issue #615 is the durable Open 1.0 task anchor. On this snapshot, S01–S102 are completed and S103 is active on a task branch; `main` has not yet accepted S103. Stable Open 1.0 remains forbidden until all applicable S01–S200 work and independent G1–G34 final reconciliation are complete.
@@ -109,6 +129,8 @@ This does **not** claim stable NLWeb v1, compatibility with later upstream revis
 ## Repository boundary
 
 Managed production authority, managed control plane, persistence, commercial entitlement/accounting/billing implementation and hosted authority runtime are owned by private `inn-media/truyn-platform`. Public TRUYN retains protocol/open-edge behavior, public contracts/conformance, Node/Relay reference behavior, generic provider/BYOK/owner-funded behavior and explicit managed extension seams. Public code never depends on private code; private code consumes only immutable released/versioned public artifacts or explicitly pinned immutable public contracts.
+
+For N-Series specifically, public owns reproducible methodology, public-safe telemetry/formulas, generic/reference evaluation and sanitized evidence. Real managed topology, packet/flow logs, hidden oracle bodies/seeds, provider identities/endpoints/allowlists/quota/spend and proprietary trust/routing intelligence remain private.
 
 ## Documentation hygiene rule
 
