@@ -32,6 +32,9 @@ test('Blockwise Admission is non-bypassable and preserves frozen-candidate indep
   assert.equal(lock.sourceBinding.baseToCurrentMainDiffRequired, true);
   assert.equal(lock.sourceBinding.integrationCandidateFingerprintRequired, true);
   assert.equal(lock.sourceBinding.candidateEvidenceSurvivesUnrelatedMainMovement, true);
+  assert.equal(lock.sourceBinding.unrelatedMainMovementDoesNotInvalidateAdmission, true);
+  assert.equal(lock.sourceBinding.eSensitiveMainMovementInvalidatesAdmission, true);
+  assert.equal(lock.sourceBinding.semanticStalenessRequired, true);
   assert.equal(lock.sourceBinding.automaticFullLiveRerunOnMainMovement, false);
   assert.equal(lock.blockwiseAdmission.allRequiredBlocksGreen, true);
   assert.equal(lock.blockwiseAdmission.freshIntegrationFingerprintRequired, true);
@@ -40,6 +43,9 @@ test('Blockwise Admission is non-bypassable and preserves frozen-candidate indep
   assert.equal(lock.blockwiseAdmission.duplicateHistoryGuardRequired, true);
   assert.equal(lock.blockwiseAdmission.budgetGuardRequired, true);
   assert.equal(lock.blockwiseAdmission.staleAdmissionFailsClosed, true);
+  assert.equal(lock.blockwiseAdmission.staleAdmissionDefinition, 'E_SENSITIVE_DRIFT_ONLY');
+  assert.equal(lock.blockwiseAdmission.unrelatedMainMovementDoesNotStaleAdmission, true);
+  assert.equal(lock.paidBoundary.admissionFreshnessMustBeSemantic, true);
 });
 
 test('every paid or measured E boundary must consume successful Blockwise Admission', () => {
@@ -65,6 +71,8 @@ test('documentation locks the two-level engine and material R0/R1/R2 semantics',
     'Level 2 — E Blockwise Admission',
     'fail-fast=false',
     'BASE_SHA -> current main',
+    'semantic freshness',
+    'SHA inequality alone is never sufficient evidence of E staleness',
     'S24 Provider Smoke',
     'E/DECOMPOSE',
     'E/PER-RESULT',
