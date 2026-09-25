@@ -110,14 +110,25 @@ jobs:
 
       - name: Build automatic D qualification manifest
         shell: bash
+        env:
+          QUALIFICATION_BASE_SHA: ${{ steps.resolve.outputs.base }}
+          QUALIFICATION_CANDIDATE_SHA: ${{ steps.resolve.outputs.candidate }}
+          QUALIFICATION_SCALE: ${{ steps.resolve.outputs.scale }}
+          QUALIFICATION_SWARM_RUN_ID: ${{ steps.resolve.outputs.swarm }}
+          QUALIFICATION_BLOCKWISE_RUN_ID: ${{ steps.resolve.outputs.blockwise }}
         run: |
           set -Eeuo pipefail
+          [[ "$QUALIFICATION_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$QUALIFICATION_CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$QUALIFICATION_SWARM_RUN_ID" =~ ^[1-9][0-9]+$ ]]
+          [[ "$QUALIFICATION_BLOCKWISE_RUN_ID" =~ ^[1-9][0-9]+$ ]]
+          case "$QUALIFICATION_SCALE" in all|d200|d500|d1000) ;; *) exit 2 ;; esac
           node scripts/d-series-qualification-manifest.mjs qualification \
-            --base-sha '${{ steps.resolve.outputs.base }}' \
-            --candidate-sha '${{ steps.resolve.outputs.candidate }}' \
-            --scale '${{ steps.resolve.outputs.scale }}' \
-            --swarm-run-id '${{ steps.resolve.outputs.swarm }}' \
-            --blockwise-run-id '${{ steps.resolve.outputs.blockwise }}' \
+            --base-sha "$QUALIFICATION_BASE_SHA" \
+            --candidate-sha "$QUALIFICATION_CANDIDATE_SHA" \
+            --scale "$QUALIFICATION_SCALE" \
+            --swarm-run-id "$QUALIFICATION_SWARM_RUN_ID" \
+            --blockwise-run-id "$QUALIFICATION_BLOCKWISE_RUN_ID" \
             --output d-series-qualification-manifest.json
 
       - name: Upload immutable candidate qualification manifest
