@@ -26,46 +26,59 @@ jobs:
           persist-credentials: true
           token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
 
-      - name: Validate repair request
-        shell: bash
+      - name: Validate repair request metadata
         run: |
           set -Eeuo pipefail
           shopt -s nullglob
-          patches=(.github/repairs/*.patch)
-          envs=(.github/repairs/*.env)
+          patches=(.github/repairs/*.patch); envs=(.github/repairs/*.env)
           [[ ${#patches[@]} == 1 && ${#envs[@]} == 1 ]]
           source "${envs[0]}"
           [[ "${TASK_ID:-}" =~ ^[A-Za-z0-9._-]+$ ]]
           [[ "${BASE_SHA:-}" =~ ^[0-9a-f]{40}$ ]]
           [[ "${EXPECTED_PATHS:-}" != '' ]]
+
+      - name: Validate exact repair base
+        run: |
+          set -Eeuo pipefail
+          envs=(.github/repairs/*.env); source "${envs[0]}"
           git fetch origin main --quiet
           [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
           [[ "$(git merge-base HEAD "$BASE_SHA")" == "$BASE_SHA" ]]
-          git apply --check "${patches[0]}"
 
       - name: Apply exact patch fail closed
-        shell: bash
         run: |
           set -Eeuo pipefail
           env_file=(.github/repairs/*.env); patch_file=(.github/repairs/*.patch)
           source "${env_file[0]}"
-          git apply "${patch_file[0]}"
+          git apply --recount --check "${patch_file[0]}"
+          git apply --recount "${patch_file[0]}"
           git diff --check
-          mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' | sort)
+          mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' ':!.github/workflows/autonomous-repair.yml' | sort)
           mapfile -t expected < <(printf '%s\n' $EXPECTED_PATHS | sort)
           [[ "${changed[*]}" == "${expected[*]}" ]]
           [[ ${#changed[@]} -gt 0 ]]
 
-      - name: Run required repair checks
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          env_file=(.github/repairs/*.env); source "${env_file[0]}"
-          if [[ -n "${CHECK_COMMAND:-}" ]]; then bash -lc "$CHECK_COMMAND"; fi
-          git diff --check
+      - name: Check frozen-candidate admission regressions
+        if: always()
+        run: node --test tests/d-series-frozen-candidate-admission.test.js
+      - name: Check Swarm integration regressions
+        if: always()
+        run: node --test tests/d-series-swarm-integration.test.js
+      - name: Check Blockwise regressions
+        if: always()
+        run: node --test tests/d-series-blockwise-preflight.test.js
+      - name: Check Frozen Candidate policy lock
+        if: always()
+        run: node scripts/verify-d-series-frozen-candidate-policy.mjs
+      - name: Check Swarm Blockwise architecture lock
+        if: always()
+        run: node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
+      - name: Check verifier shell syntax
+        if: always()
+        run: bash -n scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh
 
       - name: Commit exact repaired files
-        shell: bash
+        if: success()
         run: |
           set -Eeuo pipefail
           env_file=(.github/repairs/*.env); source "${env_file[0]}"

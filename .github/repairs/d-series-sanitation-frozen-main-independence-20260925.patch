@@ -1,0 +1,245 @@
+diff --git a/.github/workflows/d200-bug-hunt.yml b/.github/workflows/d200-bug-hunt.yml
+--- a/.github/workflows/d200-bug-hunt.yml
++++ b/.github/workflows/d200-bug-hunt.yml
+@@ -5,7 +5,7 @@ on:
+   workflow_dispatch:
+     inputs:
+       source_sha:
+-        description: Exact current main SHA to diagnose; defaults to dispatch SHA
++        description: Exact frozen candidate SHA to diagnose; defaults to dispatch SHA
+         required: false
+         type: string
+@@ -27,7 +27,7 @@ on:
+   workflow_call:
+     inputs:
+       source_sha:
+-        description: Exact current main SHA to diagnose
++        description: Exact frozen candidate SHA to diagnose
+         required: true
+         type: string
+@@ -113,17 +113,11 @@ jobs:
+         if: steps.selection.outputs.selected == 'true'
+         shell: bash
+         env:
+-          EVENT: ${{ github.event_name }}
+           EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+-          GH_TOKEN: ${{ github.token }}
+         run: |
+           set -Eeuo pipefail
+           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+-          if [[ "$EVENT" != pull_request ]]; then
+-            main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+-            [[ "$main_sha" == "$EXPECTED_SHA" ]]
+-          fi
+           npm install --ignore-scripts --no-audit --no-fund
+ 
+       - name: Run bounded D-200 lane without cancelling peers
+diff --git a/.github/workflows/d-series-blockwise-preflight.yml b/.github/workflows/d-series-blockwise-preflight.yml
+--- a/.github/workflows/d-series-blockwise-preflight.yml
++++ b/.github/workflows/d-series-blockwise-preflight.yml
+@@ -5,7 +5,7 @@ on:
+   workflow_dispatch:
+     inputs:
+       source_sha:
+-        description: Exact main SHA to qualify
++        description: Exact frozen candidate SHA to qualify
+         required: true
+         type: string
+@@ -25,7 +25,7 @@ on:
+   workflow_call:
+     inputs:
+       source_sha:
+-        description: Exact current main SHA to qualify
++        description: Exact frozen candidate SHA to qualify
+         required: true
+         type: string
+@@ -62,16 +62,10 @@ jobs:
+         shell: bash
+         env:
+-          EVENT: ${{ github.event_name }}
+           EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
+-          GH_TOKEN: ${{ github.token }}
+         run: |
+           set -Eeuo pipefail
+           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+-          if [[ "$EVENT" != pull_request ]]; then
+-            main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+-            [[ "$main_sha" == "$EXPECTED_SHA" ]]
+-          fi
+ 
+       - name: Require clean Swarm before full admission
+         if: github.event_name != 'pull_request' && inputs.block == 'all'
+diff --git a/.github/workflows/d-series-swarm-one-shot-launcher.yml b/.github/workflows/d-series-swarm-one-shot-launcher.yml
+--- a/.github/workflows/d-series-swarm-one-shot-launcher.yml
++++ b/.github/workflows/d-series-swarm-one-shot-launcher.yml
+@@ -25,7 +25,7 @@ jobs:
+           fetch-depth: 0
+ 
+-      - name: Validate exact-main one-commit request
++      - name: Validate frozen-candidate one-commit request
+         id: request
+         shell: bash
+         env:
+@@ -49,8 +49,6 @@ jobs:
+ 
+           expected_branch="automation/d-series-dispatch/${source_sha:0:8}-${scale}-swarm"
+           [[ "$GITHUB_REF_NAME" == "$expected_branch" ]]
+-          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+-          [[ "$main_sha" == "$source_sha" ]]
+           [[ "$(git rev-parse HEAD^)" == "$source_sha" ]]
+           [[ "$(git rev-list --count "${source_sha}..HEAD")" == 1 ]]
+           changed="$(git diff --name-only "$source_sha" HEAD)"
+diff --git a/.github/workflows/d-series-blockwise-one-shot-launcher.yml b/.github/workflows/d-series-blockwise-one-shot-launcher.yml
+--- a/.github/workflows/d-series-blockwise-one-shot-launcher.yml
++++ b/.github/workflows/d-series-blockwise-one-shot-launcher.yml
+@@ -29,7 +29,7 @@ jobs:
+           fetch-depth: 0
+ 
+-      - name: Validate exact-main request and Swarm provenance
++      - name: Validate frozen-candidate request and Swarm provenance
+         id: request
+         shell: bash
+         env:
+@@ -58,8 +58,6 @@ jobs:
+ 
+           expected_branch="automation/d-series-blockwise/${source_sha:0:8}-${scale}-${swarm_run_id}"
+           [[ "$GITHUB_REF_NAME" == "$expected_branch" ]]
+-          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+-          [[ "$main_sha" == "$source_sha" ]]
+           [[ "$(git rev-parse HEAD^)" == "$source_sha" ]]
+           [[ "$(git rev-list --count "${source_sha}..HEAD")" == 1 ]]
+           changed="$(git diff --name-only "$source_sha" HEAD)"
+diff --git a/scripts/verify-d-series-swarm-run.sh b/scripts/verify-d-series-swarm-run.sh
+--- a/scripts/verify-d-series-swarm-run.sh
++++ b/scripts/verify-d-series-swarm-run.sh
+@@ -21,7 +21,7 @@ if jq -e --arg source "$SOURCE_SHA" '
+   .name == "D-Series Sanitation Swarm" and
+   .path == ".github/workflows/d200-bug-hunt.yml" and
+-  .head_branch == "main" and
+   .head_sha == $source and
++  ((.head_commit.id // .head_sha) == $source) and
+   .event == "workflow_dispatch" and
+   .status == "completed" and
+   .conclusion == "success" and
+@@ -51,5 +51,5 @@ else
+   commit="$(gh api "repos/${REPOSITORY}/commits/${head_sha}")"
+   jq -e --arg source "$SOURCE_SHA" '(.parents | length) == 1 and .parents[0].sha == $source' <<<"$commit" >/dev/null || {
+-    echo "TRUYN_D_SERIES_SWARM_GATE=FAIL reason=caller_parent_not_exact_main run_id=$RUN_ID source_sha=$SOURCE_SHA head_sha=$head_sha" >&2
++    echo "TRUYN_D_SERIES_SWARM_GATE=FAIL reason=caller_parent_not_source run_id=$RUN_ID source_sha=$SOURCE_SHA head_sha=$head_sha" >&2
+     exit 5
+   }
+diff --git a/scripts/verify-d-series-blockwise-preflight-run.sh b/scripts/verify-d-series-blockwise-preflight-run.sh
+--- a/scripts/verify-d-series-blockwise-preflight-run.sh
++++ b/scripts/verify-d-series-blockwise-preflight-run.sh
+@@ -22,7 +22,7 @@ if jq -e --arg source "$SOURCE_SHA" '
+   .name == "D-Series Blockwise Preflight" and
+   .path == ".github/workflows/d-series-blockwise-preflight.yml" and
+-  .head_branch == "main" and
+   .head_sha == $source and
++  ((.head_commit.id // .head_sha) == $source) and
+   .event == "workflow_dispatch" and
+   .status == "completed" and
+   .conclusion == "success" and
+@@ -34,6 +34,7 @@ elif jq -e --arg source "$SOURCE_SHA" '
+   .name == "D-Series Blockwise Preflight" and
+   .path == ".github/workflows/d-series-blockwise-preflight.yml" and
+-  ((.pull_requests[0].head.sha // .head_sha) == $source) and
++  .head_sha == $source and
++  ((.head_commit.id // .head_sha) == $source) and
+   .event == "pull_request" and
+   .status == "completed" and
+   .conclusion == "success" and
+@@ -66,5 +67,5 @@ else
+   commit="$(gh api "repos/${REPOSITORY}/commits/${head_sha}")"
+   jq -e --arg source "$SOURCE_SHA" '(.parents | length) == 1 and .parents[0].sha == $source' <<<"$commit" >/dev/null || {
+-    echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=caller_parent_not_exact_main run_id=$RUN_ID source_sha=$SOURCE_SHA head_sha=$head_sha" >&2
++    echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=caller_parent_not_source run_id=$RUN_ID source_sha=$SOURCE_SHA head_sha=$head_sha" >&2
+     exit 5
+   }
+diff --git a/tests/d-series-swarm-integration.test.js b/tests/d-series-swarm-integration.test.js
+--- a/tests/d-series-swarm-integration.test.js
++++ b/tests/d-series-swarm-integration.test.js
+@@ -54,6 +54,6 @@ test('full Blockwise admission is impossible without exact-SHA GREEN Swarm proven
+   assert.ok(verifier.includes('swarm_provenance=true'));
+ });
+ 
+-test('canonical one-shot caller invokes only the reusable Swarm and preserves exact-main provenance', () => {
++test('canonical one-shot caller invokes only the reusable Swarm and preserves frozen-candidate provenance', () => {
+   const launcher = read('.github/workflows/d-series-swarm-one-shot-launcher.yml');
+   for (const marker of [
+@@ -72,4 +72,6 @@ test('canonical one-shot caller invokes only the reusable Swarm and preserves exa
+   assert.ok(!launcher.includes('gh workflow run'), 'canonical caller must not recursively dispatch another workflow');
+   assert.ok(!launcher.includes('d-series-blockwise-preflight.yml'), 'canonical caller must not bypass the Swarm-to-Blockwise boundary');
+   assert.ok(!launcher.includes('d500-acceptance'), 'canonical caller must not launch a real D-500 campaign');
++  assert.ok(!launcher.includes('commits/main'), 'frozen candidate caller must not require current main equality');
++  assert.ok(!launcher.includes('main_sha'), 'frozen candidate caller must survive unrelated main movement');
+ });
+@@ -86,16 +88,16 @@ test('real D-500 and D-1000 acceptance surfaces remain downstream of Blockwise ad
+   }
+ });
+ 
+-test('Swarm verifier binds admission evidence to exact main, requested scale, and canonical caller provenance', () => {
++test('Swarm verifier binds evidence to the immutable frozen source, requested scale, and canonical caller provenance', () => {
+   const verifier = read('scripts/verify-d-series-swarm-run.sh');
+   for (const marker of [
+     '.name == "D-Series Sanitation Swarm"',
+     '.path == ".github/workflows/d200-bug-hunt.yml"',
+-    '.head_branch == "main"',
+     '.head_sha == $source',
++    '(.head_commit.id // .head_sha) == $source',
+     '.event == "workflow_dispatch"',
+     'D-Series Swarm One-Shot Launcher',
+     'd-series-swarm-one-shot-launcher.yml',
+-    'caller_parent_not_exact_main',
++    'caller_parent_not_source',
+     'caller_delta_not_single_request',
+     'caller_request_mismatch',
+@@ -105,3 +107,4 @@ test('Swarm verifier binds admission evidence to exact main, requested scale, and
+     'd-series-swarm-summary-all-${RUN_ID}'
+   ]) assert.ok(verifier.includes(marker), `Swarm verifier lost marker: ${marker}`);
++  assert.ok(!verifier.includes('.head_branch == "main"'), 'Swarm evidence must not be invalidated by unrelated main movement');
+ });
+diff --git a/tests/d-series-blockwise-preflight.test.js b/tests/d-series-blockwise-preflight.test.js
+--- a/tests/d-series-blockwise-preflight.test.js
++++ b/tests/d-series-blockwise-preflight.test.js
+@@ -38,5 +38,5 @@ test('blockwise workflow runs all blocks in parallel without fail-fast and suppor
+   assert.match(workflow, /Run complete block cycle and retain all failures/);
+   assert.match(workflow, /--scope targeted --selected-block/);
+   assert.match(workflow, /--scope full --enforce/);
+-  assert.match(workflow, /main_sha.*EXPECTED_SHA/s);
++  assert.doesNotMatch(workflow, /commits\/main/, 'candidate qualification must not require current main equality');
+ });
+@@ -53,5 +53,5 @@ test('block runners retain failures while the aggregate alone fails closed', () =
+   assert.match(aggregate, /if \(enforce && !clean\) process\.exitCode = 1/);
+ });
+ 
+-test('canonical Blockwise caller is transport-only and preserves exact-main plus Swarm provenance', () => {
++test('canonical Blockwise caller is transport-only and preserves frozen-candidate plus Swarm provenance', () => {
+   for (const marker of [
+@@ -71,13 +71,16 @@ test('canonical Blockwise caller is transport-only and preserves exact-main plus
+   assert.doesNotMatch(launcher, /class-d-bootstrap-qualification\.yml/);
+   assert.doesNotMatch(launcher, /d-series-block-runner\.mjs/);
++  assert.doesNotMatch(launcher, /commits\/main/);
++  assert.doesNotMatch(launcher, /main_sha/);
+ });
+ 
+-test('full launch gate accepts only exact-main successful admission with fail-closed Swarm provenance', () => {
++test('full launch gate accepts immutable frozen-candidate evidence with fail-closed Swarm provenance', () => {
+   assert.match(verifier, /D-Series Blockwise Preflight/);
+-  assert.match(verifier, /\.head_branch == "main"/);
+   assert.match(verifier, /\.head_sha == \$source/);
++  assert.match(verifier, /\.head_commit\.id \/\/ \.head_sha/);
+   assert.match(verifier, /\.event == "workflow_dispatch"/);
+   assert.match(verifier, /D-Series Blockwise One-Shot Launcher/);
+   assert.match(verifier, /automation\/d-series-blockwise\//);
+-  assert.match(verifier, /caller_parent_not_exact_main/);
++  assert.match(verifier, /caller_parent_not_source/);
+   assert.match(verifier, /caller_delta_not_single_request/);
+@@ -92,3 +95,5 @@ test('full launch gate accepts only exact-main successful admission with fail-clo
+   assert.match(verifier, /swarm_provenance=true/);
+   assert.match(verifier, /provenance=\$provenance/);
++  assert.doesNotMatch(verifier, /pull_requests\[0\]\.head\.sha/, 'historical evidence must never trust mutable embedded PR metadata');
++  assert.doesNotMatch(verifier, /\.head_branch == "main"/, 'frozen evidence must survive unrelated main movement');
+ });
