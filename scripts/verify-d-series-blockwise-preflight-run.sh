@@ -14,6 +14,7 @@ command -v jq >/dev/null || { echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=jq
 
 run="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}")"
 provenance=''
+legacy_admission=false
 
 if jq -e --arg source "$SOURCE_SHA" '
   .name == "D-Series Blockwise Preflight" and
@@ -26,6 +27,17 @@ if jq -e --arg source "$SOURCE_SHA" '
   .run_attempt == 1
 ' <<<"$run" >/dev/null; then
   provenance=direct-workflow-dispatch
+  legacy_admission=true
+elif jq -e --arg source "$SOURCE_SHA" '
+  .name == "D-Series Blockwise Preflight" and
+  .path == ".github/workflows/d-series-blockwise-preflight.yml" and
+  ((.pull_requests[0].head.sha // .head_sha) == $source) and
+  .event == "pull_request" and
+  .status == "completed" and
+  .conclusion == "success" and
+  .run_attempt == 1
+' <<<"$run" >/dev/null; then
+  provenance=frozen-candidate-pull-request
 else
   jq -e --arg workflow "$CALLER_WORKFLOW" '
     .name == "D-Series Blockwise One-Shot Launcher" and
@@ -56,11 +68,8 @@ else
 
   comparison="$(gh api "repos/${REPOSITORY}/compare/${SOURCE_SHA}...${head_sha}")"
   jq -e --arg request "$REQUEST_PATH" '
-    .status == "ahead" and
-    .ahead_by == 1 and
-    .total_commits == 1 and
-    (.files | length) == 1 and
-    .files[0].filename == $request and
+    .status == "ahead" and .ahead_by == 1 and .total_commits == 1 and
+    (.files | length) == 1 and .files[0].filename == $request and
     (.files[0].status == "added" or .files[0].status == "modified")
   ' <<<"$comparison" >/dev/null || {
     echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=caller_delta_not_single_request run_id=$RUN_ID source_sha=$SOURCE_SHA head_sha=$head_sha" >&2
@@ -68,10 +77,7 @@ else
   }
 
   request_b64="$(gh api "repos/${REPOSITORY}/contents/${REQUEST_PATH}?ref=${head_sha}" --jq '.content // empty' | tr -d '\n')"
-  [[ -n "$request_b64" ]] || {
-    echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=caller_request_missing run_id=$RUN_ID" >&2
-    exit 5
-  }
+  [[ -n "$request_b64" ]] || { echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=caller_request_missing run_id=$RUN_ID" >&2; exit 5; }
   request="$(printf '%s' "$request_b64" | base64 --decode)"
   request_source="$(sed -n 's/^SOURCE_SHA=//p' <<<"$request")"
   scale="$(sed -n 's/^SCALE=//p' <<<"$request")"
@@ -86,21 +92,28 @@ else
   expected_branch="automation/d-series-blockwise/${SOURCE_SHA:0:8}-${scale}-${swarm_run_id}"
   [[ "$branch" == "$expected_branch" ]] || { echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=caller_branch_mismatch" >&2; exit 5; }
 
-  TRUYN_D_SERIES_SWARM_RUN="$swarm_run_id" \
-  TRUYN_D_SERIES_SWARM_SCALE="$scale" \
+  TRUYN_D_SERIES_SWARM_RUN="$swarm_run_id" TRUYN_D_SERIES_SWARM_SCALE="$scale" \
     bash scripts/verify-d-series-swarm-run.sh "$SOURCE_SHA"
   provenance=canonical-reusable-caller
+  legacy_admission=true
 fi
 
 artifacts="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/artifacts?per_page=100")"
 summary="d-series-blockwise-summary-${RUN_ID}"
-admission="d-series-blockwise-admission-${RUN_ID}"
-jq -e --arg summary "$summary" --arg admission "$admission" '
-  ([.artifacts[] | select(.name == $summary and .expired == false and (.size_in_bytes // 0) > 0)] | length == 1) and
-  ([.artifacts[] | select(.name == $admission and .expired == false and (.size_in_bytes // 0) > 0)] | length == 1)
-' <<<"$artifacts" >/dev/null || {
-  echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=admission_evidence_missing run_id=$RUN_ID source_sha=$SOURCE_SHA" >&2
+jq -e --arg summary "$summary" '([.artifacts[] | select(.name == $summary and .expired == false and (.size_in_bytes // 0) > 0)] | length == 1)' <<<"$artifacts" >/dev/null || {
+  echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=summary_evidence_missing run_id=$RUN_ID source_sha=$SOURCE_SHA" >&2
   exit 6
 }
 
-echo "TRUYN_D_SERIES_BLOCKWISE_GATE=PASS run_id=$RUN_ID source_sha=$SOURCE_SHA blocks=16/16 swarm_provenance=true exact_sha=true provenance=$provenance"
+if [[ "$legacy_admission" == true ]]; then
+  admission="d-series-blockwise-admission-${RUN_ID}"
+  jq -e --arg admission "$admission" '([.artifacts[] | select(.name == $admission and .expired == false and (.size_in_bytes // 0) > 0)] | length == 1)' <<<"$artifacts" >/dev/null || {
+    echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=admission_evidence_missing run_id=$RUN_ID source_sha=$SOURCE_SHA" >&2
+    exit 6
+  }
+fi
+
+# Expensive evidence belongs to the frozen candidate; merge/launch authority comes only from fresh integration Admission.
+bash scripts/verify-d-series-admission-run.sh "$SOURCE_SHA"
+
+echo "TRUYN_D_SERIES_BLOCKWISE_GATE=PASS run_id=$RUN_ID source_sha=$SOURCE_SHA blocks=16/16 swarm_provenance=true exact_sha=true admission=true provenance=$provenance"
