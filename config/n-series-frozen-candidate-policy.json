@@ -10,6 +10,8 @@
     "admissionComparesBaseShaToCurrentMain": true,
     "noSensitiveMainDriftReusesExpensiveEvidence": true,
     "sensitiveMainDriftRunsOnlyAffectedBlocks": true,
+    "selectiveBlockRunnerMandatory": true,
+    "allTargetedBlocksMustPass": true,
     "automaticFullRerunOnMainMovementForbidden": true,
     "liveRerunOnlyWhenSensitivePolicyRequires": true,
     "integrationCandidateFingerprintRecomputeMandatory": true,
@@ -21,47 +23,12 @@
     "policyRemovalRequiresExplicitUserAuthorization": true
   },
   "surfaces": [
-    {
-      "id": "n-contracts-policy",
-      "prefixes": ["docs/roadmap/N_SERIES_ROADMAP.md", "config/n-series-", "docs/operations/n-series/", ".github/workflows/n-series-"],
-      "blocks": ["N1", "N6", "N7"],
-      "liveRerunRequired": false
-    },
-    {
-      "id": "runtime-network-routing",
-      "prefixes": ["network/", "src/", "providers/", "storage/", "bin/", "adapters/", "sdk/"],
-      "blocks": ["N2", "N3", "N4", "N5", "N6"],
-      "liveRerunRequired": true
-    },
-    {
-      "id": "sovereignty",
-      "prefixes": ["benchmarks/n-series/sovereignty/", "scripts/n-series-sovereignty", "config/n-series-sovereignty"],
-      "blocks": ["N2", "N6", "N7"],
-      "liveRerunRequired": true
-    },
-    {
-      "id": "marketplace",
-      "prefixes": ["benchmarks/n-series/marketplace/", "scripts/n-series-marketplace", "config/n-series-marketplace"],
-      "blocks": ["N3", "N6", "N7"],
-      "liveRerunRequired": true
-    },
-    {
-      "id": "trust-decay",
-      "prefixes": ["benchmarks/n-series/trust-decay/", "scripts/n-series-trust", "config/n-series-trust"],
-      "blocks": ["N4", "N6", "N7"],
-      "liveRerunRequired": true
-    },
-    {
-      "id": "sustained-churn",
-      "prefixes": ["benchmarks/n-series/sustained-churn/", "scripts/n-series-churn", "config/n-series-churn"],
-      "blocks": ["N5", "N6", "N7"],
-      "liveRerunRequired": true
-    },
-    {
-      "id": "evidence-acceptance",
-      "prefixes": ["docs/benchmarks/", "scripts/n-series-evidence", "scripts/n-series-acceptance", "tests/n-series-"],
-      "blocks": ["N1", "N6", "N7"],
-      "liveRerunRequired": false
-    }
+    {"id":"n-contracts-policy","prefixes":["docs/roadmap/N_SERIES_ROADMAP.md","config/n-series-","docs/operations/n-series/",".github/workflows/n-series-"],"blocks":["N1","N6","N7"],"liveRerunRequired":false},
+    {"id":"runtime-network-routing","prefixes":["network/","src/","providers/","storage/","bin/","adapters/","sdk/"],"blocks":["N2","N3","N4","N5","N6"],"liveRerunRequired":true},
+    {"id":"sovereignty","prefixes":["benchmarks/n-series/sovereignty/","scripts/n-series-sovereignty","config/n-series-sovereignty"],"blocks":["N2","N6","N7"],"liveRerunRequired":true},
+    {"id":"marketplace","prefixes":["benchmarks/n-series/marketplace/","scripts/n-series-marketplace","config/n-series-marketplace"],"blocks":["N3","N6","N7"],"liveRerunRequired":true},
+    {"id":"trust-decay","prefixes":["benchmarks/n-series/trust-decay/","scripts/n-series-trust","config/n-series-trust"],"blocks":["N4","N6","N7"],"liveRerunRequired":true},
+    {"id":"sustained-churn","prefixes":["benchmarks/n-series/sustained-churn/","scripts/n-series-churn","config/n-series-churn"],"blocks":["N5","N6","N7"],"liveRerunRequired":true},
+    {"id":"evidence-acceptance","prefixes":["docs/benchmarks/","scripts/n-series-evidence","scripts/n-series-acceptance","tests/n-series-"],"blocks":["N1","N6","N7"],"liveRerunRequired":false}
   ]
 }
