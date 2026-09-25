@@ -1,0 +1,57 @@
+name: N-Series One-Shot Public Controller
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/n-series-one-shot-public-controller.yml']
+permissions:
+  contents: read
+  actions: write
+jobs:
+  controller:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Wait for exact-SHA Public Swarm terminal GREEN
+        id: swarm
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha='${{ github.sha }}'
+          for i in $(seq 1 90); do
+            run="$(gh api 'repos/${{ github.repository }}/actions/workflows/n-series-public-swarm.yml/runs?event=push&per_page=30' --jq '.workflow_runs[] | select(.head_sha=="'"$sha"'") | .id' | head -1)"
+            if [ -n "$run" ]; then
+              status="$(gh api "repos/${{ github.repository }}/actions/runs/$run" --jq .status)"
+              conclusion="$(gh api "repos/${{ github.repository }}/actions/runs/$run" --jq '.conclusion // ""')"
+              if [ "$status" = completed ]; then test "$conclusion" = success; echo "run_id=$run" >> "$GITHUB_OUTPUT"; exit 0; fi
+            fi
+            sleep 10
+          done
+          exit 70
+      - name: Dispatch exactly one Public Admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST 'repos/${{ github.repository }}/actions/workflows/n-series-public-admission.yml/dispatches' -f ref=main -f 'inputs[swarm_run_id]=${{ steps.swarm.outputs.run_id }}'
+      - name: Resolve terminal GREEN Public Admission
+        id: admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          swarm='${{ steps.swarm.outputs.run_id }}'
+          for i in $(seq 1 90); do
+            run="$(gh api 'repos/${{ github.repository }}/actions/workflows/n-series-public-admission.yml/runs?event=workflow_dispatch&per_page=30' --jq '.workflow_runs[] | select(.status!="queued") | .id' | head -1)"
+            if [ -n "$run" ]; then
+              status="$(gh api "repos/${{ github.repository }}/actions/runs/$run" --jq .status)"
+              conclusion="$(gh api "repos/${{ github.repository }}/actions/runs/$run" --jq '.conclusion // ""')"
+              if [ "$status" = completed ]; then test "$conclusion" = success; echo "run_id=$run" >> "$GITHUB_OUTPUT"; printf '{"publicSha":"%s","swarmRunId":"%s","publicAdmissionRunId":"%s","status":"GREEN"}\n' '${{ github.sha }}' "$swarm" "$run" > public-controller.json; exit 0; fi
+            fi
+            sleep 10
+          done
+          exit 71
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n-series-public-controller-${{ github.run_id }}
+          path: public-controller.json
+          if-no-files-found: error
+          retention-days: 30
