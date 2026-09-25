@@ -1,0 +1,70 @@
+name: N-Series Public Swarm
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact frozen public N candidate SHA
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: n-public-swarm-${{ inputs.candidate_sha }}
+  cancel-in-progress: false
+jobs:
+  blocks:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      max-parallel: 7
+      matrix:
+        block: [N1,N2,N3,N4,N5,N6,N7]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact frozen candidate
+        run: test "$(git rev-parse HEAD)" = '${{ inputs.candidate_sha }}'
+      - name: Run candidate-bound N block
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p n-public-swarm
+          node scripts/n-series-selective-block-runner.mjs --blocks '${{ matrix.block }}' --json "n-public-swarm/${{ matrix.block }}.json"
+          jq -e '.status == "GREEN" or .overall == "GREEN" or .passed == true' "n-public-swarm/${{ matrix.block }}.json" >/dev/null
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: n-public-${{ matrix.block }}-${{ github.run_id }}
+          path: n-public-swarm/${{ matrix.block }}.json
+          if-no-files-found: error
+          retention-days: 30
+  aggregate:
+    if: always()
+    needs: blocks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: n-public-N*-${{ github.run_id }}
+          path: evidence
+          merge-multiple: true
+      - name: Require immutable 7/7 GREEN evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          count="$(find evidence -type f -name 'N*.json' | wc -l | tr -d ' ')"
+          test "$count" = 7
+          jq -s --arg sha '${{ inputs.candidate_sha }}' --arg run '${{ github.run_id }}' '{schema:"truyn.n-series.public-swarm.v1",status:(if all(.[]; (.status=="GREEN" or .overall=="GREEN" or .passed==true)) then "GREEN" else "RED" end),candidateSha:$sha,runId:$run,requiredBlocks:7,greenBlocks:([.[]|select(.status=="GREEN" or .overall=="GREEN" or .passed==true)]|length),blocks:.}' evidence/N*.json > n-public-swarm-summary.json
+          jq -e '.status=="GREEN" and .requiredBlocks==7 and .greenBlocks==7' n-public-swarm-summary.json >/dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n-public-swarm-summary-${{ github.run_id }}
+          path: n-public-swarm-summary.json
+          if-no-files-found: error
+          retention-days: 30
