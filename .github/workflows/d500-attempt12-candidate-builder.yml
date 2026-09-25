@@ -1,0 +1,116 @@
+name: D-500 Attempt12 Candidate Builder
+
+on:
+  push:
+    branches:
+      - 'automation/d500-repair-stage-8f3c2a'
+    paths:
+      - '.github/workflows/d500-attempt12-candidate-builder.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: d500-attempt12-candidate-builder-8f3c2a
+  cancel-in-progress: false
+
+jobs:
+  build-candidate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      BASE_CANDIDATE: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
+      BASE_TREE: 609c6035d09267f95aa95fdd3f6b0a2869d2dc3b
+      TARGET_BRANCH: automation/d500-attempt12-candidate-8f3c2a
+      PATCH_SHA256: c61397d28d0e847524715a088f690b972e685709cfae6e65673c85490a7cd5e1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+
+      - name: Assemble and verify immutable bootstrap repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mapfile -t parts < <(find .github/repair-staging/d500-attempt12-8f3c2a -maxdepth 1 -type f -name 'part-*.b64' | sort)
+          [[ ${#parts[@]} -eq 6 ]]
+          cat "${parts[@]}" | tr -d '\n\r' | base64 -d > "$RUNNER_TEMP/d500-bootstrap.patch"
+          actual="$(sha256sum "$RUNNER_TEMP/d500-bootstrap.patch" | awk '{print $1}')"
+          [[ "$actual" == "$PATCH_SHA256" ]]
+          echo "TRUYN_D500_REPAIR_PATCH=PASS sha256=$actual parts=${#parts[@]}"
+
+      - name: Apply repair to exact qualified parent
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git show -s --format=%T "$BASE_CANDIDATE")" == "$BASE_TREE" ]]
+          if git ls-remote --exit-code --heads origin "$TARGET_BRANCH" >/dev/null 2>&1; then
+            echo "candidate branch already exists: $TARGET_BRANCH" >&2
+            exit 2
+          fi
+          git checkout --detach "$BASE_CANDIDATE"
+          git apply --check "$RUNNER_TEMP/d500-bootstrap.patch"
+          git apply "$RUNNER_TEMP/d500-bootstrap.patch"
+          git diff --check
+          mapfile -t changed < <(git diff --name-only "$BASE_CANDIDATE" | sort)
+          mapfile -t expected < <(printf '%s\n' \
+            benchmarks/scale/class-d-azure-1000-provision.sh \
+            tests/d500-bootstrap-resilience.test.js \
+            tests/d500-campaign-time-budget.test.js | sort)
+          [[ ${#changed[@]} -eq 3 ]]
+          [[ "${changed[*]}" == "${expected[*]}" ]]
+          echo 'TRUYN_D500_REPAIR_SCOPE=PASS files=3'
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Verify Attempt 11 regression repairs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --test tests/d500-bootstrap-resilience.test.js tests/d500-campaign-time-budget.test.js
+          echo 'TRUYN_D500_TARGETED_REPAIR_TESTS=PASS'
+
+      - name: Verify Class-D acceptance regression set
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mapfile -t f < <(find tests -maxdepth 1 -type f -name '*.test.js' | grep -E '/([^/]*(d200|d500|d1000)[^/]*|class-d[^/]*)\.test\.js$' | sort)
+          [[ ${#f[@]} -gt 0 ]]
+          node --test "${f[@]}"
+          echo "TRUYN_D500_CLASS_D_REGRESSION=PASS files=${#f[@]}"
+
+      - name: Verify contracts and prepare preflight
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/check-d200-contract.mjs
+          node scripts/check-d500-contract.mjs
+          node scripts/check-d500-inheritance.mjs
+          node scripts/check-class-d-five-patches.mjs
+          D500_PREFLIGHT_PHASE=prepare bash scripts/class-d-500-preflight-qualification.sh
+          git diff --check
+          echo 'TRUYN_D500_REPAIR_PREFLIGHT=PASS'
+
+      - name: Commit exact repaired candidate and publish branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add -- \
+            benchmarks/scale/class-d-azure-1000-provision.sh \
+            tests/d500-bootstrap-resilience.test.js \
+            tests/d500-campaign-time-budget.test.js
+          git diff --cached --check
+          git commit -s -m 'fix(d500): harden Attempt 12 bootstrap resilience'
+          candidate="$(git rev-parse HEAD)"
+          tree="$(git rev-parse HEAD^{tree})"
+          [[ "$(git rev-parse HEAD^)" == "$BASE_CANDIDATE" ]]
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          echo "TRUYN_D500_CANDIDATE_PUBLISHED=PASS sha=$candidate tree=$tree parent=$BASE_CANDIDATE branch=$TARGET_BRANCH"
