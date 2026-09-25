@@ -1,6 +1,8 @@
 name: D-Series Admission Gate
 
 on:
+  push:
+    branches: [main]
   workflow_run:
     workflows:
       - D-Series Frozen Candidate Qualification
@@ -15,15 +17,16 @@ on:
 permissions:
   contents: read
   actions: read
+  pull-requests: read
 
 concurrency:
-  group: d-series-admission-${{ github.event.workflow_run.id || inputs.qualification_run_id }}
+  group: d-series-admission-${{ github.event.workflow_run.id || inputs.qualification_run_id || github.sha }}
   cancel-in-progress: false
 
 jobs:
   admission:
     name: frozen-candidate-to-current-main
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
@@ -46,13 +49,65 @@ jobs:
           MANUAL_RUN_ID: ${{ inputs.qualification_run_id }}
         run: |
           set -Eeuo pipefail
+          eligible=true
           run_id="${MANUAL_RUN_ID:-$AUTO_RUN_ID}"
-          [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
-          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
-          jq -e '.name=="D-Series Frozen Candidate Qualification" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$run" >/dev/null
-          echo "run_id=$run_id" >>"$GITHUB_OUTPUT"
+
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            # Main movement must trigger cheap Admission analysis, never a full D-Series rerun.
+            # Select the newest immutable qualification whose candidate is still the head of
+            # an open PR. A merged/closed repair candidate must not shadow the active D candidate.
+            mapfile -t open_heads < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" --jq '.[].head.sha')
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/d-series-frozen-candidate-qualification.yml/runs?status=success&per_page=100")"
+            matches=()
+            while read -r candidate_run; do
+              [[ "$candidate_run" =~ ^[1-9][0-9]+$ ]] || continue
+              artifact_name="d-series-qualification-manifest-${candidate_run}"
+              artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${candidate_run}/artifacts?per_page=100")"
+              if ! jq -e --arg n "$artifact_name" '[.artifacts[] | select(.name==$n and .expired==false and (.size_in_bytes//0)>0)] | length==1' <<<"$artifacts" >/dev/null; then
+                continue
+              fi
+              tmp="$(mktemp -d)"
+              if ! gh run download "$candidate_run" --repo "$GITHUB_REPOSITORY" --name "$artifact_name" --dir "$tmp" >/dev/null 2>&1; then
+                rm -rf "$tmp"
+                continue
+              fi
+              manifest="$tmp/d-series-qualification-manifest.json"
+              candidate="$(jq -r '.candidateSha // empty' "$manifest" 2>/dev/null || true)"
+              rm -rf "$tmp"
+              [[ "$candidate" =~ ^[0-9a-f]{40}$ ]] || continue
+              for head in "${open_heads[@]}"; do
+                if [[ "$head" == "$candidate" ]]; then
+                  matches+=("${candidate_run}:${candidate}")
+                  break
+                fi
+              done
+            done < <(jq -r '[.workflow_runs[] | select(.name=="D-Series Frozen Candidate Qualification" and .status=="completed" and .conclusion=="success" and .run_attempt==1)] | sort_by(.updated_at) | reverse | .[].id' <<<"$runs")
+
+            if (( ${#matches[@]} == 0 )); then
+              eligible=false
+              echo "TRUYN_D_SERIES_ADMISSION=SKIP reason=no_active_open_pr_qualification main=$GITHUB_SHA"
+            elif (( ${#matches[@]} > 1 )); then
+              echo "TRUYN_D_SERIES_ADMISSION=FAIL reason=ambiguous_active_qualifications matches=${matches[*]}" >&2
+              exit 23
+            else
+              run_id="${matches[0]%%:*}"
+              echo "TRUYN_D_SERIES_ADMISSION=AUTO_RECHECK qualification_run=$run_id candidate=${matches[0]#*:} main=$GITHUB_SHA"
+            fi
+          fi
+
+          if [[ "$eligible" == true ]]; then
+            [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
+            run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+            jq -e '.name=="D-Series Frozen Candidate Qualification" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$run" >/dev/null
+            artifact_name="d-series-qualification-manifest-${run_id}"
+            artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")"
+            jq -e --arg n "$artifact_name" '[.artifacts[] | select(.name==$n and .expired==false and (.size_in_bytes//0)>0)] | length==1' <<<"$artifacts" >/dev/null
+            echo "run_id=$run_id" >>"$GITHUB_OUTPUT"
+          fi
+          echo "eligible=$eligible" >>"$GITHUB_OUTPUT"
 
       - name: Download automatic D qualification manifest
+        if: steps.q.outputs.eligible == 'true'
         uses: actions/download-artifact@v4
         with:
           pattern: d-series-qualification-manifest-*
@@ -62,6 +117,7 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Build integration candidate and recompute fingerprints
+        if: steps.q.outputs.eligible == 'true'
         id: plan
         shell: bash
         env:
@@ -96,16 +152,18 @@ jobs:
           echo "integration_tree=$integration_tree" >>"$GITHUB_OUTPUT"
 
       - name: Run small mandatory integration admission gate
+        if: steps.q.outputs.eligible == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
           npm install --ignore-scripts --no-audit --no-fund
           node scripts/verify-d-series-frozen-candidate-policy.mjs
           node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
-          node --test tests/d-series-frozen-candidate-admission.test.js
+          node --test tests/d-series-frozen-candidate-admission.test.js tests/d-series-main-movement-auto-admission.test.js
           git diff --check
 
       - name: Requalify only D-sensitive blocks touched by BASE_SHA to current main
+        if: steps.q.outputs.eligible == 'true'
         shell: bash
         env:
           TRUYN_CLASS_D_SOURCE_SHA: ${{ steps.plan.outputs.integration_tree }}
@@ -120,6 +178,7 @@ jobs:
           done
 
       - name: Finalize targeted requalification and enforce current-main freshness
+        if: steps.q.outputs.eligible == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -154,7 +213,7 @@ jobs:
           echo "TRUYN_D_SERIES_ADMISSION=PASS candidate=$ADMISSION_CANDIDATE_SHA current_main=$fresh_main integration_tree=$ADMISSION_INTEGRATION_TREE_SHA"
 
       - name: Upload admission manifest
-        if: always()
+        if: always() && steps.q.outputs.eligible == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: d-series-admission-manifest-${{ github.run_id }}
