@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/d500/launch-07.txt'
+      - '.github/d500/launch-08.txt'
 
 permissions:
   contents: read
@@ -12,35 +12,37 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d500-cbf1a1a6-attempt7-single-shot
+  group: truyn-d500-9d998ab5-attempt8-single-shot
   cancel-in-progress: false
 
 env:
-  TASK_ID: truyn-d500-acceptance-260924-a7
+  TASK_ID: truyn-d500-acceptance-260925-a8
   REFERENCE_D200_RUN: '35503894414'
   REFERENCE_D200_REPEATABILITY_RUN: '35517248924'
-  TESTED_COMMIT: cbf1a1a63aa772f0118fede033665599e3d6210f
-  TESTED_TREE_SHA: b036e71bbd46eeadc8c08f2336bb1bd3225263d1
-  EXACT_MAIN_CI_RUN: '35990792182'
-  EXACT_MAIN_FIVE_PATCH_RUN: '35990792159'
-  EXACT_MAIN_CODEQL_RUN: '35990791106'
-  EXACT_MAIN_BLOCKWISE_RUN: '35990792093'
+  TESTED_COMMIT: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
+  TESTED_TREE_SHA: 609c6035d09267f95aa95fdd3f6b0a2869d2dc3b
   D500_CONTRACT_SHA256: 469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e913fd8f85
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '25'
+  # GitHub-hosted runners terminate a job at 6h regardless of timeout-minutes,
+  # and a terminated job writes no evidence. The campaign bounds itself well
+  # inside that cap: 150 min of provisioning plus campaign, leaving the rest of
+  # the 180 min job for evaluation, cleanup and artifact upload.
+  TRUYN_D500_BUDGET_S: '9000'
+  TRUYN_D500_REMOTE_TIMEOUT_S: '600'
 
 jobs:
   d500-acceptance:
     runs-on: ubuntu-22.04
-    timeout-minutes: 420
+    timeout-minutes: 180
     steps:
-      - name: Enforce immutable D-500 one-shot launch
+      - name: Enforce immutable D-500 Attempt 8 one-shot launch
         env:
           GH_TOKEN: '${{ github.token }}'
         shell: bash
         run: |
           set -Eeuo pipefail
-          token='.github/d500/launch-07.txt'
+          token='.github/d500/launch-08.txt'
           workflow='.github/workflows/d500-acceptance.yml'
           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
           [[ "$GITHUB_EVENT_NAME" == push ]]
@@ -56,18 +58,34 @@ jobs:
           [[ "$(value REFERENCE_D200_REPEATABILITY_RUN)" == "$REFERENCE_D200_REPEATABILITY_RUN" ]]
           [[ "$(value TESTED_COMMIT)" == "$TESTED_COMMIT" ]]
           [[ "$(value TESTED_TREE_SHA)" == "$TESTED_TREE_SHA" ]]
-          [[ "$(value EXACT_MAIN_CI_RUN)" == "$EXACT_MAIN_CI_RUN" ]]
-          [[ "$(value EXACT_MAIN_FIVE_PATCH_RUN)" == "$EXACT_MAIN_FIVE_PATCH_RUN" ]]
-          [[ "$(value EXACT_MAIN_CODEQL_RUN)" == "$EXACT_MAIN_CODEQL_RUN" ]]
-          [[ "$(value EXACT_MAIN_BLOCKWISE_RUN)" == "$EXACT_MAIN_BLOCKWISE_RUN" ]]
           [[ "$(value D500_CONTRACT_SHA256)" == "$D500_CONTRACT_SHA256" ]]
+          admission_run="$(value D_SERIES_ADMISSION_RUN)"
+          [[ "$admission_run" =~ ^[1-9][0-9]+$ ]]
           expected_workflow_blob="$(value WORKFLOW_BLOB_SHA)"
           [[ "$expected_workflow_blob" =~ ^[0-9a-f]{40}$ ]]
           actual_workflow_blob="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${workflow}?ref=${GITHUB_SHA}" --jq .sha)"
           [[ "$actual_workflow_blob" == "$expected_workflow_blob" ]]
           [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TESTED_COMMIT}" --jq .commit.tree.sha)" == "$TESTED_TREE_SHA" ]]
+          echo "TRUYN_D_SERIES_ADMISSION_RUN=$admission_run" >>"$GITHUB_ENV"
 
-      - uses: actions/checkout@v4
+      - name: Checkout trusted launch controller
+        uses: actions/checkout@v4
+        with:
+          ref: '${{ github.sha }}'
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Verify frozen-candidate admission against launch parent
+        env:
+          GH_TOKEN: '${{ github.token }}'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          TRUYN_D_SERIES_ADMISSION_RUN="$TRUYN_D_SERIES_ADMISSION_RUN" scripts/verify-d-series-admission-run.sh "$TESTED_COMMIT"
+
+      - name: Checkout exact frozen D-500 candidate
+        uses: actions/checkout@v4
         with:
           ref: '${{ env.TESTED_COMMIT }}'
           persist-credentials: false
@@ -85,16 +103,8 @@ jobs:
           set -Eeuo pipefail
           [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
           [[ "$(git rev-parse "${TESTED_COMMIT}^{tree}")" == "$TESTED_TREE_SHA" ]]
-          ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CI_RUN}")"
-          fp="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_FIVE_PATCH_RUN}")"
-          cq="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_CODEQL_RUN}")"
-          bw="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${EXACT_MAIN_BLOCKWISE_RUN}")"
           d200="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${REFERENCE_D200_RUN}")"
           repeat="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${REFERENCE_D200_REPEATABILITY_RUN}")"
-          jq -e --arg s "$TESTED_COMMIT" '.name=="CI" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$ci" >/dev/null
-          jq -e --arg s "$TESTED_COMMIT" '.name=="Class D Five-Patch Preflight" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$fp" >/dev/null
-          jq -e --arg s "$TESTED_COMMIT" '.name=="Push on main" and .head_branch=="main" and .head_sha==$s and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$cq" >/dev/null
-          jq -e --arg s "$TESTED_COMMIT" '.name=="Class D Blockwise Preflight" and .head_branch=="main" and .head_sha==$s and .event=="push" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$bw" >/dev/null
           jq -e '.id==35503894414 and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$d200" >/dev/null
           jq -e '.id==35517248924 and .name=="D-200 Repeatability 02" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$repeat" >/dev/null
           actual_contract_sha="$(sha256sum config/d500-contract.json | awk '{print $1}')"
@@ -109,7 +119,7 @@ jobs:
           D500_PREFLIGHT_PHASE=prepare bash scripts/class-d-500-preflight-qualification.sh
           git diff --check
           printf '%s  config/d500-contract.json\n' "$actual_contract_sha" > class-d-500-contract.sha256.txt
-          printf 'task_id=%s\nreference_d200_run=%s\nreference_d200_repeatability_run=%s\ntested_commit=%s\ntested_tree_sha=%s\nd500_contract_sha256=%s\nhosts=20\nprocesses=500\nnodes_per_host=25\nmax_peers=32\nrouting_threshold=0.99\nrecovery_p95_limit_ms=120000\nacknowledged_writes=100\nacknowledged_write_loss=0\n' "$TASK_ID" "$REFERENCE_D200_RUN" "$REFERENCE_D200_REPEATABILITY_RUN" "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$actual_contract_sha" > class-d-500-diagnostic-input.txt
+          printf 'task_id=%s\nreference_d200_run=%s\nreference_d200_repeatability_run=%s\ntested_commit=%s\ntested_tree_sha=%s\nd_series_admission_run=%s\nd500_contract_sha256=%s\nhosts=20\nprocesses=500\nnodes_per_host=25\nmax_peers=32\nrouting_threshold=0.99\nrecovery_p95_limit_ms=120000\nacknowledged_writes=100\nacknowledged_write_loss=0\n' "$TASK_ID" "$REFERENCE_D200_RUN" "$REFERENCE_D200_REPEATABILITY_RUN" "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$TRUYN_D_SERIES_ADMISSION_RUN" "$actual_contract_sha" > class-d-500-diagnostic-input.txt
 
       - name: Build immutable runtime bundle
         id: runtime
@@ -187,11 +197,30 @@ jobs:
           TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" \
           TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" \
           TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" \
+          TRUYN_D500_BUDGET_S="$TRUYN_D500_BUDGET_S" \
+          TRUYN_D500_REMOTE_TIMEOUT_S="$TRUYN_D500_REMOTE_TIMEOUT_S" \
           bash -c 'set -Eeuo pipefail; source benchmarks/scale/class-d-azure-1000-provision.sh; source scripts/d200-stage-isolated-campaign.sh' 2>&1 | tee class-d-500-diagnostic.log
           rc=${PIPESTATUS[0]}
           set -e
           echo "campaign_rc=$rc" >>"$GITHUB_OUTPUT"
           exit "$rc"
+
+      - name: Reconstruct diagnostic partial evidence and stage timing
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          # Diagnostic only: this file is never read by the strict evaluator
+          # below. It exists so a campaign that hit its budget still names the
+          # stage and the metrics it reached instead of leaving the artifact
+          # with no evidence at all, as attempt 7 did.
+          if [[ -f class-d-500-diagnostic.log && ! -f class-d-1000-evidence.json ]]; then
+            node benchmarks/scale/class-d-1000-partial-evidence-from-log.js class-d-500-diagnostic.log class-d-500-partial-evidence.json "${{ steps.campaign.outputs.campaign_rc }}"
+          fi
+          if [[ -f class-d-500-diagnostic.log ]]; then
+            grep -E 'TRUYN_D500_STAGE_ELAPSED|TRUYN_D500_STAGE_BUDGET|TRUYN_D500_STAGE_DEADLINE|TRUYN_D500_STAGE_SKIPPED|TRUYN_D500_HOST_UNHEALTHY|TRUYN_D500_VM_AGENT_PATHOLOGY|TRUYN_D500_REMOTE_TIMEOUT|TRUYN_D500_BUDGET' class-d-500-diagnostic.log > class-d-500-stage-timing.txt
+          fi
+          exit 0
 
       - name: Evaluate strict D-500 evidence
         id: evaluate
