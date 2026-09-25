@@ -53,45 +53,69 @@ jobs:
           run_id="${MANUAL_RUN_ID:-$AUTO_RUN_ID}"
 
           if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            # Main movement must trigger cheap Admission analysis, never a full D-Series rerun.
-            # Select the newest immutable qualification whose candidate is still the head of
-            # an open PR. A merged/closed repair candidate must not shadow the active D candidate.
-            mapfile -t open_heads < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" --jq '.[].head.sha')
-            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/d-series-frozen-candidate-qualification.yml/runs?status=success&per_page=100")"
-            matches=()
-            while read -r candidate_run; do
-              [[ "$candidate_run" =~ ^[1-9][0-9]+$ ]] || continue
-              artifact_name="d-series-qualification-manifest-${candidate_run}"
-              artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${candidate_run}/artifacts?per_page=100")"
-              if ! jq -e --arg n "$artifact_name" '[.artifacts[] | select(.name==$n and .expired==false and (.size_in_bytes//0)>0)] | length==1' <<<"$artifacts" >/dev/null; then
-                continue
-              fi
-              tmp="$(mktemp -d)"
-              if ! gh run download "$candidate_run" --repo "$GITHUB_REPOSITORY" --name "$artifact_name" --dir "$tmp" >/dev/null 2>&1; then
-                rm -rf "$tmp"
-                continue
-              fi
-              manifest="$tmp/d-series-qualification-manifest.json"
-              candidate="$(jq -r '.candidateSha // empty' "$manifest" 2>/dev/null || true)"
-              rm -rf "$tmp"
-              [[ "$candidate" =~ ^[0-9a-f]{40}$ ]] || continue
+            # Main movement performs only cheap Admission. Runtime candidates are
+            # authorized by the TESTED_COMMIT pinned in the current acceptance
+            # controllers, not by arbitrary D-sensitive PRs. Historical qualification
+            # generations for the same candidate are deduplicated by candidate SHA.
+            mapfile -t open_heads < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" --jq '.[].head.sha' | sort -u)
+            mapfile -t controller_candidates < <(
+              for f in .github/workflows/d*-acceptance.yml; do
+                [[ -f "$f" ]] || continue
+                sed -nE "s/^[[:space:]]*TESTED_COMMIT:[[:space:]]*['\"]?([0-9a-f]{40})['\"]?[[:space:]]*$/\1/p" "$f"
+              done | sort -u
+            )
+
+            active_candidates=()
+            for candidate in "${controller_candidates[@]}"; do
               for head in "${open_heads[@]}"; do
-                if [[ "$head" == "$candidate" ]]; then
-                  matches+=("${candidate_run}:${candidate}")
+                if [[ "$candidate" == "$head" ]]; then
+                  active_candidates+=("$candidate")
                   break
                 fi
               done
-            done < <(jq -r '[.workflow_runs[] | select(.name=="D-Series Frozen Candidate Qualification" and .status=="completed" and .conclusion=="success" and .run_attempt==1)] | sort_by(.updated_at) | reverse | .[].id' <<<"$runs")
+            done
 
-            if (( ${#matches[@]} == 0 )); then
+            if (( ${#active_candidates[@]} == 0 )); then
               eligible=false
-              echo "TRUYN_D_SERIES_ADMISSION=SKIP reason=no_active_open_pr_qualification main=$GITHUB_SHA"
-            elif (( ${#matches[@]} > 1 )); then
-              echo "TRUYN_D_SERIES_ADMISSION=FAIL reason=ambiguous_active_qualifications matches=${matches[*]}" >&2
+              echo "TRUYN_D_SERIES_ADMISSION=SKIP reason=no_controller_referenced_open_candidate main=$GITHUB_SHA"
+            elif (( ${#active_candidates[@]} > 1 )); then
+              echo "TRUYN_D_SERIES_ADMISSION=FAIL reason=ambiguous_controller_candidates candidates=${active_candidates[*]}" >&2
               exit 23
             else
-              run_id="${matches[0]%%:*}"
-              echo "TRUYN_D_SERIES_ADMISSION=AUTO_RECHECK qualification_run=$run_id candidate=${matches[0]#*:} main=$GITHUB_SHA"
+              target_candidate="${active_candidates[0]}"
+              runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/d-series-frozen-candidate-qualification.yml/runs?status=success&per_page=100")"
+              declare -A seen_candidates=()
+              matched_run=''
+              while read -r candidate_run; do
+                [[ "$candidate_run" =~ ^[1-9][0-9]+$ ]] || continue
+                artifact_name="d-series-qualification-manifest-${candidate_run}"
+                artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${candidate_run}/artifacts?per_page=100")"
+                if ! jq -e --arg n "$artifact_name" '[.artifacts[] | select(.name==$n and .expired==false and (.size_in_bytes//0)>0)] | length==1' <<<"$artifacts" >/dev/null; then
+                  continue
+                fi
+                tmp="$(mktemp -d)"
+                if ! gh run download "$candidate_run" --repo "$GITHUB_REPOSITORY" --name "$artifact_name" --dir "$tmp" >/dev/null 2>&1; then
+                  rm -rf "$tmp"
+                  continue
+                fi
+                manifest="$tmp/d-series-qualification-manifest.json"
+                candidate="$(jq -r '.candidateSha // empty' "$manifest" 2>/dev/null || true)"
+                rm -rf "$tmp"
+                [[ "$candidate" =~ ^[0-9a-f]{40}$ ]] || continue
+                [[ -z "${seen_candidates[$candidate]+x}" ]] || continue
+                seen_candidates[$candidate]=1
+                if [[ "$candidate" == "$target_candidate" ]]; then
+                  matched_run="$candidate_run"
+                  break
+                fi
+              done < <(jq -r '[.workflow_runs[] | select(.name=="D-Series Frozen Candidate Qualification" and .status=="completed" and .conclusion=="success" and .run_attempt==1)] | sort_by(.updated_at) | reverse | .[].id' <<<"$runs")
+
+              if [[ ! "$matched_run" =~ ^[1-9][0-9]+$ ]]; then
+                echo "TRUYN_D_SERIES_ADMISSION=FAIL reason=controller_candidate_missing_qualification candidate=$target_candidate" >&2
+                exit 24
+              fi
+              run_id="$matched_run"
+              echo "TRUYN_D_SERIES_ADMISSION=AUTO_RECHECK qualification_run=$run_id candidate=$target_candidate authority=current_acceptance_controller main=$GITHUB_SHA"
             fi
           fi
 
