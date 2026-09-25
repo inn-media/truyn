@@ -1,14 +1,11 @@
 # Class D-500 pre-launch contract
 
 TASK_ID: `truyn-d500-prelaunch-260920-a1`  
-Durable anchor: issue `#679`  
-State: **PREPARATION_ONLY / DO_NOT_LAUNCH**
+Durable anchor: issue `#679`
 
 ## Accepted baseline that must not be overwritten
 
-Class D-500 starts from the already accepted Class D-200 system, not from an older D-1000 prototype and not from a parallel rewrite.
-
-Authoritative D-200 evidence remains:
+Class D-500 inherits the accepted Class D-200 system. Authoritative accepted D-200 evidence remains immutable:
 
 - accepted run `35503894414`, attempt 1 — **NEVER_RERUN**;
 - tested source `e91c165c67c655deb80df4511ca346acb9f1f45b`;
@@ -16,13 +13,11 @@ Authoritative D-200 evidence remains:
 - terminal marker `TRUYN_D200_TERMINAL result=PASS`;
 - durable report `docs/benchmarks/CLASS_D_200_2026-09-20.md`.
 
-Nothing in D-500 preparation may edit, replace, delete, downgrade, reinterpret, or relabel that evidence.
+No D-500 repair, qualification or admission may overwrite, reinterpret or weaken that evidence.
 
 ## Deliberate scale delta
 
-The first D-500 gate changes one primary dimension only:
-
-| Property | D-200 accepted | D-500 prepared |
+| Property | D-200 accepted | D-500 |
 | --- | ---: | ---: |
 | Azure hosts | 20 | 20 |
 | Real TRUYN processes / host | 10 | 25 |
@@ -35,13 +30,11 @@ The first D-500 gate changes one primary dimension only:
 | Concurrent restart slice | 5 / host | 5 / host |
 | Total restarted nodes | 100 | 100 |
 
-The shared Class-D provisioner already supports `NODES_PER_HOST=25`, so D-500 must use the same runtime/provisioning implementation unless a concrete incompatibility is proven. We do **not** fork a second infrastructure stack merely to rename D-200 files.
-
-Keeping the 5-per-host restart slice unchanged is deliberate for the first D-500 run: it preserves the already-proven 100-real-node failure exercise while isolating the scale change from 200 to 500. A later resilience campaign may increase the restart fraction, but that would be a separate gate rather than silently changing two variables at once.
+The shared Class-D provisioner remains authoritative. D-500 does not create a second infrastructure stack merely to rename D-200 components.
 
 ## Acceptance floors inherited from D-200
 
-D-500 may strengthen these requirements, but may not weaken them:
+D-500 may strengthen but may not weaken:
 
 - readiness `>= 0.99`;
 - convergence routing `>= 0.99`;
@@ -60,107 +53,151 @@ D-500 may strengthen these requirements, but may not weaken them:
 - staging cleanup confirmed with `0` resources remaining;
 - `maxPeers <= 32`;
 - all-to-all bootstrap forbidden;
-- peer-record TTL and bootstrap lease floors must remain at least as strict as D-200.
+- peer-record TTL and bootstrap lease floors at least as strict as D-200.
 
-Machine authority: `config/d500-contract.json` + `scripts/check-d500-contract.mjs`.
+Machine authority for thresholds remains `config/d500-contract.json` plus its anti-weakening checkers.
 
-## Proven D-200 mechanisms that D-500 must retain
+## Permanent D-Series qualification model
 
-1. **Exact-source qualification** — tested commit/tree are frozen and independently tied to successful CI, Five-Patch and CodeQL evidence.
-2. **Immutable runtime bundle** — source manifest and runtime archive digest are recorded before cloud execution.
-3. **Canonical five-patch contract** — remains mandatory for D-500 and D-1000.
-4. **Sparse host-stratified bootstrap** — no full-mesh shortcut; `maxPeers=32` remains fixed.
-5. **Readiness barrier** — peer-record freshness, propagation, buckets and remote-host diversity are acceptance data rather than sleeps or guessed timing.
-6. **Stage-isolated diagnostics** — a logical stage failure must not erase later diagnostic visibility or cleanup evidence.
-7. **Real fault exercise** — restart/recovery and real packet-path partition remain required.
-8. **Safety evidence** — durable writes, signed-state rejection, revoked-receipt rejection and provider authorization remain zero-loss/zero-violation gates.
-9. **Fail-closed cleanup** — campaign and runtime-staging cleanup are terminal acceptance predicates.
-10. **Evidence discipline** — verify-max / exposure-min; redact sensitive fields, never delete benchmark evidence merely because redaction is needed.
-11. **No runtime patching** — the runtime bundle is built from the frozen tested source; no in-run source mutation is allowed.
-12. **Single-shot acceptance** — eventual D-500 acceptance run is attempt 1 only; a failed immutable run remains failed and is not rerun in place.
+D-500 is governed by the D-Series locked model:
 
-## Preparation phases
+`Frozen Candidate -> Branch Qualification -> Admission to Main`
 
-### P0 — current task
+Machine authority:
 
-- add D-500 contract and anti-weakening checker;
-- add non-cloud preflight qualification;
-- add regression tests for 20 x 25 = 500 and D-200 floor inheritance;
-- create a non-active launcher template outside `.github/workflows/`;
-- keep `main` untouched while D-200 repeatability/repair activity is unresolved.
+- `config/d-series-frozen-candidate-policy.json`
+- `config/d-series-swarm-blockwise-architecture-lock.json`
+- `docs/operations/class-d/FROZEN_CANDIDATE_ADMISSION.md`
 
-### P1 — reconcile after D-200 repeatability closure
+### Frozen candidate
 
-Before any D-500 launcher is materialized:
+Expensive D-500 qualification is bound to an exact candidate SHA/tree, not to a moving `main`.
 
-- fetch authoritative `main`;
-- fetch final D-200 repeatability evidence;
-- rebase/reconcile this preparation branch;
-- incorporate only proven repeatability fixes that are generic to Class D;
-- do not copy a transient workaround blindly;
-- rerun full local/CI preflight.
+The qualification manifest records:
 
-### P2 — merge preparation only
+- `BASE_SHA`;
+- candidate SHA/tree;
+- successful Sanitation Swarm run;
+- successful full B01-B16 Blockwise run;
+- D-sensitive fingerprints;
+- scale and policy digest.
 
-Once D-200 repeatability is closed, merge the D-500 preparation changes **without a launch token**. D-500 remains OPEN.
+Once frozen, unrelated movement of `main` does not cancel the qualification and does not require an automatic full rerun.
 
-### P3 — exact-head qualification
+### Admission analysis
 
-On the exact future `main` intended for D-500:
+Before merge or launch, Admission compares:
 
-- CI = SUCCESS;
-- Class D Five-Patch Preflight = SUCCESS;
-- CodeQL = SUCCESS on the same source tree;
-- D-500 preflight = PASS;
-- read-only Azure capacity/placement probe = PASS;
-- no unrelated main movement after qualification.
+`BASE_SHA -> current main`
 
-### P4 — single launcher commit
+It constructs the integration candidate and recomputes D-sensitive fingerprints.
 
-Only then materialize the reviewed template as the executable workflow and create exactly one dedicated launch token/commit. The launcher must pin:
+- No D-sensitive main drift: reuse the frozen expensive evidence after the small integration gate.
+- D-sensitive main drift: rerun only mapped affected Bxx blocks on the integrated state.
+- A fresh live D run is required only where the locked sensitive-surface policy explicitly marks it necessary.
+- Main movement by itself must never trigger an automatic full D-Series rerun.
 
-- tested commit;
-- tested tree;
-- exact CI run;
-- exact Five-Patch run;
-- CodeQL check and equivalent tree;
-- D-200 accepted baseline identity;
-- accepted D-200 repeatability evidence identity;
-- D-500 contract digest;
-- runtime bundle digest;
-- placement class selected by the qualified capacity gate.
+A GREEN old candidate SHA is never sufficient merge authority. The final Admission Gate on the integrated state is mandatory.
 
-### P5 — real D-500 campaign
+If `main` moves after Admission, that Admission becomes stale and must be recalculated against the new main. The expensive frozen candidate evidence remains intact unless the new analysis proves a D-sensitive incompatibility.
 
-This document does **not** authorize P5. D-500 is not accepted until a fresh 500-real-process run emits its own strict terminal PASS and durable sanitized public evidence is committed.
+## Proven Class-D mechanisms that D-500 must retain
 
-## Evidence expected from eventual D-500 run
+1. Frozen exact-candidate qualification with immutable source/tree identity.
+2. Immutable runtime bundle and source manifest.
+3. Canonical five-patch contract.
+4. Sparse host-stratified bootstrap with `maxPeers=32`.
+5. Measured readiness barrier; no arbitrary sleep as acceptance.
+6. Stage-isolated diagnostics.
+7. Real restart/recovery and packet-path fault exercise.
+8. Safety evidence: zero write loss and zero authorization/signature violations.
+9. Fail-closed campaign and staging cleanup.
+10. Evidence discipline: verify-max / exposure-min.
+11. No runtime source patching.
+12. Single-shot live acceptance; failed immutable live runs are not rerun in place.
+13. Frozen-candidate evidence is never invalidated solely because unrelated main commits landed.
+14. Integration Admission is never bypassed solely because a historical branch run was GREEN.
 
-The publication shape should mirror the successful D-200 evidence package, renamed for D-500:
+## Qualification and launch sequence
+
+### Q0 — freeze candidate
+
+- choose exact candidate SHA/tree;
+- capture `BASE_SHA`;
+- run Sanitation Swarm on that candidate;
+- run full B01-B16 Blockwise on that candidate;
+- emit automatic qualification manifest and fingerprints.
+
+### Q1 — main may continue moving
+
+Other unrelated work may merge to `main`. Do not cancel or restart Q0 merely because main changed.
+
+### Q2 — Admission to current main
+
+Immediately before merge/launch:
+
+- read current `main`;
+- compare `BASE_SHA -> current main`;
+- create the integration candidate;
+- recompute D-sensitive fingerprints;
+- run the mandatory small integration admission tests;
+- rerun only impacted Bxx blocks;
+- require live requalification only if the locked policy says the changed sensitive surface needs it;
+- fail if main moves during the Admission run.
+
+### Q3 — merge
+
+Merge is permitted only with a fresh successful Admission artifact whose integration tree matches the state being merged.
+
+Historical GREEN candidate evidence without fresh Admission is not merge authority.
+
+### Q4 — live D-500 campaign
+
+Before one real D-500 campaign:
+
+- validate frozen candidate evidence;
+- validate fresh Admission evidence against the actual integrated tree;
+- run fresh collision/shared-capacity guard;
+- verify no duplicate live attempt;
+- pin immutable runtime inputs;
+- execute one live attempt.
+
+A live attempt emits its own strict evidence and terminal marker. A failed single-shot attempt remains failed and is not rerun in place.
+
+## Evidence expected from a D-500 live run
 
 - normalized topology/routing/recovery/safety/resource telemetry;
-- all per-node readiness observations, sanitized;
-- all durability/retention rows, sanitized;
+- per-node readiness observations, sanitized;
+- durability/retention rows, sanitized;
 - source manifest and digest;
 - runtime bundle manifest and digest;
+- qualification manifest;
+- Admission manifest and integration tree digest;
 - immutable Actions artifact ID/digest;
-- explicit public evidence index with raw-file inclusion/exclusion reasons;
+- explicit public evidence index;
 - strict terminal marker `TRUYN_D500_TERMINAL result=PASS`.
 
-Raw logs containing private addresses, ephemeral cloud resource identifiers or secret-bearing URLs remain excluded as raw bytes, while their artifact digests and all acceptance-relevant structured measurements remain public.
+Raw secret-bearing or private infrastructure bytes remain excluded while acceptance-relevant structured measurements and artifact digests remain durable.
 
 ## Stop conditions
 
-Preparation or eventual launch must stop rather than weaken acceptance if any of the following occurs:
+Stop rather than weaken acceptance if:
 
-- D-500 requires more than 32 bootstrap peers per node to become ready;
+- D-500 needs more than 32 bootstrap peers per node;
 - readiness needs an arbitrary sleep instead of a measured barrier;
 - a stage can pass with missing structured evidence;
 - a provider or safety check is bypassed for scale;
 - cleanup cannot be proven to zero remaining resources;
-- exact-source qualification is stale because `main` moved;
-- D-200 repeatability reveals a generic Class-D regression not yet repaired and requalified.
+- candidate qualification identity or fingerprints cannot be reproduced;
+- Admission cannot construct a clean integration candidate;
+- Admission fingerprints change despite classification claiming no D-sensitive delta;
+- a D-sensitive main delta requires targeted blocks that are not GREEN;
+- the locked policy requires fresh live evidence and none exists;
+- main moves after the final Admission and Admission has not been recalculated;
+- someone attempts to merge or launch from historical GREEN candidate evidence without fresh Admission.
+
+**Main movement itself is not a stop condition and is not a reason for an automatic full D rerun.**
 
 ## Current claim boundary
 
-D-200 is accepted. D-500 is **prepared, not launched, not accepted**. D-1000 remains a separate future gate.
+D-200 is accepted. Each D-500 live run is accepted only by its own immutable terminal PASS. The frozen-candidate/admission model governs all future D-Series qualification and launch decisions.
