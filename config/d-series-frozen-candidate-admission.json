@@ -1,0 +1,104 @@
+{
+  "schema": "truyn.d-series.frozen-candidate-admission.v1",
+  "state": "LOCKED",
+  "authority": "D-Series",
+  "effectiveUntil": "ALL_D_SERIES_TESTS_COMPLETE",
+  "model": "FROZEN_CANDIDATE_BRANCH_QUALIFICATION_ADMISSION_TO_MAIN",
+  "rules": {
+    "expensiveQualificationBelongsToFrozenCandidate": true,
+    "mainMovementTriggersAdmissionAnalysisNotAutomaticFullRerun": true,
+    "oldGreenBranchShaAloneNeverAuthorizesMerge": true,
+    "finalAdmissionRunsAgainstCombinedIntegrationState": true,
+    "baseToCurrentMainDiffMustBeAnalyzed": true,
+    "unaffectedFrozenEvidenceRemainsValid": true,
+    "onlyAffectedBlocksRequalifyWhenDSensitiveSurfaceChanges": true,
+    "liveDRunRepeatsOnlyWhenAffectedQualificationProvesItNecessary": true,
+    "admissionBecomesStaleIfMainMovesAfterAdmission": true,
+    "acceptanceThresholdWeakeningForbidden": true,
+    "silentBypassForbidden": true
+  },
+  "manifest": {
+    "schema": "truyn.d-series.qualification-manifest.v1",
+    "requiredFields": [
+      "baseSha",
+      "candidateSha",
+      "candidateTreeSha",
+      "scale",
+      "qualifiedAt",
+      "qualificationEvidence",
+      "surfaces"
+    ]
+  },
+  "admission": {
+    "schema": "truyn.d-series.admission-plan.v1",
+    "requiredFields": [
+      "baseSha",
+      "candidateSha",
+      "currentMainSha",
+      "integrationTreeSha",
+      "baseToCurrentMainChangedFiles",
+      "affectedBlocks",
+      "surfaceFingerprints",
+      "decision"
+    ],
+    "allowedDecisions": [
+      "ADMIT_WITH_FROZEN_EVIDENCE",
+      "REQUALIFY_AFFECTED_BLOCKS",
+      "REJECT_CONFLICT",
+      "REJECT_STALE_OR_INVALID_MANIFEST"
+    ]
+  },
+  "surfaces": [
+    {
+      "id": "contracts-repository",
+      "blocks": ["B01"],
+      "patterns": ["^config/(d200|d500|class-d|d-series).+\\.json$", "^scripts/check-(d200|d500|class-d|d-series).+", "^tests/(d200|d500|class-d|d-series).+"]
+    },
+    {
+      "id": "runtime-staging",
+      "blocks": ["B02", "B05"],
+      "patterns": ["^scripts/build-class-d-1000-runtime-bundle\\.sh$", "^scripts/d200-stage-runtime-bundle\\.sh$", "^tests/class-d-1000-(hermetic-bootstrap|remote-manifest-heredoc|run-command-boundary)\\.test\\.js$", "^tests/d200-staging-robustness\\.test\\.js$"]
+    },
+    {
+      "id": "cloud-capacity-placement",
+      "blocks": ["B03", "B04"],
+      "patterns": ["^scripts/check-d200-cloud-contract\\.mjs$", "^benchmarks/scale/class-d-azure-1000-provision\\.sh$", "^tests/class-d-1000-placement\\.test\\.js$", "^\\.github/workflows/class-d-bootstrap-qualification\\.yml$"]
+    },
+    {
+      "id": "bootstrap-readiness",
+      "blocks": ["B06", "B07"],
+      "patterns": ["^network/", "^scripts/.*bootstrap", "^tests/(class-d-1000-bootstrap|peer-discovery-refresh-bounds|d200-peer-propagation-readiness-barrier|dht-readiness-testnet-endpoint).+"]
+    },
+    {
+      "id": "routing",
+      "blocks": ["B08", "B10"],
+      "patterns": ["^tests/d200-route-repair-acceptance-invariants\\.test\\.js$", "^benchmarks/scale/d200-post-restart-routing-stage\\.sh$", "^network/.*route"]
+    },
+    {
+      "id": "restart-recovery",
+      "blocks": ["B09", "B10", "B11"],
+      "patterns": ["^benchmarks/scale/d200-restart-recovery-stage\\.sh$", "^tests/d200-(generation-supersession-race|mass-restart-propagation)\\.test\\.js$", "^tests/randomized-adversarial\\.test\\.js$"]
+    },
+    {
+      "id": "durability-safety",
+      "blocks": ["B12", "B14"],
+      "patterns": ["^tests/dht-replication-keyspace\\.test\\.js$", "^tests/class-d-terminal-verifier\\.test\\.js$", "^security/", "^src/.*(receipt|signature|durab|provider)"]
+    },
+    {
+      "id": "adversarial",
+      "blocks": ["B13"],
+      "patterns": ["^tests/randomized-adversarial\\.test\\.js$", "^benchmarks/scale/.*partition"]
+    },
+    {
+      "id": "evidence-campaign-terminal",
+      "blocks": ["B15", "B16"],
+      "patterns": ["^benchmarks/scale/class-d-1000-evidence\\.js$", "^benchmarks/scale/evaluate-class-d-1000-evidence\\.js$", "^benchmarks/scale/verify-class-d-1000-terminal\\.js$", "^benchmarks/scale/class-d-azure-1000-campaign\\.sh$", "^scripts/d200-stage-isolated-campaign\\.sh$", "^\\.github/(workflows|d500)/.*d(200|500|1000).+"]
+    },
+    {
+      "id": "admission-control",
+      "blocks": ["B01", "B16"],
+      "patterns": ["^config/d-series-frozen-candidate-admission\\.json$", "^scripts/d-series-(qualification-manifest|admission-plan|verify-admission).+", "^\\.github/workflows/d-series-(frozen-candidate-qualification|admission-gate)\\.yml$"]
+    }
+  ],
+  "changePolicy": "This model is mandatory for all D-Series work until ALL_D_SERIES_TESTS_COMPLETE. Main movement alone MUST NOT invalidate frozen qualification evidence. Merge or launch MUST NOT rely only on an old GREEN candidate SHA: a fresh fail-closed Admission Gate on the combined integration state is mandatory. Material changes require explicit user-authorized architecture change."
+}
