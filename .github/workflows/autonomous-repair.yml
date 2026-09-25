@@ -27,7 +27,9 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Validate frozen repair base
+
+      - name: Build frozen sanitation candidate
+        id: build
         run: |
           set -Eeuo pipefail
           envs=(.github/repairs/*.env); source "${envs[0]}"
@@ -36,24 +38,78 @@ jobs:
           [[ "$(git rev-parse "${BASE_SHA}^{commit}")" == "$BASE_SHA" ]]
           rm -rf /tmp/truyn-clean
           git worktree add --detach /tmp/truyn-clean "$BASE_SHA"
-      - name: Apply base frozen-candidate patch
+          base=.github/repairs/d-series-sanitation-frozen-main-independence-20260925.patch
+          extra=.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch
+          git -C /tmp/truyn-clean apply --recount --check "$GITHUB_WORKSPACE/$base"
+          git -C /tmp/truyn-clean apply --recount "$GITHUB_WORKSPACE/$base"
+          for path in \
+            .github/workflows/d200-bug-hunt.yml \
+            .github/workflows/d-series-blockwise-preflight.yml \
+            tests/d-series-swarm-integration.test.js; do
+            git -C /tmp/truyn-clean apply --recount --check --include="$path" "$GITHUB_WORKSPACE/$extra"
+            git -C /tmp/truyn-clean apply --recount --include="$path" "$GITHUB_WORKSPACE/$extra"
+          done
+          git -C /tmp/truyn-clean diff --check
+
+      - name: Verify executable D sanitation gates
         run: |
           set -Eeuo pipefail
-          p=.github/repairs/d-series-sanitation-frozen-main-independence-20260925.patch
-          git -C /tmp/truyn-clean apply --recount --check "$GITHUB_WORKSPACE/$p"
-          git -C /tmp/truyn-clean apply --recount "$GITHUB_WORKSPACE/$p"
-      - name: Extra check d200 Swarm
-        if: always()
-        run: git -C /tmp/truyn-clean apply --recount --check --include='.github/workflows/d200-bug-hunt.yml' "$GITHUB_WORKSPACE/.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch"
-      - name: Extra check Blockwise workflow
-        if: always()
-        run: git -C /tmp/truyn-clean apply --recount --check --include='.github/workflows/d-series-blockwise-preflight.yml' "$GITHUB_WORKSPACE/.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch"
-      - name: Extra check Swarm regression test
-        if: always()
-        run: git -C /tmp/truyn-clean apply --recount --check --include='tests/d-series-swarm-integration.test.js' "$GITHUB_WORKSPACE/.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch"
-      - name: Extra check Swarm canonical docs
-        if: always()
-        run: git -C /tmp/truyn-clean apply --recount --check --include='docs/operations/class-d/D_SERIES_SANITATION_SWARM.md' "$GITHUB_WORKSPACE/.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch"
-      - name: Extra check network status docs
-        if: always()
-        run: git -C /tmp/truyn-clean apply --recount --check --include='docs/operations/NETWORK_SCALE_STATUS.md' "$GITHUB_WORKSPACE/.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch"
+          cd /tmp/truyn-clean
+          node --test tests/d-series-frozen-candidate-admission.test.js tests/d-series-swarm-integration.test.js tests/d-series-blockwise-preflight.test.js
+          node scripts/verify-d-series-frozen-candidate-policy.mjs
+          node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
+          bash -n scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh
+          ! grep -q 'commits/main' .github/workflows/d200-bug-hunt.yml
+          ! grep -q 'main_sha=' .github/workflows/d200-bug-hunt.yml
+          ! grep -q 'commits/main' .github/workflows/d-series-blockwise-preflight.yml
+          ! grep -q 'main_sha=' .github/workflows/d-series-blockwise-preflight.yml
+          ! grep -q 'commits/main' .github/workflows/d-series-swarm-one-shot-launcher.yml
+          ! grep -q 'commits/main' .github/workflows/d-series-blockwise-one-shot-launcher.yml
+          ! grep -q 'pull_requests\[0\]\.head\.sha' scripts/verify-d-series-blockwise-preflight-run.sh
+
+      - name: Verify executable path set
+        run: |
+          set -Eeuo pipefail
+          cd /tmp/truyn-clean
+          mapfile -t actual < <(git diff --name-only HEAD | sort)
+          mapfile -t expected < <(printf '%s\n' \
+            .github/workflows/d200-bug-hunt.yml \
+            .github/workflows/d-series-blockwise-preflight.yml \
+            .github/workflows/d-series-swarm-one-shot-launcher.yml \
+            .github/workflows/d-series-blockwise-one-shot-launcher.yml \
+            scripts/verify-d-series-swarm-run.sh \
+            scripts/verify-d-series-blockwise-preflight-run.sh \
+            tests/d-series-swarm-integration.test.js \
+            tests/d-series-blockwise-preflight.test.js | sort)
+          [[ "${actual[*]}" == "${expected[*]}" ]]
+
+      - name: Materialize clean executable commit object
+        id: object
+        run: |
+          set -Eeuo pipefail
+          envs=(.github/repairs/*.env); source "${envs[0]}"
+          cd /tmp/truyn-clean
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add .github/workflows/d200-bug-hunt.yml \
+                  .github/workflows/d-series-blockwise-preflight.yml \
+                  .github/workflows/d-series-swarm-one-shot-launcher.yml \
+                  .github/workflows/d-series-blockwise-one-shot-launcher.yml \
+                  scripts/verify-d-series-swarm-run.sh \
+                  scripts/verify-d-series-blockwise-preflight-run.sh \
+                  tests/d-series-swarm-integration.test.js \
+                  tests/d-series-blockwise-preflight.test.js
+          git commit -s -m 'fix(d-series): align qualification with frozen candidate'
+          commit_sha="$(git rev-parse HEAD)"
+          tree_sha="$(git rev-parse HEAD^{tree})"
+          git cat-file commit "$commit_sha" > /tmp/commit-object.txt
+          git cat-file tree "$tree_sha" > /tmp/tree-object.txt
+          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
+          echo "tree_sha=$tree_sha" >> "$GITHUB_OUTPUT"
+          printf '{"base":"%s","commit":"%s","tree":"%s"}\n' "$BASE_SHA" "$commit_sha" "$tree_sha" >/tmp/d-series-sanitation-object.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d-series-sanitation-object-${{ steps.object.outputs.commit_sha }}
+          path: /tmp/d-series-sanitation-object.json
+          retention-days: 90
