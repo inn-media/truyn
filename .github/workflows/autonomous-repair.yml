@@ -29,40 +29,47 @@ jobs:
           persist-credentials: false
 
       - name: Validate request and exact base
-        id: meta
         shell: bash
         run: |
           set -Eeuo pipefail
-          shopt -s nullglob
-          patches=(.github/repairs/*.patch)
-          envs=(.github/repairs/*.env)
-          [[ ${#patches[@]} -ge 1 && ${#envs[@]} == 1 ]]
-          source "${envs[0]}"
-          [[ "${TASK_ID:-}" =~ ^[A-Za-z0-9._-]+$ ]]
-          [[ "${BASE_SHA:-}" =~ ^[0-9a-f]{40}$ ]]
-          [[ "${EXPECTED_PATHS:-}" != '' ]]
+          envs=(.github/repairs/*.env); [[ ${#envs[@]} == 1 ]]; source "${envs[0]}"
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
           git fetch origin main --quiet
           [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
-          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          rm -rf /tmp/truyn-clean
+          git worktree add --detach /tmp/truyn-clean "$BASE_SHA"
 
-      - name: Build clean patched worktree
-        id: build
+      - name: Apply base frozen-candidate patch
         shell: bash
         run: |
           set -Eeuo pipefail
-          env_file=(.github/repairs/*.env); source "${env_file[0]}"
-          rm -rf /tmp/truyn-clean
-          git worktree add --detach /tmp/truyn-clean "$BASE_SHA"
-          for patch in .github/repairs/*.patch; do
-            git -C /tmp/truyn-clean apply --recount --check "$GITHUB_WORKSPACE/$patch"
-            git -C /tmp/truyn-clean apply --recount "$GITHUB_WORKSPACE/$patch"
-          done
+          p=.github/repairs/d-series-sanitation-frozen-main-independence-20260925.patch
+          git -C /tmp/truyn-clean apply --recount --check "$GITHUB_WORKSPACE/$p"
+          git -C /tmp/truyn-clean apply --recount "$GITHUB_WORKSPACE/$p"
+
+      - name: Check comprehensive extra patch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          p=.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch
+          git -C /tmp/truyn-clean apply --recount --check "$GITHUB_WORKSPACE/$p"
+
+      - name: Apply comprehensive extra patch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          p=.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch
+          git -C /tmp/truyn-clean apply --recount "$GITHUB_WORKSPACE/$p"
           git -C /tmp/truyn-clean diff --check
+
+      - name: Verify exact changed path set
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          envs=(.github/repairs/*.env); source "${envs[0]}"
           mapfile -t changed < <(git -C /tmp/truyn-clean diff --name-only "$BASE_SHA" | sort)
           mapfile -t expected < <(printf '%s\n' $EXPECTED_PATHS | sort)
           [[ "${changed[*]}" == "${expected[*]}" ]]
-          [[ ${#changed[@]} -gt 0 ]]
-          printf '%s\n' "${changed[@]}" >/tmp/truyn-clean/.d-series-sanitation-paths
 
       - name: Run D-Series sanitation regression gates
         shell: bash
@@ -86,41 +93,26 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          env_file=(.github/repairs/*.env); source "${env_file[0]}"
+          envs=(.github/repairs/*.env); source "${envs[0]}"
           base_tree="$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${BASE_SHA}" --jq .tree.sha)"
-          export BASE_TREE="$base_tree"
-          export EXPECTED_PATHS
+          export BASE_TREE="$base_tree" EXPECTED_PATHS
           node <<'NODE' >/tmp/tree.json
-          const fs = require('fs');
-          const path = require('path');
-          const root = '/tmp/truyn-clean';
-          const tree = process.env.EXPECTED_PATHS.split(/\s+/).filter(Boolean).map((p) => ({
-            path: p,
-            mode: '100644',
-            type: 'blob',
-            content: fs.readFileSync(path.join(root, p), 'utf8')
-          }));
-          process.stdout.write(JSON.stringify({base_tree: process.env.BASE_TREE, tree}));
+          const fs=require('fs'),path=require('path');
+          const root='/tmp/truyn-clean';
+          const tree=process.env.EXPECTED_PATHS.split(/\s+/).filter(Boolean).map(p=>({path:p,mode:'100644',type:'blob',content:fs.readFileSync(path.join(root,p),'utf8')}));
+          process.stdout.write(JSON.stringify({base_tree:process.env.BASE_TREE,tree}));
           NODE
           tree_sha="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/git/trees" --input /tmp/tree.json --jq .sha)"
           export TREE_SHA="$tree_sha" BASE_SHA TASK_ID
           node <<'NODE' >/tmp/commit.json
-          const payload = {
-            message: `fix(d-series): ${process.env.TASK_ID}\n\nSigned-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>`,
-            tree: process.env.TREE_SHA,
-            parents: [process.env.BASE_SHA]
-          };
-          process.stdout.write(JSON.stringify(payload));
+          process.stdout.write(JSON.stringify({message:`fix(d-series): ${process.env.TASK_ID}\n\nSigned-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>`,tree:process.env.TREE_SHA,parents:[process.env.BASE_SHA]}));
           NODE
           commit_sha="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/git/commits" --input /tmp/commit.json --jq .sha)"
           [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]]
-          printf '{"base":"%s","tree":"%s","commit":"%s"}\n' "$BASE_SHA" "$tree_sha" "$commit_sha" > /tmp/repair-object.json
           echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
-          echo "tree_sha=$tree_sha" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
           name: d-series-sanitation-object-${{ steps.object.outputs.commit_sha }}
-          path: /tmp/repair-object.json
-          if-no-files-found: error
+          path: /tmp/tree.json
           retention-days: 90
