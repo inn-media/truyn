@@ -1,0 +1,66 @@
+{
+  "schema": "truyn.d-series.frozen-candidate-policy.v1",
+  "state": "LOCKED",
+  "authority": "D-Series",
+  "effectiveUntil": "ALL_D_SERIES_TESTS_COMPLETE",
+  "model": "Frozen Candidate -> Branch Qualification -> Admission to Main",
+  "invariants": {
+    "expensiveQualificationBoundToFrozenCandidate": true,
+    "mainMovementNeverInvalidatesQualificationByItself": true,
+    "admissionComparesBaseShaToCurrentMain": true,
+    "noSensitiveMainDriftReusesExpensiveEvidence": true,
+    "sensitiveMainDriftRunsOnlyAffectedBlocks": true,
+    "automaticFullRerunOnMainMovementForbidden": true,
+    "liveRerunOnlyWhenSensitivePolicyRequires": true,
+    "integrationCandidateFingerprintRecomputeMandatory": true,
+    "finalAdmissionGateMandatory": true,
+    "oldGreenCandidateAloneNeverMergeAuthority": true,
+    "admissionBecomesStaleWhenMainMoves": true,
+    "acceptanceThresholdWeakeningForbidden": true,
+    "policyRemovalRequiresExplicitUserAuthorization": true
+  },
+  "surfaces": [
+    {
+      "id": "contracts-policy",
+      "prefixes": ["config/d200-", "config/d500-", "config/d-series-", "config/class-d-", "docs/operations/class-d/", "docs/operations/d500/", ".github/d500/", ".github/workflows/d-series-"],
+      "blocks": ["B01", "B16"],
+      "liveRerunRequired": false
+    },
+    {
+      "id": "runtime-core",
+      "prefixes": ["network/", "src/", "providers/", "storage/", "bin/", "scripts/build-class-d-"],
+      "blocks": ["B02", "B05", "B06", "B07", "B08", "B10", "B11", "B12", "B13", "B14", "B15", "B16"],
+      "liveRerunRequired": true
+    },
+    {
+      "id": "cloud-control-plane",
+      "prefixes": [".github/workflows/class-d-", ".github/workflows/d500-", "scripts/d200-stage-", "scripts/check-d200-cloud", "benchmarks/scale/class-d-azure-1000-provision.sh"],
+      "blocks": ["B03", "B04", "B06", "B15", "B16"],
+      "liveRerunRequired": true
+    },
+    {
+      "id": "topology-bootstrap",
+      "prefixes": ["benchmarks/scale/class-d-azure-1000-campaign.sh", "scripts/class-d-local-multiprocess-repro.mjs", "scripts/d200-peer-", "scripts/d200-bootstrap-"],
+      "blocks": ["B04", "B05", "B06", "B07", "B08"],
+      "liveRerunRequired": true
+    },
+    {
+      "id": "recovery-routing",
+      "prefixes": ["benchmarks/scale/d200-restart-", "benchmarks/scale/d200-post-restart-", "scripts/d200-route-", "scripts/d200-recovery-", "scripts/d200-generation-"],
+      "blocks": ["B08", "B09", "B10", "B11", "B13"],
+      "liveRerunRequired": true
+    },
+    {
+      "id": "evidence-acceptance",
+      "prefixes": ["benchmarks/scale/class-d-1000-evidence.js", "benchmarks/scale/evaluate-class-d-1000-evidence.js", "benchmarks/scale/verify-class-d-1000-terminal.js", "scripts/check-d200-contract.mjs", "scripts/check-d500-contract.mjs", "scripts/check-d500-inheritance.mjs", "scripts/check-class-d-five-patches.mjs"],
+      "blocks": ["B01", "B12", "B14", "B15", "B16"],
+      "liveRerunRequired": false
+    },
+    {
+      "id": "d-series-tests",
+      "prefixes": ["tests/class-d-", "tests/d200-", "tests/d500-", "tests/dht-", "tests/randomized-adversarial.test.js", "tests/peer-discovery-"],
+      "blocks": ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B09", "B10", "B11", "B12", "B13", "B14", "B15", "B16"],
+      "liveRerunRequired": false
+    }
+  ]
+}

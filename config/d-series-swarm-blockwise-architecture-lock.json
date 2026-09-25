@@ -6,18 +6,10 @@
   "primaryEngine": "sanitation-swarm",
   "subordinateAdmissionGate": "blockwise-b01-b16",
   "priorityOnConflict": "sanitation-swarm",
-  "canonicalChain": [
-    "SOURCE_CHANGE",
-    "SANITATION_SWARM",
-    "ROOT_CAUSE_DEDUP",
-    "ACCEPTANCE_PRESERVING_REPAIR",
-    "TARGETED_BLOCK_QUALIFICATION",
-    "FULL_B01_B16_EXACT_SHA",
-    "ISOLATED_LIVE_QUALIFICATION_WHERE_REQUIRED",
-    "SHARED_CAPACITY_COLLISION_CHECK",
-    "ONE_REAL_D_SERIES_RUN",
-    "IMMUTABLE_EVIDENCE"
-  ],
+  "qualificationModel": "Frozen Candidate -> Branch Qualification -> Admission to Main",
+  "admissionPolicyFile": "config/d-series-frozen-candidate-policy.json",
+  "canonicalChain": ["SOURCE_CHANGE", "SANITATION_SWARM", "ROOT_CAUSE_DEDUP", "ACCEPTANCE_PRESERVING_REPAIR", "TARGETED_BLOCK_QUALIFICATION", "FULL_B01_B16_EXACT_SHA", "ISOLATED_LIVE_QUALIFICATION_WHERE_REQUIRED", "SHARED_CAPACITY_COLLISION_CHECK", "ONE_REAL_D_SERIES_RUN", "IMMUTABLE_EVIDENCE"],
+  "admissionChain": ["FREEZE_CANDIDATE_SHA", "CAPTURE_BASE_SHA", "QUALIFY_CANDIDATE_BRANCH", "WRITE_QUALIFICATION_MANIFEST_AND_FINGERPRINTS", "ALLOW_MAIN_TO_MOVE", "COMPARE_BASE_SHA_TO_CURRENT_MAIN", "BUILD_INTEGRATION_CANDIDATE", "RECOMPUTE_D_SENSITIVE_FINGERPRINTS", "RUN_ONLY_IMPACTED_BLOCKS", "REQUIRE_LIVE_RERUN_ONLY_WHEN_POLICY_SAYS_REQUIRED", "FINAL_ADMISSION_GATE_ON_INTEGRATED_STATE", "MERGE_OR_LAUNCH_ONLY_WITH_FRESH_ADMISSION"],
   "invariants": {
     "swarmOwnsDiagnosticsAndRepair": true,
     "blockwiseMayNotReplaceSwarm": true,
@@ -26,7 +18,16 @@
     "realScaleRunRequiresAdmission": true,
     "realScaleRunIsSingleShot": true,
     "acceptanceThresholdWeakeningForbidden": true,
-    "silentArchitectureReplacementForbidden": true
+    "silentArchitectureReplacementForbidden": true,
+    "expensiveQualificationBelongsToFrozenCandidate": true,
+    "mainMovementTriggersAdmissionAnalysisNotAutomaticFullRerun": true,
+    "candidateEvidenceSurvivesNonSensitiveMainMovement": true,
+    "sensitiveMainMovementRequalifiesOnlyAffectedBlocksByDefault": true,
+    "integrationCandidateFingerprintsMandatoryBeforeMerge": true,
+    "greenCandidateShaAloneNeverAuthorizesMerge": true,
+    "freshAdmissionMandatoryAfterEveryMainMovement": true,
+    "automaticFullRerunOnMainMovementForbidden": true,
+    "admissionPolicyCannotBeBypassedOrSilentlyRemoved": true
   },
-  "changePolicy": "This lock may be removed or materially changed before ALL_D_SERIES_TESTS_COMPLETE only by an explicit user-authorized architecture change. Ordinary refactors, repairs, optimizations, sprint transitions, D-500/D-1000 launcher work, or CI cleanup MUST preserve it."
+  "changePolicy": "This lock and its frozen-candidate admission model may be removed, bypassed, weakened, renamed out of enforcement, or materially changed before ALL_D_SERIES_TESTS_COMPLETE only by an explicit user-authorized architecture change. Main movement, ordinary refactors, repairs, optimizations, sprint transitions, D-200/D-500/D-1000 launcher work, CI cleanup, or historical GREEN evidence MUST NOT restore the old exact-current-main qualification model."
 }
