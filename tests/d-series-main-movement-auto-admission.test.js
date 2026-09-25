@@ -11,10 +11,17 @@ test('D-Series automatically re-runs only cheap Admission when main moves', () =
     "github.event_name == 'push'",
     'actions/workflows/d-series-frozen-candidate-qualification.yml/runs?status=success&per_page=100',
     'pulls?state=open&per_page=100',
+    '.github/workflows/d*-acceptance.yml',
+    'TESTED_COMMIT:',
+    'controller_candidates',
+    'active_candidates',
+    'seen_candidates',
     'd-series-qualification-manifest-${candidate_run}',
     'gh run download',
-    'no_active_open_pr_qualification',
-    'ambiguous_active_qualifications',
+    'no_controller_referenced_open_candidate',
+    'ambiguous_controller_candidates',
+    'controller_candidate_missing_qualification',
+    'authority=current_acceptance_controller',
     'AUTO_RECHECK',
     "if: steps.q.outputs.eligible == 'true'",
     'd-series-qualification-manifest.mjs admission',
@@ -27,12 +34,19 @@ test('D-Series automatically re-runs only cheap Admission when main moves', () =
   assert.ok(!workflow.includes('automatic full rerun'));
 });
 
-test('automatic main-movement Admission is fail-closed and only follows an active open PR candidate', () => {
-  assert.match(workflow, /matches\.length|\$\{#matches\[@\]\}/);
-  assert.match(workflow, /\[\[ "\$head" == "\$candidate" \]\]/);
+test('automatic main-movement Admission is fail-closed and ignores arbitrary qualified PR heads', () => {
+  assert.match(workflow, /TESTED_COMMIT/);
+  assert.match(workflow, /controller_candidates/);
+  assert.match(workflow, /active_candidates/);
+  assert.match(workflow, /seen_candidates/);
+  assert.match(workflow, /\[\[ "\$candidate" == "\$head" \]\]/);
+  assert.match(workflow, /target_candidate/);
+  assert.match(workflow, /matched_run/);
   assert.match(workflow, /\.expired==false/);
   assert.match(workflow, /\.run_attempt==1/);
   assert.match(workflow, /length==1/);
   assert.match(workflow, /exit 23/);
+  assert.match(workflow, /exit 24/);
   assert.match(workflow, /pull-requests: read/);
+  assert.ok(!workflow.includes('ambiguous_active_qualifications'));
 });
