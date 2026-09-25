@@ -1,0 +1,15 @@
+{
+  "schema": "truyn.n-series.swarm-blockwise.architecture-lock.v1",
+  "executionEngine": "SWARM_BLOCKWISE",
+  "qualificationModel": "FROZEN_CANDIDATE_BRANCH_QUALIFICATION_ADMISSION_TO_MAIN",
+  "blocks": ["N1","N2","N3","N4","N5","N6","N7"],
+  "mainMovementPolicy": "ADMISSION_ANALYSIS_NOT_AUTOMATIC_FULL_RERUN",
+  "selectiveRerunRequired": true,
+  "integrationFingerprintRequired": true,
+  "combinedStateAdmissionRequired": true,
+  "historicalGreenAloneIsInsufficient": true,
+  "sovereigntyCells": [10,50,100],
+  "sovereigntyCellsIndependent": true,
+  "seriesWideSerializationForbidden": true,
+  "bypassForbidden": true
+}
