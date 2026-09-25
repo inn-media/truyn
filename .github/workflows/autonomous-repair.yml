@@ -53,7 +53,7 @@ jobs:
           ! grep -En 'commits/main|main_sha=' .github/workflows/d-series-blockwise-preflight.yml
           ! grep -En 'commits/main|main_sha=' .github/workflows/d-series-swarm-one-shot-launcher.yml .github/workflows/d-series-blockwise-one-shot-launcher.yml
           ! grep -F 'pull_requests[0].head.sha' scripts/verify-d-series-blockwise-preflight-run.sh
-      - name: Publish exact validated candidate through canonical privileged checkout credential
+      - name: Publish exact validated candidate to GitHub with canonical privileged credential
         run: |
           set -Eeuo pipefail
           cd /tmp/truyn-clean
@@ -61,7 +61,7 @@ jobs:
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
           git add .github/workflows/d200-bug-hunt.yml .github/workflows/d-series-blockwise-preflight.yml .github/workflows/d-series-swarm-one-shot-launcher.yml .github/workflows/d-series-blockwise-one-shot-launcher.yml scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh tests/d-series-swarm-integration.test.js tests/d-series-blockwise-preflight.test.js
           git commit -s -m 'fix(d-series): align qualification with frozen candidate'
-          git push --force "$GITHUB_WORKSPACE" HEAD:refs/heads/d-series/sanitation-frozen-candidate-20260925 || {
-            git remote add privileged "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" || true
-            git -c http.https://github.com/.extraheader="$(git -C "$GITHUB_WORKSPACE" config --get http.https://github.com/.extraheader)" push --force privileged HEAD:refs/heads/d-series/sanitation-frozen-candidate-20260925
-          }
+          auth="$(git -C "$GITHUB_WORKSPACE" config --get http.https://github.com/.extraheader)"
+          [[ -n "$auth" ]]
+          git remote add privileged "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c http.https://github.com/.extraheader="$auth" push --force privileged HEAD:refs/heads/d-series/sanitation-frozen-candidate-20260925
