@@ -13,6 +13,7 @@ test('D-Series frozen-candidate admission policy is permanently locked', () => {
   assert.equal(policy.model, 'Frozen Candidate -> Branch Qualification -> Admission to Main');
   for (const key of [
     'expensiveQualificationBoundToFrozenCandidate',
+    'historicalEvidenceBoundToImmutableRunSha',
     'mainMovementNeverInvalidatesQualificationByItself',
     'admissionComparesBaseShaToCurrentMain',
     'noSensitiveMainDriftReusesExpensiveEvidence',
@@ -31,6 +32,7 @@ test('D-Series frozen-candidate admission policy is permanently locked', () => {
 
   const verified = spawnSync(process.execPath, ['scripts/verify-d-series-frozen-candidate-policy.mjs'], { encoding: 'utf8' });
   assert.equal(verified.status, 0, verified.stderr || verified.stdout);
+  assert.match(verified.stdout, /evidence-binding=immutable-run-sha/);
   assert.match(verified.stdout, /main-movement=analysis-not-rerun/);
 });
 
@@ -39,6 +41,7 @@ test('architecture lock makes frozen candidate and final admission non-bypassabl
   assert.equal(lock.qualificationModel, 'Frozen Candidate -> Branch Qualification -> Admission to Main');
   assert.equal(lock.admissionPolicyFile, 'config/d-series-frozen-candidate-policy.json');
   assert.equal(lock.invariants.expensiveQualificationBelongsToFrozenCandidate, true);
+  assert.equal(lock.invariants.historicalEvidenceBoundToImmutableRunSha, true);
   assert.equal(lock.invariants.mainMovementTriggersAdmissionAnalysisNotAutomaticFullRerun, true);
   assert.equal(lock.invariants.candidateEvidenceSurvivesNonSensitiveMainMovement, true);
   assert.equal(lock.invariants.sensitiveMainMovementRequalifiesOnlyAffectedBlocksByDefault, true);
@@ -47,6 +50,7 @@ test('architecture lock makes frozen candidate and final admission non-bypassabl
   assert.equal(lock.invariants.freshAdmissionMandatoryAfterEveryMainMovement, true);
   assert.equal(lock.invariants.automaticFullRerunOnMainMovementForbidden, true);
   assert.equal(lock.invariants.admissionPolicyCannotBeBypassedOrSilentlyRemoved, true);
+  assert.match(lock.changePolicy, /immutable execution-time workflow SHA fields/);
   assert.match(lock.changePolicy, /MUST NOT restore the old exact-current-main qualification model/);
 });
 
