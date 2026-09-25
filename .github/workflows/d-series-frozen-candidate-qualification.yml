@@ -78,20 +78,25 @@ jobs:
               'D-Series Sanitation Swarm'|'D-Series Blockwise Preflight') ;;
               *) echo "unexpected trigger=$trigger_name" >&2; exit 2 ;;
             esac
-            candidate="$(jq -r '.pull_requests[0].head.sha // .head_sha // empty' <<<"$trigger")"
+
+            # workflow_run.head_sha and head_commit.id are immutable execution-time evidence.
+            # pull_requests[0].head.sha is deliberately forbidden here because GitHub can rewrite
+            # that embedded PR object to the PR's newer head after the historical run completed.
+            candidate="$(jq -r '.head_sha // empty' <<<"$trigger")"
             [[ "$candidate" =~ ^[0-9a-f]{40}$ ]]
+            jq -e --arg c "$candidate" '.head_sha==$c and ((.head_commit.id // .head_sha)==$c)' <<<"$trigger" >/dev/null
             scale=all
 
             # Swarm and Blockwise are independent frozen-candidate qualification lanes and can finish
             # in either order. The first completion is a clean not-ready event. The second completion
-            # creates the manifest only if the exact same candidate has the other GREEN lane retained.
+            # creates the manifest only if the exact same immutable candidate SHA has the other GREEN lane.
             runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?status=completed&per_page=100")"
             if [[ "$trigger_name" == 'D-Series Sanitation Swarm' ]]; then
               swarm="$TRIGGER_RUN_ID"
-              blockwise="$(jq -r --arg sha "$candidate" '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and ((.pull_requests[0].head.sha // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
+              blockwise="$(jq -r --arg sha "$candidate" '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$sha and ((.head_commit.id // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
             else
               blockwise="$TRIGGER_RUN_ID"
-              swarm="$(jq -r --arg sha "$candidate" '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and ((.pull_requests[0].head.sha // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
+              swarm="$(jq -r --arg sha "$candidate" '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$sha and ((.head_commit.id // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
             fi
 
             if [[ ! "$swarm" =~ ^[1-9][0-9]+$ || ! "$blockwise" =~ ^[1-9][0-9]+$ ]]; then
@@ -108,8 +113,8 @@ jobs:
 
             swarm_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${swarm}")"
             blockwise_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${blockwise}")"
-            jq -e --arg c "$candidate" '.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and ((.pull_requests[0].head.sha // .head_sha)==$c)' <<<"$swarm_json" >/dev/null
-            jq -e --arg c "$candidate" '.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and ((.pull_requests[0].head.sha // .head_sha)==$c)' <<<"$blockwise_json" >/dev/null
+            jq -e --arg c "$candidate" '.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$c and ((.head_commit.id // .head_sha)==$c)' <<<"$swarm_json" >/dev/null
+            jq -e --arg c "$candidate" '.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$c and ((.head_commit.id // .head_sha)==$c)' <<<"$blockwise_json" >/dev/null
 
             swarm_artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${swarm}/artifacts?per_page=100")"
             blockwise_artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${blockwise}/artifacts?per_page=100")"
