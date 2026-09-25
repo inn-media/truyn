@@ -1,0 +1,237 @@
+name: D-Series Admission Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      qualification_run_id:
+        description: GREEN D-Series Frozen Candidate Qualification run
+        required: true
+        type: string
+      base_sha:
+        description: BASE_SHA recorded by frozen qualification
+        required: true
+        type: string
+      candidate_sha:
+        description: Immutable qualified candidate SHA
+        required: true
+        type: string
+      scale:
+        description: Qualified D-Series class scope
+        required: true
+        default: d500
+        type: choice
+        options: [d200, d500, d1000, all]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: d-series-admission-${{ inputs.candidate_sha }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: calculate-integration-admission
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    outputs:
+      current_main_sha: ${{ steps.plan.outputs.current_main_sha }}
+      integration_tree_sha: ${{ steps.plan.outputs.integration_tree_sha }}
+      decision: ${{ steps.plan.outputs.decision }}
+      affected_matrix: ${{ steps.plan.outputs.affected_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate immutable frozen qualification authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QUALIFICATION_RUN_ID: ${{ inputs.qualification_run_id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$QUALIFICATION_RUN_ID" =~ ^[1-9][0-9]+$ ]]
+          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${QUALIFICATION_RUN_ID}")"
+          jq -e '
+            .name == "D-Series Frozen Candidate Qualification" and
+            .path == ".github/workflows/d-series-frozen-candidate-qualification.yml" and
+            .status == "completed" and
+            .conclusion == "success" and
+            .run_attempt == 1
+          ' <<<"$run" >/dev/null
+      - name: Download frozen qualification manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: d-series-qualification-${{ inputs.qualification_run_id }}
+          path: frozen-qualification
+          run-id: ${{ inputs.qualification_run_id }}
+          github-token: ${{ github.token }}
+      - name: Recompute fingerprints on integration candidate and classify main movement
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ inputs.base_sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          SCALE: ${{ inputs.scale }}
+          QUALIFICATION_RUN_ID: ${{ inputs.qualification_run_id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          manifest=frozen-qualification/d-series-qualification-manifest.json
+          jq -e --arg b "$BASE_SHA" --arg c "$CANDIDATE_SHA" --arg s "$SCALE" --arg q "$QUALIFICATION_RUN_ID" '
+            .schema == "truyn.d-series.qualification-manifest.v1" and
+            .baseSha == $b and .candidateSha == $c and .scale == $s and
+            (.qualificationEvidence.qualificationRunId|tostring) == $q and
+            .qualificationEvidence.immutableCandidate == true and
+            .qualificationEvidence.branchQualification == true
+          ' "$manifest" >/dev/null
+          current_main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          git fetch --no-tags origin "$current_main_sha"
+          node scripts/check-d-series-frozen-candidate-admission.mjs
+          node scripts/d-series-admission-plan.mjs --manifest "$manifest" --base "$BASE_SHA" --candidate "$CANDIDATE_SHA" --main "$current_main_sha" --output d-series-admission-plan.json
+          decision="$(jq -r .decision d-series-admission-plan.json)"
+          integration_tree_sha="$(jq -r .integrationTreeSha d-series-admission-plan.json)"
+          affected="$(jq -c 'if (.affectedBlocks|length)==0 then ["NONE"] else .affectedBlocks end' d-series-admission-plan.json)"
+          echo "current_main_sha=$current_main_sha" >>"$GITHUB_OUTPUT"
+          echo "integration_tree_sha=$integration_tree_sha" >>"$GITHUB_OUTPUT"
+          echo "decision=$decision" >>"$GITHUB_OUTPUT"
+          echo "affected_matrix=$affected" >>"$GITHUB_OUTPUT"
+          echo "TRUYN_D_SERIES_MAIN_MOVEMENT_CLASSIFIED decision=$decision affected=$(jq -r '.affectedBlocks|join(",")' d-series-admission-plan.json)"
+      - name: Retain immutable admission plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-admission-plan-${{ github.run_id }}
+          path: d-series-admission-plan.json
+          if-no-files-found: error
+          retention-days: 90
+
+  targeted-requalification:
+    name: integration-${{ matrix.block }}
+    needs: plan
+    if: needs.plan.outputs.decision == 'REQUALIFY_AFFECTED_BLOCKS'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        block: ${{ fromJSON(needs.plan.outputs.affected_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Materialize exact combined integration state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.plan.outputs.current_main_sha }}
+          INTEGRATION_TREE_SHA: ${{ needs.plan.outputs.integration_tree_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$MAIN_SHA" ]]
+          git fetch --no-tags origin "$MAIN_SHA"
+          git merge --no-commit --no-ff "$MAIN_SHA"
+          [[ "$(git write-tree)" == "$INTEGRATION_TREE_SHA" ]]
+      - name: Requalify only affected canonical block
+        env:
+          BLOCK_ID: ${{ matrix.block }}
+          SCALE: ${{ inputs.scale }}
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ needs.plan.outputs.integration_tree_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          case "$SCALE" in d200) s=200 ;; d500) s=500 ;; d1000) s=1000 ;; all) s=all ;; *) exit 2 ;; esac
+          node scripts/d-series-block-runner.mjs "$BLOCK_ID" --scale "$s" --result "d-series-block-${BLOCK_ID}.json"
+      - name: Upload targeted integration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-admission-block-${{ matrix.block }}-${{ github.run_id }}
+          path: d-series-block-${{ matrix.block }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  finalize:
+    name: final-admission-authority
+    needs: [plan, targeted-requalification]
+    if: always() && needs.plan.result == 'success' && (needs.targeted-requalification.result == 'success' || needs.targeted-requalification.result == 'skipped')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: d-series-admission-plan-${{ github.run_id }}
+          path: admission
+      - uses: actions/download-artifact@v4
+        if: needs.plan.outputs.decision == 'REQUALIFY_AFFECTED_BLOCKS'
+        with:
+          pattern: d-series-admission-block-*-${{ github.run_id }}
+          path: targeted-results
+          merge-multiple: true
+      - name: Enforce fresh main and all required targeted blocks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.plan.outputs.current_main_sha }}
+          INTEGRATION_TREE_SHA: ${{ needs.plan.outputs.integration_tree_sha }}
+          INITIAL_DECISION: ${{ needs.plan.outputs.decision }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$MAIN_SHA" ]] || { echo 'Admission stale: main moved; rerun Admission Gate only, never full D qualification automatically.' >&2; exit 2; }
+          plan=admission/d-series-admission-plan.json
+          cp "$plan" d-series-admission-final.json
+          if [[ "$INITIAL_DECISION" == REQUALIFY_AFFECTED_BLOCKS ]]; then
+            mkdir -p targeted-results
+            while IFS= read -r block; do
+              [[ -s "targeted-results/d-series-block-${block}.json" ]]
+              node scripts/d-series-block-aggregate.mjs targeted-results --output "targeted-${block}.json" --source-sha "$INTEGRATION_TREE_SHA" --scope targeted --selected-block "$block" --enforce
+            done < <(jq -r '.affectedBlocks[]' "$plan")
+            node - <<'NODE'
+const fs=require('fs');
+const p=JSON.parse(fs.readFileSync('d-series-admission-final.json','utf8'));
+p.decision='ADMIT_AFTER_TARGETED_REQUALIFICATION';
+p.targetedRequalification={required:true,passed:true,passedBlocks:[...p.affectedBlocks]};
+p.finalizedAt=new Date().toISOString();
+fs.writeFileSync('d-series-admission-final.json',JSON.stringify(p,null,2)+'\n');
+NODE
+          elif [[ "$INITIAL_DECISION" == ADMIT_WITH_FROZEN_EVIDENCE ]]; then
+            node - <<'NODE'
+const fs=require('fs');
+const p=JSON.parse(fs.readFileSync('d-series-admission-final.json','utf8'));
+p.targetedRequalification={required:false,passed:true,passedBlocks:[]};
+p.finalizedAt=new Date().toISOString();
+fs.writeFileSync('d-series-admission-final.json',JSON.stringify(p,null,2)+'\n');
+NODE
+          else
+            echo "non-admissible decision=$INITIAL_DECISION" >&2
+            exit 3
+          fi
+          jq -e '.decision=="ADMIT_WITH_FROZEN_EVIDENCE" or .decision=="ADMIT_AFTER_TARGETED_REQUALIFICATION"' d-series-admission-final.json >/dev/null
+      - name: Upload fresh fail-closed Admission authority
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-admission-${{ github.run_id }}
+          path: d-series-admission-final.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Record admission terminal marker
+        run: echo 'TRUYN_D_SERIES_ADMISSION_TERMINAL=PASS candidate=${{ inputs.candidate_sha }} current_main=${{ needs.plan.outputs.current_main_sha }} integration_tree=${{ needs.plan.outputs.integration_tree_sha }} decision=${{ needs.plan.outputs.decision }}'
