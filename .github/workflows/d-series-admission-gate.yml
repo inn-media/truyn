@@ -1,0 +1,149 @@
+name: D-Series Admission Gate
+
+on:
+  workflow_run:
+    workflows:
+      - D-Series Frozen Candidate Qualification
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      qualification_run_id:
+        description: Successful D-Series Frozen Candidate Qualification run to admit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: d-series-admission-${{ github.event.workflow_run.id || inputs.qualification_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  admission:
+    name: frozen-candidate-to-current-main
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Resolve qualification evidence
+        id: q
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTO_RUN_ID: ${{ github.event.workflow_run.id }}
+          MANUAL_RUN_ID: ${{ inputs.qualification_run_id }}
+        run: |
+          set -Eeuo pipefail
+          run_id="${MANUAL_RUN_ID:-$AUTO_RUN_ID}"
+          [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
+          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+          jq -e '.name=="D-Series Frozen Candidate Qualification" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$run" >/dev/null
+          echo "run_id=$run_id" >>"$GITHUB_OUTPUT"
+
+      - name: Download automatic D qualification manifest
+        uses: actions/download-artifact@v4
+        with:
+          pattern: d-series-qualification-manifest-*
+          path: qualification
+          merge-multiple: true
+          run-id: ${{ steps.q.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Build integration candidate and recompute fingerprints
+        id: plan
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          q=qualification/d-series-qualification-manifest.json
+          [[ -s "$q" ]]
+          node scripts/verify-d-series-frozen-candidate-policy.mjs
+          candidate="$(jq -r .candidateSha "$q")"
+          base="$(jq -r .baseSha "$q")"
+          scale="$(jq -r .scale "$q")"
+          [[ "$candidate" =~ ^[0-9a-f]{40}$ && "$base" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$current_main" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin "$candidate"
+          git fetch --no-tags origin "$current_main"
+          git merge-base --is-ancestor "$base" "$candidate"
+          git checkout --detach "$current_main"
+          git config user.name 'TRUYN D-Series Admission'
+          git config user.email 'actions@users.noreply.github.com'
+          git merge --no-ff --no-commit "$candidate"
+          integration_tree="$(git write-tree)"
+          [[ "$integration_tree" =~ ^[0-9a-f]{40}$ ]]
+          node scripts/d-series-qualification-manifest.mjs admission \
+            --qualification-manifest "$q" --base-sha "$base" --candidate-sha "$candidate" \
+            --current-main-sha "$current_main" --integration-ref "$integration_tree" --scale "$scale" \
+            --output d-series-admission-manifest.json
+          echo "candidate=$candidate" >>"$GITHUB_OUTPUT"
+          echo "scale=$scale" >>"$GITHUB_OUTPUT"
+          echo "current_main=$current_main" >>"$GITHUB_OUTPUT"
+          echo "integration_tree=$integration_tree" >>"$GITHUB_OUTPUT"
+
+      - name: Run small mandatory integration admission gate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          node scripts/verify-d-series-frozen-candidate-policy.mjs
+          node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
+          node --test tests/d-series-frozen-candidate-admission.test.js
+          git diff --check
+
+      - name: Requalify only D-sensitive blocks touched by BASE_SHA to current main
+        shell: bash
+        env:
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ steps.plan.outputs.integration_tree }}
+        run: |
+          set -Eeuo pipefail
+          scale='${{ steps.plan.outputs.scale }}'
+          case "$scale" in all) local_scale=all ;; d200) local_scale=200 ;; d500) local_scale=500 ;; d1000) local_scale=1000 ;; *) exit 2 ;; esac
+          mapfile -t blocks < <(jq -r '.decision.targetedBlocks[]?' d-series-admission-manifest.json)
+          for block in "${blocks[@]}"; do
+            node scripts/d-series-block-runner.mjs "$block" --scale "$local_scale" --result "admission-${block}.json"
+            jq -e '.status=="PASS"' "admission-${block}.json" >/dev/null
+          done
+
+      - name: Enforce selective policy and current-main freshness
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          jq -e '.decision.automaticFullRerunForbidden==true' d-series-admission-manifest.json >/dev/null
+          if [[ "$(jq -r .decision.liveRerunRequired d-series-admission-manifest.json)" == true ]]; then
+            echo 'TRUYN_D_SERIES_ADMISSION=FAIL reason=live_requalification_required' >&2
+            exit 21
+          fi
+          fresh_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$fresh_main" == '${{ steps.plan.outputs.current_main }}' ]] || {
+            echo "TRUYN_D_SERIES_ADMISSION=FAIL reason=main_moved_during_admission" >&2
+            exit 22
+          }
+          jq '.decision.status="PASS_COMPATIBLE" | .decision.admissionPassed=true' d-series-admission-manifest.json > d-series-admission-manifest.final.json
+          mv d-series-admission-manifest.final.json d-series-admission-manifest.json
+          echo "TRUYN_D_SERIES_ADMISSION=PASS candidate=${{ steps.plan.outputs.candidate }} current_main=$fresh_main integration_tree=${{ steps.plan.outputs.integration_tree }}"
+
+      - name: Upload admission manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-admission-manifest-${{ github.run_id }}
+          path: d-series-admission-manifest.json
+          if-no-files-found: error
+          retention-days: 90
