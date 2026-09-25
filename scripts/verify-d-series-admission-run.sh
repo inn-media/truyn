@@ -18,7 +18,10 @@ command -v unzip >/dev/null || fail unzip_missing "" 3
 [[ -s "$POLICY" ]] || fail policy_missing
 node scripts/verify-d-series-frozen-candidate-policy.mjs
 
-candidate_tree="$(git rev-parse "${SOURCE_SHA}^{tree}")"
+# The frozen candidate may intentionally live outside the shallow launch-controller
+# checkout. Bind its tree through immutable GitHub commit metadata instead of
+# requiring the candidate object to be present in the local main-only clone.
+candidate_tree="$(gh api "repos/${REPOSITORY}/commits/${SOURCE_SHA}" --jq .commit.tree.sha)"
 [[ "$candidate_tree" =~ ^[0-9a-f]{40}$ ]] || fail candidate_tree_invalid
 main_sha="$(gh api "repos/${REPOSITORY}/commits/main" --jq .sha)"
 main_tree="$(gh api "repos/${REPOSITORY}/commits/${main_sha}" --jq .commit.tree.sha)"
