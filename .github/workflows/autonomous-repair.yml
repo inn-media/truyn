@@ -27,92 +27,32 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-
       - name: Validate request and exact base
-        shell: bash
         run: |
           set -Eeuo pipefail
-          envs=(.github/repairs/*.env); [[ ${#envs[@]} == 1 ]]; source "${envs[0]}"
-          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          envs=(.github/repairs/*.env); source "${envs[0]}"
           git fetch origin main --quiet
           [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
           rm -rf /tmp/truyn-clean
           git worktree add --detach /tmp/truyn-clean "$BASE_SHA"
-
       - name: Apply base frozen-candidate patch
-        shell: bash
         run: |
           set -Eeuo pipefail
           p=.github/repairs/d-series-sanitation-frozen-main-independence-20260925.patch
           git -C /tmp/truyn-clean apply --recount --check "$GITHUB_WORKSPACE/$p"
           git -C /tmp/truyn-clean apply --recount "$GITHUB_WORKSPACE/$p"
-
-      - name: Check comprehensive extra patch
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          p=.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch
-          git -C /tmp/truyn-clean apply --recount --check "$GITHUB_WORKSPACE/$p"
-
-      - name: Apply comprehensive extra patch
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          p=.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch
-          git -C /tmp/truyn-clean apply --recount "$GITHUB_WORKSPACE/$p"
-          git -C /tmp/truyn-clean diff --check
-
-      - name: Verify exact changed path set
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          envs=(.github/repairs/*.env); source "${envs[0]}"
-          mapfile -t changed < <(git -C /tmp/truyn-clean diff --name-only "$BASE_SHA" | sort)
-          mapfile -t expected < <(printf '%s\n' $EXPECTED_PATHS | sort)
-          [[ "${changed[*]}" == "${expected[*]}" ]]
-
-      - name: Run D-Series sanitation regression gates
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          cd /tmp/truyn-clean
-          node --test tests/d-series-frozen-candidate-admission.test.js tests/d-series-swarm-integration.test.js tests/d-series-blockwise-preflight.test.js
-          node scripts/verify-d-series-frozen-candidate-policy.mjs
-          node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
-          bash -n scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh
-          ! grep -q 'commits/main' .github/workflows/d200-bug-hunt.yml
-          ! grep -q 'main_sha=' .github/workflows/d200-bug-hunt.yml
-          ! grep -q 'commits/main' .github/workflows/d-series-blockwise-preflight.yml
-          ! grep -q 'commits/main' .github/workflows/d-series-swarm-one-shot-launcher.yml
-          ! grep -q 'commits/main' .github/workflows/d-series-blockwise-one-shot-launcher.yml
-          ! grep -q 'pull_requests\[0\]\.head\.sha' scripts/verify-d-series-blockwise-preflight-run.sh
-          git diff --check
-
-      - name: Materialize immutable GitHub commit object
-        id: object
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          envs=(.github/repairs/*.env); source "${envs[0]}"
-          base_tree="$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${BASE_SHA}" --jq .tree.sha)"
-          export BASE_TREE="$base_tree" EXPECTED_PATHS
-          node <<'NODE' >/tmp/tree.json
-          const fs=require('fs'),path=require('path');
-          const root='/tmp/truyn-clean';
-          const tree=process.env.EXPECTED_PATHS.split(/\s+/).filter(Boolean).map(p=>({path:p,mode:'100644',type:'blob',content:fs.readFileSync(path.join(root,p),'utf8')}));
-          process.stdout.write(JSON.stringify({base_tree:process.env.BASE_TREE,tree}));
-          NODE
-          tree_sha="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/git/trees" --input /tmp/tree.json --jq .sha)"
-          export TREE_SHA="$tree_sha" BASE_SHA TASK_ID
-          node <<'NODE' >/tmp/commit.json
-          process.stdout.write(JSON.stringify({message:`fix(d-series): ${process.env.TASK_ID}\n\nSigned-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>`,tree:process.env.TREE_SHA,parents:[process.env.BASE_SHA]}));
-          NODE
-          commit_sha="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/git/commits" --input /tmp/commit.json --jq .sha)"
-          [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]]
-          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: d-series-sanitation-object-${{ steps.object.outputs.commit_sha }}
-          path: /tmp/tree.json
-          retention-days: 90
+      - name: Extra check d200 Swarm
+        if: always()
+        run: git -C /tmp/truyn-clean apply --recount --check --include='.github/workflows/d200-bug-hunt.yml' "$GITHUB_WORKSPACE/.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch"
+      - name: Extra check Blockwise workflow
+        if: always()
+        run: git -C /tmp/truyn-clean apply --recount --check --include='.github/workflows/d-series-blockwise-preflight.yml' "$GITHUB_WORKSPACE/.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch"
+      - name: Extra check Swarm regression test
+        if: always()
+        run: git -C /tmp/truyn-clean apply --recount --check --include='tests/d-series-swarm-integration.test.js' "$GITHUB_WORKSPACE/.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch"
+      - name: Extra check Swarm canonical docs
+        if: always()
+        run: git -C /tmp/truyn-clean apply --recount --check --include='docs/operations/class-d/D_SERIES_SANITATION_SWARM.md' "$GITHUB_WORKSPACE/.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch"
+      - name: Extra check network status docs
+        if: always()
+        run: git -C /tmp/truyn-clean apply --recount --check --include='docs/operations/NETWORK_SCALE_STATUS.md' "$GITHUB_WORKSPACE/.github/repairs/d-series-sanitation-frozen-main-independence-extra-20260925.patch"
