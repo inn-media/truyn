@@ -7,6 +7,7 @@
   "invariants": {
     "expensiveQualificationBoundToFrozenCandidate": true,
     "historicalEvidenceBoundToImmutableRunSha": true,
+    "admissionContractSelfModificationRequiresCandidateSideGate": true,
     "mainMovementNeverInvalidatesQualificationByItself": true,
     "admissionComparesBaseShaToCurrentMain": true,
     "noSensitiveMainDriftReusesExpensiveEvidence": true,
