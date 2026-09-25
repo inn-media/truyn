@@ -66,16 +66,21 @@ test('automatic qualification manifest fingerprints frozen candidate and admissi
   ]) assert.ok(script.includes(marker), marker);
 });
 
-test('candidate qualification is automatic and binds successful Swarm plus full Blockwise evidence', () => {
+test('candidate qualification is automatic only after full Blockwise and binds exact successful Swarm evidence', () => {
   const workflow = read('.github/workflows/d-series-frozen-candidate-qualification.yml');
   for (const marker of [
     'name: D-Series Frozen Candidate Qualification',
+    'workflows:\n      - D-Series Blockwise Preflight',
+    'blockwise="$TRIGGER_RUN_ID"',
     'D-Series Sanitation Swarm',
-    'D-Series Blockwise Preflight',
+    'no_candidate_bound_swarm_yet',
+    'eligible=$eligible',
+    "if: steps.resolve.outputs.eligible == 'true'",
     'git merge-base',
     'd-series-qualification-manifest.mjs qualification',
     'd-series-qualification-manifest-${{ github.run_id }}'
   ]) assert.ok(workflow.includes(marker), marker);
+  assert.ok(!/workflows:\n(?:\s+- .*\n)*\s+- D-Series Sanitation Swarm\n/.test(workflow), 'Swarm must not independently trigger frozen qualification before Blockwise');
 });
 
 test('Admission Gate builds integrated state, reruns only impacted blocks and fails closed on live-sensitive drift', () => {
