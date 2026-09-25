@@ -11,6 +11,9 @@ on:
 permissions:
   contents: write
 
+env:
+  GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+
 concurrency:
   group: autonomous-repair-${{ github.ref }}
   cancel-in-progress: false
@@ -23,55 +26,101 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: true
-          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+          persist-credentials: false
 
-      - name: Validate repair request
+      - name: Validate request and exact base
+        id: meta
         shell: bash
         run: |
           set -Eeuo pipefail
           shopt -s nullglob
           patches=(.github/repairs/*.patch)
           envs=(.github/repairs/*.env)
-          [[ ${#patches[@]} == 1 && ${#envs[@]} == 1 ]]
+          [[ ${#patches[@]} -ge 1 && ${#envs[@]} == 1 ]]
           source "${envs[0]}"
           [[ "${TASK_ID:-}" =~ ^[A-Za-z0-9._-]+$ ]]
           [[ "${BASE_SHA:-}" =~ ^[0-9a-f]{40}$ ]]
           [[ "${EXPECTED_PATHS:-}" != '' ]]
           git fetch origin main --quiet
           [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
-          [[ "$(git merge-base HEAD "$BASE_SHA")" == "$BASE_SHA" ]]
-          git apply --check "${patches[0]}"
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Apply exact patch fail closed
+      - name: Build clean patched worktree
+        id: build
         shell: bash
         run: |
           set -Eeuo pipefail
-          env_file=(.github/repairs/*.env); patch_file=(.github/repairs/*.patch)
-          source "${env_file[0]}"
-          git apply "${patch_file[0]}"
-          git diff --check
-          mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' | sort)
+          env_file=(.github/repairs/*.env); source "${env_file[0]}"
+          rm -rf /tmp/truyn-clean
+          git worktree add --detach /tmp/truyn-clean "$BASE_SHA"
+          for patch in .github/repairs/*.patch; do
+            git -C /tmp/truyn-clean apply --recount --check "$GITHUB_WORKSPACE/$patch"
+            git -C /tmp/truyn-clean apply --recount "$GITHUB_WORKSPACE/$patch"
+          done
+          git -C /tmp/truyn-clean diff --check
+          mapfile -t changed < <(git -C /tmp/truyn-clean diff --name-only "$BASE_SHA" | sort)
           mapfile -t expected < <(printf '%s\n' $EXPECTED_PATHS | sort)
           [[ "${changed[*]}" == "${expected[*]}" ]]
           [[ ${#changed[@]} -gt 0 ]]
+          printf '%s\n' "${changed[@]}" >/tmp/truyn-clean/.d-series-sanitation-paths
 
-      - name: Run required repair checks
+      - name: Run D-Series sanitation regression gates
         shell: bash
         run: |
           set -Eeuo pipefail
-          env_file=(.github/repairs/*.env); source "${env_file[0]}"
-          if [[ -n "${CHECK_COMMAND:-}" ]]; then bash -lc "$CHECK_COMMAND"; fi
+          cd /tmp/truyn-clean
+          node --test tests/d-series-frozen-candidate-admission.test.js tests/d-series-swarm-integration.test.js tests/d-series-blockwise-preflight.test.js
+          node scripts/verify-d-series-frozen-candidate-policy.mjs
+          node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
+          bash -n scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh
+          ! grep -q 'commits/main' .github/workflows/d200-bug-hunt.yml
+          ! grep -q 'main_sha=' .github/workflows/d200-bug-hunt.yml
+          ! grep -q 'commits/main' .github/workflows/d-series-blockwise-preflight.yml
+          ! grep -q 'commits/main' .github/workflows/d-series-swarm-one-shot-launcher.yml
+          ! grep -q 'commits/main' .github/workflows/d-series-blockwise-one-shot-launcher.yml
+          ! grep -q 'pull_requests\[0\]\.head\.sha' scripts/verify-d-series-blockwise-preflight-run.sh
           git diff --check
 
-      - name: Commit exact repaired files
+      - name: Materialize immutable GitHub commit object
+        id: object
         shell: bash
         run: |
           set -Eeuo pipefail
           env_file=(.github/repairs/*.env); source "${env_file[0]}"
-          git config user.name 'Iluco Mutcnas'
-          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
-          git add -- $EXPECTED_PATHS
-          git diff --cached --quiet && { echo 'repair produced no staged changes' >&2; exit 1; }
-          git commit -s -m "fix(autopilot): ${TASK_ID} guarded repair"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          base_tree="$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${BASE_SHA}" --jq .tree.sha)"
+          export BASE_TREE="$base_tree"
+          export EXPECTED_PATHS
+          node <<'NODE' >/tmp/tree.json
+          const fs = require('fs');
+          const path = require('path');
+          const root = '/tmp/truyn-clean';
+          const tree = process.env.EXPECTED_PATHS.split(/\s+/).filter(Boolean).map((p) => ({
+            path: p,
+            mode: '100644',
+            type: 'blob',
+            content: fs.readFileSync(path.join(root, p), 'utf8')
+          }));
+          process.stdout.write(JSON.stringify({base_tree: process.env.BASE_TREE, tree}));
+          NODE
+          tree_sha="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/git/trees" --input /tmp/tree.json --jq .sha)"
+          export TREE_SHA="$tree_sha" BASE_SHA TASK_ID
+          node <<'NODE' >/tmp/commit.json
+          const payload = {
+            message: `fix(d-series): ${process.env.TASK_ID}\n\nSigned-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>`,
+            tree: process.env.TREE_SHA,
+            parents: [process.env.BASE_SHA]
+          };
+          process.stdout.write(JSON.stringify(payload));
+          NODE
+          commit_sha="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/git/commits" --input /tmp/commit.json --jq .sha)"
+          [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]]
+          printf '{"base":"%s","tree":"%s","commit":"%s"}\n' "$BASE_SHA" "$tree_sha" "$commit_sha" > /tmp/repair-object.json
+          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
+          echo "tree_sha=$tree_sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d-series-sanitation-object-${{ steps.object.outputs.commit_sha }}
+          path: /tmp/repair-object.json
+          if-no-files-found: error
+          retention-days: 90

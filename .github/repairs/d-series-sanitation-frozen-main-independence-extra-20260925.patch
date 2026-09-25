@@ -1,0 +1,186 @@
+diff --git a/.github/workflows/d200-bug-hunt.yml b/.github/workflows/d200-bug-hunt.yml
+--- a/.github/workflows/d200-bug-hunt.yml
++++ b/.github/workflows/d200-bug-hunt.yml
+@@ -170,16 +170,10 @@ jobs:
+       - name: Validate exact source and install dependencies
+         if: steps.selection.outputs.selected == 'true'
+         shell: bash
+         env:
+-          EVENT: ${{ github.event_name }}
+           EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+-          GH_TOKEN: ${{ github.token }}
+         run: |
+           set -Eeuo pipefail
+           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+-          if [[ "$EVENT" != pull_request ]]; then
+-            [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]
+-          fi
+           npm install --ignore-scripts --no-audit --no-fund
+           node scripts/check-class-d-five-patches.mjs
+@@ -330,16 +324,10 @@ jobs:
+       - name: Validate exact source and install dependencies
+         if: steps.selection.outputs.selected == 'true'
+         shell: bash
+         env:
+-          EVENT: ${{ github.event_name }}
+           EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+-          GH_TOKEN: ${{ github.token }}
+         run: |
+           set -Eeuo pipefail
+           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+-          if [[ "$EVENT" != pull_request ]]; then
+-            [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]
+-          fi
+           npm install --ignore-scripts --no-audit --no-fund
+           node scripts/check-class-d-five-patches.mjs
+diff --git a/.github/workflows/d-series-blockwise-preflight.yml b/.github/workflows/d-series-blockwise-preflight.yml
+--- a/.github/workflows/d-series-blockwise-preflight.yml
++++ b/.github/workflows/d-series-blockwise-preflight.yml
+@@ -124,17 +124,11 @@ jobs:
+       - name: Validate exact source and install dependencies
+         if: steps.selection.outputs.selected == 'true'
+         shell: bash
+         env:
+-          EVENT: ${{ github.event_name }}
+           EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
+-          GH_TOKEN: ${{ github.token }}
+         run: |
+           set -Eeuo pipefail
+           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+-          if [[ "$EVENT" != pull_request ]]; then
+-            main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+-            [[ "$main_sha" == "$EXPECTED_SHA" ]]
+-          fi
+           npm install --ignore-scripts --no-audit --no-fund
+diff --git a/tests/d-series-swarm-integration.test.js b/tests/d-series-swarm-integration.test.js
+--- a/tests/d-series-swarm-integration.test.js
++++ b/tests/d-series-swarm-integration.test.js
+@@ -42,6 +42,8 @@ test('Sanitation Swarm remains the primary D-Series engine and consumes Blockwise
+   assert.ok(docs.includes('Blockwise B01-B16 is subordinate to it'));
+   assert.ok(docs.includes('LOCKED until `ALL_D_SERIES_TESTS_COMPLETE`'));
+   assert.ok(docs.includes('competing `blockwise-only` or launcher-direct architecture is forbidden'));
++  assert.ok(!workflow.includes('commits/main'), 'frozen-candidate Swarm qualification must not require current main equality');
++  assert.ok(!workflow.includes('main_sha='), 'moving main must not invalidate an immutable Swarm candidate');
+ });
+diff --git a/docs/operations/class-d/D_SERIES_SANITATION_SWARM.md b/docs/operations/class-d/D_SERIES_SANITATION_SWARM.md
+--- a/docs/operations/class-d/D_SERIES_SANITATION_SWARM.md
++++ b/docs/operations/class-d/D_SERIES_SANITATION_SWARM.md
+@@ -2,9 +2,9 @@
+ 
+ ## Authority
+ 
+-Sanitation / Swarm is the primary D-Series diagnostic and repair engine. Blockwise B01-B16 is subordinate to it and is used twice: first as parallel diagnostic shards inside the Swarm, then as the mandatory admission gate after the repair loop is clean.
++Sanitation / Swarm is the primary D-Series diagnostic and repair engine. Blockwise B01-B16 is subordinate to it and is used twice: first as parallel diagnostic shards inside the Swarm, then as the mandatory qualification gate for the frozen candidate after the repair loop is clean.
+ 
+-If Swarm and Blockwise semantics ever conflict, preserve the stricter safety/acceptance rule and prefer the Swarm execution model: fail-collect, maximum parallel diagnosis, root-cause deduplication, resumable checkpoints, exact-SHA evidence and no silent weakening.
++If Swarm and Blockwise semantics ever conflict, preserve the stricter safety/acceptance rule and prefer the Swarm execution model: fail-collect, maximum parallel diagnosis, root-cause deduplication, resumable checkpoints, immutable exact-candidate evidence and no silent weakening.
+@@ -20,7 +20,8 @@ Until all D-Series tests are complete, ordinary refactors, repairs, CI cleanup, o
+ - Blockwise B01-B16 remains subordinate to Swarm.
+ - Swarm owns massively parallel diagnostics, fail-collect execution, root-cause classification/deduplication and the repair loop.
+ - Targeted Bxx runs are repair accelerators only and can never authorize a real D-Series launch.
+-- Full B01-B16 exact-SHA remains a mandatory admission gate after a clean exact-SHA Swarm.
++- Full B01-B16 on the exact frozen candidate remains a mandatory qualification gate after a clean exact-candidate Swarm.
++- Movement of unrelated `main` is an admission-analysis event, never an automatic reason to discard expensive qualification or rerun the whole D-Series.
+ - D-500/D-1000 remain final real-scale proofs after live qualification and collision/capacity checks.
+@@ -31,12 +32,13 @@ Removal or material modification of this lock before `ALL_D_SERIES_TESTS_COMPLET
+ 
+ ## Canonical chain
+ 
+-1. SOURCE CHANGE
+-2. SANITATION / SWARM — massively parallel diagnostics
++1. FREEZE CANDIDATE
++2. SANITATION / SWARM — massively parallel diagnostics on that immutable candidate
+ 3. root causes — deduplicated fingerprints, FAIL / INFRA / BLOCKED separated
+ 4. repairs — minimal and acceptance-preserving
+ 5. targeted block qualification — rerun only affected B01-B16 domains while repairing
+-6. FULL B01-B16 exact-SHA — mandatory admission gate after the Swarm is clean
+-7. isolated LIVE qualification where required
+-8. shared-resource / capacity collision check
+-9. ONE REAL D-SERIES RUN
+-10. immutable evidence
++6. FULL B01-B16 exact frozen candidate — mandatory qualification after the Swarm is clean
++7. qualification manifest
++8. final Admission against current `main`, including D-sensitive fingerprint recomputation
++9. isolated LIVE qualification only where the policy requires it
++10. shared-resource / capacity collision check
++11. ONE REAL D-SERIES RUN
++12. immutable evidence
+@@ -61,7 +63,7 @@ A caller run is valid Swarm provenance only when all of these conditions are prov
+ 
+ - the launcher branch name is exactly `automation/d-series-dispatch/<source-prefix>-<scale>-swarm`;
+-- the launcher commit has exactly one parent and that parent is the tested exact-main source SHA;
++- the launcher commit has exactly one parent and that parent is the tested frozen candidate SHA; current `main` may move independently;
+ - the launcher is exactly one commit ahead of that source SHA;
+@@ -74,15 +76,18 @@ This caller is not a launcher-direct architecture: it cannot run Blockwise, live
+ 
+ ## What Blockwise owns
+ 
+-B01-B16 is the normalized domain model and final admission gate. During the Swarm, all B01-B16 domains run as diagnostic shards so one pass exposes as many independent failures as possible. During repair, one Bxx block may be rerun in targeted mode. A targeted GREEN is never launch authorization.
++B01-B16 is the normalized domain model and frozen-candidate qualification gate. During the Swarm, all B01-B16 domains run as diagnostic shards so one pass exposes as many independent failures as possible. During repair, one Bxx block may be rerun in targeted mode. A targeted GREEN is never launch authorization.
+ 
+-A full admission run is valid only when:
++A full qualification run is valid only when:
+ 
+-- it is a `workflow_dispatch` on exact current `main`;
+-- a successful exact-SHA `D-Series Sanitation Swarm` provenance run is supplied, either as the canonical direct `workflow_dispatch` or the strictly verified canonical one-shot reusable caller described above;
++- its expensive Swarm + B01-B16 evidence is bound to one immutable frozen candidate SHA, not to moving `main`;
++- a successful exact-candidate `D-Series Sanitation Swarm` provenance run is supplied, either as the canonical direct `workflow_dispatch` or the strictly verified canonical one-shot reusable caller described above;
+ - the Swarm scope is the requested D-class or `all`;
+ - the full Blockwise aggregate is 16/16 PASS on that same source SHA;
+-- the admission provenance artifact is retained.
++- the qualification provenance artifact is retained.
++
++Merge and launch authority are separate. A GREEN frozen candidate still requires the fresh `D-Series Admission Gate`, which compares its recorded base to current `main`, recomputes D-sensitive fingerprints on the integration candidate, selectively reruns only affected blocks, and becomes stale if `main` moves during admission.
+diff --git a/docs/operations/NETWORK_SCALE_STATUS.md b/docs/operations/NETWORK_SCALE_STATUS.md
+--- a/docs/operations/NETWORK_SCALE_STATUS.md
++++ b/docs/operations/NETWORK_SCALE_STATUS.md
+@@ -2,8 +2,8 @@
+ 
+ This is the single repository-owned source for **current D-Series operational acceptance**. Architecture, roadmap and top-level documentation must link here rather than copy ephemeral run state.
+ 
+-**Snapshot:** 2026-09-23  
+-**Snapshot main:** `eb25f0f8ad5bedb643f007ddfb0da107dab44b89`
++**Snapshot:** 2026-09-25  
++**Qualification model:** `Frozen Candidate -> Branch Qualification -> Admission to Main`
+@@ -45,7 +45,7 @@ The repository now contains the dedicated D-500 contract/workflow, immutable lau
+ 
+ Issue #737 permanently locks the D-Series execution architecture while remaining D-Series campaigns are active:
+ 
+-`Swarm diagnostic/repair engine → targeted block qualification during repair → clean exact-SHA Swarm revalidation → full B01–B16 exact-SHA admission → isolated LIVE qualification where required → shared-resource/capacity collision check → exactly one real D-Series run → immutable evidence`.
++`freeze candidate → Swarm diagnostic/repair engine → targeted block qualification during repair → clean exact-candidate Swarm → full B01–B16 exact-candidate qualification → qualification manifest → Admission against current main with D-sensitive fingerprint recomputation → isolated LIVE qualification only where required → shared-resource/capacity collision check → exactly one real D-Series run → immutable evidence`.
+@@ -54,7 +54,7 @@ Important distinctions:
+ 
+ - targeted Bxx GREEN is diagnostic only;
+ - a launcher token/workflow is execution machinery, not acceptance;
+-- full B01–B16 admission requires clean exact-SHA Swarm provenance;
++- full B01–B16 qualification requires clean immutable frozen-candidate Swarm provenance; final merge/launch still requires a fresh integration Admission;
+ - no D-500 PASS exists until a fresh real campaign emits its own strict terminal PASS and durable public evidence is reconciled;
+@@ -66,7 +66,7 @@ D-500 therefore remains OPEN despite active qualification and multiple immutable
+ 
+ **D-1000 status: OPEN.**
+ 
+-D-1000 is a distinct scale gate. It does not inherit PASS from D-200 or from any D-500 preparation/qualification activity. A future D-1000 acceptance requires its own exact-SHA qualification, single-shot launch identity, strict terminal PASS, immutable artifacts, cleanup proof and durable evidence.
++D-1000 is a distinct scale gate. It does not inherit PASS from D-200 or from any D-500 preparation/qualification activity. A future D-1000 acceptance requires its own frozen-candidate qualification, fresh integration Admission, single-shot launch identity, strict terminal PASS, immutable artifacts, cleanup proof and durable evidence.
+@@ -84,12 +84,23 @@ Current D-Series work must retain:
+ - root-cause grouping/deduplication;
+ - minimal acceptance-preserving repairs;
+ - targeted B01–B16 checks during repair;
+-- clean exact-SHA Swarm revalidation;
+-- full B01–B16 mandatory admission;
+-- exact-SHA CI/CodeQL/required qualification;
++- clean exact frozen-candidate Swarm revalidation;
++- full B01–B16 frozen-candidate qualification;
++- immutable execution-time SHA binding for historical evidence;
++- fresh final Admission against the current integration state without automatic full rerun on unrelated main movement;
+ - fresh live/collision checks;
+ - exactly one real acceptance run after admission;
+ - immutable evidence and cleanup.
++
++## Repository sanitation — 2026-09-25
++
++Legacy D/Class-D pull requests that were already integrated, superseded by stronger current code, tied to spent D-200 launch identities, or incompatible with the locked Frozen-Candidate model were closed rather than merged back into current `main`: `#776`, `#741`, `#733`, `#724`, `#663`, `#652`, `#644`, `#637`, `#632`, `#546`, `#537`, `#484`, `#479`, `#401`, `#391` and `#735`.
++
++PR `#735` remains historical design input only: current code already contains later parallel-host work, while its remaining unique phase-watchdog/deadline changes alter live cloud/runtime surfaces and therefore require a fresh Frozen Candidate plus live requalification before any future transplant. They were not silently imported during sanitation.
++
++The D-Series Swarm/Blockwise qualification callers and historical evidence verifiers bind to the immutable frozen candidate and MUST NOT require `SOURCE_SHA == current main`. Mutable embedded pull-request head metadata is not accepted as historical run identity.
