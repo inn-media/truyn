@@ -74,7 +74,9 @@ jobs:
             candidate="$(jq -r '.pull_requests[0].head.sha // .head_sha // empty' <<<"$trigger")"
             [[ "$candidate" =~ ^[0-9a-f]{40}$ ]]
             scale=all
-            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${candidate}&status=completed&per_page=100")"
+            # PR workflow metadata may expose a synthetic merge head_sha while pull_requests[0].head.sha
+            # is the frozen branch candidate. Do not filter server-side by head_sha; select candidate identity fail-closed here.
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?status=completed&per_page=100")"
             swarm="$(jq -r --arg sha "$candidate" '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and ((.pull_requests[0].head.sha // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
             blockwise="$(jq -r --arg sha "$candidate" '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and ((.pull_requests[0].head.sha // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
           fi
