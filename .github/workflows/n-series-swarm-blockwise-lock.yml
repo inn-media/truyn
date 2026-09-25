@@ -1,0 +1,29 @@
+name: N-Series Swarm-Blockwise Lock
+on:
+  pull_request:
+    paths:
+      - 'config/n-series-swarm-blockwise-architecture-lock.json'
+      - 'scripts/n-series-*'
+      - 'tests-node/n-series-*'
+      - '.github/workflows/n-series-*'
+  push:
+    branches: [main]
+    paths:
+      - 'config/n-series-swarm-blockwise-architecture-lock.json'
+      - 'scripts/n-series-*'
+      - 'tests-node/n-series-*'
+permissions:
+  contents: read
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests-node/n-series-swarm-blockwise.test.js tests-node/n-series-frozen-candidate-admission.test.js
+      - run: |
+          jq -e '.executionEngine=="SWARM_BLOCKWISE" and .blocks==["N1","N2","N3","N4","N5","N6","N7"] and .mainMovementPolicy=="ADMISSION_ANALYSIS_NOT_AUTOMATIC_FULL_RERUN" and .selectiveRerunRequired==true and .combinedStateAdmissionRequired==true and .sovereigntyCells==[10,50,100] and .bypassForbidden==true' config/n-series-swarm-blockwise-architecture-lock.json >/dev/null
+          test -f scripts/n-series-qualification-manifest.mjs
+          test -f scripts/n-series-selective-block-runner.mjs
