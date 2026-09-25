@@ -59,6 +59,33 @@ jobs:
           PY
           python3 -m py_compile .github/d500/apply-attempt12-resilience.py
           python3 .github/d500/apply-attempt12-resilience.py
+
+          # remote() must not leak `set -e` state into its caller. Keep drain
+          # classification fail-closed while capturing its rc through an if,
+          # which is safe under both caller errexit modes.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('benchmarks/scale/class-d-azure-1000-provision.sh')
+          s = p.read_text()
+          old = '''      set +e
+          d500_wait_run_command_drain "$vm"
+          drain_rc=$?
+          set -e
+          [[ "$drain_rc" -eq 0 ]] || return "$drain_rc"
+'''
+          new = '''      if d500_wait_run_command_drain "$vm"; then
+            drain_rc=0
+          else
+            drain_rc=$?
+          fi
+          [[ "$drain_rc" -eq 0 ]] || return "$drain_rc"
+'''
+          count = s.count(old)
+          if count != 2:
+              raise SystemExit(f'expected two drain rc blocks, found {count}')
+          p.write_text(s.replace(old, new))
+          PY
+
           # Normalize only generated test fixtures. The production repair is not
           # altered here: shell variables in JS template literals must reach the
           # fake shell unescaped, while ${...} remains protected from JS interpolation.
@@ -70,9 +97,6 @@ jobs:
           s, n = re.subn(r'url="[^"\n]*\$\{!#\}"', "url=''; for url; do :; done", s, count=1)
           if n != 1:
               raise SystemExit(f'expected one shell last-argument fixture, replaced {n}')
-          # The Python raw generator emitted two backslashes before non-braced
-          # shell dollars. In a JS template literal that leaves a literal \$ in
-          # the generated shell. Remove the extra escaping only for $name/$*/$1/$().
           s = re.sub(r'\\\\\$(?!\{)', '$', s)
           lines = []
           for line in s.splitlines():
