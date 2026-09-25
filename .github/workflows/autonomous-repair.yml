@@ -58,12 +58,15 @@ jobs:
           mapfile -t actual < <(git diff --name-only HEAD | sort)
           mapfile -t expected < <(printf '%s\n' .github/workflows/d200-bug-hunt.yml .github/workflows/d-series-blockwise-preflight.yml .github/workflows/d-series-swarm-one-shot-launcher.yml .github/workflows/d-series-blockwise-one-shot-launcher.yml scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh tests/d-series-swarm-integration.test.js tests/d-series-blockwise-preflight.test.js | sort)
           [[ "${actual[*]}" == "${expected[*]}" ]]
-      - name: Publish clean candidate with privileged credential
+      - name: Export validated clean candidate
         run: |
           set -Eeuo pipefail; cd /tmp/truyn-clean
-          git config user.name 'Iluco Mutcnas'
-          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
-          git add .github/workflows/d200-bug-hunt.yml .github/workflows/d-series-blockwise-preflight.yml .github/workflows/d-series-swarm-one-shot-launcher.yml .github/workflows/d-series-blockwise-one-shot-launcher.yml scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh tests/d-series-swarm-integration.test.js tests/d-series-blockwise-preflight.test.js
-          git commit -s -m 'fix(d-series): align qualification with frozen candidate'
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push --force origin HEAD:refs/heads/d-series/sanitation-frozen-candidate-20260925
+          mkdir -p /tmp/d-series-clean
+          cp --parents .github/workflows/d200-bug-hunt.yml .github/workflows/d-series-blockwise-preflight.yml .github/workflows/d-series-swarm-one-shot-launcher.yml .github/workflows/d-series-blockwise-one-shot-launcher.yml scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh tests/d-series-swarm-integration.test.js tests/d-series-blockwise-preflight.test.js /tmp/d-series-clean/
+          git diff --binary HEAD -- .github/workflows/d200-bug-hunt.yml .github/workflows/d-series-blockwise-preflight.yml .github/workflows/d-series-swarm-one-shot-launcher.yml .github/workflows/d-series-blockwise-one-shot-launcher.yml scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh tests/d-series-swarm-integration.test.js tests/d-series-blockwise-preflight.test.js > /tmp/d-series-clean/validated.patch
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d-series-clean-candidate-${{ github.run_id }}
+          path: /tmp/d-series-clean
+          if-no-files-found: error
+          retention-days: 90
