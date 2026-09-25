@@ -12,6 +12,13 @@ LOG="$WORKSPACE/class-d-1000-strict.log"
 
 rm -f "$EVALUATION" "$TERMINAL" "$LOG"
 
+# A previous GREEN candidate SHA is never sufficient launch authority. The
+# Admission artifact is bound to the exact current main and combined integration
+# tree; if main moved after Admission this verifier fails closed and only the
+# cheap Admission Gate must be repeated.
+export TRUYN_D_SERIES_ADMISSION_RUN="${TRUYN_D_SERIES_ADMISSION_RUN:-}"
+bash scripts/verify-d-series-admission-run.sh "${TESTED_COMMIT:-${GITHUB_SHA:-}}"
+
 # Run the existing provision+campaign flow in a child shell. Its EXIT trap owns
 # infrastructure cleanup and finalizes cleanup.confirmed/remainingResources in
 # the evidence file before this parent performs canonical acceptance checks.
