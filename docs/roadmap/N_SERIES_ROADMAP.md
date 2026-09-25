@@ -1,7 +1,9 @@
 # TRUYN N-Series Roadmap
 
-Status: **FOUNDATION DEFINED / EXECUTION NOT STARTED**  
+Status: **QUALIFICATION INFRASTRUCTURE ACTIVE / REAL MEASURED EXECUTION NOT STARTED**  
 Task: `truyn-n-series-foundation-260920-n0`
+
+The production qualification infrastructure is active: Frozen Candidate qualification, automatic qualification/admission manifests, selective N1-N7 reruns, Swarm-Blockwise public qualification, immutable aggregate evidence, and mandatory combined-state Admission are implemented. This status does **not** claim that the real measured N2-N5 benchmark cells have executed or passed.
 
 ## Locked qualification model — entire N-Series
 
