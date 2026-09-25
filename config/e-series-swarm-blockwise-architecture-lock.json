@@ -1,0 +1,96 @@
+{
+  "schema": "truyn.e-series.swarm-blockwise-architecture-lock.v1",
+  "state": "LOCKED",
+  "authority": "E-Series",
+  "effectiveUntil": "ALL_E_SERIES_TESTS_COMPLETE",
+  "purpose": "Permanent E-Series qualification/admission architecture. This is a benchmark control-plane invariant, not a network runtime.",
+  "qualificationModel": "Frozen Candidate -> Qualification Swarm -> Blockwise Admission to Main -> Paid/Measured Boundary",
+  "isolation": {
+    "series": "E",
+    "executionNamespace": ".github/e-series/",
+    "mustNotReuseForeignSeriesLauncherNamespace": true,
+    "sharedBenchmarkCoordinationAuthorityRequired": true,
+    "secondGlobalLockPlaneForbidden": true,
+    "publicMayDependOnPrivate": false,
+    "privateMayDependOnPublic": true
+  },
+  "sourceBinding": {
+    "expensiveQualificationBindsToFrozenCandidate": true,
+    "mainMovementAloneInvalidatesCandidate": false,
+    "mainMovementTriggersAdmissionAnalysis": true,
+    "baseToCurrentMainDiffRequired": true,
+    "integrationCandidateFingerprintRequired": true,
+    "admissionToCurrentMainRequired": true,
+    "candidateEvidenceSurvivesUnrelatedMainMovement": true,
+    "targetedBlockRequalificationOnSensitiveMainMovement": true,
+    "automaticFullLiveRerunOnMainMovement": false,
+    "mutablePublicMainIsExecutionDependency": false,
+    "immutablePublicEContractPinRequired": true
+  },
+  "swarm": {
+    "mode": "fail-collect",
+    "failFast": false,
+    "maxIndependentBlocks": 6,
+    "requiredBlocks": [
+      "E-COMMON",
+      "E-DECOMPOSE",
+      "E-PER-RESULT",
+      "E-KNEE",
+      "E-DEGRADE",
+      "E-PROVIDER-SMOKE"
+    ],
+    "allBlocksRunIndependently": true,
+    "collectAllDiagnosticsBeforeVerdict": true,
+    "eachBlockEmitsImmutableEvidence": true,
+    "mustPrecedeBlockwiseAdmission": true,
+    "paidProviderCalls": 0
+  },
+  "blockwiseAdmission": {
+    "allRequiredBlocksGreen": true,
+    "aggregateEvidenceRequired": true,
+    "freshIntegrationFingerprintRequired": true,
+    "targetedSensitiveRequalificationRequired": true,
+    "freshR1InterferenceGuardRequired": true,
+    "freshR2CollisionOrLeaseGuardRequired": true,
+    "duplicateHistoryGuardRequired": true,
+    "budgetGuardRequired": true,
+    "candidateAdmissionRequired": true,
+    "staleAdmissionFailsClosed": true,
+    "admissionAnalysisPaidProviderCalls": 0
+  },
+  "paidBoundary": {
+    "sequence": [
+      "S24_PROVIDER_SMOKE",
+      "E_DECOMPOSE",
+      "E_PER_RESULT",
+      "E_KNEE",
+      "E_DEGRADE"
+    ],
+    "everyPaidOrMeasuredWorkflowMustConsumeSuccessfulBlockwiseAdmission": true,
+    "directCandidateOnlyDispatchForbidden": true,
+    "historicalGreenQualificationAloneForbidden": true,
+    "admissionRunIdentityMustBeVerified": true,
+    "admissionEvidenceCandidateShaMustMatch": true,
+    "admissionEvidenceMustBeGreen": true,
+    "oneShotAndDuplicateGuardsRemainMandatory": true
+  },
+  "campaignFamilies": {
+    "E-DECOMPOSE": {"independentCells": [50, 100, 200, 500]},
+    "E-PER-RESULT": {"pairedDirectControlRequired": true},
+    "E-KNEE": {"independentCells": [50, 75, 100, 150, 200, 350, 500]},
+    "E-DEGRADE": {"independentCells": [50, 100, 200, 500]}
+  },
+  "forbidden": [
+    "paid E execution without terminal GREEN Qualification Swarm evidence",
+    "paid E execution without terminal GREEN Blockwise Admission evidence",
+    "bypassing Blockwise Admission by dispatching a paid workflow with candidate_sha alone",
+    "automatic full E rerun solely because main moved",
+    "discarding frozen candidate evidence because unrelated main changed",
+    "merge or campaign authorization based only on an old GREEN candidate SHA",
+    "skipping BASE_SHA to current-main impact analysis",
+    "skipping integration-candidate fingerprint recalculation",
+    "treating zero-paid qualification or admission activity as paid shared-capacity occupation without material evidence",
+    "weakening E acceptance thresholds to obtain GREEN",
+    "deleting negative or failed benchmark evidence instead of sanitizing it"
+  ]
+}
