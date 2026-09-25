@@ -25,20 +25,28 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.candidate_sha || github.sha }}
-          fetch-depth: 1
+          fetch-depth: 2
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Verify exact frozen candidate
         run: test "$(git rev-parse HEAD)" = '${{ inputs.candidate_sha || github.sha }}'
+      - name: Build candidate-bound qualification manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="$(git rev-parse HEAD)"
+          base="$(git rev-parse "$candidate^1")"
+          node scripts/n-series-qualification-manifest.mjs qualification --base-sha "$base" --candidate-sha "$candidate" --output "$RUNNER_TEMP/n-qualification.json"
+          jq -e --arg sha "$candidate" '.schema=="truyn.n-series.qualification-manifest.v1" and .candidateSha==$sha' "$RUNNER_TEMP/n-qualification.json" >/dev/null
       - name: Run candidate-bound N block
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p n-public-swarm
-          node scripts/n-series-selective-block-runner.mjs --blocks '${{ matrix.block }}' --json "n-public-swarm/${{ matrix.block }}.json"
-          jq -e '.status == "GREEN" or .overall == "GREEN" or .passed == true' "n-public-swarm/${{ matrix.block }}.json" >/dev/null
+          node scripts/n-series-selective-block-runner.mjs --manifest "$RUNNER_TEMP/n-qualification.json" --blocks '${{ matrix.block }}' --json "n-public-swarm/${{ matrix.block }}.json"
+          jq -e --arg sha "$(git rev-parse HEAD)" '.status=="GREEN" and .passed==true and .candidateSha==$sha' "n-public-swarm/${{ matrix.block }}.json" >/dev/null
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -62,7 +70,7 @@ jobs:
           set -euo pipefail
           count="$(find evidence -type f -name 'N*.json' | wc -l | tr -d ' ')"
           test "$count" = 7
-          jq -s --arg sha '${{ inputs.candidate_sha || github.sha }}' --arg run '${{ github.run_id }}' '{schema:"truyn.n-series.public-swarm.v1",status:(if all(.[]; (.status=="GREEN" or .overall=="GREEN" or .passed==true)) then "GREEN" else "RED" end),candidateSha:$sha,runId:$run,requiredBlocks:7,greenBlocks:([.[]|select(.status=="GREEN" or .overall=="GREEN" or .passed==true)]|length),blocks:.}' evidence/N*.json > n-public-swarm-summary.json
+          jq -s --arg sha '${{ inputs.candidate_sha || github.sha }}' --arg run '${{ github.run_id }}' '{schema:"truyn.n-series.public-swarm.v1",status:(if all(.[]; (.status=="GREEN" and .passed==true and .candidateSha==$sha)) then "GREEN" else "RED" end),candidateSha:$sha,runId:$run,requiredBlocks:7,greenBlocks:([.[]|select(.status=="GREEN" and .passed==true and .candidateSha==$sha)]|length),blocks:.}' evidence/N*.json > n-public-swarm-summary.json
           jq -e '.status=="GREEN" and .requiredBlocks==7 and .greenBlocks==7' n-public-swarm-summary.json >/dev/null
       - uses: actions/upload-artifact@v4
         with:
