@@ -47,6 +47,19 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          # Generation-1 found that the two existing test harness arrays use
+          # different indentation. Normalize the temporary patcher in-run; this
+          # bootstrap file is deleted before the final repair commit.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/d500/apply-attempt12-resilience.py')
+          s = p.read_text()
+          old = """time_test = time_test.replace(old_harness, new_harness)\nif time_test.count(new_harness) != 2:\n    raise SystemExit('expected two remote test harnesses after helper insertion')\n"""
+          new = """time_test = time_test.replace(old_harness, new_harness)\nold_harness_indented = old_harness.replace('    shellFunction', '      shellFunction')\nnew_harness_indented = new_harness.replace('    shellFunction', '      shellFunction')\ntime_test = time_test.replace(old_harness_indented, new_harness_indented)\nif time_test.count(\"shellFunction(provisionSource, 'd500_vm_agent_ready')\") != 2:\n    raise SystemExit('expected two remote test harnesses after helper insertion')\n"""
+          if old not in s:
+              raise SystemExit('generation-1 harness bootstrap preimage not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
           python3 -m py_compile .github/d500/apply-attempt12-resilience.py
           python3 .github/d500/apply-attempt12-resilience.py
           bash -n benchmarks/scale/class-d-azure-1000-provision.sh
