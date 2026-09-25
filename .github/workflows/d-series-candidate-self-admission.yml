@@ -8,8 +8,10 @@ on:
       - '.github/workflows/d-series-admission-gate.yml'
       - '.github/workflows/d-series-candidate-self-admission.yml'
       - 'scripts/d-series-qualification-manifest.mjs'
+      - 'scripts/finalize-d-series-admission.mjs'
       - 'scripts/verify-d-series-frozen-candidate-policy.mjs'
       - 'scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs'
+      - 'scripts/verify-d-series-admission-run.sh'
       - 'config/d-series-frozen-candidate-policy.json'
       - 'config/d-series-swarm-blockwise-architecture-lock.json'
       - 'tests/d-series-frozen-candidate-admission.test.js'
@@ -152,7 +154,7 @@ jobs:
             jq -e '.status=="PASS"' "self-admission-${block}.json" >/dev/null
           done
 
-      - name: Enforce no automatic full rerun and fresh main
+      - name: Finalize targeted requalification and enforce fresh main
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -162,18 +164,28 @@ jobs:
         run: |
           set -Eeuo pipefail
           jq -e '.decision.automaticFullRerunForbidden==true' d-series-admission-manifest.json >/dev/null
-          if [[ "$(jq -r .decision.liveRerunRequired d-series-admission-manifest.json)" == true ]]; then
-            echo 'TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=live_requalification_required' >&2
-            exit 33
-          fi
           fresh_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
           [[ "$fresh_main" == "$ADMISSION_CURRENT_MAIN_SHA" ]] || {
             echo 'TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=main_moved_during_admission' >&2
             exit 34
           }
-          jq '.decision.status="PASS_COMPATIBLE" | .decision.admissionPassed=true | .decision.candidateSideBootstrap=true' \
-            d-series-admission-manifest.json > d-series-admission-manifest.final.json
-          mv d-series-admission-manifest.final.json d-series-admission-manifest.json
+          node scripts/finalize-d-series-admission.mjs \
+            --manifest d-series-admission-manifest.json \
+            --result-prefix self-admission- \
+            --output d-series-admission-manifest.final.json
+          jq '.decision.candidateSideBootstrap=true' d-series-admission-manifest.final.json > d-series-admission-manifest.bootstrap.json
+          mv d-series-admission-manifest.bootstrap.json d-series-admission-manifest.json
+          rm -f d-series-admission-manifest.final.json
+          jq -e --arg tree "$ADMISSION_INTEGRATION_TREE_SHA" '
+            .integrationTreeSha==$tree
+            and .decision.admissionPassed==true
+            and .decision.status=="PASS_COMPATIBLE"
+            and .decision.targetedRequalificationPassed==true
+            and .decision.liveRerunSatisfied==true
+            and .decision.liveRerunRequired==false
+            and .decision.candidateSideBootstrap==true
+            and .requalification.allPassed==true
+          ' d-series-admission-manifest.json >/dev/null
           echo "TRUYN_D_SERIES_SELF_ADMISSION=PASS candidate=$CANDIDATE_SHA current_main=$fresh_main integration_tree=$ADMISSION_INTEGRATION_TREE_SHA"
 
       - name: Upload candidate qualification manifest

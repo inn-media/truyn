@@ -49,6 +49,9 @@ trap 'rm -rf "$tmp"' EXIT
 
 for id in "${run_ids[@]:-}"; do
   [[ "$id" =~ ^[1-9][0-9]+$ ]] || continue
+  run="$(gh api "repos/${REPOSITORY}/actions/runs/${id}")" || continue
+  jq -e '.name=="D-Series Admission Gate" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$run" >/dev/null || continue
+
   artifacts="$(gh api "repos/${REPOSITORY}/actions/runs/${id}/artifacts?per_page=100")" || continue
   artifact_id="$(jq -r --arg name "d-series-admission-manifest-${id}" '[.artifacts[] | select(.name==$name and .expired==false and (.size_in_bytes//0)>0)] | first | .id // empty' <<<"$artifacts")"
   [[ "$artifact_id" =~ ^[1-9][0-9]+$ ]] || continue
@@ -74,7 +77,22 @@ for id in "${run_ids[@]:-}"; do
       and .decision.admissionPassed==true
       and .decision.status=="PASS_COMPATIBLE"
       and .decision.liveRerunRequired==false
+      and .decision.liveRerunSatisfied==true
+      and .decision.targetedRequalificationPassed==true
       and .decision.automaticFullRerunForbidden==true
+      and .requalification.schema=="truyn.d-series.targeted-requalification.v1"
+      and .requalification.mode=="targeted-blocks"
+      and .requalification.allPassed==true
+      and .requalification.integrationTreeSha==.integrationTreeSha
+      and ((.requalification.requiredBlocks|sort)==(.decision.targetedBlocks|sort))
+      and ((.requalification.results|keys|sort)==(.decision.targetedBlocks|sort))
+      and (if .decision.liveRerunOriginallyRequired==true then (.decision.targetedBlocks|length)>0 else true end)
+      and (.requalification.results | to_entries | all(.[];
+        .value.status=="PASS"
+        and .value.sourceSha==$integration_tree
+        and (.value.fingerprint|test("^[0-9a-f]{64}$"))
+        and (.value.evidenceDigest|test("^sha256:[0-9a-f]{64}$"))
+      ))
       and (.evidence.sanitationSwarmRunId|type)=="number"
       and (.evidence.blockwiseRunId|type)=="number"
     ' "$manifest" >/dev/null; then

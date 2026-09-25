@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const read = (file) => fs.readFileSync(file, 'utf8');
@@ -100,7 +102,7 @@ test('candidate qualification waits for an immutable exact GREEN Swarm + Blockwi
   assert.ok(!workflow.includes('actions/runs?status=completed&per_page=100'), 'qualification must not depend on a bounded repository-wide recent-runs window');
 });
 
-test('Admission Gate builds integrated state, reruns only impacted blocks and fails closed on live-sensitive drift', () => {
+test('Admission Gate builds integrated state, reruns only impacted blocks and closes live drift only after targeted PASS evidence', () => {
   const workflow = read('.github/workflows/d-series-admission-gate.yml');
   for (const marker of [
     'name: D-Series Admission Gate',
@@ -109,12 +111,78 @@ test('Admission Gate builds integrated state, reruns only impacted blocks and fa
     'd-series-qualification-manifest.mjs admission',
     '.decision.targetedBlocks[]?',
     'd-series-block-runner.mjs',
-    'live_requalification_required',
+    'finalize-d-series-admission.mjs',
+    '--result-prefix admission-',
     'main_moved_during_admission',
-    '.decision.admissionPassed=true',
+    '.decision.targetedRequalificationPassed==true',
+    '.decision.liveRerunSatisfied==true',
+    '.decision.admissionPassed==true',
     'd-series-admission-manifest-${{ github.run_id }}'
   ]) assert.ok(workflow.includes(marker), marker);
+  assert.ok(!workflow.includes('reason=live_requalification_required'), 'successful targeted reruns must be finalizable rather than permanently rejected');
   assert.ok(!workflow.includes('automatic full rerun'));
+});
+
+test('targeted live requalification finalizer is fail-closed and persists immutable PASS evidence', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'truyn-d-series-finalize-'));
+  try {
+    const tree = 'a'.repeat(40);
+    const manifestPath = path.join(dir, 'manifest.json');
+    const resultPrefix = `${path.join(dir, 'admission-')}`;
+    const outputPath = path.join(dir, 'final.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({
+      schema: 'truyn.d-series.admission-manifest.v1',
+      scale: 'd500',
+      candidateSha: 'c'.repeat(40),
+      integrationTreeSha: tree,
+      decision: {
+        automaticFullRerunForbidden: true,
+        targetedBlocks: ['B01'],
+        liveRerunRequired: true,
+        status: 'LIVE_REQUALIFICATION_REQUIRED'
+      }
+    }));
+    fs.writeFileSync(`${resultPrefix}B01.json`, JSON.stringify({
+      schema: 'truyn.d-series.block-result.v1',
+      blockId: 'B01',
+      status: 'PASS',
+      sourceSha: tree,
+      scale: '500',
+      classesTested: [500],
+      fingerprint: 'b'.repeat(64),
+      startedAt: '2026-09-25T00:00:00.000Z',
+      finishedAt: '2026-09-25T00:00:01.000Z'
+    }));
+
+    const ok = spawnSync(process.execPath, [
+      'scripts/finalize-d-series-admission.mjs',
+      '--manifest', manifestPath,
+      '--result-prefix', resultPrefix,
+      '--output', outputPath
+    ], { encoding: 'utf8' });
+    assert.equal(ok.status, 0, ok.stderr || ok.stdout);
+    const final = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+    assert.equal(final.decision.admissionPassed, true);
+    assert.equal(final.decision.liveRerunOriginallyRequired, true);
+    assert.equal(final.decision.liveRerunSatisfied, true);
+    assert.equal(final.decision.liveRerunRequired, false);
+    assert.equal(final.decision.targetedRequalificationPassed, true);
+    assert.equal(final.requalification.allPassed, true);
+    assert.equal(final.requalification.results.B01.sourceSha, tree);
+    assert.match(final.requalification.results.B01.evidenceDigest, /^sha256:[0-9a-f]{64}$/);
+
+    fs.unlinkSync(`${resultPrefix}B01.json`);
+    const missing = spawnSync(process.execPath, [
+      'scripts/finalize-d-series-admission.mjs',
+      '--manifest', manifestPath,
+      '--result-prefix', resultPrefix,
+      '--output', outputPath
+    ], { encoding: 'utf8' });
+    assert.notEqual(missing.status, 0);
+    assert.match(missing.stderr, /targeted_result_missing/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('candidate-side self-admission closes admission-contract bootstrap without bypassing final gate', () => {
@@ -132,22 +200,32 @@ test('candidate-side self-admission closes admission-contract bootstrap without 
     'd-series-qualification-manifest.mjs admission',
     'Requalify only D-sensitive blocks changed on main',
     '.decision.targetedBlocks[]?',
-    'live_requalification_required',
+    'finalize-d-series-admission.mjs',
+    '--result-prefix self-admission-',
     'main_moved_during_admission',
+    '.decision.targetedRequalificationPassed==true',
+    '.decision.liveRerunSatisfied==true',
     '.decision.candidateSideBootstrap=true',
     'd-series-self-admission-manifest-${{ github.run_id }}'
   ]) assert.ok(workflow.includes(marker), marker);
+  assert.ok(!workflow.includes('reason=live_requalification_required'));
 });
 
-test('real D-Series Blockwise launch authority now requires fresh integration admission', () => {
+test('real D-Series Blockwise launch authority requires a successful finalized integration admission', () => {
   const verifier = read('scripts/verify-d-series-blockwise-preflight-run.sh');
   const admission = read('scripts/verify-d-series-admission-run.sh');
   assert.match(verifier, /frozen-candidate-pull-request/);
   assert.match(verifier, /verify-d-series-admission-run\.sh/);
   assert.match(verifier, /admission=true/);
   assert.match(admission, /no_fresh_admission_for_candidate/);
+  assert.match(admission, /\.name=="D-Series Admission Gate"/);
+  assert.match(admission, /\.conclusion=="success"/);
   assert.match(admission, /integrationTreeSha/);
   assert.match(admission, /decision\.admissionPassed==true/);
   assert.match(admission, /decision\.liveRerunRequired==false/);
+  assert.match(admission, /decision\.liveRerunSatisfied==true/);
+  assert.match(admission, /decision\.targetedRequalificationPassed==true/);
+  assert.match(admission, /requalification\.allPassed==true/);
+  assert.match(admission, /evidenceDigest/);
   assert.match(admission, /automaticFullRerunForbidden==true/);
 });
