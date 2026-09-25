@@ -1,0 +1,39 @@
+{
+  "schema": "truyn.s-series.public-contract-manifest/v1",
+  "series": "S",
+  "sourceRepository": "inn-media/truyn",
+  "acceptedPublicSourceCommit": "c22b19d5841579a0e25493a36fe1b0b9fca70f19",
+  "dependencyMode": "immutable-public-contract-only",
+  "runtimeSourceCheckoutForbidden": true,
+  "publicMainRuntimeDependency": false,
+  "revisionRequiresExplicitPinUpdateAndNewSwarmQualification": true,
+  "contractFiles": [
+    {
+      "path": "config/s-series-swarm-blockwise-architecture-lock.json",
+      "gitBlobSha": "bcf876fd822750b923c7daf649ead1b554f8a7ca"
+    },
+    {
+      "path": "docs/benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md",
+      "gitBlobSha": "646e8e647795f768fcf90199436931529d845b01"
+    },
+    {
+      "path": "docs/benchmarks/S_SERIES_FROZEN_CANDIDATE_QUALIFICATION.md",
+      "gitBlobSha": "6fd1c771f3b6377cb8216364969a9560bac6d0bc"
+    },
+    {
+      "path": "docs/benchmarks/S_SERIES_SWARM_BLOCKWISE_ADMISSION.md",
+      "gitBlobSha": "cd9b0821c8b4419af12290657537e1541c609dde"
+    }
+  ],
+  "canonicalDigest": {
+    "algorithm": "sha256",
+    "canonicalForm": "sorted path=gitBlobSha lines joined with LF",
+    "value": "e2c11160b102d45a262891f95b3a9111a8bd8088902ac35dfd82d5f149145e79"
+  },
+  "admissionRule": {
+    "movingPublicMainDoesNotInvalidateFrozenEvidence": true,
+    "privateAdmissionConsumesThisPinInsteadOfPublicSource": true,
+    "unrelatedPublicMainMovementRequiresNoPrivateSourceFetch": true,
+    "publicContractRevisionRequiresExplicitManifestVersionAndPrivatePinUpdate": true
+  }
+}
