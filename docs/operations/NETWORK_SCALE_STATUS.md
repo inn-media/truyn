@@ -2,8 +2,8 @@
 
 This is the single repository-owned source for **current D-Series operational acceptance**. Architecture, roadmap and top-level documentation must link here rather than copy ephemeral run state.
 
-**Snapshot:** 2026-09-23  
-**Snapshot main:** `eb25f0f8ad5bedb643f007ddfb0da107dab44b89`
+**Snapshot:** 2026-09-25  
+**Qualification architecture:** locked Frozen Candidate → Branch Qualification → Admission to Main, with Sanitation Swarm → Blockwise B01-B16. Parallel movement of `main` does not invalidate expensive frozen-candidate qualification by itself.
 
 ## Accepted baseline
 
@@ -40,17 +40,21 @@ Durable public evidence:
 
 **D-500 status: ACTIVE QUALIFICATION / OPEN.**
 
-The repository now contains the dedicated D-500 contract/workflow, immutable launch generations and D-Series qualification machinery. This is materially beyond the original “preparation only” state, but it is **not an accepted D-500 result**.
+The repository contains the dedicated D-500 contract/workflow, immutable launch generations and D-Series qualification machinery. This is materially beyond the original “preparation only” state, but it is **not an accepted D-500 result**.
 
-Issue #737 permanently locks the D-Series execution architecture while remaining D-Series campaigns are active:
+The permanently locked execution model for remaining D-Series campaigns is:
 
-`Swarm diagnostic/repair engine → targeted block qualification during repair → clean exact-SHA Swarm revalidation → full B01–B16 exact-SHA admission → isolated LIVE qualification where required → shared-resource/capacity collision check → exactly one real D-Series run → immutable evidence`.
+`freeze candidate → Sanitation Swarm diagnostic/repair engine → targeted block qualification during repair → clean frozen-candidate Swarm revalidation → full B01–B16 on the same frozen candidate → final Admission against current main with fingerprint recomputation and selective requalification → isolated LIVE qualification where required → shared-resource/capacity collision check → exactly one real D-Series run → immutable evidence`.
 
 Important distinctions:
 
+- movement of `main` alone is not a reason to discard or fully rerun expensive frozen-candidate evidence;
+- Admission compares the candidate `BASE_SHA` to current `main`, builds the integration candidate and reruns only affected D-sensitive blocks;
+- if `main` moves during final Admission, that Admission becomes stale and must be repeated;
 - targeted Bxx GREEN is diagnostic only;
 - a launcher token/workflow is execution machinery, not acceptance;
-- full B01–B16 admission requires clean exact-SHA Swarm provenance;
+- full B01–B16 requires clean immutable same-candidate Swarm provenance;
+- an old GREEN candidate is never merge or launch authority without a fresh final Admission Gate;
 - no D-500 PASS exists until a fresh real campaign emits its own strict terminal PASS and durable public evidence is reconciled;
 - D-200 evidence must not be reused as D-500 proof.
 
@@ -60,7 +64,7 @@ D-500 therefore remains OPEN despite active qualification and multiple immutable
 
 **D-1000 status: OPEN.**
 
-D-1000 is a distinct scale gate. It does not inherit PASS from D-200 or from any D-500 preparation/qualification activity. A future D-1000 acceptance requires its own exact-SHA qualification, single-shot launch identity, strict terminal PASS, immutable artifacts, cleanup proof and durable evidence.
+D-1000 is a distinct scale gate. It does not inherit PASS from D-200 or from any D-500 preparation/qualification activity. A future D-1000 acceptance requires its own frozen-candidate qualification, final Admission to then-current `main`, single-shot launch identity, strict terminal PASS, immutable artifacts, cleanup proof and durable evidence.
 
 ## Historical immutable failures
 
@@ -70,7 +74,7 @@ Repeatability 01 run `35515705123` remains preserved as a pre-provisioning failu
 
 ## Execution model
 
-The old sequential pattern — run a full scale campaign until first failure, repair one defect, relaunch — is rejected.
+The old sequential pattern — run a full scale campaign until first failure, repair one defect, relaunch — is rejected. The old exact-current-main qualification pattern is also rejected: expensive qualification belongs to an immutable frozen candidate and is reconciled with moving `main` only at Admission.
 
 Current D-Series work must retain:
 
@@ -78,10 +82,10 @@ Current D-Series work must retain:
 - root-cause grouping/deduplication;
 - minimal acceptance-preserving repairs;
 - targeted B01–B16 checks during repair;
-- clean exact-SHA Swarm revalidation;
-- full B01–B16 mandatory admission;
-- exact-SHA CI/CodeQL/required qualification;
-- fresh live/collision checks;
+- clean frozen-candidate Swarm revalidation;
+- full B01–B16 mandatory frozen-candidate qualification;
+- final integration Admission against current `main` with fingerprint recomputation and selective reruns;
+- fresh live/collision checks when policy requires them;
 - exactly one real acceptance run after admission;
 - immutable evidence and cleanup.
 
@@ -91,4 +95,4 @@ Benchmark and acceptance evidence is preserved under **redact-not-delete**. Oper
 
 ## Operational rule
 
-D-200 is closed and immutable. D-500 and D-1000 are separate open gates. Any new real D-Series campaign requires a new task/launch identity and must pass the locked Swarm-Blockwise admission architecture without weakening thresholds.
+D-200 is closed and immutable. D-500 and D-1000 are separate open gates. Any new real D-Series campaign requires a new task/launch identity and must pass the locked Frozen-Candidate + Swarm-Blockwise + final Admission architecture without weakening thresholds.
