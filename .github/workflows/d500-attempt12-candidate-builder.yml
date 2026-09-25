@@ -22,6 +22,10 @@ jobs:
       BASE_CANDIDATE: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
       BASE_TREE: 609c6035d09267f95aa95fdd3f6b0a2869d2dc3b
       TARGET_BRANCH: automation/d500-attempt12-candidate-8f3c2a
+      PATCH_PATH: .github/repair-staging/d500-attempt12-8f3c2a/patch.gz.b64
+      PATCH_B64_SIZE: '14300'
+      PATCH_GZIP_SHA256: 4a855db51e123de4bf28ab6ed0a128b1d24b8d20b4cffdb03167286b3a8621a9
+      PATCH_RAW_SIZE: '39004'
       PATCH_SHA256: c61397d28d0e847524715a088f690b972e685709cfae6e65673c85490a7cd5e1
     steps:
       - uses: actions/checkout@v4
@@ -30,16 +34,20 @@ jobs:
           persist-credentials: true
           token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
 
-      - name: Assemble and verify immutable bootstrap repair
+      - name: Decode and verify immutable bootstrap repair
         shell: bash
         run: |
           set -Eeuo pipefail
-          mapfile -t parts < <(find .github/repair-staging/d500-attempt12-8f3c2a -maxdepth 1 -type f -name 'part-*.b64' | sort)
-          [[ ${#parts[@]} -eq 6 ]]
-          cat "${parts[@]}" | tr -d '\n\r' | base64 -d > "$RUNNER_TEMP/d500-bootstrap.patch"
+          [[ -f "$PATCH_PATH" ]]
+          [[ "$(wc -c < "$PATCH_PATH" | tr -d ' ')" == "$PATCH_B64_SIZE" ]]
+          base64 -d "$PATCH_PATH" > "$RUNNER_TEMP/d500-bootstrap.patch.gz"
+          gzip_actual="$(sha256sum "$RUNNER_TEMP/d500-bootstrap.patch.gz" | awk '{print $1}')"
+          [[ "$gzip_actual" == "$PATCH_GZIP_SHA256" ]]
+          gzip -dc "$RUNNER_TEMP/d500-bootstrap.patch.gz" > "$RUNNER_TEMP/d500-bootstrap.patch"
+          [[ "$(wc -c < "$RUNNER_TEMP/d500-bootstrap.patch" | tr -d ' ')" == "$PATCH_RAW_SIZE" ]]
           actual="$(sha256sum "$RUNNER_TEMP/d500-bootstrap.patch" | awk '{print $1}')"
           [[ "$actual" == "$PATCH_SHA256" ]]
-          echo "TRUYN_D500_REPAIR_PATCH=PASS sha256=$actual parts=${#parts[@]}"
+          echo "TRUYN_D500_REPAIR_PATCH=PASS sha256=$actual gzip_sha256=$gzip_actual raw_size=$PATCH_RAW_SIZE"
 
       - name: Apply repair to exact qualified parent
         shell: bash
