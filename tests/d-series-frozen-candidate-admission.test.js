@@ -14,6 +14,7 @@ test('D-Series frozen-candidate admission policy is permanently locked', () => {
   for (const key of [
     'expensiveQualificationBoundToFrozenCandidate',
     'historicalEvidenceBoundToImmutableRunSha',
+    'admissionContractSelfModificationRequiresCandidateSideGate',
     'mainMovementNeverInvalidatesQualificationByItself',
     'admissionComparesBaseShaToCurrentMain',
     'noSensitiveMainDriftReusesExpensiveEvidence',
@@ -33,6 +34,7 @@ test('D-Series frozen-candidate admission policy is permanently locked', () => {
   const verified = spawnSync(process.execPath, ['scripts/verify-d-series-frozen-candidate-policy.mjs'], { encoding: 'utf8' });
   assert.equal(verified.status, 0, verified.stderr || verified.stdout);
   assert.match(verified.stdout, /evidence-binding=immutable-run-sha/);
+  assert.match(verified.stdout, /self-admission=mandatory/);
   assert.match(verified.stdout, /main-movement=analysis-not-rerun/);
 });
 
@@ -42,6 +44,7 @@ test('architecture lock makes frozen candidate and final admission non-bypassabl
   assert.equal(lock.admissionPolicyFile, 'config/d-series-frozen-candidate-policy.json');
   assert.equal(lock.invariants.expensiveQualificationBelongsToFrozenCandidate, true);
   assert.equal(lock.invariants.historicalEvidenceBoundToImmutableRunSha, true);
+  assert.equal(lock.invariants.admissionContractSelfModificationRequiresCandidateSideGate, true);
   assert.equal(lock.invariants.mainMovementTriggersAdmissionAnalysisNotAutomaticFullRerun, true);
   assert.equal(lock.invariants.candidateEvidenceSurvivesNonSensitiveMainMovement, true);
   assert.equal(lock.invariants.sensitiveMainMovementRequalifiesOnlyAffectedBlocksByDefault, true);
@@ -51,6 +54,7 @@ test('architecture lock makes frozen candidate and final admission non-bypassabl
   assert.equal(lock.invariants.automaticFullRerunOnMainMovementForbidden, true);
   assert.equal(lock.invariants.admissionPolicyCannotBeBypassedOrSilentlyRemoved, true);
   assert.match(lock.changePolicy, /immutable execution-time workflow SHA fields/);
+  assert.match(lock.changePolicy, /candidate-side D-Series Self-Admission gate/);
   assert.match(lock.changePolicy, /MUST NOT restore the old exact-current-main qualification model/);
 });
 
@@ -110,6 +114,28 @@ test('Admission Gate builds integrated state, reruns only impacted blocks and fa
     'd-series-admission-manifest-${{ github.run_id }}'
   ]) assert.ok(workflow.includes(marker), marker);
   assert.ok(!workflow.includes('automatic full rerun'));
+});
+
+test('candidate-side self-admission closes admission-contract bootstrap without bypassing final gate', () => {
+  const workflow = read('.github/workflows/d-series-candidate-self-admission.yml');
+  for (const marker of [
+    'name: D-Series Candidate Self-Admission',
+    'pull_request:',
+    'Wait for exact immutable Swarm and Blockwise evidence',
+    '.head_sha==$sha',
+    '(.head_commit.id // .head_sha)==$sha',
+    'Build candidate-owned qualification manifest',
+    'd-series-qualification-manifest.mjs qualification',
+    'Build integrated state and recompute D fingerprints',
+    'git merge --no-ff --no-commit',
+    'd-series-qualification-manifest.mjs admission',
+    'Requalify only D-sensitive blocks changed on main',
+    '.decision.targetedBlocks[]?',
+    'live_requalification_required',
+    'main_moved_during_admission',
+    '.decision.candidateSideBootstrap=true',
+    'd-series-self-admission-manifest-${{ github.run_id }}'
+  ]) assert.ok(workflow.includes(marker), marker);
 });
 
 test('real D-Series Blockwise launch authority now requires fresh integration admission', () => {
