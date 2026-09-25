@@ -1,11 +1,17 @@
 {
-  "schema": "truyn.t-series.swarm-blockwise-architecture-lock.v1",
+  "schema": "truyn.t-series.swarm-blockwise-architecture-lock.v2",
   "purpose": "T-Series commercial-proof qualification and measured benchmark admission discipline; not a TRUYN network runtime",
+  "repositoryBoundary": {
+    "publicRepository": "inn-media/truyn",
+    "privateRepository": "inn-media/truyn-platform",
+    "publicMayDependOnPrivate": false,
+    "privateMayConsumePublicOnlyAsImmutablePinOrReleasedArtifact": true,
+    "privateRuntimePublicSourceCheckoutForbidden": true,
+    "publicContractRevisionRequiresExplicitPrivatePinUpdate": true
+  },
   "isolation": {
     "series": "T",
     "privateExecutionNamespace": ".github/t-series/",
-    "publicMayDependOnPrivate": false,
-    "privateMayDependOnPublic": true,
     "seriesCanRunConcurrentlyWithOtherSeries": true,
     "foreignSeriesMustNeverBeWaitDependency": true,
     "onlyRealSharedMutableR2ResourceMayCauseWaiting": true,
@@ -13,16 +19,19 @@
     "globalBenchmarkConcurrencyLockForbidden": true
   },
   "sourceBinding": {
-    "exactPublicSourceShaRequired": true,
+    "publicContractMode": "IMMUTABLE_PIN",
+    "exactPublicContractCommitRequired": true,
+    "exactPublicContractBlobRequired": true,
+    "publicMainMovementIsNotRuntimeDependency": true,
+    "publicContractRevisionRequiresNewSwarmQualification": true,
     "exactPrivateExecutionShaRequired": true,
-    "expensiveQualificationBindsToFrozenCandidate": true,
-    "mainMovementAloneInvalidatesCandidate": false,
-    "mainMovementTriggersAdmissionAnalysis": true,
-    "baseToCurrentMainDiffRequired": true,
+    "expensiveQualificationBindsToFrozenPrivateCandidate": true,
+    "privateMainMovementTriggersAdmissionAnalysis": true,
+    "privateBaseToCurrentMainDiffRequired": true,
     "integrationCandidateFingerprintRequired": true,
-    "candidateEvidenceSurvivesUnrelatedMainMovement": true,
-    "targetedBlockRequalificationOnSensitiveMainMovement": true,
-    "automaticFullLiveRerunOnMainMovement": false,
+    "candidateEvidenceSurvivesUnrelatedPrivateMainMovement": true,
+    "targetedBlockRequalificationOnSensitivePrivateMainMovement": true,
+    "automaticFullLiveRerunOnPrivateMainMovement": false,
     "historicalMeasuredRunsAreImmutable": true
   },
   "qualificationSwarm": {
@@ -32,8 +41,8 @@
     "parallelByDefault": true,
     "allRequiredGreenBeforeMeasuredLaneAdmission": true,
     "paidProviderCallsAllowed": false,
-    "evidenceBindsToFrozenCandidate": true,
-    "rerunOnlyAffectedBlocksAfterSensitiveChange": true
+    "evidenceBindsToFrozenPrivateCandidateAndPublicContractPin": true,
+    "rerunOnlyAffectedBlocksAfterSensitivePrivateChange": true
   },
   "measuredBenchmarkSwarm": {
     "parallelByDefault": true,
@@ -41,36 +50,15 @@
     "crossLaneCancellationForbidden": true,
     "crossLaneMutableStateReuseForbidden": true,
     "lanes": [
-      {
-        "id": "BREAK_EVEN",
-        "benchmarkId": "T/BREAK-EVEN",
-        "roadmapStage": "TS7",
-        "independent": true,
-        "runManifestRequired": true,
-        "paidExecution": true
-      },
-      {
-        "id": "HEAD_TO_HEAD",
-        "benchmarkId": "T/HEAD-TO-HEAD",
-        "roadmapStage": "TS8",
-        "independent": true,
-        "runManifestRequired": true,
-        "paidExecution": true
-      },
-      {
-        "id": "PREDICT",
-        "benchmarkId": "T/PREDICT",
-        "roadmapStage": "TS9",
-        "independent": true,
-        "runManifestRequired": true,
-        "paidExecution": true
-      }
+      {"id":"BREAK_EVEN","benchmarkId":"T/BREAK-EVEN","roadmapStage":"TS7","independent":true,"runManifestRequired":true,"paidExecution":true},
+      {"id":"HEAD_TO_HEAD","benchmarkId":"T/HEAD-TO-HEAD","roadmapStage":"TS8","independent":true,"runManifestRequired":true,"paidExecution":true},
+      {"id":"PREDICT","benchmarkId":"T/PREDICT","roadmapStage":"TS9","independent":true,"runManifestRequired":true,"paidExecution":true}
     ]
   },
   "sharedPaidBoundary": {
     "requiredBeforeEveryMeasuredLane": [
-      "QUALIFICATION_SWARM_GREEN_FOR_EXACT_FROZEN_CANDIDATE",
-      "BLOCKWISE_ADMISSION_GREEN_FOR_CURRENT_INTEGRATION_CANDIDATE",
+      "QUALIFICATION_SWARM_GREEN_FOR_EXACT_FROZEN_CANDIDATE_AND_PUBLIC_PIN",
+      "BLOCKWISE_ADMISSION_GREEN_FOR_CURRENT_PRIVATE_INTEGRATION_CANDIDATE",
       "R1_ATTRIBUTION_AND_INTERFERENCE_GUARD_GREEN",
       "R2_COLLISION_AND_EXCLUSIVE_LEASE_GUARD_GREEN",
       "RUN_BUDGET_GUARD_GREEN",
@@ -86,7 +74,7 @@
   },
   "resourceIsolation": {
     "R0": "immutable/read-only shared dependencies may be used concurrently",
-    "R1": "shared services may be used concurrently only with distinct attribution and active interference detection",
+    "R1": "shared services may be used concurrently only with distinct attribution and active interference detection where required by the claimed metric",
     "R2": "exclusive mutable/fault targets require a scoped lease; only runs sharing the exact R2 scope may serialize",
     "requiredNamespace": "T/<benchmark-id>/<run-id>",
     "perLaneRunState": true,
@@ -118,10 +106,11 @@
     "cross-lane workflow needs between independent measured lanes",
     "waiting for an unrelated T lane or foreign benchmark series",
     "global benchmark concurrency locks used only for orchestration convenience",
+    "private runtime checkout/clone of public source tree",
     "reuse of mutable run state, cache namespace, artifact prefix, budget counter or cleanup scope across T lanes",
     "paid provider calls before fresh lane-specific admission guards",
-    "automatic paid inference caused only by main movement",
-    "discarding frozen-candidate evidence because unrelated main changed",
+    "automatic paid inference caused only by private main movement",
+    "discarding frozen-candidate evidence because unrelated private main changed",
     "rerunning all TS0-TS6 when only a classified subset changed",
     "using one lane PASS as evidence for another lane",
     "weakening thresholds to manufacture GREEN"
