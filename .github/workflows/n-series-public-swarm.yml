@@ -6,10 +6,12 @@ on:
         description: Exact frozen public N candidate SHA
         required: true
         type: string
+  push:
+    branches: [main]
 permissions:
   contents: read
 concurrency:
-  group: n-public-swarm-${{ inputs.candidate_sha }}
+  group: n-public-swarm-${{ inputs.candidate_sha || github.sha }}
   cancel-in-progress: false
 jobs:
   blocks:
@@ -22,14 +24,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.candidate_sha }}
+          ref: ${{ inputs.candidate_sha || github.sha }}
           fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Verify exact frozen candidate
-        run: test "$(git rev-parse HEAD)" = '${{ inputs.candidate_sha }}'
+        run: test "$(git rev-parse HEAD)" = '${{ inputs.candidate_sha || github.sha }}'
       - name: Run candidate-bound N block
         shell: bash
         run: |
@@ -60,7 +62,7 @@ jobs:
           set -euo pipefail
           count="$(find evidence -type f -name 'N*.json' | wc -l | tr -d ' ')"
           test "$count" = 7
-          jq -s --arg sha '${{ inputs.candidate_sha }}' --arg run '${{ github.run_id }}' '{schema:"truyn.n-series.public-swarm.v1",status:(if all(.[]; (.status=="GREEN" or .overall=="GREEN" or .passed==true)) then "GREEN" else "RED" end),candidateSha:$sha,runId:$run,requiredBlocks:7,greenBlocks:([.[]|select(.status=="GREEN" or .overall=="GREEN" or .passed==true)]|length),blocks:.}' evidence/N*.json > n-public-swarm-summary.json
+          jq -s --arg sha '${{ inputs.candidate_sha || github.sha }}' --arg run '${{ github.run_id }}' '{schema:"truyn.n-series.public-swarm.v1",status:(if all(.[]; (.status=="GREEN" or .overall=="GREEN" or .passed==true)) then "GREEN" else "RED" end),candidateSha:$sha,runId:$run,requiredBlocks:7,greenBlocks:([.[]|select(.status=="GREEN" or .overall=="GREEN" or .passed==true)]|length),blocks:.}' evidence/N*.json > n-public-swarm-summary.json
           jq -e '.status=="GREEN" and .requiredBlocks==7 and .greenBlocks==7' n-public-swarm-summary.json >/dev/null
       - uses: actions/upload-artifact@v4
         with:
