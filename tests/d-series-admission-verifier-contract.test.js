@@ -24,5 +24,5 @@ test('admission verifier binds launch authority to admitted main identity, not i
   ]) assert.ok(admission.includes(marker), marker);
   assert.ok(!admission.includes('allowed_trees'));
   assert.match(admission, /changed_status.*added/);
-  assert.match(admission, /\.github\/d\[0-9\]\+\/launch-\[0-9\]\+\\\.txt/);
+  assert.ok(admission.includes('^\\.github/d[0-9]+/launch-[0-9]+\\.txt$'));
 });
