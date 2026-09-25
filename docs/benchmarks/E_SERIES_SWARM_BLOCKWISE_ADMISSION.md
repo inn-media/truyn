@@ -15,7 +15,9 @@ Frozen Candidate
   -> S24 / DECOMPOSE / PER-RESULT / KNEE / DEGRADE
 ```
 
-`main` movement does **not** invalidate frozen candidate evidence by itself. It invalidates only the Admission snapshot when the snapshot is stale. Admission must compare `BASE_SHA -> current main`, construct the integration candidate, recompute E-sensitive fingerprints and requalify only affected zero-paid blocks.
+`main` movement does **not** invalidate frozen candidate evidence by itself. It also does not invalidate an already GREEN Admission merely because the private `main` SHA changed. Admission freshness is semantic: only a post-admission change that touches an E-sensitive surface or changes an E-sensitive fingerprint makes the Admission stale. Unrelated parallel work may move `main` without forcing another Swarm or Admission cycle.
+
+Admission must compare `BASE_SHA -> current main`, construct the integration candidate, recompute E-sensitive fingerprints and requalify only affected zero-paid blocks. If `main` moves after the Admission snapshot, the paid/measured boundary must classify the delta from the admitted `main` to the latest `main`: E-insensitive drift is recorded and permitted; E-sensitive drift fails closed and requires targeted Admission requalification. SHA inequality alone is never sufficient evidence of E staleness.
 
 ## Level 1 — E Qualification Swarm
 
@@ -46,9 +48,10 @@ Blockwise Admission consumes one exact terminal GREEN Swarm and then performs, i
 8. run fresh R2 collision/exclusive-lease guard using the existing shared benchmark-coordination authority;
 9. run duplicate-history guard for the requested next E boundary;
 10. run budget guard;
-11. emit immutable GREEN admission evidence bound to candidate, current-main snapshot and next boundary.
+11. perform semantic freshness validation: unrelated SHA movement is allowed, E-sensitive drift fails closed;
+12. emit immutable GREEN admission evidence bound to candidate, admitted main snapshot, E-sensitive fingerprints and next boundary.
 
-If the Admission snapshot becomes stale because `main` moves, rerun Admission analysis only. Do not discard or automatically repeat expensive frozen-candidate evidence.
+If post-admission `main` movement is E-insensitive, preserve the Admission. If it changes an E-sensitive surface/fingerprint, rerun targeted Admission analysis only. Do not discard or automatically repeat expensive frozen-candidate evidence.
 
 ## Paid and measured boundary
 
@@ -64,7 +67,7 @@ S24 Provider Smoke
 -> E/DEGRADE
 ```
 
-Every such workflow must verify successful E Blockwise Admission evidence before its first provider call or measured request. The workflow must fail closed if the admission run is missing, stale, RED, belongs to another candidate, does not contain all required GREEN blocks, or fails its one-shot/duplicate/budget guards.
+Every such workflow must verify successful E Blockwise Admission evidence before its first provider call or measured request. The workflow must fail closed if the admission run is missing, RED, belongs to another candidate, does not contain all required GREEN blocks, fails its one-shot/duplicate/budget guards, or has become semantically stale because an E-sensitive surface changed after admission. A different `main` SHA with no E-sensitive delta is explicitly not a stale Admission.
 
 ## Cross-series isolation
 

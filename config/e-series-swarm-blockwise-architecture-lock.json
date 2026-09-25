@@ -22,6 +22,9 @@
     "integrationCandidateFingerprintRequired": true,
     "admissionToCurrentMainRequired": true,
     "candidateEvidenceSurvivesUnrelatedMainMovement": true,
+    "unrelatedMainMovementDoesNotInvalidateAdmission": true,
+    "eSensitiveMainMovementInvalidatesAdmission": true,
+    "semanticStalenessRequired": true,
     "targetedBlockRequalificationOnSensitiveMainMovement": true,
     "automaticFullLiveRerunOnMainMovement": false,
     "mutablePublicMainIsExecutionDependency": false,
@@ -56,6 +59,8 @@
     "budgetGuardRequired": true,
     "candidateAdmissionRequired": true,
     "staleAdmissionFailsClosed": true,
+    "staleAdmissionDefinition": "E_SENSITIVE_DRIFT_ONLY",
+    "unrelatedMainMovementDoesNotStaleAdmission": true,
     "admissionAnalysisPaidProviderCalls": 0
   },
   "paidBoundary": {
@@ -72,6 +77,7 @@
     "admissionRunIdentityMustBeVerified": true,
     "admissionEvidenceCandidateShaMustMatch": true,
     "admissionEvidenceMustBeGreen": true,
+    "admissionFreshnessMustBeSemantic": true,
     "oneShotAndDuplicateGuardsRemainMandatory": true
   },
   "campaignFamilies": {
@@ -86,6 +92,7 @@
     "bypassing Blockwise Admission by dispatching a paid workflow with candidate_sha alone",
     "automatic full E rerun solely because main moved",
     "discarding frozen candidate evidence because unrelated main changed",
+    "treating unrelated main SHA movement alone as stale E admission",
     "merge or campaign authorization based only on an old GREEN candidate SHA",
     "skipping BASE_SHA to current-main impact analysis",
     "skipping integration-candidate fingerprint recalculation",
