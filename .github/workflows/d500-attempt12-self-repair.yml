@@ -47,9 +47,6 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          # Generation-1 found that the two existing test harness arrays use
-          # different indentation. Normalize the temporary patcher in-run; this
-          # bootstrap file is deleted before the final repair commit.
           python3 - <<'PY'
           from pathlib import Path
           p = Path('.github/d500/apply-attempt12-resilience.py')
@@ -62,6 +59,20 @@ jobs:
           PY
           python3 -m py_compile .github/d500/apply-attempt12-resilience.py
           python3 .github/d500/apply-attempt12-resilience.py
+          # The shell fixture in the generated JS test used ${!#}. Inside a JS
+          # template literal that is interpolation syntax. Replace only that
+          # fixture expression with an equivalent POSIX-safe last-argument loop.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('tests/d500-bootstrap-resilience.test.js')
+          s = p.read_text()
+          s, n = re.subn(r'url="[^"\n]*\$\{!#\}"', "url=''; for url; do :; done", s, count=1)
+          if n != 1:
+              raise SystemExit(f'expected one shell last-argument fixture, replaced {n}')
+          p.write_text(s)
+          PY
+          node --check tests/d500-bootstrap-resilience.test.js
           bash -n benchmarks/scale/class-d-azure-1000-provision.sh
           bash -n scripts/class-d-bootstrap-host-resilience.sh
           git diff --check
