@@ -90,13 +90,15 @@ jobs:
             # Swarm and Blockwise are independent frozen-candidate qualification lanes and can finish
             # in either order. The first completion is a clean not-ready event. The second completion
             # creates the manifest only if the exact same immutable candidate SHA has the other GREEN lane.
-            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?status=completed&per_page=100")"
+            # Query the counterpart workflow directly and bind the API query to this exact head SHA.
+            # Never depend on a bounded repository-wide recent-runs window: unrelated parallel Actions
+            # activity must not be able to evict valid candidate evidence from qualification discovery.
             if [[ "$trigger_name" == 'D-Series Sanitation Swarm' ]]; then
               swarm="$TRIGGER_RUN_ID"
-              blockwise="$(jq -r --arg sha "$candidate" '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$sha and ((.head_commit.id // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
+              blockwise="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/d-series-blockwise-preflight.yml/runs?status=completed&event=pull_request&head_sha=${candidate}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha=="'"$candidate"'" and ((.head_commit.id // .head_sha)=="'"$candidate"'"))] | sort_by(.updated_at) | last | .id // empty')"
             else
               blockwise="$TRIGGER_RUN_ID"
-              swarm="$(jq -r --arg sha "$candidate" '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$sha and ((.head_commit.id // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
+              swarm="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/d200-bug-hunt.yml/runs?status=completed&event=pull_request&head_sha=${candidate}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha=="'"$candidate"'" and ((.head_commit.id // .head_sha)=="'"$candidate"'"))] | sort_by(.updated_at) | last | .id // empty')"
             fi
 
             if [[ ! "$swarm" =~ ^[1-9][0-9]+$ || ! "$blockwise" =~ ^[1-9][0-9]+$ ]]; then
