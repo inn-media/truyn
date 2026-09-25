@@ -1,0 +1,107 @@
+name: D-500 Attempt 12 Guarded Self Repair
+
+on:
+  push:
+    branches:
+      - 'task/truyn-d500-acceptance-repair-8f3c2a'
+    paths:
+      - '.github/workflows/d500-attempt12-self-repair.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: d500-attempt12-self-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      BASE_SHA: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
+      EXPECTED_PROVISION_BLOB: 5b7951c94ba29ddf03e3443c92daaf299ee96766
+      EXPECTED_TIME_TEST_BLOB: 7a01c429f403eccbf29cf94769562acc89de90ca
+      TASK_BRANCH: task/truyn-d500-acceptance-repair-8f3c2a
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+
+      - name: Validate immutable repair base
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF_NAME" == "$TASK_BRANCH" ]]
+          [[ "$(git merge-base HEAD "$BASE_SHA")" == "$BASE_SHA" ]]
+          [[ "$(git rev-parse "$BASE_SHA:benchmarks/scale/class-d-azure-1000-provision.sh")" == "$EXPECTED_PROVISION_BLOB" ]]
+          [[ "$(git rev-parse "$BASE_SHA:tests/d500-campaign-time-budget.test.js")" == "$EXPECTED_TIME_TEST_BLOB" ]]
+          test -f .github/d500/apply-attempt12-resilience.py
+          test ! -e scripts/class-d-bootstrap-host-resilience.sh
+          test ! -e tests/d500-bootstrap-resilience.test.js
+          echo "BOOTSTRAP_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Apply deterministic Attempt 12 repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile .github/d500/apply-attempt12-resilience.py
+          python3 .github/d500/apply-attempt12-resilience.py
+          bash -n benchmarks/scale/class-d-azure-1000-provision.sh
+          bash -n scripts/class-d-bootstrap-host-resilience.sh
+          git diff --check
+
+      - name: Install test dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Run targeted Attempt 11 regressions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --test tests/d500-campaign-time-budget.test.js tests/d500-bootstrap-resilience.test.js
+
+      - name: Run Class-D regression set
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mapfile -t files < <(find tests -maxdepth 1 -type f -name '*.test.js' | grep -E '/([^/]*(d200|d500|d1000)[^/]*|class-d[^/]*)\.test\.js$' | sort)
+          test "${#files[@]}" -gt 0
+          node --test "${files[@]}"
+
+      - name: Run affected Blockwise gates
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for block in B01_SOURCE_INTEGRITY B11_CLASS_D_ACCEPTANCE B12_WORKFLOW_CONTRACT; do
+            rm -rf blockwise-out
+            BLOCK_ID="$block" BLOCK_OUT_DIR=blockwise-out node scripts/class-d-blockwise-preflight.mjs
+            jq -e '.status=="GREEN" and .harnessReturnCode==0' "blockwise-out/$block/block.json" >/dev/null
+            echo "TRUYN_D500_ATTEMPT12_BLOCK=${block} result=GREEN"
+          done
+
+      - name: Collapse bootstrap commits into one DCO repair commit
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f .github/d500/apply-attempt12-resilience.py .github/workflows/d500-attempt12-self-repair.yml
+          git reset --soft "$BASE_SHA"
+          git add -A
+          git diff --cached --check
+          mapfile -t changed < <(git diff --cached --name-only | sort)
+          expected=(
+            benchmarks/scale/class-d-azure-1000-provision.sh
+            scripts/class-d-bootstrap-host-resilience.sh
+            tests/d500-bootstrap-resilience.test.js
+            tests/d500-campaign-time-budget.test.js
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | sort)
+          [[ "${changed[*]}" == "${expected_sorted[*]}" ]]
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git commit -s -m 'fix(d500): recover bootstrap nodes and drain run-command timeouts'
+          repaired_sha=$(git rev-parse HEAD)
+          [[ "$(git rev-parse HEAD^)" == "$BASE_SHA" ]]
+          echo "TRUYN_D500_ATTEMPT12_REPAIR_SHA=$repaired_sha"
+          git push --force-with-lease="refs/heads/${TASK_BRANCH}:${BOOTSTRAP_HEAD}" origin "HEAD:refs/heads/${TASK_BRANCH}"
