@@ -74,7 +74,7 @@ test('automatic qualification manifest fingerprints frozen candidate and admissi
   ]) assert.ok(script.includes(marker), marker);
 });
 
-test('candidate qualification waits for an immutable exact GREEN Swarm + Blockwise pair regardless of completion order', () => {
+test('candidate qualification waits for an immutable exact GREEN Swarm + Blockwise pair regardless of completion order or unrelated Actions churn', () => {
   const workflow = read('.github/workflows/d-series-frozen-candidate-qualification.yml');
   for (const marker of [
     'name: D-Series Frozen Candidate Qualification',
@@ -88,8 +88,8 @@ test('candidate qualification waits for an immutable exact GREEN Swarm + Blockwi
     'eligible=$eligible',
     "if: steps.resolve.outputs.eligible == 'true'",
     "candidate=\"$(jq -r '.head_sha // empty'",
-    '.head_sha==$sha',
-    '(.head_commit.id // .head_sha)==$sha',
+    'actions/workflows/d-series-blockwise-preflight.yml/runs?status=completed&event=pull_request&head_sha=${candidate}&per_page=100',
+    'actions/workflows/d200-bug-hunt.yml/runs?status=completed&event=pull_request&head_sha=${candidate}&per_page=100',
     '.head_sha==$c',
     '(.head_commit.id // .head_sha)==$c',
     'git merge-base',
@@ -97,6 +97,7 @@ test('candidate qualification waits for an immutable exact GREEN Swarm + Blockwi
     'd-series-qualification-manifest-${{ github.run_id }}'
   ]) assert.ok(workflow.includes(marker), marker);
   assert.ok(!workflow.includes('.pull_requests[0].head.sha'), 'mutable embedded PR head must never bind historical D evidence');
+  assert.ok(!workflow.includes('actions/runs?status=completed&per_page=100'), 'qualification must not depend on a bounded repository-wide recent-runs window');
 });
 
 test('Admission Gate builds integrated state, reruns only impacted blocks and fails closed on live-sensitive drift', () => {
