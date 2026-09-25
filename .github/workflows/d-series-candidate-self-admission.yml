@@ -162,10 +162,36 @@ jobs:
         run: |
           set -Eeuo pipefail
           jq -e '.decision.automaticFullRerunForbidden==true' d-series-admission-manifest.json >/dev/null
-          if [[ "$(jq -r .decision.liveRerunRequired d-series-admission-manifest.json)" == true ]]; then
-            echo 'TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=live_requalification_required' >&2
-            exit 33
+
+          live_required="$(jq -r .decision.liveRerunRequired d-series-admission-manifest.json)"
+          if [[ "$live_required" == true ]]; then
+            mapfile -t live_blocks < <(jq -r '.decision.targetedBlocks[]?' d-series-admission-manifest.json)
+            if [[ "${#live_blocks[@]}" -eq 0 ]]; then
+              echo 'TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=live_requalification_required_but_no_targeted_blocks' >&2
+              exit 33
+            fi
+            for block in "${live_blocks[@]}"; do
+              result="self-admission-${block}.json"
+              [[ -s "$result" ]] || {
+                echo "TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=live_requalification_required_but_evidence_missing block=$block" >&2
+                exit 33
+              }
+              jq -e --arg block "$block" --arg source "$ADMISSION_INTEGRATION_TREE_SHA" \
+                '.schema=="truyn.d-series.block-result.v1" and .blockId==$block and .status=="PASS" and .sourceSha==$source' \
+                "$result" >/dev/null || {
+                  echo "TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=live_requalification_required_but_evidence_not_pass block=$block" >&2
+                  exit 33
+                }
+            done
+            jq '.decision.liveRerunWasRequired=true | .decision.liveRequalificationCompleted=true | .decision.liveRerunRequired=false' \
+              d-series-admission-manifest.json > d-series-admission-manifest.live.json
+            mv d-series-admission-manifest.live.json d-series-admission-manifest.json
+          else
+            jq '.decision.liveRerunWasRequired=false | .decision.liveRequalificationCompleted=false' \
+              d-series-admission-manifest.json > d-series-admission-manifest.live.json
+            mv d-series-admission-manifest.live.json d-series-admission-manifest.json
           fi
+
           fresh_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
           [[ "$fresh_main" == "$ADMISSION_CURRENT_MAIN_SHA" ]] || {
             echo 'TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=main_moved_during_admission' >&2
