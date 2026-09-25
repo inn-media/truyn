@@ -75,6 +75,10 @@ for id in "${run_ids[@]:-}"; do
       and .decision.status=="PASS_COMPATIBLE"
       and .decision.liveRerunRequired==false
       and .decision.automaticFullRerunForbidden==true
+      and (
+        ([.surfaces[] | select(.liveRerunRequired==true and ((.mainChangedFiles // []) | length)>0)] | length)==0
+        or (.decision.liveRerunWasRequired==true and .decision.liveRequalificationCompleted==true)
+      )
       and (.evidence.sanitationSwarmRunId|type)=="number"
       and (.evidence.blockwiseRunId|type)=="number"
     ' "$manifest" >/dev/null; then
