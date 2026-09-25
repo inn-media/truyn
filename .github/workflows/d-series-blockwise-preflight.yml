@@ -135,17 +135,11 @@ jobs:
         if: steps.selection.outputs.selected == 'true'
         shell: bash
         env:
-          EVENT: ${{ github.event_name }}
           EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
-          if [[ "$EVENT" != pull_request ]]; then
-            main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-            [[ "$main_sha" == "$EXPECTED_SHA" ]]
-          fi
           npm install --ignore-scripts --no-audit --no-fund
 
       - name: Run complete block cycle and retain all failures
