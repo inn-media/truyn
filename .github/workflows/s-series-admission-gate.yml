@@ -1,0 +1,108 @@
+name: S-Series Admission Gate
+
+on:
+  workflow_run:
+    workflows: [S-Series Frozen Candidate Qualification]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      qualification_run_id:
+        description: Successful S-Series Frozen Candidate Qualification run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: s-series-admission-${{ github.event.workflow_run.id || inputs.qualification_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  admission:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Resolve immutable qualification evidence
+        id: q
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTO_RUN_ID: ${{ github.event.workflow_run.id }}
+          MANUAL_RUN_ID: ${{ inputs.qualification_run_id }}
+        run: |
+          set -Eeuo pipefail
+          run_id="${MANUAL_RUN_ID:-$AUTO_RUN_ID}"
+          [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
+          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+          jq -e '.name=="S-Series Frozen Candidate Qualification" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$run" >/dev/null
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: s-series-qualification-manifest-*
+          path: qualification
+          merge-multiple: true
+          run-id: ${{ steps.q.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Build integration candidate and recalculate fingerprints
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          q=qualification/s-series-qualification-manifest.json
+          [[ -s "$q" ]]
+          candidate="$(jq -r .candidateSha "$q")"
+          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          git fetch --no-tags origin "$candidate" "$current_main"
+          git checkout --detach "$current_main"
+          git config user.name 'TRUYN S-Series Admission'
+          git config user.email 'actions@users.noreply.github.com'
+          git merge --no-ff --no-commit "$candidate"
+          integration_tree="$(git write-tree)"
+          node scripts/s-series-qualification-manifest.mjs admission \
+            --qualification-manifest "$q" \
+            --current-main-sha "$current_main" \
+            --integration-ref "$integration_tree" \
+            --output s-series-admission-manifest.json
+          echo "current_main=$current_main" >> "$GITHUB_OUTPUT"
+      - name: Mandatory final Admission Gate
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          node --test tests/s-series-frozen-candidate-policy.test.js
+          git diff --check
+          jq -e '.decision.automaticFullRerun == false and .decision.finalAdmissionGateRequired == true and .decision.reuseFrozenCandidateEvidence == true' s-series-admission-manifest.json >/dev/null
+      - name: Enforce targeted-only escalation
+        run: |
+          set -Eeuo pipefail
+          status="$(jq -r .decision.status s-series-admission-manifest.json)"
+          blocks="$(jq -r '.decision.targetedBlocks|join(",")' s-series-admission-manifest.json)"
+          echo "S admission status=$status targeted=${blocks:-none}"
+          if [[ "$status" == "TARGETED_LIVE_PROOF_REQUIRED" ]]; then
+            echo "S-sensitive runtime/provider drift detected. Frozen evidence remains valid; only listed blocks require targeted live proof. Full S rerun is forbidden by this gate." >&2
+            exit 1
+          fi
+      - name: Verify admission snapshot is still current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          now="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          test "$now" = "${{ steps.plan.outputs.current_main }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s-series-admission-manifest-${{ github.run_id }}
+          path: s-series-admission-manifest.json
+          if-no-files-found: error
+          retention-days: 90

@@ -1,0 +1,71 @@
+{
+  "schema": "truyn.s-series.frozen-candidate-policy.v1",
+  "state": "LOCKED",
+  "authority": "S-Series",
+  "effectiveUntil": "ALL_S_SERIES_TESTS_COMPLETE",
+  "model": "Frozen Candidate -> Branch Qualification -> Admission to Main",
+  "invariants": {
+    "expensiveQualificationBoundToFrozenCandidate": true,
+    "mainMovementNeverInvalidatesQualificationByItself": true,
+    "admissionComparesBaseShaToCurrentMain": true,
+    "noSensitiveMainDriftReusesExpensiveEvidence": true,
+    "sensitiveMainDriftRunsOnlyAffectedBlocks": true,
+    "automaticFullRerunOnMainMovementForbidden": true,
+    "integrationCandidateFingerprintRecomputeMandatory": true,
+    "finalAdmissionGateMandatory": true,
+    "oldGreenCandidateAloneNeverMergeAuthority": true,
+    "admissionBecomesStaleWhenMainMoves": true,
+    "acceptanceThresholdWeakeningForbidden": true,
+    "policyRemovalRequiresExplicitUserAuthorization": true
+  },
+  "surfaces": [
+    {
+      "id": "s-contracts-policy",
+      "prefixes": ["config/s-series-", "docs/architecture/SEMANTIC_SCALE_S_SERIES.md", "docs/benchmarks/S_SERIES_", "docs/benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md", "docs/operations/S_SERIES_", "tests/s-series-"],
+      "blocks": ["B01", "B16", "B21", "B22"],
+      "liveRerunRequired": false
+    },
+    {
+      "id": "shared-runtime-core",
+      "prefixes": ["network/", "src/", "storage/", "bin/"],
+      "blocks": ["B02", "B05", "B06", "B07", "B08", "B10", "B11", "B12", "B13", "B14", "B15", "B16", "B18", "B19", "B20", "B21", "B22"],
+      "liveRerunRequired": true
+    },
+    {
+      "id": "provider-runtime",
+      "prefixes": ["adapters/providers/", "providers/", "runtime/", "adapters/runtime/"],
+      "blocks": ["B02", "B14", "B15", "B17", "B18", "B19", "B20", "B21", "B22"],
+      "liveRerunRequired": true
+    },
+    {
+      "id": "relay-routing-recovery",
+      "prefixes": ["network/relay", "network/transport", "network/discovery", "scripts/d200-peer-", "scripts/d200-route-", "scripts/d200-recovery-", "benchmarks/scale/d200-"],
+      "blocks": ["B06", "B07", "B08", "B09", "B10", "B11", "B13", "B18", "B20"],
+      "liveRerunRequired": true
+    },
+    {
+      "id": "cloud-control-capacity",
+      "prefixes": [".github/workflows/s-series-", ".github/workflows/class-d-", ".github/workflows/d200-", "benchmarks/scale/class-d-azure-", "scripts/check-d200-cloud"],
+      "blocks": ["B03", "B04", "B06", "B15", "B16", "B17", "B18"],
+      "liveRerunRequired": true
+    },
+    {
+      "id": "semantic-retrieval-provenance",
+      "prefixes": ["retrieval/", "context/", "provenance/", "benchmarks/semantic", "scripts/semantic", "tests/semantic"],
+      "blocks": ["B19", "B20", "B21"],
+      "liveRerunRequired": true
+    },
+    {
+      "id": "economics-telemetry-evidence",
+      "prefixes": ["telemetry/", "observability/", "benchmarks/econom", "docs/benchmarks/SEMANTIC_RETRIEVAL", "docs/benchmarks/CONTEXT_EFFICIENCY", "docs/benchmarks/CROSS_CLOUD"],
+      "blocks": ["B15", "B21", "B22"],
+      "liveRerunRequired": false
+    },
+    {
+      "id": "shared-network-regression-tests",
+      "prefixes": ["tests/class-d-", "tests/d200-", "tests/d500-", "tests/dht-", "tests/peer-discovery-", "tests/randomized-adversarial.test.js"],
+      "blocks": ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B09", "B10", "B11", "B12", "B13", "B14", "B15", "B16", "B18"],
+      "liveRerunRequired": false
+    }
+  ]
+}

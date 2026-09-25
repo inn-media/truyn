@@ -1,0 +1,61 @@
+name: S-Series Frozen Candidate Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Frozen S candidate SHA
+        required: true
+        type: string
+      base_sha:
+        description: Main SHA from which the S candidate was cut
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s-series-frozen-candidate-${{ inputs.candidate_sha }}
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.candidate_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate frozen candidate policy
+        run: |
+          set -Eeuo pipefail
+          [[ "${{ inputs.candidate_sha }}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${{ inputs.base_sha }}" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin "${{ inputs.base_sha }}"
+          git merge-base --is-ancestor "${{ inputs.base_sha }}" "${{ inputs.candidate_sha }}"
+          node --test tests/s-series-frozen-candidate-policy.test.js
+      - name: Generate automatic S qualification manifest
+        run: |
+          node scripts/s-series-qualification-manifest.mjs qualification \
+            --base-sha "${{ inputs.base_sha }}" \
+            --candidate-sha "${{ inputs.candidate_sha }}" \
+            --output s-series-qualification-manifest.json
+          jq -e '.decision.expensiveEvidenceBoundToCandidate == true and .decision.mainMovementInvalidatesCandidate == false' s-series-qualification-manifest.json >/dev/null
+      - name: Branch qualification
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          npm test
+          git diff --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: s-series-qualification-manifest-${{ github.run_id }}
+          path: s-series-qualification-manifest.json
+          if-no-files-found: error
+          retention-days: 90
