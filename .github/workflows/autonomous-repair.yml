@@ -58,15 +58,37 @@ jobs:
           [[ "${changed[*]}" == "${expected[*]}" ]]
           [[ ${#changed[@]} -gt 0 ]]
 
+      - name: Blockwise sixteen blocks
+        if: always()
+        run: node --test --test-name-pattern='permanently defines exactly sixteen' tests/d-series-blockwise-preflight.test.js
+      - name: Blockwise B06 contract
+        if: always()
+        run: node --test --test-name-pattern='B06 is the permanent' tests/d-series-blockwise-preflight.test.js
+      - name: Blockwise workflow independence
+        if: always()
+        run: node --test --test-name-pattern='blockwise workflow runs all blocks' tests/d-series-blockwise-preflight.test.js
+      - name: Blockwise aggregate fail closed
+        if: always()
+        run: node --test --test-name-pattern='block runners retain failures' tests/d-series-blockwise-preflight.test.js
+      - name: Blockwise launcher provenance
+        if: always()
+        run: node --test --test-name-pattern='canonical Blockwise caller' tests/d-series-blockwise-preflight.test.js
+      - name: Blockwise immutable evidence gate
+        if: always()
+        run: node --test --test-name-pattern='full launch gate accepts' tests/d-series-blockwise-preflight.test.js
+      - name: Blockwise downstream enforcement
+        if: always()
+        run: node --test --test-name-pattern='future D-500 and live D-1000' tests/d-series-blockwise-preflight.test.js
+      - name: Blockwise thresholds preserved
+        if: always()
+        run: node --test --test-name-pattern='does not weaken D-500 acceptance' tests/d-series-blockwise-preflight.test.js
+
       - name: Check frozen-candidate admission regressions
         if: always()
         run: node --test tests/d-series-frozen-candidate-admission.test.js
       - name: Check Swarm integration regressions
         if: always()
         run: node --test tests/d-series-swarm-integration.test.js
-      - name: Check Blockwise regressions
-        if: always()
-        run: node --test tests/d-series-blockwise-preflight.test.js
       - name: Check Frozen Candidate policy lock
         if: always()
         run: node scripts/verify-d-series-frozen-candidate-policy.mjs
