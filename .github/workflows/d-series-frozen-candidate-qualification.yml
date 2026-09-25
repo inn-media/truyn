@@ -1,0 +1,264 @@
+name: D-Series Frozen Candidate Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: BASE_SHA from which the frozen D candidate diverged
+        required: true
+        type: string
+      candidate_sha:
+        description: Immutable candidate commit to qualify; it does not need to equal current main
+        required: true
+        type: string
+      scale:
+        description: D-Series class scope
+        required: true
+        default: d500
+        type: choice
+        options: [d200, d500, d1000, all]
+      live_run_id:
+        description: Optional immutable live D run already bound to this candidate
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: d-series-frozen-candidate-${{ inputs.candidate_sha }}-${{ inputs.scale }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: validate-frozen-candidate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate frozen identity and permanent policy lock
+        shell: bash
+        env:
+          BASE_SHA: ${{ inputs.base_sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ && "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$CANDIDATE_SHA" ]]
+          git merge-base --is-ancestor "$BASE_SHA" "$CANDIDATE_SHA"
+          node scripts/check-d-series-frozen-candidate-admission.mjs
+          node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
+          echo "TRUYN_D_SERIES_FROZEN_CANDIDATE=PASS base=$BASE_SHA candidate=$CANDIDATE_SHA current_main_is_irrelevant=true"
+
+  d200-lanes:
+    name: frozen-d200-${{ matrix.lane }}
+    needs: validate
+    if: inputs.scale == 'd200' || inputs.scale == 'all'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        lane:
+          - contract-repository
+          - runtime-bundle-staging
+          - cloud-oidc-contract
+          - topology-placement
+          - readiness-lease
+          - routing-repair
+          - recovery-fault
+          - durability
+          - cleanup
+          - safety-security
+          - evidence-evaluator
+          - campaign-runtime-syntax
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run canonical D-200 sanitation lane
+        env:
+          D200_LANE_RESULT: d200-lane-${{ matrix.lane }}.json
+          GITHUB_SHA: ${{ inputs.candidate_sha }}
+        run: node scripts/d200-bug-hunt-lane.mjs '${{ matrix.lane }}'
+      - name: Upload lane evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frozen-d200-lane-${{ matrix.lane }}-${{ github.run_id }}
+          path: d200-lane-${{ matrix.lane }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  stage-swarm:
+    name: frozen-d-series-stage-${{ matrix.class_size }}
+    needs: validate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        class_size: [200, 500, 1000]
+    steps:
+      - name: Select class
+        id: selection
+        env:
+          SCALE: ${{ inputs.scale }}
+          CLASS_SIZE: ${{ matrix.class_size }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          selected=false
+          case "$SCALE" in
+            all) selected=true ;;
+            d200) [[ "$CLASS_SIZE" == 200 ]] && selected=true ;;
+            d500) [[ "$CLASS_SIZE" == 500 ]] && selected=true ;;
+            d1000) [[ "$CLASS_SIZE" == 1000 ]] && selected=true ;;
+            *) exit 2 ;;
+          esac
+          echo "selected=$selected" >>"$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.selection.outputs.selected == 'true'
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        if: steps.selection.outputs.selected == 'true'
+        with:
+          node-version: '22'
+      - name: Execute canonical fail-collect Class-D DAG
+        if: steps.selection.outputs.selected == 'true'
+        env:
+          CLASS_SIZE: ${{ matrix.class_size }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          node scripts/check-class-d-five-patches.mjs
+          if [[ "$CLASS_SIZE" == 200 ]]; then checkpoint=d200-stage-checkpoint.json; concurrency=3; else checkpoint="d-series-swarm-stage-${CLASS_SIZE}.json"; concurrency=1; fi
+          TRUYN_CLASS_D_SOURCE_SHA="$CANDIDATE_SHA" node scripts/class-d-stage-runner.mjs --class "$CLASS_SIZE" --checkpoint "$checkpoint" --concurrency "$concurrency"
+      - name: Upload stage evidence
+        if: always() && steps.selection.outputs.selected == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frozen-d-series-stage-${{ matrix.class_size }}-${{ github.run_id }}
+          path: |
+            d200-stage-checkpoint.json
+            d-series-swarm-stage-${{ matrix.class_size }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  blocks:
+    name: frozen-d-series-${{ matrix.block }}
+    needs: validate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        block: [B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12, B13, B14, B15, B16]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run canonical block against frozen candidate
+        env:
+          BLOCK_ID: ${{ matrix.block }}
+          SCALE: ${{ inputs.scale }}
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ inputs.candidate_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          case "$SCALE" in d200) s=200 ;; d500) s=500 ;; d1000) s=1000 ;; all) s=all ;; *) exit 2 ;; esac
+          node scripts/d-series-block-runner.mjs "$BLOCK_ID" --scale "$s" --result "d-series-block-${BLOCK_ID}.json"
+      - name: Upload block evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frozen-d-series-block-${{ matrix.block }}-${{ github.run_id }}
+          path: d-series-block-${{ matrix.block }}.json
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: frozen-candidate-terminal
+    needs: [validate, d200-lanes, stage-swarm, blocks]
+    if: always() && needs.validate.result == 'success'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: frozen-d-series-stage-*-${{ github.run_id }}
+          path: frozen-stages
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: frozen-d-series-block-*-${{ github.run_id }}
+          path: frozen-blocks
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        if: inputs.scale == 'd200' || inputs.scale == 'all'
+        with:
+          pattern: frozen-d200-lane-*-${{ github.run_id }}
+          path: frozen-lanes
+          merge-multiple: true
+      - name: Enforce clean frozen Swarm and full B01-B16 qualification
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          SCALE: ${{ inputs.scale }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p frozen-lanes
+          node scripts/d-series-swarm-aggregate.mjs --stages frozen-stages --blocks frozen-blocks --lanes frozen-lanes --source-sha "$CANDIDATE_SHA" --scale "$SCALE" --output d-series-frozen-swarm-summary.json --enforce
+          node scripts/d-series-block-aggregate.mjs frozen-blocks --output d-series-frozen-blockwise-summary.json --source-sha "$CANDIDATE_SHA" --scope full --enforce
+      - name: Generate automatic immutable D qualification manifest
+        env:
+          TRUYN_D_SERIES_BASE_SHA: ${{ inputs.base_sha }}
+          TRUYN_D_SERIES_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          TRUYN_D_SERIES_SCALE: ${{ inputs.scale }}
+          TRUYN_D_SERIES_LIVE_RUN: ${{ inputs.live_run_id }}
+        run: node scripts/d-series-qualification-manifest.mjs --base '${{ inputs.base_sha }}' --candidate '${{ inputs.candidate_sha }}' --scale '${{ inputs.scale }}' --qualification-run '${{ github.run_id }}' --live-run '${{ inputs.live_run_id }}' --output d-series-qualification-manifest.json
+      - name: Upload frozen qualification authority
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-qualification-${{ github.run_id }}
+          path: |
+            d-series-qualification-manifest.json
+            d-series-frozen-swarm-summary.json
+            d-series-frozen-blockwise-summary.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Record frozen terminal marker
+        run: echo 'TRUYN_D_SERIES_FROZEN_QUALIFICATION=PASS candidate=${{ inputs.candidate_sha }} base=${{ inputs.base_sha }} scale=${{ inputs.scale }} current_main_dependency=NONE'
