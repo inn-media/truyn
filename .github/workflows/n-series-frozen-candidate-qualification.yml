@@ -1,0 +1,63 @@
+name: N-Series Frozen Candidate Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Frozen N candidate SHA
+        required: true
+        type: string
+      base_sha:
+        description: Main SHA from which the N candidate was cut
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n-series-frozen-candidate-${{ inputs.candidate_sha }}
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.candidate_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate immutable N policy and candidate ancestry
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "${{ inputs.candidate_sha }}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${{ inputs.base_sha }}" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin "${{ inputs.base_sha }}"
+          git merge-base --is-ancestor "${{ inputs.base_sha }}" "${{ inputs.candidate_sha }}"
+          node scripts/verify-n-series-frozen-candidate-policy.mjs
+          node --test tests/n-series-frozen-candidate-admission.test.js
+      - name: Generate automatic N qualification manifest
+        run: |
+          node scripts/n-series-qualification-manifest.mjs qualification \
+            --base-sha "${{ inputs.base_sha }}" \
+            --candidate-sha "${{ inputs.candidate_sha }}" \
+            --output n-series-qualification-manifest.json
+          cat n-series-qualification-manifest.json
+      - name: Branch qualification
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          npm test
+          git diff --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n-series-qualification-manifest-${{ github.run_id }}
+          path: n-series-qualification-manifest.json
+          if-no-files-found: error
+          retention-days: 90
