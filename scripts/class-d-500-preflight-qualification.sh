@@ -9,6 +9,8 @@ node scripts/check-d500-contract.mjs
 node scripts/check-d500-inheritance.mjs
 node scripts/check-class-d-five-patches.mjs
 node scripts/check-repository-hygiene.mjs
+node scripts/check-d-series-frozen-candidate-admission.mjs
+node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
 
 # Keep using the already-proven shared Class-D runtime/provisioning implementation.
 bash -n benchmarks/scale/class-d-azure-1000-provision.sh
@@ -62,9 +64,8 @@ workflow='.github/workflows/d500-acceptance.yml'
 
 case "$phase" in
   prepare)
-    # A source tree with no launch history is valid before attempt 1. Once an attempt
-    # exists, exactly one D-500 workflow must remain and must still point at the latest
-    # immutable token. The next token must not exist yet.
+    # Preparation is candidate-bound and intentionally independent of moving main.
+    # Once an attempt exists, exactly one D-500 workflow remains historical/canonical.
     if [[ "$latest" -eq 0 ]]; then
       [[ "${#active_d500_workflows[@]}" -eq 0 ]]
     else
@@ -79,8 +80,9 @@ case "$phase" in
     launchable=false
     ;;
   launch)
-    # Pre-launch review may target only the immediate successor N+1. Historical tokens
-    # remain present and immutable; the successor token itself must still be absent.
+    # Launch qualification is impossible from a historical GREEN candidate alone.
+    # The active workflow must consume a fresh D-Series Admission artifact whose
+    # currentMainSha still equals live main. If main moved, rerun Admission only.
     [[ "${#active_d500_workflows[@]}" -eq 1 && "${active_d500_workflows[0]}" == 'd500-acceptance.yml' ]]
     next=$((latest + 1))
     next_token="$(launch_name "$next")"
@@ -93,7 +95,11 @@ case "$phase" in
     done
     grep -Fq 'TRUYN_D200_LOCATION:' "$workflow"
     grep -Fq 'env.TRUYN_D500_LOCATION' "$workflow"
-    launchable="reviewed-attempt${next}-workflow-only"
+    grep -Fq 'D_SERIES_ADMISSION_RUN:' "$workflow"
+    grep -Fq 'verify-d-series-admission-run.sh' "$workflow"
+    export TRUYN_D_SERIES_ADMISSION_RUN="${TRUYN_D_SERIES_ADMISSION_RUN:-${D_SERIES_ADMISSION_RUN:-}}"
+    bash scripts/verify-d-series-admission-run.sh "${TESTED_COMMIT:-${GITHUB_SHA:-}}"
+    launchable="fresh-admission-reviewed-attempt${next}-workflow-only"
     ;;
   *)
     echo "TRUYN_D500_PREFLIGHT=FAIL invalid_phase=${phase}" >&2
@@ -102,4 +108,4 @@ case "$phase" in
 esac
 
 node --test tests/d500-prelaunch.test.js
-printf 'TRUYN_D500_PREFLIGHT_QUALIFICATION=PASS phase=%s topology=20x25 process_target=500 max_peers=32 d200_floor_preserved=true inheritance=true five_patch=true history_count=%s launchable=%s\n' "$phase" "$latest" "$launchable"
+printf 'TRUYN_D500_PREFLIGHT_QUALIFICATION=PASS phase=%s topology=20x25 process_target=500 max_peers=32 d200_floor_preserved=true inheritance=true five_patch=true frozen_candidate_model=true history_count=%s launchable=%s\n' "$phase" "$latest" "$launchable"
