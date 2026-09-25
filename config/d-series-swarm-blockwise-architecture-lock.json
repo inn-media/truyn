@@ -20,6 +20,7 @@
     "acceptanceThresholdWeakeningForbidden": true,
     "silentArchitectureReplacementForbidden": true,
     "expensiveQualificationBelongsToFrozenCandidate": true,
+    "historicalEvidenceBoundToImmutableRunSha": true,
     "mainMovementTriggersAdmissionAnalysisNotAutomaticFullRerun": true,
     "candidateEvidenceSurvivesNonSensitiveMainMovement": true,
     "sensitiveMainMovementRequalifiesOnlyAffectedBlocksByDefault": true,
@@ -29,5 +30,5 @@
     "automaticFullRerunOnMainMovementForbidden": true,
     "admissionPolicyCannotBeBypassedOrSilentlyRemoved": true
   },
-  "changePolicy": "This lock and its frozen-candidate admission model may be removed, bypassed, weakened, renamed out of enforcement, or materially changed before ALL_D_SERIES_TESTS_COMPLETE only by an explicit user-authorized architecture change. Main movement, ordinary refactors, repairs, optimizations, sprint transitions, D-200/D-500/D-1000 launcher work, CI cleanup, or historical GREEN evidence MUST NOT restore the old exact-current-main qualification model."
+  "changePolicy": "This lock and its frozen-candidate admission model may be removed, bypassed, weakened, renamed out of enforcement, or materially changed before ALL_D_SERIES_TESTS_COMPLETE only by an explicit user-authorized architecture change. Historical evidence identity MUST be bound to immutable execution-time workflow SHA fields; mutable embedded pull-request metadata MUST NOT authorize candidate qualification. Main movement, ordinary refactors, repairs, optimizations, sprint transitions, D-200/D-500/D-1000 launcher work, CI cleanup, or historical GREEN evidence MUST NOT restore the old exact-current-main qualification model."
 }
