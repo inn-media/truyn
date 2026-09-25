@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
-      GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB || github.token }}
+      GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB }}
       CANDIDATE_SHA: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
       CANDIDATE_REF: fix/d500-time-budget
       SCALE: d500
@@ -30,32 +30,39 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Validate isolated control request and candidate
+      - name: Validate isolated control request, PAT and candidate
         shell: bash
         run: |
           set -Eeuo pipefail
           [[ "$GITHUB_REF_NAME" == automation/autorepair/d500-direct-qualification-control ]]
           [[ -s .github/repairs/d500-direct-qualification.env ]]
-          diff -u <(printf 'TASK_ID=d500-direct-qualification-9d998ab5\nCANDIDATE_SHA=%s\n' "$CANDIDATE_SHA") .github/repairs/d500-direct-qualification.env
+          diff -u <(printf 'TASK_ID=d500-direct-qualification-9d998ab5\nCANDIDATE_SHA=%s\nGENERATION=2\n' "$CANDIDATE_SHA") .github/repairs/d500-direct-qualification.env
+          [[ -n "${GH_TOKEN:-}" ]] || { echo 'privileged PAT unavailable' >&2; exit 19; }
           actual="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${CANDIDATE_REF}" --jq .sha)"
           [[ "$actual" == "$CANDIDATE_SHA" ]]
-          echo "TRUYN_D500_DIRECT_CONTROL_CANDIDATE=PASS sha=$actual"
+          echo "TRUYN_D500_DIRECT_CONTROL_CANDIDATE=PASS sha=$actual privilegedToken=true"
 
       - name: Dispatch and require canonical direct Swarm
         id: swarm
         shell: bash
         run: |
           set -Eeuo pipefail
-          existing="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .head_sha=="'"$CANDIDATE_SHA"'")] | sort_by(.created_at) | last | .id // empty')"
-          [[ -z "$existing" ]] || { echo "duplicate direct Swarm exists: $existing" >&2; exit 20; }
-          since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          gh workflow run d200-bug-hunt.yml --repo "$GITHUB_REPOSITORY" --ref "$CANDIDATE_REF" -f source_sha="$CANDIDATE_SHA" -f scale="$SCALE" -f resume_across_sha=false
-          run_id=''
-          for _ in $(seq 1 60); do
-            run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .head_sha=="'"$CANDIDATE_SHA"'" and .created_at>="'"$since"'")] | sort_by(.created_at) | last | .id // empty')"
-            [[ -n "$run_id" ]] && break
-            sleep 5
-          done
+          runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100")"
+          reusable="$(jq -r --arg sha "$CANDIDATE_SHA" '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .head_sha==$sha and (.status=="queued" or .status=="in_progress" or (.status=="completed" and .conclusion=="success")))] | sort_by(.created_at) | last | .id // empty' <<<"$runs")"
+          if [[ -n "$reusable" ]]; then
+            run_id="$reusable"
+          else
+            startup_failures="$(jq -r --arg sha "$CANDIDATE_SHA" '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .head_sha==$sha and .status=="completed" and .conclusion=="startup_failure")] | length' <<<"$runs")"
+            [[ "$startup_failures" -le 1 ]] || { echo "too many startup failures=$startup_failures" >&2; exit 20; }
+            since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            gh workflow run d200-bug-hunt.yml --repo "$GITHUB_REPOSITORY" --ref "$CANDIDATE_REF" -f source_sha="$CANDIDATE_SHA" -f scale="$SCALE" -f resume_across_sha=false
+            run_id=''
+            for _ in $(seq 1 60); do
+              run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .head_sha=="'"$CANDIDATE_SHA"'" and .created_at>="'"$since"'")] | sort_by(.created_at) | last | .id // empty')"
+              [[ -n "$run_id" ]] && break
+              sleep 5
+            done
+          fi
           [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 10
@@ -70,16 +77,20 @@ jobs:
         run: |
           set -Eeuo pipefail
           [[ "$SWARM_RUN_ID" =~ ^[1-9][0-9]+$ ]]
-          existing="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .head_sha=="'"$CANDIDATE_SHA"'")] | sort_by(.created_at) | last | .id // empty')"
-          [[ -z "$existing" ]] || { echo "duplicate direct Blockwise exists: $existing" >&2; exit 21; }
-          since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          gh workflow run d-series-blockwise-preflight.yml --repo "$GITHUB_REPOSITORY" --ref "$CANDIDATE_REF" -f source_sha="$CANDIDATE_SHA" -f scale="$SCALE" -f block=all -f swarm_run_id="$SWARM_RUN_ID"
-          run_id=''
-          for _ in $(seq 1 60); do
-            run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .head_sha=="'"$CANDIDATE_SHA"'" and .created_at>="'"$since"'")] | sort_by(.created_at) | last | .id // empty')"
-            [[ -n "$run_id" ]] && break
-            sleep 5
-          done
+          runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100")"
+          reusable="$(jq -r --arg sha "$CANDIDATE_SHA" '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .head_sha==$sha and (.status=="queued" or .status=="in_progress" or (.status=="completed" and .conclusion=="success")))] | sort_by(.created_at) | last | .id // empty' <<<"$runs")"
+          if [[ -n "$reusable" ]]; then
+            run_id="$reusable"
+          else
+            since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            gh workflow run d-series-blockwise-preflight.yml --repo "$GITHUB_REPOSITORY" --ref "$CANDIDATE_REF" -f source_sha="$CANDIDATE_SHA" -f scale="$SCALE" -f block=all -f swarm_run_id="$SWARM_RUN_ID"
+            run_id=''
+            for _ in $(seq 1 60); do
+              run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .head_sha=="'"$CANDIDATE_SHA"'" and .created_at>="'"$since"'")] | sort_by(.created_at) | last | .id // empty')"
+              [[ -n "$run_id" ]] && break
+              sleep 5
+            done
+          fi
           [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 10
