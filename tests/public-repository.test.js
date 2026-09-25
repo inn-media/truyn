@@ -18,6 +18,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/d-series-admission-gate.yml',
   '.github/workflows/d-series-blockwise-one-shot-launcher.yml',
   '.github/workflows/d-series-blockwise-preflight.yml',
+  '.github/workflows/d-series-candidate-self-admission.yml',
   '.github/workflows/d-series-frozen-candidate-qualification.yml',
   '.github/workflows/d-series-swarm-one-shot-launcher.yml',
   '.github/workflows/d200-acceptance.yml',
