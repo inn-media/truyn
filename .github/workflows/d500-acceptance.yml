@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/d500/launch-10.txt'
+      - '.github/d500/launch-11.txt'
 
 permissions:
   contents: read
@@ -12,11 +12,11 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d500-9d998ab5-attempt10-single-shot
+  group: truyn-d500-9d998ab5-attempt11-single-shot
   cancel-in-progress: false
 
 env:
-  TASK_ID: truyn-d500-acceptance-260925-a10
+  TASK_ID: truyn-d500-acceptance-260925-a11
   REFERENCE_D200_RUN: '35503894414'
   REFERENCE_D200_REPEATABILITY_RUN: '35517248924'
   TESTED_COMMIT: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
@@ -36,13 +36,13 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 180
     steps:
-      - name: Enforce immutable D-500 Attempt 10 one-shot launch
+      - name: Enforce immutable D-500 Attempt 11 one-shot launch
         env:
           GH_TOKEN: '${{ github.token }}'
         shell: bash
         run: |
           set -Eeuo pipefail
-          token='.github/d500/launch-10.txt'
+          token='.github/d500/launch-11.txt'
           workflow='.github/workflows/d500-acceptance.yml'
           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
           [[ "$GITHUB_EVENT_NAME" == push ]]
