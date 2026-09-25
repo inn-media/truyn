@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const p=JSON.parse(fs.readFileSync('config/n-series-frozen-candidate-policy.json','utf8'));
+test('candidate-bound qualification survives unrelated main movement',()=>{assert.equal(p.state,'LOCKED');assert.equal(p.model,'Frozen Candidate -> Branch Qualification -> Admission to Main');assert.equal(p.invariants.expensiveQualificationBoundToFrozenCandidate,true);assert.equal(p.invariants.mainMovementNeverInvalidatesQualificationByItself,true);assert.equal(p.invariants.automaticFullRerunOnMainMovementForbidden,true)});
+test('historical GREEN alone never authorizes merge',()=>{assert.equal(p.invariants.oldGreenCandidateAloneNeverMergeAuthority,true);assert.equal(p.invariants.integrationCandidateFingerprintRecomputeMandatory,true);assert.equal(p.invariants.finalAdmissionGateMandatory,true);assert.equal(p.invariants.admissionBecomesStaleWhenMainMoves,true)});
+test('selective N1-N7 requalification is mandatory and executable',()=>{assert.equal(p.invariants.admissionComparesBaseShaToCurrentMain,true);assert.equal(p.invariants.sensitiveMainDriftRunsOnlyAffectedBlocks,true);assert.equal(p.invariants.selectiveBlockRunnerMandatory,true);assert.equal(p.invariants.allTargetedBlocksMustPass,true);assert.equal(p.invariants.qualificationManifestMandatory,true);assert.equal(fs.existsSync('scripts/n-series-selective-block-runner.mjs'),true);assert.ok(p.surfaces.some(s=>s.liveRerunRequired))});

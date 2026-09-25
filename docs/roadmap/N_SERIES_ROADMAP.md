@@ -3,147 +3,103 @@
 Status: **FOUNDATION DEFINED / EXECUTION NOT STARTED**  
 Task: `truyn-n-series-foundation-260920-n0`
 
-This roadmap takes N-Series from documentation to immutable measured evidence while preserving the two-repository boundary and cross-series isolation.
+## Locked qualification model — entire N-Series
 
-## N0 — Foundation — THIS CHANGE
+Canonical model: **`Frozen Candidate -> Branch Qualification -> Admission to Main`**.
 
-- [x] define N-Series architecture and scope;
-- [x] define N/SOVEREIGNTY, N/MARKETPLACE, N/TRUST-DECAY and N/SUSTAINED-CHURN;
-- [x] define public/private ownership boundary;
-- [x] bind N to common D/S/T/H/E-compatible benchmark isolation semantics;
-- [x] define common/result-state vocabulary;
-- [x] define telemetry events and recomputable metric formulas;
-- [x] define full execution/cleanup/evidence procedure;
-- [x] define false-PASS traps and invalidation rules;
-- [ ] merge public foundation only when doing so does not invalidate an unrelated exact-main qualifying campaign;
-- [ ] pin the accepted public N foundation in the private runner.
+This model is non-optional until all N-Series tests complete. Expensive qualification belongs to a frozen candidate SHA, not moving `main`. Main movement triggers `BASE_SHA -> current main` admission analysis, never an automatic full rerun. Non-N-sensitive drift reuses candidate evidence. N-sensitive drift is mapped to N1-N7 and **only targeted blocks are executed by `scripts/n-series-selective-block-runner.mjs`**; every targeted block must be GREEN. Integration-candidate fingerprints are recomputed before admission. Historical GREEN candidate evidence alone never authorizes merge/launch. Admission is exact-current-main bound and becomes stale when main moves. Acceptance weakening is forbidden. Removal/bypass requires explicit user authorization.
+
+Machine lock: `config/n-series-frozen-candidate-policy.json`. Verifier: `scripts/verify-n-series-frozen-candidate-policy.mjs`. Manifest engine: `scripts/n-series-qualification-manifest.mjs`. Selective runner: `scripts/n-series-selective-block-runner.mjs`.
+
+## N0 — Foundation
+
+- [x] architecture/scope and four N scenarios;
+- [x] public/private ownership boundary;
+- [x] D/S/T/H/E-compatible isolation semantics;
+- [x] telemetry, evidence, cleanup and false-PASS contracts;
+- [x] Frozen Candidate -> Branch Qualification -> Admission to Main lock;
+- [x] automatic qualification/admission manifests;
+- [x] selective N1-N7 admission runner; all targeted blocks GREEN required.
 
 No benchmark PASS is created by N0.
 
 ## N1 — Contract pin + runner/schema qualification
 
 - [ ] private runner pins exact accepted public N contract/release/SHA;
-- [ ] implement/freeze private run manifest, acceptance manifest, resource plan and evidence index schemas;
-- [ ] integrate `seriesId=N` with the existing private benchmark coordinator;
-- [ ] prove globally unique run IDs and N-only namespace ownership;
-- [ ] prove R2 lease conflict yields `WAITING_SHARED_RESOURCE` without mutating the owner;
-- [ ] prove R1 interference events are attributable;
-- [ ] prove foreign cleanup/resource mutation is impossible;
-- [ ] qualify deterministic private→public sanitizer/exporter against N telemetry vocabulary.
+- [ ] freeze private run/acceptance/resource/evidence schemas;
+- [x] public selective N1-N7 admission runner implemented and machine-locked;
+- [ ] integrate private `seriesId=N` with benchmark coordinator;
+- [ ] prove unique run IDs/N-only namespace, R1 attribution, R2 waiting and owner-safe cleanup;
+- [ ] qualify deterministic private→public sanitizer/exporter.
 
-## N2 — N/SOVEREIGNTY harness
+## N2 — N/SOVEREIGNTY
 
-- [ ] topology planner for >=3 jurisdiction classes / >=2 clouds;
-- [ ] policy matrix: only-region, forbid-region, data-stays-source, compute-near-data;
-- [ ] conflict arm with cheaper/faster forbidden provider;
-- [ ] impossible-policy fail-closed arm;
-- [ ] actual data-plane egress/flow evidence collector;
-- [ ] leak-canary/log audit path;
-- [ ] paired unrestricted/restricted measurement for compliance tax;
-- [ ] safe public evidence projection.
+Harness requirements: >=3 jurisdiction classes / >=2 clouds; only-region, forbid-region, data-stays-source and compute-near-data policies; cheaper/faster forbidden-provider conflict arm; impossible-policy fail-closed arm; actual data-plane egress evidence; leak-canary/log audit; paired unrestricted/restricted compliance-tax measurement; safe public evidence projection.
 
-### N2 pilot gate
+### Mandatory progression — each cell is a separate immutable test
 
-- 50-node low-cost pilot;
-- validate instrumentation, no headline claim;
-- repair only by new source/run identity; no acceptance weakening.
+- [ ] **10-node qualification / smoke** — prove topology, policy enforcement, evidence collection and fail-closed behavior before scale;
+- [ ] **50-node immutable run** — unchanged acceptance semantics;
+- [ ] **100-node immutable run** — unchanged acceptance semantics;
+- [ ] independent reconciliation and safe public report for each accepted cell.
 
-### N2 final cells
+**10 -> 50 -> 100 is the canonical N/SOVEREIGNTY sequence.** A GREEN 10-node test does not substitute for 50 or 100; each is executed and evidenced separately.
 
-- [ ] 50-node immutable final;
-- [ ] 100-node immutable final with unchanged gates;
-- [ ] independent reconciliation and safe public report.
+## N3 — N/MARKETPLACE
 
-## N3 — N/MARKETPLACE harness
-
-- [ ] frozen independent capability manifest;
-- [ ] requester fixture that contains capability/constraints but no provider identity;
-- [ ] capability inventory across translation, summary, embedding, image, code review, reasoning, data fetch (or frozen equivalent classes);
-- [ ] >=2 equivalent eligible providers in fairness arm;
-- [ ] discovery fan-out instrumentation;
-- [ ] atomic NEED and >=3-step composite DAG fixtures;
-- [ ] per-step provenance;
-- [ ] Jain fairness calculation and anti-broadcast gate.
-
-### N3 pilot/final
-
+- [ ] frozen capability manifest and provider-neutral requester;
+- [ ] >=2 eligible providers per fairness arm;
+- [ ] discovery/execution fan-out instrumentation;
+- [ ] atomic NEED + >=3-step DAG workloads;
+- [ ] provenance, Jain fairness and anti-central-selection gates;
 - [ ] 50-node pilot;
 - [ ] 50-node immutable final;
-- [ ] 100-node immutable final with unchanged gates;
-- [ ] independent reconciliation and safe public report.
-
-## N4 — N/TRUST-DECAY harness
-
-- [ ] hidden independent ground-truth/oracle dataset;
-- [ ] pre-run oracle/workload/seed digest commitment;
-- [ ] signed plausible bad/stale/low-quality provider behavior fixtures;
-- [ ] domain A bad / domain B good fixture;
-- [ ] hostile unauthorized dispute fixture;
-- [ ] rehabilitation phase;
-- [ ] static/no-learning paired control when causal improvement is claimed;
-- [ ] confidence method, minimum sample size, learning window and recovery window frozen after pilot and before final.
-
-### N4 pilot/final
-
-- [ ] low-cost pilot to size samples/windows only;
-- [ ] freeze final acceptance manifest;
-- [ ] 50-node immutable final;
-- [ ] 100-node immutable final with unchanged gates/windows;
-- [ ] independent reconciliation and safe public report.
-
-## N5 — N/SUSTAINED-CHURN harness
-
-- [ ] continuous request generator;
-- [ ] churn planner with exact join/leave/replace rate and bootstrap participation;
-- [ ] peer TTL/refresh capture;
-- [ ] time-bucketed routing/recovery/peer-table/backlog telemetry;
-- [ ] newcomer steady-state measurement;
-- [ ] long-window runner >= `max(2h, 12*TTL)`;
-- [ ] initial characterization at 5%/10%/20% replacement rates where feasible;
-- [ ] supported-rate and first-break-rate calculation.
-
-### N5 pilot/final
-
-- [ ] 100-node pilot;
-- [ ] freeze claimed target rate/interval before final;
 - [ ] 100-node immutable final;
-- [ ] 200-node immutable final using unchanged acceptance gates and comparable rate definition;
-- [ ] independent reconciliation and safe public report.
+- [ ] independent reconciliation/public report.
+
+## N4 — N/TRUST-DECAY
+
+- [ ] hidden oracle/gold dataset + seed/workload commitment;
+- [ ] signed plausible bad/stale/low-quality behavior;
+- [ ] domain-specific degradation, hostile dispute and rehabilitation;
+- [ ] static/no-learning paired control when causal improvement is claimed;
+- [ ] pilot-only calibration then frozen confidence/sample/window rules;
+- [ ] 50-node immutable final;
+- [ ] 100-node immutable final;
+- [ ] independent reconciliation/public report.
+
+## N5 — N/SUSTAINED-CHURN
+
+- [ ] continuous load and deterministic seeded churn planner;
+- [ ] join/leave/replace + bootstrap participation;
+- [ ] TTL/refresh/newcomer/time-bucketed routing/recovery/backlog telemetry;
+- [ ] long-window >= `max(2h, 12*TTL)`;
+- [ ] characterize 5%/10%/20% replacement where feasible;
+- [ ] supported-rate/first-break-rate evaluator;
+- [ ] 100-node pilot;
+- [ ] 100-node immutable final;
+- [ ] 200-node immutable final;
+- [ ] independent reconciliation/public report.
 
 ## N6 — Cross-series proof
 
-Before any headline final campaign:
-
-- [ ] run representative N preflight while D/S/T/H (or synthetic coordinator records representing their active ownership) exist;
-- [ ] prove namespace collision = 0;
-- [ ] prove foreign writes/deletes = 0;
-- [ ] prove R1 interference behavior blocks only the affected N run;
-- [ ] prove R2 conflict produces `WAITING_SHARED_RESOURCE`;
-- [ ] prove N concurrency groups cannot cancel foreign runs;
-- [ ] prove N spend/budget attribution is isolated.
+- [ ] representative N preflight with D/S/T/H/E ownership present;
+- [ ] namespace collision = 0 and foreign writes/deletes = 0;
+- [ ] R1 blocks/invalidates only affected N work;
+- [ ] R2 conflict => `WAITING_SHARED_RESOURCE`;
+- [ ] N concurrency cannot cancel foreign runs;
+- [ ] N spend/budget attribution isolated.
 
 ## N7 — Evidence closure
 
-For every final scenario/cell:
+For every final scenario/cell: retain raw/private evidence; independently recompute headline metrics; reconcile retry/exception/exclusion ledger; verify cleanup; deterministic sanitized export; append-only public report; artifact digests; preserve negative/failed/invalidated attempts; bound claims to exact tested scope.
 
-- [ ] raw/private evidence retained under private policy;
-- [ ] headline metrics independently recomputed;
-- [ ] exception/retry/exclusion ledger reconciled;
-- [ ] cleanup verified;
-- [ ] deterministic sanitized export produced;
-- [ ] safe public report committed to append-only benchmark ledger;
-- [ ] artifact/file digests retained;
-- [ ] negative/failed/invalidated attempts preserved;
-- [ ] claims bounded to exact tested node count, churn rate, policy set, domains and workload.
+## First evidence order
 
-## Required scenario order for first evidence generation
+`SOVEREIGNTY -> MARKETPLACE -> TRUST-DECAY -> SUSTAINED-CHURN`.
 
-```text
-SOVEREIGNTY → MARKETPLACE → TRUST-DECAY → SUSTAINED-CHURN
-```
+Independent lanes may overlap only when R0/R1/R2 proves isolation. Long-running churn may not impose a global benchmark lock.
 
-The order may overlap only when resource classification proves isolation. A long-running churn test must never block an unrelated benchmark by using a global benchmark lock.
+## Completion
 
-## Completion definition
-
-The N-Series foundation is technically complete when N0 is accepted in both repositories. The N-Series itself is not complete until every intended scenario has immutable real evidence or is explicitly closed with a preserved negative/unsupported result.
+N-Series is complete only when every intended scenario/cell has immutable real evidence or an explicitly preserved negative/unsupported result.
