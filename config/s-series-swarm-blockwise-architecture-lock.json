@@ -1,6 +1,6 @@
 {
-  "schema": "truyn.s-series.swarm-blockwise-architecture-lock.v1",
-  "purpose": "S-Series campaign admission discipline; not a network runtime",
+  "schema": "truyn.s-series.swarm-blockwise-architecture-lock.v2",
+  "purpose": "S-Series campaign qualification and admission discipline; not a network runtime",
   "isolation": {
     "series": "S",
     "executionNamespace": ".github/s-series/",
@@ -12,35 +12,38 @@
   "sourceBinding": {
     "exactPublicSourceShaRequired": true,
     "exactPrivateExecutionShaRequired": true,
-    "mainMovementInvalidatesAdmission": true,
+    "expensiveQualificationBindsToFrozenCandidate": true,
+    "mainMovementAloneInvalidatesCandidate": false,
+    "mainMovementTriggersAdmissionAnalysis": true,
+    "baseToCurrentMainDiffRequired": true,
+    "integrationCandidateFingerprintRequired": true,
+    "admissionToCurrentMainRequired": true,
+    "candidateEvidenceSurvivesUnrelatedMainMovement": true,
+    "targetedBlockRequalificationOnSensitiveMainMovement": true,
+    "automaticFullLiveRerunOnMainMovement": false,
     "historicalCampaignsAreImmutable": true
+  },
+  "qualificationManifest": {
+    "schema": "truyn.s-series.qualification-manifest/v1",
+    "requiredIdentity": ["publicCandidateSha", "privateCandidateSha", "publicBaseSha", "privateBaseSha"],
+    "requiredAdmissionInputs": ["currentPublicMainSha", "currentPrivateMainSha", "publicChangesSinceBase", "privateChangesSinceBase", "candidateFingerprints", "integrationFingerprints", "targetedBlocks"],
+    "fingerprintRule": "sha256 over canonical sorted path/blob pairs for each S-sensitive block surface",
+    "finalAdmissionGateMandatory": true,
+    "historicalGreenCandidateShaAloneCanAuthorizeMergeOrCampaign": false,
+    "admissionSnapshotMovementInvalidatesOnlyAdmissionSnapshot": true
   },
   "swarm": {
     "mode": "fail-collect",
     "failFast": false,
     "collectAllDiagnosticsBeforeVerdict": true,
-    "mustPrecedeBlockwiseAdmission": true
+    "mustPrecedeBlockwiseAdmission": true,
+    "evidenceBindsToFrozenCandidate": true
   },
   "blockwise": {
     "requiredGreenBlocks": 22,
     "campaignAllowedOnlyWhenAllGreen": true,
     "sharedSubstrate": [
-      {"id":"B01","name":"contracts-repository"},
-      {"id":"B02","name":"runtime-bundle-staging"},
-      {"id":"B03","name":"cloud-control-plane"},
-      {"id":"B04","name":"topology-placement"},
-      {"id":"B05","name":"process-startup-identity"},
-      {"id":"B06","name":"bootstrap-refresh-heartbeat"},
-      {"id":"B07","name":"readiness-leases-backpressure"},
-      {"id":"B08","name":"baseline-routing"},
-      {"id":"B09","name":"restart-injection"},
-      {"id":"B10","name":"post-restart-routing"},
-      {"id":"B11","name":"healing-convergence-recovery"},
-      {"id":"B12","name":"durable-writes-retention"},
-      {"id":"B13","name":"adversarial-partition-collision"},
-      {"id":"B14","name":"safety-security-negative"},
-      {"id":"B15","name":"resources-telemetry-evidence"},
-      {"id":"B16","name":"cleanup-terminal-assembly"}
+      {"id":"B01","name":"contracts-repository"},{"id":"B02","name":"runtime-bundle-staging"},{"id":"B03","name":"cloud-control-plane"},{"id":"B04","name":"topology-placement"},{"id":"B05","name":"process-startup-identity"},{"id":"B06","name":"bootstrap-refresh-heartbeat"},{"id":"B07","name":"readiness-leases-backpressure"},{"id":"B08","name":"baseline-routing"},{"id":"B09","name":"restart-injection"},{"id":"B10","name":"post-restart-routing"},{"id":"B11","name":"healing-convergence-recovery"},{"id":"B12","name":"durable-writes-retention"},{"id":"B13","name":"adversarial-partition-collision"},{"id":"B14","name":"safety-security-negative"},{"id":"B15","name":"resources-telemetry-evidence"},{"id":"B16","name":"cleanup-terminal-assembly"}
     ],
     "sSeriesExtensions": [
       {"id":"B17","name":"provider-access-quota","acceptance":"all seven required provider families ready; blocked_access/missing quota/missing deployment is RED; no substitution"},
@@ -52,12 +55,28 @@
     ]
   },
   "providerFamilies": ["GPT","Gemini","Grok","DeepSeek","Llama","Mistral","Kimi"],
-  "campaignRule": "A paid S-Series campaign may start exactly once only after a clean fail-collect Swarm and 22/22 GREEN Blockwise admission for the same exact public/private source pair, followed by a fresh collision/capacity check.",
+  "admissionAlgorithm": [
+    "freeze public/private candidate pair and BASE_SHA pair before expensive qualification",
+    "retain expensive qualification evidence for that frozen candidate pair",
+    "when either main moves, compare BASE_SHA to current main and map changed paths to S-sensitive blocks",
+    "recalculate per-block fingerprints on the integration candidate immediately before merge/admission",
+    "reuse frozen candidate evidence for unchanged blocks",
+    "run only affected zero-paid/targeted block qualification for changed sensitive blocks",
+    "require a new live S successor only when targeted qualification cannot establish compatibility or a changed block explicitly requires live proof",
+    "re-read both mains immediately before merge/campaign and rerun only the cheap admission analysis if the admission snapshot moved"
+  ],
+  "campaignRule": "A paid S-Series campaign may start exactly once only from a frozen candidate pair with accepted expensive evidence plus a GREEN admission-to-current-main manifest, targeted requalification for every changed S-sensitive block, and a fresh collision/capacity check. Current main need not equal the frozen candidate SHA pair.",
   "forbidden": [
     "provider substitution under the seven-vendor gate",
     "campaign dispatch from stale admission evidence",
     "reuse of D-Series launcher or evidence namespaces",
     "rerun of immutable historical S attempts",
-    "weakening acceptance to obtain GREEN"
+    "weakening acceptance to obtain GREEN",
+    "automatic full S rerun solely because main moved",
+    "discarding frozen candidate evidence because unrelated main changed",
+    "merge or campaign authorization based only on an old GREEN branch SHA",
+    "skipping BASE_SHA to current-main impact analysis",
+    "skipping integration-candidate fingerprint recalculation",
+    "treating admission snapshot movement as invalidation of frozen candidate evidence"
   ]
 }

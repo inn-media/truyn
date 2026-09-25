@@ -2,40 +2,49 @@
 
 Status: **architecture contract**
 
-Swarm-Blockwise is a campaign launch/qualification discipline. It is **not** a TRUYN network runtime, routing mode, provider runtime, or replacement for the S-Series benchmark contract.
+Swarm-Blockwise is a campaign qualification/admission discipline. It is **not** a TRUYN network runtime, routing mode, provider runtime, or replacement for the S-Series benchmark contract.
 
 ## Why S-Series uses it
 
-S-Series consumes real inference from the fixed seven-provider set: GPT, Gemini, Grok, DeepSeek, Llama, Mistral and Kimi. A transport or lifecycle defect discovered only after a full S campaign therefore costs materially more than the same defect discovered in a no-inference Class-D diagnostic run.
+S-Series consumes real inference from the fixed seven-provider set: GPT, Gemini, Grok, DeepSeek, Llama, Mistral and Kimi. Expensive diagnostics therefore bind to a frozen candidate so unrelated movement of `main` does not force repeated paid qualification.
 
-The S-50 WebSocket heartbeat/backpressure failure class is representative: persistent provider sockets, heartbeat closure, `1013 socket_backpressure`, reconnect and exactly-once reconciliation are admission concerns and must be exercised before a paid campaign.
+The S-50 WebSocket heartbeat/backpressure failure class is representative: persistent provider sockets, heartbeat closure, `1013 socket_backpressure`, reconnect and exactly-once reconciliation are qualification concerns and must be exercised before a paid campaign.
 
 ## Required sequence
 
 ```text
-exact public source SHA + exact private execution SHA
+frozen public/private candidate + BASE_SHA pair
                     |
                     v
           S-Series diagnostic Swarm
              fail-collect DAG
                     |
-              all diagnostics
-                    |
                     v
-       S-Series Blockwise admission
+       frozen-candidate Blockwise
               B01 ... B22
                     |
               22/22 GREEN
                     |
-        re-read exact source pair
+                    v
+            Admission to Main
+ BASE_SHA -> current-main impact analysis
+ integration fingerprints + targeted blocks
+                    |
+        targeted compatibility GREEN
                     |
      fresh collision/capacity check
+                    |
+       re-read admission snapshot
                     |
                     v
           ONE paid S campaign
 ```
 
-A RED block is localized and repaired without weakening acceptance. The affected blocks and aggregate are then requalified on the new exact source pair. Stale admission evidence never authorizes a campaign.
+A RED block is localized and repaired without weakening acceptance. Frozen candidate evidence is immutable and reusable for unaffected blocks.
+
+**Main movement alone does not invalidate the frozen candidate.** It makes the current admission snapshot potentially stale and triggers a new Admission-to-Main analysis. Only S-sensitive blocks whose integration fingerprints changed receive targeted block qualification.
+
+An old GREEN branch SHA by itself can never authorize merge or launch. Current-main admission and a fresh collision/capacity check are mandatory.
 
 ## B01-B16: shared accepted network substrate
 
@@ -103,9 +112,21 @@ A paired direct-vs-TRUYN micro qualification must prove before the campaign:
 
 This gate is deliberately small: it validates that the economic mechanism still works without paying for a full S campaign merely to discover a broken context path.
 
+## Admission-to-Main rules
+
+Admission compares both frozen `BASE_SHA` values with the current public/private mains, maps changed paths to B01-B22, and recalculates fingerprints on the integration state.
+
+- unchanged block fingerprint: reuse frozen GREEN evidence;
+- changed block fingerprint: run only mapped zero-paid/local compatibility tests;
+- static proof insufficient: run a targeted micro-live gate for that block only;
+- targeted proof insufficient: require a new live successor candidate;
+- unrelated main movement: never triggers a full S rerun by itself.
+
+If either main moves after the admission analysis, **only the admission snapshot becomes stale**. The correct action is to rerun the cheap admission analysis, not to discard frozen Swarm/Blockwise evidence.
+
 ## Isolation
 
-S execution state belongs to the S namespace. In particular:
+S execution state belongs to the S namespace:
 
 ```text
 .github/s-series/...
@@ -114,10 +135,10 @@ S-Series artifact names
 S-Series run identities
 ```
 
-must not be replaced by D-Series launchers/namespaces. Reusable public network modules may be shared; launcher state and evidence may not.
+These must not be replaced by D-Series launchers/namespaces. Reusable public network modules may be shared; launcher state and evidence may not.
 
 ## Immutable campaign rule
 
-Historical S attempts remain immutable and are never reused as a cheap retry mechanism. A successor attempt receives a new attempt identity and is dispatchable only when the Swarm + Blockwise admission artifact proves the exact source pair and 22/22 GREEN.
+Historical S attempts remain immutable and are never reused as a cheap retry mechanism. A successor attempt receives a new attempt identity and is dispatchable only when frozen candidate evidence is GREEN, Admission-to-Main is GREEN for the current snapshot, every targeted block is GREEN, and collision/capacity is GREEN.
 
-After admission turns GREEN, both source heads and shared-resource/capacity state are checked again immediately before dispatch. Any material movement invalidates the admission and requires requalification.
+Immediately before dispatch both mains are read again. Movement after admission invalidates **only that admission snapshot** and requires a cheap admission refresh; it does not invalidate the frozen candidate evidence.
