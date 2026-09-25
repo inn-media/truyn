@@ -1,0 +1,127 @@
+name: D-Series Frozen Candidate Qualification
+
+on:
+  workflow_run:
+    workflows:
+      - D-Series Sanitation Swarm
+      - D-Series Blockwise Preflight
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Frozen candidate commit SHA
+        required: true
+        type: string
+      scale:
+        description: D-Series scale qualified by the evidence
+        required: true
+        default: all
+        type: choice
+        options: [all, d200, d500, d1000]
+      swarm_run_id:
+        description: Successful candidate-bound Sanitation Swarm run
+        required: true
+        type: string
+      blockwise_run_id:
+        description: Successful candidate-bound full B01-B16 Blockwise run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: d-series-frozen-candidate-${{ github.event.workflow_run.id || inputs.candidate_sha }}
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    name: freeze-candidate-evidence
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Resolve candidate and exact successful evidence
+        id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANUAL_CANDIDATE: ${{ inputs.candidate_sha }}
+          MANUAL_SCALE: ${{ inputs.scale }}
+          MANUAL_SWARM: ${{ inputs.swarm_run_id }}
+          MANUAL_BLOCKWISE: ${{ inputs.blockwise_run_id }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/verify-d-series-frozen-candidate-policy.mjs
+          candidate="$MANUAL_CANDIDATE"
+          scale="${MANUAL_SCALE:-all}"
+          swarm="$MANUAL_SWARM"
+          blockwise="$MANUAL_BLOCKWISE"
+
+          if [[ "$GITHUB_EVENT_NAME" == workflow_run ]]; then
+            trigger="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${TRIGGER_RUN_ID}")"
+            candidate="$(jq -r '.pull_requests[0].head.sha // .head_sha // empty' <<<"$trigger")"
+            [[ "$candidate" =~ ^[0-9a-f]{40}$ ]]
+            scale=all
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${candidate}&status=completed&per_page=100")"
+            swarm="$(jq -r --arg sha "$candidate" '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and ((.pull_requests[0].head.sha // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
+            blockwise="$(jq -r --arg sha "$candidate" '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and ((.pull_requests[0].head.sha // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
+          fi
+
+          [[ "$candidate" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$swarm" =~ ^[1-9][0-9]+$ ]]
+          [[ "$blockwise" =~ ^[1-9][0-9]+$ ]]
+          case "$scale" in all|d200|d500|d1000) ;; *) exit 2 ;; esac
+
+          swarm_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${swarm}")"
+          blockwise_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${blockwise}")"
+          jq -e --arg c "$candidate" '.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and ((.pull_requests[0].head.sha // .head_sha)==$c)' <<<"$swarm_json" >/dev/null
+          jq -e --arg c "$candidate" '.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and ((.pull_requests[0].head.sha // .head_sha)==$c)' <<<"$blockwise_json" >/dev/null
+
+          swarm_artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${swarm}/artifacts?per_page=100")"
+          blockwise_artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${blockwise}/artifacts?per_page=100")"
+          jq -e '[.artifacts[] | select(.expired==false and (.size_in_bytes//0)>0 and (.name|startswith("d-series-swarm-summary-")))] | length>=1' <<<"$swarm_artifacts" >/dev/null
+          jq -e '[.artifacts[] | select(.expired==false and (.size_in_bytes//0)>0 and (.name|startswith("d-series-blockwise-summary-")))] | length==1' <<<"$blockwise_artifacts" >/dev/null
+
+          git fetch --no-tags origin main
+          git fetch --no-tags origin "$candidate"
+          base="$(git merge-base "$candidate" origin/main)"
+          [[ "$base" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$base" "$candidate"
+
+          echo "candidate=$candidate" >>"$GITHUB_OUTPUT"
+          echo "base=$base" >>"$GITHUB_OUTPUT"
+          echo "scale=$scale" >>"$GITHUB_OUTPUT"
+          echo "swarm=$swarm" >>"$GITHUB_OUTPUT"
+          echo "blockwise=$blockwise" >>"$GITHUB_OUTPUT"
+
+      - name: Build automatic D qualification manifest
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/d-series-qualification-manifest.mjs qualification \
+            --base-sha '${{ steps.resolve.outputs.base }}' \
+            --candidate-sha '${{ steps.resolve.outputs.candidate }}' \
+            --scale '${{ steps.resolve.outputs.scale }}' \
+            --swarm-run-id '${{ steps.resolve.outputs.swarm }}' \
+            --blockwise-run-id '${{ steps.resolve.outputs.blockwise }}' \
+            --output d-series-qualification-manifest.json
+
+      - name: Upload immutable candidate qualification manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-qualification-manifest-${{ github.run_id }}
+          path: d-series-qualification-manifest.json
+          if-no-files-found: error
+          retention-days: 90
