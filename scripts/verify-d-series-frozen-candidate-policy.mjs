@@ -16,6 +16,7 @@ if (p.effectiveUntil !== 'ALL_D_SERIES_TESTS_COMPLETE') fail('lifetime_changed')
 if (p.model !== 'Frozen Candidate -> Branch Qualification -> Admission to Main') fail('model_changed');
 const required = [
   'expensiveQualificationBoundToFrozenCandidate',
+  'historicalEvidenceBoundToImmutableRunSha',
   'mainMovementNeverInvalidatesQualificationByItself',
   'admissionComparesBaseShaToCurrentMain',
   'noSensitiveMainDriftReusesExpensiveEvidence',
@@ -40,4 +41,4 @@ for (const s of p.surfaces) {
   for (const b of s.blocks) if (!/^B(0[1-9]|1[0-6])$/.test(b)) fail(`surface_${s.id}_block_invalid`);
   if (typeof s.liveRerunRequired !== 'boolean') fail(`surface_${s.id}_live_policy_missing`);
 }
-console.log('TRUYN_D_SERIES_FROZEN_CANDIDATE_POLICY=PASS model=frozen-candidate admission=mandatory main-movement=analysis-not-rerun');
+console.log('TRUYN_D_SERIES_FROZEN_CANDIDATE_POLICY=PASS model=frozen-candidate evidence-binding=immutable-run-sha admission=mandatory main-movement=analysis-not-rerun');
