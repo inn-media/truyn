@@ -5,11 +5,11 @@ on:
     branches:
       - 'automation/autorepair/**'
     paths:
-      - '.github/repairs/*.patch'
       - '.github/repairs/*.env'
 
 permissions:
-  contents: write
+  contents: read
+  actions: write
 
 concurrency:
   group: autonomous-repair-${{ github.ref }}
@@ -18,60 +18,70 @@ concurrency:
 jobs:
   repair:
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB || github.token }}
+      CANDIDATE_SHA: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
+      CANDIDATE_REF: fix/d500-time-budget
+      SCALE: d500
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          persist-credentials: true
-          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+          fetch-depth: 1
+          persist-credentials: false
 
-      - name: Validate repair request
+      - name: Validate isolated control request and candidate
         shell: bash
         run: |
           set -Eeuo pipefail
-          shopt -s nullglob
-          patches=(.github/repairs/*.patch)
-          envs=(.github/repairs/*.env)
-          [[ ${#patches[@]} == 1 && ${#envs[@]} == 1 ]]
-          source "${envs[0]}"
-          [[ "${TASK_ID:-}" =~ ^[A-Za-z0-9._-]+$ ]]
-          [[ "${BASE_SHA:-}" =~ ^[0-9a-f]{40}$ ]]
-          [[ "${EXPECTED_PATHS:-}" != '' ]]
-          git fetch origin main --quiet
-          [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
-          [[ "$(git merge-base HEAD "$BASE_SHA")" == "$BASE_SHA" ]]
-          git apply --check "${patches[0]}"
+          [[ "$GITHUB_REF_NAME" == automation/autorepair/d500-direct-qualification-control ]]
+          [[ -s .github/repairs/d500-direct-qualification.env ]]
+          diff -u <(printf 'TASK_ID=d500-direct-qualification-9d998ab5\nCANDIDATE_SHA=%s\n' "$CANDIDATE_SHA") .github/repairs/d500-direct-qualification.env
+          actual="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${CANDIDATE_REF}" --jq .sha)"
+          [[ "$actual" == "$CANDIDATE_SHA" ]]
+          echo "TRUYN_D500_DIRECT_CONTROL_CANDIDATE=PASS sha=$actual"
 
-      - name: Apply exact patch fail closed
+      - name: Dispatch and require canonical direct Swarm
+        id: swarm
         shell: bash
         run: |
           set -Eeuo pipefail
-          env_file=(.github/repairs/*.env); patch_file=(.github/repairs/*.patch)
-          source "${env_file[0]}"
-          git apply "${patch_file[0]}"
-          git diff --check
-          mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' | sort)
-          mapfile -t expected < <(printf '%s\n' $EXPECTED_PATHS | sort)
-          [[ "${changed[*]}" == "${expected[*]}" ]]
-          [[ ${#changed[@]} -gt 0 ]]
+          existing="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .head_sha=="'"$CANDIDATE_SHA"'")] | sort_by(.created_at) | last | .id // empty')"
+          [[ -z "$existing" ]] || { echo "duplicate direct Swarm exists: $existing" >&2; exit 20; }
+          since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run d200-bug-hunt.yml --repo "$GITHUB_REPOSITORY" --ref "$CANDIDATE_REF" -f source_sha="$CANDIDATE_SHA" -f scale="$SCALE" -f resume_across_sha=false
+          run_id=''
+          for _ in $(seq 1 60); do
+            run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .head_sha=="'"$CANDIDATE_SHA"'" and .created_at>="'"$since"'")] | sort_by(.created_at) | last | .id // empty')"
+            [[ -n "$run_id" ]] && break
+            sleep 5
+          done
+          [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 10
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" | jq -e --arg c "$CANDIDATE_SHA" '.name=="D-Series Sanitation Swarm" and .head_sha==$c and .event=="workflow_dispatch" and .status=="completed" and .conclusion=="success" and .run_attempt==1' >/dev/null
+          echo "TRUYN_D500_DIRECT_SWARM=PASS run_id=$run_id candidate=$CANDIDATE_SHA"
 
-      - name: Run required repair checks
+      - name: Dispatch and require canonical direct full Blockwise
+        id: blockwise
         shell: bash
+        env:
+          SWARM_RUN_ID: ${{ steps.swarm.outputs.run_id }}
         run: |
           set -Eeuo pipefail
-          env_file=(.github/repairs/*.env); source "${env_file[0]}"
-          if [[ -n "${CHECK_COMMAND:-}" ]]; then bash -lc "$CHECK_COMMAND"; fi
-          git diff --check
-
-      - name: Commit exact repaired files
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          env_file=(.github/repairs/*.env); source "${env_file[0]}"
-          git config user.name 'Iluco Mutcnas'
-          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
-          git add -- $EXPECTED_PATHS
-          git diff --cached --quiet && { echo 'repair produced no staged changes' >&2; exit 1; }
-          git commit -s -m "fix(autopilot): ${TASK_ID} guarded repair"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          [[ "$SWARM_RUN_ID" =~ ^[1-9][0-9]+$ ]]
+          existing="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .head_sha=="'"$CANDIDATE_SHA"'")] | sort_by(.created_at) | last | .id // empty')"
+          [[ -z "$existing" ]] || { echo "duplicate direct Blockwise exists: $existing" >&2; exit 21; }
+          since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run d-series-blockwise-preflight.yml --repo "$GITHUB_REPOSITORY" --ref "$CANDIDATE_REF" -f source_sha="$CANDIDATE_SHA" -f scale="$SCALE" -f block=all -f swarm_run_id="$SWARM_RUN_ID"
+          run_id=''
+          for _ in $(seq 1 60); do
+            run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .head_sha=="'"$CANDIDATE_SHA"'" and .created_at>="'"$since"'")] | sort_by(.created_at) | last | .id // empty')"
+            [[ -n "$run_id" ]] && break
+            sleep 5
+          done
+          [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 10
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" | jq -e --arg c "$CANDIDATE_SHA" '.name=="D-Series Blockwise Preflight" and .head_sha==$c and .event=="workflow_dispatch" and .status=="completed" and .conclusion=="success" and .run_attempt==1' >/dev/null
+          echo "TRUYN_D500_DIRECT_BLOCKWISE=PASS run_id=$run_id swarm_run_id=$SWARM_RUN_ID candidate=$CANDIDATE_SHA"
