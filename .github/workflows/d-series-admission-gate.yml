@@ -109,10 +109,10 @@ jobs:
         shell: bash
         env:
           TRUYN_CLASS_D_SOURCE_SHA: ${{ steps.plan.outputs.integration_tree }}
+          ADMISSION_SCALE: ${{ steps.plan.outputs.scale }}
         run: |
           set -Eeuo pipefail
-          scale='${{ steps.plan.outputs.scale }}'
-          case "$scale" in all) local_scale=all ;; d200) local_scale=200 ;; d500) local_scale=500 ;; d1000) local_scale=1000 ;; *) exit 2 ;; esac
+          case "$ADMISSION_SCALE" in all) local_scale=all ;; d200) local_scale=200 ;; d500) local_scale=500 ;; d1000) local_scale=1000 ;; *) exit 2 ;; esac
           mapfile -t blocks < <(jq -r '.decision.targetedBlocks[]?' d-series-admission-manifest.json)
           for block in "${blocks[@]}"; do
             node scripts/d-series-block-runner.mjs "$block" --scale "$local_scale" --result "admission-${block}.json"
@@ -123,21 +123,27 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          ADMISSION_CURRENT_MAIN_SHA: ${{ steps.plan.outputs.current_main }}
+          ADMISSION_CANDIDATE_SHA: ${{ steps.plan.outputs.candidate }}
+          ADMISSION_INTEGRATION_TREE_SHA: ${{ steps.plan.outputs.integration_tree }}
         run: |
           set -Eeuo pipefail
+          [[ "$ADMISSION_CURRENT_MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$ADMISSION_CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$ADMISSION_INTEGRATION_TREE_SHA" =~ ^[0-9a-f]{40}$ ]]
           jq -e '.decision.automaticFullRerunForbidden==true' d-series-admission-manifest.json >/dev/null
           if [[ "$(jq -r .decision.liveRerunRequired d-series-admission-manifest.json)" == true ]]; then
             echo 'TRUYN_D_SERIES_ADMISSION=FAIL reason=live_requalification_required' >&2
             exit 21
           fi
           fresh_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-          [[ "$fresh_main" == '${{ steps.plan.outputs.current_main }}' ]] || {
+          [[ "$fresh_main" == "$ADMISSION_CURRENT_MAIN_SHA" ]] || {
             echo "TRUYN_D_SERIES_ADMISSION=FAIL reason=main_moved_during_admission" >&2
             exit 22
           }
           jq '.decision.status="PASS_COMPATIBLE" | .decision.admissionPassed=true' d-series-admission-manifest.json > d-series-admission-manifest.final.json
           mv d-series-admission-manifest.final.json d-series-admission-manifest.json
-          echo "TRUYN_D_SERIES_ADMISSION=PASS candidate=${{ steps.plan.outputs.candidate }} current_main=$fresh_main integration_tree=${{ steps.plan.outputs.integration_tree }}"
+          echo "TRUYN_D_SERIES_ADMISSION=PASS candidate=$ADMISSION_CANDIDATE_SHA current_main=$fresh_main integration_tree=$ADMISSION_INTEGRATION_TREE_SHA"
 
       - name: Upload admission manifest
         if: always()
