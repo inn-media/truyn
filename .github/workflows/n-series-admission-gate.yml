@@ -61,23 +61,17 @@ jobs:
           set -Eeuo pipefail
           q=qualification/n-series-qualification-manifest.json
           [[ -s "$q" ]]
-          node scripts/verify-n-series-frozen-candidate-policy.mjs
           candidate="$(jq -r .candidateSha "$q")"
-          base="$(jq -r .baseSha "$q")"
           current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
           git fetch --no-tags origin "$candidate" "$current_main"
           git checkout --detach "$current_main"
           git config user.name 'TRUYN N-Series Admission'
           git config user.email 'actions@users.noreply.github.com'
           git merge --no-ff --no-commit "$candidate"
+          node scripts/verify-n-series-frozen-candidate-policy.mjs
           integration_tree="$(git write-tree)"
-          node scripts/n-series-qualification-manifest.mjs admission \
-            --qualification-manifest "$q" \
-            --current-main-sha "$current_main" \
-            --integration-ref "$integration_tree" \
-            --output n-series-admission-manifest.json
+          node scripts/n-series-qualification-manifest.mjs admission --qualification-manifest "$q" --current-main-sha "$current_main" --integration-ref "$integration_tree" --output n-series-admission-manifest.json
           echo "current_main=$current_main" >> "$GITHUB_OUTPUT"
-          echo "integration_tree=$integration_tree" >> "$GITHUB_OUTPUT"
       - name: Mandatory small final Admission Gate
         run: |
           set -Eeuo pipefail
@@ -88,16 +82,8 @@ jobs:
       - name: Selectively requalify affected N blocks
         run: |
           set -Eeuo pipefail
-          mapfile -t blocks < <(jq -r '.decision.targetedBlocks[]?' n-series-admission-manifest.json)
-          for block in "${blocks[@]}"; do
-            echo "N_ADMISSION_TARGETED_BLOCK=$block"
-          done
-          # N harnesses are introduced by N1-N5. Until a block runner exists, any
-          # N-sensitive drift is fail-closed rather than silently accepted.
-          if (( ${#blocks[@]} > 0 )); then
-            echo 'TRUYN_N_ADMISSION=WAITING_TARGETED_BLOCK_RUNNER'
-            exit 1
-          fi
+          node scripts/n-series-selective-block-runner.mjs --manifest n-series-admission-manifest.json
+          jq -e '.allGreen == true' n-series-selective-block-results.json >/dev/null
       - name: Verify admission still targets current main
         env:
           GH_TOKEN: ${{ github.token }}
@@ -108,7 +94,9 @@ jobs:
           jq -e '.decision.automaticFullRerun == false and .decision.finalAdmissionGateRequired == true' n-series-admission-manifest.json >/dev/null
       - uses: actions/upload-artifact@v4
         with:
-          name: n-series-admission-manifest-${{ github.run_id }}
-          path: n-series-admission-manifest.json
+          name: n-series-admission-evidence-${{ github.run_id }}
+          path: |
+            n-series-admission-manifest.json
+            n-series-selective-block-results.json
           if-no-files-found: error
           retention-days: 90
