@@ -1,8 +1,8 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot:** 2026-09-23  
-**Snapshot main:** `eb25f0f8ad5bedb643f007ddfb0da107dab44b89`  
+**Snapshot:** 2026-09-25  
+**Snapshot public main before this sanitation:** `c22b19d5841579a0e25493a36fe1b0b9fca70f19`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
@@ -28,7 +28,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Class D-500 | **ACTIVE QUALIFICATION / OPEN** | full Swarm → B01–B16 admission → live/collision gates → one real terminal PASS |
 | Class D-1000 | **OPEN** | distinct qualified D-1000 acceptance campaign |
 | D-Series execution architecture | **Swarm-Blockwise lock active** | preserve through remaining D-Series work |
-| Semantic Scale S-Series | **EXECUTED / DIAGNOSTIC; NO S PASS ACCEPTED** | repair current S-50 WebSocket scale defect, requalify exact head, then fresh single-shot S-50 |
+| Semantic Scale S-Series | **Frozen-Candidate + Swarm-Blockwise architecture implemented; B01–B22 qualified; NO S PASS ACCEPTED** | immutable-public-contract private Admission GREEN → fresh collision/duplicate guards → one S-50 successor |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
 | Emergent Network N-Series | **FOUNDATION DEFINED / NOT YET EXECUTED** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
@@ -53,7 +53,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Go alpha | **Accepted immutable public release** | — |
 | npm alpha.1 | **Immutable historical artifact; clean-room Node 22 ESM failed** | superseded, never overwritten |
 | npm alpha.2 | **Accepted immutable public release** | — |
-| Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.1`** |
+| Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.1`** | — |
 | NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** | — |
 | Agent Descriptor | **Bounded valid-profile implemented** | endpoint/interface parity + refresh/re-sign + full serving parity |
 | Open 1.0 productization | **S01–S102 completed; S103 active on task branch; not yet stable 1.0** | S103 qualification → remaining S104–S200 → final G1–G34 reconciliation |
@@ -75,15 +75,37 @@ Canonical live operational status: `../operations/NETWORK_SCALE_STATUS.md`.
 
 ## Semantic Scale S-Series boundary
 
-The previous wording **“DEFINED / NOT YET EXECUTED” is no longer factual**.
+The previous wording **“DEFINED / NOT YET EXECUTED” and the Attempt-13/#726-as-current-repair description are obsolete**.
 
-S-Series has been exercised at S-50 and has produced immutable diagnostic/failure evidence. The current durable public diagnostic anchor is issue #726: S-50 Attempt 13 failed after setup gates with `fast_socket_closed` in the real 50-actor benchmark. The public repair scope is intentionally bounded to generic relay/client WebSocket heartbeat/backpressure telemetry, 50-socket scale stability and safe reconnect/reconciliation semantics. Current `main` includes the corresponding WebSocket scale diagnostic/regression work.
+S-Series has been exercised at S-50 and has immutable diagnostic/failure history through Attempt 15. The bounded WebSocket `fast_socket_closed`/heartbeat/backpressure/reconnect repair associated with Attempt 13 is no longer the current blocker; its old repair tracker has been closed after regression qualification. Attempt 14 (`35913581603`) and Attempt 15 (`35948814208`) are terminal FAILURE and immutable `NEVER_RERUN` evidence.
 
-This is **not an accepted S-50 result**. No S-50/S-100/S-200/S-500 PASS is claimed until a fresh exact-qualified run satisfies the fixed S-Series contract and durable evidence is reconciled.
+The current S qualification architecture is:
 
-Canonical architecture: `SEMANTIC_SCALE_S_SERIES.md`.  
-Benchmark contract: `../benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md`.  
-Execution/telemetry: `../operations/S_SERIES_EXECUTION_AND_TELEMETRY.md`.
+`Frozen Candidate → Swarm fail-collect → B01–B22 Blockwise evidence → Admission to integration state → targeted zero-paid requalification only for changed S-sensitive blocks → fresh collision/capacity/duplicate-history gate → exactly one live campaign`.
+
+Permanent rules:
+
+- expensive S evidence binds to the frozen candidate, not moving `main`;
+- unrelated `main` movement does not invalidate frozen evidence and does not trigger an automatic full rerun;
+- old GREEN candidate SHA alone never authorizes a merge or paid campaign;
+- private S automation consumes public S authority through an immutable contract manifest/pin, not mutable public source checkout;
+- a public S contract revision requires explicit manifest/pin update and qualification decision;
+- historical attempts remain append-only and acceptance thresholds are never weakened.
+
+The latest old Blockwise Admission run `36114076355` had B01–B22 individually GREEN; its terminal aggregate failure was in public-source materialization/control-plane handling, not a B01–B22 product regression. That mutable public-source dependency is superseded by the immutable public-contract consumption model.
+
+There is still **no accepted S-50 result**. S-100, S-200 and S-500 likewise remain unaccepted and must each be executed separately; interpolation/extrapolation is not acceptance evidence.
+
+Canonical S documents:
+
+- `SEMANTIC_SCALE_S_SERIES.md`
+- `S_SERIES_OPEN_PRIVATE_BOUNDARY.md`
+- `../benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md`
+- `../benchmarks/S_SERIES_FROZEN_CANDIDATE_QUALIFICATION.md`
+- `../benchmarks/S_SERIES_SWARM_BLOCKWISE_ADMISSION.md`
+- `../operations/S_SERIES_EXECUTION_AND_TELEMETRY.md`
+- `../../config/s-series-swarm-blockwise-architecture-lock.json`
+- `../../config/s-series-public-contract-manifest.json`
 
 ## Efficiency E-Series boundary
 
@@ -136,4 +158,4 @@ For N-Series specifically, public owns reproducible methodology, public-safe tel
 
 Current-state documents must use the vocabulary **implemented / exercised / accepted / open** consistently. Historical benchmark/evidence documents are append-only and are not rewritten to make current status look cleaner. Security sanitation is **redact-not-delete** for evidence. Ephemeral active-run state belongs in task anchors/operational status, not copied into many architecture documents.
 
-Repository-wide sanitation record for this snapshot: `../operations/DOCUMENTATION_SANITATION_2026-09-23.md`.
+Repository-wide sanitation record for the 2026-09-23 baseline: `../operations/DOCUMENTATION_SANITATION_2026-09-23.md`.
