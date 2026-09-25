@@ -1,0 +1,195 @@
+name: D-Series Candidate Self-Admission
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/d-series-frozen-candidate-qualification.yml'
+      - '.github/workflows/d-series-admission-gate.yml'
+      - '.github/workflows/d-series-candidate-self-admission.yml'
+      - 'scripts/d-series-qualification-manifest.mjs'
+      - 'scripts/verify-d-series-frozen-candidate-policy.mjs'
+      - 'scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs'
+      - 'config/d-series-frozen-candidate-policy.json'
+      - 'config/d-series-swarm-blockwise-architecture-lock.json'
+      - 'tests/d-series-frozen-candidate-admission.test.js'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: d-series-candidate-self-admission-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: true
+
+jobs:
+  self-admission:
+    name: frozen-candidate-self-admission
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Wait for exact immutable Swarm and Blockwise evidence
+        id: evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          node scripts/verify-d-series-frozen-candidate-policy.mjs
+          node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
+          git fetch --no-tags origin main "$CANDIDATE_SHA"
+          base="$(git merge-base "$CANDIDATE_SHA" origin/main)"
+          [[ "$base" =~ ^[0-9a-f]{40}$ ]]
+
+          swarm=''
+          blockwise=''
+          for _ in $(seq 1 120); do
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${CANDIDATE_SHA}&event=pull_request&per_page=100")"
+            swarm="$(jq -r --arg sha "$CANDIDATE_SHA" '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$sha and ((.head_commit.id // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
+            blockwise="$(jq -r --arg sha "$CANDIDATE_SHA" '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$sha and ((.head_commit.id // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
+            if [[ "$swarm" =~ ^[1-9][0-9]+$ && "$blockwise" =~ ^[1-9][0-9]+$ ]]; then
+              break
+            fi
+            sleep 10
+          done
+          [[ "$swarm" =~ ^[1-9][0-9]+$ ]] || { echo 'TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=no_exact_green_swarm' >&2; exit 31; }
+          [[ "$blockwise" =~ ^[1-9][0-9]+$ ]] || { echo 'TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=no_exact_green_blockwise' >&2; exit 32; }
+
+          swarm_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${swarm}")"
+          blockwise_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${blockwise}")"
+          jq -e --arg c "$CANDIDATE_SHA" '.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$c and ((.head_commit.id // .head_sha)==$c)' <<<"$swarm_json" >/dev/null
+          jq -e --arg c "$CANDIDATE_SHA" '.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$c and ((.head_commit.id // .head_sha)==$c)' <<<"$blockwise_json" >/dev/null
+          swarm_artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${swarm}/artifacts?per_page=100")"
+          blockwise_artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${blockwise}/artifacts?per_page=100")"
+          jq -e '[.artifacts[] | select(.expired==false and (.size_in_bytes//0)>0 and (.name|startswith("d-series-swarm-summary-")))] | length>=1' <<<"$swarm_artifacts" >/dev/null
+          jq -e '[.artifacts[] | select(.expired==false and (.size_in_bytes//0)>0 and (.name|startswith("d-series-blockwise-summary-")))] | length==1' <<<"$blockwise_artifacts" >/dev/null
+
+          echo "base=$base" >>"$GITHUB_OUTPUT"
+          echo "swarm=$swarm" >>"$GITHUB_OUTPUT"
+          echo "blockwise=$blockwise" >>"$GITHUB_OUTPUT"
+
+      - name: Build candidate-owned qualification manifest
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ steps.evidence.outputs.base }}
+          SWARM_RUN_ID: ${{ steps.evidence.outputs.swarm }}
+          BLOCKWISE_RUN_ID: ${{ steps.evidence.outputs.blockwise }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/d-series-qualification-manifest.mjs qualification \
+            --base-sha "$BASE_SHA" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --scale all \
+            --swarm-run-id "$SWARM_RUN_ID" \
+            --blockwise-run-id "$BLOCKWISE_RUN_ID" \
+            --output d-series-qualification-manifest.json
+          jq -e --arg c "$CANDIDATE_SHA" --argjson s "$SWARM_RUN_ID" --argjson b "$BLOCKWISE_RUN_ID" \
+            '.candidateSha==$c and .evidence.sanitationSwarmRunId==$s and .evidence.blockwiseRunId==$b and .evidence.exactCandidate==true' \
+            d-series-qualification-manifest.json >/dev/null
+
+      - name: Build integrated state and recompute D fingerprints
+        id: plan
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ steps.evidence.outputs.base }}
+        run: |
+          set -Eeuo pipefail
+          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$current_main" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin "$current_main" "$CANDIDATE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" "$CANDIDATE_SHA"
+          git checkout --detach "$current_main"
+          git config user.name 'TRUYN D-Series Candidate Admission'
+          git config user.email 'actions@users.noreply.github.com'
+          git merge --no-ff --no-commit "$CANDIDATE_SHA"
+          integration_tree="$(git write-tree)"
+          [[ "$integration_tree" =~ ^[0-9a-f]{40}$ ]]
+          node scripts/d-series-qualification-manifest.mjs admission \
+            --qualification-manifest d-series-qualification-manifest.json \
+            --base-sha "$BASE_SHA" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --current-main-sha "$current_main" \
+            --integration-ref "$integration_tree" \
+            --scale all \
+            --output d-series-admission-manifest.json
+          echo "current_main=$current_main" >>"$GITHUB_OUTPUT"
+          echo "integration_tree=$integration_tree" >>"$GITHUB_OUTPUT"
+
+      - name: Run mandatory integrated admission checks
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          node scripts/verify-d-series-frozen-candidate-policy.mjs
+          node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
+          node --test tests/d-series-frozen-candidate-admission.test.js
+          git diff --check
+
+      - name: Requalify only D-sensitive blocks changed on main
+        shell: bash
+        env:
+          TRUYN_CLASS_D_SOURCE_SHA: ${{ steps.plan.outputs.integration_tree }}
+        run: |
+          set -Eeuo pipefail
+          mapfile -t blocks < <(jq -r '.decision.targetedBlocks[]?' d-series-admission-manifest.json)
+          for block in "${blocks[@]}"; do
+            node scripts/d-series-block-runner.mjs "$block" --scale all --result "self-admission-${block}.json"
+            jq -e '.status=="PASS"' "self-admission-${block}.json" >/dev/null
+          done
+
+      - name: Enforce no automatic full rerun and fresh main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+          ADMISSION_CURRENT_MAIN_SHA: ${{ steps.plan.outputs.current_main }}
+          ADMISSION_INTEGRATION_TREE_SHA: ${{ steps.plan.outputs.integration_tree }}
+        run: |
+          set -Eeuo pipefail
+          jq -e '.decision.automaticFullRerunForbidden==true' d-series-admission-manifest.json >/dev/null
+          if [[ "$(jq -r .decision.liveRerunRequired d-series-admission-manifest.json)" == true ]]; then
+            echo 'TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=live_requalification_required' >&2
+            exit 33
+          fi
+          fresh_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          [[ "$fresh_main" == "$ADMISSION_CURRENT_MAIN_SHA" ]] || {
+            echo 'TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=main_moved_during_admission' >&2
+            exit 34
+          }
+          jq '.decision.status="PASS_COMPATIBLE" | .decision.admissionPassed=true | .decision.candidateSideBootstrap=true' \
+            d-series-admission-manifest.json > d-series-admission-manifest.final.json
+          mv d-series-admission-manifest.final.json d-series-admission-manifest.json
+          echo "TRUYN_D_SERIES_SELF_ADMISSION=PASS candidate=$CANDIDATE_SHA current_main=$fresh_main integration_tree=$ADMISSION_INTEGRATION_TREE_SHA"
+
+      - name: Upload candidate qualification manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-self-qualification-manifest-${{ github.run_id }}
+          path: d-series-qualification-manifest.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload candidate admission manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-series-self-admission-manifest-${{ github.run_id }}
+          path: d-series-admission-manifest.json
+          if-no-files-found: error
+          retention-days: 90
