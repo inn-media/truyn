@@ -58,7 +58,7 @@ jobs:
           IFS=',' read -ra blocks <<< '${{ steps.drift.outputs.blocks }}'
           for b in "${blocks[@]}"; do
             [[ "$b" =~ ^N[1-7]$ ]] || exit 73
-            node scripts/n-series-selective-block-runner.mjs --blocks "$b" --json "$RUNNER_TEMP/$b.json"
+            node scripts/n-series-selective-block-runner.mjs --manifest "$RUNNER_TEMP/n-qualification.json" --blocks "$b" --json "$RUNNER_TEMP/$b.json"
             jq -e '.status=="GREEN" or .overall=="GREEN" or .passed==true' "$RUNNER_TEMP/$b.json" >/dev/null
           done
       - name: Mandatory final combined-state Admission Gate
