@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       source_sha:
-        description: Exact main SHA to qualify
+        description: Exact frozen candidate SHA to qualify
         required: true
         type: string
       scale:
@@ -27,7 +27,7 @@ on:
   workflow_call:
     inputs:
       source_sha:
-        description: Exact current main SHA to qualify
+        description: Exact frozen candidate SHA to qualify
         required: true
         type: string
       scale:
@@ -69,17 +69,11 @@ jobs:
       - name: Validate exact source
         shell: bash
         env:
-          EVENT: ${{ github.event_name }}
           EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
-          if [[ "$EVENT" != pull_request ]]; then
-            main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-            [[ "$main_sha" == "$EXPECTED_SHA" ]]
-          fi
 
       - name: Require clean Swarm before full admission
         if: github.event_name != 'pull_request' && inputs.block == 'all'
@@ -135,17 +129,11 @@ jobs:
         if: steps.selection.outputs.selected == 'true'
         shell: bash
         env:
-          EVENT: ${{ github.event_name }}
           EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
-          if [[ "$EVENT" != pull_request ]]; then
-            main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-            [[ "$main_sha" == "$EXPECTED_SHA" ]]
-          fi
           npm install --ignore-scripts --no-audit --no-fund
 
       - name: Run complete block cycle and retain all failures

@@ -19,8 +19,8 @@ legacy_admission=false
 if jq -e --arg source "$SOURCE_SHA" '
   .name == "D-Series Blockwise Preflight" and
   .path == ".github/workflows/d-series-blockwise-preflight.yml" and
-  .head_branch == "main" and
   .head_sha == $source and
+  ((.head_commit.id // .head_sha) == $source) and
   .event == "workflow_dispatch" and
   .status == "completed" and
   .conclusion == "success" and
@@ -31,7 +31,8 @@ if jq -e --arg source "$SOURCE_SHA" '
 elif jq -e --arg source "$SOURCE_SHA" '
   .name == "D-Series Blockwise Preflight" and
   .path == ".github/workflows/d-series-blockwise-preflight.yml" and
-  ((.pull_requests[0].head.sha // .head_sha) == $source) and
+  .head_sha == $source and
+  ((.head_commit.id // .head_sha) == $source) and
   .event == "pull_request" and
   .status == "completed" and
   .conclusion == "success" and
@@ -62,7 +63,7 @@ else
 
   commit="$(gh api "repos/${REPOSITORY}/commits/${head_sha}")"
   jq -e --arg source "$SOURCE_SHA" '(.parents | length) == 1 and .parents[0].sha == $source' <<<"$commit" >/dev/null || {
-    echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=caller_parent_not_exact_main run_id=$RUN_ID source_sha=$SOURCE_SHA head_sha=$head_sha" >&2
+    echo "TRUYN_D_SERIES_BLOCKWISE_GATE=FAIL reason=caller_parent_not_source run_id=$RUN_ID source_sha=$SOURCE_SHA head_sha=$head_sha" >&2
     exit 5
   }
 

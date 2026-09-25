@@ -41,7 +41,7 @@ test('blockwise workflow runs all blocks in parallel without fail-fast and suppo
   assert.match(workflow, /Run complete block cycle and retain all failures/);
   assert.match(workflow, /--scope targeted --selected-block/);
   assert.match(workflow, /--scope full --enforce/);
-  assert.match(workflow, /main_sha.*EXPECTED_SHA/s);
+  assert.doesNotMatch(workflow, /commits\/main/, 'candidate qualification must not require current main equality');
 });
 
 test('block runners retain failures while the aggregate alone fails closed', () => {
@@ -52,7 +52,7 @@ test('block runners retain failures while the aggregate alone fails closed', () 
   assert.match(aggregate, /if \(enforce && !clean\) process\.exitCode = 1/);
 });
 
-test('canonical Blockwise caller is transport-only and preserves exact-main plus Swarm provenance', () => {
+test('canonical Blockwise caller is transport-only and preserves frozen-candidate plus Swarm provenance', () => {
   for (const marker of [
     'name: D-Series Blockwise One-Shot Launcher',
     "- 'automation/d-series-blockwise/**'",
@@ -69,16 +69,18 @@ test('canonical Blockwise caller is transport-only and preserves exact-main plus
   assert.doesNotMatch(launcher, /class-d-1000-final-acceptance/);
   assert.doesNotMatch(launcher, /class-d-bootstrap-qualification\.yml/);
   assert.doesNotMatch(launcher, /d-series-block-runner\.mjs/);
+  assert.doesNotMatch(launcher, /commits\/main/);
+  assert.doesNotMatch(launcher, /main_sha/);
 });
 
-test('full launch gate accepts only exact-main successful admission with fail-closed Swarm provenance', () => {
+test('full launch gate accepts immutable frozen-candidate evidence with fail-closed Swarm provenance', () => {
   assert.match(verifier, /D-Series Blockwise Preflight/);
-  assert.match(verifier, /\.head_branch == "main"/);
   assert.match(verifier, /\.head_sha == \$source/);
+  assert.match(verifier, /\.head_commit\.id \/\/ \.head_sha/);
   assert.match(verifier, /\.event == "workflow_dispatch"/);
   assert.match(verifier, /D-Series Blockwise One-Shot Launcher/);
   assert.match(verifier, /automation\/d-series-blockwise\//);
-  assert.match(verifier, /caller_parent_not_exact_main/);
+  assert.match(verifier, /caller_parent_not_source/);
   assert.match(verifier, /caller_delta_not_single_request/);
   assert.match(verifier, /caller_request_mismatch/);
   assert.match(verifier, /verify-d-series-swarm-run\.sh/);
@@ -89,6 +91,8 @@ test('full launch gate accepts only exact-main successful admission with fail-cl
   assert.match(verifier, /blocks=16\/16/);
   assert.match(verifier, /swarm_provenance=true/);
   assert.match(verifier, /provenance=\$provenance/);
+  assert.doesNotMatch(verifier, /pull_requests\[0\]\.head\.sha/, 'historical evidence must never trust mutable embedded PR metadata');
+  assert.doesNotMatch(verifier, /\.head_branch == "main"/, 'frozen evidence must survive unrelated main movement');
 });
 
 test('future D-500 and live D-1000 entrypoints enforce the exact blockwise preflight', () => {
