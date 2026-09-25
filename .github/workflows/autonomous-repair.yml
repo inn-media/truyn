@@ -27,12 +27,10 @@ jobs:
           token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
 
       - name: Validate repair request metadata
-        shell: bash
         run: |
           set -Eeuo pipefail
           shopt -s nullglob
-          patches=(.github/repairs/*.patch)
-          envs=(.github/repairs/*.env)
+          patches=(.github/repairs/*.patch); envs=(.github/repairs/*.env)
           [[ ${#patches[@]} == 1 && ${#envs[@]} == 1 ]]
           source "${envs[0]}"
           [[ "${TASK_ID:-}" =~ ^[A-Za-z0-9._-]+$ ]]
@@ -40,7 +38,6 @@ jobs:
           [[ "${EXPECTED_PATHS:-}" != '' ]]
 
       - name: Validate exact repair base
-        shell: bash
         run: |
           set -Eeuo pipefail
           envs=(.github/repairs/*.env); source "${envs[0]}"
@@ -48,44 +45,12 @@ jobs:
           [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
           [[ "$(git merge-base HEAD "$BASE_SHA")" == "$BASE_SHA" ]]
 
-      - name: Patch check d200-bug-hunt
-        if: always()
-        run: git apply --recount --check --include='.github/workflows/d200-bug-hunt.yml' .github/repairs/*.patch
-      - name: Patch check blockwise workflow
-        if: always()
-        run: git apply --recount --check --include='.github/workflows/d-series-blockwise-preflight.yml' .github/repairs/*.patch
-      - name: Patch check swarm launcher
-        if: always()
-        run: git apply --recount --check --include='.github/workflows/d-series-swarm-one-shot-launcher.yml' .github/repairs/*.patch
-      - name: Patch check blockwise launcher
-        if: always()
-        run: git apply --recount --check --include='.github/workflows/d-series-blockwise-one-shot-launcher.yml' .github/repairs/*.patch
-      - name: Patch check swarm verifier
-        if: always()
-        run: git apply --recount --check --include='scripts/verify-d-series-swarm-run.sh' .github/repairs/*.patch
-      - name: Patch check blockwise verifier
-        if: always()
-        run: git apply --recount --check --include='scripts/verify-d-series-blockwise-preflight-run.sh' .github/repairs/*.patch
-      - name: Patch check swarm tests
-        if: always()
-        run: git apply --recount --check --include='tests/d-series-swarm-integration.test.js' .github/repairs/*.patch
-      - name: Patch check blockwise tests
-        if: always()
-        run: git apply --recount --check --include='tests/d-series-blockwise-preflight.test.js' .github/repairs/*.patch
-      - name: Patch check swarm docs
-        if: always()
-        run: git apply --recount --check --include='docs/operations/class-d/D_SERIES_SANITATION_SWARM.md' .github/repairs/*.patch
-      - name: Patch check network status
-        if: always()
-        run: git apply --recount --check --include='docs/operations/NETWORK_SCALE_STATUS.md' .github/repairs/*.patch
-
       - name: Apply exact patch fail closed
-        if: success()
-        shell: bash
         run: |
           set -Eeuo pipefail
           env_file=(.github/repairs/*.env); patch_file=(.github/repairs/*.patch)
           source "${env_file[0]}"
+          git apply --recount --check "${patch_file[0]}"
           git apply --recount "${patch_file[0]}"
           git diff --check
           mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' ':!.github/workflows/autonomous-repair.yml' | sort)
@@ -93,18 +58,27 @@ jobs:
           [[ "${changed[*]}" == "${expected[*]}" ]]
           [[ ${#changed[@]} -gt 0 ]]
 
-      - name: Run required repair checks
-        if: success()
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          env_file=(.github/repairs/*.env); source "${env_file[0]}"
-          if [[ -n "${CHECK_COMMAND:-}" ]]; then bash -lc "$CHECK_COMMAND"; fi
-          git diff --check
+      - name: Check frozen-candidate admission regressions
+        if: always()
+        run: node --test tests/d-series-frozen-candidate-admission.test.js
+      - name: Check Swarm integration regressions
+        if: always()
+        run: node --test tests/d-series-swarm-integration.test.js
+      - name: Check Blockwise regressions
+        if: always()
+        run: node --test tests/d-series-blockwise-preflight.test.js
+      - name: Check Frozen Candidate policy lock
+        if: always()
+        run: node scripts/verify-d-series-frozen-candidate-policy.mjs
+      - name: Check Swarm Blockwise architecture lock
+        if: always()
+        run: node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
+      - name: Check verifier shell syntax
+        if: always()
+        run: bash -n scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh
 
       - name: Commit exact repaired files
         if: success()
-        shell: bash
         run: |
           set -Eeuo pipefail
           env_file=(.github/repairs/*.env); source "${env_file[0]}"
