@@ -1,6 +1,6 @@
 {
   "taskId": "truyn-d500-acceptance-repair-8f3c2a",
-  "state": "GREEN",
+  "state": "RED",
   "currentSprint": "S02",
   "lastCompletedSprint": "S01",
   "taskBranch": "automation/d500-acceptance-repair-8f3c2a",
@@ -22,18 +22,34 @@
     "cleanup": "PASS",
     "artifactUpload": "PASS",
     "terminalMarker": "FAILURE",
-    "unrelatedMainMovementInvalidatesCandidate": false
+    "unrelatedMainMovementInvalidatesCandidate": false,
+    "selfRepairRun36160992242": "FAILURE_CLASS_D_REGRESSION_SET",
+    "selfRepairTargetedAttempt11Regressions": "PASS",
+    "selfRepairBranch": "task/truyn-d500-acceptance-repair-8f3c2a",
+    "selfRepairBranchAuthorizedForTask": false
   },
   "repairScope": [
     "host-5/node-2 liveness failure",
     "hosts-6/13 Azure VM Agent/Run Command timeout-conflict failure"
   ],
+  "diagnosticCheckpoint": {
+    "runId": 36160992242,
+    "runAttempt": 1,
+    "headSha": "3658b6b84ff7d519ace7995feb33e1288927ca28",
+    "targetedRegressionStep": "GREEN",
+    "classDRegressionStep": "RED",
+    "affectedBlockwise": "NOT_RUN",
+    "candidateCreated": false,
+    "realSuccessorLaunch": false,
+    "note": "Existing guarded self-repair executed on task/truyn-d500-acceptance-repair-8f3c2a, not the capsule-authorized automation/d500-acceptance-repair-8f3c2a branch. Its result is diagnostic evidence only and cannot authorize candidate/qualification/launch."
+  },
   "next": [
-    "recover exact Attempt 11 diagnostic payload/log details through authorized execution path",
-    "verify minimal repair hunks against current D-500 source",
-    "materialize repair on this task branch only",
+    "identify exact failing Class-D regression from run 36160992242 without weakening tests",
+    "port only the proven minimal repair onto automation/d500-acceptance-repair-8f3c2a",
+    "run affected regressions and machine-sanitize",
     "run Frozen Candidate -> Sanitation Swarm -> B01-B16 -> Frozen Candidate Qualification -> current-main Admission",
-    "re-read collision/capacity/duplicate history before exactly one successor launch"
+    "re-read current mains, candidate/admission bindings, collision/capacity and D-500 duplicate history",
+    "permit exactly one successor launch identity/run_attempt=1 only after all guards are GREEN"
   ],
   "realSuccessorLaunchAuthorized": false
 }
