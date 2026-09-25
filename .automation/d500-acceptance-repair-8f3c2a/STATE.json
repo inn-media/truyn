@@ -1,0 +1,24 @@
+{
+  "taskId": "truyn-d500-acceptance-repair-8f3c2a",
+  "state": "GREEN",
+  "currentSprint": "S02",
+  "lastCompletedSprint": "S01",
+  "taskBranch": "automation/d500-acceptance-repair-8f3c2a",
+  "authoritativeMain": "9fadd5dff9844fd022593c9bbd1c5956c35deee5",
+  "originalD500Main": "19d8b65f30dca54c9e5b8f9f946d333dd109bece",
+  "attempt11RunId": 36148344789,
+  "attempt11Immutable": true,
+  "repairPatchReview": {
+    "ontoMainPatch": "present",
+    "bootstrapOnlyPatch": "present",
+    "importantDiscrepancy": "bootstrap-only patch commit message names run 36042631305, but authoritative Attempt 11 is 36148344789; treat this as patch metadata error and never as evidence identity",
+    "applyMode": "onto-main two-commit patch required because original main does not contain candidate 9d998ab5 repair"
+  },
+  "next": [
+    "reconstruct Attempt 11 failure from immutable logs/artifact",
+    "verify patch hunks against authoritative current source and failure evidence",
+    "materialize minimal signed repair on task branch",
+    "run exact-candidate qualification before any real launch"
+  ],
+  "realSuccessorLaunchAuthorized": false
+}
