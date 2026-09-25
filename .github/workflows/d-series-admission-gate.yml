@@ -119,7 +119,7 @@ jobs:
             jq -e '.status=="PASS"' "admission-${block}.json" >/dev/null
           done
 
-      - name: Enforce selective policy and current-main freshness
+      - name: Finalize targeted requalification and enforce current-main freshness
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -132,17 +132,25 @@ jobs:
           [[ "$ADMISSION_CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$ADMISSION_INTEGRATION_TREE_SHA" =~ ^[0-9a-f]{40}$ ]]
           jq -e '.decision.automaticFullRerunForbidden==true' d-series-admission-manifest.json >/dev/null
-          if [[ "$(jq -r .decision.liveRerunRequired d-series-admission-manifest.json)" == true ]]; then
-            echo 'TRUYN_D_SERIES_ADMISSION=FAIL reason=live_requalification_required' >&2
-            exit 21
-          fi
           fresh_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
           [[ "$fresh_main" == "$ADMISSION_CURRENT_MAIN_SHA" ]] || {
             echo "TRUYN_D_SERIES_ADMISSION=FAIL reason=main_moved_during_admission" >&2
             exit 22
           }
-          jq '.decision.status="PASS_COMPATIBLE" | .decision.admissionPassed=true' d-series-admission-manifest.json > d-series-admission-manifest.final.json
+          node scripts/finalize-d-series-admission.mjs \
+            --manifest d-series-admission-manifest.json \
+            --result-prefix admission- \
+            --output d-series-admission-manifest.final.json
           mv d-series-admission-manifest.final.json d-series-admission-manifest.json
+          jq -e --arg tree "$ADMISSION_INTEGRATION_TREE_SHA" '
+            .integrationTreeSha==$tree
+            and .decision.admissionPassed==true
+            and .decision.status=="PASS_COMPATIBLE"
+            and .decision.targetedRequalificationPassed==true
+            and .decision.liveRerunSatisfied==true
+            and .decision.liveRerunRequired==false
+            and .requalification.allPassed==true
+          ' d-series-admission-manifest.json >/dev/null
           echo "TRUYN_D_SERIES_ADMISSION=PASS candidate=$ADMISSION_CANDIDATE_SHA current_main=$fresh_main integration_tree=$ADMISSION_INTEGRATION_TREE_SHA"
 
       - name: Upload admission manifest
