@@ -26,7 +26,7 @@ jobs:
           persist-credentials: true
           token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
 
-      - name: Validate repair request
+      - name: Validate repair request metadata
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -38,9 +38,21 @@ jobs:
           [[ "${TASK_ID:-}" =~ ^[A-Za-z0-9._-]+$ ]]
           [[ "${BASE_SHA:-}" =~ ^[0-9a-f]{40}$ ]]
           [[ "${EXPECTED_PATHS:-}" != '' ]]
+
+      - name: Validate exact repair base
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          envs=(.github/repairs/*.env); source "${envs[0]}"
           git fetch origin main --quiet
           [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
           [[ "$(git merge-base HEAD "$BASE_SHA")" == "$BASE_SHA" ]]
+
+      - name: Validate patch applicability with recount
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          patches=(.github/repairs/*.patch)
           git apply --recount --check "${patches[0]}"
 
       - name: Apply exact patch fail closed
@@ -51,7 +63,7 @@ jobs:
           source "${env_file[0]}"
           git apply --recount "${patch_file[0]}"
           git diff --check
-          mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' | sort)
+          mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' ':!.github/workflows/autonomous-repair.yml' | sort)
           mapfile -t expected < <(printf '%s\n' $EXPECTED_PATHS | sort)
           [[ "${changed[*]}" == "${expected[*]}" ]]
           [[ ${#changed[@]} -gt 0 ]]
