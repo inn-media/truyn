@@ -6,6 +6,7 @@
   "model": "Frozen Candidate -> Branch Qualification -> Admission to Main",
   "invariants": {
     "expensiveQualificationBoundToFrozenCandidate": true,
+    "historicalEvidenceBoundToImmutableRunSha": true,
     "mainMovementNeverInvalidatesQualificationByItself": true,
     "admissionComparesBaseShaToCurrentMain": true,
     "noSensitiveMainDriftReusesExpensiveEvidence": true,
