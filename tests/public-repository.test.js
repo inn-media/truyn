@@ -30,6 +30,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/n-series-admission-gate.yml',
   '.github/workflows/n-series-frozen-candidate-qualification.yml',
   '.github/workflows/n-series-public-swarm.yml',
+  '.github/workflows/n-series-public-admission.yml',
   '.github/workflows/s-series-admission-gate.yml',
   '.github/workflows/s-series-frozen-candidate-qualification.yml',
   '.github/workflows/publish-npm.yml',

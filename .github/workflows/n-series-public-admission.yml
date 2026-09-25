@@ -1,0 +1,77 @@
+name: N-Series Public Admission
+on:
+  workflow_dispatch:
+    inputs:
+      swarm_run_id:
+        description: Terminal GREEN N-Series Public Swarm run ID
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  admission:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: n-public-swarm-summary-${{ inputs.swarm_run_id }}
+          path: swarm-evidence
+          run-id: ${{ inputs.swarm_run_id }}
+          github-token: ${{ github.token }}
+      - id: frozen
+        name: Verify immutable public Swarm evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          f=swarm-evidence/n-public-swarm-summary.json
+          jq -e '.schema=="truyn.n-series.public-swarm.v1" and .status=="GREEN" and .requiredBlocks==7 and .greenBlocks==7' "$f" >/dev/null
+          sha="$(jq -r .candidateSha "$f")"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "$sha^{commit}"
+          echo "candidate_sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Build candidate-bound qualification manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate='${{ steps.frozen.outputs.candidate_sha }}'
+          base="$(git rev-parse "$candidate^1")"
+          node scripts/n-series-qualification-manifest.mjs qualification --base-sha "$base" --candidate-sha "$candidate" --output "$RUNNER_TEMP/n-qualification.json"
+      - id: drift
+        name: Recalculate BASE_SHA to current main admission manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(git rev-parse HEAD)"
+          candidate='${{ steps.frozen.outputs.candidate_sha }}'
+          node scripts/n-series-qualification-manifest.mjs admission --qualification-manifest "$RUNNER_TEMP/n-qualification.json" --current-main-sha "$current" --integration-ref "$current" --output "$RUNNER_TEMP/n-admission.json"
+          blocks="$(jq -r '.decision.targetedBlocks|join(",")' "$RUNNER_TEMP/n-admission.json")"
+          echo "blocks=$blocks" >> "$GITHUB_OUTPUT"
+      - name: Re-run only affected N blocks on combined state
+        if: steps.drift.outputs.blocks != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra blocks <<< '${{ steps.drift.outputs.blocks }}'
+          for b in "${blocks[@]}"; do
+            [[ "$b" =~ ^N[1-7]$ ]] || exit 73
+            node scripts/n-series-selective-block-runner.mjs --blocks "$b" --json "$RUNNER_TEMP/$b.json"
+            jq -e '.status=="GREEN" or .overall=="GREEN" or .passed==true' "$RUNNER_TEMP/$b.json" >/dev/null
+          done
+      - name: Mandatory final combined-state Admission Gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.schema=="truyn.n-series.admission-manifest.v1" and .decision.automaticFullRerun==false and .decision.finalAdmissionGateRequired==true and .integrationFingerprint!=null' "$RUNNER_TEMP/n-admission.json" >/dev/null
+          jq -n --slurpfile swarm swarm-evidence/n-public-swarm-summary.json --slurpfile admission "$RUNNER_TEMP/n-admission.json" --arg run '${{ github.run_id }}' '{schema:"truyn.n-series.public-admission-evidence.v1",status:"GREEN",runId:$run,swarm:$swarm[0],admission:$admission[0],historicalGreenAloneLaunchAuthority:false,paidProviderCalls:0}' > "$RUNNER_TEMP/n-public-admission-evidence.json"
+          echo N_PUBLIC_ADMISSION=GREEN
+          echo PAID_PROVIDER_CALLS=0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n-public-admission-${{ github.run_id }}
+          path: ${{ runner.temp }}/n-public-admission-evidence.json
+          if-no-files-found: error
+          retention-days: 30
