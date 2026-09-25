@@ -59,9 +59,9 @@ jobs:
           PY
           python3 -m py_compile .github/d500/apply-attempt12-resilience.py
           python3 .github/d500/apply-attempt12-resilience.py
-          # The shell fixture in the generated JS test used ${!#}. Inside a JS
-          # template literal that is interpolation syntax. Replace only that
-          # fixture expression with an equivalent POSIX-safe last-argument loop.
+          # Normalize only generated test fixtures. The production repair is not
+          # altered here: shell variables in JS template literals must reach the
+          # fake shell unescaped, while ${...} remains protected from JS interpolation.
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -70,7 +70,20 @@ jobs:
           s, n = re.subn(r'url="[^"\n]*\$\{!#\}"', "url=''; for url; do :; done", s, count=1)
           if n != 1:
               raise SystemExit(f'expected one shell last-argument fixture, replaced {n}')
-          p.write_text(s)
+          # The Python raw generator emitted two backslashes before non-braced
+          # shell dollars. In a JS template literal that leaves a literal \$ in
+          # the generated shell. Remove the extra escaping only for $name/$*/$1/$().
+          s = re.sub(r'\\\\\$(?!\{)', '$', s)
+          lines = []
+          for line in s.splitlines():
+              if "assert.match(provisionSource, /TRUYN_D500_BOOTSTRAP_NODE_CONCURRENCY" in line:
+                  line = "  assert.ok(provisionSource.includes('TRUYN_D500_BOOTSTRAP_NODE_CONCURRENCY=\"${TRUYN_D500_BOOTSTRAP_NODE_CONCURRENCY:-5}\"'));"
+              elif "assert.match(provisionSource, /TRUYN_D500_BOOTSTRAP_STAGE_CAP_S" in line:
+                  line = "  assert.ok(provisionSource.includes('TRUYN_D500_BOOTSTRAP_STAGE_CAP_S=\"${TRUYN_D500_BOOTSTRAP_STAGE_CAP_S:-1500}\"'));"
+              elif "assert.match(provisionSource, /TRUYN_D500_BOOTSTRAP_REMOTE_TIMEOUT_S" in line:
+                  line = "  assert.ok(provisionSource.includes('TRUYN_D500_BOOTSTRAP_REMOTE_TIMEOUT_S=\"${TRUYN_D500_BOOTSTRAP_REMOTE_TIMEOUT_S:-1500}\"'));"
+              lines.append(line)
+          p.write_text('\n'.join(lines) + '\n')
           PY
           node --check tests/d500-bootstrap-resilience.test.js
           bash -n benchmarks/scale/class-d-azure-1000-provision.sh
