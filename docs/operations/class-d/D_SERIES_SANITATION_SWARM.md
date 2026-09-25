@@ -24,7 +24,8 @@ Until all D-Series tests are complete, ordinary refactors, repairs, CI cleanup, 
 - Before merge, the final Admission Gate integrates the frozen candidate with current `main`, recomputes fingerprints, and reruns only affected D-sensitive blocks.
 - D-500/D-1000 remain final real-scale proofs after live qualification and collision/capacity checks.
 - Acceptance thresholds may never be weakened to preserve this architecture or obtain GREEN.
-- A competing `blockwise-only`, launcher-direct, or exact-current-main qualification architecture is forbidden while this lock is active.
+- A competing `blockwise-only` or launcher-direct architecture is forbidden while this lock is active.
+- An exact-current-main qualification architecture is likewise forbidden while this lock is active; current-main compatibility belongs only to final Admission.
 
 Removal or material modification of this lock before `ALL_D_SERIES_TESTS_COMPLETE` requires an explicit user-authorized architecture change. It must not happen implicitly as part of another repair or refactor.
 
