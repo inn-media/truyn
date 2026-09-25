@@ -5,13 +5,28 @@ import { execFileSync } from 'node:child_process';
 const args = process.argv.slice(2);
 const get = name => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : null; };
 const manifestPath = get('manifest');
+const requested = (get('blocks') || '').split(',').map(v => v.trim()).filter(Boolean);
+const jsonPath = get('json') || 'n-series-selective-block-results.json';
 if (!manifestPath || !fs.existsSync(manifestPath)) {
   console.error('TRUYN_N_SELECTIVE_BLOCKS=FAIL reason=manifest_missing');
   process.exit(2);
 }
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const blocks = manifest?.decision?.targetedBlocks || [];
+if (manifest?.schema !== 'truyn.n-series.qualification-manifest.v1' || !/^[0-9a-f]{40}$/.test(manifest?.candidateSha || '')) {
+  console.error('TRUYN_N_SELECTIVE_BLOCKS=FAIL reason=manifest_invalid');
+  process.exit(2);
+}
+const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+if (manifest.candidateSha !== head) {
+  console.error('TRUYN_N_SELECTIVE_BLOCKS=FAIL reason=candidate_sha_mismatch');
+  process.exit(2);
+}
+const blocks = requested.length ? requested : (manifest?.qualifiedBlocks || []);
 const allowed = new Set(['N1','N2','N3','N4','N5','N6','N7']);
+if (!blocks.length) {
+  console.error('TRUYN_N_SELECTIVE_BLOCKS=FAIL reason=no_blocks');
+  process.exit(2);
+}
 for (const b of blocks) if (!allowed.has(b)) {
   console.error(`TRUYN_N_SELECTIVE_BLOCKS=FAIL reason=unknown_block block=${b}`);
   process.exit(2);
@@ -19,8 +34,6 @@ for (const b of blocks) if (!allowed.has(b)) {
 const run = (cmd, argv) => execFileSync(cmd, argv, { stdio: 'inherit' });
 const existsAny = paths => paths.some(p => fs.existsSync(p));
 
-// These are integration-admission blocks, not benchmark PASS generators. They
-// deliberately validate only the N-sensitive contract/surface that drifted.
 const runners = {
   N1() {
     run('node', ['scripts/verify-n-series-frozen-candidate-policy.mjs']);
@@ -53,6 +66,15 @@ const runners = {
 };
 
 const results = [];
+const writeResult = (passed) => fs.writeFileSync(jsonPath, JSON.stringify({
+  schema:'truyn.n-series.selective-block-results.v1',
+  candidateSha: manifest.candidateSha,
+  requestedBlocks: blocks,
+  blocks: results,
+  allGreen: passed,
+  status: passed ? 'GREEN' : 'RED',
+  passed
+}, null, 2) + '\n');
 for (const block of blocks) {
   process.stdout.write(`TRUYN_N_BLOCK=${block} state=RUNNING\n`);
   try {
@@ -61,10 +83,10 @@ for (const block of blocks) {
     process.stdout.write(`TRUYN_N_BLOCK=${block} state=PASS\n`);
   } catch (error) {
     results.push({ block, status: 'FAIL', error: String(error?.message || error) });
-    fs.writeFileSync('n-series-selective-block-results.json', JSON.stringify({ schema:'truyn.n-series.selective-block-results.v1', blocks: results }, null, 2) + '\n');
+    writeResult(false);
     process.stderr.write(`TRUYN_N_BLOCK=${block} state=FAIL\n`);
     process.exit(1);
   }
 }
-fs.writeFileSync('n-series-selective-block-results.json', JSON.stringify({ schema:'truyn.n-series.selective-block-results.v1', requestedBlocks: blocks, blocks: results, allGreen: results.every(r => r.status === 'PASS') }, null, 2) + '\n');
+writeResult(true);
 console.log(`TRUYN_N_SELECTIVE_BLOCKS=PASS count=${blocks.length}`);
