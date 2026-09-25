@@ -110,6 +110,75 @@ for stage,path in stages: print(stage+'\t'+path)
 PYD200SPLIT
 }
 
+# --- campaign time budget -----------------------------------------------
+# A GitHub-hosted runner is killed at 6h whatever timeout-minutes says, and a
+# killed job writes no evidence at all: attempt 7 spent 5h50m and produced
+# neither class-d-1000-evidence.json nor a cause. The campaign therefore bounds
+# itself. Every stage gets a budget, the watchdog terminates a stage that
+# overruns it, and once the global budget is spent the remaining stages are
+# skipped so the evidence writer still runs.
+D200_STAGE_BUDGET_DEFAULT_S="${TRUYN_D500_STAGE_BUDGET_S:-900}"
+D200_EVIDENCE_RESERVE_S="${TRUYN_D500_EVIDENCE_RESERVE_S:-240}"
+declare -A D200_STAGE_BUDGETS=(
+  [topology]=300
+  [readiness-barrier]=1200
+  [convergence]=900
+  [baseline-routing]=900
+  [invalid-signed-state]=300
+  [local-safety-invariants]=300
+  [durable-writes]=900
+  [restart-recovery]=1500
+  [post-restart-routing]=900
+  [packet-partition]=900
+  [healed-routing]=1200
+  [write-retention]=900
+  [resources]=300
+  [evidence]=300
+)
+for d200_budget_override in ${TRUYN_D500_STAGE_BUDGET_OVERRIDES:-}; do
+  D200_STAGE_BUDGETS["${d200_budget_override%%=*}"]="${d200_budget_override#*=}"
+done
+unset d200_budget_override
+
+d200_campaign_seconds_remaining() {
+  if declare -F d500_seconds_remaining >/dev/null 2>&1; then d500_seconds_remaining; return 0; fi
+  if [[ "${TRUYN_D500_DEADLINE_EPOCH:-0}" -gt 0 ]]; then echo $(( TRUYN_D500_DEADLINE_EPOCH - $(date +%s) )); return 0; fi
+  echo 2147483647
+}
+
+d200_stage_budget() {
+  local stage="$1" budget remaining
+  budget="${D200_STAGE_BUDGETS[$stage]:-$D200_STAGE_BUDGET_DEFAULT_S}"
+  remaining=$(( $(d200_campaign_seconds_remaining) - D200_EVIDENCE_RESERVE_S ))
+  if [[ "$remaining" -lt "$budget" ]]; then budget="$remaining"; fi
+  if [[ "$budget" -lt 0 ]]; then budget=0; fi
+  echo "$budget"
+}
+
+d200_kill_tree() {
+  local pid="$1" sig="${2:-TERM}" child
+  for child in $(ps -o pid= --ppid "$pid" 2>/dev/null); do d200_kill_tree "$child" "$sig"; done
+  kill "-${sig}" "$pid" 2>/dev/null || true
+}
+
+d200_stage_watchdog() {
+  local pid="$1" budget="$2" stage="$3" marker_file="$4" waited=0 grace="${TRUYN_D500_STAGE_KILL_GRACE_S:-30}"
+  [[ "$budget" -gt 0 ]] || return 0
+  while [[ "$waited" -lt "$budget" ]]; do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep 5
+    waited=$((waited+5))
+  done
+  kill -0 "$pid" 2>/dev/null || return 0
+  printf 'stage_deadline_exceeded budgetS=%s\n' "$budget" >"$marker_file"
+  echo "TRUYN_D500_STAGE_DEADLINE stage=${stage} budgetS=${budget} action=terminate" >&2
+  d200_kill_tree "$pid" TERM
+  sleep "$grace"
+  kill -0 "$pid" 2>/dev/null || return 0
+  echo "TRUYN_D500_STAGE_DEADLINE stage=${stage} budgetS=${budget} action=kill" >&2
+  d200_kill_tree "$pid" KILL
+}
+
 d200_packet_partition_fail_cleanup() {
   # A failed packet-partition stage must not poison later diagnostics by leaving
   # its iptables rule installed. This is best-effort diagnostic cleanup only;
@@ -123,8 +192,13 @@ d200_packet_partition_fail_cleanup() {
 
 d200_run_stage() {
   local stage="$1" stage_file="$2" state_file="$D200_STAGE_TMP/state-${stage}.sh" failure_file="$D200_STAGE_TMP/failure-${stage}.txt"
-  local rc failure_rc failure_line command_b64
-  rm -f "$state_file" "$failure_file"
+  local deadline_file="$D200_STAGE_TMP/deadline-${stage}.txt"
+  local rc failure_rc failure_line command_b64 budget stage_pid watchdog_pid started_ms elapsed_ms
+  rm -f "$state_file" "$failure_file" "$deadline_file"
+
+  budget="$(d200_stage_budget "$stage")"
+  started_ms="$(date +%s%3N)"
+  echo "TRUYN_D500_STAGE_BUDGET stage=${stage} budgetS=${budget} campaignRemainingS=$(d200_campaign_seconds_remaining)"
 
   set +e
   (
@@ -133,11 +207,23 @@ d200_run_stage() {
     d200_stage_state_file="$state_file"
     trap 'rc=$?; cmd_b64=$(printf "%s" "$BASH_COMMAND" | base64 -w0); printf "rc=%s\nline=%s\ncommand_b64=%s\n" "$rc" "$LINENO" "$cmd_b64" >"$d200_stage_failure_file"; exit "$rc"' ERR
     trap 'rc=$?; trap - EXIT; d200_stage_dump_state "$d200_stage_state_file"; exit "$rc"' EXIT
+    # The watchdog terminates this subshell when the stage overruns its budget.
+    # Exiting through the EXIT trap keeps whatever scalars the stage computed,
+    # so a timed-out stage still contributes partial evidence.
+    trap 'printf "rc=124\nline=0\ncommand_b64=\n" >"$d200_stage_failure_file"; exit 124' TERM
     set -Eeuo pipefail
     source "$stage_file"
-  )
+  ) &
+  stage_pid=$!
+  d200_stage_watchdog "$stage_pid" "$budget" "$stage" "$deadline_file" &
+  watchdog_pid=$!
+  wait "$stage_pid"
   rc=$?
+  d200_kill_tree "$watchdog_pid" TERM
+  wait "$watchdog_pid" 2>/dev/null
   set -e
+  elapsed_ms=$(( $(date +%s%3N) - started_ms ))
+  echo "TRUYN_D500_STAGE_ELAPSED stage=${stage} ms=${elapsed_ms} rc=${rc} campaignRemainingS=$(d200_campaign_seconds_remaining)"
 
   if [[ -s "$state_file" ]]; then source "$state_file"; fi
   failure_rc="$rc"; failure_line=0; command_b64=''
@@ -151,6 +237,17 @@ d200_run_stage() {
     D200_STAGE_STATUS["$stage"]=PASS
     d200_append_stage_result "$stage" PASS 0 0 '' ''
     echo "TRUYN_D200_STAGE_RESULT stage=${stage} status=PASS rc=0"
+  elif [[ -s "$deadline_file" ]]; then
+    D200_STAGE_STATUS["$stage"]=RED
+    d200_append_stage_result "$stage" RED 124 0 '' "stage deadline exceeded after ${budget}s"
+    echo "TRUYN_D200_STAGE_RESULT stage=${stage} status=RED rc=124 reason=stage_deadline_exceeded budgetS=${budget}" >&2
+    d200_overall_failed=1
+    if [[ -z "$d200_first_failure_stage" ]]; then
+      d200_first_failure_stage="$stage"
+      d200_first_failure_rc=124
+      d200_first_failure_line=0
+    fi
+    if [[ "$stage" == packet-partition ]]; then d200_packet_partition_fail_cleanup || true; fi
   else
     D200_STAGE_STATUS["$stage"]=RED
     d200_append_stage_result "$stage" RED "${failure_rc:-$rc}" "${failure_line:-0}" "$command_b64" 'stage returned non-zero'
@@ -231,6 +328,15 @@ else
       # On a diagnostic RED we create partial evidence after all possible stages.
       if [[ "$stage" == evidence && "$d200_overall_failed" != 0 ]]; then
         d200_skip_stage "$stage" 'one or more mandatory stages RED/SKIPPED'
+        continue
+      fi
+
+      # Starting a stage that cannot finish inside the remaining budget only
+      # risks the runner's hard job cap. Skip it and keep the reserve for the
+      # evidence writer, which is what turns a timeout into a diagnosable FAIL.
+      if [[ "$(d200_stage_budget "$stage")" -le "${TRUYN_D500_MIN_STAGE_BUDGET_S:-60}" ]]; then
+        d200_skip_stage "$stage" 'campaign budget exhausted'
+        echo "TRUYN_D500_STAGE_SKIPPED stage=${stage} reason=campaign_budget_exhausted campaignRemainingS=$(d200_campaign_seconds_remaining)" >&2
         continue
       fi
 

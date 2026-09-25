@@ -1342,6 +1342,12 @@ healed_success=0; healed_total=0; healed_p50=0; healed_p90=0; healed_p95=0; heal
 healed_diag_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-healed-reconvergence.jsonl"
 healed_diag_json="${GITHUB_WORKSPACE:-$PWD}/class-d-200-healed-reconvergence.json"
 : >"$healed_diag_jsonl"
+# The healed probe is the longest stage and is independent per host: one sick
+# host used to add its recovery drains to every other host's wall clock because
+# the 20 remote calls ran one after another. Collect all hosts concurrently,
+# then parse them in host order with the unchanged acceptance arithmetic.
+healed_out_dir=$(mktemp -d)
+healed_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -1647,7 +1653,22 @@ else:
 PY
 EOS
 )
-  out=$(remote "${VMS[$i]}" "$script")
+  (
+    trap - ERR
+    remote "${VMS[$i]}" "$script"
+  ) >"$healed_out_dir/$i" &
+  healed_pids+=("$!")
+done
+healed_fanout_failed=0
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  if ! wait "${healed_pids[$i]}"; then
+    healed_fanout_failed=1
+    echo "TRUYN_D500_HEALED_HOST_REMOTE_FAILED host=$i" >&2
+  fi
+done
+[[ "$healed_fanout_failed" == 0 ]]
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$healed_out_dir/$i")"
   ok=$(marker "$out" HEALED_OK); total=$(marker "$out" HEALED_TOTAL); p50=$(marker "$out" HEALED_P50); p90=$(marker "$out" HEALED_P90); p95=$(marker "$out" HEALED_P95); p99=$(marker "$out" HEALED_P99)
   diag_meta=$(marker "$out" HEALED_DIAG_META)
   if [[ -z "$diag_meta" ]]; then
@@ -1698,6 +1719,7 @@ PYD200HOST
   healed_p50=$(python3 -c "print(max(float('$healed_p50'),float('$p50')))" ); healed_p90=$(python3 -c "print(max(float('$healed_p90'),float('$p90')))" )
   healed_p95=$(python3 -c "print(max(float('$healed_p95'),float('$p95')))" ); healed_p99=$(python3 -c "print(max(float('$healed_p99'),float('$p99')))" )
 done
+rm -rf "$healed_out_dir"
 healed_rate=$(python3 -c "print(round($healed_success/$healed_total,6))")
 python3 - "$healed_diag_jsonl" "$healed_diag_json" "$healed_success" "$healed_total" "$healed_rate" <<'PYD200SUMMARY'
 import json,sys

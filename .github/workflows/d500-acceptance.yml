@@ -28,11 +28,17 @@ env:
   D500_CONTRACT_SHA256: 469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e913fd8f85
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '25'
+  # GitHub-hosted runners terminate a job at 6h regardless of timeout-minutes,
+  # and a terminated job writes no evidence. The campaign bounds itself well
+  # inside that cap: 150 min of provisioning plus campaign, leaving the rest of
+  # the 180 min job for evaluation, cleanup and artifact upload.
+  TRUYN_D500_BUDGET_S: '9000'
+  TRUYN_D500_REMOTE_TIMEOUT_S: '600'
 
 jobs:
   d500-acceptance:
     runs-on: ubuntu-22.04
-    timeout-minutes: 420
+    timeout-minutes: 180
     steps:
       - name: Enforce immutable D-500 one-shot launch
         env:
@@ -187,11 +193,30 @@ jobs:
           TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" \
           TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" \
           TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" \
+          TRUYN_D500_BUDGET_S="$TRUYN_D500_BUDGET_S" \
+          TRUYN_D500_REMOTE_TIMEOUT_S="$TRUYN_D500_REMOTE_TIMEOUT_S" \
           bash -c 'set -Eeuo pipefail; source benchmarks/scale/class-d-azure-1000-provision.sh; source scripts/d200-stage-isolated-campaign.sh' 2>&1 | tee class-d-500-diagnostic.log
           rc=${PIPESTATUS[0]}
           set -e
           echo "campaign_rc=$rc" >>"$GITHUB_OUTPUT"
           exit "$rc"
+
+      - name: Reconstruct diagnostic partial evidence and stage timing
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          # Diagnostic only: this file is never read by the strict evaluator
+          # below. It exists so a campaign that hit its budget still names the
+          # stage and the metrics it reached instead of leaving the artifact
+          # with no evidence at all, as attempt 7 did.
+          if [[ -f class-d-500-diagnostic.log && ! -f class-d-1000-evidence.json ]]; then
+            node benchmarks/scale/class-d-1000-partial-evidence-from-log.js class-d-500-diagnostic.log class-d-500-partial-evidence.json "${{ steps.campaign.outputs.campaign_rc }}"
+          fi
+          if [[ -f class-d-500-diagnostic.log ]]; then
+            grep -E 'TRUYN_D500_STAGE_ELAPSED|TRUYN_D500_STAGE_BUDGET|TRUYN_D500_STAGE_DEADLINE|TRUYN_D500_STAGE_SKIPPED|TRUYN_D500_HOST_UNHEALTHY|TRUYN_D500_VM_AGENT_PATHOLOGY|TRUYN_D500_REMOTE_TIMEOUT|TRUYN_D500_BUDGET' class-d-500-diagnostic.log > class-d-500-stage-timing.txt
+          fi
+          exit 0
 
       - name: Evaluate strict D-500 evidence
         id: evaluate
