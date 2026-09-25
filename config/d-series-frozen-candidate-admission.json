@@ -12,6 +12,7 @@
     "baseToCurrentMainDiffMustBeAnalyzed": true,
     "unaffectedFrozenEvidenceRemainsValid": true,
     "onlyAffectedBlocksRequalifyWhenDSensitiveSurfaceChanges": true,
+    "affectedBlocksMustPassOnIntegrationStateBeforeAdmission": true,
     "liveDRunRepeatsOnlyWhenAffectedQualificationProvesItNecessary": true,
     "admissionBecomesStaleIfMainMovesAfterAdmission": true,
     "acceptanceThresholdWeakeningForbidden": true,
@@ -44,6 +45,7 @@
     "allowedDecisions": [
       "ADMIT_WITH_FROZEN_EVIDENCE",
       "REQUALIFY_AFFECTED_BLOCKS",
+      "ADMIT_AFTER_TARGETED_REQUALIFICATION",
       "REJECT_CONFLICT",
       "REJECT_STALE_OR_INVALID_MANIFEST"
     ]
