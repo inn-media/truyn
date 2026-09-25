@@ -29,34 +29,59 @@ jobs:
           for path in .github/workflows/d200-bug-hunt.yml .github/workflows/d-series-blockwise-preflight.yml tests/d-series-swarm-integration.test.js; do
             git -C /tmp/truyn-clean apply --recount --include="$path" "$GITHUB_WORKSPACE/$extra"
           done
-          git -C /tmp/truyn-clean diff --check
-      - name: Frozen admission regressions
-        if: always()
-        run: cd /tmp/truyn-clean && node --test tests/d-series-frozen-candidate-admission.test.js
-      - name: Swarm regressions
-        if: always()
-        run: cd /tmp/truyn-clean && node --test tests/d-series-swarm-integration.test.js
-      - name: Blockwise regressions
-        if: always()
-        run: cd /tmp/truyn-clean && node --test tests/d-series-blockwise-preflight.test.js
-      - name: Frozen policy lock
-        if: always()
-        run: cd /tmp/truyn-clean && node scripts/verify-d-series-frozen-candidate-policy.mjs
-      - name: Swarm architecture lock
-        if: always()
-        run: cd /tmp/truyn-clean && node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
-      - name: Verifier syntax
-        if: always()
-        run: cd /tmp/truyn-clean && bash -n scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh
-      - name: Swarm has no current-main coupling
-        if: always()
-        run: cd /tmp/truyn-clean && ! grep -En 'commits/main|main_sha=' .github/workflows/d200-bug-hunt.yml
-      - name: Blockwise has no current-main coupling
-        if: always()
-        run: cd /tmp/truyn-clean && ! grep -En 'commits/main|main_sha=' .github/workflows/d-series-blockwise-preflight.yml
-      - name: One-shot callers have no current-main coupling
-        if: always()
-        run: cd /tmp/truyn-clean && ! grep -En 'commits/main|main_sha=' .github/workflows/d-series-swarm-one-shot-launcher.yml .github/workflows/d-series-blockwise-one-shot-launcher.yml
-      - name: Historical verifier rejects mutable PR SHA
-        if: always()
-        run: cd /tmp/truyn-clean && ! grep -F 'pull_requests[0].head.sha' scripts/verify-d-series-blockwise-preflight-run.sh
+          cd /tmp/truyn-clean
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/d200-bug-hunt.yml')
+          s=p.read_text()
+          patterns=[
+          '''          if [[ "$EVENT" != pull_request ]]; then\n            [[ "$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)" == "$EXPECTED_SHA" ]]\n          fi\n''',
+          '''          if [[ "$EVENT" != pull_request ]]; then\n            main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"\n            [[ "$main_sha" == "$EXPECTED_SHA" ]]\n          fi\n''']
+          removed=0
+          for pat in patterns:
+              n=s.count(pat); removed += n; s=s.replace(pat,'')
+          if removed < 1:
+              raise SystemExit('no legacy exact-main guard found for final sanitation')
+          p.write_text(s)
+          PY
+          ! grep -En 'commits/main|main_sha=' .github/workflows/d200-bug-hunt.yml
+          git diff --check
+      - name: Run all D sanitation gates
+        run: |
+          set -Eeuo pipefail
+          cd /tmp/truyn-clean
+          node --test tests/d-series-frozen-candidate-admission.test.js tests/d-series-swarm-integration.test.js tests/d-series-blockwise-preflight.test.js
+          node scripts/verify-d-series-frozen-candidate-policy.mjs
+          node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
+          bash -n scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh
+          ! grep -En 'commits/main|main_sha=' .github/workflows/d-series-blockwise-preflight.yml
+          ! grep -En 'commits/main|main_sha=' .github/workflows/d-series-swarm-one-shot-launcher.yml .github/workflows/d-series-blockwise-one-shot-launcher.yml
+          ! grep -F 'pull_requests[0].head.sha' scripts/verify-d-series-blockwise-preflight-run.sh
+      - name: Verify exact executable path set
+        run: |
+          set -Eeuo pipefail
+          cd /tmp/truyn-clean
+          mapfile -t actual < <(git diff --name-only HEAD | sort)
+          mapfile -t expected < <(printf '%s\n' .github/workflows/d200-bug-hunt.yml .github/workflows/d-series-blockwise-preflight.yml .github/workflows/d-series-swarm-one-shot-launcher.yml .github/workflows/d-series-blockwise-one-shot-launcher.yml scripts/verify-d-series-swarm-run.sh scripts/verify-d-series-blockwise-preflight-run.sh tests/d-series-swarm-integration.test.js tests/d-series-blockwise-preflight.test.js | sort)
+          [[ "${actual[*]}" == "${expected[*]}" ]]
+      - name: Publish clean executable commit to sanitation branch
+        id: publish
+        run: |
+          set -Eeuo pipefail
+          envs=(.github/repairs/*.env); source "${envs[0]}"
+          cd /tmp/truyn-clean
+          base_tree="$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${BASE_SHA}" --jq .tree.sha)"
+          export BASE_TREE="$base_tree"
+          node <<'NODE' >/tmp/tree.json
+          const fs=require('fs'); const paths=[
+          '.github/workflows/d200-bug-hunt.yml','.github/workflows/d-series-blockwise-preflight.yml','.github/workflows/d-series-swarm-one-shot-launcher.yml','.github/workflows/d-series-blockwise-one-shot-launcher.yml','scripts/verify-d-series-swarm-run.sh','scripts/verify-d-series-blockwise-preflight-run.sh','tests/d-series-swarm-integration.test.js','tests/d-series-blockwise-preflight.test.js'];
+          process.stdout.write(JSON.stringify({base_tree:process.env.BASE_TREE,tree:paths.map(p=>({path:p,mode:'100644',type:'blob',content:fs.readFileSync(p,'utf8')}))}));
+          NODE
+          tree_sha="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/git/trees" --input /tmp/tree.json --jq .sha)"
+          export TREE_SHA="$tree_sha" BASE_SHA
+          node <<'NODE' >/tmp/commit.json
+          process.stdout.write(JSON.stringify({message:'fix(d-series): align qualification with frozen candidate\n\nSigned-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>',tree:process.env.TREE_SHA,parents:[process.env.BASE_SHA]}));
+          NODE
+          commit_sha="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/git/commits" --input /tmp/commit.json --jq .sha)"
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/heads/d-series/sanitation-frozen-candidate-20260925" -f sha="$commit_sha" -F force=true >/dev/null
+          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
