@@ -51,8 +51,8 @@ jobs:
           from pathlib import Path
           p = Path('.github/d500/apply-attempt12-resilience.py')
           s = p.read_text()
-          old = """time_test = time_test.replace(old_harness, new_harness)\nif time_test.count(new_harness) != 2:\n    raise SystemExit('expected two remote test harnesses after helper insertion')\n"""
-          new = """time_test = time_test.replace(old_harness, new_harness)\nold_harness_indented = old_harness.replace('    shellFunction', '      shellFunction')\nnew_harness_indented = new_harness.replace('    shellFunction', '      shellFunction')\ntime_test = time_test.replace(old_harness_indented, new_harness_indented)\nif time_test.count(\"shellFunction(provisionSource, 'd500_vm_agent_ready')\") != 2:\n    raise SystemExit('expected two remote test harnesses after helper insertion')\n"""
+          old = "time_test = time_test.replace(old_harness, new_harness)\nif time_test.count(new_harness) != 2:\n    raise SystemExit('expected two remote test harnesses after helper insertion')\n"
+          new = "time_test = time_test.replace(old_harness, new_harness)\nold_harness_indented = old_harness.replace('    shellFunction', '      shellFunction')\nnew_harness_indented = new_harness.replace('    shellFunction', '      shellFunction')\ntime_test = time_test.replace(old_harness_indented, new_harness_indented)\nif time_test.count(\"shellFunction(provisionSource, 'd500_vm_agent_ready')\") != 2:\n    raise SystemExit('expected two remote test harnesses after helper insertion')\n"
           if old not in s:
               raise SystemExit('generation-1 harness bootstrap preimage not found')
           p.write_text(s.replace(old, new, 1))
@@ -60,35 +60,18 @@ jobs:
           python3 -m py_compile .github/d500/apply-attempt12-resilience.py
           python3 .github/d500/apply-attempt12-resilience.py
 
-          # remote() must not leak `set -e` state into its caller. Keep drain
-          # classification fail-closed while capturing its rc through an if,
-          # which is safe under both caller errexit modes.
           python3 - <<'PY'
           from pathlib import Path
           p = Path('benchmarks/scale/class-d-azure-1000-provision.sh')
           s = p.read_text()
-          old = '''      set +e
-          d500_wait_run_command_drain "$vm"
-          drain_rc=$?
-          set -e
-          [[ "$drain_rc" -eq 0 ]] || return "$drain_rc"
-'''
-          new = '''      if d500_wait_run_command_drain "$vm"; then
-            drain_rc=0
-          else
-            drain_rc=$?
-          fi
-          [[ "$drain_rc" -eq 0 ]] || return "$drain_rc"
-'''
+          old = '      set +e\n      d500_wait_run_command_drain "$vm"\n      drain_rc=$?\n      set -e\n      [[ "$drain_rc" -eq 0 ]] || return "$drain_rc"\n'
+          new = '      if d500_wait_run_command_drain "$vm"; then\n        drain_rc=0\n      else\n        drain_rc=$?\n      fi\n      [[ "$drain_rc" -eq 0 ]] || return "$drain_rc"\n'
           count = s.count(old)
           if count != 2:
               raise SystemExit(f'expected two drain rc blocks, found {count}')
           p.write_text(s.replace(old, new))
           PY
 
-          # Normalize only generated test fixtures. The production repair is not
-          # altered here: shell variables in JS template literals must reach the
-          # fake shell unescaped, while ${...} remains protected from JS interpolation.
           python3 - <<'PY'
           from pathlib import Path
           import re
