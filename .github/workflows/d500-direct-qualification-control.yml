@@ -1,0 +1,92 @@
+name: D-500 Direct Qualification Control
+
+on:
+  push:
+    branches:
+      - 'automation/d-series-direct-control/**'
+    paths:
+      - '.github/workflows/d500-direct-qualification-control.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: d500-direct-qualification-9d998ab5
+  cancel-in-progress: false
+
+env:
+  CANDIDATE_SHA: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
+  CANDIDATE_REF: fix/d500-time-budget
+  SCALE: d500
+
+jobs:
+  direct-qualification:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Verify frozen candidate ref
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          actual="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${CANDIDATE_REF}" --jq .sha)"
+          [[ "$actual" == "$CANDIDATE_SHA" ]]
+          echo "TRUYN_D500_DIRECT_CONTROL_CANDIDATE=PASS sha=$actual"
+
+      - name: Dispatch exactly one canonical direct Swarm
+        id: swarm
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          existing="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .head_sha=="'"$CANDIDATE_SHA"'")] | sort_by(.created_at) | last | .id // empty')"
+          if [[ -n "$existing" ]]; then
+            echo "existing direct Swarm run=$existing; refusing duplicate dispatch" >&2
+            exit 20
+          fi
+          since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run d200-bug-hunt.yml --repo "$GITHUB_REPOSITORY" --ref "$CANDIDATE_REF" -f source_sha="$CANDIDATE_SHA" -f scale="$SCALE" -f resume_across_sha=false
+          run_id=''
+          for _ in $(seq 1 60); do
+            run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .head_sha=="'"$CANDIDATE_SHA"'" and .created_at>="'"$since"'")] | sort_by(.created_at) | last | .id // empty')"
+            [[ -n "$run_id" ]] && break
+            sleep 5
+          done
+          [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 10
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" | jq -e --arg c "$CANDIDATE_SHA" '.name=="D-Series Sanitation Swarm" and .head_sha==$c and .event=="workflow_dispatch" and .status=="completed" and .conclusion=="success" and .run_attempt==1' >/dev/null
+          echo "TRUYN_D500_DIRECT_SWARM=PASS run_id=$run_id candidate=$CANDIDATE_SHA"
+
+      - name: Dispatch exactly one canonical direct full Blockwise
+        id: blockwise
+        shell: bash
+        env:
+          SWARM_RUN_ID: ${{ steps.swarm.outputs.run_id }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$SWARM_RUN_ID" =~ ^[1-9][0-9]+$ ]]
+          existing="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .head_sha=="'"$CANDIDATE_SHA"'")] | sort_by(.created_at) | last | .id // empty')"
+          if [[ -n "$existing" ]]; then
+            echo "existing direct Blockwise run=$existing; refusing duplicate dispatch" >&2
+            exit 21
+          fi
+          since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run d-series-blockwise-preflight.yml --repo "$GITHUB_REPOSITORY" --ref "$CANDIDATE_REF" -f source_sha="$CANDIDATE_SHA" -f scale="$SCALE" -f block=all -f swarm_run_id="$SWARM_RUN_ID"
+          run_id=''
+          for _ in $(seq 1 60); do
+            run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=${CANDIDATE_REF}&per_page=100" --jq '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .head_sha=="'"$CANDIDATE_SHA"'" and .created_at>="'"$since"'")] | sort_by(.created_at) | last | .id // empty')"
+            [[ -n "$run_id" ]] && break
+            sleep 5
+          done
+          [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 10
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" | jq -e --arg c "$CANDIDATE_SHA" '.name=="D-Series Blockwise Preflight" and .head_sha==$c and .event=="workflow_dispatch" and .status=="completed" and .conclusion=="success" and .run_attempt==1' >/dev/null
+          echo "TRUYN_D500_DIRECT_BLOCKWISE=PASS run_id=$run_id swarm_run_id=$SWARM_RUN_ID candidate=$CANDIDATE_SHA"
