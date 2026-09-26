@@ -1,0 +1,474 @@
+===== tests/class-d-1000-bootstrap.test.js =====
+TAP version 13
+# Subtest: D-1000 bootstrap plan preserves production-scale XOR invariants
+ok 1 - D-1000 bootstrap plan preserves production-scale XOR invariants
+  ---
+  duration_ms: 6390.145113
+  type: 'test'
+  ...
+# Subtest: D-200 bootstrap plan guarantees all 20 failure domains inside the bounded 32-peer view
+ok 2 - D-200 bootstrap plan guarantees all 20 failure domains inside the bounded 32-peer view
+  ---
+  duration_ms: 406.129397
+  type: 'test'
+  ...
+# Subtest: D-200 bootstrap plan fails closed when the required failure domains cannot fit in the peer bound
+ok 3 - D-200 bootstrap plan fails closed when the required failure domains cannot fit in the peer bound
+  ---
+  duration_ms: 0.571917
+  type: 'test'
+  ...
+# Subtest: D-1000 bootstrap plan does not reuse a host-common seed set
+ok 4 - D-1000 bootstrap plan does not reuse a host-common seed set
+  ---
+  duration_ms: 3093.767055
+  type: 'test'
+  ...
+# Subtest: D-1000 Azure provisioner uses the bounded host-stratified XOR bootstrap planner
+ok 5 - D-1000 Azure provisioner uses the bounded host-stratified XOR bootstrap planner
+  ---
+  duration_ms: 10.308205
+  type: 'test'
+  ...
+# Subtest: D-1000 Azure provisioner refreshes each node after bootstrap without warm-up need calls
+not ok 6 - D-1000 Azure provisioner refreshes each node after bootstrap without warm-up need calls
+  ---
+  duration_ms: 3.606119
+  type: 'test'
+  location: '/home/runner/work/truyn/truyn/tests/class-d-1000-bootstrap.test.js:138:1'
+  failureType: 'testCodeFailure'
+  error: 'expected warm-up to call /dht/refresh'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/truyn/truyn/tests/class-d-1000-bootstrap.test.js:147:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: D-1000 planner rejects duplicate identities
+ok 7 - D-1000 planner rejects duplicate identities
+  ---
+  duration_ms: 1.025915
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 6
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10005.782935
+
+===== tests/class-d-1000-remote-manifest-heredoc.test.js =====
+    const records = JSON.parse(fs.readFileSync('/tmp/all-records.json', 'utf8'));
+    const maxPeersPerNode = Number.parseInt(process.env.TRUYN_BOOTSTRAP_MAX_PEERS_PER_NODE || '32', 10);
+    const peersPerBucket = Number.parseInt(process.env.TRUYN_BOOTSTRAP_PEERS_PER_BUCKET || '2', 10);
+    const requiredFailureDomains = Number.parseInt(process.env.TRUYN_BOOTSTRAP_REQUIRED_FAILURE_DOMAINS || '0', 10);
+    const plan = buildClassD1000BootstrapPlan(records, {
+      seed: process.env.TRUYN_BOOTSTRAP_PLAN_SEED || 'truyn-class-d-1000',
+      maxPeersPerNode,
+      peersPerBucket,
+      requiredFailureDomains
+    });
+    const summary = summarizeClassD1000BootstrapPlan(plan);
+    if (summary.nodeCount !== records.length) throw new Error('bootstrap plan node count mismatch');
+    if (summary.minPeers !== maxPeersPerNode || summary.maxPeers !== maxPeersPerNode) throw new Error('bootstrap plan peer bound mismatch');
+    if (summary.allToAll) throw new Error('bootstrap plan must not be all-to-all');
+    if (summary.minFailureDomains !== requiredFailureDomains || summary.maxFailureDomains !== requiredFailureDomains) throw new Error('bootstrap plan failure-domain coverage mismatch');
+    const byNode = {};
+    for (const [nodeId, peers] of plan.entries()) {
+      const peerIds = peers.map((peer) => peer.nodeId);
+      if (peerIds.includes(nodeId)) throw new Error('bootstrap plan contains self peer for ' + nodeId);
+      if (new Set(peerIds).size !== peerIds.length) throw new Error('bootstrap plan contains duplicate peers for ' + nodeId);
+      byNode[nodeId] = peers;
+    }
+    fs.writeFileSync('/tmp/bootstrap-plan-by-node.json', JSON.stringify(byNode));
+    fs.writeFileSync('/tmp/bootstrap-plan-summary.json', JSON.stringify(summary));
+    NODE
+    cp /tmp/records-by-host.json /var/lib/truyn-d1000/records-by-host.json
+    cp /tmp/bootstrap-plan-by-node.json /var/lib/truyn-d1000/bootstrap-plan-by-node.json
+    cp /tmp/bootstrap-plan-summary.json /var/lib/truyn-d1000/bootstrap-plan-summary.json
+    TRUYN_D500_BOOTSTRAP_HOST_INDEX=${i} \
+    TRUYN_D500_BOOTSTRAP_NODES_PER_HOST=${NODES_PER_HOST} \
+    TRUYN_D500_BOOTSTRAP_CONTROL_BASE=${CONTROL_BASE} \
+    TRUYN_D500_BOOTSTRAP_MAX_PEERS_PER_NODE=${BOOTSTRAP_MAX_PEERS_PER_NODE} \
+    TRUYN_D500_BOOTSTRAP_SEED='${GITHUB_SHA}' \
+    TRUYN_D500_BOOTSTRAP_NODE_CONCURRENCY=${TRUYN_D500_BOOTSTRAP_NODE_CONCURRENCY} \
+    TRUYN_D500_BOOTSTRAP_STAGE_CAP_S=${TRUYN_D500_BOOTSTRAP_STAGE_CAP_S} \
+    bash /opt/truyn/app/scripts/class-d-bootstrap-host-resilience.sh
+    EOS
+    )
+      script="${script//truyn/truyn}"
+      script="${script//truyn/truyn}"
+      (
+        trap - ERR
+        out=$(REMOTE_TIMEOUT_S="${TRUYN_D500_BOOTSTRAP_REMOTE_TIMEOUT_S}" remote "${VMS[$i]}" "$script") || { rc=$?; echo "TRUYN_D500_BOOTSTRAP_REMOTE_FAILED host=$i rc=$rc"; exit "$rc"; }
+        # Keep every node-level recovery/failure line before any host-level marker
+        # assertion can fail, so a successor failure stays diagnosable.
+        printf '%s\n' "$out" | { grep -E 'BOOTSTRAP_|TRUYN_D200_BOOTSTRAP_REFRESH_RETRY|TRUYN_D500_BOOTSTRAP_NODE_|curl: \(|[Ee]rror' || true; } | tail -160 | sed "s/^/TRUYN_D500_BOOTSTRAP_HOST_LOG host=$i /"
+        [[ "$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
+        [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
+        [[ "$(marker "$out" BOOTSTRAP_PLAN_ALL_TO_ALL)" == false ]]
+        [[ "$(marker "$out" BOOTSTRAP_PLAN_MIN_FAILURE_DOMAINS)" == "$HOST_COUNT" ]]
+        [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_FAILURE_DOMAINS)" == "$HOST_COUNT" ]]
+        [[ "$(marker "$out" BOOTSTRAP_REFRESH_COUNT)" == "$NODES_PER_HOST" ]]
+        [[ "$(marker "$out" BOOTSTRAP_REFRESH_STATUS)" == refreshed ]]
+        echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i plan=host-stratified-xor refresh=per-node recordsMin=$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS) recordsMax=$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS) refreshCount=$(marker "$out" BOOTSTRAP_REFRESH_COUNT) validMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_VALID) validMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_VALID) bucketsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_BUCKETS) bucketsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_BUCKETS) endpointsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_ENDPOINTS) endpointsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_ENDPOINTS) hostsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_HOSTS) hostsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_HOSTS) bytesMin=$(marker "$out" BOOTSTRAP_MIN_BYTES) bytesMax=$(marker "$out" BOOTSTRAP_MAX_BYTES) bytesMean=$(marker "$out" BOOTSTRAP_MEAN_BYTES) ms=$(marker "$out" BOOTSTRAP_MS)"
+      ) >"$bootstrap_dir/$i" &
+      bootstrap_pids+=("$!")
+    done
+    bootstrap_failed=0
+    for i in $(seq 0 $((HOST_COUNT-1))); do
+      if ! wait "${bootstrap_pids[$i]}"; then
+        bootstrap_failed=1
+        echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i status=FAIL" >&2
+      fi
+    done
+    # Every host's evidence is printed before the stage fails. Previously the first
+    # failed wait exited here and the per-host reason stayed in the temp file.
+    for i in $(seq 0 $((HOST_COUNT-1))); do cat "$bootstrap_dir/$i"; done
+    rm -rf "$bootstrap_dir"
+    [[ "$bootstrap_failed" == 0 ]]
+    
+    if [[ "${TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY:-0}" == 1 ]]; then
+      qualification_class=D-1000
+      [[ "$NODES_PER_HOST" == 25 ]] && qualification_class=D-500
+      echo "TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION class=${qualification_class} hosts=${HOST_COUNT} nodes=${NODE_COUNT} nodesPerHost=${NODES_PER_HOST} maxPeers=${BOOTSTRAP_MAX_PEERS_PER_NODE} targetConcurrency=4 serverDeadlineMs=240000 clientDeadlineMs=300000 status=PASS"
+      return 0 2>/dev/null || exit 0
+    fi
+    
+    STAGE=bandwidth-meter
+    meter_dir=$(mktemp -d)
+    meter_pids=()
+    for i in $(seq 0 $((HOST_COUNT-1))); do
+      (remote "${VMS[$i]}" "iptables -I OUTPUT 1 -p udp --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-out -j ACCEPT; iptables -I INPUT 1 -p udp --sport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-in -j ACCEPT; echo METER=1" >"$meter_dir/$i") &
+      meter_pids+=("$!")
+    done
+    meter_failed=0
+    for pid in "${meter_pids[@]}"; do
+      if ! wait "$pid"; then meter_failed=1; fi
+    done
+    if [[ "$meter_failed" != 0 ]]; then
+      rm -rf "$meter_dir"
+      false
+    fi
+    for i in $(seq 0 $((HOST_COUNT-1))); do
+      out="$(cat "$meter_dir/$i")"
+      [[ "$(marker "$out" METER)" == 1 ]]
+      echo "TRUYN_CLASS_D_1000 stage=bandwidth-meter host=$i mode=parallel-hosts status=PASS"
+    done
+    rm -rf "$meter_dir"
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/truyn/truyn/tests/class-d-1000-remote-manifest-heredoc.test.js:13:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: D-200 remote runtime manifest is pinned to qualified tested source, not launcher SHA
+ok 2 - D-200 remote runtime manifest is pinned to qualified tested source, not launcher SHA
+  ---
+  duration_ms: 5.11275
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 89.391105
+
+===== tests/class-d-bootstrap-qualification.test.js =====
+      maxPeersPerNode,
+      peersPerBucket,
+      requiredFailureDomains
+    });
+    const summary = summarizeClassD1000BootstrapPlan(plan);
+    if (summary.nodeCount !== records.length) throw new Error('bootstrap plan node count mismatch');
+    if (summary.minPeers !== maxPeersPerNode || summary.maxPeers !== maxPeersPerNode) throw new Error('bootstrap plan peer bound mismatch');
+    if (summary.allToAll) throw new Error('bootstrap plan must not be all-to-all');
+    if (summary.minFailureDomains !== requiredFailureDomains || summary.maxFailureDomains !== requiredFailureDomains) throw new Error('bootstrap plan failure-domain coverage mismatch');
+    const byNode = {};
+    for (const [nodeId, peers] of plan.entries()) {
+      const peerIds = peers.map((peer) => peer.nodeId);
+      if (peerIds.includes(nodeId)) throw new Error('bootstrap plan contains self peer for ' + nodeId);
+      if (new Set(peerIds).size !== peerIds.length) throw new Error('bootstrap plan contains duplicate peers for ' + nodeId);
+      byNode[nodeId] = peers;
+    }
+    fs.writeFileSync('/tmp/bootstrap-plan-by-node.json', JSON.stringify(byNode));
+    fs.writeFileSync('/tmp/bootstrap-plan-summary.json', JSON.stringify(summary));
+    NODE
+    cp /tmp/records-by-host.json /var/lib/truyn-d1000/records-by-host.json
+    cp /tmp/bootstrap-plan-by-node.json /var/lib/truyn-d1000/bootstrap-plan-by-node.json
+    cp /tmp/bootstrap-plan-summary.json /var/lib/truyn-d1000/bootstrap-plan-summary.json
+    TRUYN_D500_BOOTSTRAP_HOST_INDEX=${i} \
+    TRUYN_D500_BOOTSTRAP_NODES_PER_HOST=${NODES_PER_HOST} \
+    TRUYN_D500_BOOTSTRAP_CONTROL_BASE=${CONTROL_BASE} \
+    TRUYN_D500_BOOTSTRAP_MAX_PEERS_PER_NODE=${BOOTSTRAP_MAX_PEERS_PER_NODE} \
+    TRUYN_D500_BOOTSTRAP_SEED='${GITHUB_SHA}' \
+    TRUYN_D500_BOOTSTRAP_NODE_CONCURRENCY=${TRUYN_D500_BOOTSTRAP_NODE_CONCURRENCY} \
+    TRUYN_D500_BOOTSTRAP_STAGE_CAP_S=${TRUYN_D500_BOOTSTRAP_STAGE_CAP_S} \
+    bash /opt/truyn/app/scripts/class-d-bootstrap-host-resilience.sh
+    EOS
+    )
+      script="${script//truyn/truyn}"
+      script="${script//truyn/truyn}"
+      (
+        trap - ERR
+        out=$(REMOTE_TIMEOUT_S="${TRUYN_D500_BOOTSTRAP_REMOTE_TIMEOUT_S}" remote "${VMS[$i]}" "$script") || { rc=$?; echo "TRUYN_D500_BOOTSTRAP_REMOTE_FAILED host=$i rc=$rc"; exit "$rc"; }
+        # Keep every node-level recovery/failure line before any host-level marker
+        # assertion can fail, so a successor failure stays diagnosable.
+        printf '%s\n' "$out" | { grep -E 'BOOTSTRAP_|TRUYN_D200_BOOTSTRAP_REFRESH_RETRY|TRUYN_D500_BOOTSTRAP_NODE_|curl: \(|[Ee]rror' || true; } | tail -160 | sed "s/^/TRUYN_D500_BOOTSTRAP_HOST_LOG host=$i /"
+        [[ "$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
+        [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
+        [[ "$(marker "$out" BOOTSTRAP_PLAN_ALL_TO_ALL)" == false ]]
+        [[ "$(marker "$out" BOOTSTRAP_PLAN_MIN_FAILURE_DOMAINS)" == "$HOST_COUNT" ]]
+        [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_FAILURE_DOMAINS)" == "$HOST_COUNT" ]]
+        [[ "$(marker "$out" BOOTSTRAP_REFRESH_COUNT)" == "$NODES_PER_HOST" ]]
+        [[ "$(marker "$out" BOOTSTRAP_REFRESH_STATUS)" == refreshed ]]
+        echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i plan=host-stratified-xor refresh=per-node recordsMin=$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS) recordsMax=$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS) refreshCount=$(marker "$out" BOOTSTRAP_REFRESH_COUNT) validMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_VALID) validMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_VALID) bucketsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_BUCKETS) bucketsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_BUCKETS) endpointsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_ENDPOINTS) endpointsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_ENDPOINTS) hostsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_HOSTS) hostsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_HOSTS) bytesMin=$(marker "$out" BOOTSTRAP_MIN_BYTES) bytesMax=$(marker "$out" BOOTSTRAP_MAX_BYTES) bytesMean=$(marker "$out" BOOTSTRAP_MEAN_BYTES) ms=$(marker "$out" BOOTSTRAP_MS)"
+      ) >"$bootstrap_dir/$i" &
+      bootstrap_pids+=("$!")
+    done
+    bootstrap_failed=0
+    for i in $(seq 0 $((HOST_COUNT-1))); do
+      if ! wait "${bootstrap_pids[$i]}"; then
+        bootstrap_failed=1
+        echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i status=FAIL" >&2
+      fi
+    done
+    # Every host's evidence is printed before the stage fails. Previously the first
+    # failed wait exited here and the per-host reason stayed in the temp file.
+    for i in $(seq 0 $((HOST_COUNT-1))); do cat "$bootstrap_dir/$i"; done
+    rm -rf "$bootstrap_dir"
+    [[ "$bootstrap_failed" == 0 ]]
+    
+    if [[ "${TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY:-0}" == 1 ]]; then
+      qualification_class=D-1000
+      [[ "$NODES_PER_HOST" == 25 ]] && qualification_class=D-500
+      echo "TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION class=${qualification_class} hosts=${HOST_COUNT} nodes=${NODE_COUNT} nodesPerHost=${NODES_PER_HOST} maxPeers=${BOOTSTRAP_MAX_PEERS_PER_NODE} targetConcurrency=4 serverDeadlineMs=240000 clientDeadlineMs=300000 status=PASS"
+      return 0 2>/dev/null || exit 0
+    fi
+    
+    STAGE=bandwidth-meter
+    meter_dir=$(mktemp -d)
+    meter_pids=()
+    for i in $(seq 0 $((HOST_COUNT-1))); do
+      (remote "${VMS[$i]}" "iptables -I OUTPUT 1 -p udp --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-out -j ACCEPT; iptables -I INPUT 1 -p udp --sport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-in -j ACCEPT; echo METER=1" >"$meter_dir/$i") &
+      meter_pids+=("$!")
+    done
+    meter_failed=0
+    for pid in "${meter_pids[@]}"; do
+      if ! wait "$pid"; then meter_failed=1; fi
+    done
+    if [[ "$meter_failed" != 0 ]]; then
+      rm -rf "$meter_dir"
+      false
+    fi
+    for i in $(seq 0 $((HOST_COUNT-1))); do
+      out="$(cat "$meter_dir/$i")"
+      [[ "$(marker "$out" METER)" == 1 ]]
+      echo "TRUYN_CLASS_D_1000 stage=bandwidth-meter host=$i mode=parallel-hosts status=PASS"
+    done
+    rm -rf "$meter_dir"
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/truyn/truyn/tests/class-d-bootstrap-qualification.test.js:42:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: bootstrap-only exit is after bootstrap and before full Class-D stages
+ok 2 - bootstrap-only exit is after bootstrap and before full Class-D stages
+  ---
+  duration_ms: 4.123138
+  type: 'test'
+  ...
+# Subtest: qualification keeps full D-500 strict thresholds untouched
+ok 3 - qualification keeps full D-500 strict thresholds untouched
+  ---
+  duration_ms: 1.370028
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 2
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 69.526976
+
+===== tests/d500-generational-preflight-regression.test.js =====
+TAP version 13
+# Subtest: D-500 generational preflight accepts only steady history or its immediate successor
+not ok 1 - D-500 generational preflight accepts only steady history or its immediate successor
+  ---
+  duration_ms: 255.884473
+  type: 'test'
+  location: '/home/runner/work/truyn/truyn/tests/d500-generational-preflight-regression.test.js:14:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    TRUYN_D200_CONTRACT=PASS
+    TRUYN_D500_CONTRACT=PASS
+    TRUYN_D500_INHERITANCE=PASS paths=22 accepted_d200_run=35503894414
+    TRUYN_CLASS_D_FIVE_PATCHES=PASS classes=D-200,D-500,D-1000 patches=5 fail_closed=true
+    TRUYN_REPOSITORY_HYGIENE=PASS
+    
+    
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/truyn/truyn/tests/d500-generational-preflight-regression.test.js:30:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 314.179421
+
+===== tests/d500-prelaunch.test.js =====
+# Subtest: D-500 canonical contract is exactly 20 hosts x 25 real processes = 500
+ok 1 - D-500 canonical contract is exactly 20 hosts x 25 real processes = 500
+  ---
+  duration_ms: 1.749029
+  type: 'test'
+  ...
+# Subtest: D-500 cannot weaken accepted D-200 routing, recovery, safety, cleanup or peer bounds
+ok 2 - D-500 cannot weaken accepted D-200 routing, recovery, safety, cleanup or peer bounds
+  ---
+  duration_ms: 0.302716
+  type: 'test'
+  ...
+# Subtest: D-500 anti-weakening checker rejects lower routing acceptance
+ok 3 - D-500 anti-weakening checker rejects lower routing acceptance
+  ---
+  duration_ms: 0.500856
+  type: 'test'
+  ...
+# Subtest: D-500 anti-weakening checker rejects larger peer fanout
+ok 4 - D-500 anti-weakening checker rejects larger peer fanout
+  ---
+  duration_ms: 0.195506
+  type: 'test'
+  ...
+# Subtest: D-500 anti-weakening checker rejects slower recovery ceiling
+ok 5 - D-500 anti-weakening checker rejects slower recovery ceiling
+  ---
+  duration_ms: 0.322983
+  type: 'test'
+  ...
+# Subtest: D-500 checker rejects topology drift and synthetic scale shortcuts
+ok 6 - D-500 checker rejects topology drift and synthetic scale shortcuts
+  ---
+  duration_ms: 0.315359
+  type: 'test'
+  ...
+# Subtest: D-500 inheritance manifest preserves accepted D-200/Class-D components
+ok 7 - D-500 inheritance manifest preserves accepted D-200/Class-D components
+  ---
+  duration_ms: 35.633566
+  type: 'test'
+  ...
+# Subtest: shared Class-D provisioner already supports the 25-process D-500 mode
+ok 8 - shared Class-D provisioner already supports the 25-process D-500 mode
+  ---
+  duration_ms: 0.32043
+  type: 'test'
+  ...
+# Subtest: first D-500 gate preserves the proven 100-node restart slice
+ok 9 - first D-500 gate preserves the proven 100-node restart slice
+  ---
+  duration_ms: 0.403094
+  type: 'test'
+  ...
+# Subtest: D-500 workflow surface preserves immutable launch history
+not ok 10 - D-500 workflow surface preserves immutable launch history
+  ---
+  duration_ms: 2.350593
+  type: 'test'
+  location: '/home/runner/work/truyn/truyn/tests/d500-prelaunch.test.js:113:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'd500-acceptance.yml',
+    +   'd500-attempt12-self-repair.yml'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'd500-acceptance.yml'
+  actual:
+    0: 'd500-acceptance.yml'
+    1: 'd500-attempt12-self-repair.yml'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/truyn/truyn/tests/d500-prelaunch.test.js:121:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: current D-500 workflow preserves the strict scale contract for the immutable active launch generation
+ok 11 - current D-500 workflow preserves the strict scale contract for the immutable active launch generation
+  ---
+  duration_ms: 0.530903
+  type: 'test'
+  ...
+# Subtest: D-500 launcher template inherits immutable qualification and strict terminal semantics
+ok 12 - D-500 launcher template inherits immutable qualification and strict terminal semantics
+  ---
+  duration_ms: 0.213199
+  type: 'test'
+  ...
+# Subtest: D-500 attempt-2 template stays incomplete while a launched token stays immutable and fully qualified
+ok 13 - D-500 attempt-2 template stays incomplete while a launched token stays immutable and fully qualified
+  ---
+  duration_ms: 0.498612
+  type: 'test'
+  ...
+# Subtest: accepted D-200 evidence remains authoritative and explicitly does not claim D-500
+ok 14 - accepted D-200 evidence remains authoritative and explicitly does not claim D-500
+  ---
+  duration_ms: 0.181058
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 13
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 114.973696
+
