@@ -152,6 +152,27 @@ jobs:
           npm init --yes >/dev/null
           npm install --ignore-scripts --no-audit --no-fund "$package"
           node --input-type=module -e "import('@truyn/sdk').then((m) => { if (typeof m.TruynClient !== 'function') throw new Error('TruynClient export missing'); if (typeof m.TruynLocalNodeClient !== 'function') throw new Error('TruynLocalNodeClient export missing'); })"
+      - name: Clean-room import Python wheel and sdist
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+          wheels=("$GITHUB_WORKSPACE"/sdk/release/dist/python/*.whl)
+          sdists=("$GITHUB_WORKSPACE"/sdk/release/dist/python/*.tar.gz)
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          for package in "${wheels[0]}" "${sdists[0]}"; do
+            cleanroom="$(mktemp -d)"
+            python -m venv "$cleanroom/venv"
+            "$cleanroom/venv/bin/python" -m pip install --disable-pip-version-check --quiet "$package"
+            "$cleanroom/venv/bin/python" - <<'PY'
+          from importlib.metadata import version
+          import truyn
+          assert version("truyn-sdk") == "0.1.0a1"
+          assert callable(truyn.TruynClient)
+          assert callable(truyn.TruynLocalNodeClient)
+          PY
+          done
       - name: Upload SDK release bundle
         uses: actions/upload-artifact@v4
         with:
