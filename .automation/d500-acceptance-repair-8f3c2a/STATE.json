@@ -4,7 +4,7 @@
   "currentSprint": "S02",
   "lastCompletedSprint": "S01",
   "taskBranch": "automation/d500-acceptance-repair-8f3c2a",
-  "authoritativeMainAtReconcile": "a906d4017803f9b8a4613aad13640074b0f78b3b",
+  "authoritativeMainAtReconcile": "d6dba979bd2fbfe4a9de269aa610b7f35234e361",
   "originalD500Main": "19d8b65f30dca54c9e5b8f9f946d333dd109bece",
   "attempt11RunId": 36148344789,
   "attempt11RunAttempt": 1,
@@ -28,7 +28,9 @@
     "selfRepairTargetedAttempt11Regressions": "PASS",
     "selfRepairBranch": "task/truyn-d500-acceptance-repair-8f3c2a",
     "selfRepairBranchAuthorizedForTask": false,
-    "mainMovement1303013ToA906d40MaterialToD500": false
+    "mainMovement1303013ToA906d40MaterialToD500": false,
+    "mainMovementA906d40ToD6dba97MaterialToD500": false,
+    "latestMainCommitMessage": "fix(open-1.0): require endpoint interface parity"
   },
   "repairScope": [
     "host-5/node-2 liveness failure",
