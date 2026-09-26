@@ -24,6 +24,7 @@
     "terminalMarker": "FAILURE",
     "unrelatedMainMovementInvalidatesCandidate": false,
     "selfRepairRun36160992242": "FAILURE_CLASS_D_REGRESSION_SET",
+    "selfRepairRun36217380757": "FAILURE_CLASS_D_REGRESSION_SET_WITH_EXACT_DIAGNOSTICS",
     "selfRepairTargetedAttempt11Regressions": "PASS",
     "selfRepairBranch": "task/truyn-d500-acceptance-repair-8f3c2a",
     "selfRepairBranchAuthorizedForTask": false,
@@ -34,21 +35,27 @@
     "hosts-6/13 Azure VM Agent/Run Command timeout-conflict failure"
   ],
   "diagnosticCheckpoint": {
-    "runId": 36160992242,
+    "runId": 36217380757,
     "runAttempt": 1,
-    "headSha": "3658b6b84ff7d519ace7995feb33e1288927ca28",
+    "headSha": "2c1d09e2c9bb23b3ed23f6c5fa013c077bb346aa",
     "targetedRegressionStep": "GREEN",
     "classDRegressionStep": "RED",
     "affectedBlockwise": "NOT_RUN",
     "candidateCreated": false,
     "realSuccessorLaunch": false,
-    "note": "Existing guarded self-repair executed on task/truyn-d500-acceptance-repair-8f3c2a, not the capsule-authorized automation/d500-acceptance-repair-8f3c2a branch. Its result is diagnostic evidence only and cannot authorize candidate/qualification/launch."
+    "exactFailures": [
+      "tests/class-d-1000-bootstrap.test.js: provisioner bootstrap stage no longer contains /dht/refresh after helper extraction",
+      "tests/class-d-1000-remote-manifest-heredoc.test.js: remote manifest/heredoc contract mismatch after helper extraction",
+      "tests/class-d-bootstrap-qualification.test.js: qualification contract mismatch after helper extraction"
+    ],
+    "diagnosis": "The Attempt-12 resilience concept passes targeted Attempt-11 regressions, but extracting the canonical bootstrap sequence into scripts/class-d-bootstrap-host-resilience.sh breaks existing Class-D evaluator contracts. Do not weaken or edit those evaluators merely to accept extraction. Rework the minimal repair so canonical /bootstrap -> /dht/refresh -> /dht/readiness semantics remain directly represented in the provisioner while adding bounded node recovery and Azure Run Command drain handling.",
+    "note": "Run executed on unauthorized task/... branch and remains diagnostic evidence only. No candidate/qualification/launch authority derives from it."
   },
   "next": [
-    "identify exact failing Class-D regression from run 36160992242 without weakening tests",
-    "port only the proven minimal repair onto automation/d500-acceptance-repair-8f3c2a",
-    "run affected regressions and machine-sanitize",
-    "run Frozen Candidate -> Sanitation Swarm -> B01-B16 -> Frozen Candidate Qualification -> current-main Admission",
+    "rework minimal repair on automation/d500-acceptance-repair-8f3c2a without helper extraction that violates Class-D evaluator contracts",
+    "preserve canonical inline /bootstrap -> /dht/refresh -> /dht/readiness and add bounded node recovery plus Azure Run Command drain handling",
+    "run targeted Attempt-11 regressions plus exact failing Class-D regressions and machine-sanitize",
+    "run Frozen Candidate -> Sanitation Swarm -> full B01-B16 -> Frozen Candidate Qualification -> current-main Admission",
     "re-read current mains, candidate/admission bindings, collision/capacity and D-500 duplicate history",
     "permit exactly one successor launch identity/run_attempt=1 only after all guards are GREEN"
   ],
