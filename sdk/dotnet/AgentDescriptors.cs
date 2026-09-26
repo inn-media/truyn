@@ -73,6 +73,9 @@ public static class AgentDescriptors
         if (identity is null || !identity.StartsWith("truyn:node:", StringComparison.Ordinal)) throw Invalid("invalid Agent Descriptor identity");
         if (!raw.TryGetProperty("protocols", out var protocols) || protocols.ValueKind != JsonValueKind.Array || protocols.GetArrayLength() == 0) throw Invalid("Agent Descriptor protocols are required");
         if (!raw.TryGetProperty("interfaces", out var interfaces) || interfaces.ValueKind != JsonValueKind.Array || interfaces.GetArrayLength() == 0) throw Invalid("Agent Descriptor interfaces are required");
+        foreach (var item in interfaces.EnumerateArray())
+            if (item.ValueKind != JsonValueKind.Object || String(item, "type") is null || String(item, "endpoint") is null)
+                throw Invalid("Agent Descriptor interfaces require non-empty type and endpoint");
         if (!raw.TryGetProperty("capabilities", out var capabilities) || capabilities.ValueKind != JsonValueKind.Array) throw Invalid("Agent Descriptor capabilities are invalid");
         if (!DateTimeOffset.TryParse(String(raw, "issuedAt"), out var issuedAt) || !DateTimeOffset.TryParse(String(raw, "expiresAt"), out var expiresAt) || expiresAt <= issuedAt) throw Invalid("invalid Agent Descriptor expiry window");
         if (expiresAt <= DateTimeOffset.UtcNow) throw Invalid("Agent Descriptor has expired");
