@@ -4,7 +4,7 @@
   "currentSprint": "S02",
   "lastCompletedSprint": "S01",
   "taskBranch": "automation/d500-acceptance-repair-8f3c2a",
-  "authoritativeMainAtReconcile": "1303013ee4b1082b9745e43d5fe593897c60b3e7",
+  "authoritativeMainAtReconcile": "a906d4017803f9b8a4613aad13640074b0f78b3b",
   "originalD500Main": "19d8b65f30dca54c9e5b8f9f946d333dd109bece",
   "attempt11RunId": 36148344789,
   "attempt11RunAttempt": 1,
@@ -26,7 +26,8 @@
     "selfRepairRun36160992242": "FAILURE_CLASS_D_REGRESSION_SET",
     "selfRepairTargetedAttempt11Regressions": "PASS",
     "selfRepairBranch": "task/truyn-d500-acceptance-repair-8f3c2a",
-    "selfRepairBranchAuthorizedForTask": false
+    "selfRepairBranchAuthorizedForTask": false,
+    "mainMovement1303013ToA906d40MaterialToD500": false
   },
   "repairScope": [
     "host-5/node-2 liveness failure",
