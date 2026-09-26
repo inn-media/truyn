@@ -51,16 +51,43 @@ retry() {
   until "$@"; do n=$((n+1)); [[ $n -lt 5 ]] || return 1; sleep $((n*3)); done
 }
 
+# Wall-clock budget for provisioning plus campaign. GitHub-hosted runners kill a
+# job at 6h regardless of timeout-minutes, so the run must bound itself: every
+# Azure call is capped twice, by a per-attempt timeout and by what is left of
+# this budget. Exhausting the budget produces evidence; being killed does not.
+TRUYN_D500_BUDGET_S="${TRUYN_D500_BUDGET_S:-9000}"
+TRUYN_D500_REMOTE_TIMEOUT_S="${TRUYN_D500_REMOTE_TIMEOUT_S:-600}"
+TRUYN_D500_REMOTE_ATTEMPTS="${TRUYN_D500_REMOTE_ATTEMPTS:-3}"
+TRUYN_D500_DEADLINE_EPOCH="${TRUYN_D500_DEADLINE_EPOCH:-$(( $(date +%s) + TRUYN_D500_BUDGET_S ))}"
+export TRUYN_D500_BUDGET_S TRUYN_D500_REMOTE_TIMEOUT_S TRUYN_D500_REMOTE_ATTEMPTS TRUYN_D500_DEADLINE_EPOCH
+echo "TRUYN_D500_BUDGET budgetS=${TRUYN_D500_BUDGET_S} deadlineEpoch=${TRUYN_D500_DEADLINE_EPOCH} remoteTimeoutS=${TRUYN_D500_REMOTE_TIMEOUT_S} remoteAttempts=${TRUYN_D500_REMOTE_ATTEMPTS}"
+
+d500_seconds_remaining() {
+  echo $(( TRUYN_D500_DEADLINE_EPOCH - $(date +%s) ))
+}
+
 remote() {
-  local vm="$1" body="$2" enc remote_script output rc attempt
+  local vm="$1" body="$2" enc remote_script output rc attempt attempts cap left unhealthy=0
   enc="$(printf '%s' "$body" | base64 -w0)"
   remote_script="printf '%s' '$enc' | base64 -d >/tmp/truyn-d1000-run.sh; chmod 700 /tmp/truyn-d1000-run.sh; /bin/bash /tmp/truyn-d1000-run.sh"
   remote_script="${remote_script//truyn/truyn}"
   remote_script="${remote_script//truyn/truyn}"
-  for attempt in 1 2 3 4 5; do
+  attempts="${REMOTE_ATTEMPTS:-${TRUYN_D500_REMOTE_ATTEMPTS:-3}}"
+  for ((attempt=1; attempt<=attempts; attempt++)); do
+    cap="${REMOTE_TIMEOUT_S:-${TRUYN_D500_REMOTE_TIMEOUT_S:-600}}"
+    if [[ "${TRUYN_D500_DEADLINE_EPOCH:-0}" -gt 0 ]]; then
+      left=$(( TRUYN_D500_DEADLINE_EPOCH - $(date +%s) ))
+      if [[ "$left" -le 0 ]]; then
+        echo "TRUYN_D500_REMOTE_ABORT vm=${vm} reason=campaign_budget_exhausted" >&2
+        return 75
+      fi
+      [[ "$left" -lt "$cap" ]] && cap="$left"
+    fi
     # Keep the command in an if-condition: set +e only disables errexit, while
     # stage runners use errtrace and may inherit an ERR trap into remote().
-    if output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1); then
+    # `timeout` supplies the client-side deadline az has none of: run-command
+    # otherwise blocks on the 90-minute extension timeout of a sick VM agent.
+    if output=$(timeout --signal=TERM --kill-after=30s "$cap" az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1); then
       rc=0
     else
       rc=$?
@@ -70,11 +97,25 @@ remote() {
       printf '%s\n' "$output"
       return 0
     fi
+    if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+      unhealthy=1
+      echo "TRUYN_D500_REMOTE_TIMEOUT vm=${vm} attempt=${attempt} capS=${cap}" >&2
+    elif grep -Eqi 'VMAgentStatusCommunicationError|VMExtensionProvisioningTimeout|VMExtensionHandlerNonTransientError|ExtensionFailedToProvision|GuestAgent.*(not ready|unresponsive)' <<<"$output"; then
+      unhealthy=1
+      echo "TRUYN_D500_VM_AGENT_PATHOLOGY vm=${vm} attempt=${attempt} rc=${rc}" >&2
+    fi
     echo "TRUYN_REMOTE_RETRY vm=${vm} attempt=${attempt} rc=${rc}" >&2
-    [[ $attempt -lt 5 ]] || break
+    # A VM agent that stopped reporting does not recover inside a stage. Two
+    # bounded attempts, then fail this host fast and let the stage record it;
+    # retrying a dead agent is what turned attempt 7 into a six-hour run.
+    if [[ "$unhealthy" == 1 && "$attempt" -ge 2 ]]; then
+      echo "TRUYN_D500_HOST_UNHEALTHY vm=${vm} rc=${rc} attempts=${attempt} reason=vm_agent_unreachable" >&2
+      return 70
+    fi
+    [[ $attempt -lt $attempts ]] || break
     sleep $((attempt*3))
   done
-  echo "TRUYN_REMOTE_FAILURE vm=${vm} attempts=5 rc=${rc}" >&2
+  echo "TRUYN_REMOTE_FAILURE vm=${vm} attempts=${attempts} rc=${rc}" >&2
   return "$rc"
 }
 
@@ -290,22 +331,51 @@ az network vnet create -g "$RG" -n "$VNET" -l "$LOCATION" --address-prefixes 10.
 az network vnet subnet update -g "$RG" --vnet-name "$VNET" -n "$SUBNET" --network-security-group "$NSG" --service-endpoints Microsoft.Storage --only-show-errors >/dev/null
 
 STAGE=provision
+# 20 hosts are provisioned concurrently. Serially this cost 20 x (nic + vm
+# create) of wall clock for no acceptance value; the topology, sizes and
+# fail-closed checks below are unchanged, only their dispatch is parallel.
+provision_dir=$(mktemp -d)
+provision_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
-  created=0
-  for size in "$VM_SIZE" Standard_D4s_v5; do
-    if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
-      created=1
-      echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
-      break
-    fi
-  done
-  [[ $created == 1 ]]
-  PRIV+=("$(az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)")
+  (
+    trap - ERR
+    set -uo pipefail
+    az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null || exit 1
+    created=0
+    for size in "$VM_SIZE" Standard_D4s_v5; do
+      if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
+        created=1
+        echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
+        break
+      fi
+    done
+    [[ $created == 1 ]] || exit 1
+    ip="$(az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)"
+    [[ -n "$ip" ]] || exit 1
+    printf '%s\n' "$ip" >"$provision_dir/$i.ip"
+  ) >"$provision_dir/$i.log" &
+  provision_pids+=("$!")
+done
+provision_failed=0
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  if ! wait "${provision_pids[$i]}"; then
+    provision_failed=1
+    echo "TRUYN_CLASS_D_1000 stage=provision host=$i status=FAIL" >&2
+  fi
+done
+for i in $(seq 0 $((HOST_COUNT-1))); do cat "$provision_dir/$i.log"; done
+[[ "$provision_failed" == 0 ]]
+# Private IPs are read back in host order: PRIV[i] must stay the address of
+# VMS[i] for every later stage and for the bootstrap plan.
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  PRIV+=("$(cat "$provision_dir/$i.ip")")
   [[ -n "${PRIV[$i]}" ]]
 done
+rm -rf "$provision_dir"
 
 STAGE=install
+install_dir=$(mktemp -d)
+install_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -449,10 +519,27 @@ echo PROCESSES=\$proc
 EOS
 )
   script="${script//truyn/truyn}"
-  out=$(remote "${VMS[$i]}" "$script")
-  [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
-  echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
+  # Installing 25 processes per host is the single longest provisioning step and
+  # it is independent per host: dispatch all hosts at once, keep every check.
+  (
+    trap - ERR
+    out=$(remote "${VMS[$i]}" "$script") || { rc=$?; echo "TRUYN_D500_INSTALL_REMOTE_FAILED host=$i rc=$rc"; exit "$rc"; }
+    printf '%s\n' "$out" | { grep -E 'TRUYN_REMOTE_INSTALL_FAILURE|TRUYN_REMOTE_COMMAND_FAILURE|READY=|PROCESSES=' || true; } | tail -20 | sed "s/^/TRUYN_D500_INSTALL_HOST_LOG host=$i /"
+    [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
+    echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
+  ) >"$install_dir/$i" &
+  install_pids+=("$!")
 done
+install_failed=0
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  if ! wait "${install_pids[$i]}"; then
+    install_failed=1
+    echo "TRUYN_CLASS_D_1000 stage=install host=$i status=FAIL" >&2
+  fi
+done
+for i in $(seq 0 $((HOST_COUNT-1))); do cat "$install_dir/$i"; done
+rm -rf "$install_dir"
+[[ "$install_failed" == 0 ]]
 
 STAGE=bootstrap-record-refresh
 D200_PEER_LEASE_FRESHNESS_REPAIR=1
@@ -688,7 +775,11 @@ EOS
   script="${script//truyn/truyn}"
   script="${script//truyn/truyn}"
   (
-    out=$(remote "${VMS[$i]}" "$script")
+    trap - ERR
+    out=$(remote "${VMS[$i]}" "$script") || { rc=$?; echo "TRUYN_D500_BOOTSTRAP_REMOTE_FAILED host=$i rc=$rc"; exit "$rc"; }
+    # Keep the host-side evidence even when a marker check below fails: markers,
+    # refresh retries and curl errors identify which node stalled.
+    printf '%s\n' "$out" | { grep -E 'BOOTSTRAP_|TRUYN_D200_BOOTSTRAP_REFRESH_RETRY|curl: \(|[Ee]rror' || true; } | tail -60 | sed "s/^/TRUYN_D500_BOOTSTRAP_HOST_LOG host=$i /"
     [[ "$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
     [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
     [[ "$(marker "$out" BOOTSTRAP_PLAN_ALL_TO_ALL)" == false ]]
@@ -700,9 +791,18 @@ EOS
   ) >"$bootstrap_dir/$i" &
   bootstrap_pids+=("$!")
 done
-for pid in "${bootstrap_pids[@]}"; do wait "$pid"; done
+bootstrap_failed=0
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  if ! wait "${bootstrap_pids[$i]}"; then
+    bootstrap_failed=1
+    echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i status=FAIL" >&2
+  fi
+done
+# Every host's evidence is printed before the stage fails. Previously the first
+# failed wait exited here and the per-host reason stayed in the temp file.
 for i in $(seq 0 $((HOST_COUNT-1))); do cat "$bootstrap_dir/$i"; done
 rm -rf "$bootstrap_dir"
+[[ "$bootstrap_failed" == 0 ]]
 
 if [[ "${TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY:-0}" == 1 ]]; then
   qualification_class=D-1000
