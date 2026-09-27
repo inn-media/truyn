@@ -12,12 +12,11 @@ jobs:
     timeout-minutes: 35
     env:
       BASE_SHA: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
-      CANDIDATE_REF: automation/d500-frozen-8f3c2a-20260927-d
+      CANDIDATE_REF: automation/d500-frozen-8f3c2a-20260927-e
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
           token: '${{ github.token }}'
       - name: Build minimal inline repair
         shell: bash
@@ -47,8 +46,6 @@ jobs:
           done
       - name: Persist qualified repaired candidate
         shell: bash
-        env:
-          AUTOPILOT_TOKEN: '${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}'
         run: |
           set -Eeuo pipefail
           git add -A
@@ -59,11 +56,9 @@ jobs:
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
           git commit -s -m 'fix(d500): inline node recovery and drain run-command conflicts'
           candidate=$(git rev-parse HEAD)
-          test -n "$AUTOPILOT_TOKEN"
-          AUTH="https://x-access-token:${AUTOPILOT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          if git ls-remote --exit-code --heads "$AUTH" "$CANDIDATE_REF" >/dev/null 2>&1; then
+          if git ls-remote --exit-code --heads origin "$CANDIDATE_REF" >/dev/null 2>&1; then
             echo "candidate ref already exists; refusing overwrite: $CANDIDATE_REF" >&2
             exit 73
           fi
-          git push "$AUTH" "HEAD:refs/heads/$CANDIDATE_REF"
+          git push origin "HEAD:refs/heads/$CANDIDATE_REF"
           echo "TRUYN_D500_FROZEN_CANDIDATE=$candidate"
