@@ -8,9 +8,6 @@ on:
 permissions:
   contents: write
   actions: read
-concurrency:
-  group: d500-inline-repair-8f3c2a
-  cancel-in-progress: false
 jobs:
   repair:
     runs-on: ubuntu-22.04
@@ -22,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}
+          token: ${{ github.token }}
       - name: Build minimal inline repair
         shell: bash
         run: |
@@ -48,7 +45,7 @@ jobs:
             BLOCK_ID="$block" BLOCK_OUT_DIR=blockwise-out node scripts/class-d-blockwise-preflight.mjs
             jq -e '.status=="GREEN" and .harnessReturnCode==0' "blockwise-out/$block/block.json" >/dev/null
           done
-      - name: Freeze candidate and launch sanitation
+      - name: Freeze repaired candidate
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -61,11 +58,4 @@ jobs:
           git commit -s -m 'fix(d500): inline node recovery and drain run-command conflicts'
           candidate=$(git rev-parse HEAD)
           git push --force origin "HEAD:refs/heads/${TASK_BRANCH}"
-          branch="automation/d-series-dispatch/${candidate:0:8}-d500-swarm"
-          git checkout -b "$branch"
-          mkdir -p .github/d-series-dispatch
-          printf 'SOURCE_SHA=%s\nSCALE=d500\nMODE=swarm\n' "$candidate" > .github/d-series-dispatch/request.env
-          git add .github/d-series-dispatch/request.env
-          git commit -s -m "launch(d500): sanitation swarm for ${candidate:0:8}"
-          git push origin "HEAD:refs/heads/$branch"
           echo "TRUYN_D500_FROZEN_CANDIDATE=$candidate"
