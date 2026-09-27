@@ -12,10 +12,12 @@ jobs:
     timeout-minutes: 35
     env:
       BASE_SHA: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
-      CANDIDATE_REF: automation/d500-frozen-8f3c2a-20260927
+      CANDIDATE_REF: automation/d500-frozen-8f3c2a-20260927-b
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 0, token: '${{ github.token }}'}
+        with:
+          fetch-depth: 0
+          token: '${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}'
       - name: Build minimal inline repair
         shell: bash
         run: |
