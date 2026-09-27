@@ -173,6 +173,32 @@ jobs:
           assert callable(truyn.TruynLocalNodeClient)
           PY
           done
+      - name: Clean-room consume immutable Go module
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cleanroom="$(mktemp -d)"
+          cd "$cleanroom"
+          go mod init example.com/truyn-cleanroom
+          go get github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1
+          cat > main.go <<'GO'
+          package main
+          import (
+            "fmt"
+            truyn "github.com/inn-media/truyn/sdk/go"
+          )
+          func main() {
+            identity, err := truyn.CreateLocalIdentity()
+            if err != nil { panic(err) }
+            if identity == nil { panic("nil identity") }
+            fmt.Println("truyn-go-cleanroom-ok")
+          }
+          GO
+          go mod tidy
+          go build ./...
+          output="$(go run .)"
+          test "$output" = "truyn-go-cleanroom-ok"
+          go list -m -f '{{.Path}}@{{.Version}}' github.com/inn-media/truyn/sdk/go | grep -Fx 'github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1'
       - name: Upload SDK release bundle
         uses: actions/upload-artifact@v4
         with:
