@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 35
     env:
       BASE_SHA: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
-      CANDIDATE_REF: automation/d500-frozen-8f3c2a-20260927-f
+      CANDIDATE_REF: automation/d500-frozen-8f3c2a-20260927-g
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,9 +48,10 @@ jobs:
       - name: Persist qualified repaired candidate
         shell: bash
         env:
-          GH_TOKEN: '${{ github.token }}'
+          GH_TOKEN: '${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB }}'
         run: |
           set -Eeuo pipefail
+          test -n "$GH_TOKEN"
           git add -A
           git diff --cached --check
           mapfile -t changed < <(git diff --cached --name-only | sort)
@@ -59,7 +60,8 @@ jobs:
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
           git commit -s -m 'fix(d500): inline node recovery and drain run-command conflicts'
           candidate=$(git rev-parse HEAD)
-          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${CANDIDATE_REF}" >/dev/null 2>&1; then
+          encoded_ref=${CANDIDATE_REF//\//%2F}
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${encoded_ref}" >/dev/null 2>&1; then
             echo "candidate ref already exists; refusing overwrite: $CANDIDATE_REF" >&2
             exit 73
           fi
