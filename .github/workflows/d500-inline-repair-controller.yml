@@ -4,7 +4,7 @@ on:
     branches: ['automation/d500-acceptance-repair-8f3c2a']
     paths: ['.github/workflows/d500-inline-repair-controller.yml']
 permissions:
-  contents: write
+  contents: read
   actions: read
 jobs:
   repair:
@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 35
     env:
       BASE_SHA: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
-      CANDIDATE_REF: automation/d500-frozen-8f3c2a-20260927-h
+      CANDIDATE_REF: automation/d500-frozen-8f3c2a-20260928-a
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,7 +45,7 @@ jobs:
             BLOCK_ID="$block" BLOCK_OUT_DIR=blockwise-out node scripts/class-d-blockwise-preflight.mjs
             jq -e '.status=="GREEN" and .harnessReturnCode==0' "blockwise-out/$block/block.json" >/dev/null
           done
-      - name: Persist qualified repaired candidate
+      - name: Freeze verified patch payload
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -53,9 +53,13 @@ jobs:
           git diff --cached --check
           mapfile -t changed < <(git diff --cached --name-only | sort)
           [[ "${changed[*]}" == "benchmarks/scale/class-d-azure-1000-provision.sh tests/d500-campaign-time-budget.test.js tests/d500-vm-agent-run-command-recovery.test.js" ]]
-          git config user.name 'Iluco Mutcnas'
-          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
-          git commit -s -m 'fix(d500): inline node recovery and drain run-command conflicts'
-          candidate=$(git rev-parse HEAD)
-          echo "TRUYN_D500_FROZEN_CANDIDATE=$candidate"
-          echo "Candidate persistence delegated to task controller after GREEN; ref=$CANDIDATE_REF"
+          git diff --cached --binary > /tmp/d500-verified-repair.patch
+          sha256sum /tmp/d500-verified-repair.patch | tee /tmp/d500-verified-repair.patch.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d500-verified-repair-patch
+          path: |
+            /tmp/d500-verified-repair.patch
+            /tmp/d500-verified-repair.patch.sha256
+          if-no-files-found: error
+          retention-days: 7
