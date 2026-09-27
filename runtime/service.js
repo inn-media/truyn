@@ -168,6 +168,9 @@ async function runProvider() {
     .split(/[;,]/)
     .map((value) => value.trim())
     .filter(Boolean);
+  const accessPolicy = createRuntimeProviderAccessPolicy(process.env);
+  const billingPolicy = createRuntimeProviderBillingPolicy(process.env);
+  enforceOwnerProviderRuntimeLock(process.env, { accessPolicy, billingPolicy });
   const identity = loadRuntimeIdentity();
   const publicDescriptor = createPublicAgentDescriptor({ identity, capabilities, env: process.env });
   const backchannelConfig = createRuntimeBackchannelConfig(process.env);
@@ -176,11 +179,8 @@ async function runProvider() {
     identity,
     backchannelToken: backchannelConfig.providerBackchannelToken
   });
-  const accessPolicy = createRuntimeProviderAccessPolicy(process.env);
-  const billingPolicy = createRuntimeProviderBillingPolicy(process.env);
   observability.instrumentAccessPolicy(accessPolicy, { providerId: identity.nodeId });
   observability.instrumentBillingPolicy(billingPolicy, { providerId: identity.nodeId });
-  enforceOwnerProviderRuntimeLock(process.env, { accessPolicy, billingPolicy });
   const adapter = observability.wrapProviderAdapter(
     createProviderAdapter(providerName, { capabilities }),
     { providerId: identity.nodeId }
