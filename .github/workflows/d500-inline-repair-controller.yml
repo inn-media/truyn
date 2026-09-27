@@ -12,6 +12,7 @@ jobs:
     timeout-minutes: 35
     env:
       BASE_SHA: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
+      CANDIDATE_REF: automation/d500-frozen-8f3c2a-20260927
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0, token: '${{ github.token }}'}
@@ -53,5 +54,9 @@ jobs:
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
           git commit -s -m 'fix(d500): inline node recovery and drain run-command conflicts'
           candidate=$(git rev-parse HEAD)
-          git push origin HEAD:refs/heads/automation/d500-qualified-stage2
+          if git ls-remote --exit-code --heads origin "$CANDIDATE_REF" >/dev/null 2>&1; then
+            echo "candidate ref already exists; refusing overwrite: $CANDIDATE_REF" >&2
+            exit 73
+          fi
+          git push origin "HEAD:refs/heads/$CANDIDATE_REF"
           echo "TRUYN_D500_FROZEN_CANDIDATE=$candidate"
