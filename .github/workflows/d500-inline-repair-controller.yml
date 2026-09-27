@@ -12,12 +12,9 @@ jobs:
     timeout-minutes: 35
     env:
       BASE_SHA: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
-      TASK_BRANCH: automation/d500-acceptance-repair-8f3c2a
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ github.token }}
+        with: {fetch-depth: 0, token: '${{ github.token }}'}
       - name: Build minimal inline repair
         shell: bash
         run: |
@@ -44,7 +41,7 @@ jobs:
             BLOCK_ID="$block" BLOCK_OUT_DIR=blockwise-out node scripts/class-d-blockwise-preflight.mjs
             jq -e '.status=="GREEN" and .harnessReturnCode==0' "blockwise-out/$block/block.json" >/dev/null
           done
-      - name: Freeze repaired candidate
+      - name: Persist qualified repaired candidate
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -56,5 +53,5 @@ jobs:
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
           git commit -s -m 'fix(d500): inline node recovery and drain run-command conflicts'
           candidate=$(git rev-parse HEAD)
-          git push --force origin "HEAD:refs/heads/${TASK_BRANCH}"
+          git push --force origin HEAD:refs/heads/automation/d500-repair-stage-8f3c2a
           echo "TRUYN_D500_FROZEN_CANDIDATE=$candidate"
