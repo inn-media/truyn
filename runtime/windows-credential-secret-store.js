@@ -1,16 +1,12 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 import { SecretStore, assertSecretReference } from './secret-store.js';
 
-const execFileAsync = promisify(execFile);
 export const WINDOWS_CREDENTIAL_BACKEND = 'windows-credential-manager';
 const TARGET_PREFIX = 'TRUYN/';
 
 function targetFor(reference) {
   const safe = assertSecretReference(reference);
-  if (safe.backend !== WINDOWS_CREDENTIAL_BACKEND) {
-    throw new Error(`WindowsCredentialSecretStore cannot use backend: ${safe.backend}`);
-  }
+  if (safe.backend !== WINDOWS_CREDENTIAL_BACKEND) throw new Error(`WindowsCredentialSecretStore cannot use backend: ${safe.backend}`);
   return `${TARGET_PREFIX}${safe.key}`;
 }
 
@@ -64,32 +60,33 @@ switch ([string]$inputJson.operation) {
 
 export async function runWindowsCredentialOperation(request, { platform = process.platform } = {}) {
   if (platform !== 'win32') throw new Error('Windows Credential Manager is supported only on Windows');
-  const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', POWERSHELL], {
-    input: JSON.stringify(request),
-    windowsHide: true,
-    maxBuffer: 1024 * 1024
+  return new Promise((resolve, reject) => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', POWERSHELL], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) return reject(new Error(`Windows Credential Manager operation failed (${code}): ${stderr.trim() || 'unknown error'}`));
+      try { resolve(JSON.parse(stdout.trim())); } catch { reject(new Error('Windows Credential Manager returned invalid output')); }
+    });
+    child.stdin.end(JSON.stringify(request));
   });
-  return JSON.parse(String(stdout).trim());
 }
 
 export class WindowsCredentialSecretStore extends SecretStore {
-  constructor({ runner = runWindowsCredentialOperation } = {}) {
-    super();
-    this.runner = runner;
-  }
-
+  constructor({ runner = runWindowsCredentialOperation } = {}) { super(); this.runner = runner; }
   async put(reference, value) {
     if (typeof value !== 'string' || value.length === 0) throw new Error('Secret value is required');
     await this.runner({ operation: 'put', target: targetFor(reference), value });
   }
-
   async resolve(reference) {
     const result = await this.runner({ operation: 'resolve', target: targetFor(reference) });
     if (!result?.found || typeof result.value !== 'string' || result.value.length === 0) return undefined;
     return result.value;
   }
-
-  async delete(reference) {
-    await this.runner({ operation: 'delete', target: targetFor(reference) });
-  }
+  async delete(reference) { await this.runner({ operation: 'delete', target: targetFor(reference) }); }
 }
