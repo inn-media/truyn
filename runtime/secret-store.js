@@ -32,6 +32,29 @@ export class SecretStore {
   }
 }
 
+export class EnvironmentSecretStore extends SecretStore {
+  constructor(environment = process.env) {
+    super();
+    this.environment = environment;
+  }
+
+  async resolve(reference) {
+    const safeReference = assertSecretReference(reference);
+    if (safeReference.backend !== 'env') {
+      throw new Error(`EnvironmentSecretStore cannot resolve backend: ${safeReference.backend}`);
+    }
+    return this.environment[safeReference.key];
+  }
+
+  async put() {
+    throw new Error('EnvironmentSecretStore is read-only; set credentials in the process environment explicitly');
+  }
+
+  async delete() {
+    throw new Error('EnvironmentSecretStore is read-only; remove credentials from the process environment explicitly');
+  }
+}
+
 export async function resolveSecret(secretStore, reference) {
   if (!secretStore || typeof secretStore.resolve !== 'function') {
     throw new Error('SecretStore with resolve(reference) is required');
