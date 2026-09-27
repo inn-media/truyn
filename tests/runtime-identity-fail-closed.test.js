@@ -38,6 +38,18 @@ test('provider runtime fails closed when durable identity is corrupt', () => {
   assert.doesNotMatch(result.stderr, /OPENAI_API_KEY is required/);
 });
 
+test('provider runtime fails closed when durable identity key material is mismatched', () => {
+  const identity = createIdentity();
+  const otherIdentity = createIdentity();
+  const record = JSON.parse(serializeDurableIdentity(identity, { network: 'mainnet', profile: 'test' }));
+  record.identity.privateKeyPem = otherIdentity.privateKeyPem;
+  const result = runProvider({ TRUYN_IDENTITY_JSON: JSON.stringify(record) });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Durable TRUYN identity is unreadable/);
+  assert.match(result.stderr, /private key does not match public key/);
+  assert.doesNotMatch(result.stderr, /OPENAI_API_KEY is required/);
+});
+
 test('provider runtime accepts explicit durable identity without replacing it', () => {
   const identity = createIdentity();
   const serialized = serializeDurableIdentity(identity, { network: 'mainnet', profile: 'test' });
