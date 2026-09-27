@@ -33,3 +33,4 @@ dotnet pack "$ROOT/sdk/dotnet/Truyn.Sdk.csproj" --configuration Release -p:Packa
 
 node "$ROOT/sdk/release/write-manifest.mjs" "$DIST"
 node "$ROOT/sdk/release/verify-release.mjs" "$DIST"
+bash "$ROOT/sdk/release/verify-public-maven.sh"
