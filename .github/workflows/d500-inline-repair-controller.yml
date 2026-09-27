@@ -53,5 +53,5 @@ jobs:
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
           git commit -s -m 'fix(d500): inline node recovery and drain run-command conflicts'
           candidate=$(git rev-parse HEAD)
-          git push origin HEAD:refs/heads/automation/d500-qualified-15838b8c
+          git push origin HEAD:refs/heads/automation/d500-qualified-stage2
           echo "TRUYN_D500_FROZEN_CANDIDATE=$candidate"
