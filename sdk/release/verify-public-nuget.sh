@@ -11,7 +11,7 @@ cat > Program.cs <<'CS'
 using System;
 using Truyn.Sdk;
 
-var client = new TruynClient(new Uri("https://example.invalid/"));
+await using var client = new TruynClient(new TruynClientOptions(new Uri("https://example.invalid/")));
 if (client.GetType().FullName != "Truyn.Sdk.TruynClient")
     throw new InvalidOperationException("unexpected SDK class");
 Console.WriteLine("truyn-nuget-cleanroom-ok");
