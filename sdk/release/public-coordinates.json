@@ -1,7 +1,7 @@
 {
   "schema": "truyn.sdk-public-coordinates/v1",
   "historicalBaselineSha": "5daaac4a06b9573523f50caef7fc5c04175247b8",
-  "reconciledOnMainSha": "0fb469c41c05d5bdd3f52b5ecd1c3c0ade86e26c",
+  "reconciledOnMainSha": "e5ede1bc30540e84a73b373dab16a1db3bc299f7",
   "channel": "public-pre-release",
   "coordinates": {
     "npm": {
