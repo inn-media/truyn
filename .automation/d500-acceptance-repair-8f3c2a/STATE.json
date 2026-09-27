@@ -4,7 +4,7 @@
   "currentSprint": "S02",
   "lastCompletedSprint": "S01",
   "taskBranch": "automation/d500-acceptance-repair-8f3c2a",
-  "authoritativeMainAtReconcile": "d6dba979bd2fbfe4a9de269aa610b7f35234e361",
+  "authoritativeMainAtReconcile": "e6e350124201a3e637cc8c481dc8385d8979e51a",
   "originalD500Main": "19d8b65f30dca54c9e5b8f9f946d333dd109bece",
   "attempt11RunId": 36148344789,
   "attempt11RunAttempt": 1,
@@ -30,7 +30,9 @@
     "selfRepairBranchAuthorizedForTask": false,
     "mainMovement1303013ToA906d40MaterialToD500": false,
     "mainMovementA906d40ToD6dba97MaterialToD500": false,
-    "latestMainCommitMessage": "fix(open-1.0): require endpoint interface parity"
+    "mainMovementD6dba97ToE6e3501MaterialToD500": false,
+    "latestMainCommitMessage": "test(open-1.0): verify Python release artifacts in clean rooms",
+    "authorizedTaskBranchRunsObserved": 0
   },
   "repairScope": [
     "host-5/node-2 liveness failure",
@@ -53,10 +55,18 @@
     "diagnosis": "The Attempt-12 resilience concept passes targeted Attempt-11 regressions, but extracting the canonical bootstrap sequence into scripts/class-d-bootstrap-host-resilience.sh breaks existing Class-D evaluator contracts. Do not weaken or edit those evaluators merely to accept extraction. Rework the minimal repair so canonical /bootstrap -> /dht/refresh -> /dht/readiness semantics remain directly represented in the provisioner while adding bounded node recovery and Azure Run Command drain handling.",
     "note": "Run executed on unauthorized task/... branch and remains diagnostic evidence only. No candidate/qualification/launch authority derives from it."
   },
+  "currentReconcileCheckpoint": {
+    "taskBranchHeadBeforeStateUpdate": "ea59765f3009c441cc6349a923b340d8a43ac7ce",
+    "publicMain": "e6e350124201a3e637cc8c481dc8385d8979e51a",
+    "mainDeltaFromPriorReconcile": "one Open-1.0 CI-only commit; non-material to D-500 candidate qualification",
+    "canonicalProvisioner": "benchmarks/scale/class-d-azure-1000-provision.sh",
+    "canonicalBootstrapSequenceStillInline": true,
+    "repairConstraint": "keep inline /bootstrap -> /dht/refresh -> /dht/readiness; add bounded per-node liveness recovery and Azure Run Command drain/backoff without evaluator weakening",
+    "successorLaunchAuthorized": false
+  },
   "next": [
-    "rework minimal repair on automation/d500-acceptance-repair-8f3c2a without helper extraction that violates Class-D evaluator contracts",
-    "preserve canonical inline /bootstrap -> /dht/refresh -> /dht/readiness and add bounded node recovery plus Azure Run Command drain handling",
-    "run targeted Attempt-11 regressions plus exact failing Class-D regressions and machine-sanitize",
+    "apply the minimal resilience repair only on automation/d500-acceptance-repair-8f3c2a while retaining the canonical inline bootstrap sequence",
+    "run targeted Attempt-11 regressions plus the three exact Class-D regressions and machine-sanitize",
     "run Frozen Candidate -> Sanitation Swarm -> full B01-B16 -> Frozen Candidate Qualification -> current-main Admission",
     "re-read current mains, candidate/admission bindings, collision/capacity and D-500 duplicate history",
     "permit exactly one successor launch identity/run_attempt=1 only after all guards are GREEN"
