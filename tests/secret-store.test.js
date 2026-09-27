@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SecretStore, createSecretReference, resolveSecret } from '../runtime/secret-store.js';
+import { EnvironmentSecretStore, SecretStore, createSecretReference, resolveSecret } from '../runtime/secret-store.js';
 import { providerAdapterOptionsWithSecretStore, providerCredentialReference } from '../runtime/byok-secret-store.js';
 
 class MemorySecretStore extends SecretStore {
@@ -26,6 +26,23 @@ test('legacy env metadata becomes a reference, not a persisted raw value', () =>
   assert.deepEqual(providerCredentialReference(profile), {
     schema: 'truyn.secret-reference/v1', backend: 'env', key: 'ANTHROPIC_API_KEY'
   });
+});
+
+test('EnvironmentSecretStore resolves legacy env references without persisting raw values', async () => {
+  const environment = { OPENAI_API_KEY: 'env-sentinel-secret' };
+  const store = new EnvironmentSecretStore(environment);
+  const profile = { provider: 'openai', authMode: 'bearer', credentialEnv: 'OPENAI_API_KEY', model: 'test-model' };
+  const options = await providerAdapterOptionsWithSecretStore(profile, store);
+  assert.equal(options.apiKey, 'env-sentinel-secret');
+  assert.equal(JSON.stringify(profile).includes('env-sentinel-secret'), false);
+  await assert.rejects(() => store.put(createSecretReference({ backend: 'env', key: 'OPENAI_API_KEY' }), 'replacement'), /read-only/);
+  await assert.rejects(() => store.delete(createSecretReference({ backend: 'env', key: 'OPENAI_API_KEY' })), /read-only/);
+});
+
+test('EnvironmentSecretStore rejects non-env references and missing env values fail closed', async () => {
+  const store = new EnvironmentSecretStore({});
+  await assert.rejects(() => resolveSecret(store, createSecretReference({ backend: 'env', key: 'MISSING_API_KEY' })), /could not resolve/);
+  await assert.rejects(() => resolveSecret(store, createSecretReference({ backend: 'keychain', key: 'provider/default' })), /cannot resolve backend/);
 });
 
 test('SecretStore fails closed for missing values and unknown reference versions', async () => {
