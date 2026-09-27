@@ -1,10 +1,8 @@
 name: D-500 Task-Local Inline Repair Controller
 on:
   push:
-    branches:
-      - 'automation/d500-acceptance-repair-8f3c2a'
-    paths:
-      - '.github/workflows/d500-inline-repair-controller.yml'
+    branches: ['automation/d500-acceptance-repair-8f3c2a']
+    paths: ['.github/workflows/d500-inline-repair-controller.yml']
 permissions:
   contents: write
   actions: read
@@ -37,7 +35,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           npm install --ignore-scripts --no-audit --no-fund
-          node --test tests/d500-campaign-time-budget.test.js
+          node --test tests/d500-campaign-time-budget.test.js tests/d500-vm-agent-run-command-recovery.test.js
           node --test tests/class-d-1000-bootstrap.test.js tests/class-d-1000-remote-manifest-heredoc.test.js tests/class-d-bootstrap-qualification.test.js
           mapfile -t files < <(find tests -maxdepth 1 -type f -name '*.test.js' | grep -E '/([^/]*(d200|d500|d1000)[^/]*|class-d[^/]*)\.test\.js$' | sort)
           node --test "${files[@]}"
@@ -53,7 +51,7 @@ jobs:
           git add -A
           git diff --cached --check
           mapfile -t changed < <(git diff --cached --name-only | sort)
-          [[ "${changed[*]}" == "benchmarks/scale/class-d-azure-1000-provision.sh tests/d500-campaign-time-budget.test.js" ]]
+          [[ "${changed[*]}" == "benchmarks/scale/class-d-azure-1000-provision.sh tests/d500-campaign-time-budget.test.js tests/d500-vm-agent-run-command-recovery.test.js" ]]
           git config user.name 'Iluco Mutcnas'
           git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
           git commit -s -m 'fix(d500): inline node recovery and drain run-command conflicts'
