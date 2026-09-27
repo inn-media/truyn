@@ -1,3 +1,4 @@
+import { createPublicKey } from 'node:crypto';
 import { nodeIdFromPublicKey } from '../protocol/index.js';
 
 export const DURABLE_IDENTITY_SCHEMA = 'truyn.node-identity/v1';
@@ -18,6 +19,18 @@ function normalizeProfile(profile) {
   return profile;
 }
 
+function assertKeyPairMatches(publicKeyPem, privateKeyPem) {
+  let derivedPublicKeyPem;
+  try {
+    derivedPublicKeyPem = createPublicKey(privateKeyPem).export({ type: 'spki', format: 'pem' });
+  } catch {
+    throw new Error('Invalid durable identity: private key is unreadable');
+  }
+  if (derivedPublicKeyPem !== publicKeyPem) {
+    throw new Error('Invalid durable identity: private key does not match public key');
+  }
+}
+
 export function serializeDurableIdentity(identity, { network, profile = null } = {}) {
   if (!identity || typeof identity !== 'object') {
     throw new TypeError('Invalid durable identity: identity is required');
@@ -34,6 +47,7 @@ export function serializeDurableIdentity(identity, { network, profile = null } =
   if (derivedNodeId !== nodeId) {
     throw new Error('Invalid durable identity: nodeId does not match public key');
   }
+  assertKeyPairMatches(publicKeyPem, privateKeyPem);
 
   return JSON.stringify({
     schema: DURABLE_IDENTITY_SCHEMA,
@@ -68,6 +82,7 @@ export function parseDurableIdentity(serialized) {
   if (nodeIdFromPublicKey(publicKeyPem) !== nodeId) {
     throw new Error('Invalid durable identity: nodeId does not match public key');
   }
+  assertKeyPairMatches(publicKeyPem, privateKeyPem);
 
   return {
     schema: DURABLE_IDENTITY_SCHEMA,

@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { createRelay } from '../network/relay/server.js';
-import { createIdentity } from '../core/identity/index.js';
+import { parseDurableIdentity } from '../core/identity/storage.js';
 import { TruynAdapterHost } from '../adapters/sdk/index.js';
 import { createProviderAdapter } from '../adapters/providers/index.js';
 import { createRuntimeProviderAccessPolicy } from './security-config.js';
@@ -30,11 +30,19 @@ function sleep(ms) {
 }
 
 function loadRuntimeIdentity() {
-  if (process.env.TRUYN_IDENTITY_JSON) return JSON.parse(process.env.TRUYN_IDENTITY_JSON);
-  if (process.env.TRUYN_IDENTITY_B64) {
-    return JSON.parse(Buffer.from(process.env.TRUYN_IDENTITY_B64, 'base64').toString('utf8'));
+  let serialized = null;
+  if (process.env.TRUYN_IDENTITY_JSON) serialized = process.env.TRUYN_IDENTITY_JSON;
+  else if (process.env.TRUYN_IDENTITY_B64) {
+    serialized = Buffer.from(process.env.TRUYN_IDENTITY_B64, 'base64').toString('utf8');
   }
-  return createIdentity();
+  if (!serialized) {
+    throw new Error('Durable TRUYN identity is required; run explicit first-run setup before starting provider runtime');
+  }
+  try {
+    return parseDurableIdentity(serialized).identity;
+  } catch (error) {
+    throw new Error(`Durable TRUYN identity is unreadable; explicit recovery or setup is required: ${error.message}`);
+  }
 }
 
 function csvSet(value = '') {
@@ -160,6 +168,9 @@ async function runProvider() {
     .split(/[;,]/)
     .map((value) => value.trim())
     .filter(Boolean);
+  const accessPolicy = createRuntimeProviderAccessPolicy(process.env);
+  const billingPolicy = createRuntimeProviderBillingPolicy(process.env);
+  enforceOwnerProviderRuntimeLock(process.env, { accessPolicy, billingPolicy });
   const identity = loadRuntimeIdentity();
   const publicDescriptor = createPublicAgentDescriptor({ identity, capabilities, env: process.env });
   const backchannelConfig = createRuntimeBackchannelConfig(process.env);
@@ -168,11 +179,8 @@ async function runProvider() {
     identity,
     backchannelToken: backchannelConfig.providerBackchannelToken
   });
-  const accessPolicy = createRuntimeProviderAccessPolicy(process.env);
-  const billingPolicy = createRuntimeProviderBillingPolicy(process.env);
   observability.instrumentAccessPolicy(accessPolicy, { providerId: identity.nodeId });
   observability.instrumentBillingPolicy(billingPolicy, { providerId: identity.nodeId });
-  enforceOwnerProviderRuntimeLock(process.env, { accessPolicy, billingPolicy });
   const adapter = observability.wrapProviderAdapter(
     createProviderAdapter(providerName, { capabilities }),
     { providerId: identity.nodeId }
