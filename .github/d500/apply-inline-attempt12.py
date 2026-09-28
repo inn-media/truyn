@@ -3,11 +3,11 @@ from pathlib import Path
 import subprocess
 p=Path('benchmarks/scale/class-d-azure-1000-provision.sh')
 s=p.read_text()
-# HEAD is the exact current-main base selected by the controller before any
-# working-tree repair is applied.  Never restore a bootstrap stage from a
-# historical SHA: that silently regresses unrelated canonical Class-D
-# invariants when main advances.
-base=subprocess.check_output(['git','show','HEAD:benchmarks/scale/class-d-azure-1000-provision.sh'],text=True)
+# origin/main is fetched by the controller immediately before BASE_SHA is
+# checked out. Use that immutable remote-tracking snapshot as the canonical
+# bootstrap contract source; after `git reset --hard BASE_SHA`, HEAD is the
+# historical repair base and must not be mistaken for current main.
+base=subprocess.check_output(['git','show','origin/main:benchmarks/scale/class-d-azure-1000-provision.sh'],text=True)
 def stage(x):
     a=x.index('STAGE=bootstrap\n')
     b=x.index('\nif [[ "${TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY:-0}" == 1 ]]',a)
