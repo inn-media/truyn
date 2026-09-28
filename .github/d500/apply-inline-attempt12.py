@@ -3,7 +3,11 @@ from pathlib import Path
 import subprocess
 p=Path('benchmarks/scale/class-d-azure-1000-provision.sh')
 s=p.read_text()
-base=subprocess.check_output(['git','show','9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3:benchmarks/scale/class-d-azure-1000-provision.sh'],text=True)
+# HEAD is the exact current-main base selected by the controller before any
+# working-tree repair is applied.  Never restore a bootstrap stage from a
+# historical SHA: that silently regresses unrelated canonical Class-D
+# invariants when main advances.
+base=subprocess.check_output(['git','show','HEAD:benchmarks/scale/class-d-azure-1000-provision.sh'],text=True)
 def stage(x):
     a=x.index('STAGE=bootstrap\n')
     b=x.index('\nif [[ "${TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY:-0}" == 1 ]]',a)
