@@ -11,12 +11,13 @@ import { createHttpAdapterServer } from '../adapters/http/server.js';
 import { createMcpHttpServer, runStdioMcpServer } from '../adapters/mcp/server.js';
 import { TruynAdapterHost } from '../adapters/sdk/index.js';
 import { createProviderAdapter } from '../adapters/providers/index.js';
+import { EnvironmentSecretStore } from '../runtime/secret-store.js';
+import { providerAdapterOptionsWithSecretStore } from '../runtime/byok-secret-store.js';
 import {
   assertVerifiedByokProfile,
   createByokProfile,
   isLoopbackRelay,
   markByokVerified,
-  providerAdapterOptions,
   validateByokEnvironment
 } from './byok-profile.js';
 
@@ -48,6 +49,7 @@ async function loadOptionalJson(file) { try { return await readPrivateJson(file)
 function argValue(name, fallback = null) { const index = process.argv.indexOf(name); return index >= 0 ? process.argv[index + 1] : fallback; }
 function argFlag(name) { return process.argv.includes(name); }
 function print(value) { process.stdout.write(`${typeof value === 'string' ? value : JSON.stringify(value, null, 2)}\n`); }
+function runtimeSecretStore() { return new EnvironmentSecretStore(process.env); }
 
 async function ensureProviderIdentity() {
   const existing = await loadOptionalJson(BYOK_IDENTITY_FILE);
@@ -102,7 +104,8 @@ async function configureByok(requesterIdentity) {
 
   const environment = validateByokEnvironment(profile, process.env);
   if (!environment.ok) throw new Error(`BYOK provider environment is incomplete: ${environment.missing.join(', ')}`);
-  const adapter = createProviderAdapter(profile.adapterProvider, providerAdapterOptions(profile, process.env));
+  const adapterOptions = await providerAdapterOptionsWithSecretStore(profile, runtimeSecretStore());
+  const adapter = createProviderAdapter(profile.adapterProvider, adapterOptions);
   const capability = profile.capabilities[0];
   const result = await adapter.execute({
     capability,
@@ -182,7 +185,8 @@ async function main() {
       const providerIdentity = await loadOptionalJson(BYOK_IDENTITY_FILE);
       if (!providerIdentity || providerIdentity.nodeId !== configured.providerNodeId) throw new Error('Configured BYOK provider identity is missing or mismatched');
       const providerNode = new TruynNode({ relayUrl, identity: providerIdentity });
-      const adapter = createProviderAdapter(configured.adapterProvider, providerAdapterOptions(configured, process.env));
+      const adapterOptions = await providerAdapterOptionsWithSecretStore(configured, runtimeSecretStore());
+      const adapter = createProviderAdapter(configured.adapterProvider, adapterOptions);
       const accessPolicy = createProviderAccessPolicy({ mode: 'owner-only', allowedRequesterIds: [identity.nodeId] });
       const billingPolicy = createProviderBillingPolicy({ mode: 'byok' });
       const adapterHost = new TruynAdapterHost({
