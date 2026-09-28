@@ -55,8 +55,8 @@ test('S133 matrix: rotation is explicit and revocation blocks retired identity',
   const replacement = parseDurableIdentity(rotated.serializedIdentity).identity.nodeId;
   assert.notEqual(replacement, oldNodeId);
   const revocation = createIdentityRevocation(rotated.audit);
-  assert.throws(() => assertIdentityNotRevoked(oldNodeId, revocation), /revok/i);
-  assert.doesNotThrow(() => assertIdentityNotRevoked(replacement, revocation));
+  assert.throws(() => assertIdentityNotRevoked(oldNodeId, [revocation]), /revok/i);
+  assert.doesNotThrow(() => assertIdentityNotRevoked(replacement, [revocation]));
 });
 
 test('S133 matrix: SecretStore replacement/removal remains reference-only and fails closed after removal', async () => {
