@@ -63,3 +63,4 @@ jobs:
             /tmp/d500-verified-repair.patch.sha256
           if-no-files-found: error
           retention-days: 7
+# task-local trigger generation: 20260928-a
