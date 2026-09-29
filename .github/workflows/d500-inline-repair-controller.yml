@@ -2,7 +2,9 @@ name: D-500 Task-Local Inline Repair Controller
 on:
   push:
     branches: ['automation/d500-acceptance-repair-8f3c2a']
-    paths: ['.github/workflows/d500-inline-repair-controller.yml']
+    paths:
+      - '.github/workflows/d500-inline-repair-controller.yml'
+      - '.github/d500/apply-attempt12-resilience.py'
 permissions:
   contents: read
   actions: read
@@ -30,7 +32,7 @@ jobs:
           python3 /tmp/apply-resilience.py
           bash -n benchmarks/scale/class-d-azure-1000-provision.sh
           git diff --check
-          for token in '/bootstrap' '/dht/refresh' '/dht/readiness' 'maxPeers'; do grep -q "$token" benchmarks/scale/class-d-azure-1000-provision.sh; done
+          for token in '/bootstrap' '/dht/refresh' '/dht/readiness' 'maxPeers' 'd500_seconds_remaining'; do grep -q "$token" benchmarks/scale/class-d-azure-1000-provision.sh; done
       - name: Run high-signal affected regressions
         shell: bash
         run: |
@@ -60,4 +62,4 @@ jobs:
             /tmp/d500-verified-repair.patch.sha256
           if-no-files-found: error
           retention-days: 7
-# task-local trigger generation: 20260929-c
+# task-local trigger generation: 20260929-d
