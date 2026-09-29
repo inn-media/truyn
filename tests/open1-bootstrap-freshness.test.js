@@ -16,9 +16,11 @@ function manifest(overrides = {}) {
   };
 }
 
-test('S140 accepts valid active/next rotation overlap', () => {
-  const result = enforceBootstrapFreshness(manifest(), { now: '2026-09-29T06:00:00.000Z', minimumVersion: 7 });
-  assert.deepEqual([...result.acceptedKeyIds], ['key-a', 'key-b']);
+test('S140 accepts only active key before rotation and overlap at activation', () => {
+  const before = enforceBootstrapFreshness(manifest(), { now: '2026-09-29T06:00:00.000Z', minimumVersion: 7 });
+  assert.deepEqual([...before.acceptedKeyIds], ['key-a']);
+  const overlap = enforceBootstrapFreshness(manifest(), { now: '2026-09-29T12:00:00.000Z', minimumVersion: 7 });
+  assert.deepEqual([...overlap.acceptedKeyIds], ['key-a', 'key-b']);
 });
 
 test('S140 rejects expired manifests', () => {
@@ -32,4 +34,9 @@ test('S140 rejects downgrade manifests', () => {
 test('S140 rejects malformed rotation metadata', () => {
   assert.throws(() => enforceBootstrapFreshness(manifest({ rotation: { activeKeyId: 'key-a', nextKeyId: 'key-b', notBefore: null } }), { now: '2026-09-29T06:00:00.000Z' }), /declared together/);
   assert.throws(() => enforceBootstrapFreshness(manifest({ rotation: { activeKeyId: 'key-a', nextKeyId: 'key-a', notBefore: '2026-09-29T12:00:00.000Z' } }), { now: '2026-09-29T06:00:00.000Z' }), /must differ/);
+});
+
+test('S140 rejects timezone-ambiguous manifest timestamps', () => {
+  assert.throws(() => enforceBootstrapFreshness(manifest({ issuedAt: '2026-09-29T00:00:00' }), { now: '2026-09-29T06:00:00.000Z' }), /explicit timezone/);
+  assert.throws(() => enforceBootstrapFreshness(manifest({ rotation: { activeKeyId: 'key-a', nextKeyId: 'key-b', notBefore: '2026-09-29T12:00:00' } }), { now: '2026-09-29T06:00:00.000Z' }), /explicit timezone/);
 });
