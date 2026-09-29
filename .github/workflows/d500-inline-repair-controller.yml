@@ -26,7 +26,6 @@ jobs:
         run: |
           set -Eeuo pipefail
           git fetch --no-tags origin main
-          MAIN_SHA="$(git rev-parse origin/main)"
           cp .github/d500/apply-attempt12-resilience.py /tmp/apply-resilience.py
           git reset --hard "$BASE_SHA"
           python3 /tmp/apply-resilience.py
@@ -45,13 +44,13 @@ jobs:
             BLOCK_ID="$block" BLOCK_OUT_DIR=blockwise-out node scripts/class-d-blockwise-preflight.mjs
             jq -e '.status=="GREEN" and .harnessReturnCode==0' "blockwise-out/$block/block.json" >/dev/null
           done
+          rm -rf blockwise-out
       - name: Freeze verified patch payload
         shell: bash
         run: |
           set -Eeuo pipefail
-          git add -A
-          git diff --cached --check
-          git diff --cached --binary > /tmp/d500-verified-repair.patch
+          git diff --check
+          git diff --binary > /tmp/d500-verified-repair.patch
           test -s /tmp/d500-verified-repair.patch
           sha256sum /tmp/d500-verified-repair.patch > /tmp/d500-verified-repair.patch.sha256
       - uses: actions/upload-artifact@v4
@@ -62,4 +61,4 @@ jobs:
             /tmp/d500-verified-repair.patch.sha256
           if-no-files-found: error
           retention-days: 7
-# task-local trigger generation: 20260929-d
+# task-local trigger generation: 20260929-e
