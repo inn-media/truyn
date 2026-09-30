@@ -1,0 +1,124 @@
+name: Sprint 17 Trace Live Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/trace-sprint17-live-diagnostic.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_ID: dc4518de-d1bf-4fce-b351-e43d7c152999
+  RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+  REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'germanywestcentral:francecentral northeurope:swedencentral' }}
+  AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+  AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+
+      - name: Inspect sanitized production foundation candidates
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+          index=0
+          selected_app=''
+          for pair in $REGION_PAIRS; do
+            index=$((index + 1))
+            [[ "$index" -le 2 ]] || break
+            [[ "$pair" == *:* ]] || { echo '::error::Invalid production region pair.'; exit 1; }
+            primary="${pair%%:*}"
+            secondary="${pair#*:}"
+            pair_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}:${primary}:${secondary}" | sha256sum | cut -c1-10)"
+            prefix="truyn${pair_suffix}"
+            environment="${prefix}-aca-env"
+            cosmos="${prefix}cosmos"
+            vnet="${prefix}-vnet"
+            registry="${prefix}acr"
+            trace_suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${DEPLOYMENT_ID}:${prefix}:tempo" | sha256sum | cut -c1-10)"
+            trace_app="truyn-traces-${trace_suffix}"
+            for value in "$prefix" "$environment" "$cosmos" "$vnet" "$registry" "$trace_app"; do printf '::add-mask::%s\n' "$value"; done
+
+            if ! environment_json="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --only-show-errors -o json 2>/dev/null)"; then
+              printf 'TRUYN_TRACE_FOUNDATION_DIAG candidate=%s env_present=0\n' "$index"
+              continue
+            fi
+
+            provisioning="$(jq -r '.properties.provisioningState // "missing"' <<<"$environment_json")"
+            internal="$(jq -r '(.properties.vnetConfiguration.internal == true)' <<<"$environment_json")"
+            public_disabled="$(jq -r '((.properties.publicNetworkAccess // "") | ascii_downcase) == "disabled"' <<<"$environment_json")"
+            static_ip="$(jq -r '(.properties.staticIp != null and .properties.staticIp != "")' <<<"$environment_json")"
+            default_domain="$(jq -r '(.properties.defaultDomain != null and .properties.defaultDomain != "")' <<<"$environment_json")"
+            env_id="$(jq -r '.id // empty' <<<"$environment_json")"
+            [[ -n "$env_id" ]] && printf '::add-mask::%s\n' "$env_id"
+
+            app_total=0
+            app_succeeded=0
+            if [[ -n "$env_id" ]]; then
+              apps_json="$(az containerapp list --resource-group "$RESOURCE_GROUP" --only-show-errors -o json 2>/dev/null || printf '[]')"
+              app_total="$(jq --arg env "$env_id" '[.[] | select((.properties.managedEnvironmentId // "") == $env)] | length' <<<"$apps_json")"
+              app_succeeded="$(jq --arg env "$env_id" '[.[] | select((.properties.managedEnvironmentId // "") == $env and .properties.provisioningState == "Succeeded")] | length' <<<"$apps_json")"
+            fi
+
+            trace_present=0
+            trace_state='missing'
+            if trace_json="$(az containerapp show --resource-group "$RESOURCE_GROUP" --name "$trace_app" --only-show-errors -o json 2>/dev/null)"; then
+              trace_present=1
+              trace_state="$(jq -r '.properties.provisioningState // "missing"' <<<"$trace_json")"
+              selected_app="$trace_app"
+            fi
+
+            printf 'TRUYN_TRACE_FOUNDATION_DIAG candidate=%s env_present=1 provisioning=%s internal=%s public_disabled=%s static_ip=%s default_domain=%s apps=%s apps_succeeded=%s trace_present=%s trace_state=%s\n' \
+              "$index" "$provisioning" "$internal" "$public_disabled" "$static_ip" "$default_domain" "$app_total" "$app_succeeded" "$trace_present" "$trace_state"
+          done
+
+          if [[ -n "$selected_app" ]]; then
+            printf 'TRACE_APP=%s\n' "$selected_app" >> "$GITHUB_ENV"
+          fi
+
+      - name: Dump sanitized acceptance probe logs
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${TRACE_APP:-}" ]] || { echo 'TRUYN_TRACE_DIAG no_existing_trace_app=1'; exit 0; }
+          echo '=== acceptance-probe ==='
+          az containerapp logs show --resource-group "$RESOURCE_GROUP" --name "$TRACE_APP" --container acceptance-probe --type console --tail 300 --follow false --format text --only-show-errors || true
+
+      - name: Dump sanitized Tempo logs
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${TRACE_APP:-}" ]] || { echo 'TRUYN_TRACE_DIAG no_existing_trace_app=1'; exit 0; }
+          echo '=== tempo ==='
+          az containerapp logs show --resource-group "$RESOURCE_GROUP" --name "$TRACE_APP" --container tempo --type console --tail 300 --follow false --format text --only-show-errors || true
+
+      - name: Dump sanitized runtime canary logs
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${TRACE_APP:-}" ]] || { echo 'TRUYN_TRACE_DIAG no_existing_trace_app=1'; exit 0; }
+          echo '=== runtime-trace-canary ==='
+          az containerapp logs show --resource-group "$RESOURCE_GROUP" --name "$TRACE_APP" --container runtime-trace-canary --type console --tail 200 --follow false --format text --only-show-errors || true
