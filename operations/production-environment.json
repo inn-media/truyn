@@ -1,0 +1,10 @@
+{
+  "schema": "truyn.production-environment/v1",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "environmentClass": "production",
+  "operationsPlane": "production",
+  "status": "identity_reserved",
+  "createdDate": "2026-09-08",
+  "publicReference": true,
+  "notes": "Opaque production environment identity for deployment-specific Operations Plane evidence. This identifier does not imply Productionized acceptance and contains no cloud resource names, credentials, topology, pager destinations, or private operator identities. Exact deployed source SHA is recorded separately per deployment/evidence record."
+}
