@@ -18,6 +18,8 @@ test('S148 uses authenticated WebSocket fallback first and preserves auth contex
   assert.equal(result.connection, connection);
   assert.equal(seen.identity, 'peer-a');
   assert.equal(seen.authorization, 'need:execute');
+  assert.equal(seen.signal instanceof AbortSignal, true);
+  assert.equal(seen.signal.aborted, false);
 });
 
 test('S148 falls through to authenticated HTTPS on explicit or thrown reachability failure', async () => {
@@ -60,9 +62,16 @@ test('S148 propagates security/control connector failures instead of falling bac
   assert.equal(httpsCalled, false);
 });
 
-test('S148 bounds each attempt by deadline and can continue to HTTPS', async () => {
-  const result = await selectAuthenticatedFallback({ ...options, attemptTimeoutMs: 5, connectWebSocket: async () => new Promise(() => {}), connectHttps: async () => ok });
+test('S148 aborts a timed-out connector before continuing to HTTPS', async () => {
+  let timedOutSignal;
+  const result = await selectAuthenticatedFallback({ ...options, attemptTimeoutMs: 5, connectWebSocket: async ({ signal }) => {
+    timedOutSignal = signal;
+    return await new Promise((resolve, reject) => signal.addEventListener('abort', () => {
+      const error = new Error('aborted'); error.name = 'AbortError'; reject(error);
+    }, { once: true }));
+  }, connectHttps: async () => ok });
   assert.equal(result.transport, 'https');
+  assert.equal(timedOutSignal.aborted, true);
 });
 
 test('S148 bounds fallback attempts', async () => {
