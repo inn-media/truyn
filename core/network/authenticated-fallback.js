@@ -2,8 +2,8 @@ function isAuthenticated(result) {
   return result?.authenticated === true || result?.session?.authenticated === true;
 }
 
-function identityOf(result, peer) {
-  return result?.peerId ?? result?.session?.peerId ?? peer?.id ?? peer?.nodeId ?? null;
+function identityOf(result) {
+  return result?.peerId ?? result?.session?.peerId ?? null;
 }
 
 function authorized(result) {
@@ -26,11 +26,20 @@ export async function selectAuthenticatedFallback({ peer, identity, authorizatio
 
   for (const candidate of candidates) {
     if (typeof candidate.connect !== 'function') continue;
-    const result = await candidate.connect({ peer, endpoint: candidate.endpoint, identity, authorization });
+    let result;
+    try {
+      result = await candidate.connect({ peer, endpoint: candidate.endpoint, identity, authorization });
+    } catch {
+      // Connector rejection before an authenticated response is a reachability failure.
+      // Continue only within the bounded candidate set; validation failures below remain fail-closed.
+      continue;
+    }
     if (!result?.reachable) continue;
     if (!isAuthenticated(result)) throw new Error(`${candidate.transport} fallback authentication failed`);
     if (!authorized(result)) throw new Error(`${candidate.transport} fallback authorization failed`);
-    if (identityOf(result, peer) !== identity) throw new Error(`${candidate.transport} fallback identity changed`);
+    const attestedIdentity = identityOf(result);
+    if (attestedIdentity === null) throw new Error(`${candidate.transport} fallback identity attestation missing`);
+    if (attestedIdentity !== identity) throw new Error(`${candidate.transport} fallback identity changed`);
     return Object.freeze({ transport: candidate.transport, endpoint: candidate.endpoint, peerId: identity, authenticated: true, authorized: true, connection: result.connection ?? result.session ?? null });
   }
 
