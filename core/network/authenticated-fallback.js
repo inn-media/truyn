@@ -19,12 +19,14 @@ function validatedConnection(result, transport, identity) {
 }
 
 async function connectWithDeadline(connect, input, attemptTimeoutMs) {
+  const controller = new AbortController();
   let timer;
   try {
     return await Promise.race([
-      Promise.resolve().then(() => connect(input)),
+      Promise.resolve().then(() => connect({ ...input, signal: controller.signal })),
       new Promise((_, reject) => {
         timer = setTimeout(() => {
+          controller.abort();
           const error = new Error('fallback connection timed out');
           error.code = 'OPEN1_FALLBACK_TIMEOUT';
           reject(error);
