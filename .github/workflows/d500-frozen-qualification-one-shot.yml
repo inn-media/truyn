@@ -1,0 +1,51 @@
+name: D-500 Frozen Candidate Qualification One-Shot
+on:
+  push:
+    branches: ['automation/d500-qualification/**']
+    paths:
+      - '.github/workflows/d500-frozen-qualification-one-shot.yml'
+      - '.github/d500-qualification/request.env'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify exact candidate qualification evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          source .github/d500-qualification/request.env
+          [[ "$TASK_ID" == truyn-d500-acceptance-repair-8f3c2a ]]
+          [[ "$CANDIDATE_SHA" == a247d1a0eeb08483701db7af47a4049342d96be8 ]]
+          [[ "$SCALE" == d500 ]]
+          [[ "$(git rev-parse HEAD^)" == "$CANDIDATE_SHA" ]]
+          [[ "$(git rev-list --count "$CANDIDATE_SHA..HEAD")" == 2 ]]
+          for run in "$SWARM_RUN_ID" "$BLOCKWISE_RUN_ID"; do
+            j=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run}")
+            jq -e '.status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$j" >/dev/null
+          done
+          sw=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SWARM_RUN_ID}")
+          bw=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${BLOCKWISE_RUN_ID}")
+          jq -e --arg c "$CANDIDATE_SHA" '.name=="D-Series Sanitation Swarm" and .head_sha==$c' <<<"$sw" >/dev/null
+          jq -e '.name=="D-Series Blockwise One-Shot Launcher"' <<<"$bw" >/dev/null
+          arts=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${BLOCKWISE_RUN_ID}/artifacts?per_page=100")
+          jq -e '[.artifacts[] | select(.expired==false and (.size_in_bytes//0)>0)] | length>=16' <<<"$arts" >/dev/null
+          git fetch --no-tags origin main
+          base=$(git merge-base "$CANDIDATE_SHA" origin/main)
+          node scripts/d-series-qualification-manifest.mjs qualification --base-sha "$base" --candidate-sha "$CANDIDATE_SHA" --scale "$SCALE" --swarm-run-id "$SWARM_RUN_ID" --blockwise-run-id "$BLOCKWISE_RUN_ID" --output d-series-qualification-manifest.json
+          jq -e --arg c "$CANDIDATE_SHA" '.candidateSha==$c or .candidate_sha==$c' d-series-qualification-manifest.json >/dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d500-frozen-qualification-${{ github.run_id }}
+          path: d-series-qualification-manifest.json
+          if-no-files-found: error
+          retention-days: 90
