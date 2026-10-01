@@ -25,9 +25,16 @@ test('S148 falls through to authenticated HTTPS when WebSocket is unreachable', 
   assert.equal(result.authorized, true);
 });
 
-test('S148 fails closed on authentication, authorization, or identity change', async () => {
+test('S148 treats rejected connector as unreachable and tries the next bounded fallback', async () => {
+  const result = await selectAuthenticatedFallback({ ...options, connectWebSocket: async () => { throw new Error('ECONNREFUSED'); }, connectHttps: async () => ok });
+  assert.equal(result.transport, 'https');
+  assert.equal(result.peerId, 'peer-a');
+});
+
+test('S148 fails closed on authentication, authorization, missing attestation, or identity change', async () => {
   await assert.rejects(() => selectAuthenticatedFallback({ ...options, connectWebSocket: async () => ({ ...ok, authenticated: false }) }), /authentication failed/);
   await assert.rejects(() => selectAuthenticatedFallback({ ...options, connectWebSocket: async () => ({ ...ok, authorized: false }) }), /authorization failed/);
+  await assert.rejects(() => selectAuthenticatedFallback({ ...options, connectWebSocket: async () => ({ reachable: true, authenticated: true, authorized: true }) }), /identity attestation missing/);
   await assert.rejects(() => selectAuthenticatedFallback({ ...options, connectWebSocket: async () => ({ ...ok, peerId: 'peer-b' }) }), /identity changed/);
 });
 
