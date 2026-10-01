@@ -27,8 +27,9 @@ jobs:
           [[ "$TASK_ID" == truyn-d500-acceptance-repair-8f3c2a ]]
           [[ "$CANDIDATE_SHA" == a247d1a0eeb08483701db7af47a4049342d96be8 ]]
           [[ "$SCALE" == d500 ]]
-          [[ "$(git rev-parse HEAD^)" == "$CANDIDATE_SHA" ]]
-          [[ "$(git rev-list --count "$CANDIDATE_SHA..HEAD")" == 2 ]]
+          [[ "$(git rev-list --count "$CANDIDATE_SHA..HEAD")" == 3 ]]
+          [[ "$(git rev-parse HEAD^^^)" == "$CANDIDATE_SHA" ]]
+          [[ "$(git diff --name-only "$CANDIDATE_SHA..HEAD" | sort)" == $'.github/d500-qualification/request.env\n.github/workflows/d500-frozen-qualification-one-shot.yml' ]]
           for run in "$SWARM_RUN_ID" "$BLOCKWISE_RUN_ID"; do
             j=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run}")
             jq -e '.status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$j" >/dev/null
