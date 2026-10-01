@@ -6,7 +6,7 @@ on:
       - '.github/workflows/d500-inline-repair-controller.yml'
       - '.github/d500/apply-attempt12-resilience.py'
 permissions:
-  contents: read
+  contents: write
   actions: read
 jobs:
   repair:
@@ -14,13 +14,13 @@ jobs:
     timeout-minutes: 35
     env:
       BASE_SHA: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
-      CANDIDATE_REF: automation/d500-frozen-8f3c2a-20260928-a
+      CANDIDATE_REF: candidate/d500-acceptance-repair-8f3c2a-frozen
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: '${{ github.token }}'
-          persist-credentials: false
+          persist-credentials: true
       - name: Build minimal inline repair
         shell: bash
         run: |
@@ -53,6 +53,17 @@ jobs:
           git diff --binary > /tmp/d500-verified-repair.patch
           test -s /tmp/d500-verified-repair.patch
           sha256sum /tmp/d500-verified-repair.patch > /tmp/d500-verified-repair.patch.sha256
+      - name: Materialize immutable Frozen Candidate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'truyn-d500-controller'
+          git config user.email 'actions@users.noreply.github.com'
+          git add benchmarks/scale/class-d-azure-1000-provision.sh
+          git commit -m 'fix(d500): bounded liveness and run-command resilience'
+          candidate_sha=$(git rev-parse HEAD)
+          git push origin "HEAD:refs/heads/${CANDIDATE_REF}"
+          echo "TRUYN_D500_FROZEN_CANDIDATE_SHA=${candidate_sha}"
       - uses: actions/upload-artifact@v4
         with:
           name: d500-verified-repair-patch
@@ -61,4 +72,4 @@ jobs:
             /tmp/d500-verified-repair.patch.sha256
           if-no-files-found: error
           retention-days: 7
-# task-local trigger generation: 20260929-e
+# task-local trigger generation: 20261001-materialize
