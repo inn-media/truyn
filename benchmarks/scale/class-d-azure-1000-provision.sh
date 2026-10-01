@@ -97,7 +97,13 @@ remote() {
       printf '%s\n' "$output"
       return 0
     fi
-    if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+    # D500_RUN_COMMAND_CONFLICT_DRAIN: Azure may reject a new Run Command while
+    # the previous extension operation is still transitioning. Treat only that
+    # explicit conflict/busy family as transient; timeout/agent pathology stays
+    # fail-fast below and the existing attempt/budget caps remain authoritative.
+    if grep -Eqi 'OperationPreempted|OperationNotAllowed|Conflict|another operation|RunCommand.*(busy|in progress)' <<<"$output"; then
+      echo "TRUYN_D500_RUN_COMMAND_CONFLICT vm=${vm} attempt=${attempt} rc=${rc}" >&2
+    elif [[ $rc -eq 124 || $rc -eq 137 ]]; then
       unhealthy=1
       echo "TRUYN_D500_REMOTE_TIMEOUT vm=${vm} attempt=${attempt} capS=${cap}" >&2
     elif grep -Eqi 'VMAgentStatusCommunicationError|VMExtensionProvisioningTimeout|VMExtensionHandlerNonTransientError|ExtensionFailedToProvision|GuestAgent.*(not ready|unresponsive)' <<<"$output"; then
@@ -482,6 +488,26 @@ for n in \$(seq 1 120); do
   if [[ "\$good" -eq ${NODES_PER_HOST} ]]; then ok=1; break; fi
   sleep 2
 done
+if [[ "\$ok" -ne 1 ]]; then
+  # D500_NODE_RECOVERY_ONCE: bounded recovery of only non-live services.
+  recovered=0
+  for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+    idx=\$(( ${i} * ${NODES_PER_HOST} + j ))
+    port=\$(( ${CONTROL_BASE} + j ))
+    if ! curl -fsS --max-time 1 http://127.0.0.1:\${port}/status >/dev/null 2>&1; then
+      systemctl restart truyn-d1000@\${idx}.service || true
+      recovered=1
+    fi
+  done
+  if [[ "\$recovered" -eq 1 ]]; then
+    for n in \$(seq 1 20); do
+      good=0
+      for j in \$(seq 0 $((NODES_PER_HOST-1))); do curl -fsS --max-time 1 http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/status >/dev/null 2>&1 && good=\$((good+1)); done
+      if [[ "\$good" -eq ${NODES_PER_HOST} ]]; then ok=1; break; fi
+      sleep 2
+    done
+  fi
+fi
 if [[ "\$ok" -ne 1 ]]; then
   echo "TRUYN_REMOTE_INSTALL_READINESS_FAILURE host=${i} expected=${NODES_PER_HOST} ready=\${good}" >&2
   shown=0
