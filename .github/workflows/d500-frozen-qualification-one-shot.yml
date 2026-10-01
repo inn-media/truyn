@@ -27,8 +27,7 @@ jobs:
           [[ "$TASK_ID" == truyn-d500-acceptance-repair-8f3c2a ]]
           [[ "$CANDIDATE_SHA" == a247d1a0eeb08483701db7af47a4049342d96be8 ]]
           [[ "$SCALE" == d500 ]]
-          [[ "$(git rev-list --count "$CANDIDATE_SHA..HEAD")" == 3 ]]
-          [[ "$(git rev-parse HEAD^^^)" == "$CANDIDATE_SHA" ]]
+          git merge-base --is-ancestor "$CANDIDATE_SHA" HEAD
           [[ "$(git diff --name-only "$CANDIDATE_SHA..HEAD" | sort)" == $'.github/d500-qualification/request.env\n.github/workflows/d500-frozen-qualification-one-shot.yml' ]]
           for run in "$SWARM_RUN_ID" "$BLOCKWISE_RUN_ID"; do
             j=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run}")
@@ -36,10 +35,16 @@ jobs:
           done
           sw=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SWARM_RUN_ID}")
           bw=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${BLOCKWISE_RUN_ID}")
-          jq -e --arg c "$CANDIDATE_SHA" '.name=="D-Series Sanitation Swarm" and .head_sha==$c' <<<"$sw" >/dev/null
+          jq -e '.name=="D-Series Swarm One-Shot Launcher"' <<<"$sw" >/dev/null
           jq -e '.name=="D-Series Blockwise One-Shot Launcher"' <<<"$bw" >/dev/null
+          sw_head=$(jq -r '.head_sha' <<<"$sw")
+          bw_head=$(jq -r '.head_sha' <<<"$bw")
+          [[ "$(git rev-parse "${sw_head}^")" == "$CANDIDATE_SHA" ]]
+          [[ "$(git rev-parse "${bw_head}^")" == "$CANDIDATE_SHA" ]]
+          [[ "$(git diff --name-only "$CANDIDATE_SHA..$sw_head")" == '.github/d-series-dispatch/request.env' ]]
+          [[ "$(git diff --name-only "$CANDIDATE_SHA..$bw_head")" == '.github/d-series-blockwise/request.env' ]]
           arts=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${BLOCKWISE_RUN_ID}/artifacts?per_page=100")
-          jq -e '[.artifacts[] | select(.expired==false and (.size_in_bytes//0)>0)] | length>=16' <<<"$arts" >/dev/null
+          jq -e '[.artifacts[] | select(.expired==false and (.size_in_bytes//0)>0 and (.name|test("^d-series-block-B(0[1-9]|1[0-6])-")))] | length==16' <<<"$arts" >/dev/null
           git fetch --no-tags origin main
           base=$(git merge-base "$CANDIDATE_SHA" origin/main)
           node scripts/d-series-qualification-manifest.mjs qualification --base-sha "$base" --candidate-sha "$CANDIDATE_SHA" --scale "$SCALE" --swarm-run-id "$SWARM_RUN_ID" --blockwise-run-id "$BLOCKWISE_RUN_ID" --output d-series-qualification-manifest.json
