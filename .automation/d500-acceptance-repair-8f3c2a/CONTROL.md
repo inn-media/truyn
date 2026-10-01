@@ -17,3 +17,5 @@ Repair inputs under review:
 Hard gates: preserve real 20x25=500 topology, maxPeers=32, D-200 floors, strict evaluators, safety/recovery/routing/cleanup thresholds, Frozen Candidate -> Sanitation Swarm -> full Blockwise B01-B16 -> Frozen Candidate Qualification -> current-main Admission, and exactly-one successor launch identity/run_attempt=1.
 
 Never merge/launch from this branch merely because patch-local tests are GREEN. Launch authority requires the full exact-candidate chain and live collision/capacity/duplicate guards.
+
+Resume marker 2026-10-01: Frozen Candidate ref was restored exactly to immutable base `9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3` after verified repair run 36848955802 proved 8/8 targeted, 12/12 bootstrap, and 189/189 Class-D acceptance GREEN. Materialize the same minimal repair as a new candidate commit; do not rerun Attempt 11.
