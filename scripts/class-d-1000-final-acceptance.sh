@@ -262,14 +262,14 @@ p = p.replace('ExecStart=/usr/bin/node /opt/truin/network/testnet/node-service.j
 p = p.replace('ExecStart=/usr/bin/node /opt/truy n/network/testnet/node-service.js', 'ExecStart=/opt/truy n/runtime/bin/node /opt/truy n/app/network/testnet/node-service.js')
 p = p.replace('truin', 'truyn').replace('truy n', 'truyn')
 
-ready_old = '''  out=$(remote "${VMS[$i]}" "$script")
-  [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]'''
-ready_new = '''  out=$(remote "${VMS[$i]}" "$script")
-  if [[ "$(marker "$out" READY)" != "$NODES_PER_HOST" ]]; then
-    printf '%s\\n' "$out" >&2
-    echo "TRUYN_CLASS_D_1000 install host=$i missing_ready expected=$NODES_PER_HOST" >&2
-    false
-  fi'''
+# The install stage dispatches every host concurrently, so the READY assertion
+# now stands alone inside the per-host subshell.
+ready_old = '''    [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]'''
+ready_new = '''    if [[ "$(marker "$out" READY)" != "$NODES_PER_HOST" ]]; then
+      printf '%s\\n' "$out" >&2
+      echo "TRUYN_CLASS_D_1000 install host=$i missing_ready expected=$NODES_PER_HOST" >&2
+      false
+    fi'''
 if p.count(ready_old) != 1:
     raise SystemExit(f'expected exactly one D-1000 READY assertion, found={p.count(ready_old)}')
 p = p.replace(ready_old, ready_new, 1)
