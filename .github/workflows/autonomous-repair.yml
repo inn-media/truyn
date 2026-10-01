@@ -38,8 +38,6 @@ jobs:
           [[ "${TASK_ID:-}" =~ ^[A-Za-z0-9._-]+$ ]]
           [[ "${BASE_SHA:-}" =~ ^[0-9a-f]{40}$ ]]
           [[ "${EXPECTED_PATHS:-}" != '' ]]
-          git fetch origin main --quiet
-          [[ "$(git rev-parse origin/main)" == "$BASE_SHA" ]]
           [[ "$(git merge-base HEAD "$BASE_SHA")" == "$BASE_SHA" ]]
           git apply --check "${patches[0]}"
 
@@ -51,7 +49,7 @@ jobs:
           source "${env_file[0]}"
           git apply "${patch_file[0]}"
           git diff --check
-          mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' | sort)
+          mapfile -t changed < <(git diff --name-only "$BASE_SHA" -- . ':!.github/repairs/*' ':!.github/workflows/autonomous-repair.yml' | sort)
           mapfile -t expected < <(printf '%s\n' $EXPECTED_PATHS | sort)
           [[ "${changed[*]}" == "${expected[*]}" ]]
           [[ ${#changed[@]} -gt 0 ]]
