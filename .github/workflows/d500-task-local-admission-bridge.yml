@@ -1,5 +1,6 @@
 name: D-500 Task-Local Admission Bridge
 
+# Refresh current-main admission after unrelated main movement; candidate qualification remains immutable.
 on:
   push:
     branches:
@@ -30,11 +31,9 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           ref: main
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
       - name: Verify exact immutable qualification evidence
         shell: bash
         env:
@@ -42,16 +41,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${QUALIFICATION_RUN_ID}")"
-          jq -e --arg sha d5adb229744a33bc21c76d876f2a83133d9fd289 '
-            .name=="D-500 Frozen Candidate Qualification One-Shot"
-            and .status=="completed" and .conclusion=="success" and .run_attempt==1
-            and .head_sha==$sha
-          ' <<<"$run" >/dev/null
+          jq -e --arg sha d5adb229744a33bc21c76d876f2a83133d9fd289 '.name=="D-500 Frozen Candidate Qualification One-Shot" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$sha' <<<"$run" >/dev/null
           artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${QUALIFICATION_RUN_ID}/artifacts?per_page=100")"
-          jq -e --arg n "$QUALIFICATION_ARTIFACT" --arg d "$QUALIFICATION_DIGEST" '
-            [.artifacts[] | select(.name==$n and .expired==false and (.size_in_bytes//0)>0 and .digest==$d)] | length==1
-          ' <<<"$artifacts" >/dev/null
-
+          jq -e --arg n "$QUALIFICATION_ARTIFACT" --arg d "$QUALIFICATION_DIGEST" '[.artifacts[] | select(.name==$n and .expired==false and (.size_in_bytes//0)>0 and .digest==$d)] | length==1' <<<"$artifacts" >/dev/null
       - name: Download exact qualification manifest
         uses: actions/download-artifact@v4
         with:
@@ -59,7 +51,6 @@ jobs:
           path: qualification
           run-id: ${{ env.QUALIFICATION_RUN_ID }}
           github-token: ${{ github.token }}
-
       - name: Bind exact candidate to current main and build integration tree
         id: plan
         shell: bash
@@ -70,28 +61,17 @@ jobs:
           q=qualification/d-series-qualification-manifest.json
           [[ -s "$q" ]]
           node scripts/verify-d-series-frozen-candidate-policy.mjs
-          candidate="$(jq -r .candidateSha "$q")"
-          base="$(jq -r .baseSha "$q")"
-          scale="$(jq -r .scale "$q")"
-          [[ "$candidate" == "$CANDIDATE_SHA" ]]
-          [[ "$base" =~ ^[0-9a-f]{40}$ && "$scale" == d500 ]]
+          candidate="$(jq -r .candidateSha "$q")"; base="$(jq -r .baseSha "$q")"; scale="$(jq -r .scale "$q")"
+          [[ "$candidate" == "$CANDIDATE_SHA" && "$base" =~ ^[0-9a-f]{40}$ && "$scale" == d500 ]]
           current_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-          [[ "$current_main" =~ ^[0-9a-f]{40}$ ]]
           git fetch --no-tags origin "$candidate" "$current_main"
           git merge-base --is-ancestor "$base" "$candidate"
           git checkout --detach "$current_main"
-          git config user.name 'TRUYN D-500 Admission Bridge'
-          git config user.email 'actions@users.noreply.github.com'
+          git config user.name 'TRUYN D-500 Admission Bridge'; git config user.email 'actions@users.noreply.github.com'
           git merge --no-ff --no-commit "$candidate"
           integration_tree="$(git write-tree)"
-          node scripts/d-series-qualification-manifest.mjs admission \
-            --qualification-manifest "$q" --base-sha "$base" --candidate-sha "$candidate" \
-            --current-main-sha "$current_main" --integration-ref "$integration_tree" --scale "$scale" \
-            --output d-series-admission-manifest.json
-          echo "candidate=$candidate" >>"$GITHUB_OUTPUT"
-          echo "current_main=$current_main" >>"$GITHUB_OUTPUT"
-          echo "integration_tree=$integration_tree" >>"$GITHUB_OUTPUT"
-
+          node scripts/d-series-qualification-manifest.mjs admission --qualification-manifest "$q" --base-sha "$base" --candidate-sha "$candidate" --current-main-sha "$current_main" --integration-ref "$integration_tree" --scale "$scale" --output d-series-admission-manifest.json
+          echo "candidate=$candidate" >>"$GITHUB_OUTPUT"; echo "current_main=$current_main" >>"$GITHUB_OUTPUT"; echo "integration_tree=$integration_tree" >>"$GITHUB_OUTPUT"
       - name: Run mandatory integration admission semantics
         shell: bash
         run: |
@@ -101,7 +81,6 @@ jobs:
           node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
           node --test tests/d-series-frozen-candidate-admission.test.js tests/d-series-main-movement-auto-admission.test.js
           git diff --check
-
       - name: Requalify only D-sensitive blocks touched by base to current main
         shell: bash
         env:
@@ -109,11 +88,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           mapfile -t blocks < <(jq -r '.decision.targetedBlocks[]?' d-series-admission-manifest.json)
-          for block in "${blocks[@]}"; do
-            node scripts/d-series-block-runner.mjs "$block" --scale 500 --result "admission-${block}.json"
-            jq -e '.status=="PASS"' "admission-${block}.json" >/dev/null
-          done
-
+          for block in "${blocks[@]}"; do node scripts/d-series-block-runner.mjs "$block" --scale 500 --result "admission-${block}.json"; jq -e '.status=="PASS"' "admission-${block}.json" >/dev/null; done
       - name: Finalize and enforce current-main freshness
         shell: bash
         env:
@@ -123,24 +98,12 @@ jobs:
           ADMISSION_INTEGRATION_TREE_SHA: ${{ steps.plan.outputs.integration_tree }}
         run: |
           set -Eeuo pipefail
-          fresh_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
-          [[ "$fresh_main" == "$ADMISSION_CURRENT_MAIN_SHA" ]]
+          fresh_main="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"; [[ "$fresh_main" == "$ADMISSION_CURRENT_MAIN_SHA" ]]
           jq -e '.decision.automaticFullRerunForbidden==true' d-series-admission-manifest.json >/dev/null
-          node scripts/finalize-d-series-admission.mjs \
-            --manifest d-series-admission-manifest.json --result-prefix admission- \
-            --output d-series-admission-manifest.final.json
+          node scripts/finalize-d-series-admission.mjs --manifest d-series-admission-manifest.json --result-prefix admission- --output d-series-admission-manifest.final.json
           mv d-series-admission-manifest.final.json d-series-admission-manifest.json
-          jq -e --arg tree "$ADMISSION_INTEGRATION_TREE_SHA" '
-            .integrationTreeSha==$tree
-            and .decision.admissionPassed==true
-            and .decision.status=="PASS_COMPATIBLE"
-            and .decision.targetedRequalificationPassed==true
-            and .decision.liveRerunSatisfied==true
-            and .decision.liveRerunRequired==false
-            and .requalification.allPassed==true
-          ' d-series-admission-manifest.json >/dev/null
+          jq -e --arg tree "$ADMISSION_INTEGRATION_TREE_SHA" '.integrationTreeSha==$tree and .decision.admissionPassed==true and .decision.status=="PASS_COMPATIBLE" and .decision.targetedRequalificationPassed==true and .decision.liveRerunSatisfied==true and .decision.liveRerunRequired==false and .requalification.allPassed==true' d-series-admission-manifest.json >/dev/null
           echo "TRUYN_D500_TASK_ADMISSION=PASS candidate=$ADMISSION_CANDIDATE_SHA current_main=$fresh_main integration_tree=$ADMISSION_INTEGRATION_TREE_SHA"
-
       - name: Upload exact admission manifest
         if: always()
         uses: actions/upload-artifact@v4
