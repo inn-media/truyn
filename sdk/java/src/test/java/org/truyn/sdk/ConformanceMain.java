@@ -1,13 +1,18 @@
 package org.truyn.sdk;
 
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public final class ConformanceMain {
-  public static void main(String[] args) {
+  public static void main(String[] args) throws Exception {
     if (args.length != 1) throw new IllegalArgumentException("relay URL is required");
+    assertSharedEndpointFixtures();
     URI relay = URI.create(args[0]);
     String descriptorUrl = System.getenv("TRUYN_CONFORMANCE_DESCRIPTOR_URL");
     String descriptorPublicKey = System.getenv("TRUYN_CONFORMANCE_DESCRIPTOR_PUBLIC_KEY");
@@ -29,5 +34,25 @@ public final class ConformanceMain {
     TruynClient.NeedReceipt cancelReceipt = requester.need(capability, Map.of("cancel", true), Map.of()).join();
     requester.cancelNeed(cancelReceipt.needId(), "sdk_conformance_cancel").join();
     System.out.println("PASS java developer-release conformance");
+  }
+
+  private static void assertSharedEndpointFixtures() throws Exception {
+    Set<String> required = Set.of("descriptor.interface-endpoint-missing", "descriptor.interface-endpoint-blank", "descriptor.interface-type-blank");
+    Map<String,Object> fixture = Json.object(Json.parse(Files.readString(Path.of("sdk/conformance/v1/agent-descriptor-runtime-fixtures.json"))));
+    List<?> cases = fixture.get("descriptorRuntimeCases") instanceof List<?> values ? values : List.of();
+    int checked = 0;
+    for (Object value : cases) {
+      Map<String,Object> testCase = Json.object(value);
+      if (!required.contains(testCase.get("id"))) continue;
+      checked++;
+      try {
+        AgentDescriptors.validateForConformance(Json.object(testCase.get("value")));
+        throw new AssertionError("Java accepted invalid shared descriptor fixture " + testCase.get("id"));
+      } catch (TruynException expected) {
+        if (expected.code() != TruynException.Code.INVALID_ARGUMENT || !expected.getMessage().contains("interfaces require non-empty type and endpoint"))
+          throw new AssertionError("Java rejected shared descriptor fixture for the wrong reason " + testCase.get("id"), expected);
+      }
+    }
+    if (checked != required.size()) throw new AssertionError("missing shared endpoint parity fixtures: checked=" + checked);
   }
 }

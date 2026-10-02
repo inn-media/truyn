@@ -17,178 +17,24 @@
       "now": "2026-08-25T12:00:00.000Z",
       "identityPublicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEADoZ3vltYZDJ5YmkhC8cl88l0GI7VXHDomVFebaUcav8=\n-----END PUBLIC KEY-----\n",
       "value": {
-        "schema": "truyn.agent-descriptor/v1",
-        "descriptorVersion": "1",
-        "identity": "truyn:node:50595422de06a3a5f4b38304b847c4a272ea08f607fb5a3b0d5bc9f1d36e8bc5",
-        "name": "Signed Fixture Provider",
-        "protocols": ["TRUYN/1"],
-        "interfaces": [
-          { "type": "https", "endpoint": "https://fixture.example/truyn" },
-          { "type": "mcp", "endpoint": "https://fixture.example/mcp" }
-        ],
-        "capabilities": [
-          {
-            "id": "reasoning.general",
-            "inputModes": ["application/json"],
-            "outputModes": ["application/json"],
-            "interactionModes": ["request-response"]
-          }
-        ],
-        "issuedAt": "2026-08-25T10:00:00.000Z",
-        "expiresAt": "2026-08-26T10:00:00.000Z",
-        "signature": "Xx1e5OE4s/hVqMdtcp1qqq2Td3v3xn/f0y5c+FwsZ5AK1g4fEbALXyUH9EtZWdn0m5DhWst4df3B6wPhnr8zAg=="
+        "schema": "truyn.agent-descriptor/v1", "descriptorVersion": "1", "identity": "truyn:node:50595422de06a3a5f4b38304b847c4a272ea08f607fb5a3b0d5bc9f1d36e8bc5", "name": "Signed Fixture Provider", "protocols": ["TRUYN/1"],
+        "interfaces": [{"type":"https","endpoint":"https://fixture.example/truyn"},{"type":"mcp","endpoint":"https://fixture.example/mcp"}],
+        "capabilities": [{"id":"reasoning.general","inputModes":["application/json"],"outputModes":["application/json"],"interactionModes":["request-response"]}],
+        "issuedAt":"2026-08-25T10:00:00.000Z","expiresAt":"2026-08-26T10:00:00.000Z","signature":"Xx1e5OE4s/hVqMdtcp1qqq2Td3v3xn/f0y5c+FwsZ5AK1g4fEbALXyUH9EtZWdn0m5DhWst4df3B6wPhnr8zAg=="
       },
-      "canonicalSigningPayload": "{\"capabilities\":[{\"id\":\"reasoning.general\",\"inputModes\":[\"application/json\"],\"interactionModes\":[\"request-response\"],\"outputModes\":[\"application/json\"]}],\"descriptorVersion\":\"1\",\"expiresAt\":\"2026-08-26T10:00:00.000Z\",\"identity\":\"truyn:node:50595422de06a3a5f4b38304b847c4a272ea08f607fb5a3b0d5bc9f1d36e8bc5\",\"interfaces\":[{\"endpoint\":\"https://fixture.example/truyn\",\"type\":\"https\"},{\"endpoint\":\"https://fixture.example/mcp\",\"type\":\"mcp\"}],\"issuedAt\":\"2026-08-25T10:00:00.000Z\",\"name\":\"Signed Fixture Provider\",\"protocols\":[\"TRUYN/1\"],\"schema\":\"truyn.agent-descriptor/v1\"}",
-      "expect": {
-        "accepted": true,
-        "keyBinding": "identity"
-      }
+      "canonicalSigningPayload":"{\"capabilities\":[{\"id\":\"reasoning.general\",\"inputModes\":[\"application/json\"],\"interactionModes\":[\"request-response\"],\"outputModes\":[\"application/json\"]}],\"descriptorVersion\":\"1\",\"expiresAt\":\"2026-08-26T10:00:00.000Z\",\"identity\":\"truyn:node:50595422de06a3a5f4b38304b847c4a272ea08f607fb5a3b0d5bc9f1d36e8bc5\",\"interfaces\":[{\"endpoint\":\"https://fixture.example/truyn\",\"type\":\"https\"},{\"endpoint\":\"https://fixture.example/mcp\",\"type\":\"mcp\"}],\"issuedAt\":\"2026-08-25T10:00:00.000Z\",\"name\":\"Signed Fixture Provider\",\"protocols\":[\"TRUYN/1\"],\"schema\":\"truyn.agent-descriptor/v1\"}",
+      "expect":{"accepted":true,"keyBinding":"identity"}
     },
-    {
-      "id": "descriptor.signature-array-valid",
-      "operation": "verifyDescriptor",
-      "now": "2026-08-25T12:00:00.000Z",
-      "identityPublicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEADoZ3vltYZDJ5YmkhC8cl88l0GI7VXHDomVFebaUcav8=\n-----END PUBLIC KEY-----\n",
-      "value": {
-        "schema": "truyn.agent-descriptor/v1",
-        "descriptorVersion": "1",
-        "identity": "truyn:node:50595422de06a3a5f4b38304b847c4a272ea08f607fb5a3b0d5bc9f1d36e8bc5",
-        "name": "Signed Fixture Provider",
-        "protocols": ["TRUYN/1"],
-        "interfaces": [
-          { "type": "https", "endpoint": "https://fixture.example/truyn" },
-          { "type": "mcp", "endpoint": "https://fixture.example/mcp" }
-        ],
-        "capabilities": [
-          {
-            "id": "reasoning.general",
-            "inputModes": ["application/json"],
-            "outputModes": ["application/json"],
-            "interactionModes": ["request-response"]
-          }
-        ],
-        "issuedAt": "2026-08-25T10:00:00.000Z",
-        "expiresAt": "2026-08-26T10:00:00.000Z",
-        "signatures": ["Xx1e5OE4s/hVqMdtcp1qqq2Td3v3xn/f0y5c+FwsZ5AK1g4fEbALXyUH9EtZWdn0m5DhWst4df3B6wPhnr8zAg=="]
-      },
-      "expect": { "accepted": true, "keyBinding": "identity" }
-    },
-    {
-      "id": "descriptor.signature-tampered",
-      "operation": "verifyDescriptor",
-      "now": "2026-08-25T12:00:00.000Z",
-      "identityPublicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEADoZ3vltYZDJ5YmkhC8cl88l0GI7VXHDomVFebaUcav8=\n-----END PUBLIC KEY-----\n",
-      "value": {
-        "schema": "truyn.agent-descriptor/v1",
-        "descriptorVersion": "1",
-        "identity": "truyn:node:50595422de06a3a5f4b38304b847c4a272ea08f607fb5a3b0d5bc9f1d36e8bc5",
-        "name": "TAMPERED Fixture Provider",
-        "protocols": ["TRUYN/1"],
-        "interfaces": [
-          { "type": "https", "endpoint": "https://fixture.example/truyn" },
-          { "type": "mcp", "endpoint": "https://fixture.example/mcp" }
-        ],
-        "capabilities": [
-          {
-            "id": "reasoning.general",
-            "inputModes": ["application/json"],
-            "outputModes": ["application/json"],
-            "interactionModes": ["request-response"]
-          }
-        ],
-        "issuedAt": "2026-08-25T10:00:00.000Z",
-        "expiresAt": "2026-08-26T10:00:00.000Z",
-        "signature": "Xx1e5OE4s/hVqMdtcp1qqq2Td3v3xn/f0y5c+FwsZ5AK1g4fEbALXyUH9EtZWdn0m5DhWst4df3B6wPhnr8zAg=="
-      },
-      "expect": {
-        "accepted": false,
-        "reason": "invalid_descriptor_signature",
-        "error": { "code": "unauthenticated", "retryable": false }
-      }
-    },
-    {
-      "id": "descriptor.identity-key-mismatch",
-      "operation": "verifyDescriptor",
-      "now": "2026-08-25T12:00:00.000Z",
-      "identityPublicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAKpMGYcNssVwOCNxppn7HDhyfDyX+Qsw1ewPHG6SCQ88=\n-----END PUBLIC KEY-----\n",
-      "valueFrom": "descriptor.signature-valid",
-      "expect": {
-        "accepted": false,
-        "reason": "descriptor_identity_key_mismatch",
-        "error": { "code": "unauthenticated", "retryable": false },
-        "delegatedDescriptorKeysSupported": false
-      }
-    },
-    {
-      "id": "descriptor.expired",
-      "operation": "parseDescriptor",
-      "now": "2026-08-27T00:00:00.000Z",
-      "valueFrom": "descriptor.signature-valid",
-      "expect": {
-        "accepted": false,
-        "reason": "descriptor_expired",
-        "error": { "code": "validation_error", "retryable": false }
-      }
-    },
-    {
-      "id": "descriptor.negotiation-valid",
-      "operation": "negotiateDescriptor",
-      "now": "2026-08-25T12:00:00.000Z",
-      "valueFrom": "descriptor.signature-valid",
-      "client": {
-        "supportedDescriptorVersions": ["1"],
-        "supportedProtocols": ["TRUYN/2", "TRUYN/1"],
-        "supportedInterfaces": ["mcp", "https"]
-      },
-      "expect": {
-        "accepted": true,
-        "descriptorVersion": "1",
-        "protocol": "TRUYN/1",
-        "interfaceType": "https"
-      }
-    },
-    {
-      "id": "descriptor.protocol-no-overlap",
-      "operation": "negotiateDescriptor",
-      "now": "2026-08-25T12:00:00.000Z",
-      "valueFrom": "descriptor.signature-valid",
-      "client": {
-        "supportedDescriptorVersions": ["1"],
-        "supportedProtocols": ["TRUYN/2"],
-        "supportedInterfaces": ["https"]
-      },
-      "expect": {
-        "accepted": false,
-        "reason": "unsupported_protocol",
-        "error": { "code": "version_mismatch", "retryable": false }
-      }
-    },
-    {
-      "id": "descriptor.interface-no-overlap",
-      "operation": "negotiateDescriptor",
-      "now": "2026-08-25T12:00:00.000Z",
-      "valueFrom": "descriptor.signature-valid",
-      "client": {
-        "supportedDescriptorVersions": ["1"],
-        "supportedProtocols": ["TRUYN/1"],
-        "supportedInterfaces": ["websocket"]
-      },
-      "expect": {
-        "accepted": false,
-        "reason": "unsupported_interface",
-        "error": { "code": "version_mismatch", "retryable": false }
-      }
-    },
-    {
-      "id": "descriptor.invalid-json",
-      "operation": "parseDescriptor",
-      "input": "{not-json",
-      "now": "2026-08-25T12:00:00.000Z",
-      "expect": {
-        "accepted": false,
-        "reason": "invalid_descriptor_json",
-        "error": { "code": "validation_error", "retryable": false }
-      }
-    }
+    {"id":"descriptor.signature-array-valid","operation":"verifyDescriptor","now":"2026-08-25T12:00:00.000Z","identityPublicKey":"-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEADoZ3vltYZDJ5YmkhC8cl88l0GI7VXHDomVFebaUcav8=\n-----END PUBLIC KEY-----\n","value":{"schema":"truyn.agent-descriptor/v1","descriptorVersion":"1","identity":"truyn:node:50595422de06a3a5f4b38304b847c4a272ea08f607fb5a3b0d5bc9f1d36e8bc5","name":"Signed Fixture Provider","protocols":["TRUYN/1"],"interfaces":[{"type":"https","endpoint":"https://fixture.example/truyn"},{"type":"mcp","endpoint":"https://fixture.example/mcp"}],"capabilities":[{"id":"reasoning.general","inputModes":["application/json"],"outputModes":["application/json"],"interactionModes":["request-response"]}],"issuedAt":"2026-08-25T10:00:00.000Z","expiresAt":"2026-08-26T10:00:00.000Z","signatures":["Xx1e5OE4s/hVqMdtcp1qqq2Td3v3xn/f0y5c+FwsZ5AK1g4fEbALXyUH9EtZWdn0m5DhWst4df3B6wPhnr8zAg=="]},"expect":{"accepted":true,"keyBinding":"identity"}},
+    {"id":"descriptor.signature-tampered","operation":"verifyDescriptor","now":"2026-08-25T12:00:00.000Z","identityPublicKey":"-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEADoZ3vltYZDJ5YmkhC8cl88l0GI7VXHDomVFebaUcav8=\n-----END PUBLIC KEY-----\n","value":{"schema":"truyn.agent-descriptor/v1","descriptorVersion":"1","identity":"truyn:node:50595422de06a3a5f4b38304b847c4a272ea08f607fb5a3b0d5bc9f1d36e8bc5","name":"TAMPERED Fixture Provider","protocols":["TRUYN/1"],"interfaces":[{"type":"https","endpoint":"https://fixture.example/truyn"},{"type":"mcp","endpoint":"https://fixture.example/mcp"}],"capabilities":[{"id":"reasoning.general","inputModes":["application/json"],"outputModes":["application/json"],"interactionModes":["request-response"]}],"issuedAt":"2026-08-25T10:00:00.000Z","expiresAt":"2026-08-26T10:00:00.000Z","signature":"Xx1e5OE4s/hVqMdtcp1qqq2Td3v3xn/f0y5c+FwsZ5AK1g4fEbALXyUH9EtZWdn0m5DhWst4df3B6wPhnr8zAg=="},"expect":{"accepted":false,"reason":"invalid_descriptor_signature","error":{"code":"unauthenticated","retryable":false}}},
+    {"id":"descriptor.identity-key-mismatch","operation":"verifyDescriptor","now":"2026-08-25T12:00:00.000Z","identityPublicKey":"-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAKpMGYcNssVwOCNxppn7HDhyfDyX+Qsw1ewPHG6SCQ88=\n-----END PUBLIC KEY-----\n","valueFrom":"descriptor.signature-valid","expect":{"accepted":false,"reason":"descriptor_identity_key_mismatch","error":{"code":"unauthenticated","retryable":false},"delegatedDescriptorKeysSupported":false}},
+    {"id":"descriptor.expired","operation":"parseDescriptor","now":"2026-08-27T00:00:00.000Z","valueFrom":"descriptor.signature-valid","expect":{"accepted":false,"reason":"descriptor_expired","error":{"code":"validation_error","retryable":false}}},
+    {"id":"descriptor.negotiation-valid","operation":"negotiateDescriptor","now":"2026-08-25T12:00:00.000Z","valueFrom":"descriptor.signature-valid","client":{"supportedDescriptorVersions":["1"],"supportedProtocols":["TRUYN/2","TRUYN/1"],"supportedInterfaces":["mcp","https"]},"expect":{"accepted":true,"descriptorVersion":"1","protocol":"TRUYN/1","interfaceType":"https"}},
+    {"id":"descriptor.protocol-no-overlap","operation":"negotiateDescriptor","now":"2026-08-25T12:00:00.000Z","valueFrom":"descriptor.signature-valid","client":{"supportedDescriptorVersions":["1"],"supportedProtocols":["TRUYN/2"],"supportedInterfaces":["https"]},"expect":{"accepted":false,"reason":"unsupported_protocol","error":{"code":"version_mismatch","retryable":false}}},
+    {"id":"descriptor.interface-no-overlap","operation":"negotiateDescriptor","now":"2026-08-25T12:00:00.000Z","valueFrom":"descriptor.signature-valid","client":{"supportedDescriptorVersions":["1"],"supportedProtocols":["TRUYN/1"],"supportedInterfaces":["websocket"]},"expect":{"accepted":false,"reason":"unsupported_interface","error":{"code":"version_mismatch","retryable":false}}},
+    {"id":"descriptor.interface-endpoint-missing","operation":"parseDescriptor","now":"2026-08-25T12:00:00.000Z","value":{"schema":"truyn.agent-descriptor/v1","descriptorVersion":"1","identity":"truyn:node:50595422de06a3a5f4b38304b847c4a272ea08f607fb5a3b0d5bc9f1d36e8bc5","name":"Endpoint Missing","protocols":["TRUYN/1"],"interfaces":[{"type":"https"}],"capabilities":[],"issuedAt":"2026-08-25T10:00:00.000Z","expiresAt":"2026-08-26T10:00:00.000Z"},"expect":{"accepted":false,"reason":"invalid_descriptor_interfaces","error":{"code":"validation_error","retryable":false}}},
+    {"id":"descriptor.interface-endpoint-blank","operation":"parseDescriptor","now":"2026-08-25T12:00:00.000Z","value":{"schema":"truyn.agent-descriptor/v1","descriptorVersion":"1","identity":"truyn:node:50595422de06a3a5f4b38304b847c4a272ea08f607fb5a3b0d5bc9f1d36e8bc5","name":"Endpoint Blank","protocols":["TRUYN/1"],"interfaces":[{"type":"https","endpoint":"   "}],"capabilities":[],"issuedAt":"2026-08-25T10:00:00.000Z","expiresAt":"2026-08-26T10:00:00.000Z"},"expect":{"accepted":false,"reason":"invalid_descriptor_interfaces","error":{"code":"validation_error","retryable":false}}},
+    {"id":"descriptor.interface-type-blank","operation":"parseDescriptor","now":"2026-08-25T12:00:00.000Z","value":{"schema":"truyn.agent-descriptor/v1","descriptorVersion":"1","identity":"truyn:node:50595422de06a3a5f4b38304b847c4a272ea08f607fb5a3b0d5bc9f1d36e8bc5","name":"Type Blank","protocols":["TRUYN/1"],"interfaces":[{"type":" ","endpoint":"https://fixture.example/truyn"}],"capabilities":[],"issuedAt":"2026-08-25T10:00:00.000Z","expiresAt":"2026-08-26T10:00:00.000Z"},"expect":{"accepted":false,"reason":"invalid_descriptor_interfaces","error":{"code":"validation_error","retryable":false}}},
+    {"id":"descriptor.invalid-json","operation":"parseDescriptor","input":"{not-json","now":"2026-08-25T12:00:00.000Z","expect":{"accepted":false,"reason":"invalid_descriptor_json","error":{"code":"validation_error","retryable":false}}}
   ]
 }
