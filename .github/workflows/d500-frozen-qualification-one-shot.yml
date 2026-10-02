@@ -44,12 +44,11 @@ jobs:
           [[ "$(git diff --name-only "$CANDIDATE_SHA..$sw_head")" == '.github/d-series-dispatch/request.env' ]]
           [[ "$(git diff --name-only "$CANDIDATE_SHA..$bw_head")" == '.github/d-series-blockwise/request.env' ]]
           arts=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${BLOCKWISE_RUN_ID}/artifacts?per_page=100")
-          jq -e '
-            [.artifacts[] | select(.expired==false and (.size_in_bytes//0)>0) | .name
-             | capture("^d-series-block-(?<block>B(0[1-9]|1[0-6]))-[0-9]+$")? | select(. != null) | .block]
-            | sort
-            | . == ["B01","B02","B03","B04","B05","B06","B07","B08","B09","B10","B11","B12","B13","B14","B15","B16"]
-          ' <<<"$arts" >/dev/null
+          for b in $(seq -w 1 16); do
+            expected="d-series-block-B${b}-${BLOCKWISE_RUN_ID}"
+            jq -e --arg n "$expected" '[.artifacts[] | select(.name==$n and .expired==false and (.size_in_bytes//0)>0)] | length==1' <<<"$arts" >/dev/null
+          done
+          [[ "$(jq --arg r "$BLOCKWISE_RUN_ID" '[.artifacts[] | select(.expired==false and (.size_in_bytes//0)>0 and (.name|test("^d-series-block-B(0[1-9]|1[0-6])-"+$r+"$")))] | length' <<<"$arts")" == 16 ]]
           git fetch --no-tags origin main
           base=$(git merge-base "$CANDIDATE_SHA" origin/main)
           node scripts/d-series-qualification-manifest.mjs qualification --base-sha "$base" --candidate-sha "$CANDIDATE_SHA" --scale "$SCALE" --swarm-run-id "$SWARM_RUN_ID" --blockwise-run-id "$BLOCKWISE_RUN_ID" --output d-series-qualification-manifest.json
