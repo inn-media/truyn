@@ -1,0 +1,37 @@
+name: D-500 Real Launch One-Shot
+on:
+  push:
+    branches:
+      - automation/d500-real-launch-a247d1a0-01
+    paths:
+      - .github/workflows/d500-real-launch-one-shot.yml
+permissions:
+  actions: write
+  contents: read
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify immutable launch request and dispatch real D-500
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          req="https://raw.githubusercontent.com/${REPO}/${GITHUB_SHA}/.github/d500-real-launch/request.env"
+          curl -fsSL "$req" -o /tmp/request.env
+          set -a; . /tmp/request.env; set +a
+          test "$TASK_ID" = "truyn-d500-acceptance-repair-8f3c2a"
+          test "$SOURCE_SHA" = "a247d1a0eeb08483701db7af47a4049342d96be8"
+          test "$QUALIFICATION_RUN_ID" = "36960915266"
+          test "$ADMISSION_RUN_ID" = "36979013798"
+          test "$HOSTS" = "20" && test "$NODES_PER_HOST" = "25" && test "$EXPECTED_NODES" = "500"
+          test "$MAX_PEERS" = "32" && test "$RUN_ATTEMPT_REQUIRED" = "1"
+          q=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$REPO/actions/runs/$QUALIFICATION_RUN_ID")
+          a=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$REPO/actions/runs/$ADMISSION_RUN_ID")
+          test "$(jq -r .conclusion <<<"$q")" = success && test "$(jq -r .run_attempt <<<"$q")" = 1
+          test "$(jq -r .conclusion <<<"$a")" = success && test "$(jq -r .run_attempt <<<"$a")" = 1
+          runs=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$REPO/actions/runs?per_page=100")
+          if jq -e --arg id "$LAUNCH_ID" '[.workflow_runs[] | select((.display_title // "") | contains($id))] | length > 0' <<<"$runs" >/dev/null; then echo duplicate-launch; exit 1; fi
+          # Canonical real Class-D workflow dispatch; immutable candidate SHA is supplied explicitly.
+          curl -fsS -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$REPO/actions/workflows/class-d-azure-1000.yml/dispatches" -d "{\"ref\":\"$SOURCE_SHA\",\"inputs\":{\"scale\":\"d500\",\"launch_id\":\"$LAUNCH_ID\"}}"
