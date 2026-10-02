@@ -39,10 +39,17 @@ jobs:
           jq -e '.name=="D-Series Blockwise One-Shot Launcher"' <<<"$bw" >/dev/null
           sw_head=$(jq -r '.head_sha' <<<"$sw")
           bw_head=$(jq -r '.head_sha' <<<"$bw")
-          [[ "$(git rev-parse "${sw_head}^")" == "$CANDIDATE_SHA" ]]
-          [[ "$(git rev-parse "${bw_head}^")" == "$CANDIDATE_SHA" ]]
-          [[ "$(git diff --name-only "$CANDIDATE_SHA..$sw_head")" == '.github/d-series-dispatch/request.env' ]]
-          [[ "$(git diff --name-only "$CANDIDATE_SHA..$bw_head")" == '.github/d-series-blockwise/request.env' ]]
+          # Launcher heads are sibling commits of this qualification branch and are not
+          # guaranteed to exist in the local checkout object graph. Verify their exact
+          # parent and changed-file provenance against authoritative GitHub commit data.
+          sw_commit=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${sw_head}")
+          bw_commit=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${bw_head}")
+          [[ "$(jq -r '.parents | length' <<<"$sw_commit")" == 1 ]]
+          [[ "$(jq -r '.parents[0].sha' <<<"$sw_commit")" == "$CANDIDATE_SHA" ]]
+          [[ "$(jq -r '.parents | length' <<<"$bw_commit")" == 1 ]]
+          [[ "$(jq -r '.parents[0].sha' <<<"$bw_commit")" == "$CANDIDATE_SHA" ]]
+          [[ "$(jq -r '[.files[].filename] | sort | join("\n")' <<<"$sw_commit")" == '.github/d-series-dispatch/request.env' ]]
+          [[ "$(jq -r '[.files[].filename] | sort | join("\n")' <<<"$bw_commit")" == '.github/d-series-blockwise/request.env' ]]
           arts=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${BLOCKWISE_RUN_ID}/artifacts?per_page=100")
           for b in $(seq -w 1 16); do
             expected="d-series-block-B${b}-${BLOCKWISE_RUN_ID}"
