@@ -1,75 +1,46 @@
 {
   "taskId": "truyn-d500-acceptance-repair-8f3c2a",
-  "state": "RED",
+  "state": "WAITING_EXTERNAL",
   "currentSprint": "S02",
   "lastCompletedSprint": "S01",
   "taskBranch": "automation/d500-acceptance-repair-8f3c2a",
-  "authoritativeMainAtReconcile": "e6e350124201a3e637cc8c481dc8385d8979e51a",
-  "originalD500Main": "19d8b65f30dca54c9e5b8f9f946d333dd109bece",
   "attempt11RunId": 36148344789,
   "attempt11RunAttempt": 1,
   "attempt11Immutable": true,
-  "attempt11HeadSha": "19d8b65f30dca54c9e5b8f9f946d333dd109bece",
-  "attempt11CandidateSha": "9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3",
-  "attempt11ArtifactId": 10872166515,
-  "attempt11ArtifactDigest": "sha256:a71d8ee7fca44a290ac771fb8b726e313cd3bed8c054f6391883ce0b24a5c928",
   "attempt11Terminal": "FAILURE",
-  "reconciliation": {
-    "placement": "PASS",
-    "staging": "PASS",
-    "realCampaignStep": "PASS_WITH_STRICT_TERMINAL_RED",
-    "strictEvaluatorStep": "PASS",
-    "cleanup": "PASS",
-    "artifactUpload": "PASS",
-    "terminalMarker": "FAILURE",
-    "unrelatedMainMovementInvalidatesCandidate": false,
-    "selfRepairRun36160992242": "FAILURE_CLASS_D_REGRESSION_SET",
-    "selfRepairRun36217380757": "FAILURE_CLASS_D_REGRESSION_SET_WITH_EXACT_DIAGNOSTICS",
-    "selfRepairTargetedAttempt11Regressions": "PASS",
-    "selfRepairBranch": "task/truyn-d500-acceptance-repair-8f3c2a",
-    "selfRepairBranchAuthorizedForTask": false,
-    "mainMovement1303013ToA906d40MaterialToD500": false,
-    "mainMovementA906d40ToD6dba97MaterialToD500": false,
-    "mainMovementD6dba97ToE6e3501MaterialToD500": false,
-    "latestMainCommitMessage": "test(open-1.0): verify Python release artifacts in clean rooms",
-    "authorizedTaskBranchRunsObserved": 0
-  },
   "repairScope": [
     "host-5/node-2 liveness failure",
     "hosts-6/13 Azure VM Agent/Run Command timeout-conflict failure"
   ],
-  "diagnosticCheckpoint": {
-    "runId": 36217380757,
-    "runAttempt": 1,
-    "headSha": "2c1d09e2c9bb23b3ed23f6c5fa013c077bb346aa",
-    "targetedRegressionStep": "GREEN",
-    "classDRegressionStep": "RED",
-    "affectedBlockwise": "NOT_RUN",
-    "candidateCreated": false,
-    "realSuccessorLaunch": false,
-    "exactFailures": [
-      "tests/class-d-1000-bootstrap.test.js: provisioner bootstrap stage no longer contains /dht/refresh after helper extraction",
-      "tests/class-d-1000-remote-manifest-heredoc.test.js: remote manifest/heredoc contract mismatch after helper extraction",
-      "tests/class-d-bootstrap-qualification.test.js: qualification contract mismatch after helper extraction"
-    ],
-    "diagnosis": "The Attempt-12 resilience concept passes targeted Attempt-11 regressions, but extracting the canonical bootstrap sequence into scripts/class-d-bootstrap-host-resilience.sh breaks existing Class-D evaluator contracts. Do not weaken or edit those evaluators merely to accept extraction. Rework the minimal repair so canonical /bootstrap -> /dht/refresh -> /dht/readiness semantics remain directly represented in the provisioner while adding bounded node recovery and Azure Run Command drain handling.",
-    "note": "Run executed on unauthorized task/... branch and remains diagnostic evidence only. No candidate/qualification/launch authority derives from it."
+  "frozenCandidate": {
+    "candidateSha": "a247d1a0eeb08483701db7af47a4049342d96be8",
+    "sanitationSwarmRunId": 36878991018,
+    "blockwiseRunId": 36911306656,
+    "qualificationRunId": 36960915266,
+    "qualificationRunAttempt": 1,
+    "qualificationHeadSha": "d5adb229744a33bc21c76d876f2a83133d9fd289",
+    "qualificationConclusion": "SUCCESS",
+    "qualificationWorkflow": "D-500 Frozen Candidate Qualification One-Shot",
+    "qualificationArtifact": "d500-frozen-qualification-36960915266",
+    "qualificationArtifactDigest": "sha256:f4d2881c",
+    "expensiveQualificationValid": true
   },
-  "currentReconcileCheckpoint": {
-    "taskBranchHeadBeforeStateUpdate": "ea59765f3009c441cc6349a923b340d8a43ac7ce",
-    "publicMain": "e6e350124201a3e637cc8c481dc8385d8979e51a",
-    "mainDeltaFromPriorReconcile": "one Open-1.0 CI-only commit; non-material to D-500 candidate qualification",
-    "canonicalProvisioner": "benchmarks/scale/class-d-azure-1000-provision.sh",
-    "canonicalBootstrapSequenceStillInline": true,
-    "repairConstraint": "keep inline /bootstrap -> /dht/refresh -> /dht/readiness; add bounded per-node liveness recovery and Azure Run Command drain/backoff without evaluator weakening",
-    "successorLaunchAuthorized": false
+  "currentMain": {
+    "sha": "0885046a31c6b540ce028626342dff4beebb67ac",
+    "latestMovementMaterialToD500": false,
+    "latestTaskId": "truyn-open-1-0-productization-7e4c91"
   },
-  "next": [
-    "apply the minimal resilience repair only on automation/d500-acceptance-repair-8f3c2a while retaining the canonical inline bootstrap sequence",
-    "run targeted Attempt-11 regressions plus the three exact Class-D regressions and machine-sanitize",
-    "run Frozen Candidate -> Sanitation Swarm -> full B01-B16 -> Frozen Candidate Qualification -> current-main Admission",
-    "re-read current mains, candidate/admission bindings, collision/capacity and D-500 duplicate history",
-    "permit exactly one successor launch identity/run_attempt=1 only after all guards are GREEN"
-  ],
-  "realSuccessorLaunchAuthorized": false
+  "admission": {
+    "status": "PENDING_BRIDGE",
+    "reason": "canonical d-series-admission-gate accepts only successful workflow named D-Series Frozen Candidate Qualification with artifact d-series-qualification-manifest-<run>; exact GREEN task-local qualification is D-500 Frozen Candidate Qualification One-Shot and must be bridged without repeating expensive qualification or weakening admission",
+    "canonicalWorkflow": ".github/workflows/d-series-admission-gate.yml",
+    "currentMainSha": "0885046a31c6b540ce028626342dff4beebb67ac"
+  },
+  "realSuccessorLaunchAuthorized": false,
+  "resumeCondition": "Create/execute a fail-closed task-local Admission bridge that consumes exact GREEN qualification run 36960915266 and its immutable artifact, binds candidate a247d1a0eeb08483701db7af47a4049342d96be8 to then-current main, runs the same mandatory integration admission semantics, then rereads mains, bindings, shared capacity/collision and D-500 duplicate history before exactly one successor launch identity/run_attempt=1.",
+  "resumeCoverage": {
+    "hourlyAutomation": true,
+    "duplicateActiveOperation": false,
+    "attempt11NeverRerun": true
+  }
 }
