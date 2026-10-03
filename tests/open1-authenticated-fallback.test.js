@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { selectAuthenticatedFallback } from '../core/network/authenticated-fallback.js';
+import { createFunctionAdapter, TruynAdapterHost } from '../adapters/sdk/index.js';
+import { createProviderAccessPolicy } from '../core/security/provider-access.js';
 
 const peer = { id: 'peer-a', endpoints: [
   { transport: 'websocket', url: 'wss://peer.example/ws' },
@@ -78,4 +80,24 @@ test('S148 bounds fallback attempts', async () => {
   let attempts = 0;
   await assert.rejects(() => selectAuthenticatedFallback({ ...options, maxAttempts: 1, connectWebSocket: async () => { attempts += 1; return { reachable: false }; }, connectHttps: async () => { attempts += 1; return ok; } }), /no reachable/);
   assert.equal(attempts, 1);
+});
+
+
+test('S149 transport retry cannot execute one logical NEED twice', async () => {
+  let executions = 0;
+  const results = [];
+  const node = { async result(requestId, output, metadata) { results.push({ requestId, output, metadata }); return { ok: true }; }, closeFastSocket() {} };
+  const host = new TruynAdapterHost({ node, accessPolicy: createProviderAccessPolicy({ mode: 'public' }), adapter: createFunctionAdapter({ name: 'open1-s149-idempotency', capabilities: ['open1.s149'], execute: async () => { executions += 1; await new Promise((resolve) => setTimeout(resolve, 10)); return { output: 'once' }; } }) });
+  host.running = true;
+  const logicalNeed = { kind: 'NEED', verification: { ok: true }, envelope: { id: 'open1-s149-need-1', from: 'requester-a', payload: { capability: { name: 'open1.s149' }, input: {} } } };
+  const first = host.handleLifecycleEvent(logicalNeed);
+  assert.equal(first.scheduled, true);
+  await first.promise;
+  const retryAfterTransportSwitch = host.handleLifecycleEvent(logicalNeed);
+  assert.equal(retryAfterTransportSwitch.scheduled, false);
+  assert.equal(retryAfterTransportSwitch.promise, null);
+  assert.equal(executions, 1);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].requestId, 'open1-s149-need-1');
+  host.running = false;
 });

@@ -138,7 +138,7 @@ export function createFunctionAdapter({ name = 'function-adapter', version = '0.
 }
 
 export class TruynAdapterHost {
-  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, executionDrainTimeoutMs = 5_000, accessPolicy, billingPolicy = null } = {}) {
+  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, maxCancellationTombstones = 1024, maxSettledNeedIds = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, executionDrainTimeoutMs = 5_000, accessPolicy, billingPolicy = null } = {}) {
     if (!node) throw new Error('node is required');
     this.node = node;
     this.adapter = validateAdapter(adapter);
@@ -148,6 +148,7 @@ export class TruynAdapterHost {
     this.socketPath = socketPath;
     this.socketReconnectDelayMs = socketReconnectDelayMs;
     this.maxCancellationTombstones = Number.isInteger(maxCancellationTombstones) && maxCancellationTombstones > 0 ? maxCancellationTombstones : 1024;
+    this.maxSettledNeedIds = Number.isInteger(maxSettledNeedIds) && maxSettledNeedIds > 0 ? maxSettledNeedIds : 1024;
     this.maxConcurrentExecutions = Number.isInteger(maxConcurrentExecutions) && maxConcurrentExecutions > 0 ? maxConcurrentExecutions : 1;
     this.maxPendingExecutions = Number.isInteger(maxPendingExecutions) && maxPendingExecutions >= 0 ? maxPendingExecutions : 256;
     this.executionDrainTimeoutMs = Number.isFinite(executionDrainTimeoutMs) ? Math.max(0, Math.min(60_000, Math.floor(executionDrainTimeoutMs))) : 5_000;
@@ -160,6 +161,7 @@ export class TruynAdapterHost {
     this.controlLoopPromise = null;
     this.inFlight = new Map();
     this.cancelledNeedIds = new Map();
+    this.settledNeedIds = new Map();
     this.pendingNeeds = [];
     this.pendingNeedIds = new Set();
     this.lastLoopError = null;
@@ -370,11 +372,22 @@ export class TruynAdapterHost {
     }
   }
 
+  rememberSettledNeed(need) {
+    if (this.settledNeedIds.has(need.id)) this.settledNeedIds.delete(need.id);
+    this.settledNeedIds.set(need.id, need.from);
+    while (this.settledNeedIds.size > this.maxSettledNeedIds) {
+      const oldest = this.settledNeedIds.keys().next().value;
+      this.settledNeedIds.delete(oldest);
+    }
+  }
+
   startNeed(need) {
     const controller = new AbortController();
     const state = { controller, need, nextSequence: 0, promise: null };
     this.inFlight.set(need.id, state);
-    state.promise = Promise.resolve().then(() => this.executeNeed(need, state)).finally(() => {
+    state.promise = Promise.resolve().then(() => this.executeNeed(need, state)).then(() => {
+      if (!controller.signal.aborted) this.rememberSettledNeed(need);
+    }).finally(() => {
       if (this.inFlight.get(need.id) === state) this.inFlight.delete(need.id);
       this.drainPendingNeeds();
     });
@@ -425,6 +438,7 @@ export class TruynAdapterHost {
     if (!need?.id) return null;
     if (this.inFlight.has(need.id)) return this.inFlight.get(need.id)?.promise || null;
     if (this.pendingNeedIds.has(need.id)) return this.pendingNeeds.find((entry) => entry.need.id === need.id)?.promise || null;
+    if (this.settledNeedIds.get(need.id) === need.from) return null;
     const priorCancellation = this.cancelledNeedIds.get(need.id);
     if (priorCancellation?.from === need.from) return null;
     if (this.inFlight.size < this.maxConcurrentExecutions) return this.startNeed(need);
