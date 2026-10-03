@@ -1,0 +1,57 @@
+name: D-500 Attempt12 Prepare One-Shot
+on:
+  push:
+    branches: [automation/d500-acceptance-repair-8f3c2a]
+    paths: ['.github/d500-attempt12-prepare/request.env']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  prepare:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Verify guards and prepare canonical successor controller only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          req='.github/d500-attempt12-prepare/request.env'
+          raw="$(gh api "repos/$REPO/contents/$req?ref=$GITHUB_SHA" --jq .content | tr -d '\n' | base64 -d)"
+          value(){ sed -n "s/^$1=//p" <<<"$raw" | tail -1; }
+          [[ "$(value TASK_ID)" == 'truyn-d500-acceptance-repair-8f3c2a' ]]
+          [[ "$(value CANDIDATE_SHA)" == 'a247d1a0eeb08483701db7af47a4049342d96be8' ]]
+          [[ "$(value CANDIDATE_TREE)" == 'd1ebbc571b4fda2af3655e6b97e21a12b0b28b12' ]]
+          [[ "$(value QUALIFICATION_RUN)" == '36960915266' ]]
+          [[ "$(value ADMISSION_RUN)" == '37075967140' ]]
+          expected_main="$(value CURRENT_MAIN_SHA)"
+          [[ "$expected_main" == '3622ee2d9e19efbb6cd81dee9cfd4d2a80eb5d77' ]]
+          current_main="$(gh api "repos/$REPO/branches/main" --jq .commit.sha)"
+          [[ "$current_main" == "$expected_main" ]]
+          q="$(gh api "repos/$REPO/actions/runs/36960915266")"
+          a="$(gh api "repos/$REPO/actions/runs/37075967140")"
+          jq -e '.status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$q" >/dev/null
+          jq -e '.status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$a" >/dev/null
+          # Attempt 11 is immutable evidence; never rerun it. Ensure no newer real D-500 exists.
+          runs="$(gh api "repos/$REPO/actions/runs?per_page=100")"
+          jq -e '[.workflow_runs[]|select(.name=="D-500 Acceptance" and .id>36148344789)]|length==0' <<<"$runs" >/dev/null
+          path='.github/workflows/d500-acceptance.yml'
+          meta="$(gh api "repos/$REPO/contents/$path?ref=main")"
+          blob="$(jq -r .sha <<<"$meta")"
+          body="$(jq -r .content <<<"$meta" | tr -d '\n' | base64 -d)"
+          grep -q "launch-11.txt" <<<"$body"
+          grep -q "TESTED_COMMIT: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3" <<<"$body"
+          body="$(sed \
+            -e 's/launch-11\.txt/launch-12.txt/g' \
+            -e 's/attempt11-single-shot/attempt12-single-shot/g' \
+            -e 's/Attempt 11/Attempt 12/g' \
+            -e 's/truyn-d500-acceptance-260925-a11/truyn-d500-acceptance-repair-8f3c2a-a12/g' \
+            -e 's/9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3/a247d1a0eeb08483701db7af47a4049342d96be8/g' \
+            -e 's/609c6035d09267f95aa95fdd3f6b0a2869d2dc3b/d1ebbc571b4fda2af3655e6b97e21a12b0b28b12/g' <<<"$body")"
+          # Controller preparation is deliberately separate from launch. Main movement makes Admission stale.
+          payload="$(jq -n --arg m $'ci(d500): prepare attempt12 canonical controller\n\nSigned-off-by: truyn-d500-controller <actions@users.noreply.github.com>' --arg c "$(printf '%s' "$body" | base64 -w0)" --arg s "$blob" '{message:$m,content:$c,sha:$s,branch:"main"}')"
+          gh api -X PUT "repos/$REPO/contents/$path" --input - <<<"$payload" >/tmp/update.json
+          new_sha="$(jq -r .commit.sha /tmp/update.json)"
+          [[ "$new_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "TRUYN_D500_ATTEMPT12_CONTROLLER_PREPARED main=$new_sha candidate=a247d1a0eeb08483701db7af47a4049342d96be8 launch=NOT_CREATED admission=STALE_REQUIRES_REFRESH"
