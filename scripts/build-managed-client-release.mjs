@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile, cp } from 'node:fs/promises';
+import { mkdir, rm, writeFile, cp, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
 
@@ -28,7 +28,7 @@ for (const platform of platforms) {
 const manifest = { schema: 'truyn.managed-client-release-manifest/v1', version, sourceSha, artifacts: [] };
 for (const platform of platforms) {
   const name = `truyn-managed-client-${version}-${platform}`;
-  const release = await import('node:fs/promises').then(fs => fs.readFile(join(out, name, 'RELEASE.json')));
+  const release = await readFile(join(out, name, 'RELEASE.json'));
   manifest.artifacts.push({ platform, directory: name, releaseSha256: createHash('sha256').update(release).digest('hex') });
 }
 await writeFile(join(out, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
