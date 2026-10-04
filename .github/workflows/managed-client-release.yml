@@ -1,0 +1,70 @@
+name: Managed Client Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Immutable managed client release version
+        required: true
+        default: 0.1.0-p20s02.1
+  pull_request:
+    paths:
+      - 'sdk/js/client/**'
+      - 'scripts/build-managed-client-release.mjs'
+      - '.github/workflows/managed-client-release.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            os: windows-latest
+          - platform: macos-x64
+            os: macos-latest
+          - platform: linux-x64
+            os: ubuntu-latest
+          - platform: android-universal
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build deterministic managed client release set
+        shell: bash
+        env:
+          TRUYN_CLIENT_RELEASE_VERSION: ${{ inputs.version || '0.1.0-p20s02.1' }}
+        run: node scripts/build-managed-client-release.mjs
+      - name: Verify target artifact
+        shell: bash
+        env:
+          TRUYN_CLIENT_RELEASE_VERSION: ${{ inputs.version || '0.1.0-p20s02.1' }}
+        run: test -f "dist/managed-client-release/truyn-managed-client-${TRUYN_CLIENT_RELEASE_VERSION}-${{ matrix.platform }}/RELEASE.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: truyn-managed-client-${{ inputs.version || '0.1.0-p20s02.1' }}-${{ matrix.platform }}
+          path: dist/managed-client-release/truyn-managed-client-${{ inputs.version || '0.1.0-p20s02.1' }}-${{ matrix.platform }}/
+          if-no-files-found: error
+
+  manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build release manifest with SHA-256 identities
+        env:
+          TRUYN_CLIENT_RELEASE_VERSION: ${{ inputs.version || '0.1.0-p20s02.1' }}
+        run: node scripts/build-managed-client-release.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: truyn-managed-client-${{ inputs.version || '0.1.0-p20s02.1' }}-manifest
+          path: dist/managed-client-release/manifest.json
+          if-no-files-found: error
