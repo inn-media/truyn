@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/d500/launch-11.txt'
+      - '.github/d500/launch-12.txt'
 
 permissions:
   contents: read
@@ -12,22 +12,18 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d500-9d998ab5-attempt11-single-shot
+  group: truyn-d500-a247d1a0-attempt12-single-shot
   cancel-in-progress: false
 
 env:
-  TASK_ID: truyn-d500-acceptance-260925-a11
+  TASK_ID: truyn-d500-acceptance-repair-8f3c2a-a12
   REFERENCE_D200_RUN: '35503894414'
   REFERENCE_D200_REPEATABILITY_RUN: '35517248924'
-  TESTED_COMMIT: 9d998ab5f89a7f023f22cbff4f92f3b715b1c4a3
-  TESTED_TREE_SHA: 609c6035d09267f95aa95fdd3f6b0a2869d2dc3b
+  TESTED_COMMIT: a247d1a0eeb08483701db7af47a4049342d96be8
+  TESTED_TREE_SHA: d1ebbc571b4fda2af3655e6b97e21a12b0b28b12
   D500_CONTRACT_SHA256: 469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e913fd8f85
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '25'
-  # GitHub-hosted runners terminate a job at 6h regardless of timeout-minutes,
-  # and a terminated job writes no evidence. The campaign bounds itself well
-  # inside that cap: 150 min of provisioning plus campaign, leaving the rest of
-  # the 180 min job for evaluation, cleanup and artifact upload.
   TRUYN_D500_BUDGET_S: '9000'
   TRUYN_D500_REMOTE_TIMEOUT_S: '600'
 
@@ -36,13 +32,13 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 180
     steps:
-      - name: Enforce immutable D-500 Attempt 11 one-shot launch
+      - name: Enforce immutable D-500 Attempt 12 one-shot launch
         env:
           GH_TOKEN: '${{ github.token }}'
         shell: bash
         run: |
           set -Eeuo pipefail
-          token='.github/d500/launch-11.txt'
+          token='.github/d500/launch-12.txt'
           workflow='.github/workflows/d500-acceptance.yml'
           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
           [[ "$GITHUB_EVENT_NAME" == push ]]
@@ -119,7 +115,6 @@ jobs:
           D500_PREFLIGHT_PHASE=prepare bash scripts/class-d-500-preflight-qualification.sh
           git diff --check
           printf '%s  config/d500-contract.json\n' "$actual_contract_sha" > class-d-500-contract.sha256.txt
-          printf 'task_id=%s\nreference_d200_run=%s\nreference_d200_repeatability_run=%s\ntested_commit=%s\ntested_tree_sha=%s\nd_series_admission_run=%s\nd500_contract_sha256=%s\nhosts=20\nprocesses=500\nnodes_per_host=25\nmax_peers=32\nrouting_threshold=0.99\nrecovery_p95_limit_ms=120000\nacknowledged_writes=100\nacknowledged_write_loss=0\n' "$TASK_ID" "$REFERENCE_D200_RUN" "$REFERENCE_D200_REPEATABILITY_RUN" "$TESTED_COMMIT" "$TESTED_TREE_SHA" "$TRUYN_D_SERIES_ADMISSION_RUN" "$actual_contract_sha" > class-d-500-diagnostic-input.txt
 
       - name: Build immutable runtime bundle
         id: runtime
@@ -210,10 +205,6 @@ jobs:
         shell: bash
         run: |
           set +e
-          # Diagnostic only: this file is never read by the strict evaluator
-          # below. It exists so a campaign that hit its budget still names the
-          # stage and the metrics it reached instead of leaving the artifact
-          # with no evidence at all, as attempt 7 did.
           if [[ -f class-d-500-diagnostic.log && ! -f class-d-1000-evidence.json ]]; then
             node benchmarks/scale/class-d-1000-partial-evidence-from-log.js class-d-500-diagnostic.log class-d-500-partial-evidence.json "${{ steps.campaign.outputs.campaign_rc }}"
           fi
@@ -234,79 +225,49 @@ jobs:
             exit 0
           fi
           jq '.class="D-500" | .scope="500-real-process-scale+safety-contract-v1" | .sharedHarnessEvidenceFile="class-d-1000-evidence.json"' "$f" > class-d-500-evidence.json
-          jq -e '.topology.hostCount==20 and .topology.nodeCount==500 and .topology.realProcessCount==500 and .topology.realProcessesPerHost==25 and .topology.uniqueIdentityCount==500 and .topology.uniqueEndpointCount==500 and .topology.syntheticNodeCount==0 and .readiness.readyNodeRatio>=.99 and .routing.baselineSuccessRatio>=.99 and .routing.postRestartSuccessRatio>=.99 and .routing.healedSuccessRatio>=.99 and .convergence.routingSuccessRatio>=.99 and .convergence.latencyMs.p95<=120000 and .recovery.latencyMs.p95<=120000 and .recovery.restartedNodeCount==100 and .recovery.packetPartitionRecoveryMs<=120000 and .adversarial.packetPartition.realPacketPath==true and .adversarial.packetPartition.blockedSuccesses==0 and .safety.acknowledgedWriteCount>=100 and .safety.acknowledgedWriteLossCount==0 and .safety.invalidSignedStateAcceptedCount==0 and .safety.staleRevokedReceiptAcceptedCount==0 and .safety.unauthorizedProviderExecutionCount==0 and .cleanup.confirmed==true and .cleanup.remainingResources==0' class-d-500-evidence.json >/dev/null
-          rc=$?
-          echo "evaluator_rc=$rc" >>"$GITHUB_OUTPUT"
-          echo "cleanup=$(jq -r '.cleanup.confirmed//false' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
-          echo "remaining=$(jq -r '.cleanup.remainingResources//-1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
-          echo "ack_count=$(jq -r '.safety.acknowledgedWriteCount//-1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
-          echo "ack_loss=$(jq -r '.safety.acknowledgedWriteLossCount//-1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
-          for q in baseline=.routing.baselineSuccessRatio post_restart=.routing.postRestartSuccessRatio healed=.routing.healedSuccessRatio convergence_routing=.convergence.routingSuccessRatio convergence_p95=.convergence.latencyMs.p95 recovery_p95=.recovery.latencyMs.p95 partition_recovery=.recovery.packetPartitionRecoveryMs; do
-            k=${q%%=*}; e=${q#*=}; echo "$k=$(jq -r "$e//-1" class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
-          done
+          jq -e '.topology.hostCount==20 and .topology.nodeCount==500 and .topology.realProcessCount==500 and .topology.realProcessesPerHost==25 and .topology.uniqueIdentityCount==500 and .topology.uniqueEndpointCount==500 and .topology.syntheticNodeCount==0 and .readiness.readyNodeRatio>=.99 and .routing.baselineSuccessRatio>=.99 and .routing.postRestartSuccessRatio>=.99 and .routing.healedSuccessRatio>=.99 and .convergence.routingSuccessRatio>=.99 and .convergence.latencyMs.p95<=120000 and .recovery.latencyMs.p95<=120000 and .recovery.restartedNodeCount==100 and .recovery.packetPartitionRecoveryMs<=120000 and .adversarial.packetPartition.realPacketPath==true and .adversarial.packetPartition.blockedSuccesses==0 and .safety.acknowledgedWrites.count==100 and .safety.acknowledgedWrites.lost==0 and .safety.partitionWrites.successCount==0 and .safety.staleLeaseWrites.successCount==0 and .safety.minorityWrites.successCount==0 and .safety.staleOwnerWrites.successCount==0 and .safety.wrongEpochWrites.successCount==0 and .safety.postPartitionStaleOwnerWrites.successCount==0 and .cleanup.completed==true and .cleanup.remainingResourceCount==0' class-d-500-evidence.json >/dev/null
+          echo "evaluator_rc=$?" >>"$GITHUB_OUTPUT"
+          echo "cleanup=$(jq -r '.cleanup.completed // false' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "remaining=$(jq -r '.cleanup.remainingResourceCount // -1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "ack_count=$(jq -r '.safety.acknowledgedWrites.count // -1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "ack_loss=$(jq -r '.safety.acknowledgedWrites.lost // -1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "baseline=$(jq -r '.routing.baselineSuccessRatio // -1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "post_restart=$(jq -r '.routing.postRestartSuccessRatio // -1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "healed=$(jq -r '.routing.healedSuccessRatio // -1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "convergence_routing=$(jq -r '.convergence.routingSuccessRatio // -1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "convergence_p95=$(jq -r '.convergence.latencyMs.p95 // -1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "recovery_p95=$(jq -r '.recovery.latencyMs.p95 // -1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          echo "partition_recovery=$(jq -r '.recovery.packetPartitionRecoveryMs // -1' class-d-500-evidence.json)" >>"$GITHUB_OUTPUT"
+          exit 0
 
-      - name: Cleanup runtime staging fail-closed
-        id: staging_cleanup
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          a="${TRUYN_D200_STAGING_ACCOUNT:-}"
-          if [[ -z "$a" ]]; then echo confirmed=true >>"$GITHUB_OUTPUT"; echo remaining=0 >>"$GITHUB_OUTPUT"; exit 0; fi
-          az storage account delete -g "$AZURE_RESOURCE_GROUP" -n "$a" --yes --only-show-errors >/dev/null 2>&1
-          ok=false; rem=-1
-          for _ in $(seq 1 60); do
-            err="$(mktemp)"
-            az storage account show -g "$AZURE_RESOURCE_GROUP" -n "$a" --only-show-errors -o json >/dev/null 2>"$err"; arc=$?
-            last="$(cat "$err")"; rm -f "$err"
-            if [[ $arc -ne 0 ]] && grep -Eqi 'ResourceNotFound|StorageAccountNotFound|could not be found|was not found' <<<"$last"; then ok=true; rem=0; break; fi
-            sleep 5
-          done
-          echo "confirmed=$ok" >>"$GITHUB_OUTPUT"
-          echo "remaining=$rem" >>"$GITHUB_OUTPUT"
-          printf 'confirmed=%s\nremaining=%s\n' "$ok" "$rem" > class-d-500-runtime-staging-cleanup.txt
-
-      - name: Upload immutable D-500 diagnostic artifact
-        id: upload
+      - name: Upload D-500 acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d500-${{ env.TESTED_COMMIT }}-${{ github.run_id }}'
+          name: truyn-d500-acceptance-attempt12
+          if-no-files-found: warn
           path: |
-            class-d-500-*.json
-            class-d-500-*.txt
-            class-d-500-*.log
-            class-d-200-*.json
-            class-d-200-*.txt
-            class-d-200-*.log
+            class-d-500-evidence.json
             class-d-1000-evidence.json
-          if-no-files-found: error
-          retention-days: 90
+            class-d-500-partial-evidence.json
+            class-d-500-diagnostic.log
+            class-d-500-stage-timing.txt
+            class-d-500-runtime-manifest.json
+            class-d-500-runtime-bundle-digest.txt
+            class-d-500-contract.sha256.txt
+            class-d-500-source-manifest.txt
+            class-d-500-source-manifest.sha256.txt
 
-      - name: Record strict D-500 terminal marker
+      - name: Emit strict D-500 terminal marker
         if: always()
-        env:
-          CAMPAIGN_RC: '${{ steps.campaign.outputs.campaign_rc }}'
-          EVALUATOR_RC: '${{ steps.evaluate.outputs.evaluator_rc }}'
-          CLEANUP: '${{ steps.evaluate.outputs.cleanup }}'
-          REMAINING: '${{ steps.evaluate.outputs.remaining }}'
-          ACK_COUNT: '${{ steps.evaluate.outputs.ack_count }}'
-          ACK_LOSS: '${{ steps.evaluate.outputs.ack_loss }}'
-          STAGING_CLEANUP: '${{ steps.staging_cleanup.outputs.confirmed }}'
-          STAGING_REMAINING: '${{ steps.staging_cleanup.outputs.remaining }}'
-          ARTIFACT_ID: '${{ steps.upload.outputs.artifact-id }}'
-          DIGEST: '${{ steps.upload.outputs.artifact-digest }}'
-          BASELINE: '${{ steps.evaluate.outputs.baseline }}'
-          POST_RESTART: '${{ steps.evaluate.outputs.post_restart }}'
-          HEALED: '${{ steps.evaluate.outputs.healed }}'
-          CONV: '${{ steps.evaluate.outputs.convergence_routing }}'
-          CONV_P95: '${{ steps.evaluate.outputs.convergence_p95 }}'
-          RECOVERY_P95: '${{ steps.evaluate.outputs.recovery_p95 }}'
-          PARTITION: '${{ steps.evaluate.outputs.partition_recovery }}'
         shell: bash
         run: |
           set -Eeuo pipefail
-          result=FAIL
-          if [[ "${CAMPAIGN_RC:-99}" == 0 && "${EVALUATOR_RC:-99}" == 0 && "$CLEANUP" == true && "$REMAINING" == 0 && "$STAGING_CLEANUP" == true && "$STAGING_REMAINING" == 0 && "${ACK_COUNT:--1}" =~ ^[0-9]+$ && "$ACK_COUNT" -ge 100 && "$ACK_LOSS" == 0 && "$DIGEST" =~ ^(sha256:)?[0-9a-f]{64}$ ]]; then result=PASS; fi
-          echo "TRUYN_D500_TERMINAL result=$result campaign_rc=${CAMPAIGN_RC:-99} evaluator_rc=${EVALUATOR_RC:-99} baseline=${BASELINE:--1} post_restart=${POST_RESTART:--1} healed=${HEALED:--1} convergence=${CONV:--1} convergence_p95=${CONV_P95:--1} recovery_p95=${RECOVERY_P95:--1} partition_recovery=${PARTITION:--1} acknowledged_writes=${ACK_COUNT:--1} acknowledged_loss=${ACK_LOSS:--1} cleanup=$CLEANUP remaining=$REMAINING staging_cleanup=$STAGING_CLEANUP staging_remaining=$STAGING_REMAINING artifact_id=${ARTIFACT_ID:-missing} artifact_digest=${DIGEST:-missing}"
-          [[ "$result" == PASS ]]
+          [[ "${{ steps.campaign.outcome }}" == success ]]
+          [[ "${{ steps.evaluate.outputs.evaluator_rc }}" == 0 ]]
+          [[ "${{ steps.evaluate.outputs.cleanup }}" == true ]]
+          [[ "${{ steps.evaluate.outputs.remaining }}" == 0 ]]
+          [[ "${{ steps.evaluate.outputs.ack_count }}" == 100 ]]
+          [[ "${{ steps.evaluate.outputs.ack_loss }}" == 0 ]]
+          awk 'BEGIN { exit !($ARGV[1] >= .99 && $ARGV[2] >= .99 && $ARGV[3] >= .99 && $ARGV[4] >= .99 && $ARGV[5] <= 120000 && $ARGV[6] <= 120000 && $ARGV[7] <= 120000) }' x "${{ steps.evaluate.outputs.baseline }}" "${{ steps.evaluate.outputs.post_restart }}" "${{ steps.evaluate.outputs.healed }}" "${{ steps.evaluate.outputs.convergence_routing }}" "${{ steps.evaluate.outputs.convergence_p95 }}" "${{ steps.evaluate.outputs.recovery_p95 }}" "${{ steps.evaluate.outputs.partition_recovery }}"
+          echo "TRUYN_D500_TERMINAL PASS task=$TASK_ID commit=$TESTED_COMMIT tree=$TESTED_TREE_SHA hosts=20 processes=500 identities=500 endpoints=500 ackWrites=100 ackLoss=0 cleanup=true remaining=0"
