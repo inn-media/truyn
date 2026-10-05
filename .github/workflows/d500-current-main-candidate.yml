@@ -1,0 +1,69 @@
+name: D-500 Current Main Candidate Builder
+on:
+  push:
+    branches: [automation/d500-acceptance-repair-8f3c2a]
+    paths: ['.github/workflows/d500-current-main-candidate.yml']
+permissions:
+  contents: write
+concurrency:
+  group: d500-current-main-candidate-8f3c2a
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      TASK_ID: truyn-d500-acceptance-repair-8f3c2a
+      BASE_MAIN: 5872f28f23c68cb186405e4dc6e05d803e2b60c7
+      TARGET_BRANCH: automation/d500-current-main-candidate-8f3c2a
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || github.token }}
+      - name: Freeze exact current main and compose minimal repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          helper="$RUNNER_TEMP/apply.py"
+          cp .automation/d500-acceptance-repair-8f3c2a/apply-current-main-repair.py "$helper"
+          git checkout --detach "$BASE_MAIN"
+          python3 "$helper"
+          git diff --check
+          mapfile -t changed < <(git diff --name-only)
+          [[ ${#changed[@]} -eq 1 && "${changed[0]}" == benchmarks/scale/class-d-azure-1000-provision.sh ]]
+          grep -q 'D500_RUN_COMMAND_CONFLICT_DRAIN' benchmarks/scale/class-d-azure-1000-provision.sh
+          grep -q 'D500_NODE_RECOVERY_ONCE' benchmarks/scale/class-d-azure-1000-provision.sh
+          grep -q 'targetConcurrency' benchmarks/scale/class-d-azure-1000-provision.sh
+          grep -q 'timeoutMs' benchmarks/scale/class-d-azure-1000-provision.sh
+          grep -q 'BOOTSTRAP_MAX_PEERS_PER_NODE=32' benchmarks/scale/class-d-azure-1000-provision.sh
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Machine verify affected and Class-D scope
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          node --test tests/class-d-bootstrap-qualification.test.js
+          mapfile -t f < <(find tests -maxdepth 1 -type f -name '*.test.js' | grep -E '/([^/]*(d200|d500|d1000)[^/]*|class-d[^/]*)\.test\.js$' | sort)
+          [[ ${#f[@]} -gt 0 ]]
+          node --test "${f[@]}"
+          node scripts/check-d200-contract.mjs
+          node scripts/check-d500-contract.mjs
+          node scripts/check-d500-inheritance.mjs
+          node scripts/check-class-d-five-patches.mjs
+          D500_PREFLIGHT_PHASE=prepare bash scripts/class-d-500-preflight-qualification.sh
+          git diff --check
+      - name: Publish exact candidate once
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if git ls-remote --exit-code --heads origin "$TARGET_BRANCH" >/dev/null 2>&1; then echo 'target already exists' >&2; exit 2; fi
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git add benchmarks/scale/class-d-azure-1000-provision.sh
+          git commit -s -m 'fix(d500): compose Attempt 12 repair onto current main'
+          [[ "$(git rev-parse HEAD^)" == "$BASE_MAIN" ]]
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          echo "TRUYN_D500_CURRENT_MAIN_CANDIDATE=PASS sha=$(git rev-parse HEAD) tree=$(git rev-parse HEAD^{tree}) parent=$BASE_MAIN"
