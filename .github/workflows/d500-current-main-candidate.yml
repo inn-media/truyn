@@ -48,7 +48,14 @@ jobs:
           node --test tests/class-d-bootstrap-qualification.test.js
           mapfile -t f < <(find tests -maxdepth 1 -type f -name '*.test.js' | grep -E '/([^/]*(d200|d500|d1000)[^/]*|class-d[^/]*)\.test\.js$' | sort)
           [[ ${#f[@]} -gt 0 ]]
-          node --test "${f[@]}"
+          for t in "${f[@]}"; do
+            echo "TRUYN_D500_VERIFY_TEST_BEGIN=$t"
+            if ! node --test "$t"; then
+              echo "::error title=D500 qualification test failed::$t"
+              exit 1
+            fi
+            echo "TRUYN_D500_VERIFY_TEST_PASS=$t"
+          done
           node scripts/check-d200-contract.mjs
           node scripts/check-d500-contract.mjs
           node scripts/check-d500-inheritance.mjs
