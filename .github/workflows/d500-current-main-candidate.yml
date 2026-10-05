@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 45
     env:
       TASK_ID: truyn-d500-acceptance-repair-8f3c2a
-      BASE_MAIN: 5872f28f23c68cb186405e4dc6e05d803e2b60c7
+      BASE_MAIN: aaf19cc6b437ed24bc46bb539cae27896cae546a
       TARGET_BRANCH: automation/d500-current-main-candidate-8f3c2a
     steps:
       - uses: actions/checkout@v4
