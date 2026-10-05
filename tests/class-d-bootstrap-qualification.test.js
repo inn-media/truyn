@@ -71,6 +71,8 @@ test('qualification keeps full D-500 strict thresholds untouched', async () => {
   assert.match(workflow, /postRestartSuccessRatio>=\.99/);
   assert.match(workflow, /healedSuccessRatio>=\.99/);
   assert.match(workflow, /recovery\.latencyMs\.p95<=120000/);
-  assert.match(workflow, /acknowledgedWriteCount>=100/);
-  assert.match(workflow, /acknowledgedWriteLossCount==0/);
+  // Canonical nested evidence schema; exact equality preserves and strengthens
+  // the legacy >=100 acknowledged-write floor while retaining zero-loss safety.
+  assert.match(workflow, /\.safety\.acknowledgedWrites\.count==100/);
+  assert.match(workflow, /\.safety\.acknowledgedWrites\.lost==0/);
 });
