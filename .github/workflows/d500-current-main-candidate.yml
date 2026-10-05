@@ -33,7 +33,7 @@ jobs:
           git diff --check
           mapfile -t changed < <(git diff --name-only)
           [[ ${#changed[@]} -eq 1 && "${changed[0]}" == benchmarks/scale/class-d-azure-1000-provision.sh ]]
-          grep -q 'D500_RUN_COMMAND_CONFLICT_DRAIN' benchmarks/scale/class-d-azure-1000-provision.sh
+          grep -q 'TRUYN_D500_RUN_COMMAND_CONFLICT' benchmarks/scale/class-d-azure-1000-provision.sh
           grep -q 'D500_NODE_RECOVERY_ONCE' benchmarks/scale/class-d-azure-1000-provision.sh
           grep -q 'targetConcurrency' benchmarks/scale/class-d-azure-1000-provision.sh
           grep -q 'timeoutMs' benchmarks/scale/class-d-azure-1000-provision.sh
