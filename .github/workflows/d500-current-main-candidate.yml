@@ -37,7 +37,7 @@ jobs:
           grep -q 'D500_NODE_RECOVERY_ONCE' benchmarks/scale/class-d-azure-1000-provision.sh
           grep -q 'targetConcurrency' benchmarks/scale/class-d-azure-1000-provision.sh
           grep -q 'timeoutMs' benchmarks/scale/class-d-azure-1000-provision.sh
-          grep -q 'BOOTSTRAP_MAX_PEERS_PER_NODE=32' benchmarks/scale/class-d-azure-1000-provision.sh
+          grep -Eq '^BOOTSTRAP_MAX_PEERS_PER_NODE=["'"']?32["'"']?$' benchmarks/scale/class-d-azure-1000-provision.sh
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - name: Machine verify affected and Class-D scope
