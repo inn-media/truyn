@@ -82,7 +82,31 @@ jobs:
           git checkout --detach "$current_main"
           git config user.name 'TRUYN D-500 Admission Bridge'
           git config user.email 'actions@users.noreply.github.com'
+          # Integrate the frozen candidate into current main. The launch-plane
+          # controller is owned by current main and must never be rolled back by
+          # an older frozen candidate snapshot; runtime candidate files remain
+          # candidate-owned and all normal conflicts still fail closed.
+          set +e
           git merge --no-ff --no-commit "$candidate"
+          merge_rc=$?
+          set -e
+          if [[ "$merge_rc" -ne 0 ]]; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+            [[ "${#conflicts[@]}" -eq 1 ]]
+            [[ "${conflicts[0]}" == '.github/workflows/d500-acceptance.yml' ]]
+            git checkout --ours -- .github/workflows/d500-acceptance.yml
+            git add .github/workflows/d500-acceptance.yml
+            [[ -z "$(git diff --name-only --diff-filter=U)" ]]
+          fi
+          # Prove the launch controller in the integration index is byte-for-byte
+          # the current-main controller, while the D-500 repair file is exactly
+          # the frozen candidate version.
+          main_controller="$(git rev-parse "${current_main}:.github/workflows/d500-acceptance.yml")"
+          index_controller="$(git rev-parse ':.github/workflows/d500-acceptance.yml')"
+          [[ "$index_controller" == "$main_controller" ]]
+          candidate_runtime="$(git rev-parse "${candidate}:benchmarks/scale/class-d-azure-1000-provision.sh")"
+          index_runtime="$(git rev-parse ':benchmarks/scale/class-d-azure-1000-provision.sh')"
+          [[ "$index_runtime" == "$candidate_runtime" ]]
           integration_tree="$(git write-tree)"
           node scripts/d-series-qualification-manifest.mjs admission \
             --qualification-manifest "$q" --base-sha "$base" --candidate-sha "$candidate" \
