@@ -52,137 +52,117 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
 
       - name: Read-only production source discovery
-        id: discover
         shell: bash
         run: |
           set -euo pipefail
           evidence=production-authority-source-discovery-evidence.json
           fail_marker=.production-authority-source-discovery-failed
-
           resources="$(az resource list --only-show-errors -o json)"
           [[ "$(jq 'length' <<<"$resources")" -gt 0 ]] || {
-            jq -n --arg sourceSha "$GITHUB_SHA" --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-              '{schemaVersion:6,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:"no-visible-resources",topologyPublished:false,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false}' > "$evidence"
+            jq -n --arg sourceSha "$GITHUB_SHA" --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{schemaVersion:7,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:"no-visible-resources",topologyPublished:false,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false}' > "$evidence"
             touch "$fail_marker"
             exit 0
           }
 
-          hosts="$(jq '[.[]
-            | {name, type, id, resourceGroup, tags: (.tags // {})}
-            | . + {haystack: ((.name + " " + .type + " " + (.tags|tojson)) | ascii_downcase)}
-            | select(.type | ascii_downcase | test("microsoft\\.(app/containerapps|app/jobs|web/sites|compute/virtualmachines|containerinstance/containergroups|storage/storageaccounts)$"))
-          ]' <<<"$resources")"
+          hosts="$(jq '[.[] | {name,type,id,resourceGroup,tags:(.tags//{})} | . + {haystack:((.name+" "+.type+" "+(.tags|tojson))|ascii_downcase)} | select(.type|ascii_downcase|test("microsoft\\.(app/containerapps|app/jobs|web/sites|compute/virtualmachines|containerinstance/containergroups|storage/storageaccounts)$"))]' <<<"$resources")"
+          candidates="$(jq '[.[] | select(.haystack|test("truyn|authority|control|state|bootstrap|checkpoint"))]' <<<"$hosts")"
+          tagged="$(jq '[.[] | select((.tags["truyn-component"]//""|ascii_downcase)=="production-authority")]' <<<"$hosts")"
           host_count="$(jq 'length' <<<"$hosts")"
-
-          candidates="$(jq '[.[]
-            | select(.haystack | test("truyn|authority|control|state|bootstrap|checkpoint"))
-          ]' <<<"$hosts")"
-
           candidate_count="$(jq 'length' <<<"$candidates")"
-          type_summary="$(jq '[.[].type] | sort | group_by(.) | map({type:.[0], count:length})' <<<"$candidates")"
-          host_type_summary="$(jq '[.[].type] | sort | group_by(.) | map({type:.[0], count:length})' <<<"$hosts")"
-
-          tagged="$(jq '[.[] | select((.tags["truyn-component"] // "" | ascii_downcase) == "production-authority")]' <<<"$hosts")"
           tagged_count="$(jq 'length' <<<"$tagged")"
+          host_type_summary="$(jq '[.[].type]|sort|group_by(.)|map({type:.[0],count:length})' <<<"$hosts")"
+          candidate_type_summary="$(jq '[.[].type]|sort|group_by(.)|map({type:.[0],count:length})' <<<"$candidates")"
 
-          config_ids='[]'
+          signal_ids='[]'
           if az extension show --name resource-graph --only-show-errors >/dev/null 2>&1 || az extension add --name resource-graph --only-show-errors >/dev/null 2>&1; then
-            query=$(cat <<'KQL'
+            env_query=$(cat <<'KQL'
           Resources
           | where type =~ 'microsoft.app/containerapps'
-          | mv-expand c = properties.template.containers
-          | mv-expand e = c.env
+          | mv-expand c=properties.template.containers
+          | mv-expand e=c.env
           | where tostring(e.name) in~ ('TRUYN_ROLE','TRUYN_AUTHORITY_BOOTSTRAP_B64','TRUYN_AUTHORITY_BOOTSTRAP_DIGEST','TRUYN_COSMOS_ENDPOINT','TRUYN_COSMOS_DATABASE','TRUYN_COSMOS_CONTAINER','TRUYN_SOURCE_SHA','TRUYN_AUTHORITY_CACHE_DIR')
           | summarize signalCount=count() by id
           | where signalCount >= 2
           | project id
           KQL
           )
-            graph="$(az graph query -q "$query" --first 1000 --only-show-errors -o json 2>/dev/null || echo '[]')"
-            config_ids="$(jq 'if type=="array" then . else (.data // []) end | map(.id) | map(select(type=="string")) | unique' <<<"$graph")"
-
             linkage_query=$(cat <<'KQL'
           Resources
           | where type =~ 'microsoft.app/containerapps'
-          | mv-expand c = properties.template.containers
-          | extend runtimeText=strcat(tostring(c.command), ' ', tostring(c.args), ' ', tostring(c.volumeMounts), ' ', tostring(properties.template.volumes))
+          | mv-expand c=properties.template.containers
+          | extend runtimeText=strcat(tostring(c.command),' ',tostring(c.args),' ',tostring(c.volumeMounts),' ',tostring(properties.template.volumes))
           | where runtimeText has_any ('account-tenant.json','provider-grants.json','entitlements.json','revocations.json','accounting.json','truyn-authority','production-authority')
-          | summarize signalCount=count() by id
           | project id
           KQL
           )
-            linkage_graph="$(az graph query -q "$linkage_query" --first 1000 --only-show-errors -o json 2>/dev/null || echo '[]')"
-            linkage_ids="$(jq 'if type=="array" then . else (.data // []) end | map(.id) | map(select(type=="string")) | unique' <<<"$linkage_graph")"
-            config_ids="$(jq -n --argjson a "$config_ids" --argjson b "$linkage_ids" '$a + $b | unique')"
-
+            reference_query=$(cat <<'KQL'
+          Resources
+          | where type =~ 'microsoft.app/containerapps'
+          | mv-expand c=properties.template.containers
+          | mv-expand e=c.env
+          | extend referenceText=strcat(tostring(e.secretRef),' ',tostring(c.volumeMounts))
+          | where referenceText has_any ('authority','cosmos','bootstrap','checkpoint','account-tenant','provider-grants','entitlements','revocations','accounting')
+          | project id
+          KQL
+          )
+            volume_query=$(cat <<'KQL'
+          Resources
+          | where type =~ 'microsoft.app/containerapps'
+          | mv-expand v=properties.template.volumes
+          | extend referenceText=strcat(tostring(v.name),' ',tostring(v.storageName),' ',tostring(v.storageType))
+          | where referenceText has_any ('authority','truyn','state','checkpoint','control')
+          | project id
+          KQL
+          )
             vm_query=$(cat <<'KQL'
           Resources
           | where type =~ 'microsoft.compute/virtualmachines/extensions'
           | where tostring(properties.settings) has_any ('TRUYN_ROLE','TRUYN_AUTHORITY','TRUYN_COSMOS','account-tenant.json','provider-grants.json','entitlements.json','revocations.json','accounting.json')
           | extend marker='/extensions/'
-          | extend cut=indexof(id, marker)
+          | extend cut=indexof(id,marker)
           | where cut > 0
-          | project id=substring(id, 0, cut)
+          | project id=substring(id,0,cut)
           KQL
           )
-            vm_graph="$(az graph query -q "$vm_query" --first 1000 --only-show-errors -o json 2>/dev/null || echo '[]')"
-            vm_ids="$(jq 'if type=="array" then . else (.data // []) end | map(.id) | map(select(type=="string")) | unique' <<<"$vm_graph")"
-            config_ids="$(jq -n --argjson a "$config_ids" --argjson b "$vm_ids" '$a + $b | unique')"
+            storage_query=$(cat <<'KQL'
+          Resources
+          | where type in~ ('microsoft.storage/storageaccounts/blobservices/containers','microsoft.storage/storageaccounts/fileservices/shares')
+          | where tostring(name) has_any ('authority','truyn','state','checkpoint','control')
+          | extend parentId=extract(@'(?i)^(.*?/storageAccounts/[^/]+)',1,id)
+          | where isnotempty(parentId)
+          | project id=parentId
+          KQL
+          )
+            for q in "$env_query" "$linkage_query" "$reference_query" "$volume_query" "$vm_query" "$storage_query"; do
+              graph="$(az graph query -q "$q" --first 1000 --only-show-errors -o json 2>/dev/null || echo '[]')"
+              ids="$(jq 'if type=="array" then . else (.data//[]) end | map(.id) | map(select(type=="string")) | unique' <<<"$graph")"
+              signal_ids="$(jq -n --argjson a "$signal_ids" --argjson b "$ids" '$a+$b|unique')"
+            done
           fi
 
-          config_candidates="$(jq --argjson ids "$config_ids" '[.[] | select(.id as $id | $ids | index($id))]' <<<"$hosts")"
-          config_count="$(jq 'length' <<<"$config_candidates")"
-          config_type_summary="$(jq '[.[].type] | sort | group_by(.) | map({type:.[0], count:length})' <<<"$config_candidates")"
-
-          primary="$(jq '[.[] | select(.haystack | test("production[-_ ]?authority|authority|control[-_ ]?plane|account[-_ ]?tenant|provider[-_ ]?grant|entitlement|revocation|accounting"))]' <<<"$candidates")"
+          signal_candidates="$(jq --argjson ids "$signal_ids" '[.[] | select(.id as $id | $ids | index($id))]' <<<"$hosts")"
+          signal_count="$(jq 'length' <<<"$signal_candidates")"
+          signal_type_summary="$(jq '[.[].type]|sort|group_by(.)|map({type:.[0],count:length})' <<<"$signal_candidates")"
+          primary="$(jq '[.[]|select(.haystack|test("production[-_ ]?authority|authority|control[-_ ]?plane|account[-_ ]?tenant|provider[-_ ]?grant|entitlement|revocation|accounting"))]' <<<"$candidates")"
+          secondary="$(jq '[.[]|select(.haystack|test("state[-_ ]?(dir|store)?|bootstrap|checkpoint"))]' <<<"$candidates")"
           primary_count="$(jq 'length' <<<"$primary")"
-          secondary="$(jq '[.[] | select(.haystack | test("state[-_ ]?(dir|store)?|bootstrap|checkpoint"))]' <<<"$candidates")"
           secondary_count="$(jq 'length' <<<"$secondary")"
 
           selected=''
           selection_reason=''
-          if [[ "$tagged_count" -eq 1 ]]; then
-            selected="$(jq '.[0]' <<<"$tagged")"
-            selection_reason='canonical-tag'
-          elif [[ "$tagged_count" -gt 1 ]]; then
-            selection_reason='ambiguous-canonical-tag'
-          elif [[ "$config_count" -eq 1 ]]; then
-            selected="$(jq '.[0]' <<<"$config_candidates")"
-            selection_reason='runtime-config-or-linkage-signal'
-          elif [[ "$config_count" -gt 1 ]]; then
-            selection_reason='ambiguous-runtime-config-or-linkage'
-          elif [[ "$primary_count" -eq 1 ]]; then
-            selected="$(jq '.[0]' <<<"$primary")"
-            selection_reason='strong-authority-signal'
-          elif [[ "$primary_count" -gt 1 ]]; then
-            selection_reason='ambiguous-authority-signal'
-          elif [[ "$secondary_count" -eq 1 ]]; then
-            selected="$(jq '.[0]' <<<"$secondary")"
-            selection_reason='strong-state-signal'
-          elif [[ "$secondary_count" -gt 1 ]]; then
-            selection_reason='ambiguous-state-signal'
-          elif [[ "$candidate_count" -eq 1 ]]; then
-            selected="$(jq '.[0]' <<<"$candidates")"
-            selection_reason='single-candidate'
-          else
-            selection_reason='ambiguous-no-strong-signal'
-          fi
+          if [[ "$tagged_count" -eq 1 ]]; then selected="$(jq '.[0]' <<<"$tagged")"; selection_reason='canonical-tag'
+          elif [[ "$tagged_count" -gt 1 ]]; then selection_reason='ambiguous-canonical-tag'
+          elif [[ "$signal_count" -eq 1 ]]; then selected="$(jq '.[0]' <<<"$signal_candidates")"; selection_reason='runtime-reference-metadata-signal'
+          elif [[ "$signal_count" -gt 1 ]]; then selection_reason='ambiguous-runtime-reference-metadata'
+          elif [[ "$primary_count" -eq 1 ]]; then selected="$(jq '.[0]' <<<"$primary")"; selection_reason='strong-authority-signal'
+          elif [[ "$primary_count" -gt 1 ]]; then selection_reason='ambiguous-authority-signal'
+          elif [[ "$secondary_count" -eq 1 ]]; then selected="$(jq '.[0]' <<<"$secondary")"; selection_reason='strong-state-signal'
+          elif [[ "$secondary_count" -gt 1 ]]; then selection_reason='ambiguous-state-signal'
+          elif [[ "$candidate_count" -eq 1 ]]; then selected="$(jq '.[0]' <<<"$candidates")"; selection_reason='single-candidate'
+          else selection_reason='ambiguous-no-strong-signal'; fi
 
           if [[ -z "$selected" ]]; then
-            jq -n \
-              --arg sourceSha "$GITHUB_SHA" \
-              --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-              --arg reason "$selection_reason" \
-              --argjson hostCount "$host_count" \
-              --argjson candidateCount "$candidate_count" \
-              --argjson taggedCount "$tagged_count" \
-              --argjson configSignalCount "$config_count" \
-              --argjson primaryStrongCount "$primary_count" \
-              --argjson secondaryStateCount "$secondary_count" \
-              --argjson hostTypeSummary "$host_type_summary" \
-              --argjson typeSummary "$type_summary" \
-              --argjson configTypeSummary "$config_type_summary" \
-              '{schemaVersion:6,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:$reason,hostCount:$hostCount,candidateCount:$candidateCount,taggedAuthorityCount:$taggedCount,runtimeConfigOrLinkageSignalCount:$configSignalCount,primaryStrongCount:$primaryStrongCount,secondaryStateCount:$secondaryStateCount,hostTypeSummary:$hostTypeSummary,candidateTypeSummary:$typeSummary,runtimeConfigOrLinkageTypeSummary:$configTypeSummary,subscriptionWide:true,resourceMetadataOnly:true,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
+            jq -n --arg sourceSha "$GITHUB_SHA" --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg reason "$selection_reason" --argjson hostCount "$host_count" --argjson candidateCount "$candidate_count" --argjson taggedCount "$tagged_count" --argjson signalCount "$signal_count" --argjson primaryStrongCount "$primary_count" --argjson secondaryStateCount "$secondary_count" --argjson hostTypeSummary "$host_type_summary" --argjson candidateTypeSummary "$candidate_type_summary" --argjson signalTypeSummary "$signal_type_summary" '{schemaVersion:7,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:$reason,hostCount:$hostCount,candidateCount:$candidateCount,taggedAuthorityCount:$taggedCount,runtimeReferenceMetadataSignalCount:$signalCount,primaryStrongCount:$primaryStrongCount,secondaryStateCount:$secondaryStateCount,hostTypeSummary:$hostTypeSummary,candidateTypeSummary:$candidateTypeSummary,runtimeReferenceMetadataTypeSummary:$signalTypeSummary,subscriptionWide:true,resourceMetadataOnly:true,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
             touch "$fail_marker"
             exit 0
           fi
@@ -194,36 +174,13 @@ jobs:
           printf '::add-mask::%s\n' "$selected_id"
           printf '::add-mask::%s\n' "$selected_name"
           printf '::add-mask::%s\n' "$selected_rg"
-
           metadata="$(az resource show --ids "$selected_id" --only-show-errors -o json)"
           [[ -n "$metadata" ]] || { touch "$fail_marker"; exit 0; }
+          state_signal="$(jq '[.name//empty,.type//empty,((.tags//{})|to_entries[]?|(.key+"="+(.value|tostring)))]|map(ascii_downcase)|any(test("authority|control|state|bootstrap|checkpoint|production-authority|account[-_ ]?tenant|provider[-_ ]?grant|entitlement|revocation|accounting"))' <<<"$metadata")"
+          if [[ "$selection_reason" == runtime-reference-metadata-signal ]]; then state_signal=true; fi
+          [[ "$state_signal" == true ]] || { touch "$fail_marker"; exit 0; }
 
-          state_signal="$(jq '[
-            (.name // empty),
-            (.type // empty),
-            ((.tags // {}) | to_entries[]? | (.key + "=" + (.value|tostring)))
-          ] | map(ascii_downcase) | any(test("authority|control|state|bootstrap|checkpoint|production-authority|account[-_ ]?tenant|provider[-_ ]?grant|entitlement|revocation|accounting"))' <<<"$metadata")"
-          if [[ "$selection_reason" == runtime-config-or-linkage-signal ]]; then state_signal=true; fi
-
-          if [[ "$state_signal" != true ]]; then
-            jq -n --arg sourceSha "$GITHUB_SHA" --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg sourceType "$selected_type" --arg selectionReason "$selection_reason" \
-              '{schemaVersion:6,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"FAIL",reason:"selected-resource-lacks-state-signal",selectedSourceType:$sourceType,selectionReason:$selectionReason,stateSignalPresent:false,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
-            touch "$fail_marker"
-            exit 0
-          fi
-
-          jq -n \
-            --arg sourceSha "$GITHUB_SHA" \
-            --arg sourceType "$selected_type" \
-            --arg selectionReason "$selection_reason" \
-            --argjson hostCount "$host_count" \
-            --argjson candidateCount "$candidate_count" \
-            --argjson hostTypeSummary "$host_type_summary" \
-            --argjson typeSummary "$type_summary" \
-            --argjson configSignalCount "$config_count" \
-            --argjson configTypeSummary "$config_type_summary" \
-            --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{schemaVersion:6,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"PASS",hostCount:$hostCount,candidateCount:$candidateCount,selectedSourceType:$sourceType,selectionReason:$selectionReason,runtimeConfigOrLinkageSignalCount:$configSignalCount,hostTypeSummary:$hostTypeSummary,candidateTypeSummary:$typeSummary,runtimeConfigOrLinkageTypeSummary:$configTypeSummary,stateSignalPresent:true,subscriptionWide:true,resourceMetadataOnly:true,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
+          jq -n --arg sourceSha "$GITHUB_SHA" --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg sourceType "$selected_type" --arg selectionReason "$selection_reason" --argjson hostCount "$host_count" --argjson candidateCount "$candidate_count" --argjson signalCount "$signal_count" --argjson hostTypeSummary "$host_type_summary" --argjson candidateTypeSummary "$candidate_type_summary" --argjson signalTypeSummary "$signal_type_summary" '{schemaVersion:7,component:"production-authority-source-discovery",sourceSha:$sourceSha,generatedAt:$generatedAt,status:"PASS",hostCount:$hostCount,candidateCount:$candidateCount,selectedSourceType:$sourceType,selectionReason:$selectionReason,runtimeReferenceMetadataSignalCount:$signalCount,hostTypeSummary:$hostTypeSummary,candidateTypeSummary:$candidateTypeSummary,runtimeReferenceMetadataTypeSummary:$signalTypeSummary,stateSignalPresent:true,subscriptionWide:true,resourceMetadataOnly:true,secretValuesRead:false,dataPlaneRead:false,cosmosMutated:false,topologyPublished:false}' > "$evidence"
 
       - name: Upload sanitized discovery evidence
         if: always()
