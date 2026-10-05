@@ -1,0 +1,34 @@
+{
+  "schema": "truyn.production-evidence-retention/v1",
+  "component": "production-evidence-retention",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "backend": {
+    "class": "azure-blob-immutable",
+    "scope": "container",
+    "immutability": "time-based-worm",
+    "requiredState": "Locked",
+    "retentionDays": 365,
+    "minimumRequiredDays": 365,
+    "auditLogRequired": true
+  },
+  "evidence": {
+    "classes": [
+      "drill",
+      "pager",
+      "slo-acceptance"
+    ],
+    "sanitizedOnly": true,
+    "uniqueObjectNamesRequired": true
+  },
+  "security": {
+    "publicBlobAccess": false,
+    "sharedKeyAccess": false,
+    "oauthDefault": true,
+    "publicNetworkAccess": false,
+    "networkDefaultAction": "Deny"
+  },
+  "transport": {
+    "githubArtifactIsCanonicalArchive": false,
+    "githubArtifactRetentionDays": 30
+  }
+}
