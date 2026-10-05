@@ -1,6 +1,6 @@
 {
   "taskId": "truyn-d500-acceptance-repair-8f3c2a",
-  "state": "WAITING_EXTERNAL",
+  "state": "IN_PROGRESS",
   "currentSprint": "S02",
   "lastCompletedSprint": "S01",
   "taskBranch": "automation/d500-acceptance-repair-8f3c2a",
@@ -12,34 +12,36 @@
     "host-5/node-2 liveness failure",
     "hosts-6/13 Azure VM Agent/Run Command timeout-conflict failure"
   ],
-  "frozenCandidate": {
+  "priorFrozenCandidate": {
     "candidateSha": "a247d1a0eeb08483701db7af47a4049342d96be8",
     "sanitationSwarmRunId": 36878991018,
     "blockwiseRunId": 36911306656,
     "qualificationRunId": 36960915266,
     "qualificationRunAttempt": 1,
-    "qualificationHeadSha": "d5adb229744a33bc21c76d876f2a83133d9fd289",
     "qualificationConclusion": "SUCCESS",
-    "qualificationWorkflow": "D-500 Frozen Candidate Qualification One-Shot",
     "qualificationArtifact": "d500-frozen-qualification-36960915266",
-    "qualificationArtifactDigest": "sha256:f4d2881c",
-    "expensiveQualificationValid": true
+    "qualificationArtifactDigest": "sha256:f4d2881c"
   },
   "currentMain": {
-    "sha": "0885046a31c6b540ce028626342dff4beebb67ac",
-    "latestMovementMaterialToD500": false,
-    "latestTaskId": "truyn-open-1-0-productization-7e4c91"
+    "sha": "5872f28f23c68cb186405e4dc6e05d803e2b60c7",
+    "candidateCompareStatus": "diverged",
+    "mainAheadBy": 88,
+    "candidateAheadBy": 2,
+    "materialToD500Admission": true
   },
-  "admission": {
-    "status": "PENDING_BRIDGE",
-    "reason": "canonical d-series-admission-gate accepts only successful workflow named D-Series Frozen Candidate Qualification with artifact d-series-qualification-manifest-<run>; exact GREEN task-local qualification is D-500 Frozen Candidate Qualification One-Shot and must be bridged without repeating expensive qualification or weakening admission",
-    "canonicalWorkflow": ".github/workflows/d-series-admission-gate.yml",
-    "currentMainSha": "0885046a31c6b540ce028626342dff4beebb67ac"
+  "reconciliation": {
+    "attempt12ControllerOnMain": true,
+    "priorAdmissionRun": 37248320157,
+    "priorAdmissionResult": "RED_B03",
+    "b03Cause": "integration candidate snapshot lacks current-main Class-D bootstrap qualification contract while the D-500 repair must be preserved",
+    "mainProvisionBlob": "b85f05da4aad9f0fe10f0637583ee11012655cfa",
+    "priorCandidateProvisionBlob": "5e467729d6a96f08e44aef1c1442514fc2c8eb51",
+    "requiredRebuild": "rebase/rebuild a new Frozen Candidate from current main and reapply only bounded Run Command conflict handling plus one-shot non-live service recovery; then rerun Sanitation Swarm, full B01-B16, Frozen Candidate Qualification, and fresh current-main Admission"
   },
   "realSuccessorLaunchAuthorized": false,
-  "resumeCondition": "Create/execute a fail-closed task-local Admission bridge that consumes exact GREEN qualification run 36960915266 and its immutable artifact, binds candidate a247d1a0eeb08483701db7af47a4049342d96be8 to then-current main, runs the same mandatory integration admission semantics, then rereads mains, bindings, shared capacity/collision and D-500 duplicate history before exactly one successor launch identity/run_attempt=1.",
+  "duplicateRealAttempt12": false,
+  "resumeCondition": "Materialize the minimal two-part D-500 repair onto exact current main 5872f28f23c68cb186405e4dc6e05d803e2b60c7 without replacing its bootstrap qualification contract; machine-verify the resulting candidate, then execute the locked qualification chain before any real Attempt 12 launch.",
   "resumeCoverage": {
-    "hourlyAutomation": true,
     "duplicateActiveOperation": false,
     "attempt11NeverRerun": true
   }
