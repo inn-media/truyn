@@ -128,6 +128,10 @@ export async function createTestnetNodeService({
   controlHost = '127.0.0.1',
   controlPort = 8788,
   peerRecordTtlMs = 300_000,
+  peerRecordRenewBeforeMs = null,
+  discoveryRefreshIntervalMs = null,
+  discoveryRefreshTargetCount = null,
+  discoveryRefreshMaxRounds = 4,
   maxInFlight = 64,
   maxQueued = 256,
   dhtReplicationFactor = 3,
@@ -161,6 +165,10 @@ export async function createTestnetNodeService({
     tls: { key: tlsKey, cert: tlsCert },
     statePath,
     peerRecordTtlMs,
+    peerRecordRenewBeforeMs,
+    discoveryRefreshIntervalMs,
+    discoveryRefreshTargetCount,
+    discoveryRefreshMaxRounds,
     capabilities: ['testnet.echo', 'testnet.dht'],
     maxInFlight,
     maxQueued,
@@ -173,6 +181,8 @@ export async function createTestnetNodeService({
   const startedAt = Date.now();
   let requestCount = 0;
   let lastDhtRefresh = null;
+  let dhtRefreshInFlight = null;
+  let dhtRefreshInFlightKey = null;
   const statusSnapshot = () => ({
     ok: true,
     ready: node.peerRecordPropagationReady(),
@@ -331,29 +341,62 @@ export async function createTestnetNodeService({
   };
 
   const refreshDht = async (body = {}) => {
-    const result = await node.discovery.refreshRoutingTable({
+    const options = {
       targets: Array.isArray(body.targets) ? body.targets : null,
       targetCount: int(body.targetCount, node.discovery.k, { min: 0, max: 256 }),
       maxRounds: int(body.maxRounds, 4, { min: 0, max: 64 }),
-      seed: typeof body.seed === 'string' && body.seed.trim() ? body.seed.trim() : 'truyn-testnet-refresh'
-    });
-    await node.persistState();
-    lastDhtRefresh = {
-      status: result.refreshed ? 'refreshed' : (result.reason || 'not_refreshed'),
-      refreshed: Boolean(result.refreshed),
-      completedAt: new Date().toISOString(),
-      targets: Array.isArray(result.targets) ? result.targets.length : 0,
-      nearExpiryTargets: result.targetSelection?.nearExpiryTargets || 0,
-      xorTargets: result.targetSelection?.xorTargets || 0,
-      walks: Array.isArray(result.walks) ? result.walks.length : 0,
-      queriedPeers: Array.isArray(result.queriedPeers) ? result.queriedPeers.length : 0,
-      responses: result.responses || 0,
-      routingSizeDelta: result.routingSizeDelta || 0,
-      validPeersDelta: result.validPeersDelta || 0,
-      before: routingReadinessFields(result.before),
-      after: routingReadinessFields(result.after)
+      seed: typeof body.seed === 'string' && body.seed.trim() ? body.seed.trim() : 'truyn-testnet-refresh',
+      targetConcurrency: int(body.targetConcurrency, 1, { min: 1, max: 16 }),
+      timeoutMs: body.timeoutMs == null ? null : int(body.timeoutMs, 240_000, { min: 1_000, max: 300_000 })
     };
-    return result;
+    const requestKey = JSON.stringify(options);
+    if (dhtRefreshInFlight) {
+      if (dhtRefreshInFlightKey !== requestKey) {
+        const error = new Error('dht_refresh_in_flight');
+        error.code = 'TRUYN_DHT_REFRESH_IN_FLIGHT';
+        error.statusCode = 409;
+        throw error;
+      }
+      return dhtRefreshInFlight;
+    }
+
+    const operation = (async () => {
+      const result = await node.discovery.refreshRoutingTable({
+        targets: options.targets,
+        targetCount: options.targetCount,
+        maxRounds: options.maxRounds,
+        seed: options.seed,
+        targetConcurrency: options.targetConcurrency,
+        timeoutMs: options.timeoutMs
+      });
+      await node.persistState();
+      lastDhtRefresh = {
+        status: result.refreshed ? 'refreshed' : (result.reason || 'not_refreshed'),
+        refreshed: Boolean(result.refreshed),
+        completedAt: new Date().toISOString(),
+        targets: Array.isArray(result.targets) ? result.targets.length : 0,
+        nearExpiryTargets: result.targetSelection?.nearExpiryTargets || 0,
+        xorTargets: result.targetSelection?.xorTargets || 0,
+        walks: Array.isArray(result.walks) ? result.walks.length : 0,
+        queriedPeers: Array.isArray(result.queriedPeers) ? result.queriedPeers.length : 0,
+        responses: result.responses || 0,
+        routingSizeDelta: result.routingSizeDelta || 0,
+        validPeersDelta: result.validPeersDelta || 0,
+        before: routingReadinessFields(result.before),
+        after: routingReadinessFields(result.after)
+      };
+      return result;
+    })();
+    dhtRefreshInFlight = operation;
+    dhtRefreshInFlightKey = requestKey;
+    try {
+      return await operation;
+    } finally {
+      if (dhtRefreshInFlight === operation) {
+        dhtRefreshInFlight = null;
+        dhtRefreshInFlightKey = null;
+      }
+    }
   };
 
   node.onEnvelope(async (message, context) => {
@@ -470,6 +513,10 @@ export async function runTestnetNodeFromEnv(env = process.env) {
     controlHost: env.TRUYN_CONTROL_HOST || '127.0.0.1',
     controlPort: int(env.TRUYN_CONTROL_PORT, 8788, { max: 65535 }),
     peerRecordTtlMs: int(env.TRUYN_PEER_RECORD_TTL_MS, 300_000),
+    peerRecordRenewBeforeMs: env.TRUYN_PEER_RECORD_RENEW_BEFORE_MS == null ? null : int(env.TRUYN_PEER_RECORD_RENEW_BEFORE_MS, 60_000, { min: 1 }),
+    discoveryRefreshIntervalMs: env.TRUYN_DISCOVERY_REFRESH_INTERVAL_MS == null ? null : int(env.TRUYN_DISCOVERY_REFRESH_INTERVAL_MS, 30_000, { min: 1 }),
+    discoveryRefreshTargetCount: env.TRUYN_DISCOVERY_REFRESH_TARGET_COUNT == null ? null : int(env.TRUYN_DISCOVERY_REFRESH_TARGET_COUNT, 20, { min: 0, max: 256 }),
+    discoveryRefreshMaxRounds: int(env.TRUYN_DISCOVERY_REFRESH_MAX_ROUNDS, 4, { min: 0, max: 64 }),
     maxInFlight: int(env.TRUYN_MAX_IN_FLIGHT, 64),
     maxQueued: int(env.TRUYN_MAX_QUEUED, 256, { min: 0 }),
     dhtReplicationFactor: int(env.TRUYN_DHT_REPLICATION_FACTOR, 3),

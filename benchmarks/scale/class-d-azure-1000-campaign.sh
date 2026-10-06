@@ -280,36 +280,47 @@ readiness_markers_present() {
 }
 readiness_collection_attempts=4
 readiness_gate_failed=0
+readiness_recovery_dir=$(mktemp -d)
+readiness_recovery_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$readiness_dir/$i")"
-  if ! readiness_markers_present "$out"; then
+  if readiness_markers_present "$out"; then continue; fi
+  (
     recovered=''
-    if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; cat /tmp/truyn-d200-readiness-result")"; then
-      :
-    fi
+    if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; cat /tmp/truyn-d200-readiness-result")"; then :; fi
     if ! readiness_markers_present "$recovered"; then
       for attempt in $(seq 1 "$readiness_collection_attempts"); do
         recovered=''
-        if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; s=/tmp/truyn-d200-readiness-status; r=/tmp/truyn-d200-readiness-result; [[ -f \"\$s\" ]]; cat \"\$s\"; [[ -f \"\$r\" ]]; cat \"\$r\"")"; then
-          :
-        fi
+        if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; s=/tmp/truyn-d200-readiness-status; r=/tmp/truyn-d200-readiness-result; [[ -f \"\$s\" ]]; cat \"\$s\"; [[ -f \"\$r\" ]]; cat \"\$r\"")"; then :; fi
         probe_rc="$(marker "$recovered" READINESS_PROBE_RC)"
         if readiness_markers_present "$recovered"; then break; fi
         if [[ -n "$probe_rc" && "$probe_rc" != 0 ]]; then
           echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_probe_failed_without_complete_observation host=$i rc=$probe_rc" >&2
-          rm -rf "$readiness_dir"
-          false
+          exit 1
         fi
         [[ "$attempt" == "$readiness_collection_attempts" ]] || sleep 1
       done
     fi
     if ! readiness_markers_present "$recovered"; then
       echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_observation_missing host=$i launch_failure=$readiness_failed" >&2
-      rm -rf "$readiness_dir"
-      false
+      exit 1
     fi
+    printf '%s\n' "$recovered"
+  ) >"$readiness_recovery_dir/$i.out" 2>"$readiness_recovery_dir/$i.err" &
+  readiness_recovery_pids+=("$!")
+done
+readiness_recovery_failed=0
+for pid in "${readiness_recovery_pids[@]}"; do if ! wait "$pid"; then readiness_recovery_failed=1; fi; done
+[[ "$readiness_recovery_failed" == 0 ]]
+
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$readiness_dir/$i")"
+  if ! readiness_markers_present "$out"; then
+    [[ -f "$readiness_recovery_dir/$i.err" ]] && cat "$readiness_recovery_dir/$i.err" >&2
+    recovered="$(cat "$readiness_recovery_dir/$i.out")"
+    readiness_markers_present "$recovered"
     out="$recovered"
-    echo "TRUYN_CLASS_D_1000 stage=readiness-observation-recovery host=$i mode=read-only status=PASS"
+    echo "TRUYN_CLASS_D_1000 stage=readiness-observation-recovery host=$i mode=parallel-read-only status=PASS"
   fi
   ready=$(marker "$out" READINESS_READY); total=$(marker "$out" READINESS_TOTAL)
   node_observations_b64=$(marker "$out" READINESS_NODE_OBSERVATIONS_B64)
@@ -365,6 +376,7 @@ jq -s --argjson expectedHosts "$HOST_COUNT" --argjson expectedNodes "$NODE_COUNT
   observations:(add | sort_by(.hostIndex,.nodeIndex))
 }' "$readiness_dir"/*.nodes.json >"$readiness_observations_path"
 readiness_ms=$(( $(date +%s%3N) - readiness_start_ms ))
+rm -rf "$readiness_recovery_dir"
 rm -rf "$readiness_dir"
 if [[ "$readiness_gate_failed" != 0 ]]; then
   echo "TRUYN_D200_READINESS_AGGREGATE_FAILURE ready=${readiness_ready}/${readiness_total} validMin=${readiness_min_valid} validMax=${readiness_max_valid} bucketsMin=${readiness_min_buckets} bucketsMax=${readiness_max_buckets} remoteHostsMin=${readiness_min_hosts} remoteHostsMax=${readiness_max_hosts} observations=${readiness_observations_path}" >&2
@@ -427,6 +439,76 @@ assert float('$conv_rate') >= .99, '$conv_rate'
 assert float('$conv_p95') <= 120000, '$conv_p95'
 PY
 echo "TRUYN_CLASS_D_1000 stage=convergence mode=parallel-hosts hosts=${HOST_COUNT} success=${conv_success}/${conv_total} routingSuccess=${conv_rate} p95Ms=${conv_p95} p99Ms=${conv_p99} aggregateMs=${conv_ms} status=PASS"
+
+STAGE=baseline-freshness
+BASELINE_MIN_PEER_LEASE_REMAINING_MS=900000
+baseline_freshness_dir=$(mktemp -d)
+baseline_freshness_pids=()
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  script=$(cat <<EOS
+set -Eeuo pipefail
+python3 - <<'PY'
+import concurrent.futures,json,random,subprocess,time
+from datetime import datetime,timezone
+records=json.load(open('/var/lib/truyn-d1000/records-by-host.json'))
+host=${i}; H=${HOST_COUNT}; N=${NODES_PER_HOST}; base=${CONTROL_BASE}; required=${BASELINE_MIN_PEER_LEASE_REMAINING_MS}
+def target_ids(j):
+    ids=[]
+    for k in (j,j+N):
+        r=random.Random(20260818+host*10000+k); th=r.randrange(H-1)
+        if th>=host: th+=1
+        tl=r.randrange(N); ids.append(records[th][tl]['nodeId'])
+    return list(dict.fromkeys(ids))
+def margin(j,targets):
+    try: state=json.load(open(f'/var/lib/truyn-d1000/node-{host*N+j}-state.json'))
+    except Exception: return -1
+    by={x.get('nodeId'):x for x in (state.get('peerRecords') or []) if isinstance(x,dict)}
+    now=datetime.now(timezone.utc); values=[]
+    for nid in targets:
+        rec=by.get(nid); exp=rec.get('expiresAt') if rec else None
+        if not exp: values.append(-1); continue
+        try: values.append(int((datetime.fromisoformat(exp.replace('Z','+00:00'))-now).total_seconds()*1000))
+        except Exception: values.append(-1)
+    return min(values) if values else -1
+def one(j):
+    targets=target_ids(j); url=f'http://127.0.0.1:{base+j}/dht/refresh'
+    last=-1
+    for attempt in range(1,4):
+        payload=json.dumps({'targets':targets,'targetCount':len(targets),'maxRounds':8,'targetConcurrency':len(targets),'timeoutMs':120000,'seed':f'd500-baseline-freshness:{host}:{j}:{attempt}'},separators=(',',':'))
+        p=subprocess.run(['curl','-sS','--max-time','130','-o',f'/tmp/d500-fresh-{j}.json','-w','%{http_code}','-H','content-type: application/json','--data-binary',payload,url],text=True,capture_output=True)
+        last=margin(j,targets)
+        if p.returncode==0 and p.stdout.strip()=='200' and last>=required: return (1,last)
+        time.sleep(1)
+    return (0,last)
+with concurrent.futures.ThreadPoolExecutor(max_workers=min(4,N)) as ex: rows=list(ex.map(one,range(N)))
+ready=sum(ok for ok,_ in rows); minimum=min((m for _,m in rows),default=-1)
+print('BASELINE_FRESHNESS_READY='+str(ready))
+print('BASELINE_FRESHNESS_TOTAL='+str(N))
+print('BASELINE_FRESHNESS_MIN_REMAINING_MS='+str(minimum))
+if ready!=N: raise SystemExit(1)
+PY
+EOS
+)
+  (remote "${VMS[$i]}" "$script" >"$baseline_freshness_dir/$i.out" 2>"$baseline_freshness_dir/$i.err") &
+  baseline_freshness_pids+=("$!")
+done
+baseline_freshness_failed=0
+for pid in "${baseline_freshness_pids[@]}"; do if ! wait "$pid"; then baseline_freshness_failed=1; fi; done
+baseline_freshness_ready=0
+baseline_freshness_min_remaining=999999999
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  cat "$baseline_freshness_dir/$i.err" >&2
+  out="$(cat "$baseline_freshness_dir/$i.out")"; cat "$baseline_freshness_dir/$i.out"
+  ready=$(marker "$out" BASELINE_FRESHNESS_READY); total=$(marker "$out" BASELINE_FRESHNESS_TOTAL); remaining=$(marker "$out" BASELINE_FRESHNESS_MIN_REMAINING_MS)
+  [[ "$total" == "$NODES_PER_HOST" ]]
+  baseline_freshness_ready=$((baseline_freshness_ready+ready))
+  if [[ "$remaining" -lt "$baseline_freshness_min_remaining" ]]; then baseline_freshness_min_remaining="$remaining"; fi
+done
+rm -rf "$baseline_freshness_dir"
+[[ "$baseline_freshness_failed" == 0 ]]
+[[ "$baseline_freshness_ready" == "$NODE_COUNT" ]]
+[[ "$baseline_freshness_min_remaining" -ge "$BASELINE_MIN_PEER_LEASE_REMAINING_MS" ]]
+echo "TRUYN_CLASS_D_1000 stage=baseline-freshness ready=${baseline_freshness_ready}/${NODE_COUNT} minLeaseRemainingMs=${baseline_freshness_min_remaining} requiredMarginMs=${BASELINE_MIN_PEER_LEASE_REMAINING_MS} status=PASS"
 
 STAGE=baseline-routing
 D200_BASELINE_ORIGIN_DIAG=1
@@ -733,43 +815,69 @@ if [[ "$baseline_diag_failed" != 0 ]]; then
   false
 fi
 
-# Each failed row is fetched in its own bounded remote call. This avoids a
-# single oversized stdout/base64 payload while retaining every failure.
+# Batch failed diagnostics per host into compressed bounded chunks.
+baseline_batch_dir=$(mktemp -d)
+baseline_batch_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   failure_count="${baseline_failure_counts[$i]}"
   if [[ "$failure_count" == 0 ]]; then continue; fi
-  diag_out="$(cat "$baseline_diag_phase_dir/$i")"
-  [[ "$(marker "$diag_out" BASE_DIAG_READY)" == 1 ]]
-  [[ "$(marker "$diag_out" BASE_DIAG_FAILURE_COUNT)" == "$failure_count" ]]
-  for n in $(seq 0 $((failure_count-1))); do
-    row_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
-import base64,hashlib,json
+  (
+    set -Eeuo pipefail
+    diag_out="$(cat "$baseline_diag_phase_dir/$i")"
+    [[ "$(marker "$diag_out" BASE_DIAG_READY)" == 1 ]]
+    [[ "$(marker "$diag_out" BASE_DIAG_FAILURE_COUNT)" == "$failure_count" ]]
+    meta_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
+import base64,gzip,hashlib,json
 path='/var/lib/truyn-d1000/baseline-origin-host-${i}.json'
-n=${n}
-value=json.load(open(path))
-row=value['failures'][n]
-raw=json.dumps(row,separators=(',',':')).encode()
-if len(raw)>${D200_BASELINE_ROW_MAX_BYTES}:
-    raise SystemExit('TRUYN_D200_BASELINE_ROW_TOO_LARGE bytes='+str(len(raw)))
-print('BASE_DIAG_BYTES='+str(len(raw)))
-print('BASE_DIAG_SHA256='+hashlib.sha256(raw).hexdigest())
-print('BASE_DIAG_B64='+base64.b64encode(raw).decode())
+rows=json.load(open(path)).get('failures') or []
+raw=json.dumps(rows,separators=(',',':')).encode()
+encoded=base64.b64encode(gzip.compress(raw,compresslevel=9)).decode()
+open('/tmp/truyn-d500-baseline-batch-${i}.b64','w').write(encoded)
+chunk=2800
+print('BASE_BATCH_META='+':'.join(map(str,[len(raw),hashlib.sha256(raw).hexdigest(),len(rows),len(encoded),(len(encoded)+chunk-1)//chunk])))
 PY")
-    row_bytes=$(marker "$row_out" BASE_DIAG_BYTES)
-    row_sha=$(marker "$row_out" BASE_DIAG_SHA256)
-    row_b64=$(marker "$row_out" BASE_DIAG_B64)
-    python3 - "$i" "$row_bytes" "$row_sha" "$row_b64" "$baseline_diag_jsonl" <<'PYD200BASE'
-import base64,hashlib,json,sys
-host=int(sys.argv[1]); expected_bytes=int(sys.argv[2]); expected_sha=sys.argv[3]; raw=base64.b64decode(sys.argv[4],validate=True)
-if len(raw)!=expected_bytes: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=byte_count')
-if hashlib.sha256(raw).hexdigest()!=expected_sha: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=sha256')
-value=json.loads(raw.decode('utf-8'))
-if value.get('sourceHost')!=host: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=host_mismatch')
-with open(sys.argv[5],'a',encoding='utf-8') as handle:
-    handle.write(json.dumps(value,separators=(',',':'))+'\n')
-PYD200BASE
-  done
+    meta=$(marker "$meta_out" BASE_BATCH_META)
+    IFS=':' read -r raw_bytes raw_sha row_count encoded_chars chunk_count <<<"$meta"
+    [[ "$row_count" == "$failure_count" ]]
+    [[ "$raw_sha" =~ ^[0-9a-f]{64}$ ]]
+    encoded=''
+    for chunk_index in $(seq 0 $((chunk_count-1))); do
+      chunk_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
+path='/tmp/truyn-d500-baseline-batch-${i}.b64'
+data=open(path).read(); index=${chunk_index}; size=2800
+print('BASE_BATCH_CHUNK='+data[index*size:(index+1)*size])
+PY")
+      chunk_value=$(marker "$chunk_out" BASE_BATCH_CHUNK)
+      [[ -n "$chunk_value" ]]
+      encoded+="$chunk_value"
+    done
+    [[ "${#encoded}" == "$encoded_chars" ]]
+    python3 - "$i" "$failure_count" "$raw_bytes" "$raw_sha" "$encoded" "$baseline_batch_dir/$i.jsonl" <<'PYD500BATCH'
+import base64,gzip,hashlib,json,sys
+host=int(sys.argv[1]); expected_count=int(sys.argv[2]); expected_bytes=int(sys.argv[3]); expected_sha=sys.argv[4]
+raw=gzip.decompress(base64.b64decode(sys.argv[5],validate=True))
+if len(raw)!=expected_bytes: raise SystemExit('TRUYN_D500_BASELINE_BATCH byte_count')
+if hashlib.sha256(raw).hexdigest()!=expected_sha: raise SystemExit('TRUYN_D500_BASELINE_BATCH sha256')
+rows=json.loads(raw.decode())
+if len(rows)!=expected_count: raise SystemExit('TRUYN_D500_BASELINE_BATCH count')
+for row in rows:
+    if row.get('sourceHost')!=host: raise SystemExit('TRUYN_D500_BASELINE_BATCH host_mismatch')
+with open(sys.argv[6],'w',encoding='utf-8') as handle:
+    for row in rows: handle.write(json.dumps(row,separators=(',',':'))+'\n')
+PYD500BATCH
+    echo "TRUYN_CLASS_D_1000 stage=baseline-diagnostics host=$i failures=$failure_count batchChunks=$chunk_count status=PASS"
+  ) >"$baseline_batch_dir/$i.out" 2>"$baseline_batch_dir/$i.err" &
+  baseline_batch_pids+=("$!")
 done
+baseline_batch_failed=0
+for pid in "${baseline_batch_pids[@]}"; do if ! wait "$pid"; then baseline_batch_failed=1; fi; done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  [[ -f "$baseline_batch_dir/$i.err" ]] && cat "$baseline_batch_dir/$i.err" >&2
+  [[ -f "$baseline_batch_dir/$i.out" ]] && cat "$baseline_batch_dir/$i.out"
+  [[ -f "$baseline_batch_dir/$i.jsonl" ]] && cat "$baseline_batch_dir/$i.jsonl" >>"$baseline_diag_jsonl"
+done
+rm -rf "$baseline_batch_dir"
+[[ "$baseline_batch_failed" == 0 ]]
 rm -rf "$baseline_dir" "$baseline_diag_phase_dir"
 
 base_rate=$(python3 -c "print(round($base_success/$base_total,6))")
@@ -1022,7 +1130,10 @@ post_diag_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-post-restart-origin.jsonl
 post_diag_digest="${GITHUB_WORKSPACE:-$PWD}/class-d-200-post-restart-origin-digest.txt"
 : >"$post_diag_jsonl"
 
+post_host_dir=$(mktemp -d)
+post_host_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
+  (
   target_host=$(((i+1)%HOST_COUNT))
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -1159,7 +1270,8 @@ EOS
   out=$(remote "${VMS[$i]}" "$script")
   ok=$(marker "$out" POST_OK); total=$(marker "$out" POST_TOTAL); failure_count=$(marker "$out" POST_FAILURE_COUNT)
   [[ "$total" == 5 ]]
-  post_success=$((post_success+ok)); post_total=$((post_total+total))
+  echo "POST_AGG_OK=$ok"
+  echo "POST_AGG_TOTAL=$total"
 
   source_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; printf 'POST_SOURCE_DIAG_JSON='; cat /var/lib/truyn-d1000/post-restart-origin-host-${i}.json")
   source_json=$(marker "$source_out" POST_SOURCE_DIAG_JSON)
@@ -1206,7 +1318,20 @@ EOS
   [[ -n "$target_json" ]]
   printf '%s\n' "$target_json" >"$post_target_dir/$i.json"
   echo "TRUYN_CLASS_D_1000 stage=post-restart-routing host=$i targetHost=$target_host firstAttempt=${ok}/${total} failures=${failure_count} applicationRetries=0"
+  ) >"$post_host_dir/$i.out" 2>"$post_host_dir/$i.err" &
+  post_host_pids+=("$!")
 done
+post_host_failed=0
+for pid in "${post_host_pids[@]}"; do if ! wait "$pid"; then post_host_failed=1; fi; done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  cat "$post_host_dir/$i.err" >&2
+  out="$(cat "$post_host_dir/$i.out")"
+  cat "$post_host_dir/$i.out"
+  post_success=$((post_success+$(marker "$out" POST_AGG_OK)))
+  post_total=$((post_total+$(marker "$out" POST_AGG_TOTAL)))
+done
+rm -rf "$post_host_dir"
+[[ "$post_host_failed" == 0 ]]
 
 python3 - "$post_diag_dir" "$post_target_dir" "$post_diag_json" "$post_diag_jsonl" <<'PY'
 import collections,json,pathlib,sys
@@ -1330,6 +1455,8 @@ healed_success=0; healed_total=0; healed_p50=0; healed_p90=0; healed_p95=0; heal
 healed_diag_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-healed-reconvergence.jsonl"
 healed_diag_json="${GITHUB_WORKSPACE:-$PWD}/class-d-200-healed-reconvergence.json"
 : >"$healed_diag_jsonl"
+healed_dir=$(mktemp -d)
+healed_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -1635,7 +1762,16 @@ else:
 PY
 EOS
 )
-  out=$(remote "${VMS[$i]}" "$script")
+  (remote "${VMS[$i]}" "$script" >"$healed_dir/$i.out" 2>"$healed_dir/$i.err") &
+  healed_pids+=("$!")
+done
+healed_remote_failed=0
+for pid in "${healed_pids[@]}"; do
+  if ! wait "$pid"; then healed_remote_failed=1; fi
+done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  cat "$healed_dir/$i.err" >&2
+  out="$(cat "$healed_dir/$i.out")"
   ok=$(marker "$out" HEALED_OK); total=$(marker "$out" HEALED_TOTAL); p50=$(marker "$out" HEALED_P50); p90=$(marker "$out" HEALED_P90); p95=$(marker "$out" HEALED_P95); p99=$(marker "$out" HEALED_P99)
   diag_meta=$(marker "$out" HEALED_DIAG_META)
   if [[ -z "$diag_meta" ]]; then
@@ -1686,6 +1822,8 @@ PYD200HOST
   healed_p50=$(python3 -c "print(max(float('$healed_p50'),float('$p50')))" ); healed_p90=$(python3 -c "print(max(float('$healed_p90'),float('$p90')))" )
   healed_p95=$(python3 -c "print(max(float('$healed_p95'),float('$p95')))" ); healed_p99=$(python3 -c "print(max(float('$healed_p99'),float('$p99')))" )
 done
+rm -rf "$healed_dir"
+[[ "$healed_remote_failed" == 0 ]]
 healed_rate=$(python3 -c "print(round($healed_success/$healed_total,6))")
 python3 - "$healed_diag_jsonl" "$healed_diag_json" "$healed_success" "$healed_total" "$healed_rate" <<'PYD200SUMMARY'
 import json,sys
@@ -1733,10 +1871,19 @@ echo "TRUYN_CLASS_D_1000 stage=write-retention retained=${retained}/${writes} ac
 
 STAGE=resources
 rss_kb=0; quic_bytes=0; process_total=0
+resource_dir=$(mktemp -d)
+resource_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; rss=\$(ps -eo rss,args | awk '/network\/testnet\/node-service.js/ && !/awk/ {s+=\$1} END{print s+0}'); proc=\$(pgrep -fc 'network/testnet/node-service.js'); outb=\$(iptables-save -c | awk '/truyn-d1000-meter-out/ {gsub(/\\[/,\"\",\$1); split(\$1,a,\":\"); s+=a[2]} END{print s+0}'); inb=\$(iptables-save -c | awk '/truyn-d1000-meter-in/ {gsub(/\\[/,\"\",\$1); split(\$1,a,\":\"); s+=a[2]} END{print s+0}'); echo RSS_KB=\$rss; echo PROCESSES=\$proc; echo QUIC_BYTES=\$((outb+inb))")
-  p=$(marker "$out" PROCESSES); [[ "$p" -ge "$NODES_PER_HOST" ]]; process_total=$((process_total+p)); rss_kb=$((rss_kb+$(marker "$out" RSS_KB))); quic_bytes=$((quic_bytes+$(marker "$out" QUIC_BYTES)))
+  (remote "${VMS[$i]}" "set -Eeuo pipefail; rss=\$(ps -eo rss,args | awk '/network\/testnet\/node-service.js/ && !/awk/ {s+=\$1} END{print s+0}'); proc=\$(pgrep -fc 'network/testnet/node-service.js'); outb=\$(iptables-save -c | awk '/truyn-d1000-meter-out/ {gsub(/\\[/,\"\",\$1); split(\$1,a,\":\"); s+=a[2]} END{print s+0}'); inb=\$(iptables-save -c | awk '/truyn-d1000-meter-in/ {gsub(/\\[/,\"\",\$1); split(\$1,a,\":\"); s+=a[2]} END{print s+0}'); echo RSS_KB=\$rss; echo PROCESSES=\$proc; echo QUIC_BYTES=\$((outb+inb))" >"$resource_dir/$i") &
+  resource_pids+=("$!")
 done
+for pid in "${resource_pids[@]}"; do wait "$pid"; done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$resource_dir/$i")"
+  p=$(marker "$out" PROCESSES); [[ "$p" -ge "$NODES_PER_HOST" ]]
+  process_total=$((process_total+p)); rss_kb=$((rss_kb+$(marker "$out" RSS_KB))); quic_bytes=$((quic_bytes+$(marker "$out" QUIC_BYTES)))
+done
+rm -rf "$resource_dir"
 [[ "$process_total" -ge "$NODE_COUNT" ]]
 
 STAGE=evidence
