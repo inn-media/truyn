@@ -50,6 +50,7 @@ readiness_last_hosts=-1
 readiness_observations_dir=\$(mktemp -d)
 readiness_expected_hosts_json=\$(jq -c '[.[] | .[0].endpoints[0] | sub("^[^:]+://";"") | split(":")[0]]' /var/lib/truyn-d1000/records-by-host.json)
 [[ "\$(printf '%s' "\$readiness_expected_hosts_json" | jq 'length')" -eq ${HOST_COUNT} ]]
+readiness_round_dir=\$(mktemp -d)
 while [[ "\$(date +%s)" -lt "\$deadline" ]]; do
   ready=0
   min_valid=999999
@@ -58,6 +59,29 @@ while [[ "\$(date +%s)" -lt "\$deadline" ]]; do
   max_buckets=0
   min_hosts=999999
   max_hosts=0
+  rm -f "\$readiness_round_dir"/*
+  readiness_probe_pids=()
+  for probe_j in \$(seq 0 $((NODES_PER_HOST-1))); do
+    while [[ "\$(jobs -pr | wc -l | tr -d ' ')" -ge ${D500_NODE_WORKERS} ]]; do sleep 0.1; done
+    (
+      probe_now=\$(date +%s)
+      probe_remaining=\$((deadline - probe_now))
+      if [[ "\$probe_remaining" -le 0 ]]; then
+        printf '124\n' >"\$readiness_round_dir/\$probe_j.rc"
+        exit 0
+      fi
+      probe_timeout=\$probe_remaining
+      if [[ "\$probe_timeout" -gt 10 ]]; then probe_timeout=10; fi
+      set +e
+      curl -fsS --max-time "\$probe_timeout" "http://127.0.0.1:\$(( ${CONTROL_BASE} + probe_j ))/dht/readiness" >"\$readiness_round_dir/\$probe_j.json" 2>"\$readiness_round_dir/\$probe_j.err"
+      probe_rc=\$?
+      set -e
+      printf '%s\n' "\$probe_rc" >"\$readiness_round_dir/\$probe_j.rc"
+      exit 0
+    ) &
+    readiness_probe_pids+=("\$!")
+  done
+  for probe_pid in "\${readiness_probe_pids[@]}"; do wait "\$probe_pid" || true; done
   for j in \$(seq 0 $((NODES_PER_HOST-1))); do
     control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
     readiness_now=\$(date +%s)
@@ -65,15 +89,10 @@ while [[ "\$(date +%s)" -lt "\$deadline" ]]; do
     if [[ "\$readiness_remaining" -le 0 ]]; then
       break
     fi
-    readiness_probe_timeout=\$readiness_remaining
-    if [[ "\$readiness_probe_timeout" -gt 10 ]]; then
-      readiness_probe_timeout=10
-    fi
-    readiness=''
-    if readiness=\$(curl -fsS --max-time "\$readiness_probe_timeout" "\${control_url}/dht/readiness" 2>/tmp/truyn-d200-readiness-curl-\${j}.err); then
-      :
-    else
-      readiness_last_failure_rc=\$?
+    readiness=\$(cat "\$readiness_round_dir/\$j.json" 2>/dev/null || true)
+    readiness_probe_rc=\$(cat "\$readiness_round_dir/\$j.rc" 2>/dev/null || echo 124)
+    if [[ "\$readiness_probe_rc" != 0 ]]; then
+      readiness_last_failure_rc=\$readiness_probe_rc
       readiness_curl_failures=\$((readiness_curl_failures + 1))
       readiness_last_failure_node=\$j
       readiness_last_failure_kind=curl
@@ -240,7 +259,7 @@ done
 readiness_node_observations_b64=\$(jq -s -c 'sort_by(.nodeIndex)' "\$readiness_observations_dir"/*.json | gzip -c -9 | base64 -w0)
 [[ "\${#readiness_node_observations_b64}" -le 3000 ]]
 echo READINESS_NODE_OBSERVATIONS_B64=\$readiness_node_observations_b64
-rm -rf "\$readiness_observations_dir"
+rm -rf "\$readiness_observations_dir" "\$readiness_round_dir"
 [[ "\$ready" -eq ${NODES_PER_HOST} ]]
 EOS
 )
