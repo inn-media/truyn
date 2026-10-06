@@ -29,6 +29,19 @@ NODE_COUNT=$((HOST_COUNT * NODES_PER_HOST))
 BOOTSTRAP_MAX_PEERS_PER_NODE=32
 BOOTSTRAP_PEERS_PER_BUCKET=2
 BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS=900000
+PEER_RECORD_RENEW_BEFORE_MS=60000
+LEASE_KEEPER_MAX_PEERS=64
+LEASE_KEEPER_CONCURRENCY=4
+DISCOVERY_REFRESH_INTERVAL_MS=30000
+DISCOVERY_REFRESH_TARGET_COUNT=20
+DISCOVERY_REFRESH_MAX_ROUNDS=4
+if [[ "$NODES_PER_HOST" == 25 ]]; then
+  PEER_RECORD_RENEW_BEFORE_MS=900000
+  LEASE_KEEPER_MAX_PEERS=128
+  LEASE_KEEPER_CONCURRENCY=16
+  DISCOVERY_REFRESH_INTERVAL_MS=15000
+  DISCOVERY_REFRESH_TARGET_COUNT=64
+fi
 QUIC_BASE=4400
 CONTROL_BASE=8700
 EVIDENCE="${GITHUB_WORKSPACE:-$PWD}/class-d-1000-evidence.json"
@@ -244,9 +257,24 @@ cleanup() {
   set +e
   STAGE=cleanup
   CLEANUP_CONFIRMED=false
-  for vm in "${VMS[@]}"; do az vm delete -g "$RG" -n "$vm" --yes --force-deletion --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vm name=${vm}" >&2; done
-  for nic in "${NICS[@]}"; do az network nic delete -g "$RG" -n "$nic" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nic name=${nic}" >&2; done
-  for disk in "${DISKS[@]}"; do az disk delete -g "$RG" -n "$disk" --yes --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=disk name=${disk}" >&2; done
+  cleanup_pids=()
+  for vm in "${VMS[@]}"; do
+    (az vm delete -g "$RG" -n "$vm" --yes --force-deletion --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vm name=${vm}" >&2) &
+    cleanup_pids+=("$!")
+  done
+  for pid in "${cleanup_pids[@]}"; do wait "$pid" || true; done
+  cleanup_pids=()
+  for nic in "${NICS[@]}"; do
+    (az network nic delete -g "$RG" -n "$nic" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nic name=${nic}" >&2) &
+    cleanup_pids+=("$!")
+  done
+  for pid in "${cleanup_pids[@]}"; do wait "$pid" || true; done
+  cleanup_pids=()
+  for disk in "${DISKS[@]}"; do
+    (az disk delete -g "$RG" -n "$disk" --yes --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=disk name=${disk}" >&2) &
+    cleanup_pids+=("$!")
+  done
+  for pid in "${cleanup_pids[@]}"; do wait "$pid" || true; done
   az network vnet delete -g "$RG" -n "$VNET" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=vnet name=${VNET}" >&2
   az network nsg delete -g "$RG" -n "$NSG" --only-show-errors >/dev/null 2>&1 || echo "TRUYN_CLASS_D_1000_CLEANUP_DELETE_FAILURE type=nsg name=${NSG}" >&2
   list_output=$(az resource list -g "$RG" --query "[?starts_with(name, '${PREFIX}')].name" -o tsv --only-show-errors 2>&1)
@@ -290,22 +318,47 @@ az network vnet create -g "$RG" -n "$VNET" -l "$LOCATION" --address-prefixes 10.
 az network vnet subnet update -g "$RG" --vnet-name "$VNET" -n "$SUBNET" --network-security-group "$NSG" --service-endpoints Microsoft.Storage --only-show-errors >/dev/null
 
 STAGE=provision
+provision_dir=$(mktemp -d)
+provision_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
-  created=0
-  for size in "$VM_SIZE" Standard_D4s_v5; do
-    if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
-      created=1
-      echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
-      break
-    fi
-  done
-  [[ $created == 1 ]]
-  PRIV+=("$(az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)")
+  (
+    set -Eeuo pipefail
+    az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
+    created=0
+    for size in "$VM_SIZE" Standard_D4s_v5; do
+      if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
+        created=1
+        echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
+        break
+      fi
+    done
+    [[ $created == 1 ]]
+    ip="$(az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)"
+    [[ -n "$ip" ]]
+    echo "PROVISION_PRIVATE_IP=$ip"
+  ) >"$provision_dir/$i.out" 2>"$provision_dir/$i.err" &
+  provision_pids+=("$!")
+done
+provision_failed=0
+for pid in "${provision_pids[@]}"; do
+  if ! wait "$pid"; then provision_failed=1; fi
+done
+if [[ "$provision_failed" != 0 ]]; then
+  for i in $(seq 0 $((HOST_COUNT-1))); do cat "$provision_dir/$i.err" >&2 || true; done
+  rm -rf "$provision_dir"
+  false
+fi
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  cat "$provision_dir/$i.err" >&2 || true
+  out="$(cat "$provision_dir/$i.out")"
+  printf '%s\n' "$out"
+  PRIV[$i]="$(marker "$out" PROVISION_PRIVATE_IP)"
   [[ -n "${PRIV[$i]}" ]]
 done
-
+rm -rf "$provision_dir"
 STAGE=install
+install_dir=$(mktemp -d)
+install_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -381,6 +434,12 @@ TRUYN_QUIC_PORT=\${q}
 TRUYN_CONTROL_HOST=127.0.0.1
 TRUYN_CONTROL_PORT=\${c}
 TRUYN_PEER_RECORD_TTL_MS=1800000
+TRUYN_PEER_RECORD_RENEW_BEFORE_MS=${PEER_RECORD_RENEW_BEFORE_MS}
+TRUYN_LEASE_KEEPER_MAX_PEERS=${LEASE_KEEPER_MAX_PEERS}
+TRUYN_LEASE_KEEPER_CONCURRENCY=${LEASE_KEEPER_CONCURRENCY}
+TRUYN_DISCOVERY_REFRESH_INTERVAL_MS=${DISCOVERY_REFRESH_INTERVAL_MS}
+TRUYN_DISCOVERY_REFRESH_TARGET_COUNT=${DISCOVERY_REFRESH_TARGET_COUNT}
+TRUYN_DISCOVERY_REFRESH_MAX_ROUNDS=${DISCOVERY_REFRESH_MAX_ROUNDS}
 TRUYN_DHT_REPLICATION_FACTOR=3
 TRUYN_DHT_WRITE_QUORUM=2
 TRUYN_DHT_RPC_TIMEOUT_MS=5000
@@ -449,10 +508,24 @@ echo PROCESSES=\$proc
 EOS
 )
   script="${script//truyn/truyn}"
-  out=$(remote "${VMS[$i]}" "$script")
+  (remote "${VMS[$i]}" "$script" >"$install_dir/$i") &
+  install_pids+=("$!")
+done
+install_failed=0
+for pid in "${install_pids[@]}"; do
+  if ! wait "$pid"; then install_failed=1; fi
+done
+if [[ "$install_failed" != 0 ]]; then
+  for i in $(seq 0 $((HOST_COUNT-1))); do cat "$install_dir/$i" >&2 || true; done
+  rm -rf "$install_dir"
+  false
+fi
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$install_dir/$i")"
   [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
   echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
 done
+rm -rf "$install_dir"
 
 STAGE=bootstrap-record-refresh
 D200_PEER_LEASE_FRESHNESS_REPAIR=1
