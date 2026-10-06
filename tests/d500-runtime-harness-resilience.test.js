@@ -21,9 +21,11 @@ test('D-500 host fanout is fail-collect with live heartbeat', () => {
   assert.match(provision, /TRUYN_D500_HEARTBEAT stage=%s host=%s state=%s elapsedSec=%s/);
   assert.match(provision, /wait_host_stage bootstrap /);
   assert.match(campaign, /wait_host_stage readiness /);
+  assert.match(campaign, /wait_host_stage readiness-observation-recovery /);
   assert.match(campaign, /wait_host_stage convergence /);
   assert.match(campaign, /wait_host_stage pre-baseline-peer-freshness /);
   assert.match(campaign, /wait_host_stage baseline /);
+  assert.match(campaign, /wait_host_stage baseline-diagnostic-collection /);
   assert.match(campaign, /wait_host_stage durable-writes /);
   assert.match(campaign, /wait_host_stage restart-recovery /);
   assert.match(campaign, /wait_host_stage post-restart-routing /);
@@ -31,6 +33,10 @@ test('D-500 host fanout is fail-collect with live heartbeat', () => {
   assert.match(campaign, /wait_host_stage resources /);
   assert.doesNotMatch(provision, /for pid in "\$\{bootstrap_pids\[@\]\}"; do wait "\$pid"; done/);
   assert.doesNotMatch(campaign, /for pid in "\$\{conv_pids\[@\]\}"; do wait "\$pid"; done/);
+  assert.doesNotMatch(campaign, /for pid in "\$\{readiness_recovery_pids\[@\]\}"; do/);
+  assert.doesNotMatch(campaign, /for pid in "\$\{baseline_collect_pids\[@\]\}"; do/);
+  assert.match(campaign, /host_status_arm "\$readiness_recovery_status_dir"/);
+  assert.match(campaign, /host_status_arm "\$baseline_collect_dir"/);
   assert.match(provision, /TRUYN_D500_HOST_RESULT stage=/);
   assert.match(provision, /TRUYN_D500_HOST_COLLECTED_LOG_BEGIN stage=/);
   assert.match(restartStage, /wait_host_stage restart-recovery/);
