@@ -8,6 +8,10 @@ const runtime = await readFile('network/runtime.js', 'utf8');
 const discovery = await readFile('network/discovery/peer-discovery.js', 'utf8');
 const service = await readFile('network/testnet/node-service.js', 'utf8');
 const workflow = await readFile('.github/workflows/d500-scale-run.yml', 'utf8');
+const restartStage = await readFile('benchmarks/scale/d200-restart-recovery-stage.sh', 'utf8');
+const postRestartStage = await readFile('benchmarks/scale/d200-post-restart-routing-stage.sh', 'utf8');
+const retentionStage = await readFile('benchmarks/scale/d200-write-retention-stage.sh', 'utf8');
+const resourcesStage = await readFile('benchmarks/scale/d200-resources-stage.sh', 'utf8');
 
 test('D-500 host fanout is fail-collect with live heartbeat', () => {
   assert.match(provision, /wait_host_stage\(\)/);
@@ -27,6 +31,12 @@ test('D-500 host fanout is fail-collect with live heartbeat', () => {
   assert.match(campaign, /wait_host_stage resources /);
   assert.doesNotMatch(provision, /for pid in "\$\{bootstrap_pids\[@\]\}"; do wait "\$pid"; done/);
   assert.doesNotMatch(campaign, /for pid in "\$\{conv_pids\[@\]\}"; do wait "\$pid"; done/);
+  assert.match(provision, /TRUYN_D500_HOST_RESULT stage=/);
+  assert.match(provision, /TRUYN_D500_HOST_COLLECTED_LOG_BEGIN stage=/);
+  assert.match(restartStage, /wait_host_stage restart-recovery/);
+  assert.match(postRestartStage, /wait_host_stage post-restart-routing/);
+  assert.match(retentionStage, /wait_host_stage write-retention/);
+  assert.match(resourcesStage, /wait_host_stage resources/);
 });
 
 test('D-500 bootstrap uses bounded node parallelism and preserves per-node diagnostics', () => {
