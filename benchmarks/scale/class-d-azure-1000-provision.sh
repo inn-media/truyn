@@ -565,10 +565,12 @@ if [[ "\$ok" -ne 1 ]]; then
 fi
 install_stage=records
 python3 - <<'PY'
-import json, urllib.request
-records=[]
-for p in range(${CONTROL_BASE}, ${CONTROL_BASE}+${NODES_PER_HOST}):
-    records.append(json.load(urllib.request.urlopen(f'http://127.0.0.1:{p}/record'))['record'])
+import concurrent.futures, json, urllib.request
+ports=range(${CONTROL_BASE}, ${CONTROL_BASE}+${NODES_PER_HOST})
+def fetch(port):
+    return json.load(urllib.request.urlopen(f'http://127.0.0.1:{port}/record'))['record']
+with concurrent.futures.ThreadPoolExecutor(max_workers=min(${D500_NODE_WORKERS}, ${NODES_PER_HOST})) as executor:
+    records=list(executor.map(fetch, ports))
 open('/var/lib/truyn-d1000/records.json','w').write(json.dumps(records,separators=(',',':')))
 PY
 pkill -f 'python3 -m http.server 9900' >/dev/null 2>&1 || true
