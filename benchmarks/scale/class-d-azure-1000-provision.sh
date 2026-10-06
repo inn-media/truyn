@@ -90,6 +90,9 @@ D500_NODE_WORKERS="${TRUYN_D500_NODE_WORKERS:-5}"
 
 host_status_arm() {
   local status_dir="$1" host_index="$2"
+  # Host workers must never inherit the parent ERR trap: a single worker failure
+  # is evidence to collect, not permission to checkpoint/cleanup while peers run.
+  trap - ERR
   trap "rc=\$?; printf '%s\\n' \"\$rc\" >'${status_dir}/.host-${host_index}.rc'; trap - EXIT; exit \"\$rc\"" EXIT
 }
 
@@ -97,30 +100,44 @@ wait_host_stage() {
   local stage="$1" status_dir="$2"
   shift 2
   local -a pids=("$@")
-  local total="${#pids[@]}" start now completed failed running i rc states active
+  local -a reaped=()
+  local total="${#pids[@]}" start now completed failed running i rc state wait_rc
   start=$(date +%s)
   while true; do
-    completed=0; failed=0; running=0; states=()
-    active=" $(jobs -pr | tr '\n' ' ') "
+    completed=0
+    failed=0
+    running=0
     for i in "${!pids[@]}"; do
-      if [[ ! -s "$status_dir/.host-$i.rc" && "$active" != *" ${pids[$i]} "* ]]; then
-        printf '255\n' >"$status_dir/.host-$i.rc"
+      if [[ ! -s "$status_dir/.host-$i.rc" ]] && ! kill -0 "${pids[$i]}" 2>/dev/null; then
+        if wait "${pids[$i]}"; then wait_rc=0; else wait_rc=$?; fi
+        reaped[$i]=1
+        [[ -s "$status_dir/.host-$i.rc" ]] || printf '%s\n' "$wait_rc" >"$status_dir/.host-$i.rc"
       fi
       if [[ -s "$status_dir/.host-$i.rc" ]]; then
         rc=$(cat "$status_dir/.host-$i.rc")
         completed=$((completed+1))
-        if [[ "$rc" == 0 ]]; then states+=("h${i}:completed"); else failed=$((failed+1)); states+=("h${i}:failed(rc=${rc})"); fi
+        if [[ "$rc" == 0 ]]; then state=completed; else failed=$((failed+1)); state="failed(rc=$rc)"; fi
       else
-        running=$((running+1)); states+=("h${i}:running")
+        running=$((running+1))
+        state=running
       fi
+      now=$(date +%s)
+      printf 'TRUYN_D500_HEARTBEAT stage=%s host=%s state=%s elapsedSec=%s\n' "$stage" "$i" "$state" "$((now-start))"
     done
     now=$(date +%s)
-    printf 'TRUYN_D500_HEARTBEAT stage=%s elapsedSec=%s running=%s completed=%s failed=%s hosts=%s\n' "$stage" "$((now-start))" "$running" "$completed" "$failed" "$(IFS=,; echo "${states[*]}")"
+    printf 'TRUYN_D500_HEARTBEAT stage=%s summary running=%s completed=%s failed=%s elapsedSec=%s\n' "$stage" "$running" "$completed" "$failed" "$((now-start))"
     [[ "$completed" -eq "$total" ]] && break
     sleep "$D500_HEARTBEAT_SECONDS"
   done
+
   local wait_failed=0
-  for i in "${!pids[@]}"; do if ! wait "${pids[$i]}"; then wait_failed=1; fi; done
+  for i in "${!pids[@]}"; do
+    if [[ "${reaped[$i]:-0}" != 1 ]]; then
+      if wait "${pids[$i]}"; then wait_rc=0; else wait_rc=$?; fi
+      [[ -s "$status_dir/.host-$i.rc" ]] || printf '%s\n' "$wait_rc" >"$status_dir/.host-$i.rc"
+      [[ "$wait_rc" == 0 ]] || wait_failed=1
+    fi
+  done
   printf 'TRUYN_D500_HOST_SUMMARY stage=%s total=%s completed=%s failed=%s elapsedSec=%s\n' "$stage" "$total" "$completed" "$failed" "$(( $(date +%s) - start ))"
   [[ "$failed" -eq 0 && "$wait_failed" -eq 0 ]]
 }
