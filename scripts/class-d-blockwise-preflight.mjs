@@ -48,7 +48,7 @@ const BLOCKS = {
     probes: [
       ['bootstrap-workflow', `set -Eeuo pipefail; grep -q 'TRUYN_CLASS_D_BOOTSTRAP_TERMINAL' .github/workflows/class-d-bootstrap-qualification.yml; grep -q 'd500' .github/workflows/class-d-bootstrap-qualification.yml; grep -q 'd1000' .github/workflows/class-d-bootstrap-qualification.yml`],
       ['bootstrap-launcher', `set -Eeuo pipefail; grep -q 'TRUYN_CLASS_D_BOOTSTRAP_REQUEST' .github/workflows/class-d-bootstrap-launcher.yml; grep -q 'github.token' .github/workflows/class-d-bootstrap-launcher.yml; grep -q 'git rev-list --count' .github/workflows/class-d-bootstrap-launcher.yml; ! grep -q 'ORGANIZATION_AUTOPILOT_TOKEN_GITHUB' .github/workflows/class-d-bootstrap-launcher.yml; ! grep -q 'gh workflow run' .github/workflows/class-d-bootstrap-launcher.yml`],
-      ['d500-thresholds', `set -Eeuo pipefail; grep -q 'baselineSuccessRatio>=.99' .github/workflows/d500-acceptance.yml; grep -q 'postRestartSuccessRatio>=.99' .github/workflows/d500-acceptance.yml; grep -q 'healedSuccessRatio>=.99' .github/workflows/d500-acceptance.yml; grep -q 'p95<=120000' .github/workflows/d500-acceptance.yml; grep -q 'acknowledgedWriteCount>=100' .github/workflows/d500-acceptance.yml`]
+      ['d500-thresholds', `set -Eeuo pipefail; grep -q 'baselineSuccessRatio>=.99' .github/workflows/d500-acceptance.yml; grep -q 'postRestartSuccessRatio>=.99' .github/workflows/d500-acceptance.yml; grep -q 'healedSuccessRatio>=.99' .github/workflows/d500-acceptance.yml; grep -q 'p95<=120000' .github/workflows/d500-acceptance.yml; grep -q '.safety.acknowledgedWrites.count==100' .github/workflows/d500-acceptance.yml; grep -q '.safety.acknowledgedWrites.lost==0' .github/workflows/d500-acceptance.yml`]
     ]
   }
 };
