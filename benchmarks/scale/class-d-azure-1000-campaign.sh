@@ -1506,6 +1506,8 @@ healed_success=0; healed_total=0; healed_p50=0; healed_p90=0; healed_p95=0; heal
 healed_diag_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-healed-reconvergence.jsonl"
 healed_diag_json="${GITHUB_WORKSPACE:-$PWD}/class-d-200-healed-reconvergence.json"
 : >"$healed_diag_jsonl"
+healed_host_dir=$(mktemp -d)
+healed_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -1811,7 +1813,18 @@ else:
 PY
 EOS
 )
-  out=$(remote "${VMS[$i]}" "$script")
+  (remote "${VMS[$i]}" "$script" >"$healed_host_dir/$i") &
+  healed_pids+=("$!")
+done
+healed_failed=0
+for pid in "${healed_pids[@]}"; do if ! wait "$pid"; then healed_failed=1; fi; done
+if [[ "$healed_failed" != 0 ]]; then
+  for i in $(seq 0 $((HOST_COUNT-1))); do cat "$healed_host_dir/$i" >&2 || true; done
+  rm -rf "$healed_host_dir"
+  false
+fi
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$healed_host_dir/$i")"
   ok=$(marker "$out" HEALED_OK); total=$(marker "$out" HEALED_TOTAL); p50=$(marker "$out" HEALED_P50); p90=$(marker "$out" HEALED_P90); p95=$(marker "$out" HEALED_P95); p99=$(marker "$out" HEALED_P99)
   diag_meta=$(marker "$out" HEALED_DIAG_META)
   if [[ -z "$diag_meta" ]]; then
@@ -1862,6 +1875,7 @@ PYD200HOST
   healed_p50=$(python3 -c "print(max(float('$healed_p50'),float('$p50')))" ); healed_p90=$(python3 -c "print(max(float('$healed_p90'),float('$p90')))" )
   healed_p95=$(python3 -c "print(max(float('$healed_p95'),float('$p95')))" ); healed_p99=$(python3 -c "print(max(float('$healed_p99'),float('$p99')))" )
 done
+rm -rf "$healed_host_dir"
 healed_rate=$(python3 -c "print(round($healed_success/$healed_total,6))")
 python3 - "$healed_diag_jsonl" "$healed_diag_json" "$healed_success" "$healed_total" "$healed_rate" <<'PYD200SUMMARY'
 import json,sys
