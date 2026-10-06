@@ -250,7 +250,6 @@ export class PeerDiscovery {
     intervalMs,
     targetCount = this.k,
     maxRounds = 4,
-    targetConcurrency = 1,
     seed = 'truyn-periodic-refresh',
     timerApi = null
   } = {}) {
