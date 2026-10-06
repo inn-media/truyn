@@ -517,12 +517,35 @@ WantedBy=multi-user.target
 UNIT
 install_stage=systemd-start
 systemctl daemon-reload
-for j in \$(seq 0 $((NODES_PER_HOST-1))); do idx=\$(( ${i} * ${NODES_PER_HOST} + j )); systemctl enable --now truyn-d1000@\${idx}.service >/dev/null; done
+start_pids=()
+for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+  while [[ "\$(jobs -pr | wc -l | tr -d ' ')" -ge ${D500_NODE_WORKERS} ]]; do sleep 0.2; done
+  idx=\$(( ${i} * ${NODES_PER_HOST} + j ))
+  (systemctl enable --now truyn-d1000@\${idx}.service >/dev/null) &
+  start_pids+=("\$!")
+done
+start_failed=0
+for pid in "\${start_pids[@]}"; do if ! wait "\$pid"; then start_failed=1; fi; done
+[[ "\$start_failed" == 0 ]]
 install_stage=readiness
 ok=0
+probe_dir=/tmp/truyn-install-readiness
+rm -rf "\$probe_dir"; mkdir -p "\$probe_dir"
 for n in \$(seq 1 120); do
-  good=0
-  for j in \$(seq 0 $((NODES_PER_HOST-1))); do curl -fsS --max-time 1 http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/status >/dev/null 2>&1 && good=\$((good+1)); done
+  rm -f "\$probe_dir"/*.ok
+  probe_pids=()
+  for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+    while [[ "\$(jobs -pr | wc -l | tr -d ' ')" -ge ${D500_NODE_WORKERS} ]]; do sleep 0.1; done
+    (
+      if curl -fsS --max-time 1 http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/status >/dev/null 2>&1; then
+        : >"\$probe_dir/\$j.ok"
+      fi
+      exit 0
+    ) &
+    probe_pids+=("\$!")
+  done
+  for pid in "\${probe_pids[@]}"; do wait "\$pid" || true; done
+  good=\$(find "\$probe_dir" -maxdepth 1 -name '*.ok' -type f | wc -l | tr -d ' ')
   if [[ "\$good" -eq ${NODES_PER_HOST} ]]; then ok=1; break; fi
   sleep 2
 done
