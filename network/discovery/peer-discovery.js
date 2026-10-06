@@ -320,7 +320,6 @@ export class PeerDiscovery {
     const operation = this.refreshRoutingTable({
       targetCount: config.targetCount,
       maxRounds: config.maxRounds,
-      targetConcurrency: config.targetConcurrency,
       seed: `${config.seed}:${run}`
     });
     this.periodicRefreshInFlight = operation;
