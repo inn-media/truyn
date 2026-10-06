@@ -1026,13 +1026,17 @@ done
 echo WRITES=\$ok
 EOS
 )
-  (trap - ERR; remote "${VMS[$i]}" "$script" >"${d200_write_dir}/${i}.out" 2>"${d200_write_dir}/${i}.err") &
+  (
+    host_status_arm "$d200_write_dir" "$i"
+    trap - ERR
+    remote "${VMS[$i]}" "$script" >"${d200_write_dir}/${i}.out" 2>"${d200_write_dir}/${i}.err"
+  ) &
   d200_write_pids+=("$!")
 done
 d200_write_remote_failed=0
+if ! wait_host_stage durable-writes "$d200_write_dir" "${d200_write_pids[@]}"; then d200_write_remote_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  if ! wait "${d200_write_pids[$i]}"; then
-    d200_write_remote_failed=1
+  if [[ "$(cat "$d200_write_dir/.host-$i.rc" 2>/dev/null || echo 255)" != 0 ]]; then
     cat "${d200_write_dir}/${i}.err" >&2 || true
     continue
   fi
@@ -1051,6 +1055,7 @@ echo "TRUYN_CLASS_D_1000 stage=durable-writes acknowledged=${writes} ttlMs=${d20
 
 STAGE=restart-recovery
 restart_dir=$(mktemp -d)
+restart_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -1134,9 +1139,15 @@ echo READY_MIN_HOSTS=\$min_hosts
 echo READY_MAX_PENDING=\$max_pending
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$restart_dir/$i") &
+  (
+    host_status_arm "$restart_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$restart_dir/$i"
+  ) &
+  restart_pids+=("$!")
 done
-wait
+restart_failed=0
+if ! wait_host_stage restart-recovery "$restart_dir" "${restart_pids[@]}"; then restart_failed=1; fi
+[[ "$restart_failed" == 0 ]]
 stop_values=()
 start_values=()
 ready_values=()
