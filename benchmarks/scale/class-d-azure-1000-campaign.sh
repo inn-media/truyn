@@ -280,36 +280,47 @@ readiness_markers_present() {
 }
 readiness_collection_attempts=4
 readiness_gate_failed=0
+readiness_recovery_dir=$(mktemp -d)
+readiness_recovery_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$readiness_dir/$i")"
-  if ! readiness_markers_present "$out"; then
+  if readiness_markers_present "$out"; then continue; fi
+  (
     recovered=''
-    if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; cat /tmp/truyn-d200-readiness-result")"; then
-      :
-    fi
+    if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; cat /tmp/truyn-d200-readiness-result")"; then :; fi
     if ! readiness_markers_present "$recovered"; then
       for attempt in $(seq 1 "$readiness_collection_attempts"); do
         recovered=''
-        if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; s=/tmp/truyn-d200-readiness-status; r=/tmp/truyn-d200-readiness-result; [[ -f \"\$s\" ]]; cat \"\$s\"; [[ -f \"\$r\" ]]; cat \"\$r\"")"; then
-          :
-        fi
+        if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; s=/tmp/truyn-d200-readiness-status; r=/tmp/truyn-d200-readiness-result; [[ -f \"\$s\" ]]; cat \"\$s\"; [[ -f \"\$r\" ]]; cat \"\$r\"")"; then :; fi
         probe_rc="$(marker "$recovered" READINESS_PROBE_RC)"
         if readiness_markers_present "$recovered"; then break; fi
         if [[ -n "$probe_rc" && "$probe_rc" != 0 ]]; then
           echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_probe_failed_without_complete_observation host=$i rc=$probe_rc" >&2
-          rm -rf "$readiness_dir"
-          false
+          exit 1
         fi
         [[ "$attempt" == "$readiness_collection_attempts" ]] || sleep 1
       done
     fi
     if ! readiness_markers_present "$recovered"; then
       echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_observation_missing host=$i launch_failure=$readiness_failed" >&2
-      rm -rf "$readiness_dir"
-      false
+      exit 1
     fi
+    printf '%s\n' "$recovered"
+  ) >"$readiness_recovery_dir/$i.out" 2>"$readiness_recovery_dir/$i.err" &
+  readiness_recovery_pids+=("$!")
+done
+readiness_recovery_failed=0
+for pid in "${readiness_recovery_pids[@]}"; do if ! wait "$pid"; then readiness_recovery_failed=1; fi; done
+[[ "$readiness_recovery_failed" == 0 ]]
+
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$readiness_dir/$i")"
+  if ! readiness_markers_present "$out"; then
+    [[ -f "$readiness_recovery_dir/$i.err" ]] && cat "$readiness_recovery_dir/$i.err" >&2
+    recovered="$(cat "$readiness_recovery_dir/$i.out")"
+    readiness_markers_present "$recovered"
     out="$recovered"
-    echo "TRUYN_CLASS_D_1000 stage=readiness-observation-recovery host=$i mode=read-only status=PASS"
+    echo "TRUYN_CLASS_D_1000 stage=readiness-observation-recovery host=$i mode=parallel-read-only status=PASS"
   fi
   ready=$(marker "$out" READINESS_READY); total=$(marker "$out" READINESS_TOTAL)
   node_observations_b64=$(marker "$out" READINESS_NODE_OBSERVATIONS_B64)
@@ -365,6 +376,7 @@ jq -s --argjson expectedHosts "$HOST_COUNT" --argjson expectedNodes "$NODE_COUNT
   observations:(add | sort_by(.hostIndex,.nodeIndex))
 }' "$readiness_dir"/*.nodes.json >"$readiness_observations_path"
 readiness_ms=$(( $(date +%s%3N) - readiness_start_ms ))
+rm -rf "$readiness_recovery_dir"
 rm -rf "$readiness_dir"
 if [[ "$readiness_gate_failed" != 0 ]]; then
   echo "TRUYN_D200_READINESS_AGGREGATE_FAILURE ready=${readiness_ready}/${readiness_total} validMin=${readiness_min_valid} validMax=${readiness_max_valid} bucketsMin=${readiness_min_buckets} bucketsMax=${readiness_max_buckets} remoteHostsMin=${readiness_min_hosts} remoteHostsMax=${readiness_max_hosts} observations=${readiness_observations_path}" >&2
