@@ -265,13 +265,14 @@ if [[ -f \"\$result_tmp\" ]]; then mv \"\$result_tmp\" \"\$result_file\"; fi
 printf 'READINESS_PROBE_RC=%s\\n' \"\$probe_rc\" > \"\$status_tmp\"
 mv \"\$status_tmp\" \"\$status_file\"
 exit \"\$probe_rc\""
-  (remote "${VMS[$i]}" "$wrapped_script" >"$readiness_dir/$i") &
+  (
+    host_status_arm "$readiness_dir" "$i"
+    remote "${VMS[$i]}" "$wrapped_script" >"$readiness_dir/$i"
+  ) &
   readiness_pids+=("$!")
 done
 readiness_failed=0
-for pid in "${readiness_pids[@]}"; do
-  if ! wait "$pid"; then readiness_failed=1; fi
-done
+if ! wait_host_stage readiness "$readiness_dir" "${readiness_pids[@]}"; then readiness_failed=1; fi
 readiness_markers_present() {
   local text="$1" key
   for key in READINESS_READY READINESS_TOTAL READINESS_MIN_VALID READINESS_MAX_VALID READINESS_MIN_BUCKETS READINESS_MAX_BUCKETS READINESS_MIN_HOSTS READINESS_MAX_HOSTS READINESS_NODE_OBSERVATIONS_B64; do
@@ -417,10 +418,15 @@ print('CONV_OK='+str(success)); print('CONV_TOTAL='+str(N)); print('CONV_P95='+s
 PY
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$conv_dir/$i") &
+  (
+    host_status_arm "$conv_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$conv_dir/$i"
+  ) &
   conv_pids+=("$!")
 done
-for pid in "${conv_pids[@]}"; do wait "$pid"; done
+conv_failed=0
+if ! wait_host_stage convergence "$conv_dir" "${conv_pids[@]}"; then conv_failed=1; fi
+[[ "$conv_failed" == 0 ]]
 conv_ms=$(( $(date +%s%3N) - conv_start_ms ))
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$conv_dir/$i")"
@@ -502,13 +508,14 @@ print('FRESHNESS_REPAIR_ATTEMPTS='+str(sum(row['attempts'] for row in rows)))
 PYD500FRESH
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$freshness_dir/$i") &
+  (
+    host_status_arm "$freshness_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$freshness_dir/$i"
+  ) &
   freshness_pids+=("$!")
 done
 freshness_failed=0
-for pid in "${freshness_pids[@]}"; do
-  if ! wait "$pid"; then freshness_failed=1; fi
-done
+if ! wait_host_stage pre-baseline-peer-freshness "$freshness_dir" "${freshness_pids[@]}"; then freshness_failed=1; fi
 freshness_nodes=0
 freshness_targets=0
 freshness_min_remaining=999999999
@@ -690,14 +697,15 @@ print('BASE_FAILURE_COUNT='+str(len(failures)))
 PY
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$baseline_dir/$i") &
+  (
+    host_status_arm "$baseline_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$baseline_dir/$i"
+  ) &
   baseline_pids+=("$!")
 done
 
 baseline_failed=0
-for pid in "${baseline_pids[@]}"; do
-  if ! wait "$pid"; then baseline_failed=1; fi
-done
+if ! wait_host_stage baseline "$baseline_dir" "${baseline_pids[@]}"; then baseline_failed=1; fi
 if [[ "$baseline_failed" != 0 ]]; then
   rm -rf "$baseline_dir" "$baseline_diag_phase_dir"
   false
@@ -825,13 +833,14 @@ print('BASE_DIAG_FAILURE_COUNT='+str(len(failures)))
 PY
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$baseline_diag_phase_dir/$i") &
+  (
+    host_status_arm "$baseline_diag_phase_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$baseline_diag_phase_dir/$i"
+  ) &
   baseline_diag_pids+=("$!")
 done
 baseline_diag_failed=0
-for pid in "${baseline_diag_pids[@]}"; do
-  if ! wait "$pid"; then baseline_diag_failed=1; fi
-done
+if ! wait_host_stage baseline-diagnostics "$baseline_diag_phase_dir" "${baseline_diag_pids[@]}"; then baseline_diag_failed=1; fi
 if [[ "$baseline_diag_failed" != 0 ]]; then
   rm -rf "$baseline_dir" "$baseline_diag_phase_dir"
   false
