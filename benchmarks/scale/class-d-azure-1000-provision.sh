@@ -697,49 +697,104 @@ refresh_max_endpoints=0
 refresh_min_hosts=999999
 refresh_max_hosts=0
 t0=\$(date +%s%3N)
+node_dir=/tmp/truyn-bootstrap-node-results
+rm -rf "\$node_dir"
+mkdir -p "\$node_dir"
+node_pids=()
 for j in \$(seq 0 $((NODES_PER_HOST-1))); do
-  node_id=\$(jq -r --argjson host ${i} --argjson node "\$j" '.[\$host][\$node].nodeId' /tmp/records-by-host.json)
-  payload=\$(jq -c --arg node "\$node_id" '{records:.[\$node]}' /tmp/bootstrap-plan-by-node.json)
-  records=\$(jq -r --arg node "\$node_id" '.[\$node] | length' /tmp/bootstrap-plan-by-node.json)
-  [[ "\$records" -eq ${BOOTSTRAP_MAX_PEERS_PER_NODE} ]]
-  if printf '%s' "\$payload" | jq -e --arg node "\$node_id" '.records | any(.nodeId == \$node)' >/dev/null; then echo "self peer leaked for \$node_id" >&2; exit 1; fi
-  unique=\$(printf '%s' "\$payload" | jq -r '.records[].nodeId' | sort -u | wc -l | tr -d ' ')
-  [[ "\$unique" -eq "\$records" ]]
-  bytes=\$(printf '%s' "\$payload" | wc -c | tr -d ' ')
-  [[ "\$bytes" -lt 900000 ]]
+  while [[ "\$(jobs -pr | wc -l | tr -d ' ')" -ge ${D500_NODE_WORKERS} ]]; do sleep 1; done
+  (
+    set +e
+    (
+      set -Eeuo pipefail
+      node_id=\$(jq -r --argjson host ${i} --argjson node "\$j" '.[\$host][\$node].nodeId' /tmp/records-by-host.json)
+      payload=\$(jq -c --arg node "\$node_id" '{records:.[\$node]}' /tmp/bootstrap-plan-by-node.json)
+      records=\$(jq -r --arg node "\$node_id" '.[\$node] | length' /tmp/bootstrap-plan-by-node.json)
+      [[ "\$records" -eq ${BOOTSTRAP_MAX_PEERS_PER_NODE} ]]
+      if printf '%s' "\$payload" | jq -e --arg node "\$node_id" '.records | any(.nodeId == \$node)' >/dev/null; then echo "self peer leaked for \$node_id" >&2; exit 1; fi
+      unique=\$(printf '%s' "\$payload" | jq -r '.records[].nodeId' | sort -u | wc -l | tr -d ' ')
+      [[ "\$unique" -eq "\$records" ]]
+      bytes=\$(printf '%s' "\$payload" | wc -c | tr -d ' ')
+      [[ "\$bytes" -lt 900000 ]]
+      control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
+      curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" "\${control_url}/bootstrap" >/dev/null
+      refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,targetConcurrency:4,timeoutMs:240000,seed:\$seed}')
+      refresh_result=''
+      refresh_rc=1
+      refresh_reason=none
+      for refresh_attempt in 1 2 3; do
+        set +e
+        refresh_result=\$(curl -fsS --max-time 300 -H 'content-type: application/json' --data-binary "\$refresh_payload" "\${control_url}/dht/refresh")
+        refresh_rc=\$?
+        set -e
+        refresh_reason=none
+        if [[ "\$refresh_rc" -eq 0 ]]; then
+          refresh_reason=\$(printf '%s' "\$refresh_result" | jq -r '.reason // "none"' 2>/dev/null || echo invalid-json)
+          if printf '%s' "\$refresh_result" | jq -e '.refreshed == true' >/dev/null 2>&1; then break; fi
+          refresh_rc=70
+        fi
+        echo "TRUYN_D200_BOOTSTRAP_REFRESH_RETRY host=${i} node=\$j attempt=\$refresh_attempt rc=\$refresh_rc reason=\$refresh_reason" >&2
+        [[ "\$refresh_attempt" -lt 3 ]] && sleep \$((refresh_attempt * 2))
+      done
+      [[ "\$refresh_rc" -eq 0 ]]
+      [[ "\$(printf '%s' "\$refresh_result" | jq -r '.refreshed')" == true ]]
+      readiness=\$(curl -fsS --max-time 20 "\${control_url}/dht/readiness")
+      [[ "\$(printf '%s' "\$readiness" | jq -r '.refresh.status')" == refreshed ]]
+      valid=\$(printf '%s' "\$readiness" | jq -r '.validPeers')
+      buckets=\$(printf '%s' "\$readiness" | jq -r '.populatedBuckets')
+      endpoints=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.endpointCount')
+      hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount')
+      [[ "\$valid" -ge "\$records" ]]
+      jq -nc --argjson node "\$j" --argjson records "\$records" --argjson bytes "\$bytes" --argjson valid "\$valid" --argjson buckets "\$buckets" --argjson endpoints "\$endpoints" --argjson hosts "\$hosts" '{node:\$node,records:\$records,bytes:\$bytes,valid:\$valid,buckets:\$buckets,endpoints:\$endpoints,hosts:\$hosts}' >"\$node_dir/\$j.metrics"
+    ) >"\$node_dir/\$j.log" 2>&1
+    rc=\$?
+    printf '%s\n' "\$rc" >"\$node_dir/\$j.rc"
+    exit "\$rc"
+  ) &
+  node_pids+=("\$!")
+done
+
+progress_reported=0
+while true; do
+  completed=\$(find "\$node_dir" -maxdepth 1 -name '*.rc' -type f | wc -l | tr -d ' ')
+  failed_now=0
+  for rf in "\$node_dir"/*.rc; do [[ -e "\$rf" ]] || continue; [[ "\$(cat "\$rf")" == 0 ]] || failed_now=\$((failed_now+1)); done
+  if [[ "\$completed" -ge \$((progress_reported+5)) || "\$completed" -eq ${NODES_PER_HOST} ]]; then
+    echo "TRUYN_D500_BOOTSTRAP_PROGRESS host=${i} completed=\${completed}/${NODES_PER_HOST} failed=\${failed_now} workers=${D500_NODE_WORKERS}"
+    progress_reported=\$(( (completed / 5) * 5 ))
+  fi
+  [[ "\$completed" -eq ${NODES_PER_HOST} ]] && break
+  sleep 2
+done
+
+node_failed=0
+for pid in "\${node_pids[@]}"; do if ! wait "\$pid"; then node_failed=1; fi; done
+for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+  rc=\$(cat "\$node_dir/\$j.rc" 2>/dev/null || echo 255)
+  if [[ "\$rc" != 0 ]]; then
+    node_failed=1
+    echo "TRUYN_D500_BOOTSTRAP_NODE_FAILURE host=${i} node=\$j rc=\$rc" >&2
+    cat "\$node_dir/\$j.log" >&2 || true
+    idx=\$(( ${i} * ${NODES_PER_HOST} + j ))
+    systemctl show "truyn-d1000@\${idx}.service" -p ActiveState -p SubState -p NRestarts -p ExecMainCode -p ExecMainStatus --no-pager 2>/dev/null >&2 || true
+    journalctl -u "truyn-d1000@\${idx}.service" -n 25 --no-pager 2>/dev/null >&2 || true
+  fi
+done
+[[ "\$node_failed" == 0 ]]
+
+for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+  row=\$(cat "\$node_dir/\$j.metrics")
+  records=\$(printf '%s' "\$row" | jq -r '.records')
+  bytes=\$(printf '%s' "\$row" | jq -r '.bytes')
+  valid=\$(printf '%s' "\$row" | jq -r '.valid')
+  buckets=\$(printf '%s' "\$row" | jq -r '.buckets')
+  endpoints=\$(printf '%s' "\$row" | jq -r '.endpoints')
+  hosts=\$(printf '%s' "\$row" | jq -r '.hosts')
   if [[ "\$records" -lt "\$min_records" ]]; then min_records="\$records"; fi
   if [[ "\$records" -gt "\$max_records" ]]; then max_records="\$records"; fi
   if [[ "\$bytes" -lt "\$min_bytes" ]]; then min_bytes="\$bytes"; fi
   if [[ "\$bytes" -gt "\$max_bytes" ]]; then max_bytes="\$bytes"; fi
   total_bytes=\$((total_bytes + bytes))
-  control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
-  curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" "\${control_url}/bootstrap" >/dev/null
-  refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,targetConcurrency:4,timeoutMs:240000,seed:\$seed}')
-  refresh_result=''
-  refresh_rc=1
-  for refresh_attempt in 1 2 3; do
-    set +e
-    refresh_result=\$(curl -fsS --max-time 300 -H 'content-type: application/json' --data-binary "\$refresh_payload" "\${control_url}/dht/refresh")
-    refresh_rc=\$?
-    set -e
-    refresh_reason=none
-    if [[ "\$refresh_rc" -eq 0 ]]; then
-      refresh_reason=\$(printf '%s' "\$refresh_result" | jq -r '.reason // "none"' 2>/dev/null || echo invalid-json)
-      if printf '%s' "\$refresh_result" | jq -e '.refreshed == true' >/dev/null 2>&1; then break; fi
-      refresh_rc=70
-    fi
-    echo "TRUYN_D200_BOOTSTRAP_REFRESH_RETRY host=${i} node=\$j attempt=\$refresh_attempt rc=\$refresh_rc reason=\$refresh_reason" >&2
-    [[ "\$refresh_attempt" -lt 3 ]] && sleep \$((refresh_attempt * 2))
-  done
-  [[ "\$refresh_rc" -eq 0 ]]
-  [[ "\$(printf '%s' "\$refresh_result" | jq -r '.refreshed')" == true ]]
-  readiness=\$(curl -fsS --max-time 20 "\${control_url}/dht/readiness")
-  [[ "\$(printf '%s' "\$readiness" | jq -r '.refresh.status')" == refreshed ]]
-  valid=\$(printf '%s' "\$readiness" | jq -r '.validPeers')
-  buckets=\$(printf '%s' "\$readiness" | jq -r '.populatedBuckets')
-  endpoints=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.endpointCount')
-  hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount')
-  [[ "\$valid" -ge "\$records" ]]
   if [[ "\$valid" -lt "\$refresh_min_valid" ]]; then refresh_min_valid="\$valid"; fi
   if [[ "\$valid" -gt "\$refresh_max_valid" ]]; then refresh_max_valid="\$valid"; fi
   if [[ "\$buckets" -lt "\$refresh_min_buckets" ]]; then refresh_min_buckets="\$buckets"; fi
