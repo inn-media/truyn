@@ -63,7 +63,6 @@ if ! wait_host_stage write-retention "$retention_dir" "${retention_pids[@]}"; th
 retained=0
 retention_confirmed_missing=0
 retention_read_errors=0
-[[ "$retention_transport_failed" == 0 ]] || retention_read_errors=$((retention_read_errors+5))
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$retention_dir/$i.out" 2>/dev/null || true)"
   err="$(cat "$retention_dir/$i.err" 2>/dev/null || true)"
