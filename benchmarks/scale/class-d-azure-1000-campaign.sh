@@ -1322,6 +1322,7 @@ PY
 EOS
 )
   (
+    host_status_arm "$post_host_dir" "$i"
     out=$(remote "${VMS[$i]}" "$script")
     ok=$(marker "$out" POST_OK); total=$(marker "$out" POST_TOTAL); failure_count=$(marker "$out" POST_FAILURE_COUNT)
     [[ "$total" == 5 ]]
@@ -1377,9 +1378,7 @@ EOS
   post_host_pids+=("$!")
 done
 post_host_failed=0
-for pid in "${post_host_pids[@]}"; do
-  if ! wait "$pid"; then post_host_failed=1; fi
-done
+if ! wait_host_stage post-restart-routing "$post_host_dir" "${post_host_pids[@]}"; then post_host_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$post_host_dir/$i")"
   cat "$post_host_dir/$i"
@@ -1819,6 +1818,7 @@ PY
 EOS
 )
   (
+    host_status_arm "$healed_host_dir" "$i"
     out=$(remote "${VMS[$i]}" "$script")
   ok=$(marker "$out" HEALED_OK); total=$(marker "$out" HEALED_TOTAL); p50=$(marker "$out" HEALED_P50); p90=$(marker "$out" HEALED_P90); p95=$(marker "$out" HEALED_P95); p99=$(marker "$out" HEALED_P99)
   diag_meta=$(marker "$out" HEALED_DIAG_META)
@@ -1876,9 +1876,7 @@ PYD200HOST
 healed_host_pids+=("$!")
 done
 healed_host_failed=0
-for pid in "${healed_host_pids[@]}"; do
-  if ! wait "$pid"; then healed_host_failed=1; fi
-done
+if ! wait_host_stage healed-routing "$healed_host_dir" "${healed_host_pids[@]}"; then healed_host_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$healed_host_dir/$i.out")"
   cat "$healed_host_dir/$i.out"
@@ -1952,13 +1950,14 @@ echo PROCESSES=$proc
 echo QUIC_BYTES=$((outb+inb))
 EOS
 )
-  (remote "${VMS[$i]}" "$resource_script" >"$resource_dir/$i") &
+  (
+    host_status_arm "$resource_dir" "$i"
+    remote "${VMS[$i]}" "$resource_script" >"$resource_dir/$i"
+  ) &
   resource_pids+=("$!")
 done
 resource_failed=0
-for pid in "${resource_pids[@]}"; do
-  if ! wait "$pid"; then resource_failed=1; fi
-done
+if ! wait_host_stage resources "$resource_dir" "${resource_pids[@]}"; then resource_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$resource_dir/$i")"
   p=$(marker "$out" PROCESSES); [[ "$p" -ge "$NODES_PER_HOST" ]]
