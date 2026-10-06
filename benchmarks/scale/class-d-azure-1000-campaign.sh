@@ -1829,10 +1829,19 @@ echo "TRUYN_CLASS_D_1000 stage=write-retention retained=${retained}/${writes} ac
 
 STAGE=resources
 rss_kb=0; quic_bytes=0; process_total=0
+resource_dir=$(mktemp -d)
+resource_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; rss=\$(ps -eo rss,args | awk '/network\/testnet\/node-service.js/ && !/awk/ {s+=\$1} END{print s+0}'); proc=\$(pgrep -fc 'network/testnet/node-service.js'); outb=\$(iptables-save -c | awk '/truyn-d1000-meter-out/ {gsub(/\\[/,\"\",\$1); split(\$1,a,\":\"); s+=a[2]} END{print s+0}'); inb=\$(iptables-save -c | awk '/truyn-d1000-meter-in/ {gsub(/\\[/,\"\",\$1); split(\$1,a,\":\"); s+=a[2]} END{print s+0}'); echo RSS_KB=\$rss; echo PROCESSES=\$proc; echo QUIC_BYTES=\$((outb+inb))")
-  p=$(marker "$out" PROCESSES); [[ "$p" -ge "$NODES_PER_HOST" ]]; process_total=$((process_total+p)); rss_kb=$((rss_kb+$(marker "$out" RSS_KB))); quic_bytes=$((quic_bytes+$(marker "$out" QUIC_BYTES)))
+  (remote "${VMS[$i]}" "set -Eeuo pipefail; rss=\$(ps -eo rss,args | awk '/network\/testnet\/node-service.js/ && !/awk/ {s+=\$1} END{print s+0}'); proc=\$(pgrep -fc 'network/testnet/node-service.js'); outb=\$(iptables-save -c | awk '/truyn-d1000-meter-out/ {gsub(/\\[/,\"\",\$1); split(\$1,a,\":\"); s+=a[2]} END{print s+0}'); inb=\$(iptables-save -c | awk '/truyn-d1000-meter-in/ {gsub(/\\[/,\"\",\$1); split(\$1,a,\":\"); s+=a[2]} END{print s+0}'); echo RSS_KB=\$rss; echo PROCESSES=\$proc; echo QUIC_BYTES=\$((outb+inb))" >"$resource_dir/$i") &
+  resource_pids+=("$!")
 done
+for pid in "${resource_pids[@]}"; do wait "$pid"; done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$resource_dir/$i")"
+  p=$(marker "$out" PROCESSES); [[ "$p" -ge "$NODES_PER_HOST" ]]
+  process_total=$((process_total+p)); rss_kb=$((rss_kb+$(marker "$out" RSS_KB))); quic_bytes=$((quic_bytes+$(marker "$out" QUIC_BYTES)))
+done
+rm -rf "$resource_dir"
 [[ "$process_total" -ge "$NODE_COUNT" ]]
 
 STAGE=evidence
