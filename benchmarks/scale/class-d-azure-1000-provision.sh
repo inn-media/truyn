@@ -832,6 +832,7 @@ EOS
   script="${script//truyn/truyn}"
   script="${script//truyn/truyn}"
   (
+    host_status_arm "$bootstrap_dir" "$i"
     out=$(remote "${VMS[$i]}" "$script")
     [[ "$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
     [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
@@ -840,13 +841,19 @@ EOS
     [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_FAILURE_DOMAINS)" == "$HOST_COUNT" ]]
     [[ "$(marker "$out" BOOTSTRAP_REFRESH_COUNT)" == "$NODES_PER_HOST" ]]
     [[ "$(marker "$out" BOOTSTRAP_REFRESH_STATUS)" == refreshed ]]
-    echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i plan=host-stratified-xor refresh=per-node recordsMin=$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS) recordsMax=$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS) refreshCount=$(marker "$out" BOOTSTRAP_REFRESH_COUNT) validMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_VALID) validMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_VALID) bucketsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_BUCKETS) bucketsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_BUCKETS) endpointsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_ENDPOINTS) endpointsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_ENDPOINTS) hostsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_HOSTS) hostsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_HOSTS) bytesMin=$(marker "$out" BOOTSTRAP_MIN_BYTES) bytesMax=$(marker "$out" BOOTSTRAP_MAX_BYTES) bytesMean=$(marker "$out" BOOTSTRAP_MEAN_BYTES) ms=$(marker "$out" BOOTSTRAP_MS)"
-  ) >"$bootstrap_dir/$i" &
+    echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i plan=host-stratified-xor refresh=bounded-node-parallelism nodeWorkers=$D500_NODE_WORKERS recordsMin=$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS) recordsMax=$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS) refreshCount=$(marker "$out" BOOTSTRAP_REFRESH_COUNT) validMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_VALID) validMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_VALID) bucketsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_BUCKETS) bucketsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_BUCKETS) endpointsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_ENDPOINTS) endpointsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_ENDPOINTS) hostsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_HOSTS) hostsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_HOSTS) bytesMin=$(marker "$out" BOOTSTRAP_MIN_BYTES) bytesMax=$(marker "$out" BOOTSTRAP_MAX_BYTES) bytesMean=$(marker "$out" BOOTSTRAP_MEAN_BYTES) ms=$(marker "$out" BOOTSTRAP_MS)"
+  ) >"$bootstrap_dir/$i" 2>&1 &
   bootstrap_pids+=("$!")
 done
-for pid in "${bootstrap_pids[@]}"; do wait "$pid"; done
-for i in $(seq 0 $((HOST_COUNT-1))); do cat "$bootstrap_dir/$i"; done
+bootstrap_failed=0
+if ! wait_host_stage bootstrap "$bootstrap_dir" "${bootstrap_pids[@]}"; then bootstrap_failed=1; fi
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  echo "TRUYN_D500_HOST_LOG_BEGIN stage=bootstrap host=$i"
+  cat "$bootstrap_dir/$i" || true
+  echo "TRUYN_D500_HOST_LOG_END stage=bootstrap host=$i rc=$(cat "$bootstrap_dir/.host-$i.rc" 2>/dev/null || echo 255)"
+done
 rm -rf "$bootstrap_dir"
+[[ "$bootstrap_failed" == 0 ]]
 
 if [[ "${TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY:-0}" == 1 ]]; then
   qualification_class=D-1000
