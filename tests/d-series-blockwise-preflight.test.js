@@ -114,6 +114,6 @@ test('blockwise preflight does not weaken D-500 acceptance thresholds', () => {
   assert.match(d500, /postRestartSuccessRatio>=\.99/);
   assert.match(d500, /healedSuccessRatio>=\.99/);
   assert.match(d500, /recovery\.latencyMs\.p95<=120000/);
-  assert.match(d500, /acknowledgedWriteCount>=100/);
-  assert.match(d500, /acknowledgedWriteLossCount==0/);
+  assert.match(d500, /\.safety\.acknowledgedWrites\.count==100/);
+  assert.match(d500, /\.safety\.acknowledgedWrites\.lost==0/);
 });
