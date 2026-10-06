@@ -428,6 +428,110 @@ assert float('$conv_p95') <= 120000, '$conv_p95'
 PY
 echo "TRUYN_CLASS_D_1000 stage=convergence mode=parallel-hosts hosts=${HOST_COUNT} success=${conv_success}/${conv_total} routingSuccess=${conv_rate} p95Ms=${conv_p95} p99Ms=${conv_p99} aggregateMs=${conv_ms} status=PASS"
 
+if [[ "$NODES_PER_HOST" == 25 ]]; then
+  STAGE=pre-baseline-peer-freshness
+  d500_freshness_dir=$(mktemp -d)
+  d500_freshness_pids=()
+  d500_freshness_start_ms=$(date +%s%3N)
+  for i in $(seq 0 $((HOST_COUNT-1))); do
+    script=$(cat <<EOS
+set -Eeuo pipefail
+python3 - <<'PY'
+import concurrent.futures,json,random,subprocess,time
+from datetime import datetime
+
+records=json.load(open('/var/lib/truyn-d1000/records-by-host.json'))
+host=${i}; H=${HOST_COUNT}; N=${NODES_PER_HOST}; base=${CONTROL_BASE}
+margin=${BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS}
+
+def target_ids(j):
+    out=[]
+    for k in (j,j+N):
+        r=random.Random(20260818+host*10000+k)
+        target_host=r.randrange(H-1)
+        if target_host>=host: target_host+=1
+        target_local=r.randrange(N)
+        node_id=records[target_host][target_local]['nodeId']
+        if node_id not in out: out.append(node_id)
+    return out
+
+def peer_state(j,node_id):
+    path=f'/var/lib/truyn-d1000/node-{host*N+j}-state.json'
+    result={'present':False,'validNow':False,'expiresInMs':None}
+    try:
+        value=json.load(open(path))
+        record=next((item for item in (value.get('peerRecords') or []) if item.get('nodeId')==node_id),None)
+        if record is None:return result
+        expires_at=record.get('expiresAt')
+        expires_ms=None
+        if isinstance(expires_at,str) and expires_at:
+            expires_ms=int(datetime.fromisoformat(expires_at.replace('Z','+00:00')).timestamp()*1000)
+        now_ms=int(time.time()*1000)
+        result.update({'present':True,'validNow':bool(expires_ms is not None and expires_ms>now_ms),'expiresInMs':None if expires_ms is None else expires_ms-now_ms,'sequence':record.get('sequence')})
+        return result
+    except Exception as error:
+        result['error']=type(error).__name__
+        return result
+
+def refresh(j,targets,attempt):
+    payload=json.dumps({'targets':targets,'targetCount':len(targets),'maxRounds':4,'targetConcurrency':2,'timeoutMs':120000,'seed':f'd500-pre-baseline-freshness-{host}-{j}-{attempt}'},separators=(',',':'))
+    return subprocess.run(['curl','-sS','--max-time','125','-o',f'/tmp/d500-fresh-{j}-{attempt}','-w','%{http_code}','-H','content-type: application/json','--data-binary',payload,f'http://127.0.0.1:{base+j}/dht/refresh'],text=True,capture_output=True)
+
+def ensure(j):
+    targets=target_ids(j)
+    deadline=time.monotonic()+150
+    attempt=0
+    last=[]
+    while time.monotonic()<deadline:
+        last=[peer_state(j,node_id) for node_id in targets]
+        if all(row.get('present') and row.get('validNow') and (row.get('expiresInMs') or 0)>=margin for row in last):
+            return {'node':j,'targets':len(targets),'minRemaining':min(row['expiresInMs'] for row in last)}
+        attempt+=1
+        p=refresh(j,targets,attempt)
+        time.sleep(.5 if p.returncode==0 and p.stdout.strip() in ('200','409') else 1)
+    raise RuntimeError(f'freshness barrier failed host={host} node={j} targets={targets} state={last}')
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=min(16,N)) as ex:
+    rows=list(ex.map(ensure,range(N)))
+print('FRESH_READY_NODES='+str(len(rows)))
+print('FRESH_TARGET_REFERENCES='+str(sum(row['targets'] for row in rows)))
+print('FRESH_MIN_REMAINING_MS='+str(min(row['minRemaining'] for row in rows)))
+PY
+EOS
+)
+    (remote "${VMS[$i]}" "$script" >"$d500_freshness_dir/$i") &
+    d500_freshness_pids+=("$!")
+  done
+  d500_freshness_failed=0
+  for pid in "${d500_freshness_pids[@]}"; do
+    if ! wait "$pid"; then d500_freshness_failed=1; fi
+  done
+  if [[ "$d500_freshness_failed" != 0 ]]; then
+    for i in $(seq 0 $((HOST_COUNT-1))); do cat "$d500_freshness_dir/$i" >&2 || true; done
+    rm -rf "$d500_freshness_dir"
+    false
+  fi
+  d500_fresh_nodes=0
+  d500_fresh_refs=0
+  d500_fresh_min=999999999
+  for i in $(seq 0 $((HOST_COUNT-1))); do
+    out="$(cat "$d500_freshness_dir/$i")"
+    ready=$(marker "$out" FRESH_READY_NODES)
+    refs=$(marker "$out" FRESH_TARGET_REFERENCES)
+    remaining=$(marker "$out" FRESH_MIN_REMAINING_MS)
+    [[ "$ready" == "$NODES_PER_HOST" ]]
+    [[ "$remaining" =~ ^[0-9]+$ && "$remaining" -ge "$BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS" ]]
+    d500_fresh_nodes=$((d500_fresh_nodes+ready))
+    d500_fresh_refs=$((d500_fresh_refs+refs))
+    if [[ "$remaining" -lt "$d500_fresh_min" ]]; then d500_fresh_min="$remaining"; fi
+    echo "TRUYN_CLASS_D_1000 stage=pre-baseline-peer-freshness host=$i ready=${ready}/${NODES_PER_HOST} targetReferences=${refs} minLeaseRemainingMs=${remaining} status=PASS"
+  done
+  rm -rf "$d500_freshness_dir"
+  [[ "$d500_fresh_nodes" == "$NODE_COUNT" ]]
+  d500_freshness_ms=$(( $(date +%s%3N) - d500_freshness_start_ms ))
+  echo "TRUYN_CLASS_D_1000 stage=pre-baseline-peer-freshness nodes=${d500_fresh_nodes}/${NODE_COUNT} targetReferences=${d500_fresh_refs} minLeaseRemainingMs=${d500_fresh_min} requiredMarginMs=${BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS} ms=${d500_freshness_ms} status=PASS"
+fi
+
 STAGE=baseline-routing
 D200_BASELINE_ORIGIN_DIAG=1
 D200_BASELINE_ROW_MAX_BYTES=1800
@@ -733,43 +837,79 @@ if [[ "$baseline_diag_failed" != 0 ]]; then
   false
 fi
 
-# Each failed row is fetched in its own bounded remote call. This avoids a
-# single oversized stdout/base64 payload while retaining every failure.
+# Failed baseline rows are collected in bounded gzip batches. Hosts run in
+# parallel; each Azure Run Command carries up to three rows so stdout remains
+# below the Run Command transport cap while avoiding one command per failure.
+baseline_collect_dir=$(mktemp -d)
+baseline_collect_pids=()
+baseline_diag_batch_size=3
 for i in $(seq 0 $((HOST_COUNT-1))); do
   failure_count="${baseline_failure_counts[$i]}"
-  if [[ "$failure_count" == 0 ]]; then continue; fi
-  diag_out="$(cat "$baseline_diag_phase_dir/$i")"
-  [[ "$(marker "$diag_out" BASE_DIAG_READY)" == 1 ]]
-  [[ "$(marker "$diag_out" BASE_DIAG_FAILURE_COUNT)" == "$failure_count" ]]
-  for n in $(seq 0 $((failure_count-1))); do
-    row_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
-import base64,hashlib,json
+  if [[ "$failure_count" == 0 ]]; then
+    : >"$baseline_collect_dir/$i.jsonl"
+    continue
+  fi
+  (
+    set -Eeuo pipefail
+    diag_out="$(cat "$baseline_diag_phase_dir/$i")"
+    [[ "$(marker "$diag_out" BASE_DIAG_READY)" == 1 ]]
+    [[ "$(marker "$diag_out" BASE_DIAG_FAILURE_COUNT)" == "$failure_count" ]]
+    : >"$baseline_collect_dir/$i.jsonl"
+    for start in $(seq 0 "$baseline_diag_batch_size" $((failure_count-1))); do
+      end=$((start+baseline_diag_batch_size))
+      if [[ "$end" -gt "$failure_count" ]]; then end="$failure_count"; fi
+      batch_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
+import base64,gzip,hashlib,json
 path='/var/lib/truyn-d1000/baseline-origin-host-${i}.json'
-n=${n}
+start=${start}; end=${end}; row_max=${D200_BASELINE_ROW_MAX_BYTES}
 value=json.load(open(path))
-row=value['failures'][n]
-raw=json.dumps(row,separators=(',',':')).encode()
-if len(raw)>${D200_BASELINE_ROW_MAX_BYTES}:
-    raise SystemExit('TRUYN_D200_BASELINE_ROW_TOO_LARGE bytes='+str(len(raw)))
-print('BASE_DIAG_BYTES='+str(len(raw)))
-print('BASE_DIAG_SHA256='+hashlib.sha256(raw).hexdigest())
-print('BASE_DIAG_B64='+base64.b64encode(raw).decode())
+rows=value['failures'][start:end]
+for row in rows:
+    raw=json.dumps(row,separators=(',',':')).encode()
+    if len(raw)>row_max:
+        raise SystemExit('TRUYN_D200_BASELINE_ROW_TOO_LARGE bytes='+str(len(raw)))
+raw=json.dumps(rows,separators=(',',':')).encode()
+packed=gzip.compress(raw,compresslevel=9)
+print('BASE_DIAG_BATCH_COUNT='+str(len(rows)))
+print('BASE_DIAG_BATCH_RAW_BYTES='+str(len(raw)))
+print('BASE_DIAG_BATCH_SHA256='+hashlib.sha256(raw).hexdigest())
+print('BASE_DIAG_BATCH_B64='+base64.b64encode(packed).decode())
 PY")
-    row_bytes=$(marker "$row_out" BASE_DIAG_BYTES)
-    row_sha=$(marker "$row_out" BASE_DIAG_SHA256)
-    row_b64=$(marker "$row_out" BASE_DIAG_B64)
-    python3 - "$i" "$row_bytes" "$row_sha" "$row_b64" "$baseline_diag_jsonl" <<'PYD200BASE'
-import base64,hashlib,json,sys
-host=int(sys.argv[1]); expected_bytes=int(sys.argv[2]); expected_sha=sys.argv[3]; raw=base64.b64decode(sys.argv[4],validate=True)
-if len(raw)!=expected_bytes: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=byte_count')
-if hashlib.sha256(raw).hexdigest()!=expected_sha: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=sha256')
-value=json.loads(raw.decode('utf-8'))
-if value.get('sourceHost')!=host: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=host_mismatch')
-with open(sys.argv[5],'a',encoding='utf-8') as handle:
-    handle.write(json.dumps(value,separators=(',',':'))+'\n')
-PYD200BASE
-  done
+      batch_count=$(marker "$batch_out" BASE_DIAG_BATCH_COUNT)
+      batch_bytes=$(marker "$batch_out" BASE_DIAG_BATCH_RAW_BYTES)
+      batch_sha=$(marker "$batch_out" BASE_DIAG_BATCH_SHA256)
+      batch_b64=$(marker "$batch_out" BASE_DIAG_BATCH_B64)
+      python3 - "$i" "$batch_count" "$batch_bytes" "$batch_sha" "$batch_b64" "$baseline_collect_dir/$i.jsonl" <<'PYD500BATCH'
+import base64,gzip,hashlib,json,sys
+host=int(sys.argv[1]); expected_count=int(sys.argv[2]); expected_bytes=int(sys.argv[3]); expected_sha=sys.argv[4]
+raw=gzip.decompress(base64.b64decode(sys.argv[5],validate=True))
+if len(raw)!=expected_bytes: raise SystemExit('TRUYN_D500_BASELINE_BATCH_TRUNCATED reason=byte_count')
+if hashlib.sha256(raw).hexdigest()!=expected_sha: raise SystemExit('TRUYN_D500_BASELINE_BATCH_TRUNCATED reason=sha256')
+rows=json.loads(raw.decode('utf-8'))
+if len(rows)!=expected_count: raise SystemExit('TRUYN_D500_BASELINE_BATCH_TRUNCATED reason=count')
+for value in rows:
+    if value.get('sourceHost')!=host: raise SystemExit('TRUYN_D500_BASELINE_BATCH_TRUNCATED reason=host_mismatch')
+with open(sys.argv[6],'a',encoding='utf-8') as handle:
+    for value in rows: handle.write(json.dumps(value,separators=(',',':'))+'\n')
+PYD500BATCH
+      echo "TRUYN_D500_BASELINE_DIAG_BATCH host=$i start=$start end=$end count=$batch_count rawBytes=$batch_bytes"
+    done
+  ) >"$baseline_collect_dir/$i.log" 2>&1 &
+  baseline_collect_pids+=("$!")
 done
+baseline_collect_failed=0
+for pid in "${baseline_collect_pids[@]}"; do
+  if ! wait "$pid"; then baseline_collect_failed=1; fi
+done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  cat "$baseline_collect_dir/$i.log" 2>/dev/null || true
+  cat "$baseline_collect_dir/$i.jsonl" >>"$baseline_diag_jsonl"
+done
+if [[ "$baseline_collect_failed" != 0 ]]; then
+  rm -rf "$baseline_collect_dir" "$baseline_dir" "$baseline_diag_phase_dir"
+  false
+fi
+rm -rf "$baseline_collect_dir"
 rm -rf "$baseline_dir" "$baseline_diag_phase_dir"
 
 base_rate=$(python3 -c "print(round($base_success/$base_total,6))")
