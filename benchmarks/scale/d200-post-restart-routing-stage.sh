@@ -51,15 +51,20 @@ PY
 EOS
 )
   (
+    host_status_arm "$post_dir" "$i"
     trap - ERR
     set +e
     remote "${VMS[$i]}" "$script" >"$post_dir/$i.out" 2>"$post_dir/$i.err"
-    printf '%s\n' "$?" >"$post_dir/$i.rc"
+    remote_rc=$?
+    printf '%s\n' "$remote_rc" >"$post_dir/$i.rc"
+    exit "$remote_rc"
   ) &
   post_pids+=("$!")
 done
 
-for pid in "${post_pids[@]}"; do wait "$pid" || true; done
+post_transport_failed=0
+if ! wait_host_stage post-restart-routing "$post_dir" "${post_pids[@]}"; then post_transport_failed=1; fi
+[[ "$post_transport_failed" == 0 ]] || post_stage_failed=1
 
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$post_dir/$i.out" 2>/dev/null || true)"
