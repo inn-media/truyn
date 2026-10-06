@@ -15,9 +15,9 @@ on:
       scale:
         description: D-Series scale qualified by the evidence
         required: true
-        default: all
+        default: d200
         type: choice
-        options: [all, d200, d500, d1000]
+        options: [d200]
       swarm_run_id:
         description: Successful candidate-bound Sanitation Swarm run
         required: true
@@ -85,7 +85,7 @@ jobs:
             candidate="$(jq -r '.head_sha // empty' <<<"$trigger")"
             [[ "$candidate" =~ ^[0-9a-f]{40}$ ]]
             jq -e --arg c "$candidate" '.head_sha==$c and ((.head_commit.id // .head_sha)==$c)' <<<"$trigger" >/dev/null
-            scale=all
+            scale=d200
 
             # Swarm and Blockwise are independent frozen-candidate qualification lanes and can finish
             # in either order. The first completion is a clean not-ready event. The second completion
@@ -111,7 +111,7 @@ jobs:
             [[ "$candidate" =~ ^[0-9a-f]{40}$ ]]
             [[ "$swarm" =~ ^[1-9][0-9]+$ ]]
             [[ "$blockwise" =~ ^[1-9][0-9]+$ ]]
-            case "$scale" in all|d200|d500|d1000) ;; *) exit 2 ;; esac
+            [[ "$scale" == d200 ]] || { echo 'D-500/D-1000 acceptance superseded; only d200 is supported' >&2; exit 2; }
 
             swarm_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${swarm}")"
             blockwise_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${blockwise}")"
@@ -152,7 +152,7 @@ jobs:
           [[ "$QUALIFICATION_CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$QUALIFICATION_SWARM_RUN_ID" =~ ^[1-9][0-9]+$ ]]
           [[ "$QUALIFICATION_BLOCKWISE_RUN_ID" =~ ^[1-9][0-9]+$ ]]
-          case "$QUALIFICATION_SCALE" in all|d200|d500|d1000) ;; *) exit 2 ;; esac
+          [[ "$QUALIFICATION_SCALE" == d200 ]] || { echo 'only d200 qualification remains active' >&2; exit 2; }
           node scripts/d-series-qualification-manifest.mjs qualification \
             --base-sha "$QUALIFICATION_BASE_SHA" \
             --candidate-sha "$QUALIFICATION_CANDIDATE_SHA" \
