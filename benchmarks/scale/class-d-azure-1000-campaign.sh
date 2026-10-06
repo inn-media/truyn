@@ -1151,6 +1151,8 @@ post_diag_json="${GITHUB_WORKSPACE:-$PWD}/class-d-200-post-restart-origin.json"
 post_diag_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-post-restart-origin.jsonl"
 post_diag_digest="${GITHUB_WORKSPACE:-$PWD}/class-d-200-post-restart-origin-digest.txt"
 : >"$post_diag_jsonl"
+post_host_dir=$(mktemp -d)
+post_host_pids=()
 
 for i in $(seq 0 $((HOST_COUNT-1))); do
   target_host=$(((i+1)%HOST_COUNT))
@@ -1286,19 +1288,19 @@ print('POST_FAILURE_COUNT='+str(len(failures)))
 PY
 EOS
 )
-  out=$(remote "${VMS[$i]}" "$script")
-  ok=$(marker "$out" POST_OK); total=$(marker "$out" POST_TOTAL); failure_count=$(marker "$out" POST_FAILURE_COUNT)
-  [[ "$total" == 5 ]]
-  post_success=$((post_success+ok)); post_total=$((post_total+total))
+  (
+    out=$(remote "${VMS[$i]}" "$script")
+    ok=$(marker "$out" POST_OK); total=$(marker "$out" POST_TOTAL); failure_count=$(marker "$out" POST_FAILURE_COUNT)
+    [[ "$total" == 5 ]]
 
-  source_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; printf 'POST_SOURCE_DIAG_JSON='; cat /var/lib/truyn-d1000/post-restart-origin-host-${i}.json")
-  source_json=$(marker "$source_out" POST_SOURCE_DIAG_JSON)
-  [[ -n "$source_json" ]]
-  printf '%s\n' "$source_json" >"$post_diag_dir/$i.json"
-  target_locals=$(printf '%s' "$source_json" | jq -c '[.failures[]?.targetLocalNode]')
-  [[ -n "$target_locals" ]]
+    source_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; printf 'POST_SOURCE_DIAG_JSON='; cat /var/lib/truyn-d1000/post-restart-origin-host-${i}.json")
+    source_json=$(marker "$source_out" POST_SOURCE_DIAG_JSON)
+    [[ -n "$source_json" ]]
+    printf '%s\n' "$source_json" >"$post_diag_dir/$i.json"
+    target_locals=$(printf '%s' "$source_json" | jq -c '[.failures[]?.targetLocalNode]')
+    [[ -n "$target_locals" ]]
 
-  target_script=$(cat <<EOS
+    target_script=$(cat <<EOS
 set -Eeuo pipefail
 python3 - <<'PY'
 import json,subprocess
@@ -1331,12 +1333,28 @@ print('POST_TARGET_READINESS_JSON='+json.dumps(result,separators=(',',':')))
 PY
 EOS
 )
-  target_out=$(remote "${VMS[$target_host]}" "$target_script")
-  target_json=$(marker "$target_out" POST_TARGET_READINESS_JSON)
-  [[ -n "$target_json" ]]
-  printf '%s\n' "$target_json" >"$post_target_dir/$i.json"
-  echo "TRUYN_CLASS_D_1000 stage=post-restart-routing host=$i targetHost=$target_host firstAttempt=${ok}/${total} failures=${failure_count} applicationRetries=0"
+    target_out=$(remote "${VMS[$target_host]}" "$target_script")
+    target_json=$(marker "$target_out" POST_TARGET_READINESS_JSON)
+    [[ -n "$target_json" ]]
+    printf '%s\n' "$target_json" >"$post_target_dir/$i.json"
+    echo "POST_HOST_OK=$ok"
+    echo "POST_HOST_TOTAL=$total"
+    echo "TRUYN_CLASS_D_1000 stage=post-restart-routing host=$i targetHost=$target_host firstAttempt=${ok}/${total} failures=${failure_count} applicationRetries=0"
+  ) >"$post_host_dir/$i" 2>&1 &
+  post_host_pids+=("$!")
 done
+post_host_failed=0
+for pid in "${post_host_pids[@]}"; do
+  if ! wait "$pid"; then post_host_failed=1; fi
+done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$post_host_dir/$i")"
+  cat "$post_host_dir/$i"
+  ok=$(marker "$out" POST_HOST_OK); total=$(marker "$out" POST_HOST_TOTAL)
+  post_success=$((post_success+ok)); post_total=$((post_total+total))
+done
+rm -rf "$post_host_dir"
+[[ "$post_host_failed" == 0 ]]
 
 python3 - "$post_diag_dir" "$post_target_dir" "$post_diag_json" "$post_diag_jsonl" <<'PY'
 import collections,json,pathlib,sys
