@@ -517,6 +517,7 @@ export async function runTestnetNodeFromEnv(env = process.env) {
     discoveryRefreshIntervalMs: env.TRUYN_DISCOVERY_REFRESH_INTERVAL_MS == null ? null : int(env.TRUYN_DISCOVERY_REFRESH_INTERVAL_MS, 30_000, { min: 1 }),
     discoveryRefreshTargetCount: env.TRUYN_DISCOVERY_REFRESH_TARGET_COUNT == null ? null : int(env.TRUYN_DISCOVERY_REFRESH_TARGET_COUNT, 20, { min: 0, max: 256 }),
     discoveryRefreshMaxRounds: int(env.TRUYN_DISCOVERY_REFRESH_MAX_ROUNDS, 4, { min: 0, max: 64 }),
+    discoveryRefreshTargetConcurrency: int(env.TRUYN_DISCOVERY_REFRESH_TARGET_CONCURRENCY, 1, { min: 1, max: 16 }),
     leaseKeeperMaxPeers: int(env.TRUYN_LEASE_KEEPER_MAX_PEERS, 64, { min: 1, max: 4096 }),
     leaseKeeperConcurrency: int(env.TRUYN_LEASE_KEEPER_CONCURRENCY, 4, { min: 1, max: 64 }),
     maxInFlight: int(env.TRUYN_MAX_IN_FLIGHT, 64),
