@@ -2,16 +2,16 @@ name: D-500 Scale Run
 on:
   push:
     branches: [main]
-    paths: ['.github/d500/launch-17.txt']
+    paths: ['.github/d500/launch-18.txt']
 permissions: { contents: read, actions: read, id-token: write }
-concurrency: { group: truyn-d500-attempt17-single-shot, cancel-in-progress: false }
+concurrency: { group: truyn-d500-attempt18-single-shot, cancel-in-progress: false }
 env:
-  TESTED_COMMIT: ac0208a29da415baa75b3b9226a4d699a8cc2161
-  TESTED_TREE_SHA: 17be2b96ecdc09124311fead32e83f27efc5924d
-  EXACT_MAIN_CI_RUN: '35500410155'
-  EXACT_MAIN_FIVE_PATCH_RUN: '35500410293'
-  QUALIFIED_TREE_CODEQL_CHECK: '106050818849'
-  QUALIFIED_TREE_CODEQL_SHA: 293e3cf5da54e58e37a8d3bb3c138b05bf03e36b
+  TESTED_COMMIT: 009f9165d0f9f640c1d92c689d812022cf162e4e
+  TESTED_TREE_SHA: 43d0ad0f104dafdc0be493a53deda5d8d114d17d
+  EXACT_MAIN_CI_RUN: '37531834835'
+  EXACT_MAIN_FIVE_PATCH_RUN: '37531835031'
+  QUALIFIED_TREE_CODEQL_CHECK: '112502865286'
+  QUALIFIED_TREE_CODEQL_SHA: 009f9165d0f9f640c1d92c689d812022cf162e4e
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '25'
 jobs:
@@ -88,7 +88,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d500-attempt17-${{ github.run_id }}'
+          name: 'truyn-class-d500-attempt18-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
