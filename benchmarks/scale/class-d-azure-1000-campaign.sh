@@ -5,6 +5,9 @@ set -Eeuo pipefail
 : "${NODES_PER_HOST:?source class-d-azure-1000-provision.sh first}"
 : "${NODE_COUNT:?source class-d-azure-1000-provision.sh first}"
 
+D500_NODE_WORKERS="${D500_NODE_WORKERS:-5}"
+[[ "$D500_NODE_WORKERS" =~ ^[1-9][0-9]*$ && "$D500_NODE_WORKERS" -le 8 ]]
+
 # The canonical path inherits this from the provisioner. Keep campaign sourceable
 # in isolation for contract/regression tests without changing the real default.
 D500_NODE_WORKERS="${D500_NODE_WORKERS:-${TRUYN_D500_NODE_WORKERS:-5}}"
