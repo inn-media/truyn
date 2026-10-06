@@ -13,6 +13,8 @@ test('D-500 host fanout is fail-collect with live heartbeat', () => {
   assert.match(provision, /wait_host_stage\(\)/);
   assert.match(provision, /TRUYN_D500_HEARTBEAT stage=/);
   assert.match(provision, /TRUYN_D500_HOST_SUMMARY stage=/);
+  assert.match(provision, /host_status_arm\(\)[\s\S]*trap - ERR/);
+  assert.match(provision, /TRUYN_D500_HEARTBEAT stage=%s host=%s state=%s elapsedSec=%s/);
   assert.match(provision, /wait_host_stage bootstrap /);
   assert.match(campaign, /wait_host_stage readiness /);
   assert.match(campaign, /wait_host_stage convergence /);
