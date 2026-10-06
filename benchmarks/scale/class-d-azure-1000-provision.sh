@@ -351,6 +351,7 @@ provision_dir=$(mktemp -d)
 provision_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   (
+    host_status_arm "$provision_dir" "$i"
     az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
     created=0
     for size in "$VM_SIZE" Standard_D4s_v5; do
@@ -368,9 +369,7 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   provision_pids+=("$!")
 done
 provision_failed=0
-for pid in "${provision_pids[@]}"; do
-  if ! wait "$pid"; then provision_failed=1; fi
-done
+if ! wait_host_stage provision "$provision_dir" "${provision_pids[@]}"; then provision_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do
   cat "$provision_dir/$i.log"
   PRIV+=("$(cat "$provision_dir/$i.ip")")
@@ -530,6 +529,7 @@ EOS
 )
   script="${script//truyn/truyn}"
   (
+    host_status_arm "$install_dir" "$i"
     out=$(remote "${VMS[$i]}" "$script")
     [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
     echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
@@ -537,9 +537,7 @@ EOS
   install_pids+=("$!")
 done
 install_failed=0
-for pid in "${install_pids[@]}"; do
-  if ! wait "$pid"; then install_failed=1; fi
-done
+if ! wait_host_stage install "$install_dir" "${install_pids[@]}"; then install_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do cat "$install_dir/$i"; done
 rm -rf "$install_dir"
 [[ "$install_failed" == 0 ]]
@@ -604,13 +602,14 @@ print(f'BOOTSTRAP_RECORD_REFRESH_OLDEST_ISSUED_AT={oldest_issued.isoformat()}')
 PY
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$bootstrap_record_refresh_dir/$i") &
+  (
+    host_status_arm "$bootstrap_record_refresh_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$bootstrap_record_refresh_dir/$i"
+  ) &
   bootstrap_record_refresh_pids+=("$!")
 done
 bootstrap_record_refresh_failed=0
-for pid in "${bootstrap_record_refresh_pids[@]}"; do
-  if ! wait "$pid"; then bootstrap_record_refresh_failed=1; fi
-done
+if ! wait_host_stage bootstrap-record-refresh "$bootstrap_record_refresh_dir" "${bootstrap_record_refresh_pids[@]}"; then bootstrap_record_refresh_failed=1; fi
 bootstrap_record_refresh_hosts=0
 bootstrap_record_refresh_min_remaining=999999999
 for i in $(seq 0 $((HOST_COUNT-1))); do
@@ -805,13 +804,14 @@ STAGE=bandwidth-meter
 meter_dir=$(mktemp -d)
 meter_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  (remote "${VMS[$i]}" "iptables -I OUTPUT 1 -p udp --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-out -j ACCEPT; iptables -I INPUT 1 -p udp --sport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-in -j ACCEPT; echo METER=1" >"$meter_dir/$i") &
+  (
+    host_status_arm "$meter_dir" "$i"
+    remote "${VMS[$i]}" "iptables -I OUTPUT 1 -p udp --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-out -j ACCEPT; iptables -I INPUT 1 -p udp --sport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-in -j ACCEPT; echo METER=1" >"$meter_dir/$i"
+  ) &
   meter_pids+=("$!")
 done
 meter_failed=0
-for pid in "${meter_pids[@]}"; do
-  if ! wait "$pid"; then meter_failed=1; fi
-done
+if ! wait_host_stage bandwidth-meter "$meter_dir" "${meter_pids[@]}"; then meter_failed=1; fi
 if [[ "$meter_failed" != 0 ]]; then
   rm -rf "$meter_dir"
   false
