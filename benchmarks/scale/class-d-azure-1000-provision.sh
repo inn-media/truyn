@@ -608,35 +608,37 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
 python3 - <<'PY'
-import json, os, urllib.request
+import concurrent.futures, json, os, urllib.request
 from datetime import datetime, timezone
 
 base=${CONTROL_BASE}
 count=${NODES_PER_HOST}
 minimum_remaining_ms=${BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS}
-records=[]
+workers=${D500_NODE_WORKERS}
 now=datetime.now(timezone.utc)
-oldest_issued=None
-minimum_remaining=None
 
-for j in range(count):
+def fetch_record(j):
     with urllib.request.urlopen(f'http://127.0.0.1:{base+j}/record', timeout=10) as response:
         value=json.load(response)
     record=value.get('record')
     if not isinstance(record, dict) or not record.get('nodeId') or not record.get('endpoints'):
-        raise SystemExit(f'live peer record missing required fields for node {j}')
+        raise RuntimeError(f'live peer record missing required fields for node {j}')
     issued_raw=record.get('issuedAt')
     expires_raw=record.get('expiresAt')
     if not issued_raw or not expires_raw:
-        raise SystemExit(f'live peer record missing lease timestamps for node {j}')
+        raise RuntimeError(f'live peer record missing lease timestamps for node {j}')
     issued=datetime.fromisoformat(issued_raw.replace('Z','+00:00'))
     expires=datetime.fromisoformat(expires_raw.replace('Z','+00:00'))
     if issued.tzinfo is None or expires.tzinfo is None or expires <= issued:
-        raise SystemExit(f'invalid live peer lease timestamps for node {j}')
-    remaining=int((expires-now).total_seconds()*1000)
-    minimum_remaining=remaining if minimum_remaining is None else min(minimum_remaining, remaining)
-    oldest_issued=issued if oldest_issued is None or issued < oldest_issued else oldest_issued
-    records.append(record)
+        raise RuntimeError(f'invalid live peer lease timestamps for node {j}')
+    return record, issued, int((expires-now).total_seconds()*1000)
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=min(workers,count)) as executor:
+    rows=list(executor.map(fetch_record, range(count)))
+
+records=[row[0] for row in rows]
+oldest_issued=min(row[1] for row in rows)
+minimum_remaining=min(row[2] for row in rows)
 
 if len(records) != count:
     raise SystemExit(f'live peer record count mismatch: {len(records)} != {count}')
