@@ -6,8 +6,8 @@ on:
 permissions: { contents: read, actions: read, id-token: write }
 concurrency: { group: truyn-d500-attempt17-single-shot, cancel-in-progress: false }
 env:
-  TESTED_COMMIT: ac0208a29da415baa75b3b9226a4d699a8cc2161
-  TESTED_TREE_SHA: 17be2b96ecdc09124311fead32e83f27efc5924d
+  TESTED_COMMIT: fadc702b782fc36a4a1420d006e2ea0b11341a96
+  TESTED_TREE_SHA: 239009a6762b6353bfff2790cb4d5ef095a6fa74
   EXACT_MAIN_CI_RUN: '35500410155'
   EXACT_MAIN_FIVE_PATCH_RUN: '35500410293'
   QUALIFIED_TREE_CODEQL_CHECK: '106050818849'
@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          TRUYN_AZURE_RESOURCE_GROUP="$AZURE_RESOURCE_GROUP" TRUYN_CLASS_D1000_LOCATION="$TRUYN_D200_LOCATION" TRUYN_CLASS_D1000_VM_SIZE="$TRUYN_D200_VM_SIZE" TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" bash -c 'set -Eeuo pipefail; source benchmarks/scale/class-d-azure-1000-provision.sh; source scripts/d200-stage-isolated-campaign.sh' 2>&1|tee class-d-200-diagnostic.log
+          TRUYN_AZURE_RESOURCE_GROUP="$AZURE_RESOURCE_GROUP" TRUYN_CLASS_D1000_LOCATION="$TRUYN_D200_LOCATION" TRUYN_CLASS_D1000_VM_SIZE="$TRUYN_D200_VM_SIZE" TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" D200_CAMPAIGN_SOURCE=benchmarks/scale/d500-azure-500-campaign.sh D200_RESTART_STAGE_SOURCE=__d500_no_override__ D200_POST_RESTART_STAGE_SOURCE=__d500_no_override__ D200_RETENTION_STAGE_SOURCE=__d500_no_override__ D200_RESOURCES_STAGE_SOURCE=__d500_no_override__ bash -c 'set -Eeuo pipefail; source benchmarks/scale/d500-azure-500-provision.sh; source scripts/d200-stage-isolated-campaign.sh' 2>&1|tee class-d-200-diagnostic.log
           rc=${PIPESTATUS[0]}; set -e; echo "campaign_rc=$rc" >>"$GITHUB_OUTPUT"; exit "$rc"
       - name: Evaluate strict D-500 evidence
         id: evaluate
