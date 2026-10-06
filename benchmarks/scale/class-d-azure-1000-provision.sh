@@ -83,6 +83,48 @@ marker() {
   printf '%s\n' "$text" | sed -n "s/.*${key}=//p" | tail -1 | tr -d '\r'
 }
 
+D500_HEARTBEAT_SECONDS="${TRUYN_D500_HEARTBEAT_SECONDS:-25}"
+D500_NODE_WORKERS="${TRUYN_D500_NODE_WORKERS:-5}"
+[[ "$D500_HEARTBEAT_SECONDS" =~ ^[1-9][0-9]*$ ]]
+[[ "$D500_NODE_WORKERS" =~ ^[1-9][0-9]*$ && "$D500_NODE_WORKERS" -le 8 ]]
+
+host_status_arm() {
+  local status_dir="$1" host_index="$2"
+  trap "rc=\$?; printf '%s\\n' \"\$rc\" >'${status_dir}/.host-${host_index}.rc'; trap - EXIT; exit \"\$rc\"" EXIT
+}
+
+wait_host_stage() {
+  local stage="$1" status_dir="$2"
+  shift 2
+  local -a pids=("$@")
+  local total="${#pids[@]}" start now completed failed running i rc states active
+  start=$(date +%s)
+  while true; do
+    completed=0; failed=0; running=0; states=()
+    active=" $(jobs -pr | tr '\n' ' ') "
+    for i in "${!pids[@]}"; do
+      if [[ ! -s "$status_dir/.host-$i.rc" && "$active" != *" ${pids[$i]} "* ]]; then
+        printf '255\n' >"$status_dir/.host-$i.rc"
+      fi
+      if [[ -s "$status_dir/.host-$i.rc" ]]; then
+        rc=$(cat "$status_dir/.host-$i.rc")
+        completed=$((completed+1))
+        if [[ "$rc" == 0 ]]; then states+=("h${i}:completed"); else failed=$((failed+1)); states+=("h${i}:failed(rc=${rc})"); fi
+      else
+        running=$((running+1)); states+=("h${i}:running")
+      fi
+    done
+    now=$(date +%s)
+    printf 'TRUYN_D500_HEARTBEAT stage=%s elapsedSec=%s running=%s completed=%s failed=%s hosts=%s\n' "$stage" "$((now-start))" "$running" "$completed" "$failed" "$(IFS=,; echo "${states[*]}")"
+    [[ "$completed" -eq "$total" ]] && break
+    sleep "$D500_HEARTBEAT_SECONDS"
+  done
+  local wait_failed=0
+  for i in "${!pids[@]}"; do if ! wait "${pids[$i]}"; then wait_failed=1; fi; done
+  printf 'TRUYN_D500_HOST_SUMMARY stage=%s total=%s completed=%s failed=%s elapsedSec=%s\n' "$stage" "$total" "$completed" "$failed" "$(( $(date +%s) - start ))"
+  [[ "$failed" -eq 0 && "$wait_failed" -eq 0 ]]
+}
+
 d200_failure_evidence_checkpoint() {
   local prior_rc="${1:-1}" failed_stage="${2:-unknown}" failed_line="${3:-0}" tmp
   trap - ERR
