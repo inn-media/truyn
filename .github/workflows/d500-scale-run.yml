@@ -2,9 +2,9 @@ name: D-500 Scale Run
 on:
   push:
     branches: [main]
-    paths: ['.github/d500/launch-15.txt']
+    paths: ['.github/d500/launch-16.txt']
 permissions: { contents: read, actions: read, id-token: write }
-concurrency: { group: truyn-d500-attempt15-single-shot, cancel-in-progress: false }
+concurrency: { group: truyn-d500-attempt16-single-shot, cancel-in-progress: false }
 env:
   TESTED_COMMIT: e91c165c67c655deb80df4511ca346acb9f1f45b
   TESTED_TREE_SHA: 3a402ba72502de12ed2277db3c9f472872f44b46
@@ -49,6 +49,11 @@ jobs:
             u="$(az vm list-usage -l "$l" -o json --only-show-errors)"||continue; rc="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].currentValue//-1'<<<"$u")"; rl="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].limit//-1'<<<"$u")"
             for z in Standard_D4as_v5 Standard_D4s_v5 Standard_E2as_v7; do q="$(az vm list-skus -l "$l" --size "$z" --all -o json --only-show-errors)"||continue; [[ "$(jq length<<<"$q")" -ge 1 ]]||continue; v="$(jq -r '[.[].capabilities[]?|select(.name=="vCPUs")|.value][0]//empty'<<<"$q")"; f="$(jq -r '.[0].family//empty'<<<"$q")"; [[ -n "$v" && -n "$f" ]]||continue; fc="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].currentValue//-1'<<<"$u")"; fl="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].limit//-1'<<<"$u")"; blocks="$(jq '[.[].restrictions[]?|select(.type=="Location" and .reasonCode=="NotAvailableForSubscription")]|length'<<<"$q")"; need=$((v*20)); echo "TRUYN_D200_CAPACITY_PROBE location=$l size=$z required=$need regionalRemaining=$((rl-rc)) familyRemaining=$((fl-fc)) blocks=$blocks"; if [[ "$blocks" == 0 && "$rc" -ge 0 && "$fc" -ge 0 && $((rl-rc)) -ge "$need" && $((fl-fc)) -ge "$need" ]]; then echo "TRUYN_D200_LOCATION=$l" >>"$GITHUB_ENV"; echo "TRUYN_D200_VM_SIZE=$z" >>"$GITHUB_ENV"; ok=true; break 2; fi; done
           done; [[ "$ok" == true ]]
+      - uses: azure/login@v2
+        with:
+          client-id: '${{ secrets[format(''AZURE_{0}_ID'',''CLIENT'')] }}'
+          tenant-id: '${{ secrets[format(''AZURE_{0}_ID'',''TENANT'')] }}'
+          subscription-id: '${{ secrets[format(''AZURE_{0}_ID'',''SUBSCRIPTION'')] }}'
       - name: Stage immutable runtime bundle with OIDC data-plane auth
         env: { RUNTIME_BUNDLE: '${{ steps.runtime.outputs.path }}', RUNTIME_SHA: '${{ steps.runtime.outputs.sha }}' }
         shell: bash
@@ -83,7 +88,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d500-attempt15-${{ github.run_id }}'
+          name: 'truyn-class-d500-attempt16-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
