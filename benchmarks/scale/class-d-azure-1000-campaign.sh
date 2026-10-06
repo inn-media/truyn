@@ -1174,6 +1174,8 @@ post_diag_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-post-restart-origin.jsonl
 post_diag_digest="${GITHUB_WORKSPACE:-$PWD}/class-d-200-post-restart-origin-digest.txt"
 : >"$post_diag_jsonl"
 
+post_host_dir=$(mktemp -d)
+post_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   target_host=$(((i+1)%HOST_COUNT))
   script=$(cat <<EOS
@@ -1308,10 +1310,10 @@ print('POST_FAILURE_COUNT='+str(len(failures)))
 PY
 EOS
 )
+  (
   out=$(remote "${VMS[$i]}" "$script")
   ok=$(marker "$out" POST_OK); total=$(marker "$out" POST_TOTAL); failure_count=$(marker "$out" POST_FAILURE_COUNT)
   [[ "$total" == 5 ]]
-  post_success=$((post_success+ok)); post_total=$((post_total+total))
 
   source_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; printf 'POST_SOURCE_DIAG_JSON='; cat /var/lib/truyn-d1000/post-restart-origin-host-${i}.json")
   source_json=$(marker "$source_out" POST_SOURCE_DIAG_JSON)
@@ -1357,8 +1359,30 @@ EOS
   target_json=$(marker "$target_out" POST_TARGET_READINESS_JSON)
   [[ -n "$target_json" ]]
   printf '%s\n' "$target_json" >"$post_target_dir/$i.json"
+  echo "POST_AGG_OK=$ok"
+  echo "POST_AGG_TOTAL=$total"
+  echo "POST_AGG_FAILURE_COUNT=$failure_count"
   echo "TRUYN_CLASS_D_1000 stage=post-restart-routing host=$i targetHost=$target_host firstAttempt=${ok}/${total} failures=${failure_count} applicationRetries=0"
+  ) >"$post_host_dir/$i" 2>&1 &
+  post_pids+=("$!")
 done
+post_failed=0
+for pid in "${post_pids[@]}"; do if ! wait "$pid"; then post_failed=1; fi; done
+if [[ "$post_failed" != 0 ]]; then
+  for i in $(seq 0 $((HOST_COUNT-1))); do cat "$post_host_dir/$i" >&2 || true; done
+  rm -rf "$post_host_dir"
+  false
+fi
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$post_host_dir/$i")"
+  printf '%s\n' "$out"
+  ok=$(marker "$out" POST_AGG_OK)
+  total=$(marker "$out" POST_AGG_TOTAL)
+  [[ "$total" == 5 ]]
+  post_success=$((post_success+ok))
+  post_total=$((post_total+total))
+done
+rm -rf "$post_host_dir"
 
 python3 - "$post_diag_dir" "$post_target_dir" "$post_diag_json" "$post_diag_jsonl" <<'PY'
 import collections,json,pathlib,sys
