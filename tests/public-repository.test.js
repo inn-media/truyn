@@ -27,6 +27,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/d200-bug-hunt.yml',
   '.github/workflows/d200-live-preflight.yml',
   '.github/workflows/d500-acceptance.yml',
+  '.github/workflows/d500-scale-run.yml',
   '.github/workflows/n-series-admission-gate.yml',
   '.github/workflows/n-series-frozen-candidate-qualification.yml',
   '.github/workflows/n-series-public-swarm.yml',
