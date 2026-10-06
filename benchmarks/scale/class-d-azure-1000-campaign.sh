@@ -1478,6 +1478,8 @@ healed_success=0; healed_total=0; healed_p50=0; healed_p90=0; healed_p95=0; heal
 healed_diag_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-healed-reconvergence.jsonl"
 healed_diag_json="${GITHUB_WORKSPACE:-$PWD}/class-d-200-healed-reconvergence.json"
 : >"$healed_diag_jsonl"
+healed_host_dir=$(mktemp -d)
+healed_host_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -1783,7 +1785,8 @@ else:
 PY
 EOS
 )
-  out=$(remote "${VMS[$i]}" "$script")
+  (
+    out=$(remote "${VMS[$i]}" "$script")
   ok=$(marker "$out" HEALED_OK); total=$(marker "$out" HEALED_TOTAL); p50=$(marker "$out" HEALED_P50); p90=$(marker "$out" HEALED_P90); p95=$(marker "$out" HEALED_P95); p99=$(marker "$out" HEALED_P99)
   diag_meta=$(marker "$out" HEALED_DIAG_META)
   if [[ -z "$diag_meta" ]]; then
@@ -1809,7 +1812,7 @@ EOS
     fi
     diag_b64+="$chunk_value"
   done
-  python3 - "$i" "$diag_b64" "$healed_diag_jsonl" "$diag_bytes" "$diag_sha" "$diag_chunks" <<'PYD200HOST'
+  python3 - "$i" "$diag_b64" "$healed_host_dir/$i.jsonl" "$diag_bytes" "$diag_sha" "$diag_chunks" <<'PYD200HOST'
 import base64,hashlib,json,sys
 host=int(sys.argv[1]); encoded=sys.argv[2]; path=sys.argv[3]; expected_bytes=int(sys.argv[4]); expected_sha=sys.argv[5]; chunks=int(sys.argv[6])
 def fail(reason):
@@ -1830,10 +1833,31 @@ value['evidenceTransport']={'schema':'truyn.d200.healed-evidence-transport.v1','
 with open(path,'a',encoding='utf-8') as handle:
     handle.write(json.dumps(value,separators=(',',':'))+'\n')
 PYD200HOST
+  echo "HEALED_HOST_OK=$ok"
+  echo "HEALED_HOST_TOTAL=$total"
+  echo "HEALED_HOST_P50=$p50"
+  echo "HEALED_HOST_P90=$p90"
+  echo "HEALED_HOST_P95=$p95"
+  echo "HEALED_HOST_P99=$p99"
+) >"$healed_host_dir/$i.out" 2>&1 &
+healed_host_pids+=("$!")
+done
+healed_host_failed=0
+for pid in "${healed_host_pids[@]}"; do
+  if ! wait "$pid"; then healed_host_failed=1; fi
+done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$healed_host_dir/$i.out")"
+  cat "$healed_host_dir/$i.out"
+  ok=$(marker "$out" HEALED_HOST_OK); total=$(marker "$out" HEALED_HOST_TOTAL)
+  p50=$(marker "$out" HEALED_HOST_P50); p90=$(marker "$out" HEALED_HOST_P90); p95=$(marker "$out" HEALED_HOST_P95); p99=$(marker "$out" HEALED_HOST_P99)
+  cat "$healed_host_dir/$i.jsonl" >>"$healed_diag_jsonl"
   healed_success=$((healed_success+ok)); healed_total=$((healed_total+total))
   healed_p50=$(python3 -c "print(max(float('$healed_p50'),float('$p50')))" ); healed_p90=$(python3 -c "print(max(float('$healed_p90'),float('$p90')))" )
   healed_p95=$(python3 -c "print(max(float('$healed_p95'),float('$p95')))" ); healed_p99=$(python3 -c "print(max(float('$healed_p99'),float('$p99')))" )
 done
+rm -rf "$healed_host_dir"
+[[ "$healed_host_failed" == 0 ]]
 healed_rate=$(python3 -c "print(round($healed_success/$healed_total,6))")
 python3 - "$healed_diag_jsonl" "$healed_diag_json" "$healed_success" "$healed_total" "$healed_rate" <<'PYD200SUMMARY'
 import json,sys
