@@ -1118,7 +1118,10 @@ post_diag_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-post-restart-origin.jsonl
 post_diag_digest="${GITHUB_WORKSPACE:-$PWD}/class-d-200-post-restart-origin-digest.txt"
 : >"$post_diag_jsonl"
 
+post_host_dir=$(mktemp -d)
+post_host_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
+  (
   target_host=$(((i+1)%HOST_COUNT))
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -1255,7 +1258,8 @@ EOS
   out=$(remote "${VMS[$i]}" "$script")
   ok=$(marker "$out" POST_OK); total=$(marker "$out" POST_TOTAL); failure_count=$(marker "$out" POST_FAILURE_COUNT)
   [[ "$total" == 5 ]]
-  post_success=$((post_success+ok)); post_total=$((post_total+total))
+  echo "POST_AGG_OK=$ok"
+  echo "POST_AGG_TOTAL=$total"
 
   source_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; printf 'POST_SOURCE_DIAG_JSON='; cat /var/lib/truyn-d1000/post-restart-origin-host-${i}.json")
   source_json=$(marker "$source_out" POST_SOURCE_DIAG_JSON)
@@ -1302,7 +1306,20 @@ EOS
   [[ -n "$target_json" ]]
   printf '%s\n' "$target_json" >"$post_target_dir/$i.json"
   echo "TRUYN_CLASS_D_1000 stage=post-restart-routing host=$i targetHost=$target_host firstAttempt=${ok}/${total} failures=${failure_count} applicationRetries=0"
+  ) >"$post_host_dir/$i.out" 2>"$post_host_dir/$i.err" &
+  post_host_pids+=("$!")
 done
+post_host_failed=0
+for pid in "${post_host_pids[@]}"; do if ! wait "$pid"; then post_host_failed=1; fi; done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  cat "$post_host_dir/$i.err" >&2
+  out="$(cat "$post_host_dir/$i.out")"
+  cat "$post_host_dir/$i.out"
+  post_success=$((post_success+$(marker "$out" POST_AGG_OK)))
+  post_total=$((post_total+$(marker "$out" POST_AGG_TOTAL)))
+done
+rm -rf "$post_host_dir"
+[[ "$post_host_failed" == 0 ]]
 
 python3 - "$post_diag_dir" "$post_target_dir" "$post_diag_json" "$post_diag_jsonl" <<'PY'
 import collections,json,pathlib,sys
