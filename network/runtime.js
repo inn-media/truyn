@@ -19,7 +19,7 @@ export class TruynNetworkNode {
     dhtRpcTimeoutMs = 5_000, faultController = null, workInboxPath = null, workInboxMaxCompleted = 10_000,
     peerRecordAutoRenew = true, peerRecordRenewBeforeMs = null, peerRecordPublishFanout = null,
     discoveryPeriodicRefresh = true, discoveryRefreshIntervalMs = null, discoveryRefreshTargetCount = null,
-    discoveryRefreshMaxRounds = 4, discoveryRefreshSeed = 'truyn-periodic-refresh',
+    discoveryRefreshMaxRounds = 4, discoveryRefreshTargetConcurrency = 1, discoveryRefreshSeed = 'truyn-periodic-refresh',
     leaseKeeperMaxPeers = 64, leaseKeeperConcurrency = 4
   } = {}) {
     if (!tls?.key || !tls?.cert) throw new Error('network runtime TLS key/certificate are required');
@@ -62,6 +62,7 @@ export class TruynNetworkNode {
     this.discoveryRefreshIntervalMs = periodicRefreshIntervalMs;
     this.discoveryRefreshTargetCount = periodicRefreshTargetCount;
     this.discoveryRefreshMaxRounds = discoveryRefreshMaxRounds;
+    this.discoveryRefreshTargetConcurrency = discoveryRefreshTargetConcurrency;
     this.discoveryRefreshSeed = typeof discoveryRefreshSeed === 'string' && discoveryRefreshSeed.trim()
       ? discoveryRefreshSeed.trim()
       : 'truyn-periodic-refresh';
@@ -645,6 +646,7 @@ export class TruynNetworkNode {
         intervalMs: this.discoveryRefreshIntervalMs,
         targetCount: this.discoveryRefreshTargetCount,
         maxRounds: this.discoveryRefreshMaxRounds,
+        targetConcurrency: this.discoveryRefreshTargetConcurrency,
         seed: this.discoveryRefreshSeed
       });
     }
