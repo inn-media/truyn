@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/d500/launch-13.txt'
+      - '.github/d500/launch-14.txt'
 
 permissions:
   contents: read
@@ -12,16 +12,16 @@ permissions:
   id-token: write
 
 concurrency:
-  group: truyn-d500-scale-attempt13-single-shot
+  group: truyn-d500-scale-attempt14-single-shot
   cancel-in-progress: false
 
 env:
-  TASK_ID: truyn-d500-scale-a13
+  TASK_ID: truyn-d500-scale-a14
   REFERENCE_D200_RUN: '35503894414'
   REFERENCE_D200_REPEATABILITY_RUN: '35517248924'
-  TESTED_COMMIT: a247d1a0eeb08483701db7af47a4049342d96be8
-  TESTED_TREE_SHA: d1ebbc571b4fda2af3655e6b97e21a12b0b28b12
-  D500_CONTRACT_SHA256: 469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e913fd8f85
+  TESTED_COMMIT: e91c165c67c655deb80df4511ca346acb9f1f45b
+  TESTED_TREE_SHA: 3a402ba72502de12ed2277db3c9f472872f44b46
+  D500_CONTRACT_SHA256: 469e7354eda2b42e90341c4665aa1dea623cbdaa5b63ab3a8a5889e914fd8f85
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '25'
   TRUYN_D500_BUDGET_S: '9000'
@@ -171,7 +171,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: truyn-d500-scale-attempt13
+          name: truyn-d500-scale-attempt14
           if-no-files-found: warn
           path: |
             class-d-500-evidence.json
