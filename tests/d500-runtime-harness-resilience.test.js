@@ -44,6 +44,10 @@ test('D-500 bootstrap uses bounded node parallelism and preserves per-node diagn
   assert.match(provision, /D500_NODE_WORKERS.*-le 8/);
   assert.match(provision, /start_pids=\(\)[\s\S]*jobs -pr[\s\S]*D500_NODE_WORKERS/);
   assert.match(provision, /ThreadPoolExecutor\(max_workers=min\(workers,count\)\)/);
+  assert.match(provision, /probe_pids=\(\)[\s\S]*jobs -pr[\s\S]*D500_NODE_WORKERS/);
+  assert.match(campaign, /readiness_round_dir=/);
+  assert.match(campaign, /readiness_probe_pids=\(\)/);
+  assert.match(campaign, /jobs -pr[\s\S]*D500_NODE_WORKERS/);
   assert.match(provision, /TRUYN_D500_BOOTSTRAP_PROGRESS host=/);
   assert.match(provision, /TRUYN_D500_BOOTSTRAP_NODE_FAILURE host=/);
   assert.match(provision, /systemctl show "truyn-d1000@/);
