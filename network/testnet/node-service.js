@@ -128,6 +128,10 @@ export async function createTestnetNodeService({
   controlHost = '127.0.0.1',
   controlPort = 8788,
   peerRecordTtlMs = 300_000,
+  peerRecordRenewBeforeMs = null,
+  discoveryRefreshIntervalMs = null,
+  discoveryRefreshTargetCount = null,
+  discoveryRefreshMaxRounds = 4,
   maxInFlight = 64,
   maxQueued = 256,
   dhtReplicationFactor = 3,
@@ -161,6 +165,10 @@ export async function createTestnetNodeService({
     tls: { key: tlsKey, cert: tlsCert },
     statePath,
     peerRecordTtlMs,
+    peerRecordRenewBeforeMs,
+    discoveryRefreshIntervalMs,
+    discoveryRefreshTargetCount,
+    discoveryRefreshMaxRounds,
     capabilities: ['testnet.echo', 'testnet.dht'],
     maxInFlight,
     maxQueued,
@@ -499,6 +507,16 @@ export async function runTestnetNodeFromEnv(env = process.env) {
     controlHost: env.TRUYN_CONTROL_HOST || '127.0.0.1',
     controlPort: int(env.TRUYN_CONTROL_PORT, 8788, { max: 65535 }),
     peerRecordTtlMs: int(env.TRUYN_PEER_RECORD_TTL_MS, 300_000),
+    peerRecordRenewBeforeMs: env.TRUYN_PEER_RECORD_RENEW_BEFORE_MS == null || env.TRUYN_PEER_RECORD_RENEW_BEFORE_MS === ''
+      ? null
+      : int(env.TRUYN_PEER_RECORD_RENEW_BEFORE_MS, 60_000),
+    discoveryRefreshIntervalMs: env.TRUYN_DISCOVERY_REFRESH_INTERVAL_MS == null || env.TRUYN_DISCOVERY_REFRESH_INTERVAL_MS === ''
+      ? null
+      : int(env.TRUYN_DISCOVERY_REFRESH_INTERVAL_MS, 30_000),
+    discoveryRefreshTargetCount: env.TRUYN_DISCOVERY_REFRESH_TARGET_COUNT == null || env.TRUYN_DISCOVERY_REFRESH_TARGET_COUNT === ''
+      ? null
+      : int(env.TRUYN_DISCOVERY_REFRESH_TARGET_COUNT, 20, { min: 0, max: 256 }),
+    discoveryRefreshMaxRounds: int(env.TRUYN_DISCOVERY_REFRESH_MAX_ROUNDS, 4, { min: 0, max: 64 }),
     maxInFlight: int(env.TRUYN_MAX_IN_FLIGHT, 64),
     maxQueued: int(env.TRUYN_MAX_QUEUED, 256, { min: 0 }),
     dhtReplicationFactor: int(env.TRUYN_DHT_REPLICATION_FACTOR, 3),
