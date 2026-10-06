@@ -42,6 +42,8 @@ test('D-500 host fanout is fail-collect with live heartbeat', () => {
 test('D-500 bootstrap uses bounded node parallelism and preserves per-node diagnostics', () => {
   assert.match(provision, /D500_NODE_WORKERS="\$\{TRUYN_D500_NODE_WORKERS:-5\}"/);
   assert.match(provision, /D500_NODE_WORKERS.*-le 8/);
+  assert.match(provision, /start_pids=\(\)[\s\S]*jobs -pr[\s\S]*D500_NODE_WORKERS/);
+  assert.match(provision, /ThreadPoolExecutor\(max_workers=min\(workers,count\)\)/);
   assert.match(provision, /TRUYN_D500_BOOTSTRAP_PROGRESS host=/);
   assert.match(provision, /TRUYN_D500_BOOTSTRAP_NODE_FAILURE host=/);
   assert.match(provision, /systemctl show "truyn-d1000@/);
