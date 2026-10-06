@@ -428,6 +428,76 @@ assert float('$conv_p95') <= 120000, '$conv_p95'
 PY
 echo "TRUYN_CLASS_D_1000 stage=convergence mode=parallel-hosts hosts=${HOST_COUNT} success=${conv_success}/${conv_total} routingSuccess=${conv_rate} p95Ms=${conv_p95} p99Ms=${conv_p99} aggregateMs=${conv_ms} status=PASS"
 
+STAGE=baseline-freshness
+BASELINE_MIN_PEER_LEASE_REMAINING_MS=900000
+baseline_freshness_dir=$(mktemp -d)
+baseline_freshness_pids=()
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  script=$(cat <<EOS
+set -Eeuo pipefail
+python3 - <<'PY'
+import concurrent.futures,json,random,subprocess,time
+from datetime import datetime,timezone
+records=json.load(open('/var/lib/truyn-d1000/records-by-host.json'))
+host=${i}; H=${HOST_COUNT}; N=${NODES_PER_HOST}; base=${CONTROL_BASE}; required=${BASELINE_MIN_PEER_LEASE_REMAINING_MS}
+def target_ids(j):
+    ids=[]
+    for k in (j,j+N):
+        r=random.Random(20260818+host*10000+k); th=r.randrange(H-1)
+        if th>=host: th+=1
+        tl=r.randrange(N); ids.append(records[th][tl]['nodeId'])
+    return list(dict.fromkeys(ids))
+def margin(j,targets):
+    try: state=json.load(open(f'/var/lib/truyn-d1000/node-{host*N+j}-state.json'))
+    except Exception: return -1
+    by={x.get('nodeId'):x for x in (state.get('peerRecords') or []) if isinstance(x,dict)}
+    now=datetime.now(timezone.utc); values=[]
+    for nid in targets:
+        rec=by.get(nid); exp=rec.get('expiresAt') if rec else None
+        if not exp: values.append(-1); continue
+        try: values.append(int((datetime.fromisoformat(exp.replace('Z','+00:00'))-now).total_seconds()*1000))
+        except Exception: values.append(-1)
+    return min(values) if values else -1
+def one(j):
+    targets=target_ids(j); url=f'http://127.0.0.1:{base+j}/dht/refresh'
+    last=-1
+    for attempt in range(1,4):
+        payload=json.dumps({'targets':targets,'targetCount':len(targets),'maxRounds':8,'targetConcurrency':len(targets),'timeoutMs':120000,'seed':f'd500-baseline-freshness:{host}:{j}:{attempt}'},separators=(',',':'))
+        p=subprocess.run(['curl','-sS','--max-time','130','-o',f'/tmp/d500-fresh-{j}.json','-w','%{http_code}','-H','content-type: application/json','--data-binary',payload,url],text=True,capture_output=True)
+        last=margin(j,targets)
+        if p.returncode==0 and p.stdout.strip()=='200' and last>=required: return (1,last)
+        time.sleep(1)
+    return (0,last)
+with concurrent.futures.ThreadPoolExecutor(max_workers=min(4,N)) as ex: rows=list(ex.map(one,range(N)))
+ready=sum(ok for ok,_ in rows); minimum=min((m for _,m in rows),default=-1)
+print('BASELINE_FRESHNESS_READY='+str(ready))
+print('BASELINE_FRESHNESS_TOTAL='+str(N))
+print('BASELINE_FRESHNESS_MIN_REMAINING_MS='+str(minimum))
+if ready!=N: raise SystemExit(1)
+PY
+EOS
+)
+  (remote "${VMS[$i]}" "$script" >"$baseline_freshness_dir/$i.out" 2>"$baseline_freshness_dir/$i.err") &
+  baseline_freshness_pids+=("$!")
+done
+baseline_freshness_failed=0
+for pid in "${baseline_freshness_pids[@]}"; do if ! wait "$pid"; then baseline_freshness_failed=1; fi; done
+baseline_freshness_ready=0
+baseline_freshness_min_remaining=999999999
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  cat "$baseline_freshness_dir/$i.err" >&2
+  out="$(cat "$baseline_freshness_dir/$i.out")"; cat "$baseline_freshness_dir/$i.out"
+  ready=$(marker "$out" BASELINE_FRESHNESS_READY); total=$(marker "$out" BASELINE_FRESHNESS_TOTAL); remaining=$(marker "$out" BASELINE_FRESHNESS_MIN_REMAINING_MS)
+  [[ "$total" == "$NODES_PER_HOST" ]]
+  baseline_freshness_ready=$((baseline_freshness_ready+ready))
+  if [[ "$remaining" -lt "$baseline_freshness_min_remaining" ]]; then baseline_freshness_min_remaining="$remaining"; fi
+done
+rm -rf "$baseline_freshness_dir"
+[[ "$baseline_freshness_failed" == 0 ]]
+[[ "$baseline_freshness_ready" == "$NODE_COUNT" ]]
+[[ "$baseline_freshness_min_remaining" -ge "$BASELINE_MIN_PEER_LEASE_REMAINING_MS" ]]
+echo "TRUYN_CLASS_D_1000 stage=baseline-freshness ready=${baseline_freshness_ready}/${NODE_COUNT} minLeaseRemainingMs=${baseline_freshness_min_remaining} requiredMarginMs=${BASELINE_MIN_PEER_LEASE_REMAINING_MS} status=PASS"
+
 STAGE=baseline-routing
 D200_BASELINE_ORIGIN_DIAG=1
 D200_BASELINE_ROW_MAX_BYTES=1800
