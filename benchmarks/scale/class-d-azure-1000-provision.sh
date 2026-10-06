@@ -290,22 +290,41 @@ az network vnet create -g "$RG" -n "$VNET" -l "$LOCATION" --address-prefixes 10.
 az network vnet subnet update -g "$RG" --vnet-name "$VNET" -n "$SUBNET" --network-security-group "$NSG" --service-endpoints Microsoft.Storage --only-show-errors >/dev/null
 
 STAGE=provision
+provision_dir=$(mktemp -d)
+provision_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
-  created=0
-  for size in "$VM_SIZE" Standard_D4s_v5; do
-    if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
-      created=1
-      echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
-      break
-    fi
-  done
-  [[ $created == 1 ]]
-  PRIV+=("$(az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)")
-  [[ -n "${PRIV[$i]}" ]]
+  (
+    az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
+    created=0
+    for size in "$VM_SIZE" Standard_D4s_v5; do
+      if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
+        created=1
+        echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
+        break
+      fi
+    done
+    [[ $created == 1 ]]
+    ip=$(az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)
+    [[ -n "$ip" ]]
+    printf '%s\n' "$ip" >"$provision_dir/$i.ip"
+  ) >"$provision_dir/$i.log" 2>&1 &
+  provision_pids+=("$!")
 done
+provision_failed=0
+for pid in "${provision_pids[@]}"; do
+  if ! wait "$pid"; then provision_failed=1; fi
+done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  cat "$provision_dir/$i.log"
+  PRIV+=("$(cat "$provision_dir/$i.ip")")
+done
+rm -rf "$provision_dir"
+[[ "$provision_failed" == 0 ]]
+[[ "${#PRIV[@]}" == "$HOST_COUNT" ]]
 
 STAGE=install
+install_dir=$(mktemp -d)
+install_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -381,6 +400,10 @@ TRUYN_QUIC_PORT=\${q}
 TRUYN_CONTROL_HOST=127.0.0.1
 TRUYN_CONTROL_PORT=\${c}
 TRUYN_PEER_RECORD_TTL_MS=1800000
+TRUYN_PEER_RECORD_RENEW_BEFORE_MS=900000
+TRUYN_DISCOVERY_REFRESH_INTERVAL_MS=15000
+TRUYN_DISCOVERY_REFRESH_TARGET_COUNT=64
+TRUYN_DISCOVERY_REFRESH_MAX_ROUNDS=4
 TRUYN_DHT_REPLICATION_FACTOR=3
 TRUYN_DHT_WRITE_QUORUM=2
 TRUYN_DHT_RPC_TIMEOUT_MS=5000
@@ -449,10 +472,20 @@ echo PROCESSES=\$proc
 EOS
 )
   script="${script//truyn/truyn}"
-  out=$(remote "${VMS[$i]}" "$script")
-  [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
-  echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
+  (
+    out=$(remote "${VMS[$i]}" "$script")
+    [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
+    echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
+  ) >"$install_dir/$i" 2>&1 &
+  install_pids+=("$!")
 done
+install_failed=0
+for pid in "${install_pids[@]}"; do
+  if ! wait "$pid"; then install_failed=1; fi
+done
+for i in $(seq 0 $((HOST_COUNT-1))); do cat "$install_dir/$i"; done
+rm -rf "$install_dir"
+[[ "$install_failed" == 0 ]]
 
 STAGE=bootstrap-record-refresh
 D200_PEER_LEASE_FRESHNESS_REPAIR=1
