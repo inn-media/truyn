@@ -1,0 +1,13 @@
+name: Cancel D-500 Attempt 16
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d500/cancel-16.txt']
+concurrency:
+  group: truyn-d500-attempt16-single-shot
+  cancel-in-progress: true
+jobs:
+  cancel:
+    runs-on: ubuntu-22.04
+    steps:
+      - run: echo "Cancelling D-500 Attempt 16 by concurrency replacement"
