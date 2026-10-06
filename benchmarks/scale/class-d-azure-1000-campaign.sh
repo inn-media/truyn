@@ -304,11 +304,16 @@ readiness_markers_present() {
   done
 }
 readiness_collection_attempts=4
+readiness_recovery_status_dir=$(mktemp -d)
 readiness_recovery_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  out="$(cat "$readiness_dir/$i")"
-  if readiness_markers_present "$out"; then continue; fi
   (
+    host_status_arm "$readiness_recovery_status_dir" "$i"
+    out="$(cat "$readiness_dir/$i")"
+    if readiness_markers_present "$out"; then
+      echo "TRUYN_D500_READINESS_RECOVERY host=$i needed=false status=SKIP"
+      exit 0
+    fi
     recovered=''
     if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; cat /tmp/truyn-d200-readiness-result")"; then :; fi
     if ! readiness_markers_present "$recovered"; then
@@ -326,13 +331,13 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
     fi
     readiness_markers_present "$recovered"
     printf '%s\n' "$recovered" >"$readiness_dir/$i.recovered"
-  ) &
+    echo "TRUYN_D500_READINESS_RECOVERY host=$i needed=true status=PASS"
+  ) >"$readiness_recovery_status_dir/$i.log" 2>&1 &
   readiness_recovery_pids+=("$!")
 done
 readiness_recovery_failed=0
-for pid in "${readiness_recovery_pids[@]}"; do
-  if ! wait "$pid"; then readiness_recovery_failed=1; fi
-done
+if ! wait_host_stage readiness-observation-recovery "$readiness_recovery_status_dir" "${readiness_recovery_pids[@]}"; then readiness_recovery_failed=1; fi
+rm -rf "$readiness_recovery_status_dir"
 
 readiness_gate_failed=0
 for i in $(seq 0 $((HOST_COUNT-1))); do
@@ -877,12 +882,16 @@ baseline_collect_dir=$(mktemp -d)
 baseline_collect_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   failure_count="${baseline_failure_counts[$i]}"
-  if [[ "$failure_count" == 0 ]]; then continue; fi
   (
+    host_status_arm "$baseline_collect_dir" "$i"
+    : >"$baseline_collect_dir/$i.jsonl"
+    if [[ "$failure_count" == 0 ]]; then
+      echo "TRUYN_D500_BASELINE_DIAG_BATCH host=$i rows=0 status=SKIP"
+      exit 0
+    fi
     diag_out="$(cat "$baseline_diag_phase_dir/$i")"
     [[ "$(marker "$diag_out" BASE_DIAG_READY)" == 1 ]]
     [[ "$(marker "$diag_out" BASE_DIAG_FAILURE_COUNT)" == "$failure_count" ]]
-    : >"$baseline_collect_dir/$i.jsonl"
     for start_row in $(seq 0 "$D500_BASELINE_DIAG_BATCH_ROWS" $((failure_count-1))); do
       batch_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
 import base64,gzip,hashlib,json
@@ -921,9 +930,7 @@ PYD500BATCH
   baseline_collect_pids+=("$!")
 done
 baseline_collect_failed=0
-for pid in "${baseline_collect_pids[@]}"; do
-  if ! wait "$pid"; then baseline_collect_failed=1; fi
-done
+if ! wait_host_stage baseline-diagnostic-collection "$baseline_collect_dir" "${baseline_collect_pids[@]}"; then baseline_collect_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do
   failure_count="${baseline_failure_counts[$i]}"
   if [[ "$failure_count" == 0 ]]; then continue; fi
