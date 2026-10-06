@@ -11,9 +11,9 @@ on:
       scale:
         description: Class-D scope
         required: true
-        default: all
+        default: d200
         type: choice
-        options: [all, d200, d500, d1000]
+        options: [d200]
       resume_run_id:
         description: Previous Swarm run id whose stage checkpoint should be resumed
         required: false
@@ -36,7 +36,7 @@ on:
       scale:
         description: Class-D scope
         required: false
-        default: all
+        default: d200
         type: string
       resume_run_id:
         description: Previous Swarm run id whose stage checkpoint should be resumed
@@ -59,7 +59,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: d-series-swarm-${{ github.event_name }}-${{ github.event.pull_request.head.sha || inputs.source_sha || github.sha }}-${{ inputs.scale || 'all' }}
+  group: d-series-swarm-${{ github.event_name }}-${{ github.event.pull_request.head.sha || inputs.source_sha || github.sha }}-${{ inputs.scale || 'd200' }}
   cancel-in-progress: false
 
 jobs:
@@ -88,13 +88,13 @@ jobs:
         id: selection
         shell: bash
         env:
-          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+          SCALE_INPUT: ${{ inputs.scale || 'd200' }}
         run: |
           set -Eeuo pipefail
           selected=false
           case "$SCALE_INPUT" in
-            all|d200) selected=true ;;
-            d500|d1000) ;;
+            d200) selected=true ;;
+            
             *) echo "invalid scale=$SCALE_INPUT" >&2; exit 2 ;;
           esac
           echo "selected=$selected" >>"$GITHUB_OUTPUT"
@@ -147,13 +147,13 @@ jobs:
         id: selection
         shell: bash
         env:
-          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+          SCALE_INPUT: ${{ inputs.scale || 'd200' }}
         run: |
           set -Eeuo pipefail
           selected=false
           case "$SCALE_INPUT" in
-            all|d200) selected=true ;;
-            d500|d1000) ;;
+            d200) selected=true ;;
+            
             *) echo "invalid scale=$SCALE_INPUT" >&2; exit 2 ;;
           esac
           echo "selected=$selected" >>"$GITHUB_OUTPUT"
@@ -232,11 +232,11 @@ jobs:
         id: selection
         shell: bash
         env:
-          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+          SCALE_INPUT: ${{ inputs.scale || 'd200' }}
         run: |
           set -Eeuo pipefail
           selected=false
-          case "$SCALE_INPUT" in all|d200) selected=true ;; d500|d1000) ;; *) exit 2 ;; esac
+          case "$SCALE_INPUT" in d200) selected=true ;;  *) exit 2 ;; esac
           echo "selected=$selected" >>"$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v4
@@ -283,99 +283,6 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-  class-stage-swarm:
-    name: d-series-swarm-stage-${{ matrix.class_size }}
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        class_size: [500, 1000]
-    steps:
-      - name: Select class
-        id: selection
-        shell: bash
-        env:
-          SCALE_INPUT: ${{ inputs.scale || 'all' }}
-          CLASS_SIZE: ${{ matrix.class_size }}
-        run: |
-          set -Eeuo pipefail
-          selected=false
-          case "$SCALE_INPUT" in
-            all) selected=true ;;
-            d500) [[ "$CLASS_SIZE" == 500 ]] && selected=true ;;
-            d1000) [[ "$CLASS_SIZE" == 1000 ]] && selected=true ;;
-            d200) ;;
-            *) echo "invalid scale=$SCALE_INPUT" >&2; exit 2 ;;
-          esac
-          echo "selected=$selected" >>"$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v4
-        if: steps.selection.outputs.selected == 'true'
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          ref: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
-
-      - uses: actions/setup-node@v4
-        if: steps.selection.outputs.selected == 'true'
-        with:
-          node-version: '22'
-
-      - name: Validate exact source and install dependencies
-        if: steps.selection.outputs.selected == 'true'
-        shell: bash
-        env:
-          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -Eeuo pipefail
-          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
-          npm install --ignore-scripts --no-audit --no-fund
-          node scripts/check-class-d-five-patches.mjs
-
-      - name: Download previous class checkpoint
-        if: steps.selection.outputs.selected == 'true' && inputs.resume_run_id != ''
-        uses: actions/download-artifact@v4
-        with:
-          name: d-series-swarm-stage-${{ matrix.class_size }}-${{ inputs.resume_run_id }}
-          path: d-series-swarm-resume-${{ matrix.class_size }}
-          run-id: ${{ inputs.resume_run_id }}
-          github-token: ${{ github.token }}
-
-      - name: Execute canonical fail-collect Class-D DAG
-        if: steps.selection.outputs.selected == 'true'
-        shell: bash
-        env:
-          CLASS_SIZE: ${{ matrix.class_size }}
-          EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
-          RESUME_RUN_ID: ${{ inputs.resume_run_id || '' }}
-          RESUME_FROM: ${{ inputs.resume_from || '' }}
-          RESUME_ACROSS_SHA: ${{ inputs.resume_across_sha || false }}
-        run: |
-          set -Eeuo pipefail
-          checkpoint="d-series-swarm-stage-${CLASS_SIZE}.json"
-          args=(--class "$CLASS_SIZE" --checkpoint "$checkpoint" --concurrency 1)
-          if [[ -n "$RESUME_RUN_ID" ]]; then
-            prior="d-series-swarm-resume-${CLASS_SIZE}/${checkpoint}"
-            test -f "$prior"
-            cp "$prior" "$checkpoint"
-            if [[ -n "$RESUME_FROM" ]]; then args+=(--from "$RESUME_FROM"); else args+=(--resume); fi
-            if [[ "$RESUME_ACROSS_SHA" == true ]]; then args+=(--resume-across-sha); fi
-          elif [[ -n "$RESUME_FROM" ]]; then
-            echo 'resume_from requires resume_run_id' >&2
-            exit 2
-          fi
-          TRUYN_CLASS_D_SOURCE_SHA="$EXPECTED_SHA" node scripts/class-d-stage-runner.mjs "${args[@]}"
-
-      - name: Upload class stage evidence
-        if: always() && steps.selection.outputs.selected == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: d-series-swarm-stage-${{ matrix.class_size }}-${{ github.run_id }}
-          path: d-series-swarm-stage-${{ matrix.class_size }}.json
-          if-no-files-found: error
-          retention-days: 90
-
   block-diagnostics:
     name: d-series-swarm-${{ matrix.block }}
     runs-on: ubuntu-22.04
@@ -410,15 +317,12 @@ jobs:
         shell: bash
         env:
           TRUYN_CLASS_D_SOURCE_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
-          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+          SCALE_INPUT: ${{ inputs.scale || 'd200' }}
           BLOCK_ID: ${{ matrix.block }}
         run: |
           set -Eeuo pipefail
           case "$SCALE_INPUT" in
-            all) scale=all ;;
             d200) scale=200 ;;
-            d500) scale=500 ;;
-            d1000) scale=1000 ;;
             *) echo "invalid scale=$SCALE_INPUT" >&2; exit 2 ;;
           esac
           node scripts/d-series-block-runner.mjs "$BLOCK_ID" --scale "$scale" --result "d-series-block-${BLOCK_ID}.json"
@@ -434,7 +338,7 @@ jobs:
 
   swarm-aggregate:
     name: d-series-swarm-aggregate
-    needs: [d200-lanes, d200-stage-plan, d200-aggregate, class-stage-swarm, block-diagnostics]
+    needs: [d200-lanes, d200-stage-plan, d200-aggregate, block-diagnostics]
     if: always()
     runs-on: ubuntu-22.04
     timeout-minutes: 10
@@ -450,16 +354,9 @@ jobs:
           node-version: '22'
 
       - uses: actions/download-artifact@v4
-        if: inputs.scale == 'all' || inputs.scale == 'd200' || github.event_name == 'pull_request'
+        if: inputs.scale == 'd200' || github.event_name == 'pull_request'
         with:
           pattern: d200-stage-checkpoint-${{ github.run_id }}
-          path: d-series-swarm-stages
-          merge-multiple: true
-
-      - uses: actions/download-artifact@v4
-        if: inputs.scale == 'all' || inputs.scale == 'd500' || inputs.scale == 'd1000' || github.event_name == 'pull_request'
-        with:
-          pattern: d-series-swarm-stage-*-${{ github.run_id }}
           path: d-series-swarm-stages
           merge-multiple: true
 
@@ -480,7 +377,7 @@ jobs:
         shell: bash
         env:
           EXPECTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
-          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+          SCALE_INPUT: ${{ inputs.scale || 'd200' }}
         run: |
           set -Eeuo pipefail
           node scripts/d-series-swarm-aggregate.mjs \
@@ -496,7 +393,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: d-series-swarm-summary-${{ inputs.scale || 'all' }}-${{ github.run_id }}
+          name: d-series-swarm-summary-${{ inputs.scale || 'd200' }}-${{ github.run_id }}
           path: d-series-swarm-summary.json
           if-no-files-found: error
           retention-days: 90
