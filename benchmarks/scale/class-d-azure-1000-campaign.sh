@@ -428,6 +428,100 @@ assert float('$conv_p95') <= 120000, '$conv_p95'
 PY
 echo "TRUYN_CLASS_D_1000 stage=convergence mode=parallel-hosts hosts=${HOST_COUNT} success=${conv_success}/${conv_total} routingSuccess=${conv_rate} p95Ms=${conv_p95} p99Ms=${conv_p99} aggregateMs=${conv_ms} status=PASS"
 
+STAGE=pre-baseline-peer-freshness
+D500_PREBASELINE_FRESHNESS_MARGIN_MS=${BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS}
+freshness_dir=$(mktemp -d)
+freshness_pids=()
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  script=$(cat <<EOS
+set -Eeuo pipefail
+python3 - ${i} ${HOST_COUNT} ${NODES_PER_HOST} ${CONTROL_BASE} ${D500_PREBASELINE_FRESHNESS_MARGIN_MS} <<'PYD500FRESH'
+import concurrent.futures,json,random,sys,time,urllib.request
+from datetime import datetime
+host=int(sys.argv[1]); H=int(sys.argv[2]); N=int(sys.argv[3]); base=int(sys.argv[4]); margin=int(sys.argv[5])
+records=json.load(open('/var/lib/truyn-d1000/records-by-host.json'))
+def post_json(url, body, timeout=300):
+    req=urllib.request.Request(url,data=json.dumps(body,separators=(',',':')).encode(),headers={'content-type':'application/json'},method='POST')
+    with urllib.request.urlopen(req,timeout=timeout) as response:
+        return json.load(response)
+def state_for(j,node_id):
+    path=f'/var/lib/truyn-d1000/node-{host*N+j}-state.json'
+    value=json.load(open(path))
+    record=next((item for item in (value.get('peerRecords') or []) if item.get('nodeId')==node_id),None)
+    if not record:
+        return {'present':False,'validNow':False,'expiresInMs':None}
+    expires=record.get('expiresAt')
+    try:
+        expires_ms=int(datetime.fromisoformat(expires.replace('Z','+00:00')).timestamp()*1000)
+    except Exception:
+        expires_ms=None
+    now_ms=int(time.time()*1000)
+    remaining=None if expires_ms is None else expires_ms-now_ms
+    return {'present':True,'validNow':remaining is not None and remaining>0,'expiresInMs':remaining}
+def targets_for(j):
+    result=[]
+    for k in (j,j+N):
+        r=random.Random(20260818+host*10000+k)
+        target_host=r.randrange(H-1)
+        if target_host>=host: target_host+=1
+        target_local=r.randrange(N)
+        result.append(records[target_host][target_local]['nodeId'])
+    return list(dict.fromkeys(result))
+def repair(j):
+    control=f'http://127.0.0.1:{base+j}'
+    post_json(control+'/dht/refresh',{'targetCount':64,'maxRounds':4,'targetConcurrency':8,'timeoutMs':240000,'seed':f'd500-prebaseline-general-{host}-{j}'})
+    targets=targets_for(j)
+    attempts=0
+    while attempts<3:
+        states=[state_for(j,node_id) for node_id in targets]
+        if all(s['present'] and s['validNow'] and (s['expiresInMs'] or -1)>=margin for s in states):
+            return {'node':j,'targets':len(targets),'attempts':attempts,'minRemainingMs':min(s['expiresInMs'] for s in states)}
+        attempts+=1
+        post_json(control+'/dht/refresh',{'targets':targets,'targetCount':len(targets),'maxRounds':4,'targetConcurrency':min(8,len(targets)),'timeoutMs':240000,'seed':f'd500-prebaseline-targeted-{host}-{j}-{attempts}'})
+        time.sleep(.25)
+    states=[state_for(j,node_id) for node_id in targets]
+    bad=[{'nodeId':node_id,**state} for node_id,state in zip(targets,states) if not (state['present'] and state['validNow'] and (state['expiresInMs'] or -1)>=margin)]
+    if bad: raise RuntimeError(f'freshness barrier failed host={host} node={j} bad={bad}')
+    return {'node':j,'targets':len(targets),'attempts':attempts,'minRemainingMs':min(s['expiresInMs'] for s in states)}
+with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+    rows=list(ex.map(repair,range(N)))
+print('FRESHNESS_NODES='+str(len(rows)))
+print('FRESHNESS_TARGETS='+str(sum(row['targets'] for row in rows)))
+print('FRESHNESS_MIN_REMAINING_MS='+str(min(row['minRemainingMs'] for row in rows)))
+print('FRESHNESS_REPAIR_ATTEMPTS='+str(sum(row['attempts'] for row in rows)))
+PYD500FRESH
+EOS
+)
+  (remote "${VMS[$i]}" "$script" >"$freshness_dir/$i") &
+  freshness_pids+=("$!")
+done
+freshness_failed=0
+for pid in "${freshness_pids[@]}"; do
+  if ! wait "$pid"; then freshness_failed=1; fi
+done
+freshness_nodes=0
+freshness_targets=0
+freshness_min_remaining=999999999
+freshness_repairs=0
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  out="$(cat "$freshness_dir/$i")"
+  nodes=$(marker "$out" FRESHNESS_NODES)
+  targets=$(marker "$out" FRESHNESS_TARGETS)
+  remaining=$(marker "$out" FRESHNESS_MIN_REMAINING_MS)
+  repairs=$(marker "$out" FRESHNESS_REPAIR_ATTEMPTS)
+  [[ "$nodes" == "$NODES_PER_HOST" ]]
+  [[ "$remaining" =~ ^[0-9]+$ && "$remaining" -ge "$D500_PREBASELINE_FRESHNESS_MARGIN_MS" ]]
+  freshness_nodes=$((freshness_nodes+nodes))
+  freshness_targets=$((freshness_targets+targets))
+  freshness_repairs=$((freshness_repairs+repairs))
+  if [[ "$remaining" -lt "$freshness_min_remaining" ]]; then freshness_min_remaining="$remaining"; fi
+  echo "TRUYN_CLASS_D_1000 stage=pre-baseline-peer-freshness host=$i nodes=$nodes targets=$targets minLeaseRemainingMs=$remaining repairAttempts=$repairs status=PASS"
+done
+rm -rf "$freshness_dir"
+[[ "$freshness_failed" == 0 ]]
+[[ "$freshness_nodes" == "$NODE_COUNT" ]]
+echo "TRUYN_CLASS_D_1000 stage=pre-baseline-peer-freshness nodes=${freshness_nodes}/${NODE_COUNT} targets=${freshness_targets} minLeaseRemainingMs=${freshness_min_remaining} requiredMarginMs=${D500_PREBASELINE_FRESHNESS_MARGIN_MS} repairAttempts=${freshness_repairs} status=PASS"
+
 STAGE=baseline-routing
 D200_BASELINE_ORIGIN_DIAG=1
 D200_BASELINE_ROW_MAX_BYTES=1800
@@ -733,43 +827,67 @@ if [[ "$baseline_diag_failed" != 0 ]]; then
   false
 fi
 
-# Each failed row is fetched in its own bounded remote call. This avoids a
-# single oversized stdout/base64 payload while retaining every failure.
+# Failed baseline diagnostics are fetched in bounded batches per host. Hosts run
+# in parallel, while each host uses a small batch size to stay under Azure Run Command output limits.
+D500_BASELINE_DIAG_BATCH_ROWS=4
+baseline_collect_dir=$(mktemp -d)
+baseline_collect_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   failure_count="${baseline_failure_counts[$i]}"
   if [[ "$failure_count" == 0 ]]; then continue; fi
-  diag_out="$(cat "$baseline_diag_phase_dir/$i")"
-  [[ "$(marker "$diag_out" BASE_DIAG_READY)" == 1 ]]
-  [[ "$(marker "$diag_out" BASE_DIAG_FAILURE_COUNT)" == "$failure_count" ]]
-  for n in $(seq 0 $((failure_count-1))); do
-    row_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
-import base64,hashlib,json
+  (
+    : >"$baseline_collect_dir/$i.jsonl"
+    for start_row in $(seq 0 "$D500_BASELINE_DIAG_BATCH_ROWS" $((failure_count-1))); do
+      batch_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
+import base64,gzip,hashlib,json
 path='/var/lib/truyn-d1000/baseline-origin-host-${i}.json'
-n=${n}
+start=${start_row}
+count=${D500_BASELINE_DIAG_BATCH_ROWS}
 value=json.load(open(path))
-row=value['failures'][n]
-raw=json.dumps(row,separators=(',',':')).encode()
-if len(raw)>${D200_BASELINE_ROW_MAX_BYTES}:
-    raise SystemExit('TRUYN_D200_BASELINE_ROW_TOO_LARGE bytes='+str(len(raw)))
-print('BASE_DIAG_BYTES='+str(len(raw)))
-print('BASE_DIAG_SHA256='+hashlib.sha256(raw).hexdigest())
-print('BASE_DIAG_B64='+base64.b64encode(raw).decode())
+rows=value['failures'][start:start+count]
+raw=json.dumps(rows,separators=(',',':')).encode()
+packed=gzip.compress(raw,compresslevel=9)
+print('BASE_DIAG_BATCH_ROWS='+str(len(rows)))
+print('BASE_DIAG_BATCH_BYTES='+str(len(packed)))
+print('BASE_DIAG_BATCH_SHA256='+hashlib.sha256(packed).hexdigest())
+print('BASE_DIAG_BATCH_B64='+base64.b64encode(packed).decode())
 PY")
-    row_bytes=$(marker "$row_out" BASE_DIAG_BYTES)
-    row_sha=$(marker "$row_out" BASE_DIAG_SHA256)
-    row_b64=$(marker "$row_out" BASE_DIAG_B64)
-    python3 - "$i" "$row_bytes" "$row_sha" "$row_b64" "$baseline_diag_jsonl" <<'PYD200BASE'
-import base64,hashlib,json,sys
-host=int(sys.argv[1]); expected_bytes=int(sys.argv[2]); expected_sha=sys.argv[3]; raw=base64.b64decode(sys.argv[4],validate=True)
-if len(raw)!=expected_bytes: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=byte_count')
-if hashlib.sha256(raw).hexdigest()!=expected_sha: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=sha256')
-value=json.loads(raw.decode('utf-8'))
-if value.get('sourceHost')!=host: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=host_mismatch')
-with open(sys.argv[5],'a',encoding='utf-8') as handle:
-    handle.write(json.dumps(value,separators=(',',':'))+'\n')
-PYD200BASE
-  done
+      batch_rows=$(marker "$batch_out" BASE_DIAG_BATCH_ROWS)
+      batch_bytes=$(marker "$batch_out" BASE_DIAG_BATCH_BYTES)
+      batch_sha=$(marker "$batch_out" BASE_DIAG_BATCH_SHA256)
+      batch_b64=$(marker "$batch_out" BASE_DIAG_BATCH_B64)
+      python3 - "$i" "$batch_rows" "$batch_bytes" "$batch_sha" "$batch_b64" "$baseline_collect_dir/$i.jsonl" <<'PYD500BATCH'
+import base64,gzip,hashlib,json,sys
+host=int(sys.argv[1]); expected_rows=int(sys.argv[2]); expected_bytes=int(sys.argv[3]); expected_sha=sys.argv[4]
+packed=base64.b64decode(sys.argv[5],validate=True)
+if len(packed)!=expected_bytes: raise SystemExit('TRUYN_D500_BASELINE_BATCH_TRUNCATED reason=byte_count')
+if hashlib.sha256(packed).hexdigest()!=expected_sha: raise SystemExit('TRUYN_D500_BASELINE_BATCH_TRUNCATED reason=sha256')
+rows=json.loads(gzip.decompress(packed).decode('utf-8'))
+if len(rows)!=expected_rows: raise SystemExit('TRUYN_D500_BASELINE_BATCH_TRUNCATED reason=row_count')
+for row in rows:
+    if row.get('sourceHost')!=host: raise SystemExit('TRUYN_D500_BASELINE_BATCH_TRUNCATED reason=host_mismatch')
+with open(sys.argv[6],'a',encoding='utf-8') as handle:
+    for row in rows: handle.write(json.dumps(row,separators=(',',':'))+'\n')
+PYD500BATCH
+      echo "TRUYN_D500_BASELINE_DIAG_BATCH host=$i start=$start_row rows=$batch_rows packedBytes=$batch_bytes sha256=$batch_sha"
+    done
+  ) >"$baseline_collect_dir/$i.log" 2>&1 &
+  baseline_collect_pids+=("$!")
 done
+baseline_collect_failed=0
+for pid in "${baseline_collect_pids[@]}"; do
+  if ! wait "$pid"; then baseline_collect_failed=1; fi
+done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  failure_count="${baseline_failure_counts[$i]}"
+  if [[ "$failure_count" == 0 ]]; then continue; fi
+  cat "$baseline_collect_dir/$i.log"
+  actual=$(wc -l <"$baseline_collect_dir/$i.jsonl" | tr -d ' ')
+  [[ "$actual" == "$failure_count" ]]
+  cat "$baseline_collect_dir/$i.jsonl" >>"$baseline_diag_jsonl"
+done
+rm -rf "$baseline_collect_dir"
+[[ "$baseline_collect_failed" == 0 ]]
 rm -rf "$baseline_dir" "$baseline_diag_phase_dir"
 
 base_rate=$(python3 -c "print(round($base_success/$base_total,6))")
