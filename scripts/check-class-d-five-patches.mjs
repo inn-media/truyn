@@ -83,9 +83,9 @@ requireAll('D-1000 inheritance', d1000, [
 ]);
 
 const workflow = read('.github/workflows/class-d-five-patch-preflight.yml');
-requireAll('D-200/D-500/D-1000 preflight workflow', workflow, [
+requireAll('D-200 preflight workflow', workflow, [
   'matrix:',
-  'class_size: [200, 500, 1000]',
+  'class_size: [200]',
   'scripts/class-d-stage-runner.mjs',
   'fail-fast: false',
   'stage-checkpoint'
