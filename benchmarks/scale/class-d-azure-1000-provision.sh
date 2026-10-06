@@ -476,8 +476,8 @@ EOS
 )
   script="${script//truyn/truyn}"
   (
-    out=$(remote "${VMS[$i]}" "$script")
-    [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
+  out=$(remote "${VMS[$i]}" "$script")
+  [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
     echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
   ) >"$install_dir/$i.out" 2>"$install_dir/$i.err" &
   install_pids+=("$!")
