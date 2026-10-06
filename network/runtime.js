@@ -19,7 +19,8 @@ export class TruynNetworkNode {
     dhtRpcTimeoutMs = 5_000, faultController = null, workInboxPath = null, workInboxMaxCompleted = 10_000,
     peerRecordAutoRenew = true, peerRecordRenewBeforeMs = null, peerRecordPublishFanout = null,
     discoveryPeriodicRefresh = true, discoveryRefreshIntervalMs = null, discoveryRefreshTargetCount = null,
-    discoveryRefreshMaxRounds = 4, discoveryRefreshSeed = 'truyn-periodic-refresh'
+    discoveryRefreshMaxRounds = 4, discoveryRefreshSeed = 'truyn-periodic-refresh',
+    leaseKeeperMaxPeers = 64, leaseKeeperConcurrency = 4
   } = {}) {
     if (!tls?.key || !tls?.cert) throw new Error('network runtime TLS key/certificate are required');
     if (!Number.isFinite(peerRecordTtlMs) || peerRecordTtlMs <= 0) throw new Error('peerRecordTtlMs must be positive');
@@ -40,6 +41,8 @@ export class TruynNetworkNode {
     if (discoveryPeriodicRefresh && (!Number.isFinite(periodicRefreshIntervalMs) || periodicRefreshIntervalMs <= 0 || periodicRefreshIntervalMs >= peerRecordTtlMs)) {
       throw new Error('discoveryRefreshIntervalMs must be positive and less than peerRecordTtlMs');
     }
+    if (!Number.isInteger(leaseKeeperMaxPeers) || leaseKeeperMaxPeers <= 0) throw new Error('leaseKeeperMaxPeers must be a positive integer');
+    if (!Number.isInteger(leaseKeeperConcurrency) || leaseKeeperConcurrency <= 0) throw new Error('leaseKeeperConcurrency must be a positive integer');
 
     this.identity = identity;
     this.host = host;
@@ -62,6 +65,8 @@ export class TruynNetworkNode {
     this.discoveryRefreshSeed = typeof discoveryRefreshSeed === 'string' && discoveryRefreshSeed.trim()
       ? discoveryRefreshSeed.trim()
       : 'truyn-periodic-refresh';
+    this.leaseKeeperMaxPeers = leaseKeeperMaxPeers;
+    this.leaseKeeperConcurrency = leaseKeeperConcurrency;
     this.peerRecordRenewTimer = null;
     this.peerRecordRenewalInFlight = null;
     // Lease keeper: a renewal is announced only to closest(owner, fanout), so every other
@@ -259,7 +264,7 @@ export class TruynNetworkNode {
     return Math.max(250, Math.min(30_000, Math.floor(this.peerRecordTtlMs / 10)));
   }
 
-  async #leaseKeeperTick({ maxPeers = 64, concurrency = 4 } = {}) {
+  async #leaseKeeperTick({ maxPeers = this.leaseKeeperMaxPeers, concurrency = this.leaseKeeperConcurrency } = {}) {
     if (!this.started || this.closing) return;
     const now = Date.now();
     // Never race the control plane: skip owners we are still placing our own record with.
@@ -302,7 +307,12 @@ export class TruynNetworkNode {
   }
 
   leaseKeeperSnapshot() {
-    return { intervalMs: this.#leaseKeeperIntervalMs(), ...this.leaseKeeperStats };
+    return {
+      intervalMs: this.#leaseKeeperIntervalMs(),
+      maxPeers: this.leaseKeeperMaxPeers,
+      concurrency: this.leaseKeeperConcurrency,
+      ...this.leaseKeeperStats
+    };
   }
 
   #clearPeerRecordRenewTimer() {
