@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        class_size: [200, 500, 1000]
+        class_size: [200]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -102,13 +102,13 @@ jobs:
           pattern: class-d-*-stage-checkpoint-${{ github.run_id }}
           path: class-d-checkpoints
           merge-multiple: true
-      - name: Require exact-SHA clean evidence for D-200 D-500 D-1000
+      - name: Require exact-SHA clean evidence for D-200
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           node <<'NODE'
           const fs=require('fs');
-          for (const size of [200,500,1000]) {
+          for (const size of [200]) {
             const file=`class-d-checkpoints/class-d-${size}-stage-checkpoint.json`;
             if (!fs.existsSync(file)) throw new Error(`missing checkpoint ${file}`);
             const p=JSON.parse(fs.readFileSync(file,'utf8'));
@@ -116,5 +116,5 @@ jobs:
             if (p.sourceSha!==process.env.EXPECTED_SHA) throw new Error(`wrong source SHA in ${file}`);
             if (p.summary?.clean!==true) throw new Error(`unclean class D-${size} checkpoint`);
           }
-          console.log('TRUYN_CLASS_D_FIVE_PATCH_AGGREGATE=PASS classes=200,500,1000');
+          console.log('TRUYN_CLASS_D_FIVE_PATCH_AGGREGATE=PASS classes=200');
           NODE

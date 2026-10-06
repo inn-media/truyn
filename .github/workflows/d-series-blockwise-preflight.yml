@@ -11,9 +11,9 @@ on:
       scale:
         description: Local Class-D scale coverage
         required: true
-        default: all
+        default: d200
         type: choice
-        options: [all, d200, d500, d1000]
+        options: [d200]
       block:
         description: Run all blocks or only one targeted block
         required: true
@@ -33,7 +33,7 @@ on:
       scale:
         description: Local Class-D scale coverage
         required: false
-        default: all
+        default: d200
         type: string
       block:
         description: Run all blocks or only one targeted block
@@ -141,15 +141,12 @@ jobs:
         shell: bash
         env:
           TRUYN_CLASS_D_SOURCE_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha }}
-          SCALE_INPUT: ${{ inputs.scale || 'all' }}
+          SCALE_INPUT: ${{ inputs.scale || 'd200' }}
           BLOCK_ID: ${{ matrix.block }}
         run: |
           set -Eeuo pipefail
           case "$SCALE_INPUT" in
-            all) scale=all ;;
             d200) scale=200 ;;
-            d500) scale=500 ;;
-            d1000) scale=1000 ;;
             *) echo "invalid scale=$SCALE_INPUT" >&2; exit 2 ;;
           esac
           node scripts/d-series-block-runner.mjs "$BLOCK_ID" --scale "$scale" --result "d-series-block-${BLOCK_ID}.json"

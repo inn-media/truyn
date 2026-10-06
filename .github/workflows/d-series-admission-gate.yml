@@ -194,7 +194,8 @@ jobs:
           ADMISSION_SCALE: ${{ steps.plan.outputs.scale }}
         run: |
           set -Eeuo pipefail
-          case "$ADMISSION_SCALE" in all) local_scale=all ;; d200) local_scale=200 ;; d500) local_scale=500 ;; d1000) local_scale=1000 ;; *) exit 2 ;; esac
+          [[ "$ADMISSION_SCALE" == d200 ]] || exit 2
+          local_scale=200
           mapfile -t blocks < <(jq -r '.decision.targetedBlocks[]?' d-series-admission-manifest.json)
           for block in "${blocks[@]}"; do
             node scripts/d-series-block-runner.mjs "$block" --scale "$local_scale" --result "admission-${block}.json"

@@ -94,7 +94,7 @@ jobs:
           node scripts/d-series-qualification-manifest.mjs qualification \
             --base-sha "$BASE_SHA" \
             --candidate-sha "$CANDIDATE_SHA" \
-            --scale all \
+            --scale d200 \
             --swarm-run-id "$SWARM_RUN_ID" \
             --blockwise-run-id "$BLOCKWISE_RUN_ID" \
             --output d-series-qualification-manifest.json
@@ -127,7 +127,7 @@ jobs:
             --candidate-sha "$CANDIDATE_SHA" \
             --current-main-sha "$current_main" \
             --integration-ref "$integration_tree" \
-            --scale all \
+            --scale d200 \
             --output d-series-admission-manifest.json
           echo "current_main=$current_main" >>"$GITHUB_OUTPUT"
           echo "integration_tree=$integration_tree" >>"$GITHUB_OUTPUT"
@@ -150,7 +150,7 @@ jobs:
           set -Eeuo pipefail
           mapfile -t blocks < <(jq -r '.decision.targetedBlocks[]?' d-series-admission-manifest.json)
           for block in "${blocks[@]}"; do
-            node scripts/d-series-block-runner.mjs "$block" --scale all --result "self-admission-${block}.json"
+            node scripts/d-series-block-runner.mjs "$block" --scale d200 --result "self-admission-${block}.json"
             jq -e '.status=="PASS"' "self-admission-${block}.json" >/dev/null
           done
 

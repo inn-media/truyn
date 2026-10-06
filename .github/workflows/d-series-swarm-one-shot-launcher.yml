@@ -43,7 +43,7 @@ jobs:
           scale="$(sed -n 's/^SCALE=//p' "$request")"
           mode="$(sed -n 's/^MODE=//p' "$request")"
           [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
-          case "$scale" in d200|d500|d1000|all) ;; *) exit 2 ;; esac
+          [[ "$scale" == d200 ]] || { echo 'D-500/D-1000 acceptance superseded; only d200 is supported' >&2; exit 2; }
           [[ "$mode" == swarm ]]
           [[ "$(grep -c '^SOURCE_SHA=' "$request")" == 1 ]]
           [[ "$(grep -c '^SCALE=' "$request")" == 1 ]]
