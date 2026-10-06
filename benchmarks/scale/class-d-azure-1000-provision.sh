@@ -83,6 +83,83 @@ marker() {
   printf '%s\n' "$text" | sed -n "s/.*${key}=//p" | tail -1 | tr -d '\r'
 }
 
+D500_HEARTBEAT_SECONDS="${TRUYN_D500_HEARTBEAT_SECONDS:-25}"
+D500_NODE_WORKERS="${TRUYN_D500_NODE_WORKERS:-5}"
+[[ "$D500_HEARTBEAT_SECONDS" =~ ^[1-9][0-9]*$ ]]
+[[ "$D500_NODE_WORKERS" =~ ^[1-9][0-9]*$ && "$D500_NODE_WORKERS" -le 8 ]]
+
+host_status_arm() {
+  local status_dir="$1" host_index="$2"
+  # Host workers must never inherit the parent ERR trap: a single worker failure
+  # is evidence to collect, not permission to checkpoint/cleanup while peers run.
+  trap - ERR
+  trap "rc=\$?; printf '%s\\n' \"\$rc\" >'${status_dir}/.host-${host_index}.rc'; trap - EXIT; exit \"\$rc\"" EXIT
+}
+
+wait_host_stage() {
+  local stage="$1" status_dir="$2"
+  shift 2
+  local -a pids=("$@")
+  local -a reaped=()
+  local total="${#pids[@]}" start now completed failed running i rc state wait_rc
+  start=$(date +%s)
+  while true; do
+    completed=0
+    failed=0
+    running=0
+    for i in "${!pids[@]}"; do
+      if [[ ! -s "$status_dir/.host-$i.rc" ]] && ! kill -0 "${pids[$i]}" 2>/dev/null; then
+        if wait "${pids[$i]}"; then wait_rc=0; else wait_rc=$?; fi
+        reaped[$i]=1
+        [[ -s "$status_dir/.host-$i.rc" ]] || printf '%s\n' "$wait_rc" >"$status_dir/.host-$i.rc"
+      fi
+      if [[ -s "$status_dir/.host-$i.rc" ]]; then
+        rc=$(cat "$status_dir/.host-$i.rc")
+        completed=$((completed+1))
+        if [[ "$rc" == 0 ]]; then state=completed; else failed=$((failed+1)); state="failed(rc=$rc)"; fi
+      else
+        running=$((running+1))
+        state=running
+      fi
+      now=$(date +%s)
+      printf 'TRUYN_D500_HEARTBEAT stage=%s host=%s state=%s elapsedSec=%s\n' "$stage" "$i" "$state" "$((now-start))"
+    done
+    now=$(date +%s)
+    printf 'TRUYN_D500_HEARTBEAT stage=%s summary running=%s completed=%s failed=%s elapsedSec=%s\n' "$stage" "$running" "$completed" "$failed" "$((now-start))"
+    [[ "$completed" -eq "$total" ]] && break
+    sleep "$D500_HEARTBEAT_SECONDS"
+  done
+
+  local wait_failed=0 status candidate
+  for i in "${!pids[@]}"; do
+    if [[ "${reaped[$i]:-0}" != 1 ]]; then
+      if wait "${pids[$i]}"; then wait_rc=0; else wait_rc=$?; fi
+      [[ -s "$status_dir/.host-$i.rc" ]] || printf '%s\n' "$wait_rc" >"$status_dir/.host-$i.rc"
+      [[ "$wait_rc" == 0 ]] || wait_failed=1
+    fi
+  done
+  failed=0
+  for i in "${!pids[@]}"; do
+    rc=$(cat "$status_dir/.host-$i.rc" 2>/dev/null || echo 255)
+    status=PASS
+    if [[ "$rc" != 0 ]]; then status=FAIL; failed=$((failed+1)); fi
+    printf 'TRUYN_D500_HOST_RESULT stage=%s host=%s rc=%s status=%s\n' "$stage" "$i" "$rc" "$status"
+  done
+  if [[ "$failed" -ne 0 ]]; then
+    for i in "${!pids[@]}"; do
+      rc=$(cat "$status_dir/.host-$i.rc" 2>/dev/null || echo 255)
+      for candidate in "$status_dir/$i" "$status_dir/$i.out" "$status_dir/$i.err" "$status_dir/$i.log" "$status_dir/$i.recovered"; do
+        [[ -f "$candidate" ]] || continue
+        printf 'TRUYN_D500_HOST_COLLECTED_LOG_BEGIN stage=%s host=%s rc=%s file=%s\n' "$stage" "$i" "$rc" "$(basename "$candidate")"
+        tail -n 200 "$candidate" || true
+        printf 'TRUYN_D500_HOST_COLLECTED_LOG_END stage=%s host=%s rc=%s file=%s\n' "$stage" "$i" "$rc" "$(basename "$candidate")"
+      done
+    done
+  fi
+  printf 'TRUYN_D500_HOST_SUMMARY stage=%s total=%s completed=%s failed=%s passed=%s elapsedSec=%s\n' "$stage" "$total" "$completed" "$failed" "$((total-failed))" "$(( $(date +%s) - start ))"
+  [[ "$failed" -eq 0 && "$wait_failed" -eq 0 ]]
+}
+
 d200_failure_evidence_checkpoint() {
   local prior_rc="${1:-1}" failed_stage="${2:-unknown}" failed_line="${3:-0}" tmp
   trap - ERR
@@ -309,6 +386,7 @@ provision_dir=$(mktemp -d)
 provision_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   (
+    host_status_arm "$provision_dir" "$i"
     az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
     created=0
     for size in "$VM_SIZE" Standard_D4s_v5; do
@@ -326,9 +404,7 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   provision_pids+=("$!")
 done
 provision_failed=0
-for pid in "${provision_pids[@]}"; do
-  if ! wait "$pid"; then provision_failed=1; fi
-done
+if ! wait_host_stage provision "$provision_dir" "${provision_pids[@]}"; then provision_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do
   cat "$provision_dir/$i.log"
   PRIV+=("$(cat "$provision_dir/$i.ip")")
@@ -441,12 +517,35 @@ WantedBy=multi-user.target
 UNIT
 install_stage=systemd-start
 systemctl daemon-reload
-for j in \$(seq 0 $((NODES_PER_HOST-1))); do idx=\$(( ${i} * ${NODES_PER_HOST} + j )); systemctl enable --now truyn-d1000@\${idx}.service >/dev/null; done
+start_pids=()
+for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+  while [[ "\$(jobs -pr | wc -l | tr -d ' ')" -ge ${D500_NODE_WORKERS} ]]; do sleep 0.2; done
+  idx=\$(( ${i} * ${NODES_PER_HOST} + j ))
+  (systemctl enable --now truyn-d1000@\${idx}.service >/dev/null) &
+  start_pids+=("\$!")
+done
+start_failed=0
+for pid in "\${start_pids[@]}"; do if ! wait "\$pid"; then start_failed=1; fi; done
+[[ "\$start_failed" == 0 ]]
 install_stage=readiness
 ok=0
+probe_dir=/tmp/truyn-install-readiness
+rm -rf "\$probe_dir"; mkdir -p "\$probe_dir"
 for n in \$(seq 1 120); do
-  good=0
-  for j in \$(seq 0 $((NODES_PER_HOST-1))); do curl -fsS --max-time 1 http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/status >/dev/null 2>&1 && good=\$((good+1)); done
+  rm -f "\$probe_dir"/*.ok
+  probe_pids=()
+  for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+    while [[ "\$(jobs -pr | wc -l | tr -d ' ')" -ge ${D500_NODE_WORKERS} ]]; do sleep 0.1; done
+    (
+      if curl -fsS --max-time 1 http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/status >/dev/null 2>&1; then
+        : >"\$probe_dir/\$j.ok"
+      fi
+      exit 0
+    ) &
+    probe_pids+=("\$!")
+  done
+  for pid in "\${probe_pids[@]}"; do wait "\$pid" || true; done
+  good=\$(find "\$probe_dir" -maxdepth 1 -name '*.ok' -type f | wc -l | tr -d ' ')
   if [[ "\$good" -eq ${NODES_PER_HOST} ]]; then ok=1; break; fi
   sleep 2
 done
@@ -466,10 +565,12 @@ if [[ "\$ok" -ne 1 ]]; then
 fi
 install_stage=records
 python3 - <<'PY'
-import json, urllib.request
-records=[]
-for p in range(${CONTROL_BASE}, ${CONTROL_BASE}+${NODES_PER_HOST}):
-    records.append(json.load(urllib.request.urlopen(f'http://127.0.0.1:{p}/record'))['record'])
+import concurrent.futures, json, urllib.request
+ports=range(${CONTROL_BASE}, ${CONTROL_BASE}+${NODES_PER_HOST})
+def fetch(port):
+    return json.load(urllib.request.urlopen(f'http://127.0.0.1:{port}/record'))['record']
+with concurrent.futures.ThreadPoolExecutor(max_workers=min(${D500_NODE_WORKERS}, ${NODES_PER_HOST})) as executor:
+    records=list(executor.map(fetch, ports))
 open('/var/lib/truyn-d1000/records.json','w').write(json.dumps(records,separators=(',',':')))
 PY
 pkill -f 'python3 -m http.server 9900' >/dev/null 2>&1 || true
@@ -488,6 +589,7 @@ EOS
 )
   script="${script//truyn/truyn}"
   (
+    host_status_arm "$install_dir" "$i"
     out=$(remote "${VMS[$i]}" "$script")
     [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
     echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
@@ -495,9 +597,7 @@ EOS
   install_pids+=("$!")
 done
 install_failed=0
-for pid in "${install_pids[@]}"; do
-  if ! wait "$pid"; then install_failed=1; fi
-done
+if ! wait_host_stage install "$install_dir" "${install_pids[@]}"; then install_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do cat "$install_dir/$i"; done
 rm -rf "$install_dir"
 [[ "$install_failed" == 0 ]]
@@ -510,35 +610,37 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
 python3 - <<'PY'
-import json, os, urllib.request
+import concurrent.futures, json, os, urllib.request
 from datetime import datetime, timezone
 
 base=${CONTROL_BASE}
 count=${NODES_PER_HOST}
 minimum_remaining_ms=${BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS}
-records=[]
+workers=${D500_NODE_WORKERS}
 now=datetime.now(timezone.utc)
-oldest_issued=None
-minimum_remaining=None
 
-for j in range(count):
+def fetch_record(j):
     with urllib.request.urlopen(f'http://127.0.0.1:{base+j}/record', timeout=10) as response:
         value=json.load(response)
     record=value.get('record')
     if not isinstance(record, dict) or not record.get('nodeId') or not record.get('endpoints'):
-        raise SystemExit(f'live peer record missing required fields for node {j}')
+        raise RuntimeError(f'live peer record missing required fields for node {j}')
     issued_raw=record.get('issuedAt')
     expires_raw=record.get('expiresAt')
     if not issued_raw or not expires_raw:
-        raise SystemExit(f'live peer record missing lease timestamps for node {j}')
+        raise RuntimeError(f'live peer record missing lease timestamps for node {j}')
     issued=datetime.fromisoformat(issued_raw.replace('Z','+00:00'))
     expires=datetime.fromisoformat(expires_raw.replace('Z','+00:00'))
     if issued.tzinfo is None or expires.tzinfo is None or expires <= issued:
-        raise SystemExit(f'invalid live peer lease timestamps for node {j}')
-    remaining=int((expires-now).total_seconds()*1000)
-    minimum_remaining=remaining if minimum_remaining is None else min(minimum_remaining, remaining)
-    oldest_issued=issued if oldest_issued is None or issued < oldest_issued else oldest_issued
-    records.append(record)
+        raise RuntimeError(f'invalid live peer lease timestamps for node {j}')
+    return record, issued, int((expires-now).total_seconds()*1000)
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=min(workers,count)) as executor:
+    rows=list(executor.map(fetch_record, range(count)))
+
+records=[row[0] for row in rows]
+oldest_issued=min(row[1] for row in rows)
+minimum_remaining=min(row[2] for row in rows)
 
 if len(records) != count:
     raise SystemExit(f'live peer record count mismatch: {len(records)} != {count}')
@@ -562,13 +664,14 @@ print(f'BOOTSTRAP_RECORD_REFRESH_OLDEST_ISSUED_AT={oldest_issued.isoformat()}')
 PY
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$bootstrap_record_refresh_dir/$i") &
+  (
+    host_status_arm "$bootstrap_record_refresh_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$bootstrap_record_refresh_dir/$i"
+  ) &
   bootstrap_record_refresh_pids+=("$!")
 done
 bootstrap_record_refresh_failed=0
-for pid in "${bootstrap_record_refresh_pids[@]}"; do
-  if ! wait "$pid"; then bootstrap_record_refresh_failed=1; fi
-done
+if ! wait_host_stage bootstrap-record-refresh "$bootstrap_record_refresh_dir" "${bootstrap_record_refresh_pids[@]}"; then bootstrap_record_refresh_failed=1; fi
 bootstrap_record_refresh_hosts=0
 bootstrap_record_refresh_min_remaining=999999999
 for i in $(seq 0 $((HOST_COUNT-1))); do
@@ -656,49 +759,104 @@ refresh_max_endpoints=0
 refresh_min_hosts=999999
 refresh_max_hosts=0
 t0=\$(date +%s%3N)
+node_dir=/tmp/truyn-bootstrap-node-results
+rm -rf "\$node_dir"
+mkdir -p "\$node_dir"
+node_pids=()
 for j in \$(seq 0 $((NODES_PER_HOST-1))); do
-  node_id=\$(jq -r --argjson host ${i} --argjson node "\$j" '.[\$host][\$node].nodeId' /tmp/records-by-host.json)
-  payload=\$(jq -c --arg node "\$node_id" '{records:.[\$node]}' /tmp/bootstrap-plan-by-node.json)
-  records=\$(jq -r --arg node "\$node_id" '.[\$node] | length' /tmp/bootstrap-plan-by-node.json)
-  [[ "\$records" -eq ${BOOTSTRAP_MAX_PEERS_PER_NODE} ]]
-  if printf '%s' "\$payload" | jq -e --arg node "\$node_id" '.records | any(.nodeId == \$node)' >/dev/null; then echo "self peer leaked for \$node_id" >&2; exit 1; fi
-  unique=\$(printf '%s' "\$payload" | jq -r '.records[].nodeId' | sort -u | wc -l | tr -d ' ')
-  [[ "\$unique" -eq "\$records" ]]
-  bytes=\$(printf '%s' "\$payload" | wc -c | tr -d ' ')
-  [[ "\$bytes" -lt 900000 ]]
+  while [[ "\$(jobs -pr | wc -l | tr -d ' ')" -ge ${D500_NODE_WORKERS} ]]; do sleep 1; done
+  (
+    set +e
+    (
+      set -Eeuo pipefail
+      node_id=\$(jq -r --argjson host ${i} --argjson node "\$j" '.[\$host][\$node].nodeId' /tmp/records-by-host.json)
+      payload=\$(jq -c --arg node "\$node_id" '{records:.[\$node]}' /tmp/bootstrap-plan-by-node.json)
+      records=\$(jq -r --arg node "\$node_id" '.[\$node] | length' /tmp/bootstrap-plan-by-node.json)
+      [[ "\$records" -eq ${BOOTSTRAP_MAX_PEERS_PER_NODE} ]]
+      if printf '%s' "\$payload" | jq -e --arg node "\$node_id" '.records | any(.nodeId == \$node)' >/dev/null; then echo "self peer leaked for \$node_id" >&2; exit 1; fi
+      unique=\$(printf '%s' "\$payload" | jq -r '.records[].nodeId' | sort -u | wc -l | tr -d ' ')
+      [[ "\$unique" -eq "\$records" ]]
+      bytes=\$(printf '%s' "\$payload" | wc -c | tr -d ' ')
+      [[ "\$bytes" -lt 900000 ]]
+      control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
+      curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" "\${control_url}/bootstrap" >/dev/null
+      refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,targetConcurrency:4,timeoutMs:240000,seed:\$seed}')
+      refresh_result=''
+      refresh_rc=1
+      refresh_reason=none
+      for refresh_attempt in 1 2 3; do
+        set +e
+        refresh_result=\$(curl -fsS --max-time 300 -H 'content-type: application/json' --data-binary "\$refresh_payload" "\${control_url}/dht/refresh")
+        refresh_rc=\$?
+        set -e
+        refresh_reason=none
+        if [[ "\$refresh_rc" -eq 0 ]]; then
+          refresh_reason=\$(printf '%s' "\$refresh_result" | jq -r '.reason // "none"' 2>/dev/null || echo invalid-json)
+          if printf '%s' "\$refresh_result" | jq -e '.refreshed == true' >/dev/null 2>&1; then break; fi
+          refresh_rc=70
+        fi
+        echo "TRUYN_D200_BOOTSTRAP_REFRESH_RETRY host=${i} node=\$j attempt=\$refresh_attempt rc=\$refresh_rc reason=\$refresh_reason" >&2
+        [[ "\$refresh_attempt" -lt 3 ]] && sleep \$((refresh_attempt * 2))
+      done
+      [[ "\$refresh_rc" -eq 0 ]]
+      [[ "\$(printf '%s' "\$refresh_result" | jq -r '.refreshed')" == true ]]
+      readiness=\$(curl -fsS --max-time 20 "\${control_url}/dht/readiness")
+      [[ "\$(printf '%s' "\$readiness" | jq -r '.refresh.status')" == refreshed ]]
+      valid=\$(printf '%s' "\$readiness" | jq -r '.validPeers')
+      buckets=\$(printf '%s' "\$readiness" | jq -r '.populatedBuckets')
+      endpoints=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.endpointCount')
+      hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount')
+      [[ "\$valid" -ge "\$records" ]]
+      jq -nc --argjson node "\$j" --argjson records "\$records" --argjson bytes "\$bytes" --argjson valid "\$valid" --argjson buckets "\$buckets" --argjson endpoints "\$endpoints" --argjson hosts "\$hosts" '{node:\$node,records:\$records,bytes:\$bytes,valid:\$valid,buckets:\$buckets,endpoints:\$endpoints,hosts:\$hosts}' >"\$node_dir/\$j.metrics"
+    ) >"\$node_dir/\$j.log" 2>&1
+    rc=\$?
+    printf '%s\n' "\$rc" >"\$node_dir/\$j.rc"
+    exit "\$rc"
+  ) &
+  node_pids+=("\$!")
+done
+
+progress_reported=0
+while true; do
+  completed=\$(find "\$node_dir" -maxdepth 1 -name '*.rc' -type f | wc -l | tr -d ' ')
+  failed_now=0
+  for rf in "\$node_dir"/*.rc; do [[ -e "\$rf" ]] || continue; [[ "\$(cat "\$rf")" == 0 ]] || failed_now=\$((failed_now+1)); done
+  if [[ "\$completed" -ge \$((progress_reported+5)) || "\$completed" -eq ${NODES_PER_HOST} ]]; then
+    echo "TRUYN_D500_BOOTSTRAP_PROGRESS host=${i} completed=\${completed}/${NODES_PER_HOST} failed=\${failed_now} workers=${D500_NODE_WORKERS}"
+    progress_reported=\$(( (completed / 5) * 5 ))
+  fi
+  [[ "\$completed" -eq ${NODES_PER_HOST} ]] && break
+  sleep 2
+done
+
+node_failed=0
+for pid in "\${node_pids[@]}"; do if ! wait "\$pid"; then node_failed=1; fi; done
+for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+  rc=\$(cat "\$node_dir/\$j.rc" 2>/dev/null || echo 255)
+  if [[ "\$rc" != 0 ]]; then
+    node_failed=1
+    echo "TRUYN_D500_BOOTSTRAP_NODE_FAILURE host=${i} node=\$j rc=\$rc" >&2
+    cat "\$node_dir/\$j.log" >&2 || true
+    idx=\$(( ${i} * ${NODES_PER_HOST} + j ))
+    systemctl show "truyn-d1000@\${idx}.service" -p ActiveState -p SubState -p NRestarts -p ExecMainCode -p ExecMainStatus --no-pager 2>/dev/null >&2 || true
+    journalctl -u "truyn-d1000@\${idx}.service" -n 25 --no-pager 2>/dev/null >&2 || true
+  fi
+done
+[[ "\$node_failed" == 0 ]]
+
+for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+  row=\$(cat "\$node_dir/\$j.metrics")
+  records=\$(printf '%s' "\$row" | jq -r '.records')
+  bytes=\$(printf '%s' "\$row" | jq -r '.bytes')
+  valid=\$(printf '%s' "\$row" | jq -r '.valid')
+  buckets=\$(printf '%s' "\$row" | jq -r '.buckets')
+  endpoints=\$(printf '%s' "\$row" | jq -r '.endpoints')
+  hosts=\$(printf '%s' "\$row" | jq -r '.hosts')
   if [[ "\$records" -lt "\$min_records" ]]; then min_records="\$records"; fi
   if [[ "\$records" -gt "\$max_records" ]]; then max_records="\$records"; fi
   if [[ "\$bytes" -lt "\$min_bytes" ]]; then min_bytes="\$bytes"; fi
   if [[ "\$bytes" -gt "\$max_bytes" ]]; then max_bytes="\$bytes"; fi
   total_bytes=\$((total_bytes + bytes))
-  control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
-  curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" "\${control_url}/bootstrap" >/dev/null
-  refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,targetConcurrency:4,timeoutMs:240000,seed:\$seed}')
-  refresh_result=''
-  refresh_rc=1
-  for refresh_attempt in 1 2 3; do
-    set +e
-    refresh_result=\$(curl -fsS --max-time 300 -H 'content-type: application/json' --data-binary "\$refresh_payload" "\${control_url}/dht/refresh")
-    refresh_rc=\$?
-    set -e
-    refresh_reason=none
-    if [[ "\$refresh_rc" -eq 0 ]]; then
-      refresh_reason=\$(printf '%s' "\$refresh_result" | jq -r '.reason // "none"' 2>/dev/null || echo invalid-json)
-      if printf '%s' "\$refresh_result" | jq -e '.refreshed == true' >/dev/null 2>&1; then break; fi
-      refresh_rc=70
-    fi
-    echo "TRUYN_D200_BOOTSTRAP_REFRESH_RETRY host=${i} node=\$j attempt=\$refresh_attempt rc=\$refresh_rc reason=\$refresh_reason" >&2
-    [[ "\$refresh_attempt" -lt 3 ]] && sleep \$((refresh_attempt * 2))
-  done
-  [[ "\$refresh_rc" -eq 0 ]]
-  [[ "\$(printf '%s' "\$refresh_result" | jq -r '.refreshed')" == true ]]
-  readiness=\$(curl -fsS --max-time 20 "\${control_url}/dht/readiness")
-  [[ "\$(printf '%s' "\$readiness" | jq -r '.refresh.status')" == refreshed ]]
-  valid=\$(printf '%s' "\$readiness" | jq -r '.validPeers')
-  buckets=\$(printf '%s' "\$readiness" | jq -r '.populatedBuckets')
-  endpoints=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.endpointCount')
-  hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount')
-  [[ "\$valid" -ge "\$records" ]]
   if [[ "\$valid" -lt "\$refresh_min_valid" ]]; then refresh_min_valid="\$valid"; fi
   if [[ "\$valid" -gt "\$refresh_max_valid" ]]; then refresh_max_valid="\$valid"; fi
   if [[ "\$buckets" -lt "\$refresh_min_buckets" ]]; then refresh_min_buckets="\$buckets"; fi
@@ -736,6 +894,7 @@ EOS
   script="${script//truyn/truyn}"
   script="${script//truyn/truyn}"
   (
+    host_status_arm "$bootstrap_dir" "$i"
     out=$(remote "${VMS[$i]}" "$script")
     [[ "$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
     [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS)" == "$BOOTSTRAP_MAX_PEERS_PER_NODE" ]]
@@ -744,13 +903,19 @@ EOS
     [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_FAILURE_DOMAINS)" == "$HOST_COUNT" ]]
     [[ "$(marker "$out" BOOTSTRAP_REFRESH_COUNT)" == "$NODES_PER_HOST" ]]
     [[ "$(marker "$out" BOOTSTRAP_REFRESH_STATUS)" == refreshed ]]
-    echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i plan=host-stratified-xor refresh=per-node recordsMin=$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS) recordsMax=$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS) refreshCount=$(marker "$out" BOOTSTRAP_REFRESH_COUNT) validMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_VALID) validMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_VALID) bucketsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_BUCKETS) bucketsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_BUCKETS) endpointsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_ENDPOINTS) endpointsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_ENDPOINTS) hostsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_HOSTS) hostsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_HOSTS) bytesMin=$(marker "$out" BOOTSTRAP_MIN_BYTES) bytesMax=$(marker "$out" BOOTSTRAP_MAX_BYTES) bytesMean=$(marker "$out" BOOTSTRAP_MEAN_BYTES) ms=$(marker "$out" BOOTSTRAP_MS)"
-  ) >"$bootstrap_dir/$i" &
+    echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i plan=host-stratified-xor refresh=bounded-node-parallelism nodeWorkers=$D500_NODE_WORKERS recordsMin=$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS) recordsMax=$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS) refreshCount=$(marker "$out" BOOTSTRAP_REFRESH_COUNT) validMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_VALID) validMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_VALID) bucketsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_BUCKETS) bucketsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_BUCKETS) endpointsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_ENDPOINTS) endpointsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_ENDPOINTS) hostsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_HOSTS) hostsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_HOSTS) bytesMin=$(marker "$out" BOOTSTRAP_MIN_BYTES) bytesMax=$(marker "$out" BOOTSTRAP_MAX_BYTES) bytesMean=$(marker "$out" BOOTSTRAP_MEAN_BYTES) ms=$(marker "$out" BOOTSTRAP_MS)"
+  ) >"$bootstrap_dir/$i" 2>&1 &
   bootstrap_pids+=("$!")
 done
-for pid in "${bootstrap_pids[@]}"; do wait "$pid"; done
-for i in $(seq 0 $((HOST_COUNT-1))); do cat "$bootstrap_dir/$i"; done
+bootstrap_failed=0
+if ! wait_host_stage bootstrap "$bootstrap_dir" "${bootstrap_pids[@]}"; then bootstrap_failed=1; fi
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  echo "TRUYN_D500_HOST_LOG_BEGIN stage=bootstrap host=$i"
+  cat "$bootstrap_dir/$i" || true
+  echo "TRUYN_D500_HOST_LOG_END stage=bootstrap host=$i rc=$(cat "$bootstrap_dir/.host-$i.rc" 2>/dev/null || echo 255)"
+done
 rm -rf "$bootstrap_dir"
+[[ "$bootstrap_failed" == 0 ]]
 
 if [[ "${TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY:-0}" == 1 ]]; then
   qualification_class=D-1000
@@ -763,13 +928,14 @@ STAGE=bandwidth-meter
 meter_dir=$(mktemp -d)
 meter_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  (remote "${VMS[$i]}" "iptables -I OUTPUT 1 -p udp --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-out -j ACCEPT; iptables -I INPUT 1 -p udp --sport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-in -j ACCEPT; echo METER=1" >"$meter_dir/$i") &
+  (
+    host_status_arm "$meter_dir" "$i"
+    remote "${VMS[$i]}" "iptables -I OUTPUT 1 -p udp --dport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-out -j ACCEPT; iptables -I INPUT 1 -p udp --sport ${QUIC_BASE}:$((QUIC_BASE+NODES_PER_HOST-1)) -m comment --comment truyn-d1000-meter-in -j ACCEPT; echo METER=1" >"$meter_dir/$i"
+  ) &
   meter_pids+=("$!")
 done
 meter_failed=0
-for pid in "${meter_pids[@]}"; do
-  if ! wait "$pid"; then meter_failed=1; fi
-done
+if ! wait_host_stage bandwidth-meter "$meter_dir" "${meter_pids[@]}"; then meter_failed=1; fi
 if [[ "$meter_failed" != 0 ]]; then
   rm -rf "$meter_dir"
   false

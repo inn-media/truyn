@@ -47,14 +47,18 @@ PY
 EOS
 )
   (
+    host_status_arm "$retention_dir" "$i"
     trap - ERR
     set +e
     remote "${VMS[$i]}" "$script" >"$retention_dir/$i.out" 2>"$retention_dir/$i.err"
-    printf '%s\n' "$?" >"$retention_dir/$i.rc"
+    remote_rc=$?
+    printf '%s\n' "$remote_rc" >"$retention_dir/$i.rc"
+    exit "$remote_rc"
   ) &
   retention_pids+=("$!")
 done
-for pid in "${retention_pids[@]}"; do wait "$pid" || true; done
+retention_transport_failed=0
+if ! wait_host_stage write-retention "$retention_dir" "${retention_pids[@]}"; then retention_transport_failed=1; fi
 
 retained=0
 retention_confirmed_missing=0

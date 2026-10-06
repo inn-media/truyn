@@ -152,15 +152,19 @@ exit 0
 EOS
 )
   (
+    host_status_arm "$restart_dir" "$i"
     trap - ERR
     set +e
     remote "${VMS[$i]}" "$script" >"$restart_dir/$i.out" 2>"$restart_dir/$i.err"
-    printf '%s\n' "$?" >"$restart_dir/$i.remote_rc"
+    remote_rc=$?
+    printf '%s\n' "$remote_rc" >"$restart_dir/$i.remote_rc"
+    exit "$remote_rc"
   ) &
   restart_pids+=("$!")
 done
 
-for pid in "${restart_pids[@]}"; do wait "$pid" || true; done
+restart_transport_failed=0
+if ! wait_host_stage restart-recovery "$restart_dir" "${restart_pids[@]}"; then restart_transport_failed=1; fi
 
 stop_values=()
 start_values=()
@@ -168,7 +172,7 @@ ready_values=()
 recovery_values=()
 restart_hosts_pass=0
 restart_hosts_total=$HOST_COUNT
-restart_stage_failed=0
+restart_stage_failed=$restart_transport_failed
 
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$restart_dir/$i.out" 2>/dev/null || true)"

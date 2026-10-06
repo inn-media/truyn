@@ -5,6 +5,11 @@ set -Eeuo pipefail
 : "${NODES_PER_HOST:?source class-d-azure-1000-provision.sh first}"
 : "${NODE_COUNT:?source class-d-azure-1000-provision.sh first}"
 
+# The canonical path inherits this from the provisioner. Keep campaign sourceable
+# in isolation for contract/regression tests without changing the real default.
+D500_NODE_WORKERS="${D500_NODE_WORKERS:-${TRUYN_D500_NODE_WORKERS:-5}}"
+[[ "$D500_NODE_WORKERS" =~ ^[1-9][0-9]*$ && "$D500_NODE_WORKERS" -le 8 ]]
+
 STAGE=topology
 out=$(remote "${VMS[0]}" "set -Eeuo pipefail; f=/var/lib/truyn-d1000/records-by-host.json; echo NODES=\$(jq '[.[][]]|length' \"\$f\"); echo IDS=\$(jq -r '.[][]|.nodeId' \"\$f\"|sort -u|wc -l); echo EPS=\$(jq -r '.[][]|.endpoints[0]' \"\$f\"|sort -u|wc -l)")
 [[ "$(marker "$out" NODES)" == "$NODE_COUNT" ]]
@@ -50,6 +55,7 @@ readiness_last_hosts=-1
 readiness_observations_dir=\$(mktemp -d)
 readiness_expected_hosts_json=\$(jq -c '[.[] | .[0].endpoints[0] | sub("^[^:]+://";"") | split(":")[0]]' /var/lib/truyn-d1000/records-by-host.json)
 [[ "\$(printf '%s' "\$readiness_expected_hosts_json" | jq 'length')" -eq ${HOST_COUNT} ]]
+readiness_round_dir=\$(mktemp -d)
 while [[ "\$(date +%s)" -lt "\$deadline" ]]; do
   ready=0
   min_valid=999999
@@ -58,6 +64,29 @@ while [[ "\$(date +%s)" -lt "\$deadline" ]]; do
   max_buckets=0
   min_hosts=999999
   max_hosts=0
+  rm -f "\$readiness_round_dir"/*
+  readiness_probe_pids=()
+  for probe_j in \$(seq 0 $((NODES_PER_HOST-1))); do
+    while [[ "\$(jobs -pr | wc -l | tr -d ' ')" -ge ${D500_NODE_WORKERS:-5} ]]; do sleep 0.1; done
+    (
+      probe_now=\$(date +%s)
+      probe_remaining=\$((deadline - probe_now))
+      if [[ "\$probe_remaining" -le 0 ]]; then
+        printf '124\n' >"\$readiness_round_dir/\$probe_j.rc"
+        exit 0
+      fi
+      probe_timeout=\$probe_remaining
+      if [[ "\$probe_timeout" -gt 10 ]]; then probe_timeout=10; fi
+      set +e
+      curl -fsS --max-time "\$probe_timeout" "http://127.0.0.1:\$(( ${CONTROL_BASE} + probe_j ))/dht/readiness" >"\$readiness_round_dir/\$probe_j.json" 2>"\$readiness_round_dir/\$probe_j.err"
+      probe_rc=\$?
+      set -e
+      printf '%s\n' "\$probe_rc" >"\$readiness_round_dir/\$probe_j.rc"
+      exit 0
+    ) &
+    readiness_probe_pids+=("\$!")
+  done
+  for probe_pid in "\${readiness_probe_pids[@]}"; do wait "\$probe_pid" || true; done
   for j in \$(seq 0 $((NODES_PER_HOST-1))); do
     control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
     readiness_now=\$(date +%s)
@@ -65,15 +94,10 @@ while [[ "\$(date +%s)" -lt "\$deadline" ]]; do
     if [[ "\$readiness_remaining" -le 0 ]]; then
       break
     fi
-    readiness_probe_timeout=\$readiness_remaining
-    if [[ "\$readiness_probe_timeout" -gt 10 ]]; then
-      readiness_probe_timeout=10
-    fi
-    readiness=''
-    if readiness=\$(curl -fsS --max-time "\$readiness_probe_timeout" "\${control_url}/dht/readiness" 2>/tmp/truyn-d200-readiness-curl-\${j}.err); then
-      :
-    else
-      readiness_last_failure_rc=\$?
+    readiness=\$(cat "\$readiness_round_dir/\$j.json" 2>/dev/null || true)
+    readiness_probe_rc=\$(cat "\$readiness_round_dir/\$j.rc" 2>/dev/null || echo 124)
+    if [[ "\$readiness_probe_rc" != 0 ]]; then
+      readiness_last_failure_rc=\$readiness_probe_rc
       readiness_curl_failures=\$((readiness_curl_failures + 1))
       readiness_last_failure_node=\$j
       readiness_last_failure_kind=curl
@@ -240,7 +264,7 @@ done
 readiness_node_observations_b64=\$(jq -s -c 'sort_by(.nodeIndex)' "\$readiness_observations_dir"/*.json | gzip -c -9 | base64 -w0)
 [[ "\${#readiness_node_observations_b64}" -le 3000 ]]
 echo READINESS_NODE_OBSERVATIONS_B64=\$readiness_node_observations_b64
-rm -rf "\$readiness_observations_dir"
+rm -rf "\$readiness_observations_dir" "\$readiness_round_dir"
 [[ "\$ready" -eq ${NODES_PER_HOST} ]]
 EOS
 )
@@ -265,13 +289,14 @@ if [[ -f \"\$result_tmp\" ]]; then mv \"\$result_tmp\" \"\$result_file\"; fi
 printf 'READINESS_PROBE_RC=%s\\n' \"\$probe_rc\" > \"\$status_tmp\"
 mv \"\$status_tmp\" \"\$status_file\"
 exit \"\$probe_rc\""
-  (remote "${VMS[$i]}" "$wrapped_script" >"$readiness_dir/$i") &
+  (
+    host_status_arm "$readiness_dir" "$i"
+    remote "${VMS[$i]}" "$wrapped_script" >"$readiness_dir/$i"
+  ) &
   readiness_pids+=("$!")
 done
 readiness_failed=0
-for pid in "${readiness_pids[@]}"; do
-  if ! wait "$pid"; then readiness_failed=1; fi
-done
+if ! wait_host_stage readiness "$readiness_dir" "${readiness_pids[@]}"; then readiness_failed=1; fi
 readiness_markers_present() {
   local text="$1" key
   for key in READINESS_READY READINESS_TOTAL READINESS_MIN_VALID READINESS_MAX_VALID READINESS_MIN_BUCKETS READINESS_MAX_BUCKETS READINESS_MIN_HOSTS READINESS_MAX_HOSTS READINESS_NODE_OBSERVATIONS_B64; do
@@ -417,10 +442,15 @@ print('CONV_OK='+str(success)); print('CONV_TOTAL='+str(N)); print('CONV_P95='+s
 PY
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$conv_dir/$i") &
+  (
+    host_status_arm "$conv_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$conv_dir/$i"
+  ) &
   conv_pids+=("$!")
 done
-for pid in "${conv_pids[@]}"; do wait "$pid"; done
+conv_failed=0
+if ! wait_host_stage convergence "$conv_dir" "${conv_pids[@]}"; then conv_failed=1; fi
+[[ "$conv_failed" == 0 ]]
 conv_ms=$(( $(date +%s%3N) - conv_start_ms ))
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$conv_dir/$i")"
@@ -502,13 +532,14 @@ print('FRESHNESS_REPAIR_ATTEMPTS='+str(sum(row['attempts'] for row in rows)))
 PYD500FRESH
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$freshness_dir/$i") &
+  (
+    host_status_arm "$freshness_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$freshness_dir/$i"
+  ) &
   freshness_pids+=("$!")
 done
 freshness_failed=0
-for pid in "${freshness_pids[@]}"; do
-  if ! wait "$pid"; then freshness_failed=1; fi
-done
+if ! wait_host_stage pre-baseline-peer-freshness "$freshness_dir" "${freshness_pids[@]}"; then freshness_failed=1; fi
 freshness_nodes=0
 freshness_targets=0
 freshness_min_remaining=999999999
@@ -690,14 +721,15 @@ print('BASE_FAILURE_COUNT='+str(len(failures)))
 PY
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$baseline_dir/$i") &
+  (
+    host_status_arm "$baseline_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$baseline_dir/$i"
+  ) &
   baseline_pids+=("$!")
 done
 
 baseline_failed=0
-for pid in "${baseline_pids[@]}"; do
-  if ! wait "$pid"; then baseline_failed=1; fi
-done
+if ! wait_host_stage baseline "$baseline_dir" "${baseline_pids[@]}"; then baseline_failed=1; fi
 if [[ "$baseline_failed" != 0 ]]; then
   rm -rf "$baseline_dir" "$baseline_diag_phase_dir"
   false
@@ -825,13 +857,14 @@ print('BASE_DIAG_FAILURE_COUNT='+str(len(failures)))
 PY
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$baseline_diag_phase_dir/$i") &
+  (
+    host_status_arm "$baseline_diag_phase_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$baseline_diag_phase_dir/$i"
+  ) &
   baseline_diag_pids+=("$!")
 done
 baseline_diag_failed=0
-for pid in "${baseline_diag_pids[@]}"; do
-  if ! wait "$pid"; then baseline_diag_failed=1; fi
-done
+if ! wait_host_stage baseline-diagnostics "$baseline_diag_phase_dir" "${baseline_diag_pids[@]}"; then baseline_diag_failed=1; fi
 if [[ "$baseline_diag_failed" != 0 ]]; then
   rm -rf "$baseline_dir" "$baseline_diag_phase_dir"
   false
@@ -1017,13 +1050,17 @@ done
 echo WRITES=\$ok
 EOS
 )
-  (trap - ERR; remote "${VMS[$i]}" "$script" >"${d200_write_dir}/${i}.out" 2>"${d200_write_dir}/${i}.err") &
+  (
+    host_status_arm "$d200_write_dir" "$i"
+    trap - ERR
+    remote "${VMS[$i]}" "$script" >"${d200_write_dir}/${i}.out" 2>"${d200_write_dir}/${i}.err"
+  ) &
   d200_write_pids+=("$!")
 done
 d200_write_remote_failed=0
+if ! wait_host_stage durable-writes "$d200_write_dir" "${d200_write_pids[@]}"; then d200_write_remote_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  if ! wait "${d200_write_pids[$i]}"; then
-    d200_write_remote_failed=1
+  if [[ "$(cat "$d200_write_dir/.host-$i.rc" 2>/dev/null || echo 255)" != 0 ]]; then
     cat "${d200_write_dir}/${i}.err" >&2 || true
     continue
   fi
@@ -1042,6 +1079,7 @@ echo "TRUYN_CLASS_D_1000 stage=durable-writes acknowledged=${writes} ttlMs=${d20
 
 STAGE=restart-recovery
 restart_dir=$(mktemp -d)
+restart_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
@@ -1125,9 +1163,15 @@ echo READY_MIN_HOSTS=\$min_hosts
 echo READY_MAX_PENDING=\$max_pending
 EOS
 )
-  (remote "${VMS[$i]}" "$script" >"$restart_dir/$i") &
+  (
+    host_status_arm "$restart_dir" "$i"
+    remote "${VMS[$i]}" "$script" >"$restart_dir/$i"
+  ) &
+  restart_pids+=("$!")
 done
-wait
+restart_failed=0
+if ! wait_host_stage restart-recovery "$restart_dir" "${restart_pids[@]}"; then restart_failed=1; fi
+[[ "$restart_failed" == 0 ]]
 stop_values=()
 start_values=()
 ready_values=()
@@ -1302,6 +1346,7 @@ PY
 EOS
 )
   (
+    host_status_arm "$post_host_dir" "$i"
     out=$(remote "${VMS[$i]}" "$script")
     ok=$(marker "$out" POST_OK); total=$(marker "$out" POST_TOTAL); failure_count=$(marker "$out" POST_FAILURE_COUNT)
     [[ "$total" == 5 ]]
@@ -1357,9 +1402,7 @@ EOS
   post_host_pids+=("$!")
 done
 post_host_failed=0
-for pid in "${post_host_pids[@]}"; do
-  if ! wait "$pid"; then post_host_failed=1; fi
-done
+if ! wait_host_stage post-restart-routing "$post_host_dir" "${post_host_pids[@]}"; then post_host_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$post_host_dir/$i")"
   cat "$post_host_dir/$i"
@@ -1799,6 +1842,7 @@ PY
 EOS
 )
   (
+    host_status_arm "$healed_host_dir" "$i"
     out=$(remote "${VMS[$i]}" "$script")
   ok=$(marker "$out" HEALED_OK); total=$(marker "$out" HEALED_TOTAL); p50=$(marker "$out" HEALED_P50); p90=$(marker "$out" HEALED_P90); p95=$(marker "$out" HEALED_P95); p99=$(marker "$out" HEALED_P99)
   diag_meta=$(marker "$out" HEALED_DIAG_META)
@@ -1856,9 +1900,7 @@ PYD200HOST
 healed_host_pids+=("$!")
 done
 healed_host_failed=0
-for pid in "${healed_host_pids[@]}"; do
-  if ! wait "$pid"; then healed_host_failed=1; fi
-done
+if ! wait_host_stage healed-routing "$healed_host_dir" "${healed_host_pids[@]}"; then healed_host_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$healed_host_dir/$i.out")"
   cat "$healed_host_dir/$i.out"
@@ -1932,13 +1974,14 @@ echo PROCESSES=$proc
 echo QUIC_BYTES=$((outb+inb))
 EOS
 )
-  (remote "${VMS[$i]}" "$resource_script" >"$resource_dir/$i") &
+  (
+    host_status_arm "$resource_dir" "$i"
+    remote "${VMS[$i]}" "$resource_script" >"$resource_dir/$i"
+  ) &
   resource_pids+=("$!")
 done
 resource_failed=0
-for pid in "${resource_pids[@]}"; do
-  if ! wait "$pid"; then resource_failed=1; fi
-done
+if ! wait_host_stage resources "$resource_dir" "${resource_pids[@]}"; then resource_failed=1; fi
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$resource_dir/$i")"
   p=$(marker "$out" PROCESSES); [[ "$p" -ge "$NODES_PER_HOST" ]]
