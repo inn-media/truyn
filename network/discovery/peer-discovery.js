@@ -250,6 +250,7 @@ export class PeerDiscovery {
     intervalMs,
     targetCount = this.k,
     maxRounds = 4,
+    targetConcurrency = 1,
     seed = 'truyn-periodic-refresh',
     timerApi = null
   } = {}) {
@@ -259,6 +260,7 @@ export class PeerDiscovery {
       intervalMs: Math.floor(interval),
       targetCount: boundedInteger(targetCount, this.k, { min: 0, max: 256 }),
       maxRounds: boundedInteger(maxRounds, 4, { min: 0, max: 64 }),
+      targetConcurrency: boundedInteger(targetConcurrency, 1, { min: 1, max: 16 }),
       seed: typeof seed === 'string' && seed.trim() ? seed.trim() : 'truyn-periodic-refresh'
     };
     this.stopPeriodicRefresh();
@@ -320,6 +322,7 @@ export class PeerDiscovery {
     const operation = this.refreshRoutingTable({
       targetCount: config.targetCount,
       maxRounds: config.maxRounds,
+      targetConcurrency: config.targetConcurrency,
       seed: `${config.seed}:${run}`
     });
     this.periodicRefreshInFlight = operation;
