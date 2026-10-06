@@ -67,7 +67,7 @@ while [[ "\$(date +%s)" -lt "\$deadline" ]]; do
   rm -f "\$readiness_round_dir"/*
   readiness_probe_pids=()
   for probe_j in \$(seq 0 $((NODES_PER_HOST-1))); do
-    while [[ "\$(jobs -pr | wc -l | tr -d ' ')" -ge ${D500_NODE_WORKERS} ]]; do sleep 0.1; done
+    while [[ "\$(jobs -pr | wc -l | tr -d ' ')" -ge ${D500_NODE_WORKERS:-5} ]]; do sleep 0.1; done
     (
       probe_now=\$(date +%s)
       probe_remaining=\$((deadline - probe_now))
