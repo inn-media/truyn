@@ -259,7 +259,6 @@ export class PeerDiscovery {
       intervalMs: Math.floor(interval),
       targetCount: boundedInteger(targetCount, this.k, { min: 0, max: 256 }),
       maxRounds: boundedInteger(maxRounds, 4, { min: 0, max: 64 }),
-      targetConcurrency: boundedInteger(targetConcurrency, 1, { min: 1, max: 16 }),
       seed: typeof seed === 'string' && seed.trim() ? seed.trim() : 'truyn-periodic-refresh'
     };
     this.stopPeriodicRefresh();
