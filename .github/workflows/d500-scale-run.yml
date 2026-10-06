@@ -2,12 +2,12 @@ name: D-500 Scale Run
 on:
   push:
     branches: [main]
-    paths: ['.github/d500/launch-16.txt']
+    paths: ['.github/d500/launch-17.txt']
 permissions: { contents: read, actions: read, id-token: write }
-concurrency: { group: truyn-d500-attempt16-single-shot, cancel-in-progress: false }
+concurrency: { group: truyn-d500-attempt17-single-shot, cancel-in-progress: false }
 env:
-  TESTED_COMMIT: e91c165c67c655deb80df4511ca346acb9f1f45b
-  TESTED_TREE_SHA: 3a402ba72502de12ed2277db3c9f472872f44b46
+  TESTED_COMMIT: 0ed0cfe9d1d127e198eafbfd9b1087849a060b09
+  TESTED_TREE_SHA: d0c06f49e47b01781007234b4c9937a77689ce2a
   EXACT_MAIN_CI_RUN: '35500410155'
   EXACT_MAIN_FIVE_PATCH_RUN: '35500410293'
   QUALIFIED_TREE_CODEQL_CHECK: '106050818849'
@@ -88,7 +88,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d500-attempt16-${{ github.run_id }}'
+          name: 'truyn-class-d500-attempt17-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
