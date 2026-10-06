@@ -40,14 +40,19 @@ exit 0
 EOS
 )
   (
+    host_status_arm "$resources_dir" "$i"
     trap - ERR
     set +e
     remote "${VMS[$i]}" "$script" >"$resources_dir/$i.out" 2>"$resources_dir/$i.err"
-    printf '%s\n' "$?" >"$resources_dir/$i.rc"
+    remote_rc=$?
+    printf '%s\n' "$remote_rc" >"$resources_dir/$i.rc"
+    exit "$remote_rc"
   ) &
   resources_pids+=("$!")
 done
-for pid in "${resources_pids[@]}"; do wait "$pid" || true; done
+resources_transport_failed=0
+if ! wait_host_stage resources "$resources_dir" "${resources_pids[@]}"; then resources_transport_failed=1; fi
+[[ "$resources_transport_failed" == 0 ]] || resources_stage_failed=1
 
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$resources_dir/$i.out" 2>/dev/null || true)"
