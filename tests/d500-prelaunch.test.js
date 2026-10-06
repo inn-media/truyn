@@ -174,7 +174,10 @@ test('current D-500 workflow preserves the strict scale contract for the immutab
   assert.match(workflow, /\.topology\.nodeCount==500/);
   assert.match(workflow, /\.topology\.realProcessesPerHost==25/);
   assert.match(workflow, /\.recovery\.restartedNodeCount==100/);
-  assert.match(workflow, /TRUYN_D500_TERMINAL result=\$result/);
+  assert.match(workflow, /TRUYN_D500_TERMINAL PASS/);
+  assert.match(workflow, /ackWrites=100/);
+  assert.match(workflow, /ackLoss=0/);
+  assert.match(workflow, /cleanup=true remaining=0/);
 });
 
 test('D-500 launcher template inherits immutable qualification and strict terminal semantics', () => {
