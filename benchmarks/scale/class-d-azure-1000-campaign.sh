@@ -803,43 +803,69 @@ if [[ "$baseline_diag_failed" != 0 ]]; then
   false
 fi
 
-# Each failed row is fetched in its own bounded remote call. This avoids a
-# single oversized stdout/base64 payload while retaining every failure.
+# Batch failed diagnostics per host into compressed bounded chunks.
+baseline_batch_dir=$(mktemp -d)
+baseline_batch_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   failure_count="${baseline_failure_counts[$i]}"
   if [[ "$failure_count" == 0 ]]; then continue; fi
-  diag_out="$(cat "$baseline_diag_phase_dir/$i")"
-  [[ "$(marker "$diag_out" BASE_DIAG_READY)" == 1 ]]
-  [[ "$(marker "$diag_out" BASE_DIAG_FAILURE_COUNT)" == "$failure_count" ]]
-  for n in $(seq 0 $((failure_count-1))); do
-    row_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
-import base64,hashlib,json
+  (
+    set -Eeuo pipefail
+    diag_out="$(cat "$baseline_diag_phase_dir/$i")"
+    [[ "$(marker "$diag_out" BASE_DIAG_READY)" == 1 ]]
+    [[ "$(marker "$diag_out" BASE_DIAG_FAILURE_COUNT)" == "$failure_count" ]]
+    meta_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
+import base64,gzip,hashlib,json
 path='/var/lib/truyn-d1000/baseline-origin-host-${i}.json'
-n=${n}
-value=json.load(open(path))
-row=value['failures'][n]
-raw=json.dumps(row,separators=(',',':')).encode()
-if len(raw)>${D200_BASELINE_ROW_MAX_BYTES}:
-    raise SystemExit('TRUYN_D200_BASELINE_ROW_TOO_LARGE bytes='+str(len(raw)))
-print('BASE_DIAG_BYTES='+str(len(raw)))
-print('BASE_DIAG_SHA256='+hashlib.sha256(raw).hexdigest())
-print('BASE_DIAG_B64='+base64.b64encode(raw).decode())
+rows=json.load(open(path)).get('failures') or []
+raw=json.dumps(rows,separators=(',',':')).encode()
+encoded=base64.b64encode(gzip.compress(raw,compresslevel=9)).decode()
+open('/tmp/truyn-d500-baseline-batch-${i}.b64','w').write(encoded)
+chunk=2800
+print('BASE_BATCH_META='+':'.join(map(str,[len(raw),hashlib.sha256(raw).hexdigest(),len(rows),len(encoded),(len(encoded)+chunk-1)//chunk])))
 PY")
-    row_bytes=$(marker "$row_out" BASE_DIAG_BYTES)
-    row_sha=$(marker "$row_out" BASE_DIAG_SHA256)
-    row_b64=$(marker "$row_out" BASE_DIAG_B64)
-    python3 - "$i" "$row_bytes" "$row_sha" "$row_b64" "$baseline_diag_jsonl" <<'PYD200BASE'
-import base64,hashlib,json,sys
-host=int(sys.argv[1]); expected_bytes=int(sys.argv[2]); expected_sha=sys.argv[3]; raw=base64.b64decode(sys.argv[4],validate=True)
-if len(raw)!=expected_bytes: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=byte_count')
-if hashlib.sha256(raw).hexdigest()!=expected_sha: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=sha256')
-value=json.loads(raw.decode('utf-8'))
-if value.get('sourceHost')!=host: raise SystemExit('TRUYN_D200_BASELINE_PAYLOAD_TRUNCATED reason=host_mismatch')
-with open(sys.argv[5],'a',encoding='utf-8') as handle:
-    handle.write(json.dumps(value,separators=(',',':'))+'\n')
-PYD200BASE
-  done
+    meta=$(marker "$meta_out" BASE_BATCH_META)
+    IFS=':' read -r raw_bytes raw_sha row_count encoded_chars chunk_count <<<"$meta"
+    [[ "$row_count" == "$failure_count" ]]
+    [[ "$raw_sha" =~ ^[0-9a-f]{64}$ ]]
+    encoded=''
+    for chunk_index in $(seq 0 $((chunk_count-1))); do
+      chunk_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
+path='/tmp/truyn-d500-baseline-batch-${i}.b64'
+data=open(path).read(); index=${chunk_index}; size=2800
+print('BASE_BATCH_CHUNK='+data[index*size:(index+1)*size])
+PY")
+      chunk_value=$(marker "$chunk_out" BASE_BATCH_CHUNK)
+      [[ -n "$chunk_value" ]]
+      encoded+="$chunk_value"
+    done
+    [[ "${#encoded}" == "$encoded_chars" ]]
+    python3 - "$i" "$failure_count" "$raw_bytes" "$raw_sha" "$encoded" "$baseline_batch_dir/$i.jsonl" <<'PYD500BATCH'
+import base64,gzip,hashlib,json,sys
+host=int(sys.argv[1]); expected_count=int(sys.argv[2]); expected_bytes=int(sys.argv[3]); expected_sha=sys.argv[4]
+raw=gzip.decompress(base64.b64decode(sys.argv[5],validate=True))
+if len(raw)!=expected_bytes: raise SystemExit('TRUYN_D500_BASELINE_BATCH byte_count')
+if hashlib.sha256(raw).hexdigest()!=expected_sha: raise SystemExit('TRUYN_D500_BASELINE_BATCH sha256')
+rows=json.loads(raw.decode())
+if len(rows)!=expected_count: raise SystemExit('TRUYN_D500_BASELINE_BATCH count')
+for row in rows:
+    if row.get('sourceHost')!=host: raise SystemExit('TRUYN_D500_BASELINE_BATCH host_mismatch')
+with open(sys.argv[6],'w',encoding='utf-8') as handle:
+    for row in rows: handle.write(json.dumps(row,separators=(',',':'))+'\n')
+PYD500BATCH
+    echo "TRUYN_CLASS_D_1000 stage=baseline-diagnostics host=$i failures=$failure_count batchChunks=$chunk_count status=PASS"
+  ) >"$baseline_batch_dir/$i.out" 2>"$baseline_batch_dir/$i.err" &
+  baseline_batch_pids+=("$!")
 done
+baseline_batch_failed=0
+for pid in "${baseline_batch_pids[@]}"; do if ! wait "$pid"; then baseline_batch_failed=1; fi; done
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  [[ -f "$baseline_batch_dir/$i.err" ]] && cat "$baseline_batch_dir/$i.err" >&2
+  [[ -f "$baseline_batch_dir/$i.out" ]] && cat "$baseline_batch_dir/$i.out"
+  [[ -f "$baseline_batch_dir/$i.jsonl" ]] && cat "$baseline_batch_dir/$i.jsonl" >>"$baseline_diag_jsonl"
+done
+rm -rf "$baseline_batch_dir"
+[[ "$baseline_batch_failed" == 0 ]]
 rm -rf "$baseline_dir" "$baseline_diag_phase_dir"
 
 base_rate=$(python3 -c "print(round($base_success/$base_total,6))")
