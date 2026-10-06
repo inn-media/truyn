@@ -361,7 +361,14 @@ export async function createTestnetNodeService({
     }
 
     const operation = (async () => {
-      const result = await node.discovery.refreshRoutingTable(options);
+      const result = await node.discovery.refreshRoutingTable({
+        targets: options.targets,
+        targetCount: options.targetCount,
+        maxRounds: options.maxRounds,
+        seed: options.seed,
+        targetConcurrency: options.targetConcurrency,
+        timeoutMs: options.timeoutMs
+      });
       await node.persistState();
       lastDhtRefresh = {
         status: result.refreshed ? 'refreshed' : (result.reason || 'not_refreshed'),
