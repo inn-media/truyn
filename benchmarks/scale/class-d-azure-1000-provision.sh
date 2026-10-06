@@ -144,15 +144,18 @@ wait_host_stage() {
     status=PASS
     if [[ "$rc" != 0 ]]; then status=FAIL; failed=$((failed+1)); fi
     printf 'TRUYN_D500_HOST_RESULT stage=%s host=%s rc=%s status=%s\n' "$stage" "$i" "$rc" "$status"
-    if [[ "$rc" != 0 ]]; then
+  done
+  if [[ "$failed" -ne 0 ]]; then
+    for i in "${!pids[@]}"; do
+      rc=$(cat "$status_dir/.host-$i.rc" 2>/dev/null || echo 255)
       for candidate in "$status_dir/$i" "$status_dir/$i.out" "$status_dir/$i.err" "$status_dir/$i.log" "$status_dir/$i.recovered"; do
         [[ -f "$candidate" ]] || continue
-        printf 'TRUYN_D500_HOST_FAILURE_DIAG_BEGIN stage=%s host=%s file=%s\n' "$stage" "$i" "$(basename "$candidate")"
+        printf 'TRUYN_D500_HOST_COLLECTED_LOG_BEGIN stage=%s host=%s rc=%s file=%s\n' "$stage" "$i" "$rc" "$(basename "$candidate")"
         tail -n 200 "$candidate" || true
-        printf 'TRUYN_D500_HOST_FAILURE_DIAG_END stage=%s host=%s file=%s\n' "$stage" "$i" "$(basename "$candidate")"
+        printf 'TRUYN_D500_HOST_COLLECTED_LOG_END stage=%s host=%s rc=%s file=%s\n' "$stage" "$i" "$rc" "$(basename "$candidate")"
       done
-    fi
-  done
+    done
+  fi
   printf 'TRUYN_D500_HOST_SUMMARY stage=%s total=%s completed=%s failed=%s passed=%s elapsedSec=%s\n' "$stage" "$total" "$completed" "$failed" "$((total-failed))" "$(( $(date +%s) - start ))"
   [[ "$failed" -eq 0 && "$wait_failed" -eq 0 ]]
 }
