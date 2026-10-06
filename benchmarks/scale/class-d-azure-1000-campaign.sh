@@ -279,37 +279,45 @@ readiness_markers_present() {
   done
 }
 readiness_collection_attempts=4
-readiness_gate_failed=0
+readiness_recovery_pids=()
+readiness_recovery_hosts=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$readiness_dir/$i")"
-  if ! readiness_markers_present "$out"; then
-    recovered=''
-    if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; cat /tmp/truyn-d200-readiness-result")"; then
-      :
-    fi
+  if readiness_markers_present "$out"; then continue; fi
+  readiness_recovery_hosts+=("$i")
+  (
+    set -Eeuo pipefail
+    recovered=""
+    if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; cat /tmp/truyn-d200-readiness-result")"; then :; fi
     if ! readiness_markers_present "$recovered"; then
       for attempt in $(seq 1 "$readiness_collection_attempts"); do
-        recovered=''
-        if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; s=/tmp/truyn-d200-readiness-status; r=/tmp/truyn-d200-readiness-result; [[ -f \"\$s\" ]]; cat \"\$s\"; [[ -f \"\$r\" ]]; cat \"\$r\"")"; then
-          :
-        fi
+        recovered=""
+        if recovered="$(remote "${VMS[$i]}" "set -Eeuo pipefail; s=/tmp/truyn-d200-readiness-status; r=/tmp/truyn-d200-readiness-result; [[ -f \"\$s\" ]]; cat \"\$s\"; [[ -f \"\$r\" ]]; cat \"\$r\"")"; then :; fi
         probe_rc="$(marker "$recovered" READINESS_PROBE_RC)"
         if readiness_markers_present "$recovered"; then break; fi
-        if [[ -n "$probe_rc" && "$probe_rc" != 0 ]]; then
-          echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_probe_failed_without_complete_observation host=$i rc=$probe_rc" >&2
-          rm -rf "$readiness_dir"
-          false
-        fi
+        if [[ -n "$probe_rc" && "$probe_rc" != 0 ]]; then exit "$probe_rc"; fi
         [[ "$attempt" == "$readiness_collection_attempts" ]] || sleep 1
       done
     fi
-    if ! readiness_markers_present "$recovered"; then
-      echo "TRUYN_D200_READINESS_OBSERVATION_ERROR readiness_observation_missing host=$i launch_failure=$readiness_failed" >&2
-      rm -rf "$readiness_dir"
-      false
-    fi
-    out="$recovered"
-    echo "TRUYN_CLASS_D_1000 stage=readiness-observation-recovery host=$i mode=read-only status=PASS"
+    readiness_markers_present "$recovered"
+    printf '%s\n' "$recovered" >"$readiness_dir/$i.recovered"
+  ) &
+  readiness_recovery_pids+=("$!")
+done
+readiness_recovery_failed=0
+for pid in "${readiness_recovery_pids[@]}"; do if ! wait "$pid"; then readiness_recovery_failed=1; fi; done
+if [[ "$readiness_recovery_failed" != 0 ]]; then
+  echo "TRUYN_D200_READINESS_OBSERVATION_ERROR parallel_recovery_failed launch_failure=$readiness_failed" >&2
+  rm -rf "$readiness_dir"
+  false
+fi
+readiness_gate_failed=0
+for i in $(seq 0 $((HOST_COUNT-1))); do
+  if [[ -f "$readiness_dir/$i.recovered" ]]; then
+    out="$(cat "$readiness_dir/$i.recovered")"
+    echo "TRUYN_CLASS_D_1000 stage=readiness-observation-recovery host=$i mode=parallel-read-only status=PASS"
+  else
+    out="$(cat "$readiness_dir/$i")"
   fi
   ready=$(marker "$out" READINESS_READY); total=$(marker "$out" READINESS_TOTAL)
   node_observations_b64=$(marker "$out" READINESS_NODE_OBSERVATIONS_B64)
