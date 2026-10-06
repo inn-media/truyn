@@ -6,8 +6,8 @@ on:
 permissions: { contents: read, actions: read, id-token: write }
 concurrency: { group: truyn-d500-attempt18-single-shot, cancel-in-progress: false }
 env:
-  TESTED_COMMIT: 27726655e49b695e3c29daf446b3372326fb794d
-  TESTED_TREE_SHA: fb6df5fdcab4de42404b77b090af317d6c4a2614
+  TESTED_COMMIT: 0f83d2ced2ca8b190587873de8c5cb46fe6e2176
+  TESTED_TREE_SHA: 43d0ad0f104dafdc0be493a53deda5d8d114d17d
   EXACT_MAIN_CI_RUN: '35500410155'
   EXACT_MAIN_FIVE_PATCH_RUN: '35500410293'
   QUALIFIED_TREE_CODEQL_CHECK: '106050818849'
