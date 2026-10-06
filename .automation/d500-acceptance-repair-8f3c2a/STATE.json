@@ -1,6 +1,6 @@
 {
   "taskId": "truyn-d500-acceptance-repair-8f3c2a",
-  "state": "IN_PROGRESS",
+  "state": "SUPERSEDED",
   "currentSprint": "S02",
   "lastCompletedSprint": "S01",
   "taskBranch": "automation/d500-acceptance-repair-8f3c2a",
@@ -40,9 +40,11 @@
   },
   "realSuccessorLaunchAuthorized": false,
   "duplicateRealAttempt12": false,
-  "resumeCondition": "Materialize the minimal two-part D-500 repair onto exact current main 5872f28f23c68cb186405e4dc6e05d803e2b60c7 without replacing its bootstrap qualification contract; machine-verify the resulting candidate, then execute the locked qualification chain before any real Attempt 12 launch.",
+  "resumeCondition": "NONE_SUPERSEDED",
   "resumeCoverage": {
     "duplicateActiveOperation": false,
     "attempt11NeverRerun": true
-  }
+  },
+  "superseded": true,
+  "supersededReason": "Product decision: D-500 and D-1000 acceptance contracts and validation execution retired; this is not PASS."
 }
