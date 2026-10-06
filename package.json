@@ -51,5 +51,9 @@
     "@a2a-js/sdk": "1.0.1",
     "@modelcontextprotocol/server": "2.0.0",
     "express": "5.1.0"
+  },
+  "overrides": {
+    "brace-expansion": "2.1.7",
+    "@grpc/grpc-js": "1.14.5"
   }
 }
