@@ -846,6 +846,9 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   failure_count="${baseline_failure_counts[$i]}"
   if [[ "$failure_count" == 0 ]]; then continue; fi
   (
+    diag_out="$(cat "$baseline_diag_phase_dir/$i")"
+    [[ "$(marker "$diag_out" BASE_DIAG_READY)" == 1 ]]
+    [[ "$(marker "$diag_out" BASE_DIAG_FAILURE_COUNT)" == "$failure_count" ]]
     : >"$baseline_collect_dir/$i.jsonl"
     for start_row in $(seq 0 "$D500_BASELINE_DIAG_BATCH_ROWS" $((failure_count-1))); do
       batch_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 - <<'PY'
@@ -1918,7 +1921,18 @@ rss_kb=0; quic_bytes=0; process_total=0
 resource_dir=$(mktemp -d)
 resource_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  (remote "${VMS[$i]}" "set -Eeuo pipefail; rss=\$(ps -eo rss,args | awk '/network\/testnet\/node-service.js/ && !/awk/ {s+=\$1} END{print s+0}'); proc=\$(pgrep -fc 'network/testnet/node-service.js'); outb=\$(iptables-save -c | awk '/truyn-d1000-meter-out/ {gsub(/\\[/,"",\$1); split(\$1,a,":"); s+=a[2]} END{print s+0}'); inb=\$(iptables-save -c | awk '/truyn-d1000-meter-in/ {gsub(/\\[/,"",\$1); split(\$1,a,":"); s+=a[2]} END{print s+0}'); echo RSS_KB=\$rss; echo PROCESSES=\$proc; echo QUIC_BYTES=\$((outb+inb))" >"$resource_dir/$i") &
+  resource_script=$(cat <<'EOS'
+set -Eeuo pipefail
+rss=$(ps -eo rss,args | awk '/network\/testnet\/node-service.js/ && !/awk/ {s+=$1} END{print s+0}')
+proc=$(pgrep -fc 'network/testnet/node-service.js')
+outb=$(iptables-save -c | awk '/truyn-d1000-meter-out/ {gsub(/\[/,"",$1); split($1,a,":"); s+=a[2]} END{print s+0}')
+inb=$(iptables-save -c | awk '/truyn-d1000-meter-in/ {gsub(/\[/,"",$1); split($1,a,":"); s+=a[2]} END{print s+0}')
+echo RSS_KB=$rss
+echo PROCESSES=$proc
+echo QUIC_BYTES=$((outb+inb))
+EOS
+)
+  (remote "${VMS[$i]}" "$resource_script" >"$resource_dir/$i") &
   resource_pids+=("$!")
 done
 resource_failed=0
