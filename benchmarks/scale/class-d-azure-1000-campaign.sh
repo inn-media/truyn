@@ -1122,16 +1122,16 @@ d500_runtime_pressure_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-runtime-press
 d500_runtime_pressure_json="${GITHUB_WORKSPACE:-$PWD}/class-d-200-runtime-pressure-hosts.json"
 : >"$d500_runtime_pressure_jsonl"
 for i in $(seq 0 $((HOST_COUNT-1))); do
-  if [[ "$(cat "$d200_write_dir/.host-$i.rc" 2>/dev/null || echo 255)" != 0 ]]; then
-    cat "${d200_write_dir}/${i}.err" >&2 || true
-    continue
-  fi
-  out=$(cat "${d200_write_dir}/${i}.out")
+  out=$(cat "${d200_write_dir}/${i}.out" 2>/dev/null || true)
   pressure=$(marker "$out" RUNTIME_PRESSURE_HOST_JSON)
   if ! printf '%s' "$pressure" | jq -e --argjson host "$i" '.schema=="truyn.d500.runtime-pressure.host.v1" and .host==$host' >/dev/null 2>&1; then
     pressure=$(jq -nc --argjson host "$i" '{schema:"truyn.d500.runtime-pressure.host.v1",host:$host,observationUnavailable:true}')
   fi
   printf '%s\n' "$pressure" >>"$d500_runtime_pressure_jsonl"
+  if [[ "$(cat "$d200_write_dir/.host-$i.rc" 2>/dev/null || echo 255)" != 0 ]]; then
+    cat "${d200_write_dir}/${i}.err" >&2 || true
+    continue
+  fi
   w=$(marker "$out" WRITES)
   if [[ "$w" != 5 ]]; then
     d200_write_remote_failed=1
