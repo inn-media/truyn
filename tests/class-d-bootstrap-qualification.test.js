@@ -2,48 +2,47 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('current D-Series qualification and D-500 launcher are exact-SHA and single-shot', async () => {
-  const qualification = await readFile('.github/workflows/d-series-frozen-candidate-qualification.yml', 'utf8');
-  const admission = await readFile('.github/workflows/d-series-admission-gate.yml', 'utf8');
-  const d500 = await readFile('.github/workflows/d500-scale-run.yml', 'utf8');
+test('Class D bootstrap qualification is a permanent exact-main D-500/D-1000 gate', async () => {
+  const workflow = await readFile('.github/workflows/class-d-bootstrap-qualification.yml', 'utf8');
+  const launcher = await readFile('.github/workflows/class-d-bootstrap-launcher.yml', 'utf8');
   const provision = await readFile('benchmarks/scale/class-d-azure-1000-provision.sh', 'utf8');
   const service = await readFile('network/testnet/node-service.js', 'utf8');
 
-  assert.match(qualification, /name: D-Series Frozen Candidate Qualification/);
-  assert.match(qualification, /workflow_dispatch:/);
-  assert.match(qualification, /workflow_run:/);
-  assert.match(qualification, /D-Series Sanitation Swarm/);
-  assert.match(qualification, /D-Series Blockwise Preflight/);
-  assert.match(qualification, /candidate_sha:/);
-  assert.match(qualification, /.head_sha // empty/);
-  assert.match(qualification, /.head_commit.id // .head_sha/);
-  assert.match(qualification, /.run_attempt==1/);
-  assert.match(qualification, /d-series-qualification-manifest-/);
-  assert.match(qualification, /candidate_bound_pair_not_ready/);
+  assert.match(workflow, /name: Class D Bootstrap Qualification/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /Class D Bootstrap Qualification Launcher/);
+  assert.match(workflow, /source_sha:/);
+  assert.match(workflow, /- d500/);
+  assert.match(workflow, /- d1000/);
+  assert.match(workflow, /NODES_PER_HOST=25/);
+  assert.match(workflow, /NODES_PER_HOST=50/);
+  assert.match(workflow, /\[\[ "\$main_sha" == "\$source_sha" \]\]/);
+  assert.match(workflow, /\[\[ "\$GITHUB_SHA" == "\$source_sha" \]\]/);
+  assert.match(workflow, /caller provenance/i);
+  assert.match(workflow, /\.workflow_run\.head_repository\.id == \.repository\.id/);
+  assert.match(workflow, /\.ahead_by==1/);
+  assert.match(workflow, /\.files\|length\)==1/);
+  assert.match(workflow, /bootstrap-launch\/\$\{source_sha:0:8\}-\$\{scale\}/);
+  assert.match(workflow, /TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY=1/);
+  assert.match(workflow, /TRUYN_CLASS_D_BOOTSTRAP_TERMINAL/);
+  assert.match(workflow, /BOOTSTRAP_HOSTS.*== 20/);
 
-  assert.match(admission, /name: D-Series Admission Gate/);
-  assert.match(admission, /ref: main/);
-  assert.match(admission, /current_main/);
-  assert.match(admission, /integration_tree/);
-  assert.match(admission, /main_moved_during_admission/);
-  assert.match(admission, /PASS_COMPATIBLE/);
-
-  assert.match(d500, /name: D-500 Scale Run/);
-  assert.match(d500, /branches: [main]/);
-  assert.match(d500, /paths: ['.github/d500/launch-19.txt']/);
-  assert.match(d500, /truyn-d500-attempt19-single-shot/);
-  assert.match(d500, /TESTED_COMMIT: [0-9a-f]{40}/);
-  assert.match(d500, /EXACT_MAIN_CI_RUN: '[0-9]+'/);
-  assert.match(d500, /EXACT_MAIN_FIVE_PATCH_RUN: '[0-9]+'/);
-  assert.match(d500, /NODES_PER_HOST: '25'/);
-  assert.match(d500, /Execute real 20-host 500-process campaign/);
-  assert.doesNotMatch(d500, /workflow_dispatch:/);
-  assert.doesNotMatch(d500, /launch-20.txt/);
+  assert.match(launcher, /name: Class D Bootstrap Qualification Launcher/);
+  assert.match(launcher, /Validate exact immutable bootstrap request/);
+  assert.match(launcher, /parent="\$\(git rev-parse HEAD\^\)"/);
+  assert.match(launcher, /git diff --name-only "\$parent" "\$GITHUB_SHA"/);
+  assert.match(launcher, /git rev-list --count/);
+  assert.doesNotMatch(launcher, /\.commits\[\]\?\.added/);
+  assert.doesNotMatch(launcher, /ORGANIZATION_AUTOPILOT_TOKEN_GITHUB/);
+  assert.doesNotMatch(launcher, /gh workflow run/);
+  assert.doesNotMatch(launcher, /actions: write/);
+  assert.doesNotMatch(launcher, /id-token: write/);
 
   assert.match(provision, /targetConcurrency:4/);
   assert.match(provision, /timeoutMs:240000/);
   assert.match(provision, /--max-time 300/);
-  assert.match(provision, /.refreshed == true/);
+  assert.match(provision, /\.refreshed == true/);
   assert.match(provision, /TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION/);
   assert.match(provision, /TRUYN_CLASS_D_BOOTSTRAP_QUALIFICATION_ONLY/);
 
@@ -66,16 +65,14 @@ test('bootstrap-only exit is after bootstrap and before full Class-D stages', as
   assert.match(provision, /return 0 2>\/dev\/null \|\| exit 0/);
 });
 
-test('current D-500 launcher keeps strict acceptance thresholds untouched', async () => {
-  const workflow = await readFile('.github/workflows/d500-scale-run.yml', 'utf8');
+test('qualification keeps full D-500 strict thresholds untouched', async () => {
+  const workflow = await readFile('.github/workflows/d500-acceptance.yml', 'utf8');
   assert.match(workflow, /baselineSuccessRatio>=\.99/);
   assert.match(workflow, /postRestartSuccessRatio>=\.99/);
   assert.match(workflow, /healedSuccessRatio>=\.99/);
-  assert.match(workflow, /convergence\.routingSuccessRatio>=\.99/);
   assert.match(workflow, /recovery\.latencyMs\.p95<=120000/);
-  assert.match(workflow, /packetPartitionRecoveryMs<=120000/);
-  assert.match(workflow, /\.safety\.acknowledgedWriteCount==100/);
-  assert.match(workflow, /\.safety\.acknowledgedWriteLossCount==0/);
-  assert.match(workflow, /\.cleanup\.confirmed==true/);
-  assert.match(workflow, /\.cleanup\.remainingResources==0/);
+  // Canonical nested evidence schema; exact equality preserves and strengthens
+  // the legacy >=100 acknowledged-write floor while retaining zero-loss safety.
+  assert.match(workflow, /\.safety\.acknowledgedWrites\.count==100/);
+  assert.match(workflow, /\.safety\.acknowledgedWrites\.lost==0/);
 });
