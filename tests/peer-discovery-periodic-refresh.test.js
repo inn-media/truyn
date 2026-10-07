@@ -60,6 +60,9 @@ test('PeerDiscovery periodic refresh uses bounded fake timers and close clears t
     intervalMs: 1_234,
     targetCount: 2,
     maxRounds: 3,
+    targetConcurrency: 3,
+    timeoutMs: 900,
+    jitterRatio: 0,
     seed: 'periodic-test',
     timerApi
   });
@@ -70,6 +73,9 @@ test('PeerDiscovery periodic refresh uses bounded fake timers and close clears t
     intervalMs: 1_234,
     targetCount: 2,
     maxRounds: 3,
+    targetConcurrency: 3,
+    timeoutMs: 900,
+    jitterRatio: 0,
     seed: 'periodic-test'
   });
   assert.equal(timerApi.timers.length, 1);
@@ -79,7 +85,7 @@ test('PeerDiscovery periodic refresh uses bounded fake timers and close clears t
   timerApi.timers[0].fn();
   await flushPromises();
 
-  assert.deepEqual(calls, [{ targetCount: 2, maxRounds: 3, seed: 'periodic-test:1' }]);
+  assert.deepEqual(calls, [{ targetCount: 2, maxRounds: 3, targetConcurrency: 3, timeoutMs: 900, seed: 'periodic-test:1' }]);
   const afterRun = discovery.periodicRefreshSnapshot();
   assert.equal(afterRun.runs, 1);
   assert.equal(afterRun.failures, 0);
@@ -110,7 +116,7 @@ test('PeerDiscovery periodic refresh does not overlap an in-flight refresh', asy
     return await new Promise((resolve) => { resolveRefresh = resolve; });
   };
 
-  discovery.startPeriodicRefresh({ intervalMs: 50, targetCount: 4, maxRounds: 2, seed: 'no-overlap', timerApi });
+  discovery.startPeriodicRefresh({ intervalMs: 50, targetCount: 4, maxRounds: 2, targetConcurrency: 2, timeoutMs: 1_000, jitterRatio: 0, seed: 'no-overlap', timerApi });
   timerApi.timers[0].fn();
   await flushPromises();
 
@@ -154,6 +160,59 @@ test('PeerDiscovery reserves bounded refresh budget for records nearest to expir
   assert.deepEqual(plan.targets.slice(0, 2), plan.nearExpiryTargets);
 });
 
+test('PeerDiscovery walk does not globally forget a peer after one failed lookup stream', async () => {
+  const local = createIdentity();
+  const remoteIdentity = createIdentity();
+  let forgetCalls = 0;
+  const rpc = {
+    async findNode() { throw new Error('transient_stream_failure'); },
+    forget() { forgetCalls += 1; }
+  };
+  const discovery = new PeerDiscovery({ identity: local, rpc });
+  const now = Date.now();
+  discovery.ingest(peerRecord({ identity: remoteIdentity, issuedAtMs: now, ttlMs: 60_000, port: 5700 }), { now });
+
+  const result = await discovery.walk(remoteIdentity.nodeId, { maxRounds: 1, stopOnFound: false });
+
+  assert.equal(result.responses, 0);
+  assert.equal(forgetCalls, 0, 'one failed find-node stream must not tear down the shared peer binding');
+});
+
+test('PeerDiscovery periodic refresh applies bounded deterministic jitter and an aggregate deadline', async () => {
+  const identity = createIdentity();
+  const discovery = new PeerDiscovery({ identity });
+  const timerApi = fakeTimerApi();
+  const calls = [];
+  discovery.refreshRoutingTable = async (options) => {
+    calls.push(options);
+    return { refreshed: true, targets: [], targetSelection: { nearExpiryTargets: 0, xorTargets: 0 }, walks: [], queriedPeers: [], responses: 0, routingSizeDelta: 0, validPeersDelta: 0 };
+  };
+
+  discovery.startPeriodicRefresh({
+    intervalMs: 10_000,
+    targetCount: 8,
+    maxRounds: 3,
+    targetConcurrency: 2,
+    timeoutMs: 7_500,
+    jitterRatio: 0.2,
+    seed: 'jitter-proof',
+    timerApi
+  });
+
+  assert.equal(timerApi.timers.length, 1);
+  assert.ok(timerApi.timers[0].delay >= 8_000 && timerApi.timers[0].delay <= 12_000);
+  timerApi.timers[0].fn();
+  await flushPromises();
+  assert.deepEqual(calls, [{
+    targetCount: 8,
+    maxRounds: 3,
+    targetConcurrency: 2,
+    timeoutMs: 7_500,
+    seed: 'jitter-proof:1'
+  }]);
+  discovery.close();
+});
+
 test('PeerDiscovery lease snapshot exposes the exact TTL rollover without changing lease validity semantics', () => {
   const local = createIdentity();
   const remote = createIdentity();
@@ -189,5 +248,8 @@ test('runtime starts bounded periodic discovery refresh below peer-record lifeti
   assert.match(runtime, /intervalMs: this\.discoveryRefreshIntervalMs/);
   assert.match(runtime, /targetCount: this\.discoveryRefreshTargetCount/);
   assert.match(runtime, /maxRounds: this\.discoveryRefreshMaxRounds/);
+  assert.match(runtime, /targetConcurrency: this\.discoveryRefreshTargetConcurrency/);
+  assert.match(runtime, /timeoutMs: this\.discoveryRefreshTimeoutMs/);
+  assert.match(runtime, /jitterRatio: this\.discoveryRefreshJitterRatio/);
   assert.match(runtime, /this\.discovery\.close\(\)/);
 });
