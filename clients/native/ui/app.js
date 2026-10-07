@@ -149,6 +149,11 @@ async function pollNeed(needId, generation) {
   try {
     const body = await invoke("request_status", { needId });
     if (generation !== pollGeneration || activeNeedId !== needId) return;
+    if (!connected) {
+      const info = await invoke("client_info");
+      if (generation !== pollGeneration || activeNeedId !== needId) return;
+      updateConnection(info);
+    }
     pollFailures = 0;
     clearError("needError");
     requestStatus.textContent = body.status || "unknown";
@@ -244,6 +249,7 @@ cancelButton.addEventListener("click", async () => {
   cancelButton.disabled = true;
   try {
     const result = await invoke("cancel_need", { needId: target });
+    if (activeNeedId !== target) return;
     if (result && result.resumeStatus === true) {
       requestStatus.textContent = "completed before cancel";
       resultOutput.textContent = "Request completed before cancellation. Retrieving and verifying RESULT…";
@@ -254,10 +260,17 @@ cancelButton.addEventListener("click", async () => {
     }
     pollGeneration += 1;
     activeNeedId = null;
-    requestStatus.textContent = result && result.status === "not_found" ? "not found" : "cancelled";
-    resultOutput.textContent = result && result.status === "not_found"
-      ? "Relay no longer had this request; local recovery state was cleared."
-      : "Request cancelled.";
+    const terminalStatus = result && result.status;
+    if (terminalStatus === "failed") {
+      requestStatus.textContent = "failed";
+      resultOutput.textContent = "Request failed before cancellation.";
+    } else if (terminalStatus === "not_found") {
+      requestStatus.textContent = "not found";
+      resultOutput.textContent = "Relay no longer had this request; local recovery state was cleared.";
+    } else {
+      requestStatus.textContent = "cancelled";
+      resultOutput.textContent = "Request cancelled.";
+    }
     if (result && result.warning) showError("needError", result.warning);
   } catch (error) {
     showError("needError", error);

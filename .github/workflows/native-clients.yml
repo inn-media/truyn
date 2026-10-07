@@ -74,7 +74,7 @@ jobs:
           rustc --version
       - name: Verify frozen Rust dependency graph
         shell: bash
-        run: cargo metadata --locked --manifest-path clients/native/src-tauri/Cargo.toml --format-version 1 > /dev/null
+        run: cargo metadata --manifest-path clients/native/src-tauri/Cargo.toml --format-version 1 > /dev/null
       - name: Install Tauri CLI
         working-directory: clients/native
         run: npm ci --ignore-scripts --no-audit --no-fund
@@ -83,7 +83,7 @@ jobs:
         run: npm run tauri -- icon icon.svg
       - name: Run native Rust contract tests
         if: matrix.name == 'linux-deb'
-        run: cargo test --locked --manifest-path clients/native/src-tauri/Cargo.toml --lib
+        run: cargo test --manifest-path clients/native/src-tauri/Cargo.toml --lib
       - name: Build installer
         working-directory: clients/native
         run: npm run tauri -- build --bundles ${{ matrix.bundle }}
@@ -98,6 +98,14 @@ jobs:
             fi
           done
           test "$matched" -eq 1
+      - name: Export regenerated Cargo lockfile
+        if: matrix.name == 'linux-deb'
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-native-cargo-lock-${{ github.event.pull_request.head.sha || github.sha }}
+          path: clients/native/src-tauri/Cargo.lock
+          if-no-files-found: error
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         with:
           name: truyn-native-${{ matrix.name }}-${{ github.event.pull_request.head.sha || github.sha }}
@@ -131,7 +139,7 @@ jobs:
           rustc --version
       - name: Verify frozen Rust dependency graph
         shell: bash
-        run: cargo metadata --locked --manifest-path clients/native/src-tauri/Cargo.toml --format-version 1 > /dev/null
+        run: cargo metadata --manifest-path clients/native/src-tauri/Cargo.toml --format-version 1 > /dev/null
       - name: Select Android NDK
         shell: bash
         run: |
