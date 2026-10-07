@@ -199,6 +199,43 @@ jobs:
           output="$(go run .)"
           test "$output" = "truyn-go-cleanroom-ok"
           go list -m -f '{{.Path}}@{{.Version}}' github.com/inn-media/truyn/sdk/go | grep -Fx 'github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1'
+      - name: Build reproducible managed-client platform artifacts
+        env:
+          TRUYN_CLIENT_VERSION: 0.1.0-alpha.4
+          TRUYN_MANAGED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/package-managed-clients.mjs
+      - name: Verify managed-client four-platform manifest and reproducibility
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TRUYN_CLIENT_VERSION: 0.1.0-alpha.4
+          TRUYN_MANAGED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -Eeuo pipefail
+          node --input-type=module <<'NODE'
+          import {readFile} from 'node:fs/promises';
+          const m=JSON.parse(await readFile('dist/managed-clients/manifest.json','utf8'));
+          const expected=['android','linux','macos','windows'];
+          const got=m.artifacts.map((x)=>x.platform).sort();
+          if(JSON.stringify(got)!==JSON.stringify(expected)) throw new Error('platform set mismatch: '+got);
+          if(m.sourceSha!==process.env.EXPECTED_SHA) throw new Error('source SHA mismatch');
+          if(new Set(m.artifacts.map((x)=>x.sha256)).size!==4) throw new Error('artifact digests are not distinct');
+          NODE
+          cp dist/managed-clients/manifest.json /tmp/truyn-managed-client-manifest.json
+          node scripts/package-managed-clients.mjs
+          cmp /tmp/truyn-managed-client-manifest.json dist/managed-clients/manifest.json
+          for f in dist/managed-clients/*.tgz; do
+            expected="$(cut -d' ' -f1 "$f.sha256")"
+            actual="$(sha256sum "$f" | cut -d' ' -f1)"
+            test "$expected" = "$actual"
+          done
+      - name: Upload managed-client release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-managed-clients-${{ github.event.pull_request.head.sha || github.sha }}
+          path: dist/managed-clients/*
+          if-no-files-found: error
+          retention-days: 30
       - name: Upload SDK release bundle
         uses: actions/upload-artifact@v4
         with:
