@@ -7,7 +7,9 @@ import { createIdentity } from '../../core/identity/index.js';
 import { nodeIdFromPublicKey } from '../../core/protocol/index.js';
 import { TruynNetworkNode } from '../runtime.js';
 import { HttpPollingRelayClient } from '../transport/http-relay.js';
+import { sharedEventLoopMonitor } from '../admission/load-monitor.js';
 import { TESTNET_OPERATOR_PREFIX } from './operator.js';
+import { installProcessGuards } from './process-guards.js';
 
 const MAX_BODY_BYTES = 1024 * 1024;
 
@@ -143,7 +145,10 @@ export async function createTestnetNodeService({
   relayUrl = null,
   relayToken = '',
   relayTimeoutMs = 45_000,
-  relayPollWaitMs = 10_000
+  relayPollWaitMs = 10_000,
+  processGuards = null,
+  rpcMaxClients = null,
+  rpcClientIdleMs = null
 } = {}) {
   if (!identityPath || !statePath) throw new Error('identityPath and statePath are required');
   if (!tlsKey || !tlsCert) throw new Error('tlsKey and tlsCert are required');
@@ -177,14 +182,42 @@ export async function createTestnetNodeService({
     dhtWriteQuorum,
     dhtRpcTimeoutMs,
     dhtWriteTimeoutMs,
+    rpcMaxClients,
+    rpcClientIdleMs,
     relayFallback: relay ? (peerNodeId, envelope) => relay.fallback(peerNodeId, envelope) : null
   });
 
   const startedAt = Date.now();
+  const loadMonitor = sharedEventLoopMonitor();
+  let nodeStarted = false;
   let requestCount = 0;
   let lastDhtRefresh = null;
   let dhtRefreshInFlight = null;
   let dhtRefreshInFlightKey = null;
+
+  const healthSnapshot = () => {
+    const memory = process.memoryUsage();
+    return {
+      pid: process.pid,
+      eventLoop: loadMonitor.snapshot(),
+      memory: {
+        rssBytes: memory.rss,
+        heapUsedBytes: memory.heapUsed,
+        heapTotalBytes: memory.heapTotal,
+        externalBytes: memory.external
+      },
+      rpc: typeof node.rpcSchedulerSnapshot === 'function' ? node.rpcSchedulerSnapshot() : null,
+      processGuards: processGuards ? {
+        unhandledRejections: processGuards.unhandledRejections,
+        contained: processGuards.contained,
+        fatal: processGuards.fatal,
+        lastContained: processGuards.lastContained,
+        lastUnhandledRejection: processGuards.lastUnhandledRejection,
+        lastFatal: processGuards.lastFatal
+      } : null
+    };
+  };
+
   const statusSnapshot = () => ({
     ok: true,
     ready: node.peerRecordPropagationReady(),
@@ -198,11 +231,13 @@ export async function createTestnetNodeService({
     peerRecordSequence: node.localPeerRecord?.sequence || 0,
     dhtRpcTimeoutMs: node.rpc.timeoutMs,
     dhtWriteTimeoutMs: node.replication.writeTimeoutMs,
+    dhtDurability: node.dhtDurabilitySnapshot(),
     runtimePressure: node.runtimePressureSnapshot(),
     operatorCount: operators.size,
     faultControlEnabled,
     relayEnabled: Boolean(relay),
-    requests: requestCount
+    requests: requestCount,
+    health: healthSnapshot()
   });
 
   const remoteEndpointDiversity = () => {
@@ -308,7 +343,27 @@ export async function createTestnetNodeService({
     return node.storeAt(body.nodeId, body.record);
   };
 
-  const replicate = async (body = {}) => {
+  const replicateInFlight = new Map();
+  const replicate = (body = {}) => {
+    const dedupeKey = JSON.stringify([
+      body.namespace,
+      body.key,
+      body.issuedAt ?? null,
+      body.sequence ?? null,
+      body.value ?? null,
+      body.replicationFactor ?? null,
+      body.minAcks ?? null
+    ]);
+    const existing = replicateInFlight.get(dedupeKey);
+    if (existing) return existing;
+    const operation = replicateOnce(body).finally(() => {
+      if (replicateInFlight.get(dedupeKey) === operation) replicateInFlight.delete(dedupeKey);
+    });
+    replicateInFlight.set(dedupeKey, operation);
+    return operation;
+  };
+
+  const replicateOnce = async (body = {}) => {
     const record = node.createRecord(body.namespace, body.key, body.value, {
       sequence: int(body.sequence, 1),
       ttlMs: int(body.ttlMs, 300_000),
@@ -325,7 +380,8 @@ export async function createTestnetNodeService({
   const find = async (body = {}) => {
     if (!body.namespace || !body.key) throw new Error('namespace_and_key_required');
     return node.findReplicatedValue(body.namespace, body.key, {
-      fanout: int(body.fanout, dhtReplicationFactor + 4)
+      fanout: int(body.fanout, dhtReplicationFactor + 4, { min: dhtReplicationFactor, max: 64 }),
+      lookupRounds: int(body.lookupRounds, 4, { min: 0, max: 64 })
     });
   };
 
@@ -441,6 +497,15 @@ export async function createTestnetNodeService({
   const server = http.createServer(async (req, res) => {
     requestCount += 1;
     const url = new URL(req.url || '/', 'http://localhost');
+    if (!nodeStarted) {
+      return json(res, 503, {
+        ok: false,
+        error: 'node_starting',
+        started: false,
+        uptimeMs: Date.now() - startedAt,
+        pid: process.pid
+      });
+    }
     try {
       if (req.method === 'GET' && url.pathname === '/status') return json(res, 200, statusSnapshot());
       if (req.method === 'GET' && url.pathname === '/record') return json(res, 200, { record: node.localPeerRecord });
@@ -453,7 +518,12 @@ export async function createTestnetNodeService({
         return json(res, 200, await node.need(body.nodeId, 'testnet.echo', body.input ?? { nonce: randomUUID() }, {}, { allowRelayFallback }));
       }
       if (req.method === 'POST' && url.pathname === '/replicate') return json(res, 200, await replicate(await readJson(req)));
-      if (req.method === 'GET' && url.pathname === '/find') return json(res, 200, await find({ namespace: url.searchParams.get('namespace'), key: url.searchParams.get('key'), fanout: url.searchParams.get('fanout') }));
+      if (req.method === 'GET' && url.pathname === '/find') return json(res, 200, await find({
+        namespace: url.searchParams.get('namespace'),
+        key: url.searchParams.get('key'),
+        fanout: url.searchParams.get('fanout'),
+        lookupRounds: url.searchParams.get('lookupRounds')
+      }));
       if (req.method === 'POST' && url.pathname === '/repair') return json(res, 200, await repair(await readJson(req)));
       if (req.method === 'POST' && url.pathname === '/dht/refresh') return json(res, 200, await refreshDht(await readJson(req)));
       if (req.method === 'POST' && url.pathname === '/sweep') return json(res, 200, await sweep());
@@ -473,8 +543,6 @@ export async function createTestnetNodeService({
     }
   });
 
-  await node.start();
-  if (relay) void relay.startReceiver(node);
   await new Promise((resolvePromise, reject) => {
     const onError = (error) => { server.off('listening', onListening); reject(error); };
     const onListening = () => { server.off('error', onError); resolvePromise(); };
@@ -482,6 +550,14 @@ export async function createTestnetNodeService({
     server.once('listening', onListening);
     server.listen(controlPort, controlHost);
   });
+  try {
+    await node.start();
+  } catch (error) {
+    await new Promise((resolvePromise) => server.close(() => resolvePromise()));
+    throw error;
+  }
+  nodeStarted = true;
+  if (relay) void relay.startReceiver(node);
 
   return {
     node,
@@ -490,7 +566,9 @@ export async function createTestnetNodeService({
     identity,
     controlAddress: server.address(),
     async close() {
-      await new Promise((resolvePromise) => server.close(() => resolvePromise()));
+      const closed = new Promise((resolvePromise) => server.close(() => resolvePromise()));
+      server.closeIdleConnections?.();
+      await closed;
       if (relay) await relay.stopReceiver();
       await node.close();
     }
@@ -498,6 +576,7 @@ export async function createTestnetNodeService({
 }
 
 export async function runTestnetNodeFromEnv(env = process.env) {
+  const processGuards = installProcessGuards();
   const dataDir = resolve(env.TRUYN_TESTNET_DATA_DIR || '.truyn-testnet');
   const tlsKey = decodePem(env.TRUYN_TLS_KEY_B64, 'tls_key') || await readFile(env.TRUYN_TLS_KEY_PATH, 'utf8');
   const tlsCert = decodePem(env.TRUYN_TLS_CERT_B64, 'tls_cert') || await readFile(env.TRUYN_TLS_CERT_PATH, 'utf8');
@@ -533,7 +612,10 @@ export async function runTestnetNodeFromEnv(env = process.env) {
     relayUrl: env.TRUYN_RELAY_URL || null,
     relayToken: env.TRUYN_RELAY_TOKEN || '',
     relayTimeoutMs: int(env.TRUYN_RELAY_TIMEOUT_MS, 45_000, { min: 100, max: 120_000 }),
-    relayPollWaitMs: int(env.TRUYN_RELAY_POLL_WAIT_MS, 10_000, { min: 100, max: 20_000 })
+    relayPollWaitMs: int(env.TRUYN_RELAY_POLL_WAIT_MS, 10_000, { min: 100, max: 20_000 }),
+    rpcMaxClients: env.TRUYN_RPC_MAX_CLIENTS ? int(env.TRUYN_RPC_MAX_CLIENTS, 64, { min: 1, max: 4096 }) : null,
+    rpcClientIdleMs: env.TRUYN_RPC_CLIENT_IDLE_MS ? int(env.TRUYN_RPC_CLIENT_IDLE_MS, 20_000, { min: 1_000, max: 600_000 }) : null,
+    processGuards
   });
   const address = service.controlAddress;
   process.stdout.write(`${JSON.stringify({

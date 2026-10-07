@@ -10,6 +10,107 @@ export const QUIC_DHT_METHOD_FIND_VALUE = 'dht.find-value';
 
 const DEFAULT_SUPERSEDED_RETRIES = 2;
 
+export const RPC_LANE_CRITICAL = 'critical';
+export const RPC_LANE_CONTROL = 'control';
+export const RPC_LANE_BACKGROUND = 'background';
+export const RPC_LANES = Object.freeze([RPC_LANE_CRITICAL, RPC_LANE_CONTROL, RPC_LANE_BACKGROUND]);
+const DEFAULT_LANE_LIMITS = Object.freeze({ critical: 48, control: 24, background: 6 });
+const DEFAULT_PER_PEER_IN_FLIGHT = 4;
+const DEFAULT_MAX_CLIENTS = 64;
+const DEFAULT_CLIENT_IDLE_MS = 20_000;
+const CLIENT_SWEEP_INTERVAL_MS = 5_000;
+
+function normalizeLane(lane) {
+  return RPC_LANES.includes(lane) ? lane : RPC_LANE_CONTROL;
+}
+
+function rpcTimeoutError(peerNodeId) {
+  const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peerNodeId}`);
+  error.code = 'TRUYN_DHT_RPC_TIMEOUT';
+  return error;
+}
+
+export class RpcLaneScheduler {
+  constructor({ laneLimits = DEFAULT_LANE_LIMITS, perPeerInFlight = DEFAULT_PER_PEER_IN_FLIGHT } = {}) {
+    this.laneLimits = { ...DEFAULT_LANE_LIMITS, ...(laneLimits || {}) };
+    for (const lane of RPC_LANES) {
+      if (!Number.isInteger(this.laneLimits[lane]) || this.laneLimits[lane] < 1) throw new Error(`RPC lane limit for ${lane} must be a positive integer`);
+    }
+    if (!Number.isInteger(perPeerInFlight) || perPeerInFlight < 1) throw new Error('perPeerInFlight must be a positive integer');
+    this.perPeerInFlight = perPeerInFlight;
+    this.inFlight = Object.fromEntries(RPC_LANES.map((lane) => [lane, 0]));
+    this.queues = Object.fromEntries(RPC_LANES.map((lane) => [lane, []]));
+    this.peerInFlight = new Map();
+    this.stats = Object.fromEntries(RPC_LANES.map((lane) => [lane, { admitted: 0, queued: 0, expiredInQueue: 0, maxQueueDepth: 0 }]));
+  }
+
+  #canRun(lane, peerId) {
+    return this.inFlight[lane] < this.laneLimits[lane] && (this.peerInFlight.get(peerId) || 0) < this.perPeerInFlight;
+  }
+
+  #start(lane, peerId) {
+    this.inFlight[lane] += 1;
+    this.peerInFlight.set(peerId, (this.peerInFlight.get(peerId) || 0) + 1);
+    this.stats[lane].admitted += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.inFlight[lane] -= 1;
+      const remaining = (this.peerInFlight.get(peerId) || 1) - 1;
+      if (remaining <= 0) this.peerInFlight.delete(peerId);
+      else this.peerInFlight.set(peerId, remaining);
+      this.#pump();
+    };
+  }
+
+  #pump() {
+    for (const lane of RPC_LANES) {
+      const queue = this.queues[lane];
+      for (let index = 0; index < queue.length && this.inFlight[lane] < this.laneLimits[lane];) {
+        const waiter = queue[index];
+        if (!this.#canRun(lane, waiter.peerId)) { index += 1; continue; }
+        queue.splice(index, 1);
+        if (waiter.timer) clearTimeout(waiter.timer);
+        waiter.resolve(this.#start(lane, waiter.peerId));
+      }
+    }
+  }
+
+  acquire(lane, peerId, deadlineAt) {
+    const normalized = normalizeLane(lane);
+    const key = String(peerId || 'unknown');
+    if (this.queues[normalized].length === 0 && this.#canRun(normalized, key)) return Promise.resolve(this.#start(normalized, key));
+    return new Promise((resolve, reject) => {
+      const waiter = { peerId: key, resolve, timer: null };
+      const remaining = Number.isFinite(deadlineAt) ? deadlineAt - Date.now() : null;
+      if (remaining != null) {
+        if (remaining <= 0) { this.stats[normalized].expiredInQueue += 1; reject(rpcTimeoutError(key)); return; }
+        waiter.timer = setTimeout(() => {
+          const queue = this.queues[normalized];
+          const index = queue.indexOf(waiter);
+          if (index >= 0) queue.splice(index, 1);
+          this.stats[normalized].expiredInQueue += 1;
+          reject(rpcTimeoutError(key));
+        }, remaining);
+        waiter.timer.unref?.();
+      }
+      this.queues[normalized].push(waiter);
+      this.stats[normalized].queued += 1;
+      this.stats[normalized].maxQueueDepth = Math.max(this.stats[normalized].maxQueueDepth, this.queues[normalized].length);
+    });
+  }
+
+  snapshot() {
+    return Object.fromEntries(RPC_LANES.map((lane) => [lane, {
+      limit: this.laneLimits[lane],
+      inFlight: this.inFlight[lane],
+      queued: this.queues[lane].length,
+      ...this.stats[lane]
+    }]));
+  }
+}
+
 function parseEndpoint(value) {
   if (typeof value !== 'string' || !value.startsWith('quic://')) return null;
   try {
@@ -48,10 +149,22 @@ function resolveLocalPeerRecord(localPeerRecord) {
 }
 
 export class QuicDiscoveryRpc {
-  constructor({ quicTransport, timeoutMs = 5_000, faults = null, ingestPeerRecord = null, supersededRetries = DEFAULT_SUPERSEDED_RETRIES } = {}) {
+  constructor({
+    quicTransport,
+    timeoutMs = 5_000,
+    faults = null,
+    ingestPeerRecord = null,
+    supersededRetries = DEFAULT_SUPERSEDED_RETRIES,
+    laneLimits = DEFAULT_LANE_LIMITS,
+    perPeerInFlight = DEFAULT_PER_PEER_IN_FLIGHT,
+    maxClients = DEFAULT_MAX_CLIENTS,
+    clientIdleMs = DEFAULT_CLIENT_IDLE_MS
+  } = {}) {
     if (!quicTransport) throw new Error('quicTransport is required');
     if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) throw new Error('DHT RPC timeoutMs must be between 100 and 120000');
     if (!Number.isInteger(supersededRetries) || supersededRetries < 0 || supersededRetries > 4) throw new Error('supersededRetries must be between 0 and 4');
+    if (!Number.isInteger(maxClients) || maxClients < 1) throw new Error('maxClients must be a positive integer');
+    if (!Number.isInteger(clientIdleMs) || clientIdleMs < 1_000) throw new Error('clientIdleMs must be >= 1000');
     this.quic = quicTransport;
     this.timeoutMs = timeoutMs;
     this.faults = faults;
@@ -63,6 +176,12 @@ export class QuicDiscoveryRpc {
     this.retiredClients = new WeakSet();
     this.disconnectingClients = new WeakSet();
     this.deadlineContext = new AsyncLocalStorage();
+    this.laneContext = new AsyncLocalStorage();
+    this.scheduler = new RpcLaneScheduler({ laneLimits, perPeerInFlight });
+    this.maxClients = maxClients;
+    this.clientIdleMs = clientIdleMs;
+    this.clientSweepTimer = null;
+    this.poolStats = { evictedIdle: 0, evictedOverCap: 0 };
   }
 
   withDeadline(deadlineAt, operation) {
@@ -70,6 +189,66 @@ export class QuicDiscoveryRpc {
     const inherited = this.deadlineContext.getStore();
     const effective = Number.isFinite(inherited) ? Math.min(inherited, deadlineAt) : deadlineAt;
     return this.deadlineContext.run(effective, operation);
+  }
+
+  withLane(lane, operation) {
+    return this.laneContext.run(normalizeLane(lane), operation);
+  }
+
+  currentLane() {
+    return normalizeLane(this.laneContext.getStore());
+  }
+
+  detached(operation) {
+    return this.deadlineContext.exit(() => this.laneContext.exit(operation));
+  }
+
+  schedulerSnapshot() {
+    return {
+      lanes: this.scheduler.snapshot(),
+      clients: this.clients.size,
+      maxClients: this.maxClients,
+      clientIdleMs: this.clientIdleMs,
+      ...this.poolStats
+    };
+  }
+
+  close() {
+    if (this.clientSweepTimer) clearInterval(this.clientSweepTimer);
+    this.clientSweepTimer = null;
+  }
+
+  #ensureClientSweep() {
+    if (this.clientSweepTimer) return;
+    this.clientSweepTimer = setInterval(() => this.sweepClients(), CLIENT_SWEEP_INTERVAL_MS);
+    this.clientSweepTimer.unref?.();
+  }
+
+  #touchClient(nodeId, client) {
+    const entry = this.clients.get(nodeId);
+    if (entry?.client === client) entry.lastUsedAt = Date.now();
+  }
+
+  sweepClients({ now = Date.now() } = {}) {
+    const idle = [];
+    for (const [nodeId, entry] of this.clients) {
+      if ((this.clientUsers.get(entry.client) || 0) > 0) continue;
+      idle.push({ nodeId, entry });
+    }
+    idle.sort((a, b) => (a.entry.lastUsedAt || 0) - (b.entry.lastUsedAt || 0));
+    let overCap = Math.max(0, this.clients.size - this.maxClients);
+    for (const { nodeId, entry } of idle) {
+      const expired = now - (entry.lastUsedAt || 0) >= this.clientIdleMs;
+      if (!expired && overCap <= 0) continue;
+      if (expired) this.poolStats.evictedIdle += 1;
+      else this.poolStats.evictedOverCap += 1;
+      if (overCap > 0) overCap -= 1;
+      this.#retireClient(nodeId, entry.client);
+    }
+    if (this.clients.size === 0 && this.clientSweepTimer) {
+      clearInterval(this.clientSweepTimer);
+      this.clientSweepTimer = null;
+    }
   }
 
   #effectiveTimeout(requestedTimeoutMs = null) {
@@ -108,8 +287,9 @@ export class QuicDiscoveryRpc {
     return client;
   }
 
-  #releaseClient(client) {
+  #releaseClient(client, nodeId = null) {
     if (!client || (typeof client !== 'object' && typeof client !== 'function')) return;
+    if (nodeId) this.#touchClient(nodeId, client);
     const remaining = Math.max(0, (this.clientUsers.get(client) || 1) - 1);
     if (remaining === 0) {
       this.clientUsers.delete(client);
@@ -147,9 +327,9 @@ export class QuicDiscoveryRpc {
     if (!selected) throw new Error('discovery_peer_has_no_quic_endpoint');
     const binding = peerBinding(peer, selected.value);
     const existing = this.clients.get(peer.nodeId);
-    if (existing?.binding === binding) return existing.client;
+    if (existing?.binding === binding) { existing.lastUsedAt = Date.now(); return existing.client; }
     if (existing) {
-      if (sameOrNewerGeneration(existing.peer, peer)) return existing.client;
+      if (sameOrNewerGeneration(existing.peer, peer)) { existing.lastUsedAt = Date.now(); return existing.client; }
       this.#forgetBinding(peer.nodeId, existing.binding);
     }
 
@@ -176,8 +356,10 @@ export class QuicDiscoveryRpc {
         error.code = 'TRUYN_DISCOVERY_CONNECTION_SUPERSEDED';
         throw error;
       }
-      this.clients.set(peer.nodeId, { client, binding, peer: structuredClone(peer) });
+      this.clients.set(peer.nodeId, { client, binding, peer: structuredClone(peer), lastUsedAt: Date.now() });
       this.#watchClient(peer.nodeId, client);
+      this.#ensureClientSweep();
+      if (this.clients.size > this.maxClients) setImmediate(() => this.sweepClients());
       return client;
     })();
     this.connectingByNodeId.set(peer.nodeId, state);
@@ -188,15 +370,31 @@ export class QuicDiscoveryRpc {
     }
   }
 
-  async bounded(peer, operation, { timeoutMs = null, state = null } = {}) {
+  async bounded(peer, operation, { timeoutMs = null, state = null, lane = null } = {}) {
     const effectiveTimeoutMs = this.#effectiveTimeout(timeoutMs);
     if (effectiveTimeoutMs <= 0) {
-      const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peer.nodeId}`);
-      error.code = 'TRUYN_DHT_RPC_TIMEOUT';
+      const error = rpcTimeoutError(peer.nodeId);
       if (state) state.cancelledError = error;
       throw error;
     }
     const deadlineAt = Date.now() + effectiveTimeoutMs;
+    const effectiveLane = lane ? normalizeLane(lane) : this.currentLane();
+    if (state) state.lane = effectiveLane;
+    let releaseSlot;
+    try {
+      releaseSlot = await this.scheduler.acquire(effectiveLane, peer.nodeId, deadlineAt);
+    } catch (error) {
+      if (state) state.cancelledError = error;
+      throw error;
+    }
+    try {
+      return await this.#boundedAttempts(peer, operation, deadlineAt, state);
+    } finally {
+      releaseSlot();
+    }
+  }
+
+  async #boundedAttempts(peer, operation, deadlineAt, state) {
     let supersededAttempt = 0;
     while (true) {
       let timer = null;
@@ -205,8 +403,7 @@ export class QuicDiscoveryRpc {
         this.faults?.assertPeer(peer.nodeId, 'dht-rpc');
         const remaining = deadlineAt - Date.now();
         if (remaining <= 0) {
-          const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peer.nodeId}`);
-          error.code = 'TRUYN_DHT_RPC_TIMEOUT';
+          const error = rpcTimeoutError(peer.nodeId);
           if (state) state.cancelledError = error;
           throw error;
         }
@@ -214,15 +411,15 @@ export class QuicDiscoveryRpc {
           operation(),
           new Promise((_, reject) => {
             timer = setTimeout(() => {
-              const error = new Error(`TRUYN_DHT_RPC_TIMEOUT:${peer.nodeId}`);
-              error.code = 'TRUYN_DHT_RPC_TIMEOUT';
+              const error = rpcTimeoutError(peer.nodeId);
               if (state) state.cancelledError = error;
               reject(error);
             }, remaining);
+            timer.unref?.();
           })
         ]);
       } catch (error) {
-        if (state?.client) this.#retireClient(peer.nodeId, state.client);
+        if (state?.client && !error?.remoteRejection) this.#retireClient(peer.nodeId, state.client);
         if (error?.code === 'TRUYN_DISCOVERY_CONNECTION_SUPERSEDED' && supersededAttempt < this.supersededRetries && Date.now() < deadlineAt) {
           supersededAttempt += 1;
           continue;
@@ -231,7 +428,7 @@ export class QuicDiscoveryRpc {
       } finally {
         if (timer) clearTimeout(timer);
         if (state?.clientLeased && state.client) {
-          this.#releaseClient(state.client);
+          this.#releaseClient(state.client, peer.nodeId);
           state.clientLeased = false;
         }
       }
@@ -251,7 +448,7 @@ export class QuicDiscoveryRpc {
     const state = { client: null, clientLeased: false, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.#leasedClient(peer, state);
-      const result = await this.quic.requestControl(client, QUIC_DHT_METHOD_PING, null);
+      const result = await this.quic.requestControl(client, QUIC_DHT_METHOD_PING, null, { lane: state.lane });
       if (verifyPeerRecord(result?.peerRecord).ok && this.ingestPeerRecord) {
         const record = structuredClone(result.peerRecord);
         // A newer record may invalidate this exact cached RPC client. Do not tear it down
@@ -266,7 +463,7 @@ export class QuicDiscoveryRpc {
     const state = { client: null, clientLeased: false, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.#leasedClient(peer, state);
-      const result = await this.quic.requestControl(client, QUIC_DISCOVERY_METHOD_FIND_NODE, { targetNodeId });
+      const result = await this.quic.requestControl(client, QUIC_DISCOVERY_METHOD_FIND_NODE, { targetNodeId }, { lane: state.lane });
       const records = [];
       const hints = [];
       for (const record of result?.records || []) {
@@ -284,7 +481,7 @@ export class QuicDiscoveryRpc {
     const state = { client: null, clientLeased: false, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.#leasedClient(peer, state);
-      return this.quic.requestControl(client, QUIC_DISCOVERY_METHOD_ANNOUNCE, { record });
+      return this.quic.requestControl(client, QUIC_DISCOVERY_METHOD_ANNOUNCE, { record }, { lane: state.lane });
     }, { ...options, state });
   }
 
@@ -294,7 +491,7 @@ export class QuicDiscoveryRpc {
     const state = { client: null, clientLeased: false, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.#leasedClient(peer, state);
-      return this.quic.requestControl(client, QUIC_DHT_METHOD_STORE, { record });
+      return this.quic.requestControl(client, QUIC_DHT_METHOD_STORE, { record }, { lane: state.lane });
     }, { ...options, state });
   }
 
@@ -302,12 +499,19 @@ export class QuicDiscoveryRpc {
     const state = { client: null, clientLeased: false, cancelledError: null };
     return this.bounded(peer, async () => {
       const client = await this.#leasedClient(peer, state);
-      const result = await this.quic.requestControl(client, QUIC_DHT_METHOD_FIND_VALUE, { namespace, key });
+      const result = await this.quic.requestControl(client, QUIC_DHT_METHOD_FIND_VALUE, { namespace, key }, { lane: state.lane });
       const records = [];
+      const hints = [];
       for (const record of result?.records || []) {
         if (verifyDhtRecord(record).ok) records.push(record);
       }
-      return { records };
+      for (const record of result?.hints || []) {
+        const verification = verifyPeerRecord(record);
+        if (!verification.ok) continue;
+        this.ingestPeerRecord?.(record);
+        hints.push({ nodeId: record.nodeId, endpoints: [...record.endpoints], publicKey: record.publicKey });
+      }
+      return { records, hints };
     }, { ...options, state });
   }
 
@@ -395,7 +599,14 @@ export function createQuicDiscoveryControlHandler(discovery, {
       if (typeof payload?.namespace !== 'string' || !payload.namespace || typeof payload?.key !== 'string' || !payload.key) {
         throw new Error('dht namespace and key are required');
       }
-      return { records: recordStore.get(payload.namespace, payload.key) };
+      const records = recordStore.get(payload.namespace, payload.key);
+      const target = `${payload.namespace}:${payload.key}`;
+      const hints = [];
+      for (const peer of discovery.closest(target, limit)) {
+        const record = discovery.get(peer.nodeId);
+        if (record) hints.push(record);
+      }
+      return { records, hints };
     }
 
     throw new Error('unsupported_discovery_control_method');

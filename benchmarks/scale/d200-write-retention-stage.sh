@@ -22,26 +22,59 @@ set +e
 python3 - <<'PY'
 import json,subprocess
 host=${i}; base=${CONTROL_BASE}
+
+def request(url,timeout='45'):
+    p=subprocess.run(['curl','-sS','--max-time',timeout,'-w','\\n%{http_code}',url],text=True,capture_output=True)
+    parts=p.stdout.rsplit('\\n',1) if p.stdout else ['', '']
+    body=parts[0] if len(parts)==2 else p.stdout
+    code=parts[1].strip() if len(parts)==2 else ''
+    value=None
+    if p.returncode==0 and code=='200':
+        try:value=json.loads(body)
+        except Exception:value=None
+    return p,code,value
+
 rows=[]
 for j in range(5):
     key=f'd1000-{host}-{j}'
     url=f'http://127.0.0.1:{base}/find?namespace=class-d1000&key={key}&fanout=24'
-    p=subprocess.run(['curl','-sS','--max-time','45','-w','\\n%{http_code}',url],text=True,capture_output=True)
-    parts=p.stdout.rsplit('\\n',1) if p.stdout else ['', '']
-    body=parts[0] if len(parts)==2 else p.stdout
-    code=parts[1].strip() if len(parts)==2 else ''
-    row={'key':key,'curlRc':p.returncode,'httpCode':code,'stderr':p.stderr[-256:]}
-    if p.returncode!=0 or code!='200':
+    p,code,value=request(url)
+    row={'key':key,'publisherLocalNode':j,'curlRc':p.returncode,'httpCode':code,'stderr':p.stderr[-256:]}
+    if p.returncode!=0 or code!='200' or not isinstance(value,dict):
         row['classification']='read-error'
+        if p.returncode==0 and code=='200': row['parseError']='invalid-json'
     else:
-        try:
-            value=json.loads(body); found=len([r for r in (value.get('records') or []) if r.get('value') is not None])
-            row['recordCount']=found
-            row['classification']='retained' if found>=1 else 'confirmed-missing'
-        except Exception as e:
-            row['classification']='read-error'; row['parseError']=type(e).__name__
+        found=len([r for r in (value.get('records') or []) if r.get('value') is not None])
+        row['recordCount']=found
+        row['readTelemetry']=value.get('readTelemetry')
+        row['readFailureCount']=len(value.get('failures') or [])
+        row['classification']='retained' if found>=1 else 'confirmed-missing'
+        if found==0:
+            # Diagnostic only: ask the original publisher process. Its
+            # readTelemetry.localRecordCount distinguishes physical publisher
+            # retention from a network-placement/lookup miss. This never changes
+            # the acceptance classification above.
+            publisher_url=f'http://127.0.0.1:{base+j}/find?namespace=class-d1000&key={key}&fanout=3&lookupRounds=0'
+            pp,pcode,pvalue=request(publisher_url)
+            diag={'curlRc':pp.returncode,'httpCode':pcode,'stderr':pp.stderr[-256:]}
+            if isinstance(pvalue,dict):
+                diag['recordCount']=len([r for r in (pvalue.get('records') or []) if r.get('value') is not None])
+                diag['readTelemetry']=pvalue.get('readTelemetry')
+                diag['readFailureCount']=len(pvalue.get('failures') or [])
+            status=subprocess.run(['curl','-sS','--max-time','5',f'http://127.0.0.1:{base+j}/status'],text=True,capture_output=True)
+            if status.returncode==0:
+                try:
+                    status_value=json.loads(status.stdout)
+                    diag['dhtDurability']=status_value.get('dhtDurability')
+                    diag['dhtRecordCount']=status_value.get('dhtRecordCount')
+                except Exception:
+                    diag['statusParseError']=True
+            else:
+                diag['statusCurlRc']=status.returncode
+                diag['statusStderr']=status.stderr[-256:]
+            row['publisherDiagnostic']=diag
     rows.append(row)
-value={'schema':'truyn.d200.write-retention.host.v1','host':host,'rows':rows,'retained':sum(r['classification']=='retained' for r in rows),'confirmedMissing':sum(r['classification']=='confirmed-missing' for r in rows),'readErrors':sum(r['classification']=='read-error' for r in rows)}
+value={'schema':'truyn.d200.write-retention.host.v2','host':host,'rows':rows,'retained':sum(r['classification']=='retained' for r in rows),'confirmedMissing':sum(r['classification']=='confirmed-missing' for r in rows),'readErrors':sum(r['classification']=='read-error' for r in rows)}
 print('RETENTION_HOST_JSON='+json.dumps(value,separators=(',',':')))
 PY
 EOS
@@ -71,7 +104,7 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   if [[ "$remote_rc" != 0 || -z "$host_json" ]]; then
     host_json=$(python3 - "$i" "$remote_rc" "$err" <<'PY'
 import json,sys
-print(json.dumps({'schema':'truyn.d200.write-retention.host.v1','host':int(sys.argv[1]),'transportError':True,'remoteRc':int(sys.argv[2]),'stderr':sys.argv[3][-1500:],'rows':[],'retained':0,'confirmedMissing':0,'readErrors':5},separators=(',',':')))
+print(json.dumps({'schema':'truyn.d200.write-retention.host.v2','host':int(sys.argv[1]),'transportError':True,'remoteRc':int(sys.argv[2]),'stderr':sys.argv[3][-1500:],'rows':[],'retained':0,'confirmedMissing':0,'readErrors':5},separators=(',',':')))
 PY
 )
   fi
@@ -92,7 +125,7 @@ ack_loss=$((writes-retained))
 python3 - "$retention_jsonl" "$retention_json" "$writes" "$retained" "$retention_confirmed_missing" "$retention_read_errors" "$ack_loss" <<'PY'
 import json,sys
 rows=[json.loads(line) for line in open(sys.argv[1],encoding='utf-8') if line.strip()]
-value={'schema':'truyn.d200.write-retention.v1','hosts':rows,'acknowledgedWrites':int(sys.argv[3]),'retained':int(sys.argv[4]),'confirmedMissing':int(sys.argv[5]),'readErrors':int(sys.argv[6]),'acknowledgedWriteLoss':int(sys.argv[7]),'lossInterpretation':'confirmedMissing is storage evidence; readErrors are fail-closed reachability/control uncertainty'}
+value={'schema':'truyn.d200.write-retention.v2','hosts':rows,'acknowledgedWrites':int(sys.argv[3]),'retained':int(sys.argv[4]),'confirmedMissing':int(sys.argv[5]),'readErrors':int(sys.argv[6]),'acknowledgedWriteLoss':int(sys.argv[7]),'lossInterpretation':'confirmedMissing is storage evidence; readErrors are fail-closed reachability/control uncertainty'}
 open(sys.argv[2],'w',encoding='utf-8').write(json.dumps(value,separators=(',',':'))+'\n')
 PY
 rm -f "$retention_jsonl"
