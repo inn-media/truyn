@@ -176,6 +176,10 @@ export class TruynNetworkNode {
     this.eventLoopDelay.enable();
     this.faults = faultController || new NetworkFaultController();
     const onStateChange = () => this.schedulePersist();
+    const onDiscoveryChange = () => {
+      this.schedulePersist();
+      this.#scheduleDhtRecordRebalance();
+    };
     const onRecordAccepted = ({ nodeId, previous, record }) => {
       if (previous?.recordId === record.recordId) return;
       const sessionChanged = Boolean(previous) && (
@@ -206,7 +210,7 @@ export class TruynNetworkNode {
     };
     this.recordStore = new KademliaRecordStore({ onChange: onStateChange });
     this.quic = new TruynQuicTransport({ identity, host, port, tls });
-    this.discovery = new PeerDiscovery({ identity, k, alpha, onChange: onStateChange, onRecordAccepted });
+    this.discovery = new PeerDiscovery({ identity, k, alpha, onChange: onDiscoveryChange, onRecordAccepted });
     this.rpc = new QuicDiscoveryRpc({
       quicTransport: this.quic,
       timeoutMs: dhtRpcTimeoutMs,
