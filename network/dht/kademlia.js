@@ -5,9 +5,29 @@ import { canonicalize, nodeIdFromPublicKey } from '../../core/protocol/index.js'
 export const KADEMLIA_PROTOCOL = 'truyn-kademlia-v1';
 export const KADEMLIA_ID_BITS = 256;
 
-export const dhtId = (value) => createHash('sha256').update(String(value)).digest('hex');
-const asBigInt = (hex) => BigInt(`0x${hex}`);
-export const xorDistance = (left, right) => asBigInt(dhtId(left)) ^ asBigInt(dhtId(right));
+const DHT_KEY_CACHE_LIMIT = 16_384;
+const dhtIdCache = new Map();
+const dhtKeyCache = new Map();
+
+function remember(cache, key, value) {
+  if (cache.size >= DHT_KEY_CACHE_LIMIT) cache.delete(cache.keys().next().value);
+  cache.set(key, value);
+  return value;
+}
+
+export const dhtId = (value) => {
+  const key = String(value);
+  const cached = dhtIdCache.get(key);
+  return cached !== undefined ? cached : remember(dhtIdCache, key, createHash('sha256').update(key).digest('hex'));
+};
+
+export const dhtKey = (value) => {
+  const key = String(value);
+  const cached = dhtKeyCache.get(key);
+  return cached !== undefined ? cached : remember(dhtKeyCache, key, BigInt(`0x${dhtId(key)}`));
+};
+
+export const xorDistance = (left, right) => dhtKey(left) ^ dhtKey(right);
 
 function bucketIndex(localId, peerId) {
   const distance = xorDistance(localId, peerId);
@@ -45,14 +65,16 @@ export class KademliaRoutingTable {
   }
 
   closest(target, count = this.k) {
-    return this.buckets.flat()
-      .sort((a, b) => {
-        const da = xorDistance(a.nodeId, target);
-        const db = xorDistance(b.nodeId, target);
-        return da < db ? -1 : da > db ? 1 : a.nodeId.localeCompare(b.nodeId);
-      })
-      .slice(0, Math.max(0, count))
-      .map((peer) => ({ ...peer }));
+    const limit = Math.max(0, count);
+    if (limit === 0) return [];
+    const targetKey = dhtKey(target);
+    const ranked = [];
+    for (const bucket of this.buckets) {
+      for (const peer of bucket) ranked.push({ peer, distance: dhtKey(peer.nodeId) ^ targetKey });
+    }
+    ranked.sort((a, b) => (a.distance < b.distance ? -1 : a.distance > b.distance ? 1 : a.peer.nodeId.localeCompare(b.peer.nodeId)));
+    const selected = ranked.length > limit ? ranked.slice(0, limit) : ranked;
+    return selected.map(({ peer }) => ({ ...peer }));
   }
 
   routingSnapshot() {
@@ -109,6 +131,9 @@ export function createDhtRecord({ identity, namespace, key, value, sequence = 1,
   return { ...signed, publicKey: identity.publicKeyPem, signature: signValue(signed, identity.privateKeyPem) };
 }
 
+const VERIFIED_DHT_SIGNATURE_LIMIT = 8_192;
+const verifiedDhtSignatures = new Map();
+
 export function verifyDhtRecord(record, { now = Date.now(), allowExpired = false } = {}) {
   try {
     if (!record?.recordId || record.protocol !== KADEMLIA_PROTOCOL || !record.publicKey || !record.signature) return { ok: false, reason: 'dht_record_missing' };
@@ -120,7 +145,12 @@ export function verifyDhtRecord(record, { now = Date.now(), allowExpired = false
     const { recordId, ...body } = signed;
     const expectedId = `truyn:dht:${createHash('sha256').update(canonicalize(body)).digest('hex')}`;
     if (record.recordId !== expectedId) return { ok: false, reason: 'dht_record_id_mismatch' };
-    if (!verifyValue(signed, signature, publicKey)) return { ok: false, reason: 'dht_record_signature' };
+    const signatureKey = `${recordId}\n${publicKey}\n${signature}`;
+    if (!verifiedDhtSignatures.has(signatureKey)) {
+      if (!verifyValue(signed, signature, publicKey)) return { ok: false, reason: 'dht_record_signature' };
+      if (verifiedDhtSignatures.size >= VERIFIED_DHT_SIGNATURE_LIMIT) verifiedDhtSignatures.delete(verifiedDhtSignatures.keys().next().value);
+      verifiedDhtSignatures.set(signatureKey, true);
+    }
     const issued = Date.parse(record.issuedAt);
     const expires = Date.parse(record.expiresAt);
     if (!Number.isFinite(issued) || !Number.isFinite(expires) || expires <= issued) return { ok: false, reason: 'dht_record_time' };

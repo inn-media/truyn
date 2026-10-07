@@ -108,6 +108,31 @@ export class DirectFirstP2P {
     this.connectingByNodeId = new Map();
     this.discoveryRecoveries = new Map();
     this.queue = new ExplicitBackpressureQueue({ maxInFlight, maxQueued });
+    this.idleSweepTimer = null;
+  }
+
+  #ensureIdleSweep() {
+    if (this.idleSweepTimer) return;
+    this.idleSweepTimer = setInterval(() => this.sweepIdleConnections(), Math.max(1_000, Math.floor(this.directConnectionReuseIdleMs / 2)));
+    this.idleSweepTimer.unref?.();
+  }
+
+  sweepIdleConnections({ now = Date.now() } = {}) {
+    for (const [peerNodeId, entry] of this.connections) {
+      const lastUsedAt = Number.isFinite(entry?.lastUsedAt) ? entry.lastUsedAt : 0;
+      if (now - lastUsedAt < this.directConnectionReuseIdleMs) continue;
+      this.connections.delete(peerNodeId);
+      void this.#disconnectClient(entry.client);
+    }
+    if (this.connections.size === 0 && this.idleSweepTimer) {
+      clearInterval(this.idleSweepTimer);
+      this.idleSweepTimer = null;
+    }
+  }
+
+  close() {
+    if (this.idleSweepTimer) clearInterval(this.idleSweepTimer);
+    this.idleSweepTimer = null;
   }
 
   #remainingMs(deadlineAt) {
@@ -222,6 +247,7 @@ export class DirectFirstP2P {
     }
     this.connections.set(peerRecord.nodeId, { client, binding, lastUsedAt: Date.now() });
     this.#watchConnection(peerRecord.nodeId, client);
+    this.#ensureIdleSweep();
     return client;
   }
 
@@ -290,7 +316,8 @@ export class DirectFirstP2P {
       for (const record of response?.records || []) this.discovery.ingest(record);
       return this.discovery.get(peerNodeId);
     } catch {
-      this.discovery.rpc?.forget?.(hint.nodeId);
+      // The exact failed RPC client is retired by QuicDiscoveryRpc; do not tear down
+      // a shared sibling connection from this recovery path.
       return null;
     }
   }
@@ -352,9 +379,10 @@ export class DirectFirstP2P {
     }
   }
 
-  async send(peerNodeId, envelope, { allowRelayFallback = true } = {}) {
+  async send(peerNodeId, envelope, { allowRelayFallback = true, deadlineAt = null } = {}) {
     return this.queue.run(async () => {
-      const routeDeadlineAt = Date.now() + this.routeAttemptTimeoutMs;
+      const ownDeadlineAt = Date.now() + this.routeAttemptTimeoutMs;
+      const routeDeadlineAt = Number.isFinite(deadlineAt) ? Math.min(deadlineAt, ownDeadlineAt) : ownDeadlineAt;
       let applicationDispatched = false;
       let directError = null;
       let record = await this.#discover(peerNodeId, routeDeadlineAt);

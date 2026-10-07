@@ -22,7 +22,8 @@ export class TruynNetworkNode {
     discoveryPeriodicRefresh = true, discoveryRefreshIntervalMs = null, discoveryRefreshTargetCount = null,
     discoveryRefreshMaxRounds = 4, discoveryRefreshSeed = 'truyn-periodic-refresh',
     discoveryRefreshTargetConcurrency = 1, discoveryRefreshTimeoutMs = null, discoveryRefreshJitterRatio = 0.2,
-    persistenceDebounceMs = 250, persistenceCheckpointMs = 1_000
+    persistenceDebounceMs = 250, persistenceCheckpointMs = 1_000, needRouteBudgetMs = 11_000,
+    rpcLaneLimits = null, rpcPerPeerInFlight = null, rpcMaxClients = null, rpcClientIdleMs = null
   } = {}) {
     if (!tls?.key || !tls?.cert) throw new Error('network runtime TLS key/certificate are required');
     if (!Number.isFinite(peerRecordTtlMs) || peerRecordTtlMs <= 0) throw new Error('peerRecordTtlMs must be positive');
@@ -87,6 +88,9 @@ export class TruynNetworkNode {
     this.discoveryRefreshSeed = typeof discoveryRefreshSeed === 'string' && discoveryRefreshSeed.trim()
       ? discoveryRefreshSeed.trim()
       : 'truyn-periodic-refresh';
+    this.needRouteBudgetMs = Number.isInteger(needRouteBudgetMs) && needRouteBudgetMs >= 1_000 && needRouteBudgetMs < 15_000
+      ? needRouteBudgetMs
+      : 11_000;
     this.peerRecordRenewTimer = null;
     this.peerRecordRenewalInFlight = null;
     // Lease keeper: a renewal is announced only to closest(owner, fanout), so every other
@@ -99,6 +103,13 @@ export class TruynNetworkNode {
     this.peerRecordRecoveryRetryTimer = null;
     this.peerRecordPropagationQueued = false;
     this.peerRecordBackgroundDisseminationQueued = false;
+    // ACKs are tied to the immutable local recordId, not to a transient closest()
+    // placement set. Preserve them while convergence reshuffles the required peers.
+    this.peerRecordAcked = { recordId: null, nodeIds: new Set() };
+    // Only one readiness-critical publisher may run at a time. Churn while it is
+    // active marks the worker dirty and causes one bounded follow-up pass.
+    this.peerRecordPublishInFlight = null;
+    this.peerRecordPublishDirty = false;
     // Peer-record propagation is control-plane recovery. The complete retry
     // schedule remains comfortably inside the unchanged 120s network recovery
     // contract and never retries an application NEED envelope.
@@ -167,6 +178,7 @@ export class TruynNetworkNode {
       // propagation/retry chain must not inherit it, or every later RPC in that chain
       // times out instantly once the lookup deadline has passed.
       const reconcile = () => this.#schedulePeerRecordPropagation();
+      if (typeof this.rpc?.detached === 'function') { this.rpc.detached(reconcile); return; }
       const deadlineContext = this.rpc?.deadlineContext;
       if (deadlineContext?.getStore?.() != null && typeof deadlineContext.exit === 'function') deadlineContext.exit(reconcile);
       else reconcile();
@@ -178,7 +190,11 @@ export class TruynNetworkNode {
       quicTransport: this.quic,
       timeoutMs: dhtRpcTimeoutMs,
       faults: this.faults,
-      ingestPeerRecord: (record) => this.discovery.ingest(record)
+      ingestPeerRecord: (record) => this.discovery.ingest(record),
+      ...(rpcLaneLimits ? { laneLimits: rpcLaneLimits } : {}),
+      ...(Number.isInteger(rpcPerPeerInFlight) ? { perPeerInFlight: rpcPerPeerInFlight } : {}),
+      ...(Number.isInteger(rpcMaxClients) ? { maxClients: rpcMaxClients } : {}),
+      ...(Number.isInteger(rpcClientIdleMs) ? { clientIdleMs: rpcClientIdleMs } : {})
     });
     this.discovery.rpc = this.rpc;
     this.replication = new DhtReplicationManager({
@@ -323,7 +339,12 @@ export class TruynNetworkNode {
     return Math.max(250, Math.min(30_000, Math.floor(this.peerRecordTtlMs / 10)));
   }
 
-  async #leaseKeeperTick({ maxPeers = 64, concurrency = 4 } = {}) {
+  async #leaseKeeperTick(options = {}) {
+    if (typeof this.rpc?.withLane === 'function') return this.rpc.withLane('background', () => this.#leaseKeeperTickInLane(options));
+    return this.#leaseKeeperTickInLane(options);
+  }
+
+  async #leaseKeeperTickInLane({ maxPeers = 64, concurrency = 4 } = {}) {
     if (!this.started || this.closing) return;
     const now = Date.now();
     // Never race the control plane: skip owners we are still placing our own record with.
@@ -353,6 +374,7 @@ export class TruynNetworkNode {
     this.leaseKeeperStats.ticks += 1;
   }
 
+
   #scheduleLeaseKeeper(delayMs = this.#leaseKeeperIntervalMs()) {
     if (this.leaseKeeperTimer) clearTimeout(this.leaseKeeperTimer);
     if (!this.started || this.closing) return;
@@ -381,16 +403,25 @@ export class TruynNetworkNode {
       .filter((peer) => peer?.nodeId && peer.nodeId !== this.identity.nodeId);
   }
 
+  #ackedNodeIdsFor(record) {
+    const recordId = record?.recordId || null;
+    if (this.peerRecordAcked.recordId !== recordId) this.peerRecordAcked = { recordId, nodeIds: new Set() };
+    return this.peerRecordAcked.nodeIds;
+  }
+
   #resetPeerRecordPropagation(record = this.localPeerRecord, peers = null) {
     const candidates = Array.isArray(peers) ? peers : this.#peerRecordPropagationPeers(record);
     const targetNodeIds = [...new Set(candidates.map((peer) => peer?.nodeId).filter(Boolean))].sort();
+    const acked = this.#ackedNodeIdsFor(record);
+    const acknowledgedNodeIds = targetNodeIds.filter((nodeId) => acked.has(nodeId));
+    const pendingNodeIds = targetNodeIds.filter((nodeId) => !acked.has(nodeId));
     this.peerRecordLifecycle.propagation = {
       recordId: record?.recordId || null,
       sequence: record?.sequence ?? null,
       targetNodeIds,
-      acknowledgedNodeIds: [],
-      pendingNodeIds: [...targetNodeIds],
-      ready: targetNodeIds.length === 0,
+      acknowledgedNodeIds,
+      pendingNodeIds,
+      ready: pendingNodeIds.length === 0,
       lastUpdatedAt: new Date().toISOString()
     };
   }
@@ -405,18 +436,13 @@ export class TruynNetworkNode {
         ? candidateIds
         : (sameRecord ? previous.targetNodeIds || [] : candidateIds)
     );
-    const acknowledged = new Set(
-      sameRecord
-        ? (previous.acknowledgedNodeIds || []).filter((nodeId) => targets.has(nodeId))
-        : []
-    );
+    const acked = this.#ackedNodeIdsFor(record);
     for (let i = 0; i < candidateIds.length; i += 1) {
-      if (settled[i]?.status === 'fulfilled') acknowledged.add(candidateIds[i]);
+      if (settled[i]?.status === 'fulfilled') acked.add(candidateIds[i]);
     }
     const targetNodeIds = [...targets].sort();
-    const acknowledgedNodeIds = [...acknowledged].filter((nodeId) => targets.has(nodeId)).sort();
-    const acknowledgedSet = new Set(acknowledgedNodeIds);
-    const pendingNodeIds = targetNodeIds.filter((nodeId) => !acknowledgedSet.has(nodeId));
+    const acknowledgedNodeIds = targetNodeIds.filter((nodeId) => acked.has(nodeId));
+    const pendingNodeIds = targetNodeIds.filter((nodeId) => !acked.has(nodeId));
     this.peerRecordLifecycle.propagation = {
       recordId: record.recordId,
       sequence: record.sequence,
@@ -454,19 +480,52 @@ export class TruynNetworkNode {
       return { sequence: record?.sequence ?? null, attempted: 0, delivered: 0, failed: 0, failedNodeIds: [] };
     }
     const peers = this.#peerRecordPropagationPeers(record);
+    // Reconcile the full placement set without discarding ACKs for this record, then
+    // send only to genuinely pending targets.
+    this.#resetPeerRecordPropagation(record, peers);
+    const pendingIds = new Set(this.peerRecordLifecycle.propagation.pendingNodeIds || []);
+    const pendingPeers = peers.filter((peer) => pendingIds.has(peer.nodeId));
     const announcement = await this.announcePeerRecord(record, {
-      peers,
-      fanout: peers.length,
-      replacePropagationTargets: true,
+      peers: pendingPeers,
+      fanout: pendingPeers.length,
+      replacePropagationTargets: false,
       trackPropagation: true
     });
     if (announcement.failed > 0) {
       this.#schedulePeerRecordRecoveryRetries(record, peers, announcement.failedNodeIds, 0, true);
-    } else {
+    } else if (this.peerRecordLifecycle.propagation?.recordId !== record.recordId || this.peerRecordLifecycle.propagation?.ready) {
       this.#clearPeerRecordRecoveryRetryTimer();
       this.peerRecordLifecycle.lastError = null;
     }
     return announcement;
+  }
+
+  #runPeerRecordPublish(record) {
+    if (this.peerRecordPublishInFlight) {
+      this.peerRecordPublishDirty = true;
+      return this.peerRecordPublishInFlight;
+    }
+    const recordId = record.recordId;
+    const operation = (async () => {
+      do {
+        this.peerRecordPublishDirty = false;
+        if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
+        await this.#publishCurrentPeerRecord(this.localPeerRecord);
+      } while (this.peerRecordPublishDirty);
+    })()
+      .catch((error) => {
+        if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
+        this.peerRecordLifecycle.lastError = {
+          at: new Date().toISOString(),
+          code: error?.code || null,
+          message: error?.message || String(error)
+        };
+      })
+      .finally(() => {
+        if (this.peerRecordPublishInFlight === operation) this.peerRecordPublishInFlight = null;
+      });
+    this.peerRecordPublishInFlight = operation;
+    return operation;
   }
 
   #stagePeerRecordPropagation(record = this.localPeerRecord) {
@@ -505,14 +564,7 @@ export class TruynNetworkNode {
       // itself changed, publish immediately; otherwise the existing bounded retry
       // owns recovery until it ACKs or the local record generation changes.
       if (!propagationChanged && unchangedTargets && (propagation?.ready || this.peerRecordRecoveryRetryTimer)) return;
-      void this.#publishCurrentPeerRecord(record).catch((error) => {
-        if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
-        this.peerRecordLifecycle.lastError = {
-          at: new Date().toISOString(),
-          code: error?.code || null,
-          message: error?.message || String(error)
-        };
-      });
+      void this.#runPeerRecordPublish(record);
     });
   }
 
@@ -541,12 +593,13 @@ export class TruynNetworkNode {
       // Best-effort background dissemination is intentionally one-pass. It must
       // never reuse or cancel the readiness-critical retry timer owned by the
       // required Kademlia placement set.
-      void this.announcePeerRecord(record, {
+      const disseminate = () => this.announcePeerRecord(record, {
         peers: backgroundPeers,
         fanout: backgroundPeers.length,
         replacePropagationTargets: false,
         trackPropagation: false
-      }).catch((error) => {
+      });
+      void (typeof this.rpc?.withLane === 'function' ? this.rpc.withLane('background', disseminate) : disseminate()).catch((error) => {
         if (!this.started || this.closing || this.localPeerRecord?.recordId !== recordId) return;
         this.peerRecordLifecycle.lastError = {
           at: new Date().toISOString(),
@@ -817,36 +870,55 @@ export class TruynNetworkNode {
   async send(nodeId, envelope, options = {}) { if (!this.started) throw new Error('network node is not started'); return this.router.send(nodeId, envelope, options); }
 
   async need(nodeId, capability, input, policy = {}, options = {}) {
-    // Resolve stale or missing signed peer state on the control plane before the
-    // application envelope exists on the transport path. This is discovery, not
-    // an application retry: NEED is still sent at most once.
-    // Bounded so the lookup plus the router's own deadline stay inside a client budget; when
-    // resolution fails, fail closed only if no signed relay path is allowed (relay fallback
-    // is the designed answer for direct-impossible peers and must stay reachable).
-    if (!this.discovery.get(nodeId)) {
-      // Plain timer, NOT rpc.withDeadline(): an AsyncLocalStorage deadline would be inherited
-      // by every timer/propagation chain started while ingesting lookup results.
-      let timer = null;
-      const peer = await Promise.race([
-        this.findPeer(nodeId).catch(() => null),
-        new Promise((resolve) => { timer = setTimeout(() => resolve(null), 9_000); timer.unref?.(); })
-      ]).finally(() => { if (timer) clearTimeout(timer); });
-      const relayAllowed = options.allowRelayFallback !== false && typeof this.relayFallback === 'function';
-      if (!peer && !relayAllowed) {
-        const error = new Error('peer_not_discovered');
-        error.code = 'TRUYN_PEER_NOT_FOUND';
-        throw error;
+    const routeDeadlineAt = Date.now() + this.needRouteBudgetMs;
+    const run = async () => {
+      if (!this.discovery.get(nodeId)) {
+        // Leave a fixed tail for connect + envelope dispatch; lookup and dispatch
+        // never receive two independent full budgets.
+        const lookupDeadlineAt = routeDeadlineAt - Math.min(4_000, Math.floor(this.needRouteBudgetMs / 3));
+        let timer = null;
+        const lookup = typeof this.rpc?.withDeadline === 'function'
+          ? this.rpc.withDeadline(lookupDeadlineAt, () => this.findPeer(nodeId))
+          : this.findPeer(nodeId);
+        const peer = await Promise.race([
+          Promise.resolve(lookup).catch(() => null),
+          new Promise((resolve) => {
+            timer = setTimeout(() => resolve(null), Math.max(1, lookupDeadlineAt - Date.now()));
+            timer.unref?.();
+          })
+        ]).finally(() => { if (timer) clearTimeout(timer); });
+        const relayAllowed = options.allowRelayFallback !== false && typeof this.relayFallback === 'function';
+        if (!peer && !relayAllowed) {
+          const error = new Error('peer_not_discovered');
+          error.code = 'TRUYN_PEER_NOT_FOUND';
+          throw error;
+        }
       }
-    }
-    return this.send(nodeId, this.envelope('NEED', { capability: { name: capability }, input, policy }, { to: nodeId }), options);
+      return this.send(
+        nodeId,
+        this.envelope('NEED', { capability: { name: capability }, input, policy }, { to: nodeId }),
+        { ...options, deadlineAt: routeDeadlineAt }
+      );
+    };
+    return typeof this.rpc?.withLane === 'function' ? this.rpc.withLane('critical', run) : run();
   }
 
   createRecord(namespace, key, value, options = {}) { return createDhtRecord({ identity: this.identity, namespace, key, value, ...options }); }
-  async storeAt(nodeId, record) { const peer = await this.findPeer(nodeId); if (!peer) throw new Error('DHT peer not found'); return this.rpc.store(peer, record); }
-  async findValueAt(nodeId, namespace, key) { const peer = await this.findPeer(nodeId); if (!peer) throw new Error('DHT peer not found'); return this.rpc.findValue(peer, namespace, key); }
-  async replicateRecord(record, options = {}) { return this.replication.put(record, options); }
-  async findReplicatedValue(namespace, key, options = {}) { return this.replication.get(namespace, key, options); }
-  async repairRecord(namespace, key, options = {}) { return this.replication.repair(namespace, key, options); }
+  #critical(operation) { return typeof this.rpc?.withLane === 'function' ? this.rpc.withLane('critical', operation) : operation(); }
+  async storeAt(nodeId, record) { return this.#critical(async () => { const peer = await this.findPeer(nodeId); if (!peer) throw new Error('DHT peer not found'); return this.rpc.store(peer, record); }); }
+  async findValueAt(nodeId, namespace, key) { return this.#critical(async () => { const peer = await this.findPeer(nodeId); if (!peer) throw new Error('DHT peer not found'); return this.rpc.findValue(peer, namespace, key); }); }
+  async replicateRecord(record, options = {}) { return this.#critical(() => this.replication.put(record, options)); }
+  async findReplicatedValue(namespace, key, options = {}) { return this.#critical(() => this.replication.get(namespace, key, options)); }
+  async repairRecord(namespace, key, options = {}) { return this.#critical(() => this.replication.repair(namespace, key, options)); }
+
+  rpcSchedulerSnapshot() {
+    return {
+      ...(typeof this.rpc?.schedulerSnapshot === 'function' ? this.rpc.schedulerSnapshot() : {}),
+      server: typeof this.quic?.controlAdmissionSnapshot === 'function' ? this.quic.controlAdmissionSnapshot() : null,
+      envelopes: typeof this.quic?.admissionSnapshot === 'function' ? this.quic.admissionSnapshot() : null,
+      router: typeof this.router?.admissionSnapshot === 'function' ? this.router.admissionSnapshot() : null
+    };
+  }
 
   runtimePressureSnapshot() {
     const nsToMs = (value) => Number.isFinite(Number(value)) ? Number(value) / 1e6 : null;
@@ -900,6 +972,8 @@ export class TruynNetworkNode {
     this.#clearPersistTimer();
     this.eventLoopDelay.disable();
     this.started = false;
+    this.rpc?.close?.();
+    this.router?.close?.();
     await this.quic.close();
   }
 }

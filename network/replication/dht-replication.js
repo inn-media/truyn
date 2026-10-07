@@ -16,17 +16,19 @@ function keyspaceTarget(namespace, key) {
 }
 
 export class DhtReplicationManager {
-  constructor({ discovery, rpc, recordStore, replicationFactor = 3, writeQuorum = 2, writeTimeoutMs = 30_000 } = {}) {
+  constructor({ discovery, rpc, recordStore, replicationFactor = 3, writeQuorum = 2, writeTimeoutMs = 30_000, quorumGraceMs = 750 } = {}) {
     if (!discovery || !rpc || !recordStore) throw new Error('DHT replication requires discovery, rpc and recordStore');
     if (!Number.isInteger(replicationFactor) || replicationFactor < 1) throw new Error('replicationFactor must be >= 1');
     if (!Number.isInteger(writeQuorum) || writeQuorum < 1 || writeQuorum > replicationFactor) throw new Error('writeQuorum must be within replicationFactor');
     if (!Number.isInteger(writeTimeoutMs) || writeTimeoutMs < 100 || writeTimeoutMs > 120_000) throw new Error('writeTimeoutMs must be between 100 and 120000');
+    if (!Number.isInteger(quorumGraceMs) || quorumGraceMs < 0 || quorumGraceMs > 10_000) throw new Error('quorumGraceMs must be between 0 and 10000');
     this.discovery = discovery;
     this.rpc = rpc;
     this.recordStore = recordStore;
     this.replicationFactor = replicationFactor;
     this.writeQuorum = writeQuorum;
     this.writeTimeoutMs = writeTimeoutMs;
+    this.quorumGraceMs = quorumGraceMs;
   }
 
   candidates(namespace, key, count = this.replicationFactor + 4) {
@@ -77,36 +79,76 @@ export class DhtReplicationManager {
     };
 
     const execute = async () => {
-      const lookup = await this.expandKeyspace(record.namespace, record.key, { maxRounds: rounds });
+      // Keyspace discovery gets only the first part of the existing whole-write budget;
+      // remote STORE placement keeps the remainder. No timeout/acceptance threshold is raised.
+      const lookupDeadlineAt = Math.min(deadlineAt, Date.now() + Math.max(100, Math.floor(timeoutMs / 3)));
+      const lookup = typeof this.rpc?.withDeadline === 'function'
+        ? await this.rpc.withDeadline(lookupDeadlineAt, () => this.expandKeyspace(record.namespace, record.key, { maxRounds: rounds }))
+        : await this.expandKeyspace(record.namespace, record.key, { maxRounds: rounds });
       checkDeadline();
+
       const local = this.recordStore.put(record);
       let acknowledgements = local.accepted ? 1 : 0;
       const storedAt = local.accepted ? [this.discovery.identity.nodeId] : [];
       const failures = [];
       const remoteNeeded = Math.max(0, replicationFactor - acknowledgements);
-
-      const candidates = this.candidates(record.namespace, record.key, replicationFactor + 8);
+      const candidates = this.candidates(record.namespace, record.key, replicationFactor + 8)
+        .filter((peer) => peer.nodeId !== this.discovery.identity.nodeId);
       let cursor = 0;
-      while (storedAt.length < replicationFactor && cursor < candidates.length) {
-        checkDeadline();
-        const batch = candidates.slice(cursor, cursor + (replicationFactor - storedAt.length));
-        cursor += batch.length;
-        const settled = await Promise.allSettled(batch.map((peer) => this.rpc.store(peer, record)));
-        settled.forEach((outcome, index) => {
-          const peer = batch[index];
-          if (outcome.status === 'fulfilled') {
-            if (outcome.value?.stored) { acknowledgements += 1; storedAt.push(peer.nodeId); }
-            return;
-          }
-          // A single failed control stream must not destroy a peer-scoped shared QUIC
-          // client used by sibling replication operations. QuicDiscoveryRpc owns exact
-          // client retirement and generation invalidation.
-          failures.push({ nodeId: peer.nodeId, reason: outcome.reason?.message || 'dht_store_failed' });
-        });
-      }
+      let inFlight = 0;
 
-      checkDeadline();
+      await new Promise((resolve) => {
+        let done = false;
+        let graceTimer = null;
+        let deadlineTimer = null;
+
+        const finish = () => {
+          if (done) return;
+          done = true;
+          if (graceTimer) clearTimeout(graceTimer);
+          if (deadlineTimer) clearTimeout(deadlineTimer);
+          resolve();
+        };
+
+        const pump = () => {
+          if (done) return;
+          if (storedAt.length >= replicationFactor) { finish(); return; }
+          if (acknowledgements >= minAcks && !graceTimer) {
+            graceTimer = setTimeout(finish, this.quorumGraceMs);
+            graceTimer.unref?.();
+          }
+
+          // Maintain only the number of simultaneous placements needed to reach RF.
+          // A slow/failed peer immediately opens a slot for the next closest candidate.
+          while (!done && inFlight + storedAt.length < replicationFactor && cursor < candidates.length) {
+            const peer = candidates[cursor++];
+            inFlight += 1;
+            this.rpc.store(peer, record)
+              .then((value) => {
+                if (value?.stored) {
+                  acknowledgements += 1;
+                  if (!storedAt.includes(peer.nodeId)) storedAt.push(peer.nodeId);
+                } else {
+                  failures.push({ nodeId: peer.nodeId, reason: 'dht_store_not_stored' });
+                }
+              }, (error) => {
+                failures.push({ nodeId: peer.nodeId, reason: error?.message || 'dht_store_failed' });
+              })
+              .finally(() => {
+                inFlight -= 1;
+                pump();
+              });
+          }
+          if (inFlight === 0 && cursor >= candidates.length) finish();
+        };
+
+        deadlineTimer = setTimeout(finish, Math.max(1, deadlineAt - Date.now()));
+        deadlineTimer.unref?.();
+        pump();
+      });
+
       if (acknowledgements < minAcks) {
+        if (Date.now() >= deadlineAt) throw timeoutError();
         const error = new Error(`TRUYN_DHT_WRITE_QUORUM:${acknowledgements}/${minAcks}`);
         error.code = 'TRUYN_DHT_WRITE_QUORUM';
         error.acknowledgements = acknowledgements;
@@ -115,9 +157,19 @@ export class DhtReplicationManager {
         throw error;
       }
 
-      return { stored: true, recordId: record.recordId, acknowledgements, replicationFactor, remoteNeeded, storedAt, failures, lookup, timeoutMs };
+      return {
+        stored: true,
+        recordId: record.recordId,
+        acknowledgements,
+        replicationFactor,
+        remoteNeeded,
+        storedAt,
+        failures,
+        lookup,
+        timeoutMs,
+        quorumGraceMs: this.quorumGraceMs
+      };
     };
-
     if (typeof this.rpc?.withDeadline === 'function') return this.rpc.withDeadline(deadlineAt, execute);
     return execute();
   }

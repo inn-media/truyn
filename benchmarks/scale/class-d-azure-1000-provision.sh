@@ -51,16 +51,19 @@ retry() {
   until "$@"; do n=$((n+1)); [[ $n -lt 5 ]] || return 1; sleep $((n*3)); done
 }
 
+TRUYN_REMOTE_BUDGET_SECONDS="${TRUYN_REMOTE_BUDGET_SECONDS:-2400}"
+[[ "$TRUYN_REMOTE_BUDGET_SECONDS" =~ ^[1-9][0-9]*$ ]]
+
 remote() {
-  local vm="$1" body="$2" enc remote_script output rc attempt
+  local vm="$1" body="$2" budget="${3:-${REMOTE_STAGE_BUDGET_SECONDS:-${TRUYN_REMOTE_BUDGET_SECONDS:-2400}}}" enc remote_script output rc attempt host_budget
+  [[ "$budget" =~ ^[1-9][0-9]*$ ]] || budget=2400
+  host_budget=$(( budget > 120 ? budget - 60 : budget ))
   enc="$(printf '%s' "$body" | base64 -w0)"
-  remote_script="printf '%s' '$enc' | base64 -d >/tmp/truyn-d1000-run.sh; chmod 700 /tmp/truyn-d1000-run.sh; /bin/bash /tmp/truyn-d1000-run.sh"
+  remote_script="printf '%s' '$enc' | base64 -d >/tmp/truyn-d1000-run.sh; chmod 700 /tmp/truyn-d1000-run.sh; timeout -k 20 ${host_budget} /bin/bash /tmp/truyn-d1000-run.sh; host_rc=\$?; [ \$host_rc -eq 124 ] && echo TRUYN_REMOTE_HOST_TIMEOUT=${host_budget}; exit \$host_rc"
   remote_script="${remote_script//truyn/truyn}"
   remote_script="${remote_script//truyn/truyn}"
   for attempt in 1 2 3 4 5; do
-    # Keep the command in an if-condition: set +e only disables errexit, while
-    # stage runners use errtrace and may inherit an ERR trap into remote().
-    if output=$(az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1); then
+    if output=$(timeout -k 30 "$budget" az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1); then
       rc=0
     else
       rc=$?
@@ -69,6 +72,12 @@ remote() {
     if [[ $rc -eq 0 ]]; then
       printf '%s\n' "$output"
       return 0
+    fi
+    if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+      echo "TRUYN_REMOTE_TIMEOUT vm=${vm} budgetSec=${budget} hostBudgetSec=${host_budget} attempt=${attempt} rc=${rc}" >&2
+      printf '%s\n' "$output"
+      printf 'TRUYN_REMOTE_TIMEOUT=%s\n' "$budget"
+      return 124
     fi
     echo "TRUYN_REMOTE_RETRY vm=${vm} attempt=${attempt} rc=${rc}" >&2
     [[ $attempt -lt 5 ]] || break
@@ -127,6 +136,17 @@ wait_host_stage() {
     now=$(date +%s)
     printf 'TRUYN_D500_HEARTBEAT stage=%s summary running=%s completed=%s failed=%s elapsedSec=%s\n' "$stage" "$running" "$completed" "$failed" "$((now-start))"
     [[ "$completed" -eq "$total" ]] && break
+    if [[ -n "${D500_STAGE_DEADLINE_SECONDS:-}" && $((now-start)) -ge "${D500_STAGE_DEADLINE_SECONDS}" ]]; then
+      for i in "${!pids[@]}"; do
+        [[ -s "$status_dir/.host-$i.rc" ]] && continue
+        kill -TERM "${pids[$i]}" 2>/dev/null || true
+        printf '124\n' >"$status_dir/.host-$i.rc"
+        printf 'TRUYN_D500_STAGE_DEADLINE stage=%s host=%s deadlineSec=%s elapsedSec=%s\n' "$stage" "$i" "$D500_STAGE_DEADLINE_SECONDS" "$((now-start))"
+      done
+      sleep 2
+      for i in "${!pids[@]}"; do kill -KILL "${pids[$i]}" 2>/dev/null || true; done
+      continue
+    fi
     sleep "$D500_HEARTBEAT_SECONDS"
   done
 
@@ -308,9 +328,56 @@ PYD200EVIDENCE
   set -e
 }
 
+collect_liveness_evidence() {
+  local stage="$1" dir i pids=() script
+  [[ "${#VMS[@]}" -gt 0 && -n "${NODES_PER_HOST:-}" && -n "${CONTROL_BASE:-}" ]] || return 0
+  dir=$(mktemp -d)
+  for i in $(seq 0 $((HOST_COUNT-1))); do
+    script=$(cat <<EOS
+set +e
+restarts=0; inactive=0; refused=0; timedout=0; starting=0; lag_max=0; queued_max=0; shed=0
+for j in \$(seq 0 $((NODES_PER_HOST-1))); do
+  idx=\$(( ${i} * ${NODES_PER_HOST} + j ))
+  r=\$(systemctl show -p NRestarts --value truyn-d1000@\${idx}.service 2>/dev/null); [[ "\$r" =~ ^[0-9]+$ ]] && restarts=\$((restarts+r))
+  systemctl is-active --quiet truyn-d1000@\${idx}.service || inactive=\$((inactive+1))
+  body=\$(curl -sS --max-time 3 -w '\n%{http_code}' http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/status 2>/dev/null); crc=\$?
+  code=\$(printf '%s' "\$body" | tail -1)
+  if [[ \$crc -eq 7 ]]; then refused=\$((refused+1)); continue; fi
+  if [[ \$crc -eq 28 ]]; then timedout=\$((timedout+1)); continue; fi
+  if [[ "\$code" == 503 ]]; then starting=\$((starting+1)); continue; fi
+  json=\$(printf '%s' "\$body" | sed '\$d')
+  lag=\$(printf '%s' "\$json" | jq -r '(.health.eventLoop.delayP99Ms // 0) | floor' 2>/dev/null || echo 0)
+  q=\$(printf '%s' "\$json" | jq -r '[.health.rpc.lanes[]?.queued // 0] | add // 0' 2>/dev/null || echo 0)
+  sh=\$(printf '%s' "\$json" | jq -r '(.health.rpc.server.shed.background // 0) + (.health.rpc.server.shed.backpressure // 0)' 2>/dev/null || echo 0)
+  [[ "\$lag" =~ ^[0-9]+$ && \$lag -gt \$lag_max ]] && lag_max=\$lag
+  [[ "\$q" =~ ^[0-9]+$ && \$q -gt \$queued_max ]] && queued_max=\$q
+  [[ "\$sh" =~ ^[0-9]+$ ]] && shed=\$((shed+sh))
+done
+journal=\$(journalctl -u 'truyn-d1000@*' --since '-4h' --no-pager -o cat 2>/dev/null)
+fatal=\$(printf '%s\n' "\$journal" | grep -c 'TRUYN_NODE_FATAL')
+contained=\$(printf '%s\n' "\$journal" | grep -c 'TRUYN_NODE_CONTAINED_QUIC_ERROR')
+oom=\$(dmesg 2>/dev/null | grep -ciE 'out of memory|oom-kill|killed process')
+echo "TRUYN_D500_LIVENESS host=${i} restarts=\$restarts inactive=\$inactive controlRefused=\$refused controlTimeout=\$timedout controlStarting=\$starting fatal=\$fatal contained=\$contained oomKills=\$oom loadavg=\$(cut -d' ' -f1-3 /proc/loadavg | tr ' ' '/') memAvailMb=\$(free -m | awk '/Mem:/{print \$7}') lagP99MaxMs=\$lag_max rpcQueuedMax=\$queued_max shed=\$shed"
+EOS
+)
+    ( trap - ERR; remote "${VMS[$i]}" "$script" 240 >"$dir/$i" 2>/dev/null || true ) &
+    pids+=("$!")
+  done
+  for pid in "${pids[@]}"; do wait "$pid" || true; done
+  for i in $(seq 0 $((HOST_COUNT-1))); do
+    grep -E '^TRUYN_D500_LIVENESS' "$dir/$i" 2>/dev/null | sed "s/^/stage=${stage} /" || true
+  done
+  rm -rf "$dir"
+}
+
 d200_err_trap() {
   local rc="${1:-1}" failed_stage="${2:-unknown}" failed_line="${3:-0}"
   trap - ERR
+  set +e
+  case "$failed_stage" in
+    init|provision|install|cleanup) ;;
+    *) collect_liveness_evidence "$failed_stage" || true ;;
+  esac
   d200_failure_evidence_checkpoint "$rc" "$failed_stage" "$failed_line" || true
   echo "::error title=TRUYN Class D-1000 failure::stage=${failed_stage} exit=${rc} line=${failed_line}"
   exit "$rc"
