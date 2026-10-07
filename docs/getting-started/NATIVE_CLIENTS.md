@@ -51,6 +51,8 @@ npm run tauri -- android build --debug --apk --ci
 
 Local development mode permits loopback relay testing only.
 
-## Release note
+## Qualification and release note
 
-The CI APK is intentionally debug-signed so it is installable without storing a production Android signing key in the public repository. Windows/macOS public distribution also requires the appropriate production signing/notarization credentials.
+The permanent Native Clients workflow has produced all four installer formats from one exact qualified source: Windows NSIS `.exe`, macOS `.dmg`, Linux Debian `.deb`, and Android installable debug `.apk`. The accepted build qualification is run `37632795987` on source `90e0b2c8bd4c51549756980479121a392b73325f`; the hardening is merged into public main through PR #904.
+
+Build qualification is not the same as public distribution. The CI APK is intentionally debug-signed so it is installable without storing a production Android signing key in the public repository. Windows/macOS public distribution still requires the appropriate production signing/notarization credentials, and an immutable public installer release remains a separate gate.
