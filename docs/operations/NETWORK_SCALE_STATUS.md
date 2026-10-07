@@ -65,7 +65,7 @@ Historical D-500 failures remain immutable. A19 exposed 2-vCPU CPU saturation; A
 
 **D-1000 status: OPEN.**
 
-D-1000 is a distinct scale gate. It does not inherit PASS from D-200 or from any D-500 preparation/qualification activity. A future D-1000 acceptance requires its own frozen-candidate qualification, final Admission to then-current `main`, single-shot launch identity, strict terminal PASS, immutable artifacts, cleanup proof and durable evidence.
+D-1000 is a distinct scale gate. It does not inherit PASS from accepted D-200 or accepted D-500 evidence. A future D-1000 acceptance requires its own frozen-candidate qualification, final Admission to then-current `main`, single-shot launch identity, strict terminal PASS, immutable artifacts, cleanup proof and durable evidence.
 
 ## Historical immutable failures
 
