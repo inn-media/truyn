@@ -76,4 +76,4 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          gh release create "$RELEASE_TAG"             release-assets/manifest.json             release-assets/*.tgz             release-assets/*.tgz.sha256             --target "$SOURCE_SHA"             --title "TRUYN managed clients v0.1.0-alpha.4"             --notes "Qualified exact-CI managed-client SDK bundles for Windows, macOS, Linux and Android. Frozen source: $SOURCE_SHA. CI: $CI_RUN_ID. CodeQL: $CODEQL_RUN_ID. Contract: truyn.managed-auth-device/v1."
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"             release-assets/manifest.json             release-assets/*.tgz             release-assets/*.tgz.sha256             --target "$SOURCE_SHA"             --title "TRUYN managed clients v0.1.0-alpha.4"             --notes "Qualified exact-CI managed-client SDK bundles for Windows, macOS, Linux and Android. Frozen source: $SOURCE_SHA. CI: $CI_RUN_ID. CodeQL: $CODEQL_RUN_ID. Contract: truyn.managed-auth-device/v1."
