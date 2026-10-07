@@ -1,8 +1,8 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot:** 2026-09-25  
-**Snapshot public main before this sanitation:** `15ae0a632d750e3e7a7e65127db05ed71f0836ac`  
+**Snapshot:** 2026-10-07  
+**Snapshot public main before this sanitation:** `23a6b902310c9096b65af49f48307d7173cd03e9`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
@@ -49,7 +49,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | P2-E3 canonical reconciliation | **ACCEPTED / MERGED** | — |
 | NLWeb interoperability | **BOUNDED NLWeb 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later upstream profiles require requalification |
 | Five first-party SDK clients | **Implemented / conformance-proven** | release ecosystem completion |
-| Native GUI requester clients | **Source implemented (Tauri shared codebase)** | exact-head `.exe/.dmg/.deb/.apk` build qualification, then production signing/notarization |
+| Native GUI requester clients | **IMPLEMENTED / EXACT-HEAD FOUR-PLATFORM BUILD-QUALIFIED** | production signing/notarization and immutable public distribution remain separate gates |
 | PyPI alpha | **Accepted immutable public release** | — |
 | Go alpha | **Accepted immutable public release** | — |
 | npm alpha.1 | **Immutable historical artifact; clean-room Node 22 ESM failed** | superseded, never overwritten |
@@ -139,6 +139,12 @@ Issue #615 is the durable Open 1.0 task anchor. On this snapshot, S01–S102 are
 
 Five first-party clients and shared executable conformance already exist. Accepted immutable releases remain PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 
+## Native client boundary
+
+The first-party Tauri requester GUI is now **implemented and exact-head four-platform build-qualified**. The accepted qualification source was `90e0b2c8bd4c51549756980479121a392b73325f`: Native Clients run `37632795987` produced and verified Windows NSIS `.exe`, macOS `.dmg`, Linux Debian `.deb`, and Android installable debug `.apk` artifacts, with the native contract gate and frozen Cargo dependency graph GREEN. The hardening was merged by PR #904; merge commit `7dc3945273bf5120f1f9db25b71a05d611582a21` is part of current public-main ancestry.
+
+This closes the former **installer build qualification pending** boundary. It does **not** claim production code signing/notarization, app-store publication, or immutable public installer release. Those remain explicit distribution gates and must not be inferred from build qualification.
+
 ## A2A / MCP boundary
 
 Accepted bounded state includes C1–C8, independent official A2A/MCP black-box proofs, P2-E1 referenced artifacts, P2-E2 compatibility generation `a2a-mcp-pre-v1/g1`, and P2-E3 canonical reconciliation. **Stable A2A/MCP v1 is not declared.** `TRUYN/1` remains draft.
@@ -159,4 +165,4 @@ For N-Series specifically, public owns reproducible methodology, public-safe tel
 
 Current-state documents must use the vocabulary **implemented / exercised / accepted / open** consistently. Historical benchmark/evidence documents are append-only and are not rewritten to make current status look cleaner. Security sanitation is **redact-not-delete** for evidence. Ephemeral active-run state belongs in task anchors/operational status, not copied into many architecture documents.
 
-Repository-wide sanitation record for the 2026-09-23 baseline: `../operations/DOCUMENTATION_SANITATION_2026-09-23.md`.
+Latest repository-wide sanitation record: `../operations/DOCUMENTATION_SANITATION_2026-10-07.md`. The 2026-09-23 record remains historical evidence.

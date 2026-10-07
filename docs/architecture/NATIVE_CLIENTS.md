@@ -1,6 +1,6 @@
 # TRUYN Native Clients
 
-**Status:** source implementation added; exact-head four-platform installer qualification is performed by `.github/workflows/native-clients.yml`.
+**Status:** implemented and exact-head four-platform build-qualified. `.github/workflows/native-clients.yml` is the permanent qualification gate.
 
 TRUYN's native-client program is distinct from the managed-client platform bundles and from the five first-party language SDKs.
 
@@ -48,7 +48,7 @@ The node private key is stored only in application data. Unix-like systems force
 
 Pull-request native jobs explicitly check out `github.event.pull_request.head.sha`; workflow-dispatch builds use `github.sha`. Artifact names use the same expression, so exact-head qualification refers to the bytes that were actually built.
 
-Build qualification and public distribution remain different gates. macOS direct distribution requires Apple signing/notarization, Windows should use Authenticode, and Play releases require a production Android signing key.
+Build qualification and public distribution remain different gates. Exact-head qualification passed on source `90e0b2c8bd4c51549756980479121a392b73325f` in Native Clients run `37632795987`; the qualified hardening entered public `main` through PR #904 / merge commit `7dc3945273bf5120f1f9db25b71a05d611582a21`. macOS direct distribution requires Apple signing/notarization, Windows should use Authenticode, and Play releases require a production Android signing key.
 
 - **source implemented** - GUI/native code exists;
 - **build-qualified** - one exact source SHA produced all four installable formats;

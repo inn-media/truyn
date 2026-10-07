@@ -33,6 +33,6 @@ The permanent `.github/workflows/native-clients.yml` gate builds:
 - Linux: Debian `.deb`;
 - Android: debug-signed installable `.apk` preview.
 
-Pull-request builds explicitly check out the PR head SHA so artifact labels and executable bytes refer to the same source revision. Production code signing/notarization/store publication is a separate distribution gate.
+Pull-request builds explicitly check out the PR head SHA so artifact labels and executable bytes refer to the same source revision. Exact-head four-platform qualification passed in run `37632795987` on source `90e0b2c8bd4c51549756980479121a392b73325f`; the hardening entered public main through PR #904 / merge commit `7dc3945273bf5120f1f9db25b71a05d611582a21`. Production code signing/notarization/store publication is a separate distribution gate.
 
 See `../../docs/getting-started/NATIVE_CLIENTS.md`.

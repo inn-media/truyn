@@ -1,6 +1,6 @@
 # TRUYN SDK Compatibility and Migration Policy
 
-**Status:** Developer Release policy implemented for the `0.1.0-alpha.x` family; npm, PyPI and Go have accepted immutable public releases, while Maven Central and NuGet remain evidence-gated.  
+**Status:** Developer Release policy implemented for the `0.1.0-alpha.x` family; npm, PyPI, Go, Maven Central and NuGet have accepted immutable public releases.  
 **Protocol:** `TRUYN/1` remains draft.  
 **Stable SDK API contract:** `1` is a separately versioned developer-facing contract and does not imply protocol stable-v1.
 
