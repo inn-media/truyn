@@ -108,3 +108,10 @@ Measured repeat result:
 The first accepted run `37666768998` remains the primary acceptance run. The Double-Check is stored as independent repeatability evidence. Both runs tested source `1d6746b57104175e295f8fdc3d9643db8e9d42a6` / tree `9f2771286cc683a9ee49e0e0c5f8092347d54470`.
 
 The repeat launcher and trigger are archived outside the active workflow surface by the commit containing this section, preventing accidental third execution while preserving exact audit material.
+
+
+## D-500 repeatability branch sanitation
+
+After the successful exact-frozen Double-Check, one-shot sanitation run `37685402879` deleted only `repeat/d500-a22-double-check` and completed successfully. The run emitted `TRUYN_D500_REPEAT_SANITATION=PASS removed_or_absent=1`.
+
+The repeat workflow and launch token had already been archived outside the active workflow/trigger surfaces. This commit removes the temporary sanitation workflow/trigger themselves. Both successful D-500 workflow runs, commits and immutable artifacts remain preserved.
