@@ -1,7 +1,7 @@
 # TRUYN Semantic Scale S-Series Benchmark Contract
 
-Status: **METHODOLOGY / S-10 BOUNDED BASELINE ACCEPTED**  
-Applies to: **S-10 bounded integration baseline; S-50, S-100, S-200, S-500 scale gates**
+Status: **METHODOLOGY / S-10 + S-20 ACCEPTED CHECKPOINTS**  
+Applies to: **S-10 bounded baseline; S-20 five-scenario gate; S-50, S-100, S-200, S-500 scale gates**
 
 This document defines the fixed benchmark method and acceptance boundary for the live semantic-node scale family described in `../architecture/SEMANTIC_SCALE_S_SERIES.md`.
 
@@ -262,6 +262,10 @@ Workload construction, expected answers and judge/evaluator version must be immu
 
 S-10 is the bounded ECON/MIX integration baseline. It validates seven-provider routing, retrieval, provenance, minimal-context correctness, answer correctness and paired economics before larger scale gates. It does not substitute for S-50. Accepted sanitized evidence: `S_SERIES_S10_2026-10-07.md`.
 
+### S-20
+
+S-20 is the accepted 20-node intermediate gate for `ECON`, `MIX`, `COST-ROUTING`, `CONTENTION` and `LANG`. It does not accept `XBORDER`, `CHAIN` or `CHURN`, and it does not substitute for S-50. Accepted sanitized evidence: `S_SERIES_S20_2026-10-07.md`.
+
 ### S-50
 
 First establish `ECON` and `MIX` as the integration/economic baseline. Then execute the remaining scenario matrix using the same S-50 source and explicit scenario configurations where practical.
@@ -313,4 +317,4 @@ A failed or invalid run is never silently replaced. Subsequent attempts get new 
 
 ## 16. Current state
 
-The S-Series architecture and methodology are defined. **S-10 is accepted / PASS for the bounded ECON/MIX integration baseline.** The full S-50 scenario matrix, S-100, S-200 and S-500 remain OPEN and require independent immutable evidence. No larger-scale acceptance claim may be inferred from S-10.
+The S-Series architecture and methodology are defined. **S-10 is accepted / PASS for the bounded ECON/MIX integration baseline, and S-20 Attempt 3 is accepted / PASS for `ECON`, `MIX`, `COST-ROUTING`, `CONTENTION` and `LANG`.** `XBORDER`, `CHAIN`, `CHURN`, the full S-50 gate, S-100, S-200 and S-500 remain OPEN and require independent immutable evidence. No larger-scale acceptance claim may be inferred from S-20.
