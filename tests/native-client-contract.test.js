@@ -51,6 +51,8 @@ test('native client is a real Tauri GUI requester and not a renamed managed-clie
   assert.match(rust, /resumeStatus/);
   assert.match(rust, /active_need_backup_path\(&state\.active_need_path\)/);
   assert.match(rust, /try_lock_exclusive/);
+  assert.match(rust, /existing TRUYN request recovery state was found after acquiring the process lock/);
+  assert.match(rust, /let mut session = active_session/);
   assert.match(rust, /release_active_work/);
   assert.match(rust, /to_ipv4_mapped/);
   assert.match(rust, /is_transport/);

@@ -891,6 +891,20 @@ async fn force_refresh_session(
                 && current.token != candidate.token
                 && current.is_fresh() =>
         {
+            {
+                let mut active = state.active_need.write().await;
+                if let Some(active_need) = active.as_mut() {
+                    let matches_candidate = active_need.relay_url == candidate.relay_url
+                        && active_need
+                            .session
+                            .as_ref()
+                            .map(|session| session.token == candidate.token)
+                            .unwrap_or(true);
+                    if matches_candidate {
+                        active_need.session = Some(current.clone());
+                    }
+                }
+            }
             return Ok(current);
         }
         Some(current)
@@ -1014,7 +1028,20 @@ async fn claim_active_work(state: &AppState) -> Result<(), String> {
     if claim.is_some() {
         return Ok(());
     }
-    *claim = Some(open_active_claim(&state.active_claim_path)?);
+
+    let file = open_active_claim(&state.active_claim_path)?;
+    if state.active_need.read().await.is_none() {
+        if let Some(recovered) = load_active_need(&state.active_need_path)? {
+            *state.active_need.write().await = Some(recovered);
+            *claim = Some(file);
+            return Err(
+                "existing TRUYN request recovery state was found after acquiring the process lock"
+                    .into(),
+            );
+        }
+    }
+
+    *claim = Some(file);
     Ok(())
 }
 
@@ -1263,7 +1290,7 @@ async fn request_status(state: State<'_, AppState>, need_id: String) -> Result<V
         return Err("request ID is invalid".into());
     }
     let mut active = active_need_snapshot(state.inner(), need_id).await?;
-    let session = active_session(state.inner(), &active).await?;
+    let mut session = active_session(state.inner(), &active).await?;
     let encoded =
         url::form_urlencoded::byte_serialize(need_id.as_bytes()).collect::<String>();
     let url = session
@@ -1274,8 +1301,8 @@ async fn request_status(state: State<'_, AppState>, need_id: String) -> Result<V
     let first = request_json_detailed(auth(&session, session.http.get(url.clone()))).await;
     let response = match first {
         Err(failure) if failure.is_unauthorized() || failure.is_transport() => {
-            let refreshed = force_refresh_session(state.inner(), &session).await?;
-            request_json_detailed(auth(&refreshed, refreshed.http.get(url))).await
+            session = force_refresh_session(state.inner(), &session).await?;
+            request_json_detailed(auth(&session, session.http.get(url))).await
         }
         other => other,
     };

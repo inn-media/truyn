@@ -32,7 +32,7 @@ The native client:
 9. verifies envelope and RESULT timestamps, signature, node-ID/public-key binding, request correlation, matched-provider identity, required output field and optional metadata object semantics before marking output verified; malformed terminal output is rejected but still releases the local active-request gate;
 10. retries transient status failures and reconstructs active-request polling after process restart using the same stable node identity; recovery writes use synced staging plus backup fallback, stale async reconciliation cannot resurrect a cancelled request, and terminal cleanup removes both primary and backup recovery files;
 11. cancels with a requester-signed REVOKE at `POST /v1/revoke`; if completion wins the race it retains active state long enough to fetch and verify RESULT, while failed/not-found terminal states release local recovery state;
-12. enforces the one-active-request gate across separate OS processes with an exclusive file lock, not only an in-process mutex;
+12. enforces the one-active-request gate across separate OS processes with an exclusive file lock, then re-reads durable recovery state under that claim before permitting a new NEED;
 13. re-resolves all validated relay addresses when rebuilding transport after expiry, HTTP 401 or transport failure and rejects IPv4-mapped private IPv6 targets;
 14. preserves formatting-significant prompt whitespace while still rejecting empty/oversized input.
 
