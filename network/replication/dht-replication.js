@@ -101,6 +101,7 @@ export class DhtReplicationManager {
         let done = false;
         let graceTimer = null;
         let deadlineTimer = null;
+        let placementTimedOut = false;
 
         const finish = () => {
           if (done) return;
@@ -142,13 +143,16 @@ export class DhtReplicationManager {
           if (inFlight === 0 && cursor >= candidates.length) finish();
         };
 
-        deadlineTimer = setTimeout(finish, Math.max(1, deadlineAt - Date.now()));
+        deadlineTimer = setTimeout(() => {
+          if (acknowledgements < minAcks) placementTimedOut = true;
+          finish();
+        }, Math.max(1, deadlineAt - Date.now()));
         deadlineTimer.unref?.();
         pump();
       });
 
       if (acknowledgements < minAcks) {
-        if (Date.now() >= deadlineAt) throw timeoutError();
+        if (placementTimedOut || Date.now() >= deadlineAt) throw timeoutError();
         const error = new Error(`TRUYN_DHT_WRITE_QUORUM:${acknowledgements}/${minAcks}`);
         error.code = 'TRUYN_DHT_WRITE_QUORUM';
         error.acknowledgements = acknowledgements;
