@@ -51,6 +51,50 @@ test('D-200: concurrent persistence requests are group-committed and stay fail-c
   }
 });
 
+test('D-200: background peer-record churn is debounced while explicit durability barriers remain immediate', { timeout: 20_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'truyn-d200-persist-debounce-'));
+  const node = new TruynNetworkNode({
+    identity: createIdentity(),
+    host: '127.0.0.1',
+    tls: await generateTls(root),
+    statePath: join(root, 's.json'),
+    peerRecordAutoRenew: false,
+    discoveryPeriodicRefresh: false,
+    peerRecordPublishFanout: 0,
+    persistenceDebounceMs: 100,
+    persistenceCheckpointMs: 400
+  });
+  try {
+    await node.start();
+    await node.persistState();
+    let saves = 0;
+    const save = node.stateStore.save.bind(node.stateStore);
+    node.stateStore.save = async (snapshot) => { saves += 1; return save(snapshot); };
+
+    node.discovery.bootstrap(Array.from({ length: 40 }, (_, i) => remote(42500 + i)));
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(saves, 0, 'background ingest must not fsync immediately for every changed peer record');
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.ok(saves >= 1 && saves <= 2, `40 background changes should collapse into checkpointed saves, got ${saves}`);
+
+    const beforeBarrier = saves;
+    await node.persistState();
+    assert.ok(saves >= beforeBarrier + 1, 'explicit durability barrier must force its own generation durable immediately');
+
+    const pressure = node.runtimePressureSnapshot();
+    assert.ok(pressure.persistence.maxQueueDepth >= 1);
+    assert.ok(pressure.persistence.store.saves >= 1);
+    assert.ok(pressure.persistence.store.maxSnapshotBytes > 0);
+    assert.ok(pressure.persistence.store.maxPersistDurationMs >= 0);
+    assert.ok(pressure.persistence.store.maxFsyncDurationMs >= 0);
+    assert.ok(pressure.persistence.store.maxDiskLatencyMs >= 0);
+  } finally {
+    await node.close().catch(() => {});
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('D-200: restart readiness gates on the Kademlia placement set, not every recovered peer', { timeout: 30_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'truyn-d200-restart-gate-'));
   const tls = await generateTls(root);
