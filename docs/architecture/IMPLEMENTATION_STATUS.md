@@ -49,6 +49,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | P2-E3 canonical reconciliation | **ACCEPTED / MERGED** | — |
 | NLWeb interoperability | **BOUNDED NLWeb 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later upstream profiles require requalification |
 | Five first-party SDK clients | **Implemented / conformance-proven** | release ecosystem completion |
+| Native GUI requester clients | **Source implemented (Tauri shared codebase)** | exact-head `.exe/.dmg/.deb/.apk` build qualification, then production signing/notarization |
 | PyPI alpha | **Accepted immutable public release** | — |
 | Go alpha | **Accepted immutable public release** | — |
 | npm alpha.1 | **Immutable historical artifact; clean-room Node 22 ESM failed** | superseded, never overwritten |

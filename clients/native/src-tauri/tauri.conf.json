@@ -1,0 +1,39 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TRUYN",
+  "version": "0.1.0-alpha.1",
+  "identifier": "org.truyn.client",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "TRUYN — Intelligence Network",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 820,
+        "minHeight": 620,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self'; script-src 'self'",
+      "capabilities": ["main"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "category": "Productivity",
+    "shortDescription": "Native requester client for the TRUYN Intelligence Network",
+    "longDescription": "Connect a native TRUYN identity to a relay, discover authorized intelligence providers, submit NEED requests, verify signed RESULT envelopes and cancel requester-owned work.",
+    "publisher": "TRUYN",
+    "targets": "all",
+    "android": {
+      "minSdkVersion": 24
+    }
+  }
+}

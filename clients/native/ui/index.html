@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>TRUYN — Intelligence Network</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="mark">T</div>
+      <div>
+        <p class="eyebrow">TRUYN / NATIVE CLIENT</p>
+        <h1>The Intelligence Network</h1>
+        <p class="sub">Discover authorized intelligence and send a signed NEED from your own TRUYN identity.</p>
+      </div>
+      <div id="connectionBadge" class="badge offline">OFFLINE</div>
+    </header>
+
+    <section class="grid">
+      <article class="panel">
+        <div class="panel-head">
+          <div><p class="kicker">01</p><h2>Connect</h2></div>
+          <button id="disconnectButton" class="secondary" type="button" disabled>Disconnect</button>
+        </div>
+        <form id="connectForm">
+          <label>Relay URL
+            <input id="relayUrl" type="url" autocomplete="off" value="https://relay.truyn.org" required>
+          </label>
+          <label>Node name
+            <input id="nodeName" type="text" maxlength="80" value="TRUYN Native Client">
+          </label>
+          <label class="check">
+            <input id="localMode" type="checkbox">
+            <span>Local development mode (permits loopback HTTP only)</span>
+          </label>
+          <button class="primary" type="submit">Connect identity</button>
+        </form>
+        <div class="identity">
+          <span>NODE ID</span>
+          <code id="nodeId">loading…</code>
+        </div>
+        <p id="connectError" class="error" hidden></p>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head"><div><p class="kicker">02</p><h2>Discover</h2></div></div>
+        <form id="discoverForm">
+          <label>Capability
+            <input id="discoverCapability" type="text" maxlength="200" placeholder="reasoning.general" required>
+          </label>
+          <button class="secondary" type="submit">Find authorized providers</button>
+        </form>
+        <div id="offers" class="offers empty">No discovery query yet.</div>
+        <p id="discoverError" class="error" hidden></p>
+      </article>
+    </section>
+
+    <section class="panel task-panel">
+      <div class="panel-head">
+        <div><p class="kicker">03</p><h2>Send NEED</h2></div>
+        <button id="cancelButton" class="danger" type="button" disabled>Cancel request</button>
+      </div>
+      <form id="needForm" class="task-form">
+        <label>Capability
+          <input id="needCapability" type="text" maxlength="200" value="reasoning.general" required>
+        </label>
+        <label class="prompt-label">Request
+          <textarea id="prompt" maxlength="32768" rows="7" placeholder="Describe the intelligence you need…" required></textarea>
+        </label>
+        <button class="primary" type="submit">Send signed NEED</button>
+      </form>
+      <p id="needError" class="error" hidden></p>
+
+      <div class="result-grid">
+        <div class="status-card">
+          <span class="meta">REQUEST</span>
+          <strong id="requestId">—</strong>
+          <span class="meta">PROVIDER</span>
+          <strong id="providerId">—</strong>
+          <span class="meta">STATUS</span>
+          <strong id="requestStatus">idle</strong>
+        </div>
+        <div class="output-card">
+          <div class="output-head">
+            <span>RESULT</span>
+            <span id="verificationBadge" class="verify pending">NOT VERIFIED</span>
+          </div>
+          <pre id="resultOutput">No result yet.</pre>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <span>Private node identity stays on this device.</span>
+      <span>Relay session tokens are memory-only.</span>
+    </footer>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

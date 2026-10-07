@@ -116,3 +116,9 @@ TRUYN's NLWeb track is interoperability-only: eligible endpoint discovery, `ask`
 `docs/benchmarks/` is a durable evidence ledger. Failed campaigns remain failures; accepted campaigns remain accepted. Diagnostics and open PRs never become acceptance merely because code exists. Merged repository/runtime support must not be overstated as live production evidence.
 
 Benchmark evidence follows **redact-not-delete**. Raw logs containing private operational details stay in immutable Actions artifacts or private operational storage; public reports retain safe structured telemetry, artifact identity and cryptographic digests.
+
+
+## Native clients
+
+- [Native Client Architecture](architecture/NATIVE_CLIENTS.md)
+- [Native Client Quickstart](getting-started/NATIVE_CLIENTS.md)
