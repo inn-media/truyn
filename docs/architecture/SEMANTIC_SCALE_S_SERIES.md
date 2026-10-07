@@ -1,8 +1,8 @@
 # TRUYN Semantic Scale S-Series Architecture
 
-Status: **S-10 ACCEPTED / LARGER S LEVELS OPEN**  
+Status: **S-10 + S-20 ACCEPTED / S-50+ OPEN**  
 Track: **S-Series (Semantic Scale)**  
-Target ladder: **S-10 → S-50 → S-100 → S-200 → S-500**
+Target ladder: **S-10 → S-20 → S-50 → S-100 → S-200 → S-500**
 
 ## Purpose
 
@@ -82,12 +82,13 @@ Provider transport implementation may be shared where TRUYN already shares it; v
 | Gate | Semantic nodes | Primary purpose |
 |---|---:|---|
 | **S-10** | bounded integration baseline | accepted ECON/MIX proof before larger semantic-node scale |
+| **S-20** | 20 | accepted five-scenario gate: ECON, MIX, COST-ROUTING, CONTENTION, LANG |
 | **S-50** | 50 | first full semantic-node scale gate; execute the declared scenario matrix independently |
 | **S-100** | 100 | confirm invariance as semantic node count doubles; produce comparable scale curves |
 | **S-200** | 200 | semantic counterpart at the already-proven D-200 network scale |
 | **S-500** | 500 | large live semantic-network benchmark for economics, cross-border operation, contention and policy routing |
 
-Passing S-10 does not imply S-50, and passing S-50 does not imply S-100/S-200/S-500. Each gate requires its own immutable run identity and evidence.
+Passing S-10 does not imply S-20; passing S-20 does not imply S-50; and passing S-50 does not imply S-100/S-200/S-500. Each gate requires its own immutable run identity and evidence.
 
 ## Provider assignment profiles
 
@@ -208,20 +209,27 @@ Private raw telemetry and managed operational detail remain in `inn-media/truyn-
 
 ## Current execution status
 
-S-Series now has an accepted bounded S-10 ECON/MIX integration baseline.
+S-Series has two accepted checkpoints:
 
-Accepted S-10 public evidence: `docs/benchmarks/S_SERIES_S10_2026-10-07.md`.
+- **S-10 Attempt 6** — accepted bounded ECON/MIX integration baseline.
+- **S-20 Attempt 3** — accepted five-scenario 20-node gate covering `ECON`, `MIX`, `COST-ROUTING`, `CONTENTION` and `LANG`.
 
-The accepted result exercised 150 measured observations across balanced, 60%-GPT-skewed and seeded-random profiles, with all seven provider families represented in every profile. It achieved 100% routing, answer, retrieval, provenance and minimal-context correctness, zero block-ID leakage, zero unauthorized provider execution, 97.17417299653404% input-token reduction and 96.85606730615144% comparable GPT/Gemini provider-cost reduction.
+Accepted public evidence:
+
+- `docs/benchmarks/S_SERIES_S10_2026-10-07.md`
+- `docs/benchmarks/S_SERIES_S20_2026-10-07.md`
+
+S-20 Attempt 3 achieved 60/60 ECON/MIX observations correct across three 20-node profiles and seven provider families, 97.0939465610686% input-token reduction, 100% policy-routing eligibility/authorization/selection correctness, 20/20 successful concurrent contention requests, and 100% retrieval/answer/provenance correctness with zero block-ID leakage across EN/TR/ZH/RU/AZ.
 
 Therefore:
 
 - S-10 — **ACCEPTED / PASS**;
+- S-20 — **ACCEPTED / PASS** for the five declared scenarios;
 - S-50 — **OPEN / not accepted**;
 - S-100 — **OPEN / not accepted**;
 - S-200 — **OPEN / not accepted**;
 - S-500 — **OPEN / not accepted**.
 
-The active acceptance path is the simplified immutable lifecycle: exact candidate SHA → minimal preflight → one real run → post-run evidence. Historical Swarm/Blockwise/Admission material remains append-only qualification history and may support targeted diagnostics, but it is not a mandatory cascading precondition for every S-N run.
+S-20 does not accept `XBORDER`, `CHAIN` or `CHURN`. The active acceptance path remains exact candidate SHA → minimal preflight → one real run → post-run evidence, with fail-collect permitted so independent scenarios can complete and preserve evidence before final reconciliation.
 
-No larger S-level claim may be inferred from S-10.
+No larger S-level claim may be inferred from S-20.
