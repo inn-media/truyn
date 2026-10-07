@@ -250,7 +250,7 @@ export class PeerDiscovery {
     intervalMs,
     targetCount = this.k,
     maxRounds = 4,
-    targetConcurrency = 2,
+    targetConcurrency = 1,
     timeoutMs = null,
     jitterRatio = 0.2,
     seed = 'truyn-periodic-refresh',
@@ -269,7 +269,7 @@ export class PeerDiscovery {
       intervalMs: Math.floor(interval),
       targetCount: boundedInteger(targetCount, this.k, { min: 0, max: 256 }),
       maxRounds: boundedInteger(maxRounds, 4, { min: 0, max: 64 }),
-      targetConcurrency: boundedInteger(targetConcurrency, 2, { min: 1, max: 16 }),
+      targetConcurrency: boundedInteger(targetConcurrency, 1, { min: 1, max: 16 }),
       timeoutMs: normalizedTimeoutMs,
       jitterRatio: normalizedJitterRatio,
       seed: typeof seed === 'string' && seed.trim() ? seed.trim() : 'truyn-periodic-refresh'
