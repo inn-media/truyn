@@ -61,3 +61,20 @@ Historical lineage remains immutable:
 - Attempt 22 run `37666768998`: PASS.
 
 D-1000 remains open and independent. D-500 PASS does not imply D-1000, stable mainnet or managed-production acceptance.
+
+
+## D-500 post-PASS branch sanitation
+
+One-shot sanitation run `37675116608` completed successfully after the accepted runtime was canonicalized. It removed only the exact superseded A20–A22 preparation/arming refs:
+
+- `prep/d500-a20-from-a19`
+- `prep/d500-a21-from-a20`
+- `prep/d500-a22-from-a21`
+- `arm/d500-a20-ready`
+- `arm/d500-a21-ready`
+- `arm/d500-a22-ready`
+- `arm/d500-a22-ready-r2`
+
+The run emitted `TRUYN_D500_SANITATION=PASS removed_or_absent=7`.
+
+Historical launch generations, commits, workflow runs and immutable artifacts were not deleted. The temporary sanitation workflow/trigger are removed by the commit recording this section.
