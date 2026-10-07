@@ -80,9 +80,9 @@ test('native client is a real Tauri GUI requester and not a renamed managed-clie
   assert.match(workflow, /bundle: deb/);
   assert.match(workflow, /android build --debug --apk/);
   assert.match(workflow, /npm ci --ignore-scripts --no-audit --no-fund/);
-  assert.match(workflow, /cargo metadata --manifest-path clients\/native\/src-tauri\/Cargo\.toml/);
-  assert.match(workflow, /cargo test --manifest-path clients\/native\/src-tauri\/Cargo\.toml --lib/);
-  assert.match(workflow, /Export regenerated Cargo lockfile/);
+  assert.match(workflow, /cargo metadata --locked --manifest-path clients\/native\/src-tauri\/Cargo\.toml/);
+  assert.match(workflow, /cargo test --locked --manifest-path clients\/native\/src-tauri\/Cargo\.toml --lib/);
+  assert.doesNotMatch(workflow, /Export regenerated Cargo lockfile/);
   assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
   assert.match(workflow, /\.exe/);
   assert.match(workflow, /\.dmg/);
