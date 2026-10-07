@@ -197,7 +197,7 @@ export class DhtReplicationManager {
       }
 
       const remoteStoredAt = storedAt.filter((nodeId) => nodeId !== this.discovery.identity.nodeId);
-      this.placementByRecordId.set(record.recordId, remoteStoredAt);
+      this.placementByRecordId.set(record.recordId, [...remoteStoredAt].sort());
       return {
         stored: true,
         recordId: record.recordId,
@@ -353,8 +353,9 @@ export class DhtReplicationManager {
           .slice(0, remoteTargetCount);
         const desiredNodeIds = desiredPeers.map((peer) => peer.nodeId);
         const previousNodeIds = this.placementByRecordId.get(record.recordId) || [];
+        const previousSet = new Set(previousNodeIds);
         const changed = desiredNodeIds.length !== previousNodeIds.length
-          || desiredNodeIds.some((nodeId, index) => nodeId !== previousNodeIds[index]);
+          || desiredNodeIds.some((nodeId) => !previousSet.has(nodeId));
 
         if (!changed) {
           details.push({ recordId: record.recordId, key: record.key, changed: false, desiredNodeIds, succeededNodeIds: [], failedNodeIds: [] });
@@ -381,7 +382,7 @@ export class DhtReplicationManager {
         storesSucceeded += succeededNodeIds.length;
         storesFailed += failedNodeIds.length;
         if (failedNodeIds.length === 0 && succeededNodeIds.length === desiredNodeIds.length) {
-          this.placementByRecordId.set(record.recordId, [...desiredNodeIds]);
+          this.placementByRecordId.set(record.recordId, [...desiredNodeIds].sort());
         }
         details.push({
           recordId: record.recordId,
