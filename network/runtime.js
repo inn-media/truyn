@@ -21,7 +21,7 @@ export class TruynNetworkNode {
     peerRecordAutoRenew = true, peerRecordRenewBeforeMs = null, peerRecordPublishFanout = null,
     discoveryPeriodicRefresh = true, discoveryRefreshIntervalMs = null, discoveryRefreshTargetCount = null,
     discoveryRefreshMaxRounds = 4, discoveryRefreshSeed = 'truyn-periodic-refresh',
-    discoveryRefreshTargetConcurrency = 2, discoveryRefreshTimeoutMs = null, discoveryRefreshJitterRatio = 0.2,
+    discoveryRefreshTargetConcurrency = 1, discoveryRefreshTimeoutMs = null, discoveryRefreshJitterRatio = 0.2,
     persistenceDebounceMs = 250, persistenceCheckpointMs = 1_000
   } = {}) {
     if (!tls?.key || !tls?.cert) throw new Error('network runtime TLS key/certificate are required');
