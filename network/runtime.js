@@ -17,10 +17,11 @@ export class TruynNetworkNode {
     identity = createIdentity(), host = '0.0.0.0', port = 0, advertiseHost = null, tls,
     k = 20, alpha = 3, relayFallback = null, nat = null, capabilities = [], peerRecordTtlMs = 300_000,
     maxInFlight = 64, maxQueued = 256, statePath = null, dhtReplicationFactor = 3, dhtWriteQuorum = 2,
-    dhtRpcTimeoutMs = 5_000, faultController = null, workInboxPath = null, workInboxMaxCompleted = 10_000,
+    dhtRpcTimeoutMs = 5_000, dhtWriteTimeoutMs = 30_000, faultController = null, workInboxPath = null, workInboxMaxCompleted = 10_000,
     peerRecordAutoRenew = true, peerRecordRenewBeforeMs = null, peerRecordPublishFanout = null,
     discoveryPeriodicRefresh = true, discoveryRefreshIntervalMs = null, discoveryRefreshTargetCount = null,
     discoveryRefreshMaxRounds = 4, discoveryRefreshSeed = 'truyn-periodic-refresh',
+    discoveryRefreshTargetConcurrency = 2, discoveryRefreshTimeoutMs = null, discoveryRefreshJitterRatio = 0.2,
     persistenceDebounceMs = 250, persistenceCheckpointMs = 1_000
   } = {}) {
     if (!tls?.key || !tls?.cert) throw new Error('network runtime TLS key/certificate are required');
@@ -36,9 +37,24 @@ export class TruynNetworkNode {
     const periodicRefreshTargetCount = discoveryRefreshTargetCount == null ? k : discoveryRefreshTargetCount;
     if (!Number.isInteger(periodicRefreshTargetCount) || periodicRefreshTargetCount < 0) throw new Error('discoveryRefreshTargetCount must be a non-negative integer');
     if (!Number.isInteger(discoveryRefreshMaxRounds) || discoveryRefreshMaxRounds < 0) throw new Error('discoveryRefreshMaxRounds must be a non-negative integer');
+    if (!Number.isInteger(discoveryRefreshTargetConcurrency) || discoveryRefreshTargetConcurrency < 1 || discoveryRefreshTargetConcurrency > 16) {
+      throw new Error('discoveryRefreshTargetConcurrency must be between 1 and 16');
+    }
+    if (!Number.isFinite(discoveryRefreshJitterRatio) || discoveryRefreshJitterRatio < 0 || discoveryRefreshJitterRatio > 0.5) {
+      throw new Error('discoveryRefreshJitterRatio must be between 0 and 0.5');
+    }
+    if (!Number.isInteger(dhtWriteTimeoutMs) || dhtWriteTimeoutMs < 100 || dhtWriteTimeoutMs > 120_000) {
+      throw new Error('dhtWriteTimeoutMs must be between 100 and 120000');
+    }
     const periodicRefreshIntervalMs = discoveryRefreshIntervalMs == null
       ? Math.min(30_000, Math.max(1, Math.floor(peerRecordTtlMs / 4)))
       : discoveryRefreshIntervalMs;
+    const periodicRefreshTimeoutMs = discoveryRefreshTimeoutMs == null
+      ? Math.max(1_000, Math.min(10_000, Math.floor(periodicRefreshIntervalMs * 0.75)))
+      : discoveryRefreshTimeoutMs;
+    if (!Number.isInteger(periodicRefreshTimeoutMs) || periodicRefreshTimeoutMs < 100 || periodicRefreshTimeoutMs >= peerRecordTtlMs) {
+      throw new Error('discoveryRefreshTimeoutMs must be >=100 and below peerRecordTtlMs');
+    }
     if (discoveryPeriodicRefresh && (!Number.isFinite(periodicRefreshIntervalMs) || periodicRefreshIntervalMs <= 0 || periodicRefreshIntervalMs >= peerRecordTtlMs)) {
       throw new Error('discoveryRefreshIntervalMs must be positive and less than peerRecordTtlMs');
     }
@@ -65,6 +81,9 @@ export class TruynNetworkNode {
     this.discoveryRefreshIntervalMs = periodicRefreshIntervalMs;
     this.discoveryRefreshTargetCount = periodicRefreshTargetCount;
     this.discoveryRefreshMaxRounds = discoveryRefreshMaxRounds;
+    this.discoveryRefreshTargetConcurrency = discoveryRefreshTargetConcurrency;
+    this.discoveryRefreshTimeoutMs = periodicRefreshTimeoutMs;
+    this.discoveryRefreshJitterRatio = discoveryRefreshJitterRatio;
     this.discoveryRefreshSeed = typeof discoveryRefreshSeed === 'string' && discoveryRefreshSeed.trim()
       ? discoveryRefreshSeed.trim()
       : 'truyn-periodic-refresh';
@@ -167,7 +186,8 @@ export class TruynNetworkNode {
       rpc: this.rpc,
       recordStore: this.recordStore,
       replicationFactor: dhtReplicationFactor,
-      writeQuorum: dhtWriteQuorum
+      writeQuorum: dhtWriteQuorum,
+      writeTimeoutMs: dhtWriteTimeoutMs
     });
     this.router = new DirectFirstP2P({
       quicTransport: this.quic,
@@ -679,6 +699,9 @@ export class TruynNetworkNode {
         intervalMs: this.discoveryRefreshIntervalMs,
         targetCount: this.discoveryRefreshTargetCount,
         maxRounds: this.discoveryRefreshMaxRounds,
+        targetConcurrency: this.discoveryRefreshTargetConcurrency,
+        timeoutMs: this.discoveryRefreshTimeoutMs,
+        jitterRatio: this.discoveryRefreshJitterRatio,
         seed: this.discoveryRefreshSeed
       });
     }
