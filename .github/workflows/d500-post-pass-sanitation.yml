@@ -1,0 +1,41 @@
+name: D500 Post-PASS Branch Sanitation
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d500/post-pass-sanitation.run']
+permissions:
+  contents: write
+jobs:
+  sanitize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete exact superseded A20-A22 prep/arm refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          branches=(
+            "prep/d500-a20-from-a19"
+            "prep/d500-a21-from-a20"
+            "prep/d500-a22-from-a21"
+            "arm/d500-a20-ready"
+            "arm/d500-a21-ready"
+            "arm/d500-a22-ready"
+            "arm/d500-a22-ready-r2"
+          )
+          for branch in "${branches[@]}"; do
+            if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" >/dev/null 2>&1; then
+              echo "TRUYN_D500_SANITATION delete=${branch}"
+              gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+            else
+              echo "TRUYN_D500_SANITATION absent=${branch}"
+            fi
+          done
+          for branch in "${branches[@]}"; do
+            if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" >/dev/null 2>&1; then
+              echo "TRUYN_D500_SANITATION_FAIL remaining=${branch}" >&2
+              exit 1
+            fi
+          done
+          echo "TRUYN_D500_SANITATION=PASS removed_or_absent=${#branches[@]}"
