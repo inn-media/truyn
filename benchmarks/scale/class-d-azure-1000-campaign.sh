@@ -615,6 +615,7 @@ def state(j):
       'staleRoutingPeers':r.get('staleRoutingPeers'),
       'populatedBuckets':r.get('populatedBuckets'),
       'dhtRpcTimeoutMs':s.get('dhtRpcTimeoutMs'),
+      'runtimePressure':s.get('runtimePressure'),
       'readinessOk':bool(readiness.get('ok')),
       'statusOk':bool(status.get('ok')),
     }
@@ -789,6 +790,7 @@ def state(j):
       'staleRoutingPeers':r.get('staleRoutingPeers'),
       'populatedBuckets':r.get('populatedBuckets'),
       'dhtRpcTimeoutMs':s.get('dhtRpcTimeoutMs'),
+      'runtimePressure':s.get('runtimePressure'),
       'readinessOk':bool(readiness.get('ok')),
       'statusOk':bool(status.get('ok')),
     }
@@ -1055,6 +1057,56 @@ for j in \$(seq 0 4); do
   done
 done
 echo WRITES=\$ok
+python3 - <<'PY'
+import concurrent.futures,json,subprocess
+host=${i}; N=${NODES_PER_HOST}; base=${CONTROL_BASE}
+
+def fetch(j):
+    p=subprocess.run(['curl','-sS','--max-time','2',f'http://127.0.0.1:{base+j}/status'],text=True,capture_output=True)
+    if p.returncode!=0:
+        return None
+    try:
+        value=json.loads(p.stdout)
+    except Exception:
+        return None
+    return value.get('runtimePressure') or {}
+
+def get(value,*path):
+    current=value
+    for key in path:
+        if not isinstance(current,dict): return None
+        current=current.get(key)
+    return current if isinstance(current,(int,float)) else None
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=min(8,N)) as pool:
+    rows=list(pool.map(fetch,range(N)))
+observed=[row for row in rows if isinstance(row,dict)]
+def maxv(*path):
+    values=[get(row,*path) for row in observed]
+    values=[value for value in values if value is not None]
+    return max(values) if values else None
+def sumv(*path):
+    values=[get(row,*path) for row in observed]
+    return sum(value for value in values if value is not None)
+
+result={
+  'schema':'truyn.d500.runtime-pressure.host.v1',
+  'host':host,
+  'nodesExpected':N,
+  'nodesObserved':len(observed),
+  'nodesUnavailable':N-len(observed),
+  'totalPersistenceSaves':sumv('persistence','store','saves'),
+  'maxPersistDurationMs':maxv('persistence','store','maxPersistDurationMs'),
+  'maxFsyncDurationMs':maxv('persistence','store','maxFsyncDurationMs'),
+  'maxDiskLatencyMs':maxv('persistence','store','maxDiskLatencyMs'),
+  'maxSnapshotBytes':maxv('persistence','store','maxSnapshotBytes'),
+  'maxPersistenceQueueDepth':maxv('persistence','maxQueueDepth'),
+  'maxCurrentPersistenceQueueDepth':maxv('persistence','queueDepth'),
+  'maxEventLoopLagP95Ms':maxv('eventLoopLag','p95Ms'),
+  'maxEventLoopLagMs':maxv('eventLoopLag','maxMs')
+}
+print('RUNTIME_PRESSURE_HOST_JSON='+json.dumps(result,separators=(',',':')))
+PY
 EOS
 )
   (
@@ -1066,12 +1118,20 @@ EOS
 done
 d200_write_remote_failed=0
 if ! wait_host_stage durable-writes "$d200_write_dir" "${d200_write_pids[@]}"; then d200_write_remote_failed=1; fi
+d500_runtime_pressure_jsonl="${GITHUB_WORKSPACE:-$PWD}/class-d-200-runtime-pressure-hosts.jsonl"
+d500_runtime_pressure_json="${GITHUB_WORKSPACE:-$PWD}/class-d-200-runtime-pressure-hosts.json"
+: >"$d500_runtime_pressure_jsonl"
 for i in $(seq 0 $((HOST_COUNT-1))); do
+  out=$(cat "${d200_write_dir}/${i}.out" 2>/dev/null || true)
+  pressure=$(marker "$out" RUNTIME_PRESSURE_HOST_JSON)
+  if ! printf '%s' "$pressure" | jq -e --argjson host "$i" '.schema=="truyn.d500.runtime-pressure.host.v1" and .host==$host' >/dev/null 2>&1; then
+    pressure=$(jq -nc --argjson host "$i" '{schema:"truyn.d500.runtime-pressure.host.v1",host:$host,observationUnavailable:true}')
+  fi
+  printf '%s\n' "$pressure" >>"$d500_runtime_pressure_jsonl"
   if [[ "$(cat "$d200_write_dir/.host-$i.rc" 2>/dev/null || echo 255)" != 0 ]]; then
     cat "${d200_write_dir}/${i}.err" >&2 || true
     continue
   fi
-  out=$(cat "${d200_write_dir}/${i}.out")
   w=$(marker "$out" WRITES)
   if [[ "$w" != 5 ]]; then
     d200_write_remote_failed=1
@@ -1079,6 +1139,28 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   fi
   writes=$((writes+w))
 done
+jq -s 'sort_by(.host)' "$d500_runtime_pressure_jsonl" >"$d500_runtime_pressure_json"
+python3 - "$d500_runtime_pressure_json" <<'PY'
+import json,sys
+rows=json.load(open(sys.argv[1],encoding='utf-8'))
+def vals(key):
+    return [row.get(key) for row in rows if isinstance(row.get(key),(int,float))]
+def mx(key):
+    value=vals(key)
+    return max(value) if value else None
+summary={
+  'hosts':len(rows),
+  'nodesObserved':sum(int(row.get('nodesObserved') or 0) for row in rows),
+  'maxPersistDurationMs':mx('maxPersistDurationMs'),
+  'maxFsyncDurationMs':mx('maxFsyncDurationMs'),
+  'maxDiskLatencyMs':mx('maxDiskLatencyMs'),
+  'maxSnapshotBytes':mx('maxSnapshotBytes'),
+  'maxPersistenceQueueDepth':mx('maxPersistenceQueueDepth'),
+  'maxEventLoopLagP95Ms':mx('maxEventLoopLagP95Ms'),
+  'maxEventLoopLagMs':mx('maxEventLoopLagMs')
+}
+print('TRUYN_D500_RUNTIME_PRESSURE_SUMMARY '+json.dumps(summary,separators=(',',':')))
+PY
 [[ "$d200_write_remote_failed" == 0 ]]
 [[ "$writes" == 100 ]]
 d200_write_window_last_ack_ms=$(date +%s%3N)
@@ -1258,6 +1340,7 @@ def source_state():
       'peerRecordPropagationReady':p.get('ready'),
       'peerRecordPendingCount':p.get('pendingCount'),
       'dhtRpcTimeoutMs':s.get('dhtRpcTimeoutMs'),
+      'runtimePressure':s.get('runtimePressure'),
       'readinessOk':bool(readiness.get('ok')),
       'statusOk':bool(status.get('ok')),
     }
@@ -1582,6 +1665,7 @@ def state(j):
       'populatedBuckets':r.get('populatedBuckets'),
       'peerRecordSequence':s.get('peerRecordSequence'),
       'dhtRpcTimeoutMs':s.get('dhtRpcTimeoutMs'),
+      'runtimePressure':s.get('runtimePressure'),
       'readinessOk':bool(readiness.get('ok')),
       'statusOk':bool(status.get('ok')),
     }

@@ -137,6 +137,7 @@ export async function createTestnetNodeService({
   dhtReplicationFactor = 3,
   dhtWriteQuorum = 2,
   dhtRpcTimeoutMs = 5_000,
+  dhtWriteTimeoutMs = 30_000,
   operatorNodeIds = [],
   faultControlEnabled = false,
   relayUrl = null,
@@ -175,6 +176,7 @@ export async function createTestnetNodeService({
     dhtReplicationFactor,
     dhtWriteQuorum,
     dhtRpcTimeoutMs,
+    dhtWriteTimeoutMs,
     relayFallback: relay ? (peerNodeId, envelope) => relay.fallback(peerNodeId, envelope) : null
   });
 
@@ -195,6 +197,8 @@ export async function createTestnetNodeService({
     dhtRecordCount: node.recordStore.snapshot().length,
     peerRecordSequence: node.localPeerRecord?.sequence || 0,
     dhtRpcTimeoutMs: node.rpc.timeoutMs,
+    dhtWriteTimeoutMs: node.replication.writeTimeoutMs,
+    runtimePressure: node.runtimePressureSnapshot(),
     operatorCount: operators.size,
     faultControlEnabled,
     relayEnabled: Boolean(relay),
@@ -261,6 +265,7 @@ export async function createTestnetNodeService({
       },
       peerRecordLeases,
       periodicRefresh,
+      runtimePressure: node.runtimePressureSnapshot(),
       remoteEndpointDiversity: remoteEndpointDiversity(),
       refresh: lastDhtRefresh || {
         status: 'never_refreshed',
@@ -522,6 +527,7 @@ export async function runTestnetNodeFromEnv(env = process.env) {
     dhtReplicationFactor: int(env.TRUYN_DHT_REPLICATION_FACTOR, 3),
     dhtWriteQuorum: int(env.TRUYN_DHT_WRITE_QUORUM, 2),
     dhtRpcTimeoutMs: int(env.TRUYN_DHT_RPC_TIMEOUT_MS, 5_000, { min: 100, max: 120_000 }),
+    dhtWriteTimeoutMs: int(env.TRUYN_DHT_WRITE_TIMEOUT_MS, 30_000, { min: 100, max: 120_000 }),
     operatorNodeIds: csv(env.TRUYN_TESTNET_OPERATOR_NODE_IDS),
     faultControlEnabled: flag(env.TRUYN_TESTNET_FAULT_CONTROL),
     relayUrl: env.TRUYN_RELAY_URL || null,

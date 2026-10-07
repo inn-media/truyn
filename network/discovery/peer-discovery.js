@@ -250,15 +250,31 @@ export class PeerDiscovery {
     intervalMs,
     targetCount = this.k,
     maxRounds = 4,
+    targetConcurrency = 1,
+    timeoutMs = null,
+    jitterRatio = 0.2,
     seed = 'truyn-periodic-refresh',
     timerApi = null
   } = {}) {
     const interval = Number(intervalMs);
     if (!Number.isFinite(interval) || interval <= 0) throw new Error('periodic refresh intervalMs must be positive');
+    const normalizedTimeoutMs = timeoutMs == null
+      ? Math.max(1_000, Math.min(10_000, Math.floor(interval * 0.75)))
+      : Number(timeoutMs);
+    if (!Number.isInteger(normalizedTimeoutMs) || normalizedTimeoutMs < 100 || normalizedTimeoutMs > 120_000) {
+      throw new Error('periodic refresh timeoutMs must be between 100 and 120000');
+    }
+    const normalizedJitterRatio = Number(jitterRatio);
+    if (!Number.isFinite(normalizedJitterRatio) || normalizedJitterRatio < 0 || normalizedJitterRatio > 0.5) {
+      throw new Error('periodic refresh jitterRatio must be between 0 and 0.5');
+    }
     const normalized = {
       intervalMs: Math.floor(interval),
       targetCount: boundedInteger(targetCount, this.k, { min: 0, max: 256 }),
       maxRounds: boundedInteger(maxRounds, 4, { min: 0, max: 64 }),
+      targetConcurrency: boundedInteger(targetConcurrency, 1, { min: 1, max: 16 }),
+      timeoutMs: normalizedTimeoutMs,
+      jitterRatio: normalizedJitterRatio,
       seed: typeof seed === 'string' && seed.trim() ? seed.trim() : 'truyn-periodic-refresh'
     };
     this.stopPeriodicRefresh();
@@ -296,12 +312,17 @@ export class PeerDiscovery {
   #schedulePeriodicRefresh() {
     this.#clearPeriodicRefreshTimer();
     if (!this.periodicRefresh.enabled || !this.periodicRefresh.config) return;
-    const { intervalMs } = this.periodicRefresh.config;
+    const { intervalMs, jitterRatio, seed } = this.periodicRefresh.config;
+    const jitterKey = `${seed}:${this.identity.nodeId}:${this.periodicRefresh.runs}:${this.periodicRefresh.failures}`;
+    const digest = createHash('sha256').update(jitterKey).digest();
+    const unit = digest.readUInt32BE(0) / 0xffffffff;
+    const centered = (unit * 2) - 1;
+    const delayMs = Math.max(1, Math.round(intervalMs * (1 + centered * jitterRatio)));
     this.periodicRefreshTimer = this.periodicRefreshTimerApi.setTimeout(() => {
       this.periodicRefreshTimer = null;
       this.periodicRefresh.scheduled = false;
       void this.#runPeriodicRefresh();
-    }, intervalMs);
+    }, delayMs);
     this.periodicRefresh.scheduled = true;
     this.periodicRefreshTimer?.unref?.();
   }
@@ -320,6 +341,8 @@ export class PeerDiscovery {
     const operation = this.refreshRoutingTable({
       targetCount: config.targetCount,
       maxRounds: config.maxRounds,
+      targetConcurrency: config.targetConcurrency,
+      timeoutMs: config.timeoutMs,
       seed: `${config.seed}:${run}`
     });
     this.periodicRefreshInFlight = operation;
@@ -516,7 +539,14 @@ export class PeerDiscovery {
       if (batch.length === 0) break;
       for (const peer of batch) queried.add(peer.nodeId);
       const responses = await Promise.all(batch.map(async (peer) => {
-        try { return await this.rpc.findNode(peer, targetNodeId); } catch { this.rpc?.forget?.(peer.nodeId); return null; }
+        try {
+          return await this.rpc.findNode(peer, targetNodeId);
+        } catch {
+          // One failed lookup stream is not evidence that the peer binding is stale.
+          // QuicDiscoveryRpc retires the exact failed client when appropriate; a broad
+          // forget here tears down shared sibling streams and amplifies reconnect storms.
+          return null;
+        }
       }));
       for (const response of responses) {
         if (!response) continue;
