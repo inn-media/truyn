@@ -35,7 +35,7 @@ jobs:
       - name: Dispatch publication exactly once
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.ORGANIZATION_AUTOPILOT_TOKEN_GITHUB || secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB }}
           TARGET_SHA: bda109e16601920ed663b1848bf27850d22ccdad
           VERSION: 0.1.0-alpha.4
           WORKFLOW_FILE: p20-s02-managed-client-publication.yml
@@ -46,8 +46,17 @@ jobs:
             echo "release already exists; refusing dispatch: $tag" >&2
             exit 1
           fi
-          existing="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=main&per_page=100" --jq '[.workflow_runs[] | select(.path==".github/workflows/'"${WORKFLOW_FILE}"'")] | length')"
-          test "$existing" = "0"
+          test -n "$GH_TOKEN"
+          state="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=main&per_page=100" --jq '[.workflow_runs[] | select(.path==".github/workflows/'"${WORKFLOW_FILE}"'")] | {count:length, conclusions: map(.conclusion)}')"
+          count="$(jq -r '.count' <<<"$state")"
+          if [ "$count" = "0" ]; then
+            :
+          elif [ "$count" = "1" ] && [ "$(jq -r '.conclusions[0]' <<<"$state")" = "startup_failure" ]; then
+            echo "retrying once after non-executing GITHUB_TOKEN startup failure"
+          else
+            echo "unexpected prior dispatch state: $state" >&2
+            exit 1
+          fi
           gh api --method POST             "repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW_FILE}/dispatches"             -f ref="main"             -F "inputs[release]=true"             -f "inputs[target_sha]=${TARGET_SHA}"             -f "inputs[version]=${VERSION}"
 
   publish:
