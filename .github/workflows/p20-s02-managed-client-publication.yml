@@ -1,5 +1,8 @@
 name: P20-S02 managed client publication
 on:
+  push:
+    branches:
+      - release/p20-s02-managed-clients-bda109e16601
   workflow_dispatch:
     inputs:
       release:
@@ -19,11 +22,34 @@ on:
         default: 0.1.0-alpha.4
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
+  arm-once:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch exactly once
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: bda109e16601920ed663b1848bf27850d22ccdad
+          VERSION: 0.1.0-alpha.4
+          WORKFLOW_FILE: p20-s02-managed-client-publication.yml
+        run: |
+          set -Eeuo pipefail
+          tag="managed-clients-v${VERSION}-${TARGET_SHA}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release already exists; refusing duplicate dispatch: $tag" >&2
+            exit 1
+          fi
+          existing="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW_FILE}/runs?event=workflow_dispatch&branch=${GITHUB_REF_NAME}&per_page=20" --jq '.total_count')"
+          test "$existing" = "0"
+          gh api --method POST             "repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW_FILE}/dispatches"             -f ref="${GITHUB_REF_NAME}"             -F "inputs[release]=true"             -f "inputs[target_sha]=${TARGET_SHA}"             -f "inputs[version]=${VERSION}"
+
   publish:
-    if: inputs.release == true
+    if: github.event_name == 'workflow_dispatch' && inputs.release == true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
