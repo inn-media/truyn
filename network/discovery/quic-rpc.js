@@ -507,7 +507,7 @@ export class QuicDiscoveryRpc {
       }
       for (const record of result?.hints || []) {
         const verification = verifyPeerRecord(record);
-        if (!verification.ok || record.nodeId === this.discovery?.identity?.nodeId) continue;
+        if (!verification.ok) continue;
         this.ingestPeerRecord?.(record);
         hints.push({ nodeId: record.nodeId, endpoints: [...record.endpoints], publicKey: record.publicKey });
       }
