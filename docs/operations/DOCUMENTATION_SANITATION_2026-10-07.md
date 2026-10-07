@@ -79,3 +79,8 @@ One-shot sanitation run `37675116608` completed successfully after the accepted 
 The run emitted `TRUYN_D500_SANITATION=PASS removed_or_absent=7`.
 
 Historical launch generations, commits, workflow runs and immutable artifacts were not deleted. The temporary sanitation workflow/trigger are removed by the commit recording this section.
+
+
+## Accepted launcher archival
+
+After D-500 closure, the active GitHub Actions launcher was removed from `.github/workflows` to enforce the no-rerun rule. Its exact accepted workflow definition is retained at `.github/d500/accepted-attempt22-workflow.yml` for regression/audit inspection. The historical `launch-22.txt` token remains in Git history/current tree as audit evidence but no active workflow listens to it.

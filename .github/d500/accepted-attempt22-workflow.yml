@@ -1,3 +1,6 @@
+# ARCHIVED ACCEPTED D-500 ATTEMPT 22 LAUNCHER
+# Immutable execution identity: run 37666768998 / PASS.
+# This file is intentionally outside .github/workflows so accepted D-500 cannot be rerun accidentally.
 name: D-500 Scale Run
 on:
   push:
