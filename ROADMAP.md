@@ -330,14 +330,18 @@ Canonical public contract: [`docs/benchmarks/H_SERIES_HIDDEN_BENCHMARKS.md`](doc
 - [ ] pilot effect-size/variance qualification;
 - [ ] immutable final campaign and independent metric recomputation.
 
-### H3 — H/SECOND-OPINION
+### H3 — H/SECOND-OPINION — PASS / CLOSED
 
-- [ ] hidden gold dataset with calibration/validation/holdout split;
-- [ ] all seven single-vendor baselines;
-- [ ] majority, trust-weighted and verify→dispute policies;
-- [ ] disagreement-subset and error-diversity telemetry;
-- [ ] accuracy lift, trust lift, cost multiplier and accuracy-per-dollar;
-- [ ] immutable holdout campaign with no gold leakage.
+- [x] hidden gold dataset with calibration/validation/holdout split;
+- [x] all seven single-vendor baselines;
+- [x] majority, trust-weighted and verify→dispute policies;
+- [x] disagreement-subset and error-diversity telemetry;
+- [x] accuracy lift and trust lift with paired confidence intervals;
+- [x] provider-meter reconciliation and frozen latency/cost envelope;
+- [x] immutable 200-item holdout campaign with no gold leakage;
+- [x] sanitized final report: `docs/benchmarks/H_SECOND_OPINION_2026-10-07.md`.
+
+Final result: TRUST_WEIGHTED K5 **87.0%** vs MAJORITY K5 **82.0%**; disagreement trust lift **+13.333 pp** on 75 disagreement items; Gate A/B/C/D **PASS**; lane **PASS / CLOSED**.
 
 ### H4 — H/ARBITRAGE
 
