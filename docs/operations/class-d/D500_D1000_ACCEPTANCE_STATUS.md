@@ -15,7 +15,8 @@ Canonical immutable evidence:
 - launch SHA `23775f700929cf66ece66496428eece37cc240ed`
 - artifact `11504509954`
 - artifact digest `sha256:6a255b77f2988913f41593a275c8bd7cb813ee0f49e52f3f073e51879e12cc66`
-- canonical runtime merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`
+- A22 lineage merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`
+- full accepted runtime forward-port / canonical main `61469b6934066ce0719aecd68356419240d95988`
 
 The earlier wording that D-500 validation was retired/superseded was historical product-state text, not a PASS. It is superseded for current status by immutable Attempt 22 acceptance. Historical failures remain unchanged audit evidence.
 

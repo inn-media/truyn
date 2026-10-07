@@ -51,7 +51,8 @@ Canonical accepted execution is Attempt 22:
 - runtime digest: `sha256:d11969a63145f27876bc03cf18f9bba0ac7bd2196d4ac3eee78b0d7642324f28`
 - artifact: `11504509954`
 - artifact digest: `sha256:6a255b77f2988913f41593a275c8bd7cb813ee0f49e52f3f073e51879e12cc66`
-- canonical runtime merge into `main`: `5d0f8c3480ef8ff01887591fb96f552cf2192969`
+- A22 lineage merge into `main`: `5d0f8c3480ef8ff01887591fb96f552cf2192969`
+- full accepted runtime forward-port / canonical main: `61469b6934066ce0719aecd68356419240d95988`
 
 Accepted result: 20 hosts / 500 real processes / 500 identities / 500 endpoints; baseline routing `1.0`; post-restart `1.0`; healed `0.998`; convergence `1.0` with p95 `288.664 ms`; restart recovery p95 `12,105 ms`; real packet-partition recovery `32,561 ms`; 100 acknowledged durable writes with zero loss; zero invalid-signed/stale-receipt/unauthorized-execution acceptance; campaign and staging cleanup both confirmed with zero remaining resources.
 

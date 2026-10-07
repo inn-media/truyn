@@ -42,7 +42,7 @@ The D-200 gate proved 20 hosts / 200 real processes, readiness 200/200, baseline
 
 Evidence: [`docs/benchmarks/CLASS_D_200_2026-09-20.md`](docs/benchmarks/CLASS_D_200_2026-09-20.md).
 
-D-500 accepted evidence is frozen to source `1d6746b57104175e295f8fdc3d9643db8e9d42a6` / tree `9f2771286cc683a9ee49e0e0c5f8092347d54470`, launch SHA `23775f700929cf66ece66496428eece37cc240ed`, artifact ID `11504509954`, artifact digest `sha256:6a255b77f2988913f41593a275c8bd7cb813ee0f49e52f3f073e51879e12cc66`, runtime digest `sha256:d11969a63145f27876bc03cf18f9bba0ac7bd2196d4ac3eee78b0d7642324f28`, and canonical runtime merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`.
+D-500 accepted evidence is frozen to source `1d6746b57104175e295f8fdc3d9643db8e9d42a6` / tree `9f2771286cc683a9ee49e0e0c5f8092347d54470`, launch SHA `23775f700929cf66ece66496428eece37cc240ed`, artifact ID `11504509954`, artifact digest `sha256:6a255b77f2988913f41593a275c8bd7cb813ee0f49e52f3f073e51879e12cc66`, runtime digest `sha256:d11969a63145f27876bc03cf18f9bba0ac7bd2196d4ac3eee78b0d7642324f28`, lineage merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`, and full accepted runtime forward-port `61469b6934066ce0719aecd68356419240d95988`.
 
 The D-500 gate proved 20 hosts / 500 real processes / 500 identities / 500 endpoints, baseline routing 100%, post-restart routing 100%, healed routing 99.8%, convergence routing 100% with p95 `288.664 ms`, restart recovery p95 `12,105 ms`, real packet-partition recovery `32,561 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign + staging cleanup with zero remaining resources.
 

@@ -3,7 +3,8 @@
 **Scope:** public `inn-media/truyn` current-state documentation after native GUI client qualification, post-merge hardening and Class D-500 acceptance.
 
 **Native-client sanitation baseline:** `23a6b902310c9096b65af49f48307d7173cd03e9`  
-**D-500 canonical runtime merge before this documentation closure:** `5d0f8c3480ef8ff01887591fb96f552cf2192969`
+**D-500 A22 lineage merge:** `5d0f8c3480ef8ff01887591fb96f552cf2192969`  
+**D-500 full accepted runtime forward-port:** `61469b6934066ce0719aecd68356419240d95988`
 
 ## Canonical reconciliation
 
@@ -51,7 +52,7 @@ D-500 is no longer OPEN. Immutable Attempt 22 run `37666768998`, attempt 1, emit
 
 The accepted evidence records 20 hosts / 500 real processes, baseline 100%, post-restart 100%, healed 99.8%, convergence 100% with p95 288.664 ms, recovery p95 12.105 s, packet-partition recovery 32.561 s, 100/100 retained acknowledged writes, zero safety violations and complete campaign/staging cleanup.
 
-The successful runtime lineage is canonical in public `main` through merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`. Current-state documentation must not regress D-500 to OPEN, ACTIVE QUALIFICATION or retired/superseded-without-PASS wording unless later immutable evidence explicitly invalidates the accepted result.
+The successful lineage is preserved by merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`. A subsequent full forward-port at `61469b6934066ce0719aecd68356419240d95988` made all 17 files changed from A19→A22 byte-identical to the accepted A22 source while preserving unrelated newer `main` work. Current-state documentation must not regress D-500 to OPEN, ACTIVE QUALIFICATION or retired/superseded-without-PASS wording unless later immutable evidence explicitly invalidates the accepted result.
 
 Historical lineage remains immutable:
 - Attempt 19 run `37592499491`: failed under CPU-saturated 2-vCPU placement;

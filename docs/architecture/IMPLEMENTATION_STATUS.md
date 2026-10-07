@@ -2,7 +2,7 @@
 
 **Status:** canonical factual status index.  
 **Snapshot:** 2026-10-07  
-**Snapshot public main before D-500 documentation closure:** `5d0f8c3480ef8ff01887591fb96f552cf2192969`  
+**Canonical D-500 runtime main:** `61469b6934066ce0719aecd68356419240d95988`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
@@ -68,7 +68,7 @@ Class D-200 is accepted on immutable workflow run `35503894414`, attempt 1, with
 
 Class D-500 is **accepted** on immutable Attempt 22 workflow run `37666768998`, `run_attempt=1`, with strict `TRUYN_D500_TERMINAL result=PASS`. Frozen source `1d6746b57104175e295f8fdc3d9643db8e9d42a6` / tree `9f2771286cc683a9ee49e0e0c5f8092347d54470` produced 20 hosts / 500 real processes, baseline and post-restart routing 100%, healed routing 99.8%, convergence 100% with p95 `288.664 ms`, recovery p95 `12,105 ms`, packet-partition recovery `32,561 ms`, 100/100 acknowledged writes retained, zero safety violations and complete zero-resource cleanup. Artifact `11504509954`, digest `sha256:6a255b77f2988913f41593a275c8bd7cb813ee0f49e52f3f073e51879e12cc66`.
 
-The successful A22 runtime lineage is canonical in `main` through merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`. Historical A19–A21 failures remain immutable negative evidence and are not rewritten by the PASS.
+The successful A22 runtime lineage is preserved by merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`, and the complete 17-file accepted A19→A22 change-set is canonical in `main` at forward-port commit `61469b6934066ce0719aecd68356419240d95988`. Historical A19–A21 failures remain immutable negative evidence and are not rewritten by the PASS.
 
 D-1000 remains a separate future gate; D-500 acceptance does not imply D-1000 or mainnet acceptance.
 

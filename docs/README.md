@@ -3,7 +3,7 @@
 Human-facing documentation for TRUYN architecture, implementation status, governance, operations, security, Trustability, compatibility, SDK/DX and benchmark evidence.
 
 **Snapshot:** 2026-10-07  
-**Snapshot main before D-500 documentation closure:** `5d0f8c3480ef8ff01887591fb96f552cf2192969`  
+**Canonical D-500 runtime main:** `61469b6934066ce0719aecd68356419240d95988`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
 
