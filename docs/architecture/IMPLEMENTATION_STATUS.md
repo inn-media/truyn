@@ -28,7 +28,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Class D-500 | **ACCEPTED / PASS** | preserve immutable Attempt 22 evidence; D-1000 remains independent |
 | Class D-1000 | **OPEN** | distinct qualified D-1000 acceptance campaign |
 | D-Series execution architecture | **Swarm-Blockwise lock active** | preserve through remaining D-Series work |
-| Semantic Scale S-Series | **S-10 accepted / PASS; S-50+ OPEN** | preserve S-10 evidence; execute S-50 independently with the same fixed acceptance semantics |
+| Semantic Scale S-Series | **S-10 + S-20 accepted / PASS; S-50+ OPEN** | preserve accepted S-10/S-20 evidence; execute S-50 independently |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
 | Emergent Network N-Series | **FOUNDATION DEFINED / NOT YET EXECUTED** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
@@ -97,7 +97,7 @@ Permanent rules:
 
 The latest old Blockwise Admission run `36114076355` had B01–B22 individually GREEN; its terminal aggregate failure was in public-source materialization/control-plane handling, not a B01–B22 product regression. That mutable public-source dependency is superseded by the immutable public-contract consumption model.
 
-**S-10 is accepted** as the bounded ECON/MIX integration baseline. Sanitized evidence is `../benchmarks/S_SERIES_S10_2026-10-07.md`. The full S-50 scenario matrix, S-100, S-200 and S-500 remain unaccepted and must each be executed separately; interpolation/extrapolation is not acceptance evidence.
+**S-10 is accepted** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3 is also accepted** for `ECON`, `MIX`, `COST-ROUTING`, `CONTENTION` and `LANG` at 20 semantic nodes. Sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md` and `../benchmarks/S_SERIES_S20_2026-10-07.md`. `XBORDER`, `CHAIN`, `CHURN`, the full S-50 gate, S-100, S-200 and S-500 remain unaccepted and must be executed separately.
 
 Canonical S documents:
 
