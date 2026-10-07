@@ -2,16 +2,16 @@ name: D-500 Scale Run
 on:
   push:
     branches: [main]
-    paths: ['.github/d500/launch-19.txt']
+    paths: ['.github/d500/launch-20.txt']
 permissions: { contents: read, actions: read, id-token: write }
-concurrency: { group: truyn-d500-attempt19-single-shot, cancel-in-progress: false }
+concurrency: { group: truyn-d500-attempt20-single-shot, cancel-in-progress: false }
 env:
-  TESTED_COMMIT: e05d6819c1729cd6f908e7c1a44d4e682c0b3444
-  TESTED_TREE_SHA: 51cd1b34608a2e647550375aeda6d555c708bbbc
-  EXACT_MAIN_CI_RUN: '37590153319'
-  EXACT_MAIN_FIVE_PATCH_RUN: '37590153197'
-  QUALIFIED_TREE_CODEQL_CHECK: '112689435325'
-  QUALIFIED_TREE_CODEQL_SHA: e05d6819c1729cd6f908e7c1a44d4e682c0b3444
+  TESTED_COMMIT: 56567d6a15cf5607c2d483164d75a165bcde183b
+  TESTED_TREE_SHA: 6f05346cc2e23f287ee1ab42a3bfeeb377566486
+  EXACT_MAIN_CI_RUN: 'disabled'
+  EXACT_MAIN_FIVE_PATCH_RUN: 'disabled'
+  QUALIFIED_TREE_CODEQL_CHECK: 'disabled'
+  QUALIFIED_TREE_CODEQL_SHA: disabled
   AZURE_RESOURCE_GROUP: truyn
   NODES_PER_HOST: '25'
 jobs:
@@ -47,7 +47,7 @@ jobs:
           set -Eeuo pipefail; ok=false
           for l in eastus2 eastus westus2 centralus northcentralus southcentralus westeurope northeurope; do
             u="$(az vm list-usage -l "$l" -o json --only-show-errors)"||continue; rc="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].currentValue//-1'<<<"$u")"; rl="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].limit//-1'<<<"$u")"
-            for z in Standard_D4as_v5 Standard_D4s_v5 Standard_E2as_v7; do q="$(az vm list-skus -l "$l" --size "$z" --all -o json --only-show-errors)"||continue; [[ "$(jq length<<<"$q")" -ge 1 ]]||continue; v="$(jq -r '[.[].capabilities[]?|select(.name=="vCPUs")|.value][0]//empty'<<<"$q")"; f="$(jq -r '.[0].family//empty'<<<"$q")"; [[ -n "$v" && -n "$f" ]]||continue; fc="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].currentValue//-1'<<<"$u")"; fl="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].limit//-1'<<<"$u")"; blocks="$(jq '[.[].restrictions[]?|select(.type=="Location" and .reasonCode=="NotAvailableForSubscription")]|length'<<<"$q")"; need=$((v*20)); echo "TRUYN_D200_CAPACITY_PROBE location=$l size=$z required=$need regionalRemaining=$((rl-rc)) familyRemaining=$((fl-fc)) blocks=$blocks"; if [[ "$blocks" == 0 && "$rc" -ge 0 && "$fc" -ge 0 && $((rl-rc)) -ge "$need" && $((fl-fc)) -ge "$need" ]]; then echo "TRUYN_D200_LOCATION=$l" >>"$GITHUB_ENV"; echo "TRUYN_D200_VM_SIZE=$z" >>"$GITHUB_ENV"; ok=true; break 2; fi; done
+            for z in Standard_D4as_v5 Standard_D4s_v5 Standard_E4as_v7; do q="$(az vm list-skus -l "$l" --size "$z" --all -o json --only-show-errors)"||continue; [[ "$(jq length<<<"$q")" -ge 1 ]]||continue; v="$(jq -r '[.[].capabilities[]?|select(.name=="vCPUs")|.value][0]//empty'<<<"$q")"; f="$(jq -r '.[0].family//empty'<<<"$q")"; [[ "$v" =~ ^[0-9]+$ && "$v" -ge 4 && -n "$f" ]]||continue; fc="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].currentValue//-1'<<<"$u")"; fl="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].limit//-1'<<<"$u")"; blocks="$(jq '[.[].restrictions[]?|select(.type=="Location" and .reasonCode=="NotAvailableForSubscription")]|length'<<<"$q")"; need=$((v*20)); echo "TRUYN_D500_CAPACITY_PROBE location=$l size=$z vcpus=$v required=$need regionalRemaining=$((rl-rc)) familyRemaining=$((fl-fc)) blocks=$blocks"; if [[ "$blocks" == 0 && "$rc" -ge 0 && "$fc" -ge 0 && $((rl-rc)) -ge "$need" && $((fl-fc)) -ge "$need" ]]; then echo "TRUYN_D200_LOCATION=$l" >>"$GITHUB_ENV"; echo "TRUYN_D200_VM_SIZE=$z" >>"$GITHUB_ENV"; ok=true; break 2; fi; done
           done; [[ "$ok" == true ]]
       - uses: azure/login@v2
         with:
@@ -88,7 +88,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: 'truyn-class-d500-attempt19-${{ github.run_id }}'
+          name: 'truyn-class-d500-attempt20-${{ github.run_id }}'
           path: |
             class-d-200-*.json
             class-d-200-*.txt
