@@ -1,8 +1,8 @@
 # TRUYN Semantic Scale S-Series Architecture
 
-Status: **EXECUTED / DIAGNOSTIC / NO ACCEPTED S PASS**  
+Status: **S-10 ACCEPTED / LARGER S LEVELS OPEN**  
 Track: **S-Series (Semantic Scale)**  
-Target ladder: **S-50 → S-100 → S-200 → S-500**
+Target ladder: **S-10 → S-50 → S-100 → S-200 → S-500**
 
 ## Purpose
 
@@ -81,12 +81,13 @@ Provider transport implementation may be shared where TRUYN already shares it; v
 
 | Gate | Semantic nodes | Primary purpose |
 |---|---:|---|
-| **S-50** | 50 | integration baseline: real network + real seven-vendor inference; establish clean telemetry and A/B economics |
+| **S-10** | bounded integration baseline | accepted ECON/MIX proof before larger semantic-node scale |
+| **S-50** | 50 | first full semantic-node scale gate; execute the declared scenario matrix independently |
 | **S-100** | 100 | confirm invariance as semantic node count doubles; produce comparable scale curves |
 | **S-200** | 200 | semantic counterpart at the already-proven D-200 network scale |
 | **S-500** | 500 | large live semantic-network benchmark for economics, cross-border operation, contention and policy routing |
 
-Passing S-50 does not imply S-100/S-200/S-500. Each gate requires its own immutable run identity and evidence.
+Passing S-10 does not imply S-50, and passing S-50 does not imply S-100/S-200/S-500. Each gate requires its own immutable run identity and evidence.
 
 ## Provider assignment profiles
 
@@ -207,17 +208,20 @@ Private raw telemetry and managed operational detail remain in `inn-media/truyn-
 
 ## Current execution status
 
-S-Series is no longer merely a defined architecture. S-50 has been executed diagnostically.
+S-Series now has an accepted bounded S-10 ECON/MIX integration baseline.
 
-Durable issue #726 records immutable S-50 Attempt 13 as a real 50-actor benchmark failure with `fast_socket_closed` after setup gates passed. The bounded public repair scope covers generic relay/client WebSocket heartbeat/backpressure telemetry, 50-socket scale stability and reconnect/reconciliation semantics without duplicate accepted execution.
+Accepted S-10 public evidence: `docs/benchmarks/S_SERIES_S10_2026-10-07.md`.
 
-Current `main` contains public WebSocket scale diagnostic/regression work associated with that repair. This is **diagnostic/repair evidence, not an accepted S-50 result**.
+The accepted result exercised 150 measured observations across balanced, 60%-GPT-skewed and seeded-random profiles, with all seven provider families represented in every profile. It achieved 100% routing, answer, retrieval, provenance and minimal-context correctness, zero block-ID leakage, zero unauthorized provider execution, 97.17417299653404% input-token reduction and 96.85606730615144% comparable GPT/Gemini provider-cost reduction.
 
 Therefore:
 
-- S-50 — **executed / diagnostic / OPEN**;
+- S-10 — **ACCEPTED / PASS**;
+- S-50 — **OPEN / not accepted**;
 - S-100 — **OPEN / not accepted**;
 - S-200 — **OPEN / not accepted**;
 - S-500 — **OPEN / not accepted**.
 
-No S-Series PASS is claimed until a fresh exact-qualified run satisfies the fixed contract and produces immutable reconciled evidence.
+The active acceptance path is the simplified immutable lifecycle: exact candidate SHA → minimal preflight → one real run → post-run evidence. Historical Swarm/Blockwise/Admission material remains append-only qualification history and may support targeted diagnostics, but it is not a mandatory cascading precondition for every S-N run.
+
+No larger S-level claim may be inferred from S-10.

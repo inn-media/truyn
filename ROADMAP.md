@@ -11,7 +11,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Track | Current state | Immediate next gate |
 |---|---|---|
 | Network | **Class C + D-100 + D-200 accepted** | D-500 / D-1000 external scale qualification |
-| Semantic Scale (S-Series) | **Architecture + benchmark/telemetry contract defined; no S PASS claimed** | S-50 `ECON` + `MIX`, then remaining S-50 scenario matrix |
+| Semantic Scale (S-Series) | **S-10 ECON/MIX accepted; S-50+ OPEN** | execute/accept S-50 independently, then S-100/S-200/S-500 |
 | Efficiency Limits (E-Series) | **FOUNDATION DEFINED / no E result claim** | instrumentation + isolation qualification → E/DECOMPOSE → E/PER-RESULT → E/KNEE → E/DEGRADE |
 | Emergent Network (N-Series) | **Foundation architecture/methodology/telemetry/isolation defined; no N PASS claimed** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
 | Production operations | **contracts implemented** | live evidence |
@@ -48,7 +48,8 @@ S-Series is a separate live semantic-node scale track that combines the already-
 
 Target ladder:
 
-- [ ] **S-50** — 50 real semantic nodes; first `ECON` + `MIX`, then the full bounded scenario matrix.
+- [x] **S-10** — accepted bounded ECON/MIX semantic integration baseline; sanitized evidence: `docs/benchmarks/S_SERIES_S10_2026-10-07.md`.
+- [ ] **S-50** — independent 50-node acceptance; execute the required S-50 scenario matrix without inferring PASS from S-10.
 - [ ] **S-100** — repeat comparable core workloads and produce scale curves.
 - [ ] **S-200** — semantic-node gate at the already-proven D-200 node count.
 - [ ] **S-500** — large semantic-network benchmark; preserve comparable `ECON`, `XBORDER` and `COST-ROUTING` evidence at minimum.
@@ -63,7 +64,7 @@ Architecture: [`docs/architecture/SEMANTIC_SCALE_S_SERIES.md`](docs/architecture
 Benchmark contract: [`docs/benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md`](docs/benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md).  
 Execution/telemetry: [`docs/operations/S_SERIES_EXECUTION_AND_TELEMETRY.md`](docs/operations/S_SERIES_EXECUTION_AND_TELEMETRY.md).
 
-No S-Series PASS is currently claimed.
+**S-10 is accepted.** S-50, S-100, S-200 and S-500 remain independently OPEN; no larger-scale PASS is inferred from S-10.
 
 ## E-series efficiency limits
 

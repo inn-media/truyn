@@ -25,7 +25,7 @@ Website: https://truyn.org/
 | Class D-200 | **Accepted / PASS; repeatability confirmed** |
 | Class D-500 | **Active qualification / OPEN; no accepted terminal PASS** |
 | Class D-1000 | **OPEN** |
-| Semantic Scale S-Series | **Executed diagnostically; no accepted S PASS** |
+| Semantic Scale S-Series | **S-10 accepted / PASS; S-50+ remain OPEN** |
 | Efficiency E-Series | **Active qualification; no final E PASS claimed** |
 | Account → Organization → Tenant | **Implemented / accepted; managed implementation owned by TRUYN Platform** |
 | Managed authority runtime/accounting | **Implemented / accepted in TRUYN Platform; public repository exposes contracts/reference seams only** |
@@ -58,7 +58,7 @@ A failed/diagnostic attempt is evidence, not PASS.
 
 D-200 is accepted and repeatability-confirmed. D-500 has dedicated qualification/launcher machinery and is actively being qualified, but remains OPEN until a fresh D-500 campaign emits its own terminal PASS and durable evidence. D-1000 remains separate.
 
-S-Series has been exercised at S-50. Durable diagnostic state records a real 50-actor failure (`fast_socket_closed`) under repair/qualification; therefore the old wording “not yet executed” is obsolete. No S-50/S-100/S-200/S-500 PASS is currently claimed.
+S-Series now has an accepted bounded **S-10 ECON/MIX integration baseline** with 150/150 measured observations correct across seven provider families, 100% routing/retrieval/provenance/minimal-context correctness, 97.174% input-token reduction and 96.856% comparable GPT/Gemini provider-cost reduction. The full S-50 scenario matrix and S-100/S-200/S-500 remain OPEN and require independent acceptance evidence. See `docs/benchmarks/S_SERIES_S10_2026-10-07.md`.
 
 E-Series has active qualification/isolation/provider-smoke work. No final E/DECOMPOSE, E/PER-RESULT, E/KNEE or E/DEGRADE result is claimed.
 
@@ -100,7 +100,8 @@ npm test
 5. `docs/operations/NETWORK_SCALE_STATUS.md` — current D-Series operational acceptance;
 6. `docs/architecture/IMPLEMENTATION_STATUS.md` — repository-wide factual maturity;
 7. `docs/operations/DOCUMENTATION_SANITATION_2026-10-07.md` — latest repository-wide documentation reconciliation;
-8. `docs/benchmarks/` — immutable accepted/failed measured evidence;
+8. `docs/operations/S_SERIES_SANITATION_2026-10-07.md` — current S-Series reconciliation;
+9. `docs/benchmarks/` — immutable accepted/failed measured evidence;
 9. `ROADMAP.md` — next gates.
 
 Historical issues/PRs/docs remain audit history and do not override later accepted evidence. Historical benchmark evidence is append-only under the repository **redact-not-delete** policy.

@@ -28,7 +28,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Class D-500 | **ACTIVE QUALIFICATION / OPEN** | full Swarm → B01–B16 admission → live/collision gates → one real terminal PASS |
 | Class D-1000 | **OPEN** | distinct qualified D-1000 acceptance campaign |
 | D-Series execution architecture | **Swarm-Blockwise lock active** | preserve through remaining D-Series work |
-| Semantic Scale S-Series | **Frozen-Candidate + Swarm-Blockwise architecture implemented; B01–B22 qualified; NO S PASS ACCEPTED** | immutable-public-contract private Admission GREEN → fresh collision/duplicate guards → one S-50 successor |
+| Semantic Scale S-Series | **S-10 accepted / PASS; S-50+ OPEN** | preserve S-10 evidence; execute S-50 independently with the same fixed acceptance semantics |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
 | Emergent Network N-Series | **FOUNDATION DEFINED / NOT YET EXECUTED** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
@@ -80,9 +80,11 @@ The previous wording **“DEFINED / NOT YET EXECUTED” and the Attempt-13/#726-
 
 S-Series has been exercised at S-50 and has immutable diagnostic/failure history through Attempt 15. The bounded WebSocket `fast_socket_closed`/heartbeat/backpressure/reconnect repair associated with Attempt 13 is no longer the current blocker; its old repair tracker has been closed after regression qualification. Attempt 14 (`35913581603`) and Attempt 15 (`35948814208`) are terminal FAILURE and immutable `NEVER_RERUN` evidence.
 
-The current S qualification architecture is:
+The current active S-N acceptance path is:
 
-`Frozen Candidate → Swarm fail-collect → B01–B22 Blockwise evidence → Admission to integration state → targeted zero-paid requalification only for changed S-sensitive blocks → fresh collision/capacity/duplicate-history gate → exactly one live campaign`.
+`exact immutable candidate SHA → minimal live preflight → exactly one real S-N execution → post-run evidence/acceptance`.
+
+The historical Frozen Candidate / Swarm / B01–B22 / Admission chain remains valid qualification and diagnostic evidence, but it is no longer a mandatory cascading precondition for every new S-N attempt.
 
 Permanent rules:
 
@@ -95,7 +97,7 @@ Permanent rules:
 
 The latest old Blockwise Admission run `36114076355` had B01–B22 individually GREEN; its terminal aggregate failure was in public-source materialization/control-plane handling, not a B01–B22 product regression. That mutable public-source dependency is superseded by the immutable public-contract consumption model.
 
-There is still **no accepted S-50 result**. S-100, S-200 and S-500 likewise remain unaccepted and must each be executed separately; interpolation/extrapolation is not acceptance evidence.
+**S-10 is accepted** as the bounded ECON/MIX integration baseline. Sanitized evidence is `../benchmarks/S_SERIES_S10_2026-10-07.md`. The full S-50 scenario matrix, S-100, S-200 and S-500 remain unaccepted and must each be executed separately; interpolation/extrapolation is not acceptance evidence.
 
 Canonical S documents:
 
