@@ -105,7 +105,7 @@ export class DhtReplicationManager {
         });
       }
 
-      if (Date.now() >= deadlineAt && acknowledgements < minAcks) throw timeoutError();
+      checkDeadline();
       if (acknowledgements < minAcks) {
         const error = new Error(`TRUYN_DHT_WRITE_QUORUM:${acknowledgements}/${minAcks}`);
         error.code = 'TRUYN_DHT_WRITE_QUORUM';
