@@ -1,0 +1,62 @@
+{
+  "schema": "truyn.class-d500.public-evidence.v1",
+  "status": "PASS",
+  "date": "2026-10-07",
+  "run": {
+    "id": 37666768998,
+    "attempt": 1,
+    "terminal": "TRUYN_D500_TERMINAL result=PASS",
+    "launchSha": "23775f700929cf66ece66496428eece37cc240ed"
+  },
+  "source": {
+    "sha": "1d6746b57104175e295f8fdc3d9643db8e9d42a6",
+    "treeSha": "9f2771286cc683a9ee49e0e0c5f8092347d54470",
+    "canonicalMainMerge": "5d0f8c3480ef8ff01887591fb96f552cf2192969",
+    "runtimeSha256": "d11969a63145f27876bc03cf18f9bba0ac7bd2196d4ac3eee78b0d7642324f28"
+  },
+  "artifact": {
+    "id": 11504509954,
+    "digestSha256": "6a255b77f2988913f41593a275c8bd7cb813ee0f49e52f3f073e51879e12cc66"
+  },
+  "topology": {
+    "hosts": 20,
+    "realProcesses": 500,
+    "processesPerHost": 25,
+    "uniqueIdentities": 500,
+    "uniqueEndpoints": 500
+  },
+  "routing": {
+    "baseline": 1,
+    "postRestart": 1,
+    "healed": 0.998,
+    "convergence": 1,
+    "convergenceP95Ms": 288.664
+  },
+  "recovery": {
+    "restartP95Ms": 12105,
+    "packetPartitionMs": 32561
+  },
+  "durability": {
+    "acknowledgedWrites": 100,
+    "acknowledgedWriteLoss": 0,
+    "confirmedMissing": 0,
+    "readErrors": 0
+  },
+  "safety": {
+    "invalidSignedStateAccepted": 0,
+    "staleRevokedReceiptAccepted": 0,
+    "unauthorizedProviderExecution": 0
+  },
+  "cleanup": {
+    "campaignConfirmed": true,
+    "campaignRemaining": 0,
+    "stagingConfirmed": true,
+    "stagingRemaining": 0
+  },
+  "scope": {
+    "d500Accepted": true,
+    "d1000Accepted": false,
+    "mainnetAccepted": false,
+    "managedProductionAccepted": false
+  }
+}

@@ -2,7 +2,7 @@
 
 This is the single repository-owned source for **current D-Series operational acceptance**. Architecture, roadmap and top-level documentation must link here rather than copy ephemeral run state.
 
-**Snapshot:** 2026-09-25  
+**Snapshot:** 2026-10-07  
 **Qualification architecture:** locked Frozen Candidate → Branch Qualification → Admission to Main, with Sanitation Swarm → Blockwise B01-B16. Parallel movement of `main` does not invalidate expensive frozen-candidate qualification by itself.
 
 ## Accepted baseline
@@ -36,29 +36,30 @@ Durable public evidence:
 - [`../benchmarks/CLASS_D_200_REPEATABILITY_MATRIX.md`](../benchmarks/CLASS_D_200_REPEATABILITY_MATRIX.md)
 - [`d200/D200_FINAL_CLOSURE.md`](d200/D200_FINAL_CLOSURE.md)
 
-## D-500 current boundary
+## D-500 accepted boundary
 
-**D-500 status: ACTIVE QUALIFICATION / OPEN.**
+**D-500 status: CLOSED / ACCEPTED / PASS.**
 
-The repository contains the dedicated D-500 contract/workflow, immutable launch generations and D-Series qualification machinery. This is materially beyond the original “preparation only” state, but it is **not an accepted D-500 result**.
+Canonical accepted execution is Attempt 22:
 
-The permanently locked execution model for remaining D-Series campaigns is:
+- workflow run: `37666768998`
+- `run_attempt=1`
+- terminal: `TRUYN_D500_TERMINAL result=PASS`
+- launch SHA: `23775f700929cf66ece66496428eece37cc240ed`
+- frozen tested source: `1d6746b57104175e295f8fdc3d9643db8e9d42a6`
+- frozen tested tree: `9f2771286cc683a9ee49e0e0c5f8092347d54470`
+- runtime digest: `sha256:d11969a63145f27876bc03cf18f9bba0ac7bd2196d4ac3eee78b0d7642324f28`
+- artifact: `11504509954`
+- artifact digest: `sha256:6a255b77f2988913f41593a275c8bd7cb813ee0f49e52f3f073e51879e12cc66`
+- canonical runtime merge into `main`: `5d0f8c3480ef8ff01887591fb96f552cf2192969`
 
-`freeze candidate → Sanitation Swarm diagnostic/repair engine → targeted block qualification during repair → clean frozen-candidate Swarm revalidation → full B01–B16 on the same frozen candidate → final Admission against current main with fingerprint recomputation and selective requalification → isolated LIVE qualification where required → shared-resource/capacity collision check → exactly one real D-Series run → immutable evidence`.
+Accepted result: 20 hosts / 500 real processes / 500 identities / 500 endpoints; baseline routing `1.0`; post-restart `1.0`; healed `0.998`; convergence `1.0` with p95 `288.664 ms`; restart recovery p95 `12,105 ms`; real packet-partition recovery `32,561 ms`; 100 acknowledged durable writes with zero loss; zero invalid-signed/stale-receipt/unauthorized-execution acceptance; campaign and staging cleanup both confirmed with zero remaining resources.
 
-Important distinctions:
+Attempt 22 preserved RF3/minAcks2, topology, safety thresholds, recovery limits and the >=4-vCPU-per-host floor. The successful repair added bounded publisher-side re-replication after topology churn, bounded iterative `FIND_VALUE` frontier traversal and diagnostic telemetry without weakening acceptance.
 
-- movement of `main` alone is not a reason to discard or fully rerun expensive frozen-candidate evidence;
-- Admission compares the candidate `BASE_SHA` to current `main`, builds the integration candidate and reruns only affected D-sensitive blocks;
-- if `main` moves during final Admission, that Admission becomes stale and must be repeated;
-- targeted Bxx GREEN is diagnostic only;
-- a launcher token/workflow is execution machinery, not acceptance;
-- full B01–B16 requires clean immutable same-candidate Swarm provenance;
-- an old GREEN candidate is never merge or launch authority without a fresh final Admission Gate;
-- no D-500 PASS exists until a fresh real campaign emits its own strict terminal PASS and durable public evidence is reconciled;
-- D-200 evidence must not be reused as D-500 proof.
+Durable public evidence: [`../benchmarks/CLASS_D_500_2026-10-07.md`](../benchmarks/CLASS_D_500_2026-10-07.md).
 
-D-500 therefore remains OPEN despite active qualification and multiple immutable launch generations.
+Historical D-500 failures remain immutable. A19 exposed 2-vCPU CPU saturation; A20 exposed regional quota and provisioning-reconciliation defects; A21 reached the full campaign but failed durability with 99/100 retained acknowledged writes. Attempt 22 supersedes those attempts only for current D-500 acceptance status.
 
 ## D-1000 current boundary
 
@@ -95,4 +96,4 @@ Benchmark and acceptance evidence is preserved under **redact-not-delete**. Oper
 
 ## Operational rule
 
-D-200 is closed and immutable. D-500 and D-1000 are separate open gates. Any new real D-Series campaign requires a new task/launch identity and must pass the locked Frozen-Candidate + Swarm-Blockwise + final Admission architecture without weakening thresholds.
+D-200 and D-500 are closed and immutable accepted gates. D-1000 remains separate and open. Any future real D-Series campaign belongs to D-1000 (or an explicitly new scale gate) with a new task/launch identity and must preserve the accepted D-Series safety, topology, durability and evidence thresholds.

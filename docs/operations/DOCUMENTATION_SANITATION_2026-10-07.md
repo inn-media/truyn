@@ -1,8 +1,9 @@
 # Documentation Sanitation — 2026-10-07
 
-**Scope:** public `inn-media/truyn` current-state documentation after native GUI client qualification and post-merge hardening.
+**Scope:** public `inn-media/truyn` current-state documentation after native GUI client qualification, post-merge hardening and Class D-500 acceptance.
 
-**Baseline main:** `23a6b902310c9096b65af49f48307d7173cd03e9`
+**Native-client sanitation baseline:** `23a6b902310c9096b65af49f48307d7173cd03e9`  
+**D-500 canonical runtime merge before this documentation closure:** `5d0f8c3480ef8ff01887591fb96f552cf2192969`
 
 ## Canonical reconciliation
 
@@ -42,3 +43,21 @@ Historical benchmark/evidence records are not rewritten. They remain immutable a
 ## Permanent wording rule
 
 Current-state documents must not regress the native client status to “source only” or “installer qualification pending” unless a later accepted regression explicitly invalidates the qualification evidence. Build-qualified must likewise never be silently upgraded to production-signed or publicly released without separate immutable evidence.
+
+
+## Class D-500 acceptance reconciliation
+
+D-500 is no longer OPEN. Immutable Attempt 22 run `37666768998`, attempt 1, emitted strict `TRUYN_D500_TERMINAL result=PASS` on frozen source `1d6746b57104175e295f8fdc3d9643db8e9d42a6` / tree `9f2771286cc683a9ee49e0e0c5f8092347d54470`.
+
+The accepted evidence records 20 hosts / 500 real processes, baseline 100%, post-restart 100%, healed 99.8%, convergence 100% with p95 288.664 ms, recovery p95 12.105 s, packet-partition recovery 32.561 s, 100/100 retained acknowledged writes, zero safety violations and complete campaign/staging cleanup.
+
+The successful runtime lineage is canonical in public `main` through merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`. Current-state documentation must not regress D-500 to OPEN, ACTIVE QUALIFICATION or retired/superseded-without-PASS wording unless later immutable evidence explicitly invalidates the accepted result.
+
+Historical lineage remains immutable:
+- Attempt 19 run `37592499491`: failed under CPU-saturated 2-vCPU placement;
+- Attempt 20 run `37611659803`: blocked before VM creation by regional total-vCPU quota;
+- Attempt 20 execution 2 run `37626451622`: 19/20 provisioned; latent `az vm create` reconciliation defect exposed;
+- Attempt 21 run `37634703128`: 99/100 retained acknowledged writes;
+- Attempt 22 run `37666768998`: PASS.
+
+D-1000 remains open and independent. D-500 PASS does not imply D-1000, stable mainnet or managed-production acceptance.
