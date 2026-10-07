@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { createIdentity } from '../core/identity/index.js';
 import { createEnvelope } from '../core/protocol/index.js';
 import { DurableAcceptedWorkInbox } from './admission/durable-inbox.js';
@@ -19,7 +20,8 @@ export class TruynNetworkNode {
     dhtRpcTimeoutMs = 5_000, faultController = null, workInboxPath = null, workInboxMaxCompleted = 10_000,
     peerRecordAutoRenew = true, peerRecordRenewBeforeMs = null, peerRecordPublishFanout = null,
     discoveryPeriodicRefresh = true, discoveryRefreshIntervalMs = null, discoveryRefreshTargetCount = null,
-    discoveryRefreshMaxRounds = 4, discoveryRefreshSeed = 'truyn-periodic-refresh'
+    discoveryRefreshMaxRounds = 4, discoveryRefreshSeed = 'truyn-periodic-refresh',
+    persistenceDebounceMs = 250, persistenceCheckpointMs = 1_000
   } = {}) {
     if (!tls?.key || !tls?.cert) throw new Error('network runtime TLS key/certificate are required');
     if (!Number.isFinite(peerRecordTtlMs) || peerRecordTtlMs <= 0) throw new Error('peerRecordTtlMs must be positive');
@@ -39,6 +41,10 @@ export class TruynNetworkNode {
       : discoveryRefreshIntervalMs;
     if (discoveryPeriodicRefresh && (!Number.isFinite(periodicRefreshIntervalMs) || periodicRefreshIntervalMs <= 0 || periodicRefreshIntervalMs >= peerRecordTtlMs)) {
       throw new Error('discoveryRefreshIntervalMs must be positive and less than peerRecordTtlMs');
+    }
+    if (!Number.isFinite(persistenceDebounceMs) || persistenceDebounceMs < 0) throw new Error('persistenceDebounceMs must be a non-negative number');
+    if (!Number.isFinite(persistenceCheckpointMs) || persistenceCheckpointMs <= 0 || persistenceCheckpointMs < persistenceDebounceMs) {
+      throw new Error('persistenceCheckpointMs must be positive and >= persistenceDebounceMs');
     }
 
     this.identity = identity;
@@ -109,10 +115,17 @@ export class TruynNetworkNode {
     this.stateStore = statePath ? new DurableNetworkState({ filePath: statePath }) : null;
     this.workInbox = workInboxPath ? new DurableAcceptedWorkInbox({ filePath: workInboxPath, maxCompleted: workInboxMaxCompleted }) : null;
     this.stateReady = false;
+    this.persistenceDebounceMs = Math.floor(persistenceDebounceMs);
+    this.persistenceCheckpointMs = Math.floor(persistenceCheckpointMs);
     this.persistRequestedGeneration = 0;
     this.persistedGeneration = 0;
     this.persistFlushPromise = null;
+    this.persistTimer = null;
+    this.persistFirstPendingAt = null;
+    this.persistMaxQueueDepth = 0;
     this.lastPersistedSnapshot = null;
+    this.eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
+    this.eventLoopDelay.enable();
     this.faults = faultController || new NetworkFaultController();
     const onStateChange = () => this.schedulePersist();
     const onRecordAccepted = ({ nodeId, previous, record }) => {
@@ -183,16 +196,49 @@ export class TruynNetworkNode {
 
   #requestPersist() {
     this.persistRequestedGeneration += 1;
+    this.persistMaxQueueDepth = Math.max(this.persistMaxQueueDepth, this.persistRequestedGeneration - this.persistedGeneration);
     return this.persistRequestedGeneration;
   }
 
-  // A flush persists one captured generation and then yields. The old loop only
-  // resolved once state stopped changing, so a mass restart/lease-refresh storm
-  // could keep start(), dht.store ACKs, /replicate and close() waiting forever.
-  // Callers still fail closed on save errors and persistState() waits until its
-  // own requested generation is durable; later churn is drained asynchronously.
+  #clearPersistTimer() {
+    if (!this.persistTimer) return;
+    clearTimeout(this.persistTimer);
+    this.persistTimer = null;
+  }
+
+  #recordPersistError(error) {
+    this.peerRecordLifecycle.lastError = {
+      at: new Date().toISOString(),
+      code: error?.code || null,
+      message: error?.message || String(error)
+    };
+  }
+
+  #schedulePersistCheckpoint() {
+    if (!this.stateStore || !this.stateReady || this.closing || this.persistFlushPromise) return;
+    if (this.persistedGeneration >= this.persistRequestedGeneration) {
+      this.persistFirstPendingAt = null;
+      this.#clearPersistTimer();
+      return;
+    }
+    const now = Date.now();
+    if (this.persistFirstPendingAt == null) this.persistFirstPendingAt = now;
+    const ageMs = now - this.persistFirstPendingAt;
+    const delayMs = Math.max(0, Math.min(this.persistenceDebounceMs, this.persistenceCheckpointMs - ageMs));
+    this.#clearPersistTimer();
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      void this.#ensurePersistFlush().catch((error) => this.#recordPersistError(error));
+    }, delayMs);
+    this.persistTimer.unref?.();
+  }
+
+  // Background state churn is debounced and checkpointed. Explicit durability
+  // barriers still force an immediate flush and wait until their own generation
+  // is durable, so dht.store ACK semantics remain fail-closed.
   #ensurePersistFlush() {
     if (this.persistFlushPromise) return this.persistFlushPromise;
+    this.#clearPersistTimer();
     this.persistFlushPromise = new Promise((resolve) => setImmediate(resolve))
       .then(async () => {
         if (this.persistedGeneration >= this.persistRequestedGeneration) return;
@@ -201,12 +247,15 @@ export class TruynNetworkNode {
         await this.stateStore.save(snapshot);
         this.lastPersistedSnapshot = snapshot;
         this.persistedGeneration = generation;
-        if (this.persistedGeneration < this.persistRequestedGeneration && this.stateReady && !this.closing) {
-          setImmediate(() => { void this.#ensurePersistFlush().catch(() => {}); });
+        if (this.persistedGeneration >= this.persistRequestedGeneration) this.persistFirstPendingAt = null;
+        else if (this.stateReady && !this.closing) {
+          this.persistFirstPendingAt = Date.now();
+          this.#schedulePersistCheckpoint();
         }
       })
       .finally(() => {
         this.persistFlushPromise = null;
+        if (this.persistedGeneration < this.persistRequestedGeneration && this.stateReady && !this.closing) this.#schedulePersistCheckpoint();
       });
     return this.persistFlushPromise;
   }
@@ -214,18 +263,13 @@ export class TruynNetworkNode {
   schedulePersist() {
     if (!this.stateStore || !this.stateReady || this.closing) return;
     this.#requestPersist();
-    void this.#ensurePersistFlush().catch((error) => {
-      this.peerRecordLifecycle.lastError = {
-        at: new Date().toISOString(),
-        code: error?.code || null,
-        message: error?.message || String(error)
-      };
-    });
+    this.#schedulePersistCheckpoint();
   }
 
   async persistState() {
     if (!this.stateStore) return null;
     const targetGeneration = this.#requestPersist();
+    this.#clearPersistTimer();
     while (this.persistedGeneration < targetGeneration) {
       await this.#ensurePersistFlush();
     }
@@ -781,6 +825,29 @@ export class TruynNetworkNode {
   async findReplicatedValue(namespace, key, options = {}) { return this.replication.get(namespace, key, options); }
   async repairRecord(namespace, key, options = {}) { return this.replication.repair(namespace, key, options); }
 
+  runtimePressureSnapshot() {
+    const nsToMs = (value) => Number.isFinite(Number(value)) ? Number(value) / 1e6 : null;
+    const eventLoopLag = {
+      meanMs: nsToMs(this.eventLoopDelay.mean),
+      p95Ms: nsToMs(this.eventLoopDelay.percentile(95)),
+      maxMs: nsToMs(this.eventLoopDelay.max)
+    };
+    return {
+      persistence: {
+        debounceMs: this.persistenceDebounceMs,
+        checkpointMs: this.persistenceCheckpointMs,
+        requestedGeneration: this.persistRequestedGeneration,
+        persistedGeneration: this.persistedGeneration,
+        queueDepth: Math.max(0, this.persistRequestedGeneration - this.persistedGeneration),
+        maxQueueDepth: this.persistMaxQueueDepth,
+        flushInFlight: Boolean(this.persistFlushPromise),
+        checkpointScheduled: Boolean(this.persistTimer),
+        store: this.stateStore?.metricsSnapshot?.() || null
+      },
+      eventLoopLag
+    };
+  }
+
   partitionPeers(nodeIds) {
     for (const nodeId of Array.isArray(nodeIds) ? nodeIds : [nodeIds]) {
       this.router.forget(nodeId);
@@ -807,6 +874,8 @@ export class TruynNetworkNode {
       try { await this.peerRecordRenewalInFlight; } catch { /* renewal failure must not prevent shutdown */ }
     }
     if (this.stateReady) await this.persistState();
+    this.#clearPersistTimer();
+    this.eventLoopDelay.disable();
     this.started = false;
     await this.quic.close();
   }
