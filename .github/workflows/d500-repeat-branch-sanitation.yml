@@ -1,0 +1,29 @@
+name: D500 Repeat Branch Sanitation
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d500/repeat-branch-sanitation.run']
+permissions:
+  contents: write
+jobs:
+  sanitize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete exact D500 repeat branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          branch="repeat/d500-a22-double-check"
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" >/dev/null 2>&1; then
+            echo "TRUYN_D500_REPEAT_SANITATION delete=${branch}"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+          else
+            echo "TRUYN_D500_REPEAT_SANITATION absent=${branch}"
+          fi
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" >/dev/null 2>&1; then
+            echo "TRUYN_D500_REPEAT_SANITATION=FAIL remaining=${branch}" >&2
+            exit 1
+          fi
+          echo "TRUYN_D500_REPEAT_SANITATION=PASS removed_or_absent=1"
