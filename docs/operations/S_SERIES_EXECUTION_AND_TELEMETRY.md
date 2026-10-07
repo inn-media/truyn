@@ -1,34 +1,33 @@
 # TRUYN S-Series Execution Isolation and Telemetry
 
-Status: **EXECUTION CONTRACT IMPLEMENTED / QUALIFICATION ACTIVE — NO S PASS**  
-Applies to: `S-50`, `S-100`, `S-200`, `S-500`  
+Status: **S-10 ACCEPTED / EXECUTION CONTRACT ACTIVE — LARGER S LEVELS OPEN**  
+Applies to: `S-10`, `S-50`, `S-100`, `S-200`, `S-500`  
 Documentation reconciliation: **2026-09-25**
 
 This document defines the operational boundary for Semantic Scale execution without contaminating D/E/T/H/N benchmark evidence. The old status **`DEFINED / IMPLEMENTATION NOT STARTED` is obsolete**.
 
 ## 1. Permanent execution model
 
-S-Series uses the non-bypassable lifecycle:
+The active S-N acceptance lifecycle is:
 
 ```text
-Frozen Candidate
-  -> Swarm fail-collect qualification
-  -> Blockwise B01..B22 evidence
-  -> Admission to current integration state
-  -> targeted zero-paid requalification only for changed S-sensitive blocks
-  -> fresh collision/capacity/duplicate-history gate
-  -> exactly one explicitly authorized live campaign
+Exact immutable candidate SHA
+  -> minimal live preflight
+  -> exactly one real live S-N execution
+  -> post-run evidence and acceptance reconciliation
 ```
 
-Expensive qualification binds to the frozen candidate/evidence set, not to moving `main`. Movement of `main` alone does not invalidate frozen evidence and does not authorize a full S rerun. Admission analyzes impact and refreshes only the cheap compatibility snapshot unless an S-sensitive change requires targeted proof.
+Moving `main` alone does not invalidate the frozen candidate. The active path must not add redundant cascading pre-gates that do not protect a real safety, identity, quota, duplication or evidence invariant.
+
+Historical Frozen Candidate / Swarm fail-collect / B01-B22 Blockwise / Admission evidence remains append-only qualification history and is available for targeted diagnostics or requalification when a concrete S-sensitive defect requires it. It is not a mandatory prerequisite chain for every new S-N run.
+
+Acceptance thresholds, provider requirements, public/private boundaries and exactly-one execution semantics remain unchanged.
 
 Canonical contracts:
 
-- `../benchmarks/S_SERIES_FROZEN_CANDIDATE_QUALIFICATION.md`
-- `../benchmarks/S_SERIES_SWARM_BLOCKWISE_ADMISSION.md`
 - `../benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md`
-- `../../config/s-series-swarm-blockwise-architecture-lock.json`
 - `../../config/s-series-public-contract-manifest.json`
+- historical qualification references: `../benchmarks/S_SERIES_FROZEN_CANDIDATE_QUALIFICATION.md`, `../benchmarks/S_SERIES_SWARM_BLOCKWISE_ADMISSION.md`
 
 ## 2. Public/private dependency boundary
 
@@ -70,21 +69,11 @@ The fixed required provider families remain:
 
 Provider substitution is forbidden. `blocked_access`, missing quota/deployment or unavailable required provider is incomplete/RED, not a reduced-provider PASS.
 
-## 5. Swarm-Blockwise qualification
+## 5. Qualification evidence
 
-Canonical Blockwise coverage is **B01-B22**:
+Historical B01-B22 Swarm-Blockwise evidence remains valid append-only diagnostic material. It must not be deleted, relabeled or used to weaken acceptance.
 
-- B01-B16: shared contracts/runtime/control-plane/topology/startup/heartbeat/backpressure/routing/restart/recovery/durability/security/telemetry/cleanup substrate;
-- B17: provider access/quota;
-- B18: provider WebSocket pressure/reconnect;
-- B19: correctness/retrieval;
-- B20: provenance/minimal-context;
-- B21: zero internal block-ID leakage;
-- B22: paired economics.
-
-The current architecture requires all 22 blocks GREEN before a live campaign can be admitted. Frozen GREEN block evidence is reused across unrelated `main` movement. Admission reruns only affected zero-paid/targeted checks when an S-sensitive fingerprint changes.
-
-A historical GREEN SHA by itself never authorizes merge or campaign execution.
+For current live S-N execution, qualification is targeted: only concrete S-sensitive changes or observed defects justify additional zero-paid or bounded diagnostic checks before the next immutable attempt. A historical GREEN SHA alone never authorizes a live campaign.
 
 ## 6. Common hard gates
 
@@ -116,22 +105,19 @@ Provider usage uses authoritative provider values where available; unknown value
 
 Comparable S-50/S-100/S-200/S-500 runs emit the same normalized fields. **No interpolation or extrapolation substitutes for an unexecuted S level.**
 
-## 8. Preflight before spend
+## 8. Minimal preflight before spend
 
-Before paid inference or large provisioning, every real S run verifies:
+Before paid inference, every real S run verifies only the invariants necessary to make the run attributable and safe:
 
-- immutable frozen candidate/evidence identity;
-- immutable public S contract manifest/pin;
-- fresh Admission snapshot and targeted-block status;
-- provider/model access for all seven required families;
-- compute/provider quota sufficient for the declared run;
-- R1/R2 interference, shared-resource/capacity and collision state;
-- duplicate-history / exactly-one campaign authorization;
+- exact immutable candidate identity;
+- immutable public S contract/release pin;
+- all seven required provider/model paths available;
+- budget/quota/capacity conditions required for the declared run;
+- no duplicate or already-active identical live attempt;
 - unique run/resource/artifact namespace;
-- cleanup path;
-- private budget/stop conditions.
+- cleanup path and bounded stop conditions.
 
-A failed prerequisite yields blocked/preparation failure. It must not partially launch a large benchmark and then reinterpret missing providers or incomplete evidence as success.
+A failed prerequisite yields blocked/preparation failure. It must not be converted into a reduced-provider or partial PASS.
 
 ## 9. Historical immutability
 
@@ -143,33 +129,24 @@ S-50 has real attempt history through **Attempt 15**. In particular:
 - Attempt 14, workflow run `35913581603`, is terminal FAILURE and immutable `NEVER_RERUN`;
 - Attempt 15, workflow run `35948814208`, is terminal FAILURE and immutable `NEVER_RERUN`; subsequent capacity/429 repair qualification does not rewrite that result.
 
-There is still **no accepted S-50 PASS**. S-100, S-200 and S-500 likewise have no accepted PASS.
+**S-10 Attempt 6 is accepted / PASS** as the bounded ECON/MIX integration baseline. Public sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md`. S-50, S-100, S-200 and S-500 remain independently OPEN.
 
 ## 10. Current factual state
 
-Implemented and qualified architecture includes:
+Accepted S-10 evidence demonstrates 150/150 measured observations correct across three 50-worker assignment profiles and seven provider families, with 100% routing/retrieval/provenance/minimal-context correctness, zero block-ID leakage, zero unauthorized provider execution, 97.17417299653404% mean input-token reduction and 96.85606730615144% comparable GPT/Gemini provider-cost reduction.
 
-- Frozen Candidate -> Admission-to-Main model;
-- automatic qualification fingerprints/manifest policy;
-- Swarm fail-collect + mandatory B01-B22 Blockwise evidence;
-- target-only requalification after material S-sensitive movement;
-- immutable historical evidence and one-shot campaign guards;
-- seven-provider live gate and ECON acceptance contract;
-- immutable public S contract manifest for private consumption.
-
-The latest known old Blockwise Admission failure `36114076355` did **not** contain a B01-B22 product regression: all B01-B22 were individually GREEN. Its aggregate failed in public-source materialization/control-plane handling. That runtime public-source dependency is superseded by the immutable public-contract consumption model and must not be used as justification for a full Swarm rerun.
-
-Before the next live S-50 successor, private Admission must be freshly GREEN on the admitted private state, with immutable public contract pin, targeted S-sensitive checks (if any), and fresh R1/R2/collision/duplicate-history guards.
+The accepted S-10 artifact also records provider-attempt telemetry and recovered two bounded HTTP 429 responses without answer-correctness retry. The public report publishes only sanitized aggregates and a cryptographic raw-artifact digest; raw operational evidence remains private.
 
 ## 11. Scale-level acceptance order
 
 Each level is independent acceptance evidence:
 
-1. close S-50 with one fresh admitted successor and immutable accepted PASS evidence;
-2. execute and accept S-100 separately;
-3. execute and accept S-200 separately;
-4. execute and accept S-500 separately;
-5. perform independent final-goal reconciliation before declaring the S-Series task complete.
+1. preserve accepted S-10 evidence as the bounded integration baseline;
+2. execute and accept S-50 independently;
+3. execute and accept S-100 separately;
+4. execute and accept S-200 separately;
+5. execute and accept S-500 separately;
+6. perform independent final-goal reconciliation before declaring the S-Series task complete.
 
 Passing one level never implies a larger level.
 
