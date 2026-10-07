@@ -18,6 +18,7 @@ test('native client is a real Tauri GUI requester and not a renamed managed-clie
 
   assert.match(cargo, /tauri\s*=\s*\{\s*version\s*=\s*"=2\.12\.0"/);
   assert.match(cargo, /ryu-js = "=1\.0\.3"/);
+  assert.match(cargo, /fs2 = "=0\.4\.3"/);
   assert.match(cargoLock, /name = "truyn-native-client"/);
   assert.match(cargoLock, /name = "ryu"/);
   assert.match(packageLock, /"lockfileVersion": 3/);
@@ -49,6 +50,13 @@ test('native client is a real Tauri GUI requester and not a renamed managed-clie
   assert.match(rust, /update_active_need_if_current/);
   assert.match(rust, /resumeStatus/);
   assert.match(rust, /active_need_backup_path\(&state\.active_need_path\)/);
+  assert.match(rust, /try_lock_exclusive/);
+  assert.match(rust, /existing TRUYN request recovery state was found after acquiring the process lock/);
+  assert.match(rust, /let mut session = active_session/);
+  assert.match(rust, /release_active_work/);
+  assert.match(rust, /to_ipv4_mapped/);
+  assert.match(rust, /is_transport/);
+  assert.match(rust, /relay cancellation acknowledgement is invalid or mismatched/);
   const storedActiveNeed = rust.match(/struct StoredActiveNeed \\{([\\s\\S]*?)\\n\\}/)?.[1] || '';
   assert.doesNotMatch(storedActiveNeed, /token/i);
 
@@ -65,6 +73,9 @@ test('native client is a real Tauri GUI requester and not a renamed managed-clie
   assert.match(js, /Relay no longer had this request/);
   assert.match(js, /completed before cancel/);
   assert.match(js, /Retrieving and verifying RESULT/);
+  assert.match(js, /activeNeedId !== target/);
+  assert.match(js, /Request failed before cancellation/);
+  assert.match(js, /if \(!connected\)/);
 
   assert.match(workflow, /bundle: nsis/);
   assert.match(workflow, /bundle: dmg/);
