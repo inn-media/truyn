@@ -27,6 +27,10 @@ case " ${DIAGNOSTIC_NODES_PER_HOST_SIZES} " in
 esac
 NODE_COUNT=$((HOST_COUNT * NODES_PER_HOST))
 D500_MIN_VCPUS_PER_HOST=4
+D500_PROVISION_WORKERS="${TRUYN_D500_PROVISION_WORKERS:-4}"
+D500_PROVISION_ATTEMPTS="${TRUYN_D500_PROVISION_ATTEMPTS:-3}"
+[[ "$D500_PROVISION_WORKERS" =~ ^[1-9][0-9]*$ && "$D500_PROVISION_WORKERS" -le 8 ]]
+[[ "$D500_PROVISION_ATTEMPTS" =~ ^[1-9][0-9]*$ && "$D500_PROVISION_ATTEMPTS" -le 5 ]]
 BOOTSTRAP_MAX_PEERS_PER_NODE=32
 BOOTSTRAP_PEERS_PER_BUCKET=2
 BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS=900000
@@ -457,20 +461,90 @@ az network nsg create -g "$RG" -n "$NSG" -l "$LOCATION" --tags "truyn-class-d100
 az network vnet create -g "$RG" -n "$VNET" -l "$LOCATION" --address-prefixes 10.252.0.0/16 --subnet-name "$SUBNET" --subnet-prefixes 10.252.1.0/24 --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
 az network vnet subnet update -g "$RG" --vnet-name "$VNET" -n "$SUBNET" --network-security-group "$NSG" --service-endpoints Microsoft.Storage --only-show-errors >/dev/null
 
+acquire_provision_slot() {
+  local slot
+  while true; do
+    for slot in $(seq 0 $((D500_PROVISION_WORKERS-1))); do
+      exec {PROVISION_SLOT_FD}>"${RUNNER_TEMP:-/tmp}/truyn-d500-provision-slot-${GITHUB_RUN_ID}-${slot}.lock"
+      if flock -n "$PROVISION_SLOT_FD"; then
+        echo "TRUYN_D500_PROVISION_SLOT host=${1} slot=${slot} workers=${D500_PROVISION_WORKERS}"
+        return 0
+      fi
+      eval "exec ${PROVISION_SLOT_FD}>&-"
+    done
+    sleep 1
+  done
+}
+
+cleanup_partial_host_vm() {
+  local host="$1" vm="$2" disk="$3" state
+  echo "TRUYN_D500_PROVISION_RECONCILE host=${host} action=cleanup-partial vm=${vm}" >&2
+  az vm delete -g "$RG" -n "$vm" --yes --force-deletion --only-show-errors >/dev/null 2>&1 || true
+  for _ in $(seq 1 30); do
+    if ! az vm show -g "$RG" -n "$vm" --only-show-errors -o none >/dev/null 2>&1; then break; fi
+    sleep 2
+  done
+  if az vm show -g "$RG" -n "$vm" --only-show-errors -o none >/dev/null 2>&1; then
+    echo "TRUYN_D500_PROVISION_RECONCILE host=${host} action=cleanup-failed reason=vm-still-present" >&2
+    return 1
+  fi
+  az disk delete -g "$RG" -n "$disk" --yes --only-show-errors >/dev/null 2>&1 || true
+  for _ in $(seq 1 20); do
+    if ! az disk show -g "$RG" -n "$disk" --only-show-errors -o none >/dev/null 2>&1; then break; fi
+    sleep 2
+  done
+  if az disk show -g "$RG" -n "$disk" --only-show-errors -o none >/dev/null 2>&1; then
+    echo "TRUYN_D500_PROVISION_RECONCILE host=${host} action=cleanup-failed reason=disk-still-present" >&2
+    return 1
+  fi
+  return 0
+}
+
 STAGE=provision
+command -v flock >/dev/null
 provision_dir=$(mktemp -d)
 provision_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   (
     host_status_arm "$provision_dir" "$i"
     az network nic create -g "$RG" -n "${NICS[$i]}" -l "$LOCATION" --vnet-name "$VNET" --subnet "$SUBNET" --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null
+    acquire_provision_slot "$i"
     created=0
-    for size in "$VM_SIZE" Standard_D4s_v5; do
-      if az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-size-gb 256 --storage-sku Premium_LRS --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors >/dev/null 2>&1; then
+    size="$VM_SIZE"
+    for attempt in $(seq 1 "$D500_PROVISION_ATTEMPTS"); do
+      create_output=""
+      set +e
+      create_output=$(az vm create -g "$RG" -n "${VMS[$i]}" -l "$LOCATION" --image Ubuntu2204 --size "$size" --admin-username truynadmin --generate-ssh-keys --nics "${NICS[$i]}" --os-disk-name "${DISKS[$i]}" --os-disk-size-gb 256 --storage-sku Premium_LRS --os-disk-delete-option Delete --tags "truyn-class-d1000-run=${GITHUB_RUN_ID}" --only-show-errors -o none 2>&1)
+      create_rc=$?
+      set -e
+      [[ -z "$create_output" ]] || printf '%s\n' "$create_output" >&2
+
+      state=""
+      if state=$(az vm show -g "$RG" -n "${VMS[$i]}" --query provisioningState -o tsv --only-show-errors 2>/dev/null); then
+        :
+      else
+        state=absent
+      fi
+      echo "TRUYN_D500_PROVISION_ATTEMPT host=$i attempt=${attempt}/${D500_PROVISION_ATTEMPTS} vmSize=$size createRc=$create_rc provisioningState=${state:-unknown}"
+
+      if [[ "$state" == Succeeded ]]; then
         created=1
+        if [[ "$create_rc" -ne 0 ]]; then
+          echo "TRUYN_D500_PROVISION_RECOVERED host=$i attempt=$attempt vmSize=$size reason=create-nonzero-but-vm-succeeded"
+        fi
         echo "TRUYN_CLASS_D_1000 host=$i vmSize=$size provisioned=true"
         break
       fi
+
+      if [[ "$attempt" -ge "$D500_PROVISION_ATTEMPTS" ]]; then
+        echo "TRUYN_D500_PROVISION_FAILED host=$i attempts=$D500_PROVISION_ATTEMPTS vmSize=$size lastCreateRc=$create_rc lastState=${state:-unknown}" >&2
+        break
+      fi
+
+      cleanup_partial_host_vm "$i" "${VMS[$i]}" "${DISKS[$i]}"
+      backoff=$((attempt * 5))
+      echo "TRUYN_D500_PROVISION_RETRY host=$i nextAttempt=$((attempt+1)) vmSize=$size backoffSec=$backoff"
+      sleep "$backoff"
     done
     [[ $created == 1 ]]
     ip=$(az network nic show -g "$RG" -n "${NICS[$i]}" --query 'ipConfigurations[0].privateIPAddress' -o tsv --only-show-errors)
