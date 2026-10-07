@@ -18,9 +18,11 @@ It is intentionally separate from the existing platform-labelled managed-client 
 - persist active-request recovery state through a synced staging file with backup fallback, and remove both primary/backup recovery records on terminal cleanup;
 - treat a signed but semantically invalid terminal RESULT as terminal-unverified, release local work state and visibly reject the output;
 - cancel requester-owned work through signed `REVOKE` on `/v1/revoke`; if completion wins the race, keep the request active and retrieve/verify its RESULT instead of discarding paid output;
-- prevent concurrent paid submissions and relay changes while work is active.
+- prevent concurrent paid submissions across both async handlers and separate OS processes with an exclusive active-work file lock; relay changes remain blocked while work is active.
+- re-resolve and revalidate all relay DNS addresses when an authenticated session must be rebuilt after expiry, 401 or transport failure; IPv4-mapped IPv6 private addresses remain forbidden.
+- preserve the user's exact prompt whitespace while rejecting whitespace-only input.
 
-Relay session tokens are held in process memory only. Active-request recovery persists only the request ID, provider binding, relay origin and non-secret recovery metadata. The native client does not contain provider API keys and does not bypass TRUYN provider authorization. Android backup/device-transfer rules exclude the application file domain containing the signing identity.
+The one-active-work invariant is enforced across separate GUI processes with an OS-level exclusive file lock. Relay session tokens are held in process memory only. Active-request recovery persists only the request ID, provider binding, relay origin and non-secret recovery metadata. The native client does not contain provider API keys and does not bypass TRUYN provider authorization. Android backup/device-transfer rules exclude the application file domain containing the signing identity.
 
 ## Build targets
 

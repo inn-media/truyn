@@ -4,6 +4,7 @@ use ed25519_dalek::{
     pkcs8::{DecodePublicKey, EncodePublicKey},
     Signature, Signer, SigningKey, Verifier, VerifyingKey,
 };
+use fs2::FileExt;
 use rand_core::OsRng;
 use reqwest::{redirect::Policy, Client, RequestBuilder};
 use serde::{Deserialize, Serialize};
@@ -11,7 +12,7 @@ use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 use std::{
     cmp::Ordering,
-    fs::{self, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::{ErrorKind, Write},
     net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
@@ -93,6 +94,8 @@ struct AppState {
     session: RwLock<Option<RelaySession>>,
     active_need: RwLock<Option<ActiveNeed>>,
     active_need_path: PathBuf,
+    active_claim_path: PathBuf,
+    active_claim: Mutex<Option<File>>,
     mutation_lock: Mutex<()>,
     refresh_lock: Mutex<()>,
 }
@@ -169,6 +172,22 @@ fn identity_file(app: &AppHandle) -> Result<PathBuf, String> {
 
 fn active_need_file(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_data_dir(app)?.join("active-need.json"))
+}
+
+fn active_claim_file(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app_data_dir(app)?.join("active-need.lock"))
+}
+
+fn open_active_claim(path: &Path) -> Result<File, String> {
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(path)
+        .map_err(|_| "cannot open active-request process claim".to_string())?;
+    file.try_lock_exclusive()
+        .map_err(|_| "another TRUYN process already owns active work".to_string())?;
+    Ok(file)
 }
 
 #[cfg(unix)]
@@ -440,6 +459,9 @@ fn forbidden_public_ip(ip: IpAddr) -> bool {
                 }
         }
         IpAddr::V6(ip) => {
+            if let Some(mapped) = ip.to_ipv4_mapped() {
+                return forbidden_public_ip(IpAddr::V4(mapped));
+            }
             ip.is_loopback()
                 || ip.is_unspecified()
                 || ip.is_multicast()
@@ -543,6 +565,10 @@ impl RequestFailure {
 
     fn is_unauthorized(&self) -> bool {
         self.status == Some(401)
+    }
+
+    fn is_transport(&self) -> bool {
+        self.status.is_none()
     }
 }
 
@@ -813,10 +839,14 @@ async fn ensure_session(state: &AppState, candidate: RelaySession) -> Result<Rel
         }
     }
 
+    let allow_local_development =
+        local_host(candidate.relay_url.host_str().unwrap_or_default());
+    let (relay_url, http) =
+        relay_client(candidate.relay_url.as_str(), allow_local_development).await?;
     let refreshed = register_session(
         &state.identity,
-        candidate.relay_url.clone(),
-        candidate.http.clone(),
+        relay_url,
+        http,
         candidate.display_name.clone(),
     )
     .await?;
@@ -853,10 +883,36 @@ async fn force_refresh_session(
     candidate: &RelaySession,
 ) -> Result<RelaySession, String> {
     let _refresh = state.refresh_lock.lock().await;
+
+    let current = state.session.read().await.clone();
+    match current {
+        Some(current)
+            if current.relay_url == candidate.relay_url
+                && current.token != candidate.token
+                && current.is_fresh() =>
+        {
+            return Ok(current);
+        }
+        Some(current)
+            if current.relay_url != candidate.relay_url
+                || current.token != candidate.token =>
+        {
+            return Err("relay session changed while refresh was in flight".into());
+        }
+        None => {
+            return Err("relay session ended while refresh was in flight".into());
+        }
+        _ => {}
+    }
+
+    let allow_local_development =
+        local_host(candidate.relay_url.host_str().unwrap_or_default());
+    let (relay_url, http) =
+        relay_client(candidate.relay_url.as_str(), allow_local_development).await?;
     let refreshed = register_session(
         &state.identity,
-        candidate.relay_url.clone(),
-        candidate.http.clone(),
+        relay_url,
+        http,
         candidate.display_name.clone(),
     )
     .await?;
@@ -871,8 +927,16 @@ async fn force_refresh_session(
             .unwrap_or(false);
         if still_same_session {
             *current = Some(refreshed.clone());
+        } else if let Some(current) = current.as_ref() {
+            if current.relay_url == candidate.relay_url && current.is_fresh() {
+                return Ok(current.clone());
+            }
+            return Err("relay session changed while refresh was completing".into());
+        } else {
+            return Err("relay session ended while refresh was completing".into());
         }
     }
+
     {
         let mut active = state.active_need.write().await;
         if let Some(active_need) = active.as_mut() {
@@ -945,6 +1009,22 @@ async fn update_active_need(state: &AppState, active: ActiveNeed) -> Result<(), 
     Ok(())
 }
 
+async fn claim_active_work(state: &AppState) -> Result<(), String> {
+    let mut claim = state.active_claim.lock().await;
+    if claim.is_some() {
+        return Ok(());
+    }
+    *claim = Some(open_active_claim(&state.active_claim_path)?);
+    Ok(())
+}
+
+async fn release_active_work(state: &AppState) {
+    let mut claim = state.active_claim.lock().await;
+    if let Some(file) = claim.take() {
+        let _ = FileExt::unlock(&file);
+    }
+}
+
 async fn update_active_need_if_current(
     state: &AppState,
     expected_need_id: &str,
@@ -981,6 +1061,7 @@ async fn clear_active_need(state: &AppState, need_id: &str) {
                 Err(_) => {}
             }
         }
+        release_active_work(state).await;
     }
 }
 
@@ -1045,7 +1126,7 @@ async fn discover(state: State<'_, AppState>, capability: String) -> Result<Valu
     let first = request_json_detailed(auth(&session, session.http.get(url.clone()))).await;
     let body = match first {
         Ok(body) => body,
-        Err(failure) if failure.is_unauthorized() => {
+        Err(failure) if failure.is_unauthorized() || failure.is_transport() => {
             session = force_refresh_session(state.inner(), &session).await?;
             request_json_detailed(auth(&session, session.http.get(url)))
                 .await
@@ -1074,8 +1155,7 @@ async fn submit_need(
     if capability.is_empty() || capability.len() > MAX_CAPABILITY_BYTES {
         return Err("capability must be between 1 and 200 bytes".into());
     }
-    let prompt = prompt.trim();
-    if prompt.is_empty() || prompt.len() > MAX_PROMPT_BYTES {
+    if prompt.trim().is_empty() || prompt.len() > MAX_PROMPT_BYTES {
         return Err("request must be between 1 byte and 32 KiB".into());
     }
 
@@ -1106,7 +1186,11 @@ async fn submit_need(
         ambiguous: true,
         session: Some(session.clone()),
     };
-    update_active_need(state.inner(), active.clone()).await?;
+    claim_active_work(state.inner()).await?;
+    if let Err(error) = update_active_need(state.inner(), active.clone()).await {
+        release_active_work(state.inner()).await;
+        return Err(error);
+    }
 
     let need_url = session
         .relay_url
@@ -1189,7 +1273,7 @@ async fn request_status(state: State<'_, AppState>, need_id: String) -> Result<V
 
     let first = request_json_detailed(auth(&session, session.http.get(url.clone()))).await;
     let response = match first {
-        Err(failure) if failure.is_unauthorized() => {
+        Err(failure) if failure.is_unauthorized() || failure.is_transport() => {
             let refreshed = force_refresh_session(state.inner(), &session).await?;
             request_json_detailed(auth(&refreshed, refreshed.http.get(url))).await
         }
@@ -1312,7 +1396,7 @@ async fn cancel_need(state: State<'_, AppState>, need_id: String) -> Result<Valu
     ))
     .await;
     let response = match first {
-        Err(failure) if failure.is_unauthorized() => {
+        Err(failure) if failure.is_unauthorized() || failure.is_transport() => {
             let refreshed = force_refresh_session(state.inner(), &session).await?;
             request_json_detailed(auth(
                 &refreshed,
@@ -1356,8 +1440,12 @@ async fn cancel_need(state: State<'_, AppState>, need_id: String) -> Result<Valu
         }
         Err(failure) => return Err(failure.message),
     };
-    if body.get("targetId").and_then(Value::as_str) != Some(need_id) {
-        return Err("relay cancellation acknowledgement is correlated to a different request".into());
+    if body.get("targetId").and_then(Value::as_str) != Some(need_id)
+        || body.get("ok").and_then(Value::as_bool) != Some(true)
+        || body.get("cancelled").and_then(Value::as_bool) != Some(true)
+        || body.get("targetKind").and_then(Value::as_str) != Some("need")
+    {
+        return Err("relay cancellation acknowledgement is invalid or mismatched".into());
     }
     clear_active_need(state.inner(), need_id).await;
     Ok(body)
@@ -1377,6 +1465,14 @@ mod tests {
         assert_eq!(text, "{\"𐀀\":1,\"\":2}");
         assert_eq!(canonical_number(&serde_json::Number::from_f64(1e20).unwrap()).unwrap(), "100000000000000000000");
         assert_eq!(canonical_number(&serde_json::Number::from_f64(1e21).unwrap()).unwrap(), "1e+21");
+    }
+
+    #[test]
+    fn mapped_private_ipv6_is_rejected_as_private_ipv4() {
+        let mapped: IpAddr = "::ffff:127.0.0.1".parse().unwrap();
+        assert!(forbidden_public_ip(mapped));
+        let mapped_private: IpAddr = "::ffff:10.0.0.1".parse().unwrap();
+        assert!(forbidden_public_ip(mapped_private));
     }
 
     #[test]
@@ -1489,11 +1585,23 @@ pub fn run() {
                 .map_err(|message| std::io::Error::new(std::io::ErrorKind::Other, message))?;
             let active_need = load_active_need(&active_need_path)
                 .map_err(|message| std::io::Error::new(std::io::ErrorKind::Other, message))?;
+            let active_claim_path = active_claim_file(app.handle())
+                .map_err(|message| std::io::Error::new(std::io::ErrorKind::Other, message))?;
+            let active_claim = if active_need.is_some() {
+                Some(
+                    open_active_claim(&active_claim_path)
+                        .map_err(|message| std::io::Error::new(std::io::ErrorKind::Other, message))?,
+                )
+            } else {
+                None
+            };
             app.manage(AppState {
                 identity,
                 session: RwLock::new(None),
                 active_need: RwLock::new(active_need),
                 active_need_path,
+                active_claim_path,
+                active_claim: Mutex::new(active_claim),
                 mutation_lock: Mutex::new(()),
                 refresh_lock: Mutex::new(()),
             });
