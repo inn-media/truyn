@@ -110,6 +110,24 @@ export class TruynNetworkNode {
     // active marks the worker dirty and causes one bounded follow-up pass.
     this.peerRecordPublishInFlight = null;
     this.peerRecordPublishDirty = false;
+
+    // Durable DHT records published by this node are re-placed after routing
+    // churn. Keep this background repair debounced and single-flight so a burst
+    // of peer-record updates cannot turn into a fleet-wide STORE storm.
+    this.dhtRebalanceTimer = null;
+    this.dhtRebalanceInFlight = null;
+    this.dhtRebalanceDirty = false;
+    this.dhtRebalanceRetryAttempt = 0;
+    this.dhtRebalanceStats = {
+      scheduled: 0,
+      runs: 0,
+      retries: 0,
+      failures: 0,
+      lastStartedAt: null,
+      lastCompletedAt: null,
+      lastResult: null,
+      lastError: null
+    };
     // Peer-record propagation is control-plane recovery. The complete retry
     // schedule remains comfortably inside the unchanged 120s network recovery
     // contract and never retries an application NEED envelope.
@@ -177,7 +195,10 @@ export class TruynNetworkNode {
       // Records are often ingested inside a lookup's AsyncLocalStorage deadline; the
       // propagation/retry chain must not inherit it, or every later RPC in that chain
       // times out instantly once the lookup deadline has passed.
-      const reconcile = () => this.#schedulePeerRecordPropagation();
+      const reconcile = () => {
+        this.#schedulePeerRecordPropagation();
+        this.#scheduleDhtRecordRebalance();
+      };
       if (typeof this.rpc?.detached === 'function') { this.rpc.detached(reconcile); return; }
       const deadlineContext = this.rpc?.deadlineContext;
       if (deadlineContext?.getStore?.() != null && typeof deadlineContext.exit === 'function') deadlineContext.exit(reconcile);
@@ -333,6 +354,103 @@ export class TruynNetworkNode {
     }
     if (!this.workInbox) return this.envelopeHandler(envelope, context);
     return this.workInbox.run(envelope, context, this.envelopeHandler);
+  }
+
+  #clearDhtRecordRebalanceTimer() {
+    if (!this.dhtRebalanceTimer) return;
+    clearTimeout(this.dhtRebalanceTimer);
+    this.dhtRebalanceTimer = null;
+  }
+
+  #scheduleDhtRecordRebalance(delayMs = 1_500) {
+    if (!this.started || this.closing || !this.replication) return;
+    if (this.dhtRebalanceInFlight) {
+      this.dhtRebalanceDirty = true;
+      return;
+    }
+    this.#clearDhtRecordRebalanceTimer();
+    this.dhtRebalanceStats.scheduled += 1;
+    const delay = Math.max(250, Math.min(30_000, Number.isFinite(Number(delayMs)) ? Math.floor(Number(delayMs)) : 1_500));
+    this.dhtRebalanceTimer = setTimeout(() => {
+      this.dhtRebalanceTimer = null;
+      void this.#runDhtRecordRebalance();
+    }, delay);
+    this.dhtRebalanceTimer.unref?.();
+  }
+
+  async #runDhtRecordRebalance() {
+    if (!this.started || this.closing || !this.replication) return null;
+    if (this.dhtRebalanceInFlight) {
+      this.dhtRebalanceDirty = true;
+      return this.dhtRebalanceInFlight;
+    }
+
+    this.dhtRebalanceDirty = false;
+    this.dhtRebalanceStats.runs += 1;
+    this.dhtRebalanceStats.lastStartedAt = new Date().toISOString();
+    let retryDelayMs = null;
+
+    const run = () => this.replication.reconcilePublishedRecords({
+      maxRecords: 32,
+      concurrency: 2,
+      timeoutMs: Math.min(this.replication.writeTimeoutMs, 15_000)
+    });
+    const background = () => (typeof this.rpc?.withLane === 'function' ? this.rpc.withLane('background', run) : run());
+    const operation = Promise.resolve(
+      typeof this.rpc?.detached === 'function' ? this.rpc.detached(background) : background()
+    )
+      .then((result) => {
+        this.dhtRebalanceStats.lastCompletedAt = new Date().toISOString();
+        this.dhtRebalanceStats.lastResult = result;
+        this.dhtRebalanceStats.lastError = null;
+        if ((result?.storesFailed || 0) > 0 && this.dhtRebalanceRetryAttempt < 2) {
+          this.dhtRebalanceRetryAttempt += 1;
+          this.dhtRebalanceStats.retries += 1;
+          retryDelayMs = this.dhtRebalanceRetryAttempt === 1 ? 5_000 : 15_000;
+        } else if ((result?.storesFailed || 0) === 0) {
+          this.dhtRebalanceRetryAttempt = 0;
+        }
+        return result;
+      })
+      .catch((error) => {
+        this.dhtRebalanceStats.failures += 1;
+        this.dhtRebalanceStats.lastCompletedAt = new Date().toISOString();
+        this.dhtRebalanceStats.lastError = { code: error?.code || null, message: error?.message || String(error) };
+        if (this.dhtRebalanceRetryAttempt < 2) {
+          this.dhtRebalanceRetryAttempt += 1;
+          this.dhtRebalanceStats.retries += 1;
+          retryDelayMs = this.dhtRebalanceRetryAttempt === 1 ? 5_000 : 15_000;
+        }
+        return null;
+      })
+      .finally(() => {
+        if (this.dhtRebalanceInFlight === operation) this.dhtRebalanceInFlight = null;
+        if (!this.started || this.closing) return;
+        if (this.dhtRebalanceDirty) {
+          this.dhtRebalanceDirty = false;
+          this.#scheduleDhtRecordRebalance(1_500);
+        } else if (retryDelayMs != null) {
+          this.#scheduleDhtRecordRebalance(retryDelayMs);
+        }
+      });
+
+    this.dhtRebalanceInFlight = operation;
+    return operation;
+  }
+
+  dhtDurabilitySnapshot() {
+    return {
+      scheduler: {
+        scheduled: Boolean(this.dhtRebalanceTimer),
+        inFlight: Boolean(this.dhtRebalanceInFlight),
+        dirty: this.dhtRebalanceDirty,
+        retryAttempt: this.dhtRebalanceRetryAttempt,
+        ...this.dhtRebalanceStats
+      },
+      replication: typeof this.replication?.telemetrySnapshot === 'function'
+        ? this.replication.telemetrySnapshot()
+        : null
+    };
   }
 
   #leaseKeeperIntervalMs() {
@@ -760,6 +878,10 @@ export class TruynNetworkNode {
     }
     this.#schedulePeerRecordRenewal();
     this.#scheduleLeaseKeeper();
+    // A restarted publisher may have durable DHT records whose former placement
+    // no longer matches the recovered topology. Reconcile them after startup;
+    // later peer-record churn re-arms the same debounced single-flight path.
+    this.#scheduleDhtRecordRebalance(1_000);
     return structuredClone(this.localPeerRecord);
   }
 
@@ -939,6 +1061,7 @@ export class TruynNetworkNode {
         checkpointScheduled: Boolean(this.persistTimer),
         store: this.stateStore?.metricsSnapshot?.() || null
       },
+      dhtDurability: this.dhtDurabilitySnapshot(),
       eventLoopLag
     };
   }
@@ -960,6 +1083,7 @@ export class TruynNetworkNode {
     this.closing = true;
     this.#clearPeerRecordRenewTimer();
     this.#clearPeerRecordRecoveryRetryTimer();
+    this.#clearDhtRecordRebalanceTimer();
     this.peerRecordPropagationQueued = false;
     this.peerRecordBackgroundDisseminationQueued = false;
     this.discovery.close();
@@ -967,6 +1091,9 @@ export class TruynNetworkNode {
     if (this.leaseKeeperInFlight) { try { await this.leaseKeeperInFlight; } catch { /* shutdown */ } }
     if (this.peerRecordRenewalInFlight) {
       try { await this.peerRecordRenewalInFlight; } catch { /* renewal failure must not prevent shutdown */ }
+    }
+    if (this.dhtRebalanceInFlight) {
+      try { await this.dhtRebalanceInFlight; } catch { /* background durability repair must not prevent shutdown */ }
     }
     if (this.stateReady) await this.persistState();
     this.#clearPersistTimer();
