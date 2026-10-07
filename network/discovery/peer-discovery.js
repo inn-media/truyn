@@ -3,6 +3,8 @@ import { signValue, verifyValue } from '../../core/identity/index.js';
 import { canonicalize, nodeIdFromPublicKey } from '../../core/protocol/index.js';
 import { KademliaRoutingTable, dhtId, xorDistance } from '../dht/kademlia.js';
 
+const BACKGROUND_LANE = 'background';
+
 export const PEER_RECORD_PROTOCOL = 'truyn-peer-record-v1';
 
 function assertIdentity(identity) {
@@ -46,6 +48,9 @@ export function createPeerRecord({ identity, endpoints, sequence = 1, ttlMs = 30
   return { ...signed, publicKey: identity.publicKeyPem, signature: signValue(signed, identity.privateKeyPem) };
 }
 
+const VERIFIED_PEER_SIGNATURE_LIMIT = 8_192;
+const verifiedPeerSignatures = new Map();
+
 export function verifyPeerRecord(record, { now = Date.now(), allowExpired = false } = {}) {
   try {
     if (!record?.recordId || record.protocol !== PEER_RECORD_PROTOCOL || !record.nodeId || !record.publicKey || !record.signature) return { ok: false, reason: 'peer_record_missing' };
@@ -58,7 +63,12 @@ export function verifyPeerRecord(record, { now = Date.now(), allowExpired = fals
     const { recordId, ...body } = signed;
     const expectedId = `truyn:peer:${createHash('sha256').update(canonicalize(body)).digest('hex')}`;
     if (expectedId !== recordId) return { ok: false, reason: 'peer_record_id' };
-    if (!verifyValue(signed, signature, publicKey)) return { ok: false, reason: 'peer_record_signature' };
+    const signatureKey = `${recordId}\n${publicKey}\n${signature}`;
+    if (!verifiedPeerSignatures.has(signatureKey)) {
+      if (!verifyValue(signed, signature, publicKey)) return { ok: false, reason: 'peer_record_signature' };
+      if (verifiedPeerSignatures.size >= VERIFIED_PEER_SIGNATURE_LIMIT) verifiedPeerSignatures.delete(verifiedPeerSignatures.keys().next().value);
+      verifiedPeerSignatures.set(signatureKey, true);
+    }
     return { ok: true, nodeId: record.nodeId };
   } catch (error) {
     return { ok: false, reason: error.message };
@@ -81,6 +91,8 @@ export class PeerDiscovery {
     this.rpc = rpc;
     this.onChange = onChange;
     this.onRecordAccepted = typeof onRecordAccepted === 'function' ? onRecordAccepted : null;
+    this.walksInFlight = new Map();
+    this.ingestChanges = 0;
     this.periodicRefreshTimer = null;
     this.periodicRefreshTimerApi = { setTimeout, clearTimeout };
     this.periodicRefreshInFlight = null;
@@ -106,6 +118,7 @@ export class PeerDiscovery {
     if (existing && existing.sequence > record.sequence) return { accepted: false, reason: 'peer_record_older_sequence' };
     if (existing && existing.sequence === record.sequence && existing.recordId !== record.recordId) return { accepted: false, reason: 'peer_record_equivocation' };
     const changed = !existing || existing.recordId !== record.recordId;
+    if (changed) this.ingestChanges += 1;
     this.records.set(record.nodeId, structuredClone(record));
     this.routing.upsert({ nodeId: record.nodeId, endpoints: record.endpoints, publicKey: record.publicKey, lastSeenAt: new Date().toISOString() });
     if (notify && changed) {
@@ -338,13 +351,18 @@ export class PeerDiscovery {
     const run = this.periodicRefresh.runs + 1;
     this.periodicRefresh.inFlight = true;
     this.periodicRefresh.lastStartedAt = new Date().toISOString();
-    const operation = this.refreshRoutingTable({
+    const refresh = () => this.refreshRoutingTable({
       targetCount: config.targetCount,
       maxRounds: config.maxRounds,
       targetConcurrency: config.targetConcurrency,
       timeoutMs: config.timeoutMs,
-      seed: `${config.seed}:${run}`
+      seed: `${config.seed}:${run}`,
+      earlyExitIdleWalks: 4,
+      nearExpiryHorizonMs: Math.max(120_000, config.intervalMs * 8)
     });
+    const operation = typeof this.rpc?.withLane === 'function'
+      ? this.rpc.withLane(BACKGROUND_LANE, refresh)
+      : refresh();
     this.periodicRefreshInFlight = operation;
 
     try {
@@ -437,7 +455,7 @@ export class PeerDiscovery {
     return this.refreshTargetPlan(options).targets;
   }
 
-  async refreshRoutingTable({ targets = null, targetCount = this.k, maxRounds = 4, now = Date.now(), seed = 'truyn-refresh', expiryTargetCount = null, targetConcurrency = 1, timeoutMs = null } = {}) {
+  async refreshRoutingTable({ targets = null, targetCount = this.k, maxRounds = 4, now = Date.now(), seed = 'truyn-refresh', expiryTargetCount = null, targetConcurrency = 1, timeoutMs = null, earlyExitIdleWalks = null, nearExpiryHorizonMs = null } = {}) {
     const normalizedTimeoutMs = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0 ? Math.floor(Number(timeoutMs)) : null;
     const deadlineAt = normalizedTimeoutMs == null ? null : Date.now() + normalizedTimeoutMs;
     const execute = async () => {
@@ -480,13 +498,33 @@ export class PeerDiscovery {
     const walks = new Array(selectedTargets.length);
     let nextTargetIndex = 0;
     let deadlineExceeded = false;
+    const idleLimit = Number.isInteger(earlyExitIdleWalks) && earlyExitIdleWalks > 0 ? earlyExitIdleWalks : null;
+    const horizon = Number.isFinite(Number(nearExpiryHorizonMs)) && Number(nearExpiryHorizonMs) > 0 ? Number(nearExpiryHorizonMs) : null;
+    let protectedTargets = targetSelection.nearExpiryTargets;
+    if (horizon != null) {
+      protectedTargets = 0;
+      for (const targetNodeId of selectedTargets.slice(0, targetSelection.nearExpiryTargets)) {
+        const record = this.records.get(targetNodeId);
+        if (!record || expiryMs(record) - now > horizon) break;
+        protectedTargets += 1;
+      }
+    }
+    let idleWalks = 0;
+    let converged = false;
+    let lastChanges = this.ingestChanges;
     const worker = async () => {
       while (true) {
         if (deadlineAt != null && Date.now() >= deadlineAt) { deadlineExceeded = true; return; }
+        if (converged) return;
         const index = nextTargetIndex++;
         if (index >= selectedTargets.length) return;
         const targetNodeId = selectedTargets[index];
         const result = await this.walk(targetNodeId, { maxRounds: rounds, stopOnFound: false });
+        if (idleLimit != null) {
+          if (this.ingestChanges === lastChanges) idleWalks += 1;
+          else { idleWalks = 0; lastChanges = this.ingestChanges; }
+          if (index >= protectedTargets && idleWalks >= idleLimit) converged = true;
+        }
         walks[index] = {
           targetNodeId,
           found: Boolean(result.found),
@@ -507,7 +545,7 @@ export class PeerDiscovery {
 
     return {
       refreshed: !deadlineExceeded,
-      reason: deadlineExceeded ? 'refresh_deadline_exceeded' : null,
+      reason: deadlineExceeded ? 'refresh_deadline_exceeded' : (converged ? 'refresh_converged' : null),
       before,
       after,
       targets: selectedTargets,
@@ -528,65 +566,110 @@ export class PeerDiscovery {
     if (typeof this.rpc?.findNode !== 'function') {
       return { targetNodeId, found: null, queried: [], rounds: 0, responses: 0 };
     }
+    const lane = typeof this.rpc.currentLane === 'function' ? this.rpc.currentLane() : 'control';
+    const flightKey = `${targetNodeId}\n${maxRounds}\n${stopOnFound}\n${lane}`;
+    const existing = this.walksInFlight.get(flightKey);
+    if (existing) return existing;
+    const operation = this.#walkOnce(targetNodeId, { maxRounds, stopOnFound })
+      .finally(() => { if (this.walksInFlight.get(flightKey) === operation) this.walksInFlight.delete(flightKey); });
+    this.walksInFlight.set(flightKey, operation);
+    return operation;
+  }
 
+  #walkOnce(targetNodeId, { maxRounds, stopOnFound }) {
+    const alpha = Math.max(1, Number.isInteger(this.alpha) ? this.alpha : 3);
+    const budget = Math.max(0, Number.isInteger(maxRounds) ? maxRounds : 16) * alpha;
+    const hedgeAfterMs = Math.max(250, Math.min(1_500, Math.floor((Number(this.rpc?.timeoutMs) || 5_000) / 4)));
     const queried = new Set();
+    const responded = new Set();
+    const order = [];
     const hints = new Map();
+    const slow = new Set();
     let responsesReceived = 0;
-    let rounds = 0;
-    let frontier = this.closest(targetNodeId, this.k);
-    for (; rounds < maxRounds && frontier.length; rounds += 1) {
-      const batch = frontier.filter((peer) => !queried.has(peer.nodeId)).slice(0, this.alpha);
-      if (batch.length === 0) break;
-      for (const peer of batch) queried.add(peer.nodeId);
-      const responses = await Promise.all(batch.map(async (peer) => {
-        try {
-          return await this.rpc.findNode(peer, targetNodeId);
-        } catch {
-          // One failed lookup stream is not evidence that the peer binding is stale.
-          // QuicDiscoveryRpc retires the exact failed client when appropriate; a broad
-          // forget here tears down shared sibling streams and amplifies reconnect storms.
-          return null;
-        }
-      }));
-      for (const response of responses) {
-        if (!response) continue;
-        responsesReceived += 1;
-        for (const record of response.records || []) this.ingest(record);
-        for (const record of response.hints || []) {
-          if (record?.nodeId && record.nodeId !== this.identity.nodeId && !this.get(record.nodeId)) {
-            hints.set(record.nodeId, { nodeId: record.nodeId, endpoints: record.endpoints, publicKey: record.publicKey });
-          }
-        }
-        const found = this.get(targetNodeId);
-        if (found && stopOnFound) {
-          return {
-            targetNodeId,
-            found,
-            queried: [...queried],
-            rounds: rounds + 1,
-            responses: responsesReceived
-          };
-        }
-      }
-      // Asking a stale hint for the target itself returns the target's current signed self-record.
+    let inFlight = 0;
+    let finished = false;
+    let stableAnswers = 0;
+    let lastTopKey = '';
+
+    const converged = () => {
+      if (stopOnFound) return false;
+      const top = this.closest(targetNodeId, alpha);
+      const key = top.map((peer) => peer.nodeId).join(',');
+      if (key === lastTopKey) stableAnswers += 1;
+      else { stableAnswers = 0; lastTopKey = key; }
+      return stableAnswers >= alpha && top.length > 0 && top.every((peer) => responded.has(peer.nodeId));
+    };
+    const candidates = () => {
       const merged = new Map(this.closest(targetNodeId, this.k).map((peer) => [peer.nodeId, peer]));
       for (const [nodeId, peer] of hints) if (!merged.has(nodeId)) merged.set(nodeId, peer);
-      frontier = [...merged.values()]
+      return [...merged.values()]
         .filter((peer) => !queried.has(peer.nodeId))
         .sort((a, b) => {
           const da = xorDistance(a.nodeId, targetNodeId);
           const db = xorDistance(b.nodeId, targetNodeId);
           return da < db ? -1 : da > db ? 1 : a.nodeId.localeCompare(b.nodeId);
         });
-    }
-
-    return {
-      targetNodeId,
-      found: this.get(targetNodeId),
-      queried: [...queried],
-      rounds,
-      responses: responsesReceived
     };
+
+    return new Promise((resolve) => {
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        resolve({
+          targetNodeId,
+          found: this.get(targetNodeId),
+          queried: [...order],
+          rounds: Math.ceil(order.length / alpha),
+          responses: responsesReceived
+        });
+      };
+      const pump = () => {
+        if (finished) return;
+        if (stopOnFound && order.length > 0 && this.get(targetNodeId)) { finish(); return; }
+        if (order.length < budget && inFlight < alpha + slow.size) {
+          for (const peer of candidates()) {
+            if (order.length >= budget || inFlight >= alpha + slow.size) break;
+            launch(peer);
+          }
+        }
+        if (inFlight === 0) finish();
+      };
+      const launch = (peer) => {
+        queried.add(peer.nodeId);
+        order.push(peer.nodeId);
+        inFlight += 1;
+        let hedgeTimer = setTimeout(() => {
+          hedgeTimer = null;
+          if (finished || slow.size >= alpha) return;
+          slow.add(peer.nodeId);
+          pump();
+        }, hedgeAfterMs);
+        hedgeTimer.unref?.();
+        Promise.resolve()
+          .then(() => this.rpc.findNode(peer, targetNodeId))
+          .then((response) => {
+            if (!response) return;
+            responsesReceived += 1;
+            responded.add(peer.nodeId);
+            for (const record of response.records || []) this.ingest(record);
+            for (const record of response.hints || []) {
+              if (record?.nodeId && record.nodeId !== this.identity.nodeId && !this.get(record.nodeId)) {
+                hints.set(record.nodeId, { nodeId: record.nodeId, endpoints: record.endpoints, publicKey: record.publicKey });
+              }
+            }
+          }, () => {
+            // QuicDiscoveryRpc retires the exact failed transport when required.
+          })
+          .finally(() => {
+            if (hedgeTimer) clearTimeout(hedgeTimer);
+            slow.delete(peer.nodeId);
+            inFlight -= 1;
+            if (!finished && converged()) { finish(); return; }
+            pump();
+          });
+      };
+      pump();
+    });
   }
 
   async findNode(targetNodeId, { maxRounds = 16 } = {}) {

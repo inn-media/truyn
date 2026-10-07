@@ -664,7 +664,13 @@ def need(j,node_id,k):
         p=subprocess.run(['curl','-sS','--max-time','15','-o',f'/tmp/d1000-base-{suffix}-{k}','-w','%{http_code}','-H','content-type: application/json','--data-binary',body,control+'/need'],text=True,capture_output=True)
         ms=(time.perf_counter_ns()-t)/1e6
         code=p.stdout.strip()
-        return {'ok':bool(p.returncode==0 and code=='200'),'curlRc':p.returncode,'httpCode':code,'latencyMs':round(ms,3)}
+        result={'ok':bool(p.returncode==0 and code=='200'),'curlRc':p.returncode,'httpCode':code,'latencyMs':round(ms,3)}
+        if not result['ok']:
+            try:
+                result['error']=str(json.load(open(f'/tmp/d1000-base-{suffix}-{k}')).get('error'))[:160]
+            except Exception:
+                result['error']=None
+        return result
     first=attempt('first')
     if first['ok']:
         first['productionRecoveryUsed']=False
@@ -1027,6 +1033,8 @@ provider_access_denied=$(marker "$out" PROVIDER_ACCESS_DENIED)
 echo "TRUYN_CLASS_D_1000 stage=local-safety-invariants staleRevokedReceiptAccepted=${stale_receipt_accepted} unauthorizedProviderExecution=${unauthorized_provider_execution} providerAccessDenied=${provider_access_denied} status=PASS"
 
 STAGE=durable-writes
+REMOTE_STAGE_BUDGET_SECONDS=720
+D500_STAGE_DEADLINE_SECONDS=900
 writes=0
 d200_durable_write_ttl_ms=21600000
 d200_write_window_start_ms=$(date +%s%3N)
@@ -1161,12 +1169,15 @@ summary={
 }
 print('TRUYN_D500_RUNTIME_PRESSURE_SUMMARY '+json.dumps(summary,separators=(',',':')))
 PY
+unset REMOTE_STAGE_BUDGET_SECONDS D500_STAGE_DEADLINE_SECONDS
 [[ "$d200_write_remote_failed" == 0 ]]
 [[ "$writes" == 100 ]]
 d200_write_window_last_ack_ms=$(date +%s%3N)
 echo "TRUYN_CLASS_D_1000 stage=durable-writes acknowledged=${writes} ttlMs=${d200_durable_write_ttl_ms} writeWindowMs=$((d200_write_window_last_ack_ms-d200_write_window_start_ms)) status=PASS"
 
 STAGE=restart-recovery
+REMOTE_STAGE_BUDGET_SECONDS=1320
+D500_STAGE_DEADLINE_SECONDS=1500
 restart_dir=$(mktemp -d)
 restart_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
@@ -1260,6 +1271,7 @@ EOS
 done
 restart_failed=0
 if ! wait_host_stage restart-recovery "$restart_dir" "${restart_pids[@]}"; then restart_failed=1; fi
+unset REMOTE_STAGE_BUDGET_SECONDS D500_STAGE_DEADLINE_SECONDS
 [[ "$restart_failed" == 0 ]]
 stop_values=()
 start_values=()
