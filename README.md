@@ -12,8 +12,8 @@ Website: https://truyn.org/
 
 ## Current factual status
 
-**Snapshot:** 2026-09-23  
-**Snapshot main:** `eb25f0f8ad5bedb643f007ddfb0da107dab44b89`  
+**Snapshot:** 2026-10-07  
+**Snapshot main before this sanitation:** `23a6b902310c9096b65af49f48307d7173cd03e9`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
@@ -33,7 +33,7 @@ Website: https://truyn.org/
 | A2A/MCP C1–C8 + P2-E1/E2/E3 | **Accepted bounded profile** |
 | NLWeb interoperability | **Bounded pinned NLWeb 0.5 profile implemented / executable-evidence proven** |
 | Five first-party SDK clients | **Implemented / executable conformance** |
-| Native GUI clients (`.exe/.dmg/.deb/.apk`) | **Source implemented; four-platform installer qualification pending on exact head** |
+| Native GUI clients (`.exe/.dmg/.deb/.apk`) | **Implemented / exact-head four-platform build-qualified** |
 | PyPI / Go / npm alpha.2 | **Accepted immutable public releases** |
 | Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.1`** |
 | NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** |
@@ -41,7 +41,7 @@ Website: https://truyn.org/
 | Governance | **G1 / bootstrap Founding Stewardship** |
 | Stable mainnet | **Not yet** |
 
-The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Operational D-scale status remains delegated to [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md). The latest documentation reconciliation is recorded in [Documentation Sanitation — 2026-09-23](docs/operations/DOCUMENTATION_SANITATION_2026-09-23.md).
+The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Operational D-scale status remains delegated to [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md). The latest documentation reconciliation is recorded in [Documentation Sanitation — 2026-10-07](docs/operations/DOCUMENTATION_SANITATION_2026-10-07.md).
 
 ### Status vocabulary
 
@@ -99,7 +99,7 @@ npm test
 4. `docs/architecture/CROSS_REPO_TASK_ROUTING.md` — OPEN / PRIVATE / BOTH routing contract;
 5. `docs/operations/NETWORK_SCALE_STATUS.md` — current D-Series operational acceptance;
 6. `docs/architecture/IMPLEMENTATION_STATUS.md` — repository-wide factual maturity;
-7. `docs/operations/DOCUMENTATION_SANITATION_2026-09-23.md` — latest repository-wide documentation reconciliation;
+7. `docs/operations/DOCUMENTATION_SANITATION_2026-10-07.md` — latest repository-wide documentation reconciliation;
 8. `docs/benchmarks/` — immutable accepted/failed measured evidence;
 9. `ROADMAP.md` — next gates.
 
