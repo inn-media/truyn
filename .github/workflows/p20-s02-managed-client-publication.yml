@@ -1,0 +1,113 @@
+name: P20-S02 managed client publication
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/p20-s02-managed-client-publication.yml'
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Publish the frozen exact-SHA managed-client release
+        type: boolean
+        required: true
+        default: false
+      target_sha:
+        description: Qualified source SHA
+        type: string
+        required: true
+        default: bda109e16601920ed663b1848bf27850d22ccdad
+      version:
+        description: Managed-client release version
+        type: string
+        required: true
+        default: 0.1.0-alpha.4
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  arm-once:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch publication exactly once
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: bda109e16601920ed663b1848bf27850d22ccdad
+          VERSION: 0.1.0-alpha.4
+          WORKFLOW_FILE: p20-s02-managed-client-publication.yml
+        run: |
+          set -Eeuo pipefail
+          tag="managed-clients-v${VERSION}-${TARGET_SHA}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release already exists; refusing dispatch: $tag" >&2
+            exit 1
+          fi
+          existing="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=main&per_page=100" --jq '[.workflow_runs[] | select(.path==".github/workflows/'"${WORKFLOW_FILE}"'")] | length')"
+          test "$existing" = "0"
+          gh api --method POST             "repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW_FILE}/dispatches"             -f ref="main"             -F "inputs[release]=true"             -f "inputs[target_sha]=${TARGET_SHA}"             -f "inputs[version]=${VERSION}"
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.release == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Enforce frozen source SHA
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+          EXPECTED_SHA: bda109e16601920ed663b1848bf27850d22ccdad
+        run: |
+          set -Eeuo pipefail
+          test "$TARGET_SHA" = "$EXPECTED_SHA"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ inputs.target_sha }}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Build exact-SHA assets
+        env:
+          TRUYN_CLIENT_VERSION: ${{ inputs.version }}
+          TRUYN_MANAGED_SOURCE_SHA: ${{ inputs.target_sha }}
+        run: node scripts/package-managed-clients.mjs
+      - name: Verify manifest and digests
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -Eeuo pipefail
+          node --input-type=module <<'NODE'
+          import {readFile} from 'node:fs/promises';
+          const m=JSON.parse(await readFile('dist/managed-clients/manifest.json','utf8'));
+          const expected=['android','linux','macos','windows'];
+          const got=m.artifacts.map((x)=>x.platform).sort();
+          if(JSON.stringify(got)!==JSON.stringify(expected)) throw new Error('platform set mismatch');
+          if(m.sourceSha!==process.env.TARGET_SHA) throw new Error('source SHA mismatch');
+          if(m.artifacts.length!==4) throw new Error('artifact cardinality mismatch');
+          NODE
+          test "$(find dist/managed-clients -maxdepth 1 -name '*.tgz' | wc -l)" -eq 4
+          test "$(find dist/managed-clients -maxdepth 1 -name '*.tgz.sha256' | wc -l)" -eq 4
+          for f in dist/managed-clients/*.tgz; do
+            expected="$(cut -d' ' -f1 "$f.sha256")"
+            actual="$(sha256sum "$f" | cut -d' ' -f1)"
+            test "$expected" = "$actual"
+          done
+      - name: Publish release once
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -Eeuo pipefail
+          tag="managed-clients-v${VERSION}-${TARGET_SHA}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "duplicate release refused: $tag" >&2
+            exit 1
+          fi
+          gh release create "$tag"             dist/managed-clients/manifest.json             dist/managed-clients/*.tgz             dist/managed-clients/*.tgz.sha256             --target "$TARGET_SHA"             --title "TRUYN managed clients v${VERSION}"             --notes "Exact-SHA public managed-client SDK bundles for Windows, macOS, Linux and Android. Source: ${TARGET_SHA}. Contract: truyn.managed-auth-device/v1."
