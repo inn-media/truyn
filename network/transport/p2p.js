@@ -36,6 +36,15 @@ function retryableConnectError(error) {
   return ['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH'].includes(error?.code);
 }
 
+function newerPeerBinding(candidate, attempted) {
+  if (!candidate || candidate.nodeId !== attempted?.nodeId || !verifyPeerRecord(candidate).ok) return false;
+  const candidateEndpoint = selectedQuicEndpoint(candidate)?.value || null;
+  const attemptedEndpoint = selectedQuicEndpoint(attempted)?.value || null;
+  if (candidate.instanceId && attempted?.instanceId && candidate.instanceId !== attempted.instanceId) return true;
+  if (Number.isInteger(candidate.sequence) && Number.isInteger(attempted?.sequence) && candidate.sequence > attempted.sequence) return true;
+  return Boolean(candidateEndpoint && attemptedEndpoint && candidateEndpoint !== attemptedEndpoint);
+}
+
 function routeDeadlineError(peerNodeId, phase) {
   const error = new Error(`route_deadline_exceeded:${phase}:${peerNodeId}`);
   error.code = 'TRUYN_ROUTE_DEADLINE_EXCEEDED';
@@ -108,6 +117,31 @@ export class DirectFirstP2P {
     this.connectingByNodeId = new Map();
     this.discoveryRecoveries = new Map();
     this.queue = new ExplicitBackpressureQueue({ maxInFlight, maxQueued });
+    this.idleSweepTimer = null;
+  }
+
+  #ensureIdleSweep() {
+    if (this.idleSweepTimer) return;
+    this.idleSweepTimer = setInterval(() => this.sweepIdleConnections(), Math.max(1_000, Math.floor(this.directConnectionReuseIdleMs / 2)));
+    this.idleSweepTimer.unref?.();
+  }
+
+  sweepIdleConnections({ now = Date.now() } = {}) {
+    for (const [peerNodeId, entry] of this.connections) {
+      const lastUsedAt = Number.isFinite(entry?.lastUsedAt) ? entry.lastUsedAt : 0;
+      if (now - lastUsedAt < this.directConnectionReuseIdleMs) continue;
+      this.connections.delete(peerNodeId);
+      void this.#disconnectClient(entry.client);
+    }
+    if (this.connections.size === 0 && this.idleSweepTimer) {
+      clearInterval(this.idleSweepTimer);
+      this.idleSweepTimer = null;
+    }
+  }
+
+  close() {
+    if (this.idleSweepTimer) clearInterval(this.idleSweepTimer);
+    this.idleSweepTimer = null;
   }
 
   #remainingMs(deadlineAt) {
@@ -204,6 +238,10 @@ export class DirectFirstP2P {
         break;
       } catch (error) {
         lastError = error;
+        // A19 showed that a formally valid record can still point at a dead pre-restart
+        // QUIC binding. Return the first connect-timeout to send() so the remaining
+        // route budget is spent on one forced record re-resolution, not on the same binding.
+        if (error?.code === 'TRUYN_P2P_CONNECT_TIMEOUT') throw error;
         if (!retryableConnectError(error) || attempt + 1 >= this.directConnectAttempts) throw error;
       }
     }
@@ -222,6 +260,7 @@ export class DirectFirstP2P {
     }
     this.connections.set(peerRecord.nodeId, { client, binding, lastUsedAt: Date.now() });
     this.#watchConnection(peerRecord.nodeId, client);
+    this.#ensureIdleSweep();
     return client;
   }
 
@@ -290,9 +329,33 @@ export class DirectFirstP2P {
       for (const record of response?.records || []) this.discovery.ingest(record);
       return this.discovery.get(peerNodeId);
     } catch {
-      this.discovery.rpc?.forget?.(hint.nodeId);
+      // The exact failed RPC client is retired by QuicDiscoveryRpc; do not tear down
+      // a shared sibling connection from this recovery path.
       return null;
     }
+  }
+
+  async #forceRediscoverAfterConnectTimeout(peerNodeId, attemptedRecord, routeDeadlineAt) {
+    if (typeof this.discovery.walk !== 'function') return null;
+    // Preserve a fixed tail for the replacement connect. PeerDiscovery.walk is
+    // already single-flight for target/maxRounds/stopOnFound/lane.
+    const discoveryDeadlineAt = Math.min(routeDeadlineAt - 2_000, Date.now() + 3_000);
+    if (discoveryDeadlineAt <= Date.now()) return null;
+    try {
+      await this.#boundedPhase(
+        peerNodeId,
+        discoveryDeadlineAt,
+        'connect-timeout-rediscovery',
+        () => this.#withDiscoveryDeadline(
+          discoveryDeadlineAt,
+          () => this.discovery.walk(peerNodeId, { maxRounds: 4, stopOnFound: false })
+        )
+      );
+    } catch {
+      return null;
+    }
+    const refreshed = this.discovery.get(peerNodeId);
+    return newerPeerBinding(refreshed, attemptedRecord) ? refreshed : null;
   }
 
   async #discover(peerNodeId, routeDeadlineAt) {
@@ -352,13 +415,15 @@ export class DirectFirstP2P {
     }
   }
 
-  async send(peerNodeId, envelope, { allowRelayFallback = true } = {}) {
+  async send(peerNodeId, envelope, { allowRelayFallback = true, deadlineAt = null } = {}) {
     return this.queue.run(async () => {
-      const routeDeadlineAt = Date.now() + this.routeAttemptTimeoutMs;
+      const ownDeadlineAt = Date.now() + this.routeAttemptTimeoutMs;
+      const routeDeadlineAt = Number.isFinite(deadlineAt) ? Math.min(deadlineAt, ownDeadlineAt) : ownDeadlineAt;
       let applicationDispatched = false;
       let directError = null;
       let record = await this.#discover(peerNodeId, routeDeadlineAt);
       let supersededAttempt = 0;
+      let connectTimeoutRecoveryAttempt = 0;
       while (record) {
         const selected = selectedQuicEndpoint(record);
         const attemptedBinding = selected ? peerRecordBinding(record, selected.value) : null;
@@ -385,6 +450,19 @@ export class DirectFirstP2P {
             supersededAttempt += 1;
             record = this.discovery.get(peerNodeId) || await this.#discover(peerNodeId, routeDeadlineAt);
             continue;
+          }
+          if (
+            !applicationDispatched &&
+            error?.code === 'TRUYN_P2P_CONNECT_TIMEOUT' &&
+            connectTimeoutRecoveryAttempt < 1 &&
+            this.#remainingMs(routeDeadlineAt) > 2_000
+          ) {
+            connectTimeoutRecoveryAttempt += 1;
+            const refreshed = await this.#forceRediscoverAfterConnectTimeout(peerNodeId, record, routeDeadlineAt);
+            if (refreshed) {
+              record = refreshed;
+              continue;
+            }
           }
           break;
         }

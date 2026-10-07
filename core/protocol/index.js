@@ -31,9 +31,25 @@ export function canonicalize(value) {
   return JSON.stringify(normalize(value));
 }
 
+// PEM parsing and SPKI export are pure for a given key and sit on hot identity
+// verification paths. Keep a bounded exact memo so repeated signed records do not
+// reparse the same public key thousands of times under D-500 load.
+const FINGERPRINT_CACHE_LIMIT = 8_192;
+const fingerprintCache = new Map();
+
 export function publicKeyFingerprint(publicKeyPem) {
+  const cacheKey = typeof publicKeyPem === 'string' ? publicKeyPem : null;
+  if (cacheKey !== null) {
+    const cached = fingerprintCache.get(cacheKey);
+    if (cached !== undefined) return cached;
+  }
   const der = createPublicKey(publicKeyPem).export({ type: 'spki', format: 'der' });
-  return createHash('sha256').update(der).digest('hex');
+  const fingerprint = createHash('sha256').update(der).digest('hex');
+  if (cacheKey !== null) {
+    if (fingerprintCache.size >= FINGERPRINT_CACHE_LIMIT) fingerprintCache.delete(fingerprintCache.keys().next().value);
+    fingerprintCache.set(cacheKey, fingerprint);
+  }
+  return fingerprint;
 }
 
 export function nodeIdFromPublicKey(publicKeyPem) {
