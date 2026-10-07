@@ -23,7 +23,7 @@ Website: https://truyn.org/
 | Class C WAN | **Accepted / PASS** |
 | Class D-100 | **Accepted / PASS** |
 | Class D-200 | **Accepted / PASS; repeatability confirmed** |
-| Class D-500 | **Accepted / PASS; 20 hosts / 500 real processes** |
+| Class D-500 | **Accepted / PASS; repeatability-confirmed by two consecutive exact-frozen runs** |
 | Class D-1000 | **OPEN** |
 | Semantic Scale S-Series | **S-10 + S-20 accepted / PASS; S-50+ remain OPEN** |
 | Efficiency E-Series | **Active qualification; no final E PASS claimed** |
@@ -56,7 +56,7 @@ A failed/diagnostic attempt is evidence, not PASS.
 
 ## Current scale boundaries
 
-D-200 is accepted and repeatability-confirmed. **D-500 is accepted** on immutable Attempt 22 run `37666768998`, with strict `TRUYN_D500_TERMINAL result=PASS`, 20 hosts / 500 real processes, zero acknowledged-write loss and complete cleanup. The successful runtime is fully canonical in `main` at `61469b6934066ce0719aecd68356419240d95988`; lineage merge `5d0f8c3480ef8ff01887591fb96f552cf2192969` preserves the A22 parent relationship. D-1000 remains a separate open gate. See `docs/benchmarks/CLASS_D_500_2026-10-07.md`.
+D-200 is accepted and repeatability-confirmed. **D-500 is accepted and repeatability-confirmed**: immutable Attempt 22 run `37666768998` and exact-frozen Double-Check run `37676472133` both emitted strict `TRUYN_D500_TERMINAL result=PASS` on the same source `1d6746b57104175e295f8fdc3d9643db8e9d42a6` / tree `9f2771286cc683a9ee49e0e0c5f8092347d54470`, with 20 hosts / 500 real processes, zero acknowledged-write loss and complete cleanup. The successful runtime is fully canonical in `main` at `61469b6934066ce0719aecd68356419240d95988`; lineage merge `5d0f8c3480ef8ff01887591fb96f552cf2192969` preserves the A22 parent relationship. D-1000 remains a separate open gate. See `docs/benchmarks/CLASS_D_500_2026-10-07.md`.
 
 S-Series now has two accepted checkpoints: the bounded **S-10 ECON/MIX integration baseline** and the **S-20 five-scenario gate** (`ECON`, `MIX`, `COST-ROUTING`, `CONTENTION`, `LANG`). S-20 Attempt 3 passed all five declared scenarios at 20 semantic nodes, including 60/60 ECON/MIX observations correct, 97.094% input-token reduction, 100% policy-routing correctness, 20/20 contention completion and 100% retrieval/answer/provenance across EN/TR/ZH/RU/AZ. `XBORDER`, `CHAIN`, `CHURN` and S-50+ remain OPEN. See `docs/benchmarks/S_SERIES_S10_2026-10-07.md` and `docs/benchmarks/S_SERIES_S20_2026-10-07.md`.
 

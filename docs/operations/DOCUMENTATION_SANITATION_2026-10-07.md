@@ -84,3 +84,27 @@ Historical launch generations, commits, workflow runs and immutable artifacts we
 ## Accepted launcher archival
 
 After D-500 closure, the active GitHub Actions launcher was removed from `.github/workflows` to enforce the no-rerun rule. Its exact accepted workflow definition is retained at `.github/d500/accepted-attempt22-workflow.yml` for regression/audit inspection. The historical `launch-22.txt` token remains in Git history/current tree as audit evidence but no active workflow listens to it.
+
+
+## D-500 repeatability closure
+
+The accepted D-500 result was intentionally repeated without runtime repair. Branch `repeat/d500-a22-double-check` was created directly at accepted source `1d6746b57104175e295f8fdc3d9643db8e9d42a6`; before launch its comparison to the accepted source was `identical` with 0 commits / 0 files diff.
+
+Double-Check run `37676472133`, attempt 1, completed successfully and emitted strict `TRUYN_D500_TERMINAL result=PASS`. It used the same tested source/tree, the same 20×25 topology and the same acceptance thresholds. Only launch identity fields were unique (workflow/trigger/concurrency/artifact naming).
+
+Measured repeat result:
+- baseline 1.0;
+- post-restart 1.0;
+- healed 1.0;
+- convergence 1.0, p95 250.921 ms;
+- recovery p95 19.633 s;
+- packet-partition recovery 32.196 s;
+- 100 acknowledged writes, loss 0;
+- campaign cleanup remaining 0;
+- staging cleanup remaining 0;
+- artifact 11510022526;
+- artifact digest sha256:def31ad674ca39f44d07df91e397bb1f3ac63b8ea5c65b05d4fc4bc78c98d8c5.
+
+The first accepted run `37666768998` remains the primary acceptance run. The Double-Check is stored as independent repeatability evidence. Both runs tested source `1d6746b57104175e295f8fdc3d9643db8e9d42a6` / tree `9f2771286cc683a9ee49e0e0c5f8092347d54470`.
+
+The repeat launcher and trigger are archived outside the active workflow surface by the commit containing this section, preventing accidental third execution while preserving exact audit material.

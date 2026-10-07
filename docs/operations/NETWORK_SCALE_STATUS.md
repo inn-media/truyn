@@ -60,6 +60,33 @@ Attempt 22 preserved RF3/minAcks2, topology, safety thresholds, recovery limits 
 
 Durable public evidence: [`../benchmarks/CLASS_D_500_2026-10-07.md`](../benchmarks/CLASS_D_500_2026-10-07.md).
 
+### Repeatability double-check
+
+A second, intentionally unchanged execution of the accepted frozen A22 source also passed:
+
+- workflow run: `37676472133`
+- run attempt: `1`
+- terminal: `TRUYN_D500_TERMINAL result=PASS`
+- launch SHA: `8fb43126f7e3edb1b3b0c606293672763f6434d3`
+- tested source: `1d6746b57104175e295f8fdc3d9643db8e9d42a6`
+- tested tree: `9f2771286cc683a9ee49e0e0c5f8092347d54470`
+- region/SKU selected by the unchanged placement logic: `southcentralus` / `Standard_E4as_v7`
+- baseline routing: `1.0`
+- post-restart routing: `1.0`
+- healed routing: `1.0`
+- convergence routing: `1.0`, p95 `250.921 ms`
+- restart recovery p95: `19,633 ms`
+- real packet-partition recovery: `32,196 ms`
+- acknowledged durable writes: `100`
+- acknowledged-write loss: `0`
+- campaign cleanup: `remaining=0`
+- staging cleanup: `remaining=0`
+- artifact: `11510022526`
+- artifact digest: `sha256:def31ad674ca39f44d07df91e397bb1f3ac63b8ea5c65b05d4fc4bc78c98d8c5`
+- per-run runtime bundle digest: `sha256:78742452dff5f204f9a4766ceed29971ef1b5d968dc47ec6c23571b1d140baa4`
+
+This is a **repeatability PASS**, not a new repair generation: the tested source/tree and acceptance contract are identical to the first accepted Attempt 22. Generated bundle/artifact digests are recorded per run and are not expected to equal the first run's packaging/evidence digests.
+
 Historical D-500 failures remain immutable. A19 exposed 2-vCPU CPU saturation; A20 exposed regional quota and provisioning-reconciliation defects; A21 reached the full campaign but failed durability with 99/100 retained acknowledged writes. Attempt 22 supersedes those attempts only for current D-500 acceptance status.
 
 ## D-1000 current boundary

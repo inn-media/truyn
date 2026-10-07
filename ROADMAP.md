@@ -32,7 +32,7 @@ Accepted milestones:
 - [x] Class C heterogeneous WAN — accepted.
 - [x] Class D-100 — accepted.
 - [x] **Class D-200 — accepted** on immutable single-shot run `35503894414`, attempt 1, strict terminal `TRUYN_D200_TERMINAL result=PASS`.
-- [x] **Class D-500 — accepted** on immutable Attempt 22 run `37666768998`, `run_attempt=1`, strict terminal `TRUYN_D500_TERMINAL result=PASS`.
+- [x] **Class D-500 — accepted and repeatability-confirmed**: Attempt 22 run `37666768998` and exact-frozen Double-Check run `37676472133`, both `run_attempt=1`, both strict terminal `TRUYN_D500_TERMINAL result=PASS` on the same tested source/tree.
 - [ ] Class D-1000 — open.
 - [ ] long-duration operational stability / mainnet-scale closure — open.
 
@@ -47,6 +47,8 @@ D-500 accepted evidence is frozen to source `1d6746b57104175e295f8fdc3d9643db8e9
 The D-500 gate proved 20 hosts / 500 real processes / 500 identities / 500 endpoints, baseline routing 100%, post-restart routing 100%, healed routing 99.8%, convergence routing 100% with p95 `288.664 ms`, restart recovery p95 `12,105 ms`, real packet-partition recovery `32,561 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign + staging cleanup with zero remaining resources.
 
 Evidence: [`docs/benchmarks/CLASS_D_500_2026-10-07.md`](docs/benchmarks/CLASS_D_500_2026-10-07.md).
+
+Repeatability evidence: run `37676472133` repeated the same frozen source/tree and passed with baseline `1.0`, post-restart `1.0`, healed `1.0`, convergence `1.0` / p95 `250.921 ms`, recovery p95 `19,633 ms`, packet-partition recovery `32,196 ms`, 100 acknowledged writes with zero loss, and zero-resource cleanup.
 
 ## Semantic Scale (S-Series)
 

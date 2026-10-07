@@ -1,3 +1,6 @@
+# ARCHIVED ACCEPTED D-500 ATTEMPT 22 DOUBLE-CHECK LAUNCHER
+# Repeatability PASS: run 37676472133.
+# Intentionally outside .github/workflows to prevent accidental rerun.
 name: D-500 Scale Run - Attempt 22 Double-Check
 on:
   push:

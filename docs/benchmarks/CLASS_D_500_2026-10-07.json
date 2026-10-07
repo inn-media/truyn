@@ -1,6 +1,6 @@
 {
   "schema": "truyn.class-d500.public-evidence.v1",
-  "status": "PASS",
+  "status": "PASS_REPEATABILITY_CONFIRMED",
   "date": "2026-10-07",
   "run": {
     "id": 37666768998,
@@ -59,5 +59,53 @@
     "d1000Accepted": false,
     "mainnetAccepted": false,
     "managedProductionAccepted": false
+  },
+  "repeatability": {
+    "confirmed": true,
+    "mode": "exact-frozen-repeat",
+    "sourceDiffBeforeLaunch": {
+      "commits": 0,
+      "files": 0,
+      "status": "identical"
+    },
+    "primaryRunId": 37666768998,
+    "repeatRun": {
+      "id": 37676472133,
+      "attempt": 1,
+      "terminal": "TRUYN_D500_TERMINAL result=PASS",
+      "launchSha": "8fb43126f7e3edb1b3b0c606293672763f6434d3",
+      "testedSourceSha": "1d6746b57104175e295f8fdc3d9643db8e9d42a6",
+      "testedTreeSha": "9f2771286cc683a9ee49e0e0c5f8092347d54470",
+      "placement": {
+        "location": "southcentralus",
+        "vmSize": "Standard_E4as_v7"
+      },
+      "runtimeSha256": "78742452dff5f204f9a4766ceed29971ef1b5d968dc47ec6c23571b1d140baa4",
+      "artifact": {
+        "id": 11510022526,
+        "digestSha256": "def31ad674ca39f44d07df91e397bb1f3ac63b8ea5c65b05d4fc4bc78c98d8c5"
+      },
+      "routing": {
+        "baseline": 1,
+        "postRestart": 1,
+        "healed": 1,
+        "convergence": 1,
+        "convergenceP95Ms": 250.921
+      },
+      "recovery": {
+        "restartP95Ms": 19633,
+        "packetPartitionMs": 32196
+      },
+      "durability": {
+        "acknowledgedWrites": 100,
+        "acknowledgedWriteLoss": 0,
+        "confirmedMissing": 0,
+        "readErrors": 0
+      },
+      "cleanup": {
+        "campaignRemaining": 0,
+        "stagingRemaining": 0
+      }
+    }
   }
 }

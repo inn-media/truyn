@@ -4,7 +4,7 @@
 
 ## D-500
 
-Status: **ACCEPTED / PASS / CLOSED**
+Status: **ACCEPTED / PASS / REPEATABILITY CONFIRMED / CLOSED**
 
 Canonical immutable evidence:
 - Attempt 22
@@ -17,6 +17,18 @@ Canonical immutable evidence:
 - artifact digest `sha256:6a255b77f2988913f41593a275c8bd7cb813ee0f49e52f3f073e51879e12cc66`
 - A22 lineage merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`
 - full accepted runtime forward-port / canonical main `61469b6934066ce0719aecd68356419240d95988`
+
+Repeatability evidence:
+- exact-frozen Double-Check run `37676472133`, attempt 1
+- terminal `TRUYN_D500_TERMINAL result=PASS`
+- same tested source/tree as primary Attempt 22
+- baseline/post-restart/healed/convergence = `1.0 / 1.0 / 1.0 / 1.0`
+- convergence p95 `250.921 ms`
+- recovery p95 `19,633 ms`
+- packet-partition recovery `32,196 ms`
+- acknowledged writes `100`, loss `0`
+- cleanup and staging cleanup both `remaining=0`
+- artifact `11510022526`, digest `sha256:def31ad674ca39f44d07df91e397bb1f3ac63b8ea5c65b05d4fc4bc78c98d8c5`
 
 The earlier wording that D-500 validation was retired/superseded was historical product-state text, not a PASS. It is superseded for current status by immutable Attempt 22 acceptance. Historical failures remain unchanged audit evidence.
 
