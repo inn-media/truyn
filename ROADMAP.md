@@ -10,7 +10,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 
 | Track | Current state | Immediate next gate |
 |---|---|---|
-| Network | **Class C + D-100 + D-200 accepted** | D-500 / D-1000 external scale qualification |
+| Network | **Class C + D-100 + D-200 + D-500 accepted** | D-1000 external scale qualification |
 | Semantic Scale (S-Series) | **S-10 ECON/MIX accepted; S-50+ OPEN** | execute/accept S-50 independently, then S-100/S-200/S-500 |
 | Efficiency Limits (E-Series) | **FOUNDATION DEFINED / no E result claim** | instrumentation + isolation qualification → E/DECOMPOSE → E/PER-RESULT → E/KNEE → E/DEGRADE |
 | Emergent Network (N-Series) | **Foundation architecture/methodology/telemetry/isolation defined; no N PASS claimed** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
@@ -32,7 +32,7 @@ Accepted milestones:
 - [x] Class C heterogeneous WAN — accepted.
 - [x] Class D-100 — accepted.
 - [x] **Class D-200 — accepted** on immutable single-shot run `35503894414`, attempt 1, strict terminal `TRUYN_D200_TERMINAL result=PASS`.
-- [ ] Class D-500 — open.
+- [x] **Class D-500 — accepted** on immutable Attempt 22 run `37666768998`, `run_attempt=1`, strict terminal `TRUYN_D500_TERMINAL result=PASS`.
 - [ ] Class D-1000 — open.
 - [ ] long-duration operational stability / mainnet-scale closure — open.
 
@@ -41,6 +41,12 @@ D-200 accepted evidence is frozen to source `e91c165c67c655deb80df4511ca346acb9f
 The D-200 gate proved 20 hosts / 200 real processes, readiness 200/200, baseline routing 400/400, post-restart routing 100/100 first-attempt with zero application retries, healed routing 200/200, convergence p95 `256.43 ms`, restart recovery p95 `28,717 ms`, real packet-partition recovery `32,159 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign + staging cleanup with zero remaining resources.
 
 Evidence: [`docs/benchmarks/CLASS_D_200_2026-09-20.md`](docs/benchmarks/CLASS_D_200_2026-09-20.md).
+
+D-500 accepted evidence is frozen to source `1d6746b57104175e295f8fdc3d9643db8e9d42a6` / tree `9f2771286cc683a9ee49e0e0c5f8092347d54470`, launch SHA `23775f700929cf66ece66496428eece37cc240ed`, artifact ID `11504509954`, artifact digest `sha256:6a255b77f2988913f41593a275c8bd7cb813ee0f49e52f3f073e51879e12cc66`, runtime digest `sha256:d11969a63145f27876bc03cf18f9bba0ac7bd2196d4ac3eee78b0d7642324f28`, and canonical runtime merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`.
+
+The D-500 gate proved 20 hosts / 500 real processes / 500 identities / 500 endpoints, baseline routing 100%, post-restart routing 100%, healed routing 99.8%, convergence routing 100% with p95 `288.664 ms`, restart recovery p95 `12,105 ms`, real packet-partition recovery `32,561 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign + staging cleanup with zero remaining resources.
+
+Evidence: [`docs/benchmarks/CLASS_D_500_2026-10-07.md`](docs/benchmarks/CLASS_D_500_2026-10-07.md).
 
 ## Semantic Scale (S-Series)
 

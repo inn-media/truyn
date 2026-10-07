@@ -2,8 +2,8 @@
 
 Human-facing documentation for TRUYN architecture, implementation status, governance, operations, security, Trustability, compatibility, SDK/DX and benchmark evidence.
 
-**Snapshot:** 2026-09-23  
-**Snapshot main:** `eb25f0f8ad5bedb643f007ddfb0da107dab44b89`  
+**Snapshot:** 2026-10-07  
+**Snapshot main before D-500 documentation closure:** `5d0f8c3480ef8ff01887591fb96f552cf2192969`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
 
@@ -39,7 +39,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - Class C heterogeneous WAN — **ACCEPTED**.
 - Class D-100 — **ACCEPTED**.
 - Class D-200 — **ACCEPTED / PASS + repeatability confirmed**.
-- Class D-500 — **ACTIVE QUALIFICATION / OPEN**; execution machinery and immutable launcher generations exist, but no accepted terminal PASS is claimed.
+- Class D-500 — **ACCEPTED / PASS** on immutable Attempt 22 run `37666768998`; 20 hosts / 500 real processes, zero acknowledged-write loss, strict terminal PASS, complete cleanup.
 - Class D-1000 — **OPEN**.
 - D-Series execution architecture — **Swarm diagnostics/repair → full B01–B16 exact-SHA admission → live/collision gates → exactly one real scale run**; durable lock tracked in issue #737.
 - Semantic Scale S-Series — **EXECUTED / DIAGNOSTIC; NO ACCEPTED S PASS**. S-50 Attempt 13 is immutable failure evidence (`fast_socket_closed`) under bounded public WebSocket repair/qualification tracked in issue #726.

@@ -13,7 +13,7 @@ Website: https://truyn.org/
 ## Current factual status
 
 **Snapshot:** 2026-10-07  
-**Snapshot main before this sanitation:** `23a6b902310c9096b65af49f48307d7173cd03e9`  
+**Snapshot main before D-500 documentation closure:** `5d0f8c3480ef8ff01887591fb96f552cf2192969`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
@@ -23,7 +23,7 @@ Website: https://truyn.org/
 | Class C WAN | **Accepted / PASS** |
 | Class D-100 | **Accepted / PASS** |
 | Class D-200 | **Accepted / PASS; repeatability confirmed** |
-| Class D-500 | **Active qualification / OPEN; no accepted terminal PASS** |
+| Class D-500 | **Accepted / PASS; 20 hosts / 500 real processes** |
 | Class D-1000 | **OPEN** |
 | Semantic Scale S-Series | **S-10 accepted / PASS; S-50+ remain OPEN** |
 | Efficiency E-Series | **Active qualification; no final E PASS claimed** |
@@ -56,7 +56,7 @@ A failed/diagnostic attempt is evidence, not PASS.
 
 ## Current scale boundaries
 
-D-200 is accepted and repeatability-confirmed. D-500 has dedicated qualification/launcher machinery and is actively being qualified, but remains OPEN until a fresh D-500 campaign emits its own terminal PASS and durable evidence. D-1000 remains separate.
+D-200 is accepted and repeatability-confirmed. **D-500 is accepted** on immutable Attempt 22 run `37666768998`, with strict `TRUYN_D500_TERMINAL result=PASS`, 20 hosts / 500 real processes, zero acknowledged-write loss and complete cleanup. The successful runtime is canonical in `main` via merge `5d0f8c3480ef8ff01887591fb96f552cf2192969`. D-1000 remains a separate open gate. See `docs/benchmarks/CLASS_D_500_2026-10-07.md`.
 
 S-Series now has an accepted bounded **S-10 ECON/MIX integration baseline** with 150/150 measured observations correct across seven provider families, 100% routing/retrieval/provenance/minimal-context correctness, 97.174% input-token reduction and 96.856% comparable GPT/Gemini provider-cost reduction. The full S-50 scenario matrix and S-100/S-200/S-500 remain OPEN and require independent acceptance evidence. See `docs/benchmarks/S_SERIES_S10_2026-10-07.md`.
 
