@@ -516,7 +516,7 @@ async fn relay_client(
         {
             return Err("public relay hostname resolves to a non-public address".into());
         }
-        builder = builder.resolve(&host, addresses[0]);
+        builder = builder.resolve_to_addrs(&host, &addresses);
     }
 
     let client = builder
@@ -860,11 +860,29 @@ async fn force_refresh_session(
         candidate.display_name.clone(),
     )
     .await?;
-    *state.session.write().await = Some(refreshed.clone());
+
+    {
+        let mut current = state.session.write().await;
+        let still_same_session = current
+            .as_ref()
+            .map(|session| {
+                session.relay_url == candidate.relay_url && session.token == candidate.token
+            })
+            .unwrap_or(false);
+        if still_same_session {
+            *current = Some(refreshed.clone());
+        }
+    }
     {
         let mut active = state.active_need.write().await;
         if let Some(active_need) = active.as_mut() {
-            if active_need.relay_url == candidate.relay_url {
+            let still_same_active_session = active_need.relay_url == candidate.relay_url
+                && active_need
+                    .session
+                    .as_ref()
+                    .map(|session| session.token == candidate.token)
+                    .unwrap_or(false);
+            if still_same_active_session {
                 active_need.session = Some(refreshed.clone());
             }
         }
@@ -927,6 +945,24 @@ async fn update_active_need(state: &AppState, active: ActiveNeed) -> Result<(), 
     Ok(())
 }
 
+async fn update_active_need_if_current(
+    state: &AppState,
+    expected_need_id: &str,
+    active: ActiveNeed,
+) -> Result<bool, String> {
+    let mut current = state.active_need.write().await;
+    let still_current = current
+        .as_ref()
+        .map(|candidate| candidate.need_id == expected_need_id)
+        .unwrap_or(false);
+    if !still_current {
+        return Ok(false);
+    }
+    persist_active_need(&state.active_need_path, &active)?;
+    *current = Some(active);
+    Ok(true)
+}
+
 async fn clear_active_need(state: &AppState, need_id: &str) {
     let mut active = state.active_need.write().await;
     if active
@@ -935,10 +971,15 @@ async fn clear_active_need(state: &AppState, need_id: &str) {
         .unwrap_or(false)
     {
         *active = None;
-        match fs::remove_file(&state.active_need_path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(_) => {}
+        for path in [
+            state.active_need_path.clone(),
+            active_need_backup_path(&state.active_need_path),
+        ] {
+            match fs::remove_file(path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == ErrorKind::NotFound => {}
+                Err(_) => {}
+            }
         }
     }
 }
@@ -1197,7 +1238,9 @@ async fn request_status(state: State<'_, AppState>, need_id: String) -> Result<V
         active.provider = Some(provider.clone());
         active.ambiguous = false;
         active.session = Some(session.clone());
-        update_active_need(state.inner(), active.clone()).await?;
+        if !update_active_need_if_current(state.inner(), need_id, active.clone()).await? {
+            return Err("request is no longer active".into());
+        }
     }
 
     let status = body.get("status").and_then(Value::as_str).unwrap_or("unknown");
@@ -1282,16 +1325,25 @@ async fn cancel_need(state: State<'_, AppState>, need_id: String) -> Result<Valu
     let body = match response {
         Ok(body) => body,
         Err(failure)
-            if !failure.ambiguous
-                && matches!(
-                    failure.message.as_str(),
-                    "target_not_found" | "request_already_completed" | "request_failed"
-                ) =>
+            if !failure.ambiguous && failure.message == "request_already_completed" =>
         {
-            let terminal_status = match failure.message.as_str() {
-                "request_already_completed" => "completed",
-                "request_failed" => "failed",
-                _ => "not_found",
+            return Ok(json!({
+                "ok": false,
+                "targetId": need_id,
+                "status": "completed",
+                "terminal": false,
+                "resumeStatus": true,
+                "warning": "request completed before cancellation; retrieving the terminal RESULT"
+            }));
+        }
+        Err(failure)
+            if !failure.ambiguous
+                && matches!(failure.message.as_str(), "target_not_found" | "request_failed") =>
+        {
+            let terminal_status = if failure.message == "request_failed" {
+                "failed"
+            } else {
+                "not_found"
             };
             clear_active_need(state.inner(), need_id).await;
             return Ok(json!({
@@ -1325,6 +1377,15 @@ mod tests {
         assert_eq!(text, "{\"𐀀\":1,\"\":2}");
         assert_eq!(canonical_number(&serde_json::Number::from_f64(1e20).unwrap()).unwrap(), "100000000000000000000");
         assert_eq!(canonical_number(&serde_json::Number::from_f64(1e21).unwrap()).unwrap(), "1e+21");
+    }
+
+    #[test]
+    fn recovery_backup_path_is_distinct_and_stable() {
+        let path = PathBuf::from("/tmp/active-need.json");
+        assert_eq!(
+            active_need_backup_path(&path),
+            PathBuf::from("/tmp/active-need.json.bak")
+        );
     }
 
     #[test]

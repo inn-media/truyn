@@ -45,6 +45,10 @@ test('native client is a real Tauri GUI requester and not a renamed managed-clie
   assert.match(rust, /cannot atomically commit active-request state/);
   assert.match(rust, /is_unauthorized/);
   assert.match(rust, /verificationError/);
+  assert.match(rust, /resolve_to_addrs/);
+  assert.match(rust, /update_active_need_if_current/);
+  assert.match(rust, /resumeStatus/);
+  assert.match(rust, /active_need_backup_path\(&state\.active_need_path\)/);
   const storedActiveNeed = rust.match(/struct StoredActiveNeed \\{([\\s\\S]*?)\\n\\}/)?.[1] || '';
   assert.doesNotMatch(storedActiveNeed, /token/i);
 
@@ -59,6 +63,8 @@ test('native client is a real Tauri GUI requester and not a renamed managed-clie
   assert.match(js, /generation !== pollGeneration \|\| activeNeedId !== needId/);
   assert.match(js, /Terminal RESULT was rejected by native verification/);
   assert.match(js, /Relay no longer had this request/);
+  assert.match(js, /completed before cancel/);
+  assert.match(js, /Retrieving and verifying RESULT/);
 
   assert.match(workflow, /bundle: nsis/);
   assert.match(workflow, /bundle: dmg/);

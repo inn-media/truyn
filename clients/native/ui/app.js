@@ -244,6 +244,14 @@ cancelButton.addEventListener("click", async () => {
   cancelButton.disabled = true;
   try {
     const result = await invoke("cancel_need", { needId: target });
+    if (result && result.resumeStatus === true) {
+      requestStatus.textContent = "completed before cancel";
+      resultOutput.textContent = "Request completed before cancellation. Retrieving and verifying RESULT…";
+      if (result.warning) showError("needError", result.warning);
+      refreshControls();
+      pollNeed(target, pollGeneration);
+      return;
+    }
     pollGeneration += 1;
     activeNeedId = null;
     requestStatus.textContent = result && result.status === "not_found" ? "not found" : "cancelled";

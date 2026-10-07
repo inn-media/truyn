@@ -15,9 +15,9 @@ It is intentionally separate from the existing platform-labelled managed-client 
 - poll the relay-native requester status route;
 - verify RESULT signature, node-ID/public-key binding, original NEED correlation and the matched provider identity before displaying output;
 - retry transient polling failures without orphaning active work and recover an active request after application restart without persisting the session token;
-- persist active-request recovery state through a synced staging file with backup fallback, so an interrupted write cannot brick startup;
+- persist active-request recovery state through a synced staging file with backup fallback, and remove both primary/backup recovery records on terminal cleanup;
 - treat a signed but semantically invalid terminal RESULT as terminal-unverified, release local work state and visibly reject the output;
-- cancel requester-owned work through signed `REVOKE` on `/v1/revoke`;
+- cancel requester-owned work through signed `REVOKE` on `/v1/revoke`; if completion wins the race, keep the request active and retrieve/verify its RESULT instead of discarding paid output;
 - prevent concurrent paid submissions and relay changes while work is active.
 
 Relay session tokens are held in process memory only. Active-request recovery persists only the request ID, provider binding, relay origin and non-secret recovery metadata. The native client does not contain provider API keys and does not bypass TRUYN provider authorization. Android backup/device-transfer rules exclude the application file domain containing the signing identity.

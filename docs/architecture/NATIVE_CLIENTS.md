@@ -30,8 +30,8 @@ The native client:
 7. binds active work to the original relay and matched provider, preserving ambiguous submissions until requester-scoped reconciliation proves whether the relay accepted them;
 8. polls relay-native `GET /v1/requests/{requestId}`;
 9. verifies envelope and RESULT timestamps, signature, node-ID/public-key binding, request correlation, matched-provider identity, required output field and optional metadata object semantics before marking output verified; malformed terminal output is rejected but still releases the local active-request gate;
-10. retries transient status failures and reconstructs active-request polling after process restart using the same stable node identity; recovery writes use synced staging plus backup fallback;
-11. cancels with a requester-signed REVOKE at `POST /v1/revoke`, reconciling already-terminal/not-found relay state back into a released local state;
+10. retries transient status failures and reconstructs active-request polling after process restart using the same stable node identity; recovery writes use synced staging plus backup fallback, stale async reconciliation cannot resurrect a cancelled request, and terminal cleanup removes both primary and backup recovery files;
+11. cancels with a requester-signed REVOKE at `POST /v1/revoke`; if completion wins the race it retains active state long enough to fetch and verify RESULT, while failed/not-found terminal states release local recovery state;
 12. prevents relay changes while a request remains active.
 
 Provider execution credentials remain absent. Provider visibility and dispatch remain relay policy decisions.
