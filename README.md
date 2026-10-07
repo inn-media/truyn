@@ -25,7 +25,7 @@ Website: https://truyn.org/
 | Class D-200 | **Accepted / PASS; repeatability confirmed** |
 | Class D-500 | **Accepted / PASS; 20 hosts / 500 real processes** |
 | Class D-1000 | **OPEN** |
-| Semantic Scale S-Series | **S-10 accepted / PASS; S-50+ remain OPEN** |
+| Semantic Scale S-Series | **S-10 + S-20 accepted / PASS; S-50+ remain OPEN** |
 | Efficiency E-Series | **Active qualification; no final E PASS claimed** |
 | Account → Organization → Tenant | **Implemented / accepted; managed implementation owned by TRUYN Platform** |
 | Managed authority runtime/accounting | **Implemented / accepted in TRUYN Platform; public repository exposes contracts/reference seams only** |
@@ -58,7 +58,7 @@ A failed/diagnostic attempt is evidence, not PASS.
 
 D-200 is accepted and repeatability-confirmed. **D-500 is accepted** on immutable Attempt 22 run `37666768998`, with strict `TRUYN_D500_TERMINAL result=PASS`, 20 hosts / 500 real processes, zero acknowledged-write loss and complete cleanup. The successful runtime is fully canonical in `main` at `61469b6934066ce0719aecd68356419240d95988`; lineage merge `5d0f8c3480ef8ff01887591fb96f552cf2192969` preserves the A22 parent relationship. D-1000 remains a separate open gate. See `docs/benchmarks/CLASS_D_500_2026-10-07.md`.
 
-S-Series now has an accepted bounded **S-10 ECON/MIX integration baseline** with 150/150 measured observations correct across seven provider families, 100% routing/retrieval/provenance/minimal-context correctness, 97.174% input-token reduction and 96.856% comparable GPT/Gemini provider-cost reduction. The full S-50 scenario matrix and S-100/S-200/S-500 remain OPEN and require independent acceptance evidence. See `docs/benchmarks/S_SERIES_S10_2026-10-07.md`.
+S-Series now has two accepted checkpoints: the bounded **S-10 ECON/MIX integration baseline** and the **S-20 five-scenario gate** (`ECON`, `MIX`, `COST-ROUTING`, `CONTENTION`, `LANG`). S-20 Attempt 3 passed all five declared scenarios at 20 semantic nodes, including 60/60 ECON/MIX observations correct, 97.094% input-token reduction, 100% policy-routing correctness, 20/20 contention completion and 100% retrieval/answer/provenance across EN/TR/ZH/RU/AZ. `XBORDER`, `CHAIN`, `CHURN` and S-50+ remain OPEN. See `docs/benchmarks/S_SERIES_S10_2026-10-07.md` and `docs/benchmarks/S_SERIES_S20_2026-10-07.md`.
 
 E-Series has active qualification/isolation/provider-smoke work. No final E/DECOMPOSE, E/PER-RESULT, E/KNEE or E/DEGRADE result is claimed.
 

@@ -1,0 +1,96 @@
+{
+  "schema": "truyn.public.s20-benchmark-evidence/v1",
+  "date": "2026-10-07",
+  "level": "S-20",
+  "status": "PASS",
+  "scenarios": {
+    "ECON": "PASS",
+    "MIX": "PASS",
+    "COST-ROUTING": "PASS",
+    "CONTENTION": "PASS",
+    "LANG": "PASS"
+  },
+  "nodeTarget": 20,
+  "githubRunId": 37676461278,
+  "privateRawArtifactSha256": "22085fe8546b36799a4cb6881cbf6650648603014bc21218679c5e2de1dd2a11",
+  "econMix": {
+    "profiles": 3,
+    "observations": 60,
+    "routingRatio": 1,
+    "answerRatio": 1,
+    "retrievalRatio": 1,
+    "provenanceRatio": 1,
+    "minimalContextRatio": 1,
+    "leakageCount": 0,
+    "unauthorizedProviderExecutions": 0,
+    "directInputTokens": 593378,
+    "truynInputTokens": 17137,
+    "inputTokenReductionPct": 97.0939465610686,
+    "comparableProviderCostReductionPct": 96.55098348006192,
+    "directComparableCostUsd": 0.0221611,
+    "truynComparableCostUsd": 0.00076434,
+    "vendorReductionSpreadPp": 0.4814011817267243,
+    "latency": {
+      "directP50Ms": 1305,
+      "directP95Ms": 2439,
+      "truynP50Ms": 1154,
+      "truynP95Ms": 2833,
+      "retrievalP95Ms": 13
+    }
+  },
+  "costRouting": {
+    "requests": 20,
+    "eligibilityViolations": 0,
+    "authorizationViolations": 0,
+    "routingRatio": 1,
+    "answerRatio": 1,
+    "retrievalRatio": 1,
+    "provenanceRatio": 1,
+    "policyHitRate": 1,
+    "selectionDistribution": {"GPT":10,"Gemini":10},
+    "premiumControlCostUsd": 0.002828759999999999,
+    "blendedSelectedCostUsd": 0.0028403599999999997,
+    "blendedCostReductionPct": -0.41007367185623744,
+    "selectedLatencyP50Ms": 792,
+    "selectedLatencyP95Ms": 1340,
+    "latencyTargetHitRate": 1
+  },
+  "contention": {
+    "offered": 20,
+    "completed": 20,
+    "errors": 0,
+    "completionRatio": 1,
+    "routingRatio": 1,
+    "answerRatio": 1,
+    "dispatchSpreadMs": 33,
+    "e2eP50Ms": 7563,
+    "e2eP95Ms": 11307,
+    "e2eP99Ms": 13445,
+    "providerRateLimitResponses": 0,
+    "providerRetryAttempts": 0,
+    "cancellations": 0,
+    "timeoutErrors": 0,
+    "cascadingFailureCount": 0
+  },
+  "lang": {
+    "languages": ["EN","TR","ZH","RU","AZ"],
+    "samplesPerLanguage": 4,
+    "totalSamples": 20,
+    "perLanguage": {
+      "EN":{"retrievalRatio":1,"answerRatio":1,"provenanceRatio":1,"blockIdLeakage":0,"p50Ms":1051,"p95Ms":2375},
+      "TR":{"retrievalRatio":1,"answerRatio":1,"provenanceRatio":1,"blockIdLeakage":0,"p50Ms":1285,"p95Ms":1607},
+      "ZH":{"retrievalRatio":1,"answerRatio":1,"provenanceRatio":1,"blockIdLeakage":0,"p50Ms":852,"p95Ms":997},
+      "RU":{"retrievalRatio":1,"answerRatio":1,"provenanceRatio":1,"blockIdLeakage":0,"p50Ms":964,"p95Ms":1883},
+      "AZ":{"retrievalRatio":1,"answerRatio":1,"provenanceRatio":1,"blockIdLeakage":0,"p50Ms":901,"p95Ms":1223}
+    }
+  },
+  "transport": {
+    "httpAttempts": 208,
+    "http200": 207,
+    "http429": 1,
+    "azureAttempts": 175,
+    "gcpAttempts": 33,
+    "terminalTransportFailures": 0
+  },
+  "notAccepted": ["XBORDER","CHAIN","CHURN","S-50","S-100","S-200","S-500"]
+}
