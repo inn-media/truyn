@@ -260,7 +260,10 @@ export class PeerDiscovery {
     if (!Number.isFinite(interval) || interval <= 0) throw new Error('periodic refresh intervalMs must be positive');
     const normalizedTimeoutMs = timeoutMs == null
       ? Math.max(1_000, Math.min(10_000, Math.floor(interval * 0.75)))
-      : boundedInteger(timeoutMs, null, { min: 100, max: 120_000 });
+      : Number(timeoutMs);
+    if (!Number.isInteger(normalizedTimeoutMs) || normalizedTimeoutMs < 100 || normalizedTimeoutMs > 120_000) {
+      throw new Error('periodic refresh timeoutMs must be between 100 and 120000');
+    }
     const normalizedJitterRatio = Number(jitterRatio);
     if (!Number.isFinite(normalizedJitterRatio) || normalizedJitterRatio < 0 || normalizedJitterRatio > 0.5) {
       throw new Error('periodic refresh jitterRatio must be between 0 and 0.5');
