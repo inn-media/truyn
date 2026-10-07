@@ -501,10 +501,17 @@ export class QuicDiscoveryRpc {
       const client = await this.#leasedClient(peer, state);
       const result = await this.quic.requestControl(client, QUIC_DHT_METHOD_FIND_VALUE, { namespace, key }, { lane: state.lane });
       const records = [];
+      const hints = [];
       for (const record of result?.records || []) {
         if (verifyDhtRecord(record).ok) records.push(record);
       }
-      return { records };
+      for (const record of result?.hints || []) {
+        const verification = verifyPeerRecord(record);
+        if (!verification.ok || record.nodeId === this.discovery?.identity?.nodeId) continue;
+        this.ingestPeerRecord?.(record);
+        hints.push({ nodeId: record.nodeId, endpoints: [...record.endpoints], publicKey: record.publicKey });
+      }
+      return { records, hints };
     }, { ...options, state });
   }
 
@@ -592,7 +599,14 @@ export function createQuicDiscoveryControlHandler(discovery, {
       if (typeof payload?.namespace !== 'string' || !payload.namespace || typeof payload?.key !== 'string' || !payload.key) {
         throw new Error('dht namespace and key are required');
       }
-      return { records: recordStore.get(payload.namespace, payload.key) };
+      const records = recordStore.get(payload.namespace, payload.key);
+      const target = `${payload.namespace}:${payload.key}`;
+      const hints = [];
+      for (const peer of discovery.closest(target, limit)) {
+        const record = discovery.get(peer.nodeId);
+        if (record) hints.push(record);
+      }
+      return { records, hints };
     }
 
     throw new Error('unsupported_discovery_control_method');
