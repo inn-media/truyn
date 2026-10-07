@@ -516,7 +516,14 @@ export class PeerDiscovery {
       if (batch.length === 0) break;
       for (const peer of batch) queried.add(peer.nodeId);
       const responses = await Promise.all(batch.map(async (peer) => {
-        try { return await this.rpc.findNode(peer, targetNodeId); } catch { this.rpc?.forget?.(peer.nodeId); return null; }
+        try {
+          return await this.rpc.findNode(peer, targetNodeId);
+        } catch {
+          // One failed lookup stream is not evidence that the peer binding is stale.
+          // QuicDiscoveryRpc retires the exact failed client when appropriate; a broad
+          // forget here tears down shared sibling streams and amplifies reconnect storms.
+          return null;
+        }
       }));
       for (const response of responses) {
         if (!response) continue;
