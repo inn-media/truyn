@@ -61,6 +61,17 @@ for j in range(5):
                 diag['recordCount']=len([r for r in (pvalue.get('records') or []) if r.get('value') is not None])
                 diag['readTelemetry']=pvalue.get('readTelemetry')
                 diag['readFailureCount']=len(pvalue.get('failures') or [])
+            status=subprocess.run(['curl','-sS','--max-time','5',f'http://127.0.0.1:{base+j}/status'],text=True,capture_output=True)
+            if status.returncode==0:
+                try:
+                    status_value=json.loads(status.stdout)
+                    diag['dhtDurability']=status_value.get('dhtDurability')
+                    diag['dhtRecordCount']=status_value.get('dhtRecordCount')
+                except Exception:
+                    diag['statusParseError']=True
+            else:
+                diag['statusCurlRc']=status.returncode
+                diag['statusStderr']=status.stderr[-256:]
             row['publisherDiagnostic']=diag
     rows.append(row)
 value={'schema':'truyn.d200.write-retention.host.v2','host':host,'rows':rows,'retained':sum(r['classification']=='retained' for r in rows),'confirmedMissing':sum(r['classification']=='confirmed-missing' for r in rows),'readErrors':sum(r['classification']=='read-error' for r in rows)}
