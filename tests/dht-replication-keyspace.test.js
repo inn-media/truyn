@@ -178,3 +178,51 @@ test('DHT lookup rounds remain explicitly bounded', async () => {
     /lookupRounds must be between 0 and 64/
   );
 });
+
+
+test('DHT put enforces one end-to-end deadline across lookup and replication', async () => {
+  const publisher = createIdentity();
+  const holder = createIdentity();
+  const record = createDhtRecord({
+    identity: publisher,
+    namespace: 'durability',
+    key: 'deadline-write',
+    value: { bounded: true },
+    ttlMs: 120_000
+  });
+  const discovery = {
+    identity: publisher,
+    closest: () => [{ nodeId: holder.nodeId }],
+    async walk() {
+      await new Promise((resolve) => setTimeout(resolve, 35));
+      return { queried: ['slow-lookup'], rounds: 1, responses: 1 };
+    }
+  };
+  let deadlineSeen = null;
+  const rpc = {
+    withDeadline(deadlineAt, operation) {
+      deadlineSeen = deadlineAt;
+      return operation();
+    },
+    async store() {
+      await new Promise((resolve) => setTimeout(resolve, 35));
+      return { stored: true };
+    }
+  };
+  const manager = new DhtReplicationManager({
+    discovery,
+    rpc,
+    recordStore: new KademliaRecordStore(),
+    replicationFactor: 2,
+    writeQuorum: 2,
+    writeTimeoutMs: 50
+  });
+
+  const started = Date.now();
+  await assert.rejects(
+    manager.put(record, { replicationFactor: 2, minAcks: 2, timeoutMs: 50 }),
+    (error) => error?.code === 'TRUYN_DHT_WRITE_TIMEOUT' && error.timeoutMs === 50
+  );
+  assert.ok(Number.isFinite(deadlineSeen));
+  assert.ok(Date.now() - started < 250, 'deadline failure must return promptly instead of inheriting the HTTP client timeout');
+});
