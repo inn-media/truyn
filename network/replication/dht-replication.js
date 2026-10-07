@@ -16,15 +16,17 @@ function keyspaceTarget(namespace, key) {
 }
 
 export class DhtReplicationManager {
-  constructor({ discovery, rpc, recordStore, replicationFactor = 3, writeQuorum = 2 } = {}) {
+  constructor({ discovery, rpc, recordStore, replicationFactor = 3, writeQuorum = 2, writeTimeoutMs = 30_000 } = {}) {
     if (!discovery || !rpc || !recordStore) throw new Error('DHT replication requires discovery, rpc and recordStore');
     if (!Number.isInteger(replicationFactor) || replicationFactor < 1) throw new Error('replicationFactor must be >= 1');
     if (!Number.isInteger(writeQuorum) || writeQuorum < 1 || writeQuorum > replicationFactor) throw new Error('writeQuorum must be within replicationFactor');
+    if (!Number.isInteger(writeTimeoutMs) || writeTimeoutMs < 100 || writeTimeoutMs > 120_000) throw new Error('writeTimeoutMs must be between 100 and 120000');
     this.discovery = discovery;
     this.rpc = rpc;
     this.recordStore = recordStore;
     this.replicationFactor = replicationFactor;
     this.writeQuorum = writeQuorum;
+    this.writeTimeoutMs = writeTimeoutMs;
   }
 
   candidates(namespace, key, count = this.replicationFactor + 4) {
@@ -56,48 +58,68 @@ export class DhtReplicationManager {
     }
   }
 
-  async put(record, { replicationFactor = this.replicationFactor, minAcks = this.writeQuorum, lookupRounds: rounds = 4 } = {}) {
+  async put(record, { replicationFactor = this.replicationFactor, minAcks = this.writeQuorum, lookupRounds: rounds = 4, timeoutMs = this.writeTimeoutMs } = {}) {
     const verification = verifyDhtRecord(record);
     if (!verification.ok) throw new Error(`invalid DHT record: ${verification.reason}`);
     if (!Number.isInteger(replicationFactor) || replicationFactor < 1) throw new Error('replicationFactor must be >= 1');
     if (!Number.isInteger(minAcks) || minAcks < 1 || minAcks > replicationFactor) throw new Error('minAcks must be within replicationFactor');
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120_000) throw new Error('timeoutMs must be between 100 and 120000');
 
-    const lookup = await this.expandKeyspace(record.namespace, record.key, { maxRounds: rounds });
-    const local = this.recordStore.put(record);
-    let acknowledgements = local.accepted ? 1 : 0;
-    const storedAt = local.accepted ? [this.discovery.identity.nodeId] : [];
-    const failures = [];
-    const remoteNeeded = Math.max(0, replicationFactor - acknowledgements);
+    const deadlineAt = Date.now() + timeoutMs;
+    const timeoutError = () => {
+      const error = new Error(`TRUYN_DHT_WRITE_TIMEOUT:${timeoutMs}`);
+      error.code = 'TRUYN_DHT_WRITE_TIMEOUT';
+      error.timeoutMs = timeoutMs;
+      return error;
+    };
+    const checkDeadline = () => {
+      if (Date.now() >= deadlineAt) throw timeoutError();
+    };
 
-    const candidates = this.candidates(record.namespace, record.key, replicationFactor + 8);
-    let cursor = 0;
-    while (storedAt.length < replicationFactor && cursor < candidates.length) {
-      const batch = candidates.slice(cursor, cursor + (replicationFactor - storedAt.length));
-      cursor += batch.length;
-      const settled = await Promise.allSettled(batch.map((peer) => this.rpc.store(peer, record)));
-      settled.forEach((outcome, index) => {
-        const peer = batch[index];
-        if (outcome.status === 'fulfilled') {
-          if (outcome.value?.stored) { acknowledgements += 1; storedAt.push(peer.nodeId); }
-          return;
-        }
-        // A single failed control stream must not destroy a peer-scoped shared QUIC
-        // client used by sibling replication operations. QuicDiscoveryRpc owns exact
-        // client retirement and generation invalidation.
-        failures.push({ nodeId: peer.nodeId, reason: outcome.reason?.message || 'dht_store_failed' });
-      });
-    }
+    const execute = async () => {
+      const lookup = await this.expandKeyspace(record.namespace, record.key, { maxRounds: rounds });
+      checkDeadline();
+      const local = this.recordStore.put(record);
+      let acknowledgements = local.accepted ? 1 : 0;
+      const storedAt = local.accepted ? [this.discovery.identity.nodeId] : [];
+      const failures = [];
+      const remoteNeeded = Math.max(0, replicationFactor - acknowledgements);
 
-    if (acknowledgements < minAcks) {
-      const error = new Error(`TRUYN_DHT_WRITE_QUORUM:${acknowledgements}/${minAcks}`);
-      error.code = 'TRUYN_DHT_WRITE_QUORUM';
-      error.acknowledgements = acknowledgements;
-      error.required = minAcks;
-      error.failures = failures;
-      throw error;
-    }
+      const candidates = this.candidates(record.namespace, record.key, replicationFactor + 8);
+      let cursor = 0;
+      while (storedAt.length < replicationFactor && cursor < candidates.length) {
+        checkDeadline();
+        const batch = candidates.slice(cursor, cursor + (replicationFactor - storedAt.length));
+        cursor += batch.length;
+        const settled = await Promise.allSettled(batch.map((peer) => this.rpc.store(peer, record)));
+        settled.forEach((outcome, index) => {
+          const peer = batch[index];
+          if (outcome.status === 'fulfilled') {
+            if (outcome.value?.stored) { acknowledgements += 1; storedAt.push(peer.nodeId); }
+            return;
+          }
+          // A single failed control stream must not destroy a peer-scoped shared QUIC
+          // client used by sibling replication operations. QuicDiscoveryRpc owns exact
+          // client retirement and generation invalidation.
+          failures.push({ nodeId: peer.nodeId, reason: outcome.reason?.message || 'dht_store_failed' });
+        });
+      }
 
-    return { stored: true, recordId: record.recordId, acknowledgements, replicationFactor, remoteNeeded, storedAt, failures, lookup };
+      if (Date.now() >= deadlineAt && acknowledgements < minAcks) throw timeoutError();
+      if (acknowledgements < minAcks) {
+        const error = new Error(`TRUYN_DHT_WRITE_QUORUM:${acknowledgements}/${minAcks}`);
+        error.code = 'TRUYN_DHT_WRITE_QUORUM';
+        error.acknowledgements = acknowledgements;
+        error.required = minAcks;
+        error.failures = failures;
+        throw error;
+      }
+
+      return { stored: true, recordId: record.recordId, acknowledgements, replicationFactor, remoteNeeded, storedAt, failures, lookup, timeoutMs };
+    };
+
+    if (typeof this.rpc?.withDeadline === 'function') return this.rpc.withDeadline(deadlineAt, execute);
+    return execute();
   }
 
   async get(namespace, key, { fanout = this.replicationFactor + 4, lookupRounds: rounds = 4 } = {}) {
