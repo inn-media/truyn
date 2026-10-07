@@ -36,10 +36,8 @@ requirePatterns('P1 durable-write diagnostics', campaign, [
 
 const replication = read('network/replication/dht-replication.js');
 requireAll('P2 parallel DHT replication', replication, [
-  'const deadlineAt = Date.now() + timeoutMs;',
-  'inFlight + storedAt.length < replicationFactor',
-  'this.rpc.store(peer, record)',
-  'this.quorumGraceMs',
+  'Promise.allSettled(batch.map((peer) => this.rpc.store(peer, record)))',
+  'while (storedAt.length < replicationFactor && cursor < candidates.length)',
   'if (acknowledgements < minAcks)',
   'TRUYN_DHT_WRITE_QUORUM'
 ]);
