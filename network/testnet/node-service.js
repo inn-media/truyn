@@ -231,6 +231,7 @@ export async function createTestnetNodeService({
     peerRecordSequence: node.localPeerRecord?.sequence || 0,
     dhtRpcTimeoutMs: node.rpc.timeoutMs,
     dhtWriteTimeoutMs: node.replication.writeTimeoutMs,
+    dhtDurability: node.dhtDurabilitySnapshot(),
     runtimePressure: node.runtimePressureSnapshot(),
     operatorCount: operators.size,
     faultControlEnabled,
@@ -379,7 +380,8 @@ export async function createTestnetNodeService({
   const find = async (body = {}) => {
     if (!body.namespace || !body.key) throw new Error('namespace_and_key_required');
     return node.findReplicatedValue(body.namespace, body.key, {
-      fanout: int(body.fanout, dhtReplicationFactor + 4)
+      fanout: int(body.fanout, dhtReplicationFactor + 4, { min: dhtReplicationFactor, max: 64 }),
+      lookupRounds: int(body.lookupRounds, 4, { min: 0, max: 64 })
     });
   };
 
@@ -516,7 +518,12 @@ export async function createTestnetNodeService({
         return json(res, 200, await node.need(body.nodeId, 'testnet.echo', body.input ?? { nonce: randomUUID() }, {}, { allowRelayFallback }));
       }
       if (req.method === 'POST' && url.pathname === '/replicate') return json(res, 200, await replicate(await readJson(req)));
-      if (req.method === 'GET' && url.pathname === '/find') return json(res, 200, await find({ namespace: url.searchParams.get('namespace'), key: url.searchParams.get('key'), fanout: url.searchParams.get('fanout') }));
+      if (req.method === 'GET' && url.pathname === '/find') return json(res, 200, await find({
+        namespace: url.searchParams.get('namespace'),
+        key: url.searchParams.get('key'),
+        fanout: url.searchParams.get('fanout'),
+        lookupRounds: url.searchParams.get('lookupRounds')
+      }));
       if (req.method === 'POST' && url.pathname === '/repair') return json(res, 200, await repair(await readJson(req)));
       if (req.method === 'POST' && url.pathname === '/dht/refresh') return json(res, 200, await refreshDht(await readJson(req)));
       if (req.method === 'POST' && url.pathname === '/sweep') return json(res, 200, await sweep());
