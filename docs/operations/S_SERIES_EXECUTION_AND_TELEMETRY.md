@@ -1,7 +1,7 @@
 # TRUYN S-Series Execution Isolation and Telemetry
 
-Status: **S-10 ACCEPTED / EXECUTION CONTRACT ACTIVE — LARGER S LEVELS OPEN**  
-Applies to: `S-10`, `S-50`, `S-100`, `S-200`, `S-500`  
+Status: **S-10 + S-20 ACCEPTED / EXECUTION CONTRACT ACTIVE — S-50+ OPEN**  
+Applies to: `S-10`, `S-20`, `S-50`, `S-100`, `S-200`, `S-500`  
 Documentation reconciliation: **2026-09-25**
 
 This document defines the operational boundary for Semantic Scale execution without contaminating D/E/T/H/N benchmark evidence. The old status **`DEFINED / IMPLEMENTATION NOT STARTED` is obsolete**.
@@ -129,24 +129,32 @@ S-50 has real attempt history through **Attempt 15**. In particular:
 - Attempt 14, workflow run `35913581603`, is terminal FAILURE and immutable `NEVER_RERUN`;
 - Attempt 15, workflow run `35948814208`, is terminal FAILURE and immutable `NEVER_RERUN`; subsequent capacity/429 repair qualification does not rewrite that result.
 
-**S-10 Attempt 6 is accepted / PASS** as the bounded ECON/MIX integration baseline. Public sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md`. S-50, S-100, S-200 and S-500 remain independently OPEN.
+**S-10 Attempt 6 is accepted / PASS** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3 is accepted / PASS** for `ECON`, `MIX`, `COST-ROUTING`, `CONTENTION` and `LANG`. Public sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md` and `../benchmarks/S_SERIES_S20_2026-10-07.md`. `XBORDER`, `CHAIN`, `CHURN` and S-50+ remain independently OPEN.
 
 ## 10. Current factual state
 
-Accepted S-10 evidence demonstrates 150/150 measured observations correct across three 50-worker assignment profiles and seven provider families, with 100% routing/retrieval/provenance/minimal-context correctness, zero block-ID leakage, zero unauthorized provider execution, 97.17417299653404% mean input-token reduction and 96.85606730615144% comparable GPT/Gemini provider-cost reduction.
+Accepted S-10 evidence remains the bounded integration baseline.
 
-The accepted S-10 artifact also records provider-attempt telemetry and recovered two bounded HTTP 429 responses without answer-correctness retry. The public report publishes only sanitized aggregates and a cryptographic raw-artifact digest; raw operational evidence remains private.
+Accepted S-20 Attempt 3 evidence adds a 20-node five-scenario checkpoint:
+
+- ECON/MIX: 60/60 correct, seven providers, 97.0939465610686% input-token reduction;
+- COST-ROUTING: 20 requests, zero eligibility/authorization violations, 100% policy-hit/routing/answer/retrieval/provenance;
+- CONTENTION: 20/20 concurrent completions, zero retries/timeouts/cancellations/cascading failures;
+- LANG: EN/TR/ZH/RU/AZ each at 100% retrieval/answer/provenance with zero block-ID leakage.
+
+Attempt 1 and Attempt 2 remain immutable failure evidence. Attempt 3 is the accepted checkpoint. Raw private evidence remains private; the public report exposes sanitized metrics plus the raw-artifact cryptographic digest.
 
 ## 11. Scale-level acceptance order
 
 Each level is independent acceptance evidence:
 
 1. preserve accepted S-10 evidence as the bounded integration baseline;
-2. execute and accept S-50 independently;
-3. execute and accept S-100 separately;
-4. execute and accept S-200 separately;
-5. execute and accept S-500 separately;
-6. perform independent final-goal reconciliation before declaring the S-Series task complete.
+2. preserve accepted S-20 five-scenario evidence;
+3. execute and accept S-50 independently;
+4. execute and accept S-100 separately;
+5. execute and accept S-200 separately;
+6. execute and accept S-500 separately;
+7. perform independent final-goal reconciliation before declaring the S-Series task complete.
 
 Passing one level never implies a larger level.
 
