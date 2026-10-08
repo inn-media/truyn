@@ -5,3 +5,6 @@ regional-and-family-vcpu-target=800
 minimum-planned=20 x 32 = 640 vCPUs
 campaign-run=false
 requires-additional-qualification=true
+
+retry=provider-registration-repair-20261008
+prior_failed_run=37795027151
