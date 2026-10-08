@@ -60,3 +60,9 @@ source_tree=7146f06d2279e0fe6bad9403a3687f65cafd95ea
 mainline_fix_commit=675576f0e33c511f2f79a4718e9cf9fed4ec2296
 no_vm=true
 benchmark_launch=false
+
+retry=fix-offline-dependency-install-order
+source_sha=4889e3b6bcf7d876ac9a3543f2ea0de5ec718eeb
+source_tree=7146f06d2279e0fe6bad9403a3687f65cafd95ea
+no_paid_inference=true
+benchmark_launch=false
