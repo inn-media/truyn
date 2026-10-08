@@ -97,3 +97,8 @@ Merge/launch authority additionally requires the final Admission Gate against cu
 Neither local Swarm diagnostics nor Blockwise 16/16 is represented as production-scale proof. D-500 and D-1000 have both completed their isolated real-scale acceptance campaigns. Future D-Series work must use a new explicit gate/repeatability identity and must not overwrite, rerun as if new, or weaken the immutable D-500/D-1000 accepted evidence.
 
 No routing, recovery, topology, durability, safety, cleanup, evidence, terminal or process-count acceptance threshold is weakened by this architecture.
+
+
+## Final accepted scale ledger
+
+The compact final D-Series closure ledger is [`D_SERIES_FINAL_CLOSURE_2026-10-08.md`](D_SERIES_FINAL_CLOSURE_2026-10-08.md). It records the immutable accepted tuples and measured conclusions for D-200, D-500 and D-1000 without replacing their individual benchmark reports.

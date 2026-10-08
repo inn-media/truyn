@@ -65,3 +65,18 @@ Terminal sanitation marker:
 `TRUYN_D1000_SANITATION=PASS removed_or_absent=1`
 
 The successful frozen source commit `c1d3fa087716dbf24d0b3b65bceae303e907160a`, accepted workflow run `37687469411`, both immutable artifacts, and Git history remain preserved. The temporary sanitation workflow/trigger are removed by the commit recording this section.
+
+
+## Final repository audit
+
+Post-PASS sanitation verified:
+
+- canonical `main` provisioner blob for `benchmarks/scale/class-d-azure-1000-provision.sh` is byte-identical to accepted D-1000 source `c1d3fa087716dbf24d0b3b65bceae303e907160a`;
+- active D-1000 workflow, launch token and launch template are absent from the active GitHub Actions surface;
+- accepted workflow/token remain archived under `.github/d1000/`;
+- preparation branch `prep/d1000-a1-from-d500-a22` was removed by sanitation run `37782522256`;
+- historical failed/diagnostic D-Series evidence and legacy branches are retained as audit history rather than rewritten or deleted;
+- current-state README, ROADMAP, architecture, scale-status and benchmark indexes all record D-1000 as ACCEPTED/PASS;
+- older sanitation documents are explicitly marked historical and do not override the 2026-10-08 authority.
+
+The final defined Class-D scale status is therefore: D-200 PASS + repeatability, D-500 PASS + repeatability, D-1000 PASS. Long-duration operations, production SLO compliance, stable mainnet and managed-production acceptance remain separate open boundaries.

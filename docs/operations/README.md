@@ -12,6 +12,11 @@
 - recovery/DR objectives and executable restore-drill contract (`RECOVERY_DR.md`, PR `#441`);
 - managed authority runtime architecture (`MANAGED_AUTHORITY_RUNTIME.md`, PR `#457`).
 
+## Accepted D-Series scale closure
+
+- `class-d/D_SERIES_FINAL_CLOSURE_2026-10-08.md` is the compact closure ledger for accepted D-200, repeatability-confirmed D-500 and accepted D-1000. D-1000 Attempt 1 run `37687469411`, successful `run_attempt=2`, closes the defined 20-host / 1,000-real-process Class-D scale gate. This is benchmark acceptance, not production SLO/mainnet acceptance.
+- `NETWORK_SCALE_STATUS.md` remains the current operational authority; `../benchmarks/CLASS_D_1000_2026-10-08.md` and JSON companion are the durable D-1000 evidence.
+
 ## Benchmark execution contracts
 
 - `S_SERIES_EXECUTION_AND_TELEMETRY.md` defines the operational boundary for the planned Semantic Scale S-50/100/200/500 family: dedicated S workflow/concurrency/resource/evidence namespaces, D-Series non-interference, normalized node/request/chain/network/economic telemetry, spend preflight and immutable evidence closure. It is a **defined benchmark contract, not executed S-Series evidence**.
