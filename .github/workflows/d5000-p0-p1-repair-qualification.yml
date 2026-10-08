@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
-      TESTED_COMMIT: '51837ce148c6d5fd56a343ab48052eaf0a947db1'
-      TESTED_TREE: '6cd04cf8a84ddc3a35ef958ff6806db02e6b1ac7'
+      TESTED_COMMIT: 'f8352f34a770bd1be771e2410dd65c59d00f40d8'
+      TESTED_TREE: '606ed82878afa2802fa938a1f895b43f4ff93bb4'
       FROZEN_PRE_REPAIR: '27eaf550f2427a02a067062049b59ce6fc6e3355'
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +60,9 @@ jobs:
           grep -Fq 'readinessAll5000:' benchmarks/scale/class-d-5000-evidence.js
           grep -Fq 'allMandatoryStagesPass:' benchmarks/scale/class-d-5000-evidence.js
           grep -Fq 'd5000SourceContract:' benchmarks/scale/class-d-5000-evidence.js
+          grep -Fq 'exactSourceSha:' benchmarks/scale/verify-class-d-5000-terminal.js
+          grep -Fq 'exactRunId:' benchmarks/scale/verify-class-d-5000-terminal.js
+          grep -Fq 'testedCommit' benchmarks/scale/class-d-azure-5000-campaign.sh
           node --check benchmarks/scale/evaluate-class-d-5000-evidence.js
           node --check benchmarks/scale/verify-class-d-5000-terminal.js
           node scripts/check-class-d-five-patches.mjs
