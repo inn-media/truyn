@@ -33,3 +33,10 @@ retry=dht-placement-timeout-scope-fix
 source_sha=06a44526eeb2786f1005120cd3e3efb0bfd02a32
 source_tree=8320ea3d558bf15004811c8d546f6fc5651ffe67
 base_main=27eaf550f2427a02a067062049b59ce6fc6e3355
+
+checkpoint=readiness-stage-completeness-p0
+repair_sha=51837ce148c6d5fd56a343ab48052eaf0a947db1
+repair_tree=6cd04cf8a84ddc3a35ef958ff6806db02e6b1ac7
+old_d5000_quota_and_readiness_thresholds_unmodified=true
+no_azure_deploy=true
+no_benchmark_launch=true
