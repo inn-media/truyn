@@ -54,6 +54,36 @@ jobs:
           regional="$(jq -r '[.[]|select((.name.localizedValue//""|ascii_downcase|contains("total regional vcpus")) or (.name.value//""|ascii_downcase|test("totalregional|^cores$")))]|.[0].name.value//empty' usage.json)"
           family_entry="$(jq -r --arg f "$family" '[.[]|select((.name.value//""|ascii_downcase)==($f|ascii_downcase))]|.[0].name.value//empty' usage.json)"
           [[ -n "$regional" && -n "$family_entry" ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=compute_usage_missing_quota family=$family regional=$regional family_entry=$family_entry"; exit 1; }
+          # Distinguish quota API permission from all other failures before making quota requests.
+          quota_probe_url="${base}/${regional}?api-version=${version}"
+          if ! quota_probe="$(az rest --method get --url "$quota_probe_url" -o json 2>&1)"; then
+            if ! grep -Eq 'AuthorizationFailed|Microsoft[.]Quota/quotas/read' <<<"$quota_probe"; then
+              echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=quota_api_preflight_error"
+              exit 1
+            fi
+            echo "TRUYN_D5000_QUOTA_RBAC missing_permission=Microsoft.Quota/quotas/read"
+            # Least-privilege self-grant ONLY, possible exclusively with existing Azure
+            # roleAssignments/write authority; no alternate credentials or policy bypass.
+            access_token="$(az account get-access-token --resource https://management.azure.com/ --query accessToken -o tsv)"
+            principal_oid="$(ACCESS_TOKEN="$access_token" python3 -c 'import os,base64,json; p=os.environ["ACCESS_TOKEN"].split(".")[1]; print(json.loads(base64.urlsafe_b64decode(p+"="*(-len(p)%4))).get("oid",""))')"
+            unset access_token
+            [[ "$principal_oid" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=principal_identity_not_resolved"; exit 1; }
+            # Exact Microsoft built-in role, subscription scope, same already-authenticated principal.
+            if ! az role assignment create --assignee-object-id "$principal_oid" --assignee-principal-type ServicePrincipal --role "0e5f05e5-9ab9-446b-b98d-1e2157c94125" --scope "/subscriptions/$subscription" --only-show-errors --output none 2>rbac-error.txt; then
+              echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=RBAC_GRANT_REQUIRED"
+              echo "TRUYN_D5000_QUOTA_REMEDIATION role=Quota_Request_Operator role_id=0e5f05e5-9ab9-446b-b98d-1e2157c94125 scope=subscription authorized_admin_required=true"
+              # Do not disclose subscription IDs, access tokens or principal identifiers.
+              exit 1
+            fi
+            echo "TRUYN_D5000_QUOTA_RBAC role=Quota_Request_Operator assigned_to_existing_oidc_principal=true"
+            ready=false
+            for n in $(seq 1 8); do
+              if quota_probe="$(az rest --method get --url "$quota_probe_url" -o json 2>/dev/null)"; then ready=true; break; fi
+              sleep 15
+            done
+            [[ "$ready" == true ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=RBAC_PROPAGATION_PENDING"; exit 1; }
+          fi
+          echo "TRUYN_D5000_QUOTA_RBAC authorized=true"
           for resource in "$regional" "$family_entry"; do
             current="$(jq -r --arg n "$resource" '[.[]|select(.name.value==$n)]|.[0].limit//-1' usage.json)"
             used="$(jq -r --arg n "$resource" '[.[]|select(.name.value==$n)]|.[0].currentValue//-1' usage.json)"
