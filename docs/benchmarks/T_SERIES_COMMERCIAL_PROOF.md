@@ -238,3 +238,14 @@ Measured PASS is a later stage. Foundation completion MUST NOT be represented as
 - [`T_HEAD_TO_HEAD_METHODOLOGY.md`](T_HEAD_TO_HEAD_METHODOLOGY.md)
 - [`T_PREDICT_METHODOLOGY.md`](T_PREDICT_METHODOLOGY.md)
 - [`T_SERIES_TELEMETRY.md`](T_SERIES_TELEMETRY.md)
+
+
+## T/HEAD-TO-HEAD-CONTEXT-PRESSURE
+
+Status: **FOUNDATION / PROSPECTIVELY FROZEN / NO RESULT CLAIM**.
+
+The closed T/HEAD-TO-HEAD result showed that a two-hop minimal-context workload does not demonstrate a 30% TRUYN cost advantage over competent MCP/A2A implementations. The new `T/HEAD-TO-HEAD-CONTEXT-PRESSURE` benchmark tests a different systems hypothesis: whether TRUYN's content-addressed reuse, semantic retrieval and distributed evidence semantics create an advantage as context reuse pressure grows across 2/10/25/50 hops, multiple agents/nodes, cold/warm strata and WAN boundaries.
+
+Protocol overhead and system economics are measured separately. Competent MCP/A2A/NLWeb comparators retain their normal native references, artifacts, caching and reuse. The benchmark must not manufacture a win by inflating comparator prompts or disabling their normal optimizations.
+
+Canonical methodology: [`T_HEAD_TO_HEAD_CONTEXT_PRESSURE_METHODOLOGY.md`](T_HEAD_TO_HEAD_CONTEXT_PRESSURE_METHODOLOGY.md).
