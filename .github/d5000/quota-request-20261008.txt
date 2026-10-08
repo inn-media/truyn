@@ -19,3 +19,10 @@ retry=quota-rbac-preflight-20261008
 repair_sha=70cd89d1d9265a5165d3e3326831e971e5051b91
 failed_run=37799470103
 permit_benchmark=false
+
+retry=quota-support-authorized-fallback-20261008
+prior_failed_run=37800470741
+controller_commit=4e690e09ea2f6ce23cb597280b6d55228c560634
+quota_probe_repair=a862be34518521532e3d5807b1f5ebc86dfade34
+static_qualification_commit=5d7bedcb6cb0b37415a507f8e5d09356348293ba
+permit_benchmark=false
