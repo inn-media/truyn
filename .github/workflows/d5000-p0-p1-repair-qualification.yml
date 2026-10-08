@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
-      TESTED_COMMIT: 'fb8b50236d6148546cb633cdb080428ceafdea64'
-      TESTED_TREE: 'a3010fc11c932fefa69995397344c21aa175144a'
-      FROZEN_PRE_REPAIR: '984aea39e09030fd4ac66c1c8695deb45562060d'
+      TESTED_COMMIT: '8a8845a9bd93a6c240f13f13e8a7897008715a04'
+      TESTED_TREE: '3e21cafe5fa87e386736ab46bb566e44abc23b06'
+      FROZEN_PRE_REPAIR: '41e58492c13fcfed991c37183cfaf7804065150a'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,8 +30,8 @@ jobs:
           git merge-base --is-ancestor "$FROZEN_PRE_REPAIR" HEAD
           git diff --name-only "$FROZEN_PRE_REPAIR" HEAD > d5000-repair-delta.txt
           cat d5000-repair-delta.txt
-          ! grep -Ev '^(benchmarks/scale/(class-d-5000-(admission[.]test[.]js|evidence[.]js)|class-d-azure-5000-(campaign|provision)[.]sh|evaluate-class-d-5000-evidence[.]js|verify-class-d-5000-terminal[.]js)|docs/benchmarks/CLASS_D_5000_EXACT_CLONE_ATTEMPT1[.]md|scripts/d5000-(red-host-snapshot|stage-isolated-campaign)[.]sh|tests/(d5000-(red-host-snapshot|remote-exit-contract)[.]test[.]sh|peer-discovery-periodic-refresh[.]test[.]js))$' d5000-repair-delta.txt
-          [[ "$(wc -l < d5000-repair-delta.txt)" -eq 12 ]]
+          ! grep -Ev '^(benchmarks/scale/(class-d-5000-(admission[.]test[.]js|evidence[.]js)|class-d-azure-5000-(campaign|provision)[.]sh|evaluate-class-d-5000-evidence[.]js|verify-class-d-5000-terminal[.]js)|docs/benchmarks/CLASS_D_5000_EXACT_CLONE_ATTEMPT1[.]md|scripts/(check-class-d-five-patches[.]mjs|d5000-(red-host-snapshot|stage-isolated-campaign)[.]sh)|tests/(d5000-(red-host-snapshot|remote-exit-contract)[.]test[.]sh|peer-discovery-periodic-refresh[.]test[.]js))$' d5000-repair-delta.txt
+          [[ "$(wc -l < d5000-repair-delta.txt)" -eq 13 ]]
           echo 'TRUYN_D5000_REPAIR_PROVENANCE=PASS'
       - name: Validate shell and fail-closed contracts
         shell: bash
@@ -59,6 +59,7 @@ jobs:
           node --check benchmarks/scale/class-d-5000-evidence.js
           node --check benchmarks/scale/evaluate-class-d-5000-evidence.js
           node --check benchmarks/scale/verify-class-d-5000-terminal.js
+          node scripts/check-class-d-five-patches.mjs
           node --test benchmarks/scale/class-d-5000-admission.test.js tests/peer-discovery-periodic-refresh.test.js tests/peer-discovery-refresh-bounds.test.js tests/dht-refresh-testnet-endpoint.test.js
           echo 'TRUYN_D5000_REPAIR_NODE=PASS'
       - name: Build immutable runtime with checked SHA
