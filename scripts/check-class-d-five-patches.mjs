@@ -35,12 +35,33 @@ requirePatterns('P1 durable-write diagnostics', campaign, [
 ]);
 
 const replication = read('network/replication/dht-replication.js');
-requireAll('P2 parallel DHT replication', replication, [
+// Equivalent canonical P2 implementations: historical batch-allSettled and the
+// current bounded in-flight pump. In either case, never reduce RF/minAcks or
+// accept a timeout, failed remote STORE or absent acknowledgement as success.
+const legacyP2 = [
   'Promise.allSettled(batch.map((peer) => this.rpc.store(peer, record)))',
-  'while (storedAt.length < replicationFactor && cursor < candidates.length)',
-  'if (acknowledgements < minAcks)',
-  'TRUYN_DHT_WRITE_QUORUM'
-]);
+  'while (storedAt.length < replicationFactor && cursor < candidates.length)'
+];
+if (legacyP2.every((token) => replication.includes(token))) {
+  requireAll('P2 parallel DHT replication (batch)', replication, [
+    ...legacyP2, 'if (acknowledgements < minAcks)', 'TRUYN_DHT_WRITE_QUORUM'
+  ]);
+} else {
+  requireAll('P2 parallel DHT replication (bounded pump)', replication, [
+    'let inFlight = 0;',
+    'while (!done && inFlight + storedAt.length < replicationFactor && cursor < candidates.length)',
+    'this.rpc.store(peer, record)',
+    'if (value?.stored)',
+    'acknowledgements += 1;',
+    'if (!storedAt.includes(peer.nodeId)) storedAt.push(peer.nodeId);',
+    'inFlight -= 1;',
+    'pump();',
+    'deadlineTimer = setTimeout(() => {',
+    'if (acknowledgements < minAcks) placementTimedOut = true;',
+    'if (acknowledgements < minAcks)',
+    'TRUYN_DHT_WRITE_QUORUM'
+  ]);
+}
 
 const runtime = read('network/runtime.js');
 requireAll('P3 peer-record renewal jitter', runtime, [

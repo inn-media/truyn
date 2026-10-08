@@ -131,12 +131,15 @@ export class DhtReplicationManager {
         .filter((peer) => peer.nodeId !== this.discovery.identity.nodeId);
       let cursor = 0;
       let inFlight = 0;
+      // The deadline outcome is consumed after the asynchronous placement promise.
+      // Keep it in the enclosing write scope so timeout failures remain fail-closed
+      // instead of escaping as ReferenceError.
+      let placementTimedOut = false;
 
       await new Promise((resolve) => {
         let done = false;
         let graceTimer = null;
         let deadlineTimer = null;
-        let placementTimedOut = false;
 
         const finish = () => {
           if (done) return;
