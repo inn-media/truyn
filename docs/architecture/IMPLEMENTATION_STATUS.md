@@ -28,7 +28,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Class D-500 | **ACCEPTED / PASS / REPEATABILITY CONFIRMED** | preserve both immutable PASS runs; D-1000 is independently accepted |
 | Class D-1000 | **ACCEPTED / PASS** | preserve immutable Attempt 1 / run_attempt=2 evidence |
 | D-Series execution architecture | **Swarm-Blockwise lock retained as accepted baseline** | preserve for future repeatability/new explicit D-scale gates |
-| Semantic Scale S-Series | **S-10 + S-20 accepted / PASS; S-50+ OPEN** | preserve accepted S-10/S-20 evidence; execute S-50 independently |
+| Semantic Scale S-Series | **S-10 + S-20 + S-50 accepted / PASS; S-100+ OPEN** | preserve accepted S-50 evidence; analyze contention/backpressure; execute S-100 independently |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
 | Emergent Network N-Series | **FOUNDATION DEFINED / NOT YET EXECUTED** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
@@ -82,7 +82,7 @@ Canonical live operational status: `../operations/NETWORK_SCALE_STATUS.md`.
 
 The previous wording **“DEFINED / NOT YET EXECUTED” and the Attempt-13/#726-as-current-repair description are obsolete**.
 
-S-Series has been exercised at S-50 and has immutable diagnostic/failure history through Attempt 15. The bounded WebSocket `fast_socket_closed`/heartbeat/backpressure/reconnect repair associated with Attempt 13 is no longer the current blocker; its old repair tracker has been closed after regression qualification. Attempt 14 (`35913581603`) and Attempt 15 (`35948814208`) are terminal FAILURE and immutable `NEVER_RERUN` evidence.
+Historical S-50 diagnostic/failure evidence remains immutable audit history and does not override the later accepted full-scale result. The canonical S-50 acceptance is Attempt 3 run `37782488279` on immutable launch SHA `a5d9adcbce0a7fb332714e724bdd6adcd446afbc`, which passed all eight declared scenarios at 50 semantic nodes.
 
 The current active S-N acceptance path is:
 
@@ -101,7 +101,7 @@ Permanent rules:
 
 The latest old Blockwise Admission run `36114076355` had B01–B22 individually GREEN; its terminal aggregate failure was in public-source materialization/control-plane handling, not a B01–B22 product regression. That mutable public-source dependency is superseded by the immutable public-contract consumption model.
 
-**S-10 is accepted** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3 is also accepted** for `ECON`, `MIX`, `COST-ROUTING`, `CONTENTION` and `LANG` at 20 semantic nodes. Sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md` and `../benchmarks/S_SERIES_S20_2026-10-07.md`. `XBORDER`, `CHAIN`, `CHURN`, the full S-50 gate, S-100, S-200 and S-500 remain unaccepted and must be executed separately.
+****S-10 is accepted** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3 is accepted** for the five-scenario 20-node gate. **S-50 Attempt 3 is accepted** for the full eight-scenario 50-node scale gate: `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION` and `LANG`. Sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md`, `../benchmarks/S_SERIES_S20_2026-10-07.md` and `../benchmarks/S_SERIES_S50_2026-10-08.md`. S-100, S-200 and S-500 remain unaccepted and must be executed separately.
 
 Canonical S documents:
 
