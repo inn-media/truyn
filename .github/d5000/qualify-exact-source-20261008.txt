@@ -1,0 +1,7 @@
+TASK_ID=truyn-d5000-attempt1-exact-source-20261008
+source_sha=983429dd6f83f361ec665f452e4974bb0cae91bc
+source_tree_sha=f304e4d5726f5f804ce392832f7dd14d8f7b81a6
+parent_d1000_accepted_sha=c1d3fa087716dbf24d0b3b65bceae303e907160a
+operation=STATIC_EXACT_SOURCE_QUALIFICATION_ONLY
+vm_create=false
+benchmark_launch=false
