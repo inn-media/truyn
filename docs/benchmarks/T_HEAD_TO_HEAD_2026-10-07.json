@@ -1,0 +1,98 @@
+{
+  "schema": "truyn.public-benchmark.t-head-to-head/v1",
+  "benchmarkId": "T/HEAD-TO-HEAD",
+  "status": "CLOSED_NEGATIVE_RESULT",
+  "date": "2026-10-07",
+  "executionPass": true,
+  "evidenceCompletenessPass": true,
+  "qualityPass": true,
+  "economicHypothesisPass": false,
+  "acceptance": {
+    "grossProviderCostReductionVsBareMcpA2aMin": 0.3,
+    "truynCostVsNlweb": "lte"
+  },
+  "attempt3": {
+    "workflowRunId": 37678944260,
+    "frozenCandidateSha": "2050cd43f2a3443d1d8285aa13da06486e21477d",
+    "laneAdmissionRunId": 37678586838,
+    "artifactId": 11509185852,
+    "artifactDigest": "sha256:c67f0667e02551e7b7cb7da41aa24583d984eb024789c74b2789640533f4adcc",
+    "providerCalls": 312,
+    "retries": 0,
+    "telemetryCompletenessPct": 100,
+    "accuracyByArm": {
+      "NAIVE": 1,
+      "BARE_MCP": 1,
+      "BARE_A2A": 1,
+      "NLWEB": 1,
+      "TRUYN": 1,
+      "NLWEB_OVER_TRUYN": 1
+    },
+    "grossProviderCostUsdByArm": {
+      "NAIVE": 0.25929552,
+      "BARE_MCP": 0.00488928,
+      "BARE_A2A": 0.00478368,
+      "NLWEB": 0.00478368,
+      "TRUYN": 0.00478368,
+      "NLWEB_OVER_TRUYN": 0.00478368
+    },
+    "economic": {
+      "vsNaive": true,
+      "vsBareMcp": false,
+      "vsBareA2a": false,
+      "vsNlweb": true
+    },
+    "pass": false
+  },
+  "attempt4": {
+    "classification": "FULLY_LOADED_DIAGNOSTIC_EXTENSION",
+    "workflowRunId": 37686420651,
+    "frozenCandidateSha": "cb373b7f33acb819a871ee8ce996efa2186d659b",
+    "laneAdmissionRunId": 37686163076,
+    "artifactId": 11511747659,
+    "artifactDigest": "sha256:790218248154c6ab8cb86a17f7be2b09675d458ec1b5fab9875b158ec4dc92af",
+    "providerCalls": 312,
+    "retries": 0,
+    "telemetryCompletenessPct": 100,
+    "accuracyByArm": {
+      "NAIVE": 1,
+      "BARE_MCP": 1,
+      "BARE_A2A": 1,
+      "NLWEB": 1,
+      "TRUYN": 1,
+      "NLWEB_OVER_TRUYN": 1
+    },
+    "grossProviderCostUsdByArm": {
+      "NAIVE": 0.25502928,
+      "BARE_MCP": 0.00488928,
+      "BARE_A2A": 0.00478368,
+      "NLWEB": 0.00478368,
+      "TRUYN": 0.00478368,
+      "NLWEB_OVER_TRUYN": 0.00478368
+    },
+    "orchestrationComputeCostUsdByArm": {
+      "NAIVE": 0,
+      "BARE_MCP": 0.00002103694829995859,
+      "BARE_A2A": 0.000014417624499951217,
+      "NLWEB": 0.00000908440949999033,
+      "TRUYN": 0.000050031226399982945,
+      "NLWEB_OVER_TRUYN": 0.000056973312399996346
+    },
+    "fullyLoadedCostUsdByArm": {
+      "NAIVE": 0.25502928,
+      "BARE_MCP": 0.004910316948299958,
+      "BARE_A2A": 0.00479809762449995,
+      "NLWEB": 0.00479276440949999,
+      "TRUYN": 0.004833711226399982,
+      "NLWEB_OVER_TRUYN": 0.004840653312399996
+    },
+    "economic": {
+      "vsNaive": true,
+      "vsBareMcp": false,
+      "vsBareA2a": false,
+      "vsNlweb": false
+    },
+    "pass": false
+  },
+  "conclusion": "The frozen two-hop benchmark did not demonstrate the required 30% TRUYN cost advantage versus competent MCP/A2A comparators. Negative result preserved."
+}
