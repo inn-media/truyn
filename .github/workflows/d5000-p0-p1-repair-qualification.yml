@@ -1,0 +1,80 @@
+name: D-5000 P0/P1 Repair Qualification (No Azure)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d5000/repair-qualify-20261009.txt']
+permissions: { contents: read }
+concurrency: { group: truyn-d5000-repair-static-20261009, cancel-in-progress: false }
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      TESTED_COMMIT: 'a8082430028370a3a482f606b8ca34bc041ba687'
+      TESTED_TREE: '75873b1631c62a941f54f1deb386e09b0451fec1'
+      FROZEN_PRE_REPAIR: '983429dd6f83f361ec665f452e4974bb0cae91bc'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: '${{ env.TESTED_COMMIT }}'
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Verify SHA, strict deltas and no D-1000 changes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE" ]]
+          git merge-base --is-ancestor "$FROZEN_PRE_REPAIR" HEAD
+          git diff --name-only "$FROZEN_PRE_REPAIR" HEAD > d5000-repair-delta.txt
+          cat d5000-repair-delta.txt
+          ! grep -Ev '^(benchmarks/scale/class-d-azure-5000-(campaign|provision)[.]sh|scripts/d5000-stage-isolated-campaign[.]sh|tests/d5000-remote-exit-contract[.]test[.]sh)$' d5000-repair-delta.txt
+          [[ "$(wc -l < d5000-repair-delta.txt)" -eq 4 ]]
+          echo 'TRUYN_D5000_REPAIR_PROVENANCE=PASS'
+      - name: Validate shell and fail-closed contracts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n benchmarks/scale/class-d-azure-5000-provision.sh
+          bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
+          bash -n scripts/d5000-stage-isolated-campaign.sh
+          bash -n tests/d5000-remote-exit-contract.test.sh
+          grep -Fq 'TRUYN_PEER_RECORD_RENEW_BEFORE_MS=1350000' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'TRUYN_D5000_GUEST_TERMINAL' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'TRUYN_D5000_READINESS_PAYLOAD=PASS' benchmarks/scale/class-d-azure-5000-campaign.sh
+          grep -Fq 'READINESS_NODE_OBSERVATIONS_SHA256' benchmarks/scale/class-d-azure-5000-campaign.sh
+          grep -Fq 'D500_PREBASELINE_FRESHNESS_MARGIN_MS=${BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS}' benchmarks/scale/class-d-azure-5000-campaign.sh
+          grep -Fq 'd200_skip_stage "$stage"' scripts/d5000-stage-isolated-campaign.sh
+          bash tests/d5000-remote-exit-contract.test.sh
+          echo 'TRUYN_D5000_REPAIR_SHELL=PASS'
+      - name: Evaluate D-5000 strict admission and existing DHT tests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --check benchmarks/scale/class-d-5000-evidence.js
+          node --check benchmarks/scale/evaluate-class-d-5000-evidence.js
+          node --check benchmarks/scale/verify-class-d-5000-terminal.js
+          node --test benchmarks/scale/class-d-5000-admission.test.js tests/peer-discovery-periodic-refresh.test.js tests/peer-discovery-refresh-bounds.test.js tests/dht-refresh-testnet-endpoint.test.js
+          echo 'TRUYN_D5000_REPAIR_NODE=PASS'
+      - name: Build immutable runtime with checked SHA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          mkdir -p qualification
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh qualification/d5000-repair-runtime.tgz
+          sha256sum -c qualification/d5000-repair-runtime.tgz.sha256
+          mkdir -p qualification/manifest
+          tar -xzf qualification/d5000-repair-runtime.tgz -C qualification/manifest manifest.json
+          jq -e --arg sha "$TESTED_COMMIT" '.sourceSha==$sha' qualification/manifest/manifest.json
+          echo "TRUYN_D5000_REPAIR_QUALIFICATION=PASS sha=$TESTED_COMMIT tree=$TESTED_TREE no_vm_create=true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: truyn-d5000-repair-static-${{ github.run_id }}
+          path: |
+            d5000-repair-delta.txt
+            qualification/d5000-repair-runtime.tgz.sha256
+          if-no-files-found: warn
