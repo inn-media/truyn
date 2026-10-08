@@ -107,6 +107,8 @@ export function createRelay({
   maxContexts = 256,
   maxQueuedEventsPerNode = 256,
   maxSocketBufferedBytes = 1024 * 1024,
+  commandKeepAliveTimeoutMs = 60_000,
+  commandHeadersTimeoutMs = 65_000,
   maxRequests = 8192,
   requestTtlMs = 15 * 60 * 1000,
   maxChains = 1024,
@@ -123,6 +125,8 @@ export function createRelay({
   }
   if (!Number.isInteger(maxQueuedEventsPerNode) || maxQueuedEventsPerNode < 1) throw new Error('maxQueuedEventsPerNode must be a positive integer');
   if (!Number.isFinite(maxSocketBufferedBytes) || maxSocketBufferedBytes < 1) throw new Error('maxSocketBufferedBytes must be positive');
+  if (!Number.isFinite(commandKeepAliveTimeoutMs) || commandKeepAliveTimeoutMs < 1) throw new Error('commandKeepAliveTimeoutMs must be positive');
+  if (!Number.isFinite(commandHeadersTimeoutMs) || commandHeadersTimeoutMs <= commandKeepAliveTimeoutMs) throw new Error('commandHeadersTimeoutMs must exceed commandKeepAliveTimeoutMs');
   if (!Number.isFinite(requestTtlMs) || requestTtlMs < 1) throw new Error('requestTtlMs must be positive');
 
   const nodes = new Map();
@@ -1088,6 +1092,12 @@ export function createRelay({
       return json(res, status, { ok: false, error: error.publicCode || (status < 500 ? error.message : 'internal_error') });
     }
   });
+
+  // Command traffic (register/offer/NEED/RESULT) intentionally remains HTTP.
+  // Keep idle command connections alive across multi-second provider execution so
+  // large worker cohorts do not reconnect simultaneously before POST /v1/results.
+  server.keepAliveTimeout = Math.floor(commandKeepAliveTimeoutMs);
+  server.headersTimeout = Math.floor(commandHeadersTimeoutMs);
 
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: maxBodyBytes });
 
