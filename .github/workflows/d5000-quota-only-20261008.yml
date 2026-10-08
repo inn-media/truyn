@@ -36,6 +36,16 @@ jobs:
           done
           [[ -n "$sku" && -n "$family" ]] || { echo 'TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=no_permitted_32vcpu_sku'; exit 1; }
           echo "TRUYN_D5000_QUOTA_CANDIDATE location=$location sku=$sku family=$family min_vcpus=$required target=$target"
+          # Azure Quota API requires subscription-level Microsoft.Quota registration.
+          state="$(az provider show --namespace Microsoft.Quota --query registrationState -o tsv 2>/dev/null || true)"
+          echo "TRUYN_D5000_QUOTA_PROVIDER initial_state=${state:-unknown}"
+          if [[ "$state" != Registered ]]; then
+            echo "TRUYN_D5000_QUOTA_PROVIDER registering"
+            az provider register --namespace Microsoft.Quota --wait --only-show-errors
+            state="$(az provider show --namespace Microsoft.Quota --query registrationState -o tsv)"
+          fi
+          [[ "$state" == Registered ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=provider_not_registered state=$state"; exit 1; }
+          echo "TRUYN_D5000_QUOTA_PROVIDER state=Registered"
           az rest --method get --url "${base}?api-version=${version}" -o json > quota.json
           jq -e '.value|type=="array"' quota.json >/dev/null
           regional="$(jq -r '[.value[]|select((.name|ascii_downcase|test("totalregional|total.regional")) or (.properties.name.localizedValue//""|ascii_downcase|contains("total regional vcpus")) )][0].name//empty' quota.json)"
