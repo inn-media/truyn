@@ -1,0 +1,106 @@
+name: D-5000 Azure Quota Request Only
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d5000/quota-request-20261008.txt']
+permissions: { contents: read, id-token: write }
+concurrency: { group: truyn-d5000-quota-20261008-single-shot, cancel-in-progress: false }
+jobs:
+  request-quota-only:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: "${{ secrets[format('AZURE_{0}_ID','CLIENT')] }}"
+          tenant-id: "${{ secrets[format('AZURE_{0}_ID','TENANT')] }}"
+          subscription-id: "${{ secrets[format('AZURE_{0}_ID','SUBSCRIPTION')] }}"
+      - name: Probe quota and submit exact family and regional quota requests (no VM creation)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          location=southcentralus
+          target=800
+          required=640
+          subscription="$(az account show --query id -o tsv)"
+          scope="/subscriptions/${subscription}/providers/Microsoft.Compute/locations/${location}"
+          base="https://management.azure.com${scope}/providers/Microsoft.Quota/quotas"
+          version="2023-02-01"
+          sku=''
+          family=''
+          for candidate in Standard_E32as_v7 Standard_E32as_v5 Standard_D32as_v5 Standard_D32s_v5; do
+            items="$(az vm list-skus --location "$location" --size "$candidate" --all -o json --only-show-errors)" || continue
+            valid="$(jq -r --arg candidate "$candidate" '[.[]|select(.name==$candidate and (([.restrictions[]?|select(.reasonCode=="NotAvailableForSubscription")]|length)==0))][0].name//empty' <<<"$items")"
+            f="$(jq -r --arg candidate "$candidate" '[.[]|select(.name==$candidate)][0].family//empty' <<<"$items")"
+            if [[ -n "$valid" && -n "$f" ]]; then sku="$candidate"; family="$f"; break; fi
+          done
+          [[ -n "$sku" && -n "$family" ]] || { echo 'TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=no_permitted_32vcpu_sku'; exit 1; }
+          echo "TRUYN_D5000_QUOTA_CANDIDATE location=$location sku=$sku family=$family min_vcpus=$required target=$target"
+          # Azure Quota API requires subscription-level Microsoft.Quota registration.
+          state="$(az provider show --namespace Microsoft.Quota --query registrationState -o tsv 2>/dev/null || true)"
+          echo "TRUYN_D5000_QUOTA_PROVIDER initial_state=${state:-unknown}"
+          if [[ "$state" != Registered ]]; then
+            echo "TRUYN_D5000_QUOTA_PROVIDER registering"
+            az provider register --namespace Microsoft.Quota --wait --only-show-errors
+            state="$(az provider show --namespace Microsoft.Quota --query registrationState -o tsv)"
+          fi
+          [[ "$state" == Registered ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=provider_not_registered state=$state"; exit 1; }
+          echo "TRUYN_D5000_QUOTA_PROVIDER state=Registered"
+          # Compute usage is the authoritative quota-name discovery source.
+          # Some subscriptions return an empty Quota API collection.
+          az vm list-usage --location "$location" -o json --only-show-errors > usage.json
+          jq -e 'type=="array" and length>0' usage.json >/dev/null
+          jq -r '.[] | [.name.value, .name.localizedValue, (.currentValue|tostring), (.limit|tostring)] | @tsv' usage.json | grep -Ei 'regional|easv7|total' | sed 's/^/TRUYN_D5000_COMPUTE_USAGE /' || true
+          regional="$(jq -r '[.[]|select((.name.localizedValue//""|ascii_downcase|contains("total regional vcpus")) or (.name.value//""|ascii_downcase|test("totalregional|^cores$")))]|.[0].name.value//empty' usage.json)"
+          family_entry="$(jq -r --arg f "$family" '[.[]|select((.name.value//""|ascii_downcase)==($f|ascii_downcase))]|.[0].name.value//empty' usage.json)"
+          [[ -n "$regional" && -n "$family_entry" ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=compute_usage_missing_quota family=$family regional=$regional family_entry=$family_entry"; exit 1; }
+          # Distinguish quota API permission from all other failures before making quota requests.
+          quota_probe_url="${base}/${regional}?api-version=${version}"
+          if ! quota_probe="$(az rest --method get --url "$quota_probe_url" -o json 2>&1)"; then
+            if ! grep -Eq 'AuthorizationFailed|Microsoft[.]Quota/quotas/read' <<<"$quota_probe"; then
+              echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=quota_api_preflight_error"
+              exit 1
+            fi
+            echo "TRUYN_D5000_QUOTA_RBAC missing_permission=Microsoft.Quota/quotas/read"
+            # Least-privilege self-grant ONLY, possible exclusively with existing Azure
+            # roleAssignments/write authority; no alternate credentials or policy bypass.
+            access_token="$(az account get-access-token --resource https://management.azure.com/ --query accessToken -o tsv)"
+            principal_oid="$(ACCESS_TOKEN="$access_token" python3 -c 'import os,base64,json; p=os.environ["ACCESS_TOKEN"].split(".")[1]; print(json.loads(base64.urlsafe_b64decode(p+"="*(-len(p)%4))).get("oid",""))')"
+            unset access_token
+            [[ "$principal_oid" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=principal_identity_not_resolved"; exit 1; }
+            # Exact Microsoft built-in role, subscription scope, same already-authenticated principal.
+            if ! az role assignment create --assignee-object-id "$principal_oid" --assignee-principal-type ServicePrincipal --role "0e5f05e5-9ab9-446b-b98d-1e2157c94125" --scope "/subscriptions/$subscription" --only-show-errors --output none 2>rbac-error.txt; then
+              echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=RBAC_GRANT_REQUIRED"
+              echo "TRUYN_D5000_QUOTA_REMEDIATION role=Quota_Request_Operator role_id=0e5f05e5-9ab9-446b-b98d-1e2157c94125 scope=subscription authorized_admin_required=true"
+              # Do not disclose subscription IDs, access tokens or principal identifiers.
+              exit 1
+            fi
+            echo "TRUYN_D5000_QUOTA_RBAC role=Quota_Request_Operator assigned_to_existing_oidc_principal=true"
+            ready=false
+            for n in $(seq 1 8); do
+              if quota_probe="$(az rest --method get --url "$quota_probe_url" -o json 2>/dev/null)"; then ready=true; break; fi
+              sleep 15
+            done
+            [[ "$ready" == true ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=RBAC_PROPAGATION_PENDING"; exit 1; }
+          fi
+          echo "TRUYN_D5000_QUOTA_RBAC authorized=true"
+          for resource in "$regional" "$family_entry"; do
+            current="$(jq -r --arg n "$resource" '[.[]|select(.name.value==$n)]|.[0].limit//-1' usage.json)"
+            used="$(jq -r --arg n "$resource" '[.[]|select(.name.value==$n)]|.[0].currentValue//-1' usage.json)"
+            [[ "$current" =~ ^[0-9]+$ && "$used" =~ ^[0-9]+$ ]] || exit 1
+            echo "TRUYN_D5000_QUOTA_CURRENT resource=$resource limit=$current used=$used target=$target"
+            if ((current>=target)); then echo "TRUYN_D5000_QUOTA_ALREADY_SUFFICIENT resource=$resource"; continue; fi
+            # Resolve exact quota resource and avoid a blind PUT if API doesn't expose it.
+            detail="$(az rest --method get --url "${base}/${resource}?api-version=${version}" -o json 2>&1)" || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=quota_detail_unavailable resource=$resource detail=$detail"; exit 1; }
+            api_name="$(jq -r '.properties.name.value//.name//empty' <<<"$detail")"
+            unit="$(jq -r '.properties.unit//"Count"' <<<"$detail")"
+            applicable="$(jq -r '.properties.isQuotaApplicable//false' <<<"$detail")"
+            [[ -n "$api_name" && "$applicable" == true ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=quota_resource_not_applicable resource=$resource api_name=$api_name applicable=$applicable"; exit 1; }
+            body="$(jq -n --arg name "$api_name" --arg unit "$unit" --argjson limit "$target" '{properties:{name:{value:$name},unit:$unit,limit:{limitObjectType:"LimitValue",value:$limit}}}')"
+            echo "TRUYN_D5000_QUOTA_SUBMIT resource=$api_name previous=$current target=$target"
+            az rest --method put --url "${base}/${api_name}?api-version=${version}" --body "$body" --headers "Content-Type=application/json" --output json | jq '{name,properties:{limit:.properties.limit,provisioningState:.properties.provisioningState}}'
+          done
+          echo "TRUYN_D5000_QUOTA_REQUESTS_SUBMITTED no_vms_created=true benchmark_launched=false"
+      - name: Warn quota acceptance is not effective allocation
+        if: always()
+        run: echo 'D-5000 BENCHMARK NOT AUTHORIZED; pending effective quota, usable capacity, frozen-source qualification and explicit launch approval.'
