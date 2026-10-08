@@ -13,3 +13,8 @@ source_tree=b1c33892889ca681eb995f71178ae669eeef4064
 retry=per-host-red-snapshot-regression
 source_sha=72d7bf6daed2454d34239260ac82c314f5a92e8a
 source_tree=d822af4f811f09479b68d79ed597d303c29247c2
+
+retry=mainline-integrated-source-qualification
+source_sha=d6a6323b486986c14446c116894de0043a31261a
+source_tree=a3010fc11c932fefa69995397344c21aa175144a
+mainline_base=984aea39e09030fd4ac66c1c8695deb45562060d
