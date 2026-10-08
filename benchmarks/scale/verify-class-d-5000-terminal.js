@@ -13,6 +13,8 @@ try {
 }
 
 const evaluation = evaluateAzureClassD5000Evidence(raw);
+const expectedSource = process.env.TESTED_COMMIT || '';
+const expectedRunId = process.env.GITHUB_RUN_ID || '';
 const n = evaluation.normalized || {};
 const checks = {
   canonicalEvaluator: evaluation.passed === true && evaluation.failed.length === 0,
@@ -20,6 +22,8 @@ const checks = {
   readinessRatioFull: n.readiness?.readyNodeRatio === 1,
   allMandatoryStagesPass: n.stageResults?.complete === true,
   d5000SourceContract: n.sourceContract?.valid === true,
+  exactSourceSha: /^[a-f0-9]{40}$/.test(expectedSource) && raw?.testedCommit === expectedSource,
+  exactRunId: /^[0-9]+$/.test(expectedRunId) && String(raw?.workflowRunId ?? '') === expectedRunId,
   realNodes: n.topology?.realNodeCount === 5000,
   strictNodesPerHost: n.topology?.realProcessesPerHost === 250,
   distinctIdentities: n.topology?.distinctIdentityCount === 5000,
