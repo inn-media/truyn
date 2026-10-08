@@ -93,7 +93,7 @@ export class RpcLaneScheduler {
           this.stats[normalized].expiredInQueue += 1;
           reject(rpcTimeoutError(key));
         }, remaining);
-        waiter.timer.unref?.();
+        // Keep a pending foreground request deadline alive to guarantee settlement.
       }
       this.queues[normalized].push(waiter);
       this.stats[normalized].queued += 1;
@@ -415,7 +415,7 @@ export class QuicDiscoveryRpc {
               if (state) state.cancelledError = error;
               reject(error);
             }, remaining);
-            timer.unref?.();
+            // Foreground RPC timeouts must remain referenced until settled.
           })
         ]);
       } catch (error) {

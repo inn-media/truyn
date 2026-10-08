@@ -70,7 +70,8 @@ remote() {
   nonce="${GITHUB_RUN_ID:-local}-$(date +%s%N)-${RANDOM}-${RANDOM}"
   # Azure Run Command transport exit 0 is NOT evidence of bash success in the VM.
   # A nonce-bound terminal marker emitted as the last output is mandatory.
-  remote_script="set +e; printf '%s' '$enc' | base64 -d >/tmp/truyn-d5000-run.sh && chmod 700 /tmp/truyn-d5000-run.sh; setup_rc=\$?; if [[ \$setup_rc -eq 0 ]]; then timeout -k 20 ${host_budget} /bin/bash /tmp/truyn-d5000-run.sh; guest_rc=\$?; else guest_rc=\$setup_rc; fi; printf '\\nTRUYN_D5000_GUEST_TERMINAL nonce=${nonce} rc=%s\\n' \"\$guest_rc\"; exit 0"
+  # Per-invocation guest script paths prevent same-host parallel Run Command races.
+  remote_script="set +e; printf '%s' '$enc' | base64 -d >/tmp/truyn-d5000-run-${nonce}.sh && chmod 700 /tmp/truyn-d5000-run-${nonce}.sh; setup_rc=\$?; if [[ \$setup_rc -eq 0 ]]; then timeout -k 20 ${host_budget} /bin/bash /tmp/truyn-d5000-run-${nonce}.sh; guest_rc=\$?; else guest_rc=\$setup_rc; fi; rm -f '/tmp/truyn-d5000-run-${nonce}.sh'; printf '\\nTRUYN_D5000_GUEST_TERMINAL nonce=${nonce} rc=%s\\n' \"\$guest_rc\"; exit 0"
   transport_rc=0
   output="$(timeout -k 30 "$budget" az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1)" || transport_rc=$?
   if [[ "$transport_rc" != 0 ]]; then

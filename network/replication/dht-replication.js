@@ -154,7 +154,7 @@ export class DhtReplicationManager {
           if (storedAt.length >= replicationFactor) { finish(); return; }
           if (acknowledgements >= minAcks && !graceTimer) {
             graceTimer = setTimeout(finish, this.quorumGraceMs);
-            graceTimer.unref?.();
+            // Foreground quorum grace must settle even with no other active handle.
           }
 
           // Maintain only the number of simultaneous placements needed to reach RF.
@@ -185,7 +185,7 @@ export class DhtReplicationManager {
           if (acknowledgements < minAcks) placementTimedOut = true;
           finish();
         }, Math.max(1, deadlineAt - Date.now()));
-        deadlineTimer.unref?.();
+        // A write deadline must stay active even when a remote transport stalls.
         pump();
       });
 
@@ -428,10 +428,31 @@ export class DhtReplicationManager {
 
   async repair(namespace, key, { replicationFactor = this.replicationFactor, minAcks = this.writeQuorum, lookupRounds: rounds = 4 } = {}) {
     const resolved = await this.get(namespace, key, { fanout: replicationFactor + 8, lookupRounds: rounds });
+    const readFailures = [...resolved.failures];
+    // A local record short-circuits get(). Probe the previously acknowledged
+    // holders before repair so dead replicas cannot disappear from read evidence.
+    if (resolved.readTelemetry?.localRecordCount > 0 && resolved.records.length > 0) {
+      const previousHolders = [...new Set(resolved.records.flatMap((record) =>
+        this.placementByRecordId.get(record.recordId) || []))];
+      const observations = await Promise.all(previousHolders.map(async (nodeId) => {
+        const peer = this.peerFromNodeId(nodeId);
+        if (!peer) return { nodeId, reason: 'dht_previous_holder_not_discoverable' };
+        try {
+          const response = await this.rpc.findValue(peer, namespace, key);
+          const hasRecord = (response?.records || []).some((record) =>
+            resolved.records.some((expected) => expected.recordId === record.recordId) &&
+            verifyDhtRecord(record).ok);
+          return hasRecord ? null : { nodeId, reason: 'dht_previous_holder_record_missing' };
+        } catch (error) {
+          return { nodeId, reason: error?.message || 'dht_previous_holder_read_failed' };
+        }
+      }));
+      readFailures.push(...observations.filter(Boolean));
+    }
     const repairs = [];
     for (const record of resolved.records) {
       repairs.push(await this.put(record, { replicationFactor, minAcks, lookupRounds: rounds }));
     }
-    return { records: resolved.records.length, repairs, readFailures: resolved.failures, lookup: resolved.lookup };
+    return { records: resolved.records.length, repairs, readFailures, lookup: resolved.lookup };
   }
 }
