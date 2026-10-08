@@ -133,6 +133,7 @@ export function createRelay({
   const fastTerminalEvents = new Map();
   const fastTerminalReservations = new Map();
   const fastWaiters = new Map();
+  const legacyWaiters = new Map();
   const providerSockets = new Map();
   const resultWaiters = new Map();
   const requests = new Map();
@@ -201,11 +202,27 @@ export function createRelay({
     map.set(nodeId, queueForNode);
   }
 
+  function removeLegacyWaiter(nodeId, waiter) {
+    if (legacyWaiters.get(nodeId) === waiter) legacyWaiters.delete(nodeId);
+    if (waiter.timer) clearTimeout(waiter.timer);
+  }
+
+  function deliverLegacyWaiter(nodeId, event) {
+    const waiter = legacyWaiters.get(nodeId);
+    if (!waiter || waiter.res.writableEnded) return false;
+    removeLegacyWaiter(nodeId, waiter);
+    touch(nodeId);
+    json(waiter.res, 200, { ok: true, events: [event] });
+    return true;
+  }
+
   function queue(nodeId, event) {
+    if (deliverLegacyWaiter(nodeId, event)) return;
     boundedQueue(events, nodeId, event);
   }
 
   function queueCritical(nodeId, event) {
+    if (deliverLegacyWaiter(nodeId, event)) return true;
     const queueForNode = events.get(nodeId) || [];
     if (queueForNode.length >= maxQueuedEventsPerNode) return false;
     queueForNode.push(event);
@@ -380,6 +397,22 @@ export function createRelay({
     };
     contexts.set(record.cid, record);
     return record;
+  }
+
+  function registerLegacyWaiter(req, res, nodeId, waitMs) {
+    const existing = legacyWaiters.get(nodeId);
+    if (existing && !existing.res.writableEnded) {
+      removeLegacyWaiter(nodeId, existing);
+      json(existing.res, 200, { ok: true, events: [] });
+    }
+    const waiter = { res, timer: null };
+    waiter.timer = setTimeout(() => {
+      removeLegacyWaiter(nodeId, waiter);
+      touch(nodeId);
+      json(res, 200, { ok: true, events: [] });
+    }, waitMs);
+    legacyWaiters.set(nodeId, waiter);
+    req.once('close', () => removeLegacyWaiter(nodeId, waiter));
   }
 
   function registerFastWaiter(req, res, nodeId, waitMs) {
@@ -1025,9 +1058,18 @@ export function createRelay({
         const nodeId = url.searchParams.get('nodeId');
         if (!nodeId || !authenticatePoll(req, nodeId)) return json(res, 401, { ok: false, error: 'unauthorized' });
         const queued = events.get(nodeId) || [];
-        events.set(nodeId, []);
+        if (queued.length > 0) {
+          events.set(nodeId, []);
+          touch(nodeId);
+          return json(res, 200, { ok: true, events: queued });
+        }
+        const waitMs = boundedWaitMs(url, 0, 120_000);
+        if (waitMs > 0) {
+          registerLegacyWaiter(req, res, nodeId, waitMs);
+          return;
+        }
         touch(nodeId);
-        return json(res, 200, { ok: true, events: queued });
+        return json(res, 200, { ok: true, events: [] });
       }
 
       return json(res, 404, { ok: false, error: 'not_found' });
@@ -1169,6 +1211,11 @@ export function createRelay({
         try { socket.close(1001, 'relay_closing'); } catch {}
       }
       providerSockets.clear();
+      for (const waiter of legacyWaiters.values()) {
+        clearTimeout(waiter.timer);
+        json(waiter.res, 503, { ok: false, error: 'relay_closing' });
+      }
+      legacyWaiters.clear();
       for (const waiter of fastWaiters.values()) {
         clearTimeout(waiter.timer);
         json(waiter.res, 503, { ok: false, error: 'relay_closing' });
