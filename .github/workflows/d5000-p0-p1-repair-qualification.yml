@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
-      TESTED_COMMIT: '0bb91f7a0b370b52af6a30afde5e587d4add5635'
-      TESTED_TREE: 'b1c33892889ca681eb995f71178ae669eeef4064'
+      TESTED_COMMIT: '72d7bf6daed2454d34239260ac82c314f5a92e8a'
+      TESTED_TREE: 'd822af4f811f09479b68d79ed597d303c29247c2'
       FROZEN_PRE_REPAIR: '983429dd6f83f361ec665f452e4974bb0cae91bc'
     steps:
       - uses: actions/checkout@v4
@@ -30,8 +30,8 @@ jobs:
           git merge-base --is-ancestor "$FROZEN_PRE_REPAIR" HEAD
           git diff --name-only "$FROZEN_PRE_REPAIR" HEAD > d5000-repair-delta.txt
           cat d5000-repair-delta.txt
-          ! grep -Ev '^(benchmarks/scale/class-d-azure-5000-(campaign|provision)[.]sh|scripts/d5000-stage-isolated-campaign[.]sh|tests/d5000-remote-exit-contract[.]test[.]sh|tests/peer-discovery-periodic-refresh[.]test[.]js)$' d5000-repair-delta.txt
-          [[ "$(wc -l < d5000-repair-delta.txt)" -eq 5 ]]
+          ! grep -Ev '^(benchmarks/scale/class-d-azure-5000-(campaign|provision)[.]sh|scripts/d5000-stage-isolated-campaign[.]sh|tests/d5000-remote-exit-contract[.]test[.]sh|tests/peer-discovery-periodic-refresh[.]test[.]js|scripts/d5000-red-host-snapshot[.]sh|tests/d5000-red-host-snapshot[.]test[.]sh)$' d5000-repair-delta.txt
+          [[ "$(wc -l < d5000-repair-delta.txt)" -eq 7 ]]
           echo 'TRUYN_D5000_REPAIR_PROVENANCE=PASS'
       - name: Validate shell and fail-closed contracts
         shell: bash
@@ -40,6 +40,8 @@ jobs:
           bash -n benchmarks/scale/class-d-azure-5000-provision.sh
           bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
           bash -n scripts/d5000-stage-isolated-campaign.sh
+          bash -n scripts/d5000-red-host-snapshot.sh
+          bash -n tests/d5000-red-host-snapshot.test.sh
           bash -n tests/d5000-remote-exit-contract.test.sh
           grep -Fq 'TRUYN_PEER_RECORD_RENEW_BEFORE_MS=1350000' benchmarks/scale/class-d-azure-5000-provision.sh
           grep -Fq 'TRUYN_D5000_GUEST_TERMINAL' benchmarks/scale/class-d-azure-5000-provision.sh
@@ -48,6 +50,7 @@ jobs:
           grep -Fq 'D500_PREBASELINE_FRESHNESS_MARGIN_MS=${BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS}' benchmarks/scale/class-d-azure-5000-campaign.sh
           grep -Fq 'd200_skip_stage "$stage"' scripts/d5000-stage-isolated-campaign.sh
           bash tests/d5000-remote-exit-contract.test.sh
+          bash tests/d5000-red-host-snapshot.test.sh
           echo 'TRUYN_D5000_REPAIR_SHELL=PASS'
       - name: Evaluate D-5000 strict admission and existing DHT tests
         shell: bash
