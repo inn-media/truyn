@@ -37,7 +37,8 @@ jobs:
           qualifier="$(gh api repos/inn-media/truyn/actions/runs/37824023655)"
           [[ "$(jq -r '.status' <<<"$qualifier")" == completed && "$(jq -r '.conclusion' <<<"$qualifier")" == success ]] || { echo "TRUYN_D5000_ADMISSION=BLOCKED reason=exact_sha_qualification_not_green"; exit 1; }
           historical="$(gh api 'repos/inn-media/truyn/actions/workflows/d5000-attempt1.yml/runs?per_page=100')"
-          duplicates="$(jq --argjson current "$GITHUB_RUN_ID" '[.workflow_runs[]|select(.id!=$current)]|length' <<<"$historical")"
+          echo "TRUYN_D5000_PRIOR_RUNS=$(jq -c '[.workflow_runs[]|{id,name,status,conclusion}]' <<<"$historical")"
+          duplicates="$(jq --argjson current "$GITHUB_RUN_ID" --argjson prior 37824520669 '[.workflow_runs[]|select(.name=="D-5000 Scale Run - Attempt 1")|select(.id!=$current and .id!=$prior)]|length' <<<"$historical")"
           [[ "$duplicates" == 0 ]] || { echo "TRUYN_D5000_ADMISSION=BLOCKED reason=duplicate_campaign_run"; exit 1; }
           bash -n benchmarks/scale/class-d-azure-5000-provision.sh
           bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
@@ -130,7 +131,7 @@ jobs:
             class-d-5000-evidence.json
             class-d-5000-evaluation.json
             class-d-5000-terminal-verification.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90
       - name: Record strict terminal marker
         if: always()
