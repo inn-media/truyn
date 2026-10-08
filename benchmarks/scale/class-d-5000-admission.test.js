@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { evaluateAzureClassD5000Evidence } from './class-d-5000-evidence.js';
 
+const mandatoryStages = ['topology','readiness-barrier','convergence','pre-baseline-peer-freshness','baseline','healed-routing','resources','evidence'];
 const fixture = (count, perHost) => ({
+  class: 'D-5000',
+  scope: '5000-real-process-scale+safety-contract-v2',
+  readiness: { readyNodeCount: count, readyNodeRatio: 1 },
+  stageResults: { overall: 'PASS', allPossibleStagesAttempted: true, stages: mandatoryStages.map((stage) => ({ stage, status: 'PASS' })) },
   topology: {
     realProcessCount: count,
     realProcessesPerHost: perHost,
@@ -43,4 +48,23 @@ const safety = fixture(5000,250); safety.safety.probes.invalidSignedState.target
 assert.equal(evaluateAzureClassD5000Evidence(safety).passed, false);
 const cleanup = fixture(5000,250); cleanup.cleanup.remainingResources=1;
 assert.equal(evaluateAzureClassD5000Evidence(cleanup).passed, false);
-console.log('TRUYN_D5000_EVALUATOR_REGRESSION=PASS accepted_5000=true rejected_1000=true safety=true');
+const readinessMissing = fixture(5000,250); delete readinessMissing.readiness;
+assert.equal(evaluateAzureClassD5000Evidence(readinessMissing).checks.readinessAll5000, false);
+assert.equal(evaluateAzureClassD5000Evidence(readinessMissing).passed, false);
+const readinessIncomplete = fixture(5000,250); readinessIncomplete.readiness.readyNodeCount=4999;
+assert.equal(evaluateAzureClassD5000Evidence(readinessIncomplete).passed, false);
+const readinessFalseRatio = fixture(5000,250); readinessFalseRatio.readiness.readyNodeRatio=0.99;
+assert.equal(evaluateAzureClassD5000Evidence(readinessFalseRatio).passed, false);
+const stageMissing = fixture(5000,250); delete stageMissing.stageResults;
+assert.equal(evaluateAzureClassD5000Evidence(stageMissing).passed, false);
+const stageRed = fixture(5000,250); stageRed.stageResults.stages[1].status='RED';
+assert.equal(evaluateAzureClassD5000Evidence(stageRed).passed, false);
+const stageSkipped = fixture(5000,250); stageSkipped.stageResults.stages[1].status='SKIPPED_DEPENDENCY';
+assert.equal(evaluateAzureClassD5000Evidence(stageSkipped).passed, false);
+const stagePartial = fixture(5000,250); stagePartial.stageResults.allPossibleStagesAttempted=false;
+assert.equal(evaluateAzureClassD5000Evidence(stagePartial).passed, false);
+const wrongClass = fixture(5000,250); wrongClass.class='D-1000';
+assert.equal(evaluateAzureClassD5000Evidence(wrongClass).passed, false);
+const wrongScope = fixture(5000,250); wrongScope.scope='1000-real-process-scale+safety-contract-v2';
+assert.equal(evaluateAzureClassD5000Evidence(wrongScope).passed, false);
+console.log('TRUYN_D5000_EVALUATOR_REGRESSION=PASS accepted_5000=true rejected_1000=true safety=true readiness=true full_stage_evidence=true source_contract=true');
