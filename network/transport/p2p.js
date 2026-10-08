@@ -455,12 +455,25 @@ export class DirectFirstP2P {
             !applicationDispatched &&
             error?.code === 'TRUYN_P2P_CONNECT_TIMEOUT' &&
             connectTimeoutRecoveryAttempt < 1 &&
-            this.#remainingMs(routeDeadlineAt) > 2_000
+            this.#remainingMs(routeDeadlineAt) > this.directConnectTimeoutMs
           ) {
             connectTimeoutRecoveryAttempt += 1;
-            const refreshed = await this.#forceRediscoverAfterConnectTimeout(peerNodeId, record, routeDeadlineAt);
+            // Prefer a newly signed endpoint after a stale-binding timeout.
+            // If discovery finds no replacement but the signed record remains
+            // valid, allow one bounded same-binding retry. This addresses
+            // transient QUIC handshakes under fan-out without ever replaying
+            // the application envelope or extending the route deadline.
+            const refreshed = this.#remainingMs(routeDeadlineAt) > 2_000
+              ? await this.#forceRediscoverAfterConnectTimeout(peerNodeId, record, routeDeadlineAt)
+              : null;
             if (refreshed) {
               record = refreshed;
+              continue;
+            }
+            const current = this.discovery.get(peerNodeId);
+            if (current && verifyPeerRecord(current).ok &&
+                this.#remainingMs(routeDeadlineAt) > this.directConnectTimeoutMs) {
+              record = current;
               continue;
             }
           }
