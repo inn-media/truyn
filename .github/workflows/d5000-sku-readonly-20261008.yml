@@ -1,0 +1,41 @@
+name: D-5000 Read-only SKU and Quota Gate
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d5000/sku-readiness-20261008.txt']
+permissions: { contents: read, id-token: write }
+concurrency: { group: truyn-d5000-sku-readonly-20261008, cancel-in-progress: false }
+jobs:
+  inspect-only:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - name: Qualify source syntax and deny mutation actions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n .github/d5000/d5000-sku-readonly-preflight.sh
+          ! grep -E 'az[[:space:]]+(vm[[:space:]]+create|deployment[[:space:]]+|role[[:space:]]+assignment[[:space:]]+create|provider[[:space:]]+register)' .github/d5000/d5000-sku-readonly-preflight.sh
+          ! grep -E 'az[[:space:]]+rest[[:space:]]+--method[[:space:]]+(put|post|patch|delete)' .github/d5000/d5000-sku-readonly-preflight.sh
+          echo "TRUYN_D5000_READONLY_STATIC=PASS"
+      - uses: azure/login@v2
+        with:
+          client-id: "${{ secrets[format('AZURE_{0}_ID','CLIENT')] }}"
+          tenant-id: "${{ secrets[format('AZURE_{0}_ID','TENANT')] }}"
+          subscription-id: "${{ secrets[format('AZURE_{0}_ID','SUBSCRIPTION')] }}"
+      - name: Evaluate effective SKU and quota eligibility without provisioning
+        shell: bash
+        run: bash .github/d5000/d5000-sku-readonly-preflight.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: truyn-d5000-readonly-sku-${{ github.run_id }}
+          path: d5000-sku-readonly-evidence.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Confirm read-only scope
+        if: always()
+        shell: bash
+        run: echo "TRUYN_D5000_BENCHMARK=NOT_LAUNCHED quota_changes=false vm_creation=false"
