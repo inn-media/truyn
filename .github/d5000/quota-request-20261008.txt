@@ -1,0 +1,7 @@
+D-5000 Attempt 1
+quota-only=true
+location=southcentralus
+regional-and-family-vcpu-target=800
+minimum-planned=20 x 32 = 640 vCPUs
+campaign-run=false
+requires-additional-qualification=true
