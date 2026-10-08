@@ -12,7 +12,7 @@ This architecture is a repository invariant for the remainder of the D-Series pr
 
 The machine-readable authorities are `config/d-series-swarm-blockwise-architecture-lock.json` and `config/d-series-frozen-candidate-policy.json`; their verifier scripts fail closed.
 
-Until all D-Series tests are complete, ordinary refactors, repairs, CI cleanup, optimizations, launcher changes, sprint transitions and D-1000 work MUST preserve all of the following. D-500 is now an accepted immutable baseline rather than an open launch target:
+All defined D-Series gates through D-1000 are now accepted. Ordinary refactors, repairs, CI cleanup, optimizations, launcher changes and any future D-Series/repeatability work MUST preserve all of the following accepted invariants:
 
 - Sanitation / Swarm remains the primary diagnostic and repair engine.
 - Blockwise B01-B16 remains subordinate to Swarm.
@@ -22,7 +22,8 @@ Until all D-Series tests are complete, ordinary refactors, repairs, CI cleanup, 
 - Targeted Bxx runs are repair accelerators only and can never authorize a real D-Series launch.
 - Full B01-B16 on the frozen candidate remains a mandatory qualification/admission input after a clean Swarm.
 - Before merge, the final Admission Gate integrates the frozen candidate with current `main`, recomputes fingerprints, and reruns only affected D-sensitive blocks.
-- D-500 is accepted on immutable Attempt 22 run `37666768998`; D-1000 remains the next independent real-scale proof.
+- D-500 is accepted on immutable Attempt 22 run `37666768998` and repeatability-confirmed by run `37676472133`.
+- D-1000 is accepted on Attempt 1 workflow run `37687469411`, successful `run_attempt=2`; the first `run_attempt=1` remains infrastructure-only quota-failure evidence.
 - Acceptance thresholds may never be weakened to preserve this architecture or obtain GREEN.
 - A competing `blockwise-only` or launcher-direct architecture is forbidden while this lock is active.
 - An exact-current-main qualification architecture is likewise forbidden while this lock is active; current-main compatibility belongs only to final Admission.
@@ -93,6 +94,6 @@ Merge/launch authority additionally requires the final Admission Gate against cu
 
 ## Real scale
 
-Neither local Swarm diagnostics nor Blockwise 16/16 is represented as production-scale proof. D-500 has completed its isolated full-scale acceptance on Attempt 22. D-1000 still requires its own isolated live qualification where applicable, a fresh shared-resource/capacity collision check, and exactly one immutable full-scale campaign.
+Neither local Swarm diagnostics nor Blockwise 16/16 is represented as production-scale proof. D-500 and D-1000 have both completed their isolated real-scale acceptance campaigns. Future D-Series work must use a new explicit gate/repeatability identity and must not overwrite, rerun as if new, or weaken the immutable D-500/D-1000 accepted evidence.
 
 No routing, recovery, topology, durability, safety, cleanup, evidence, terminal or process-count acceptance threshold is weakened by this architecture.

@@ -23,7 +23,7 @@ Describe the change and why it is needed.
 - [ ] I classified this work using `docs/architecture/OPEN_PRIVATE_BOUNDARY.md` and `docs/architecture/CROSS_REPO_TASK_ROUTING.md`.
 - [ ] Public code does not import, fetch or otherwise depend on `inn-media/truyn-platform`.
 - [ ] Any `BOTH` change has an explicit counterpart and compatibility order.
-- [ ] Accepted D-200/D-500 implementation/evidence remains public and this change does not weaken D-200/D-500/D-1000 acceptance thresholds.
+- [ ] Accepted D-200/D-500/D-1000 implementation/evidence remains public and this change does not weaken any accepted D-Series routing, recovery, topology, durability, safety, cleanup or evidence threshold.
 - [ ] No managed/private implementation is being restored to the public tree merely to satisfy a test.
 
 ## Security / Trustability / privacy impact

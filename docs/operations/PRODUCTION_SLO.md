@@ -6,7 +6,7 @@
 
 This document defines the numerical service-level indicators (SLIs), service-level objectives (SLOs), measurement windows, exclusions and error-budget policy required before TRUYN may claim the relevant deployment class is **Productionized**.
 
-It is intentionally separate from benchmark and scale-acceptance gates. Class C, D-100, D-200 diagnostics and D-1000 thresholds prove bounded network behavior under specified campaigns; they do **not** by themselves establish a continuously measured production SLO.
+It is intentionally separate from benchmark and scale-acceptance gates. Class C and accepted D-100/D-200/D-500/D-1000 campaign evidence prove bounded network behavior under specified campaigns; they do **not** by themselves establish a continuously measured production SLO.
 
 Until production telemetry, alerting, on-call ownership and durable evidence satisfy this contract, every objective below is a **target**, not a statement that current production has already met it.
 
@@ -329,7 +329,7 @@ Production SLO compliance claim: NOT YET ESTABLISHED
 
 ## 14. Relationship to D-1000 and mainnet
 
-D-1000 remains an independent network-scale gate. Its `>=99%` routing and `<=120 s` recovery thresholds are campaign acceptance predicates, not rolling production SLIs.
+D-1000 is an independently accepted network-scale gate on workflow run `37687469411`, `run_attempt=2`. Its `>=99%` routing and `<=120 s` recovery thresholds remain campaign acceptance predicates, not rolling production SLIs.
 
 Neither direction substitutes for the other:
 

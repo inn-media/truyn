@@ -49,7 +49,7 @@ All five required first-party SDKs — TypeScript/JavaScript, Python, Go, Java a
 
 ## Current maturity boundary
 
-Class C and D-100 are accepted; D-1000 remains open. Production operations contracts exist but live 28-day/telemetry/pager/restore evidence remains open. Durable authority plus managed runtime support are implemented, while live managed deployment/multi-region/recovery/propagation evidence remains open. Production Trust Authority remains open in PR `#438`. Governance remains G1 bootstrap Founding Stewardship. Mainnet and stable `TRUYN/1` are not claimed.
+Class C, D-100, D-200, D-500 and D-1000 are accepted network-scale gates. D-1000 closed the defined 20-host / 1,000-real-process Class-D gate on workflow run `37687469411`, `run_attempt=2`. Production operations contracts exist but live 28-day/telemetry/pager/restore evidence remains open. Durable authority plus managed runtime support are implemented, while live managed deployment/multi-region/recovery/propagation evidence remains open. Production Trust Authority remains open in PR `#438`. Governance remains G1 bootstrap Founding Stewardship. Mainnet and stable `TRUYN/1` are not claimed.
 
 Canonical current facts belong in `docs/architecture/IMPLEMENTATION_STATUS.md`.
 

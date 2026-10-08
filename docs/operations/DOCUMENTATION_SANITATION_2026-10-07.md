@@ -1,5 +1,7 @@
 # Documentation Sanitation — 2026-10-07
 
+> **Historical snapshot after D-1000 closure.** This file accurately records the 2026-10-07 state when D-1000 was still open. D-1000 was accepted on 2026-10-08 by Attempt 1 workflow run `37687469411`, successful `run_attempt=2`. Current authority: `DOCUMENTATION_SANITATION_2026-10-08.md` and `../benchmarks/CLASS_D_1000_2026-10-08.md`.
+
 **Scope:** public `inn-media/truyn` current-state documentation after native GUI client qualification, post-merge hardening and Class D-500 acceptance.
 
 **Native-client sanitation baseline:** `23a6b902310c9096b65af49f48307d7173cd03e9`  

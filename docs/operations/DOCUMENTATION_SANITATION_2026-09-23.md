@@ -1,6 +1,6 @@
 # Documentation Sanitation — 2026-09-23
 
-> **Historical snapshot.** This document records repository state on 2026-09-23 and is not the current status authority. Class D-500 was later accepted on 2026-10-07 by Attempt 22 run `37666768998`. See `DOCUMENTATION_SANITATION_2026-10-07.md` and `../benchmarks/CLASS_D_500_2026-10-07.md`.
+> **Historical snapshot.** This document records repository state on 2026-09-23 and is not the current status authority. Class D-500 was later accepted on 2026-10-07 and Class D-1000 on 2026-10-08. See `DOCUMENTATION_SANITATION_2026-10-08.md`, `../benchmarks/CLASS_D_500_2026-10-07.md` and `../benchmarks/CLASS_D_1000_2026-10-08.md`.
 
 **Scope:** repository-wide documentation reconciliation against public `main` snapshot `eb25f0f8ad5bedb643f007ddfb0da107dab44b89` and durable GitHub task anchors.
 
