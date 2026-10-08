@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
-      TESTED_COMMIT: '3d315f85c2cea001477944992f1e3595ad40fd35'
-      TESTED_TREE: '16eec59b8040ba32e9c7864e69df1daa88b73369'
+      TESTED_COMMIT: '4889e3b6bcf7d876ac9a3543f2ea0de5ec718eeb'
+      TESTED_TREE: '7146f06d2279e0fe6bad9403a3687f65cafd95ea'
       FROZEN_PRE_REPAIR: '27eaf550f2427a02a067062049b59ce6fc6e3355'
     steps:
       - uses: actions/checkout@v4

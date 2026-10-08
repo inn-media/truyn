@@ -53,3 +53,10 @@ source_tree=16eec59b8040ba32e9c7864e69df1daa88b73369
 contains_network_dht_and_quic_regressions=true
 no_vm=true
 benchmark_launch=false
+
+checkpoint=bounded-connect-retry-current-main-and-exact-candidate
+source_sha=4889e3b6bcf7d876ac9a3543f2ea0de5ec718eeb
+source_tree=7146f06d2279e0fe6bad9403a3687f65cafd95ea
+mainline_fix_commit=675576f0e33c511f2f79a4718e9cf9fed4ec2296
+no_vm=true
+benchmark_launch=false
