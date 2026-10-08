@@ -19,7 +19,7 @@
 
 ## Benchmark execution contracts
 
-- `S_SERIES_EXECUTION_AND_TELEMETRY.md` defines the operational boundary for the planned Semantic Scale S-50/100/200/500 family: dedicated S workflow/concurrency/resource/evidence namespaces, D-Series non-interference, normalized node/request/chain/network/economic telemetry, spend preflight and immutable evidence closure. It is the active execution contract; accepted evidence now exists for S-10, S-20 and the full S-50 eight-scenario gate, while S-100+ remain open.
+- `S_SERIES_EXECUTION_AND_TELEMETRY.md` defines the operational boundary for the planned Semantic Scale S-50/100/200/500 family: dedicated S workflow/concurrency/resource/evidence namespaces, D-Series non-interference, normalized node/request/chain/network/economic telemetry, spend preflight and immutable evidence closure. It is the active execution contract; accepted evidence now exists for S-10, S-20, S-50 and the full S-100 eight-scenario gate, while S-200+ remain open.
 - `N_SERIES_EXECUTION_AND_ISOLATION.md` defines the public execution procedure for N/SOVEREIGNTY, N/MARKETPLACE, N/TRUST-DECAY and N/SUSTAINED-CHURN: `N/<benchmark>/<run_id>` ownership, series-scoped concurrency, R0/R1/R2 classification, authorization/budget/instrumentation preflight, paired controls, interference detection, owner-scoped cleanup, independent reconciliation and deterministic safe export. It is a **foundation contract, not N-Series evidence**.
 
 ## Managed authority operations boundary

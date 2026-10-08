@@ -25,7 +25,7 @@ Website: https://truyn.org/
 | Class D-200 | **Accepted / PASS; repeatability confirmed** |
 | Class D-500 | **Accepted / PASS; repeatability-confirmed by two consecutive exact-frozen runs** |
 | Class D-1000 | **Accepted / PASS; 20 hosts / 1,000 real processes** |
-| Semantic Scale S-Series | **S-10 + S-20 + S-50 accepted / PASS; S-100+ remain OPEN** |
+| Semantic Scale S-Series | **S-10 + S-20 + S-50 + S-100 accepted / PASS; S-200+ remain OPEN** |
 | Efficiency E-Series | **Active qualification; no final E PASS claimed** |
 | Account → Organization → Tenant | **Implemented / accepted; managed implementation owned by TRUYN Platform** |
 | Managed authority runtime/accounting | **Implemented / accepted in TRUYN Platform; public repository exposes contracts/reference seams only** |
@@ -58,7 +58,7 @@ A failed/diagnostic attempt is evidence, not PASS.
 
 D-200 is accepted and repeatability-confirmed. **D-500 is accepted and repeatability-confirmed**. **D-1000 is accepted** on Attempt 1 workflow run `37687469411`, GitHub `run_attempt=2`, with strict `TRUYN_D1000_TERMINAL result=PASS` on frozen source `c1d3fa087716dbf24d0b3b65bceae303e907160a` / tree `266c83c8520d486cc6f1d44f63c8bd9b6e185c38`: 20 hosts / 1,000 real processes, baseline 100%, post-restart 99%, healed 100%, convergence 100%, zero acknowledged-write loss and complete cleanup. The successful D-1000 scale floor is canonical in `main` at `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`. See `docs/benchmarks/CLASS_D_1000_2026-10-08.md`.
 
-S-Series now has three accepted checkpoints: the bounded **S-10 ECON/MIX integration baseline**, the **S-20 five-scenario gate**, and the full **S-50 eight-scenario scale gate**. S-50 Attempt 3 passed `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION` and `LANG` at 50 simultaneously live semantic nodes. Headline evidence includes 97.810% input-token reduction, 97.413% comparable GPT/Gemini provider-cost reduction, 2 clouds / 3 regions / 2 geographies, 16 three-hop chains with 100% provenance lineage, CHURN recovery p95 58.616 s against the fixed <=120 s gate, 50/50 contention completion with zero cascading failures, and 50/50 multilingual cases across EN/TR/ZH/RU/AZ. S-100+ remain independent OPEN gates. See `docs/benchmarks/S_SERIES_S10_2026-10-07.md`, `docs/benchmarks/S_SERIES_S20_2026-10-07.md` and `docs/benchmarks/S_SERIES_S50_2026-10-08.md`.
+S-Series now has four accepted checkpoints: the bounded **S-10 ECON/MIX integration baseline**, the **S-20 five-scenario gate**, the full **S-50 eight-scenario 50-node scale gate**, and the full **S-100 eight-scenario 100-node scale gate**. S-100 Attempt 1 passed `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION` and `LANG` at 100 simultaneously live semantic nodes. Headline evidence includes 98.903% input-token reduction, 98.682% comparable GPT/Gemini provider-cost reduction, CHURN recovery p95 54.002 s, 100/100 contention completion with maxInFlight 100, and 100/100 multilingual cases across EN/TR/ZH/RU/AZ. S-200+ remain independent OPEN gates. See `docs/benchmarks/S_SERIES_S10_2026-10-07.md`, `docs/benchmarks/S_SERIES_S20_2026-10-07.md` and `docs/benchmarks/S_SERIES_S50_2026-10-08.md`.
 
 E-Series has active qualification/isolation/provider-smoke work. No final E/DECOMPOSE, E/PER-RESULT, E/KNEE or E/DEGRADE result is claimed.
 
@@ -100,7 +100,7 @@ npm test
 5. `docs/operations/NETWORK_SCALE_STATUS.md` — current D-Series operational acceptance;
 6. `docs/architecture/IMPLEMENTATION_STATUS.md` — repository-wide factual maturity;
 7. `docs/operations/DOCUMENTATION_SANITATION_2026-10-07.md` — latest repository-wide documentation reconciliation;
-8. `docs/operations/S_SERIES_SANITATION_2026-10-08.md` — current S-Series reconciliation;
+8. `docs/operations/S_SERIES_SANITATION_S100_2026-10-08.md` — current S-Series reconciliation;
 9. `docs/benchmarks/` — immutable accepted/failed measured evidence;
 9. `ROADMAP.md` — next gates.
 
