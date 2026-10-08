@@ -52,6 +52,9 @@ jobs:
           bash tests/d5000-remote-exit-contract.test.sh
           bash tests/d5000-red-host-snapshot.test.sh
           echo 'TRUYN_D5000_REPAIR_SHELL=PASS'
+      - name: Install QUIC deps before network-only tests
+        shell: bash
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Evaluate D-5000 strict admission and existing DHT tests
         shell: bash
         run: |
