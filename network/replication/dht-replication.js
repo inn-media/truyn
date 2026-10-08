@@ -131,12 +131,12 @@ export class DhtReplicationManager {
         .filter((peer) => peer.nodeId !== this.discovery.identity.nodeId);
       let cursor = 0;
       let inFlight = 0;
+      let placementTimedOut = false;
 
       await new Promise((resolve) => {
         let done = false;
         let graceTimer = null;
         let deadlineTimer = null;
-        let placementTimedOut = false;
 
         const finish = () => {
           if (done) return;
