@@ -14,3 +14,8 @@ prior_failed_run=37795943235
 
 retry=compute-usage-direct-quota-resource-20261008
 prior_failed_run=37797360040
+
+retry=quota-rbac-preflight-20261008
+repair_sha=70cd89d1d9265a5165d3e3326831e971e5051b91
+failed_run=37799470103
+permit_benchmark=false
