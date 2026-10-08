@@ -1,6 +1,6 @@
 # TRUYN S-Series Execution Isolation and Telemetry
 
-Status: **S-10 + S-20 ACCEPTED / EXECUTION CONTRACT ACTIVE — S-50+ OPEN**  
+Status: **S-10 + S-20 + S-50 ACCEPTED / EXECUTION CONTRACT ACTIVE — S-100+ OPEN**  
 Applies to: `S-10`, `S-20`, `S-50`, `S-100`, `S-200`, `S-500`  
 Documentation reconciliation: **2026-09-25**
 
@@ -150,11 +150,12 @@ Each level is independent acceptance evidence:
 
 1. preserve accepted S-10 evidence as the bounded integration baseline;
 2. preserve accepted S-20 five-scenario evidence;
-3. execute and accept S-50 independently;
-4. execute and accept S-100 separately;
-5. execute and accept S-200 separately;
-6. execute and accept S-500 separately;
-7. perform independent final-goal reconciliation before declaring the S-Series task complete.
+3. preserve accepted S-50 eight-scenario scale evidence and its immutable attempt lineage;
+4. analyze the S-50 contention/backpressure curve without redefining the accepted S-50 gate;
+5. execute and accept S-100 separately;
+6. execute and accept S-200 separately;
+7. execute and accept S-500 separately;
+8. perform independent final-goal reconciliation before declaring the S-Series task complete.
 
 Passing one level never implies a larger level.
 
