@@ -1,0 +1,8 @@
+operation=d5000-readonly-sku-quota-check
+requested_region=southcentralus
+sku_candidates=Standard_E32ds_v6,Standard_D32ds_v6,Standard_D32lds_v6
+planned_hosts=20
+vcpus_per_host=32
+require_placement_capacity_separately=true
+no_azure_mutations=true
+no_benchmark_dispatch=true
