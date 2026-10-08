@@ -1,0 +1,75 @@
+name: D-5000 Attempt 1 Exact-Source Qualification Only
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d5000/qualify-exact-source-20261008.txt']
+permissions: { contents: read }
+concurrency: { group: truyn-d5000-attempt1-static-qualification, cancel-in-progress: false }
+env:
+  TESTED_COMMIT: '983429dd6f83f361ec665f452e4974bb0cae91bc'
+  TESTED_TREE_SHA: 'f304e4d5726f5f804ce392832f7dd14d8f7b81a6'
+  D1000_ACCEPTED_COMMIT: 'c1d3fa087716dbf24d0b3b65bceae303e907160a'
+  D1000_ACCEPTED_TREE: '266c83c8520d486cc6f1d44f63c8bd9b6e185c38'
+jobs:
+  exact-source-static:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: '${{ env.TESTED_COMMIT }}'
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Confirm accepted parent is byte exact and permitted changes only
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE_SHA" ]]
+          [[ "$(git rev-parse "$D1000_ACCEPTED_COMMIT^{tree}")" == "$D1000_ACCEPTED_TREE" ]]
+          git merge-base --is-ancestor "$D1000_ACCEPTED_COMMIT" HEAD
+          git diff --name-status "$D1000_ACCEPTED_COMMIT" HEAD >d5000-source-delta.txt
+          cat d5000-source-delta.txt
+          # Exact parent clone with only D-5000-specific additions; D-1000 not rewritten.
+          ! grep -Ev '^A[[:space:]]+(benchmarks/scale/class-d-(azure-5000-|5000-)|docs/benchmarks/CLASS_D_5000_EXACT_CLONE_ATTEMPT1.md)' d5000-source-delta.txt
+          [[ $(wc -l <d5000-source-delta.txt) -eq 6 ]]
+          echo "TRUYN_D5000_SOURCE_CLONE=PASS sha=$TESTED_COMMIT tree=$TESTED_TREE_SHA"
+      - name: D-5000 shell and JS checks
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n benchmarks/scale/class-d-azure-5000-provision.sh
+          bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
+          node --check benchmarks/scale/class-d-5000-evidence.js
+          node --check benchmarks/scale/evaluate-class-d-5000-evidence.js
+          node --check benchmarks/scale/verify-class-d-5000-terminal.js
+          node --test benchmarks/scale/class-d-5000-admission.test.js
+          grep -Fq 'STRICT_NODES_PER_HOST=250' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'D5000_MIN_VCPUS_PER_HOST=32' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'PREFIX="truyn-d5000-${GITHUB_RUN_ID}"' benchmarks/scale/class-d-azure-5000-provision.sh
+          echo "TRUYN_D5000_STATIC=PASS"
+      - name: Install dependencies as in accepted D-1000
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Build and verify exactly pinned immutable runtime bundle
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p qualification
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh qualification/d5000-runtime.tgz
+          sha256sum -c qualification/d5000-runtime.tgz.sha256
+          t="$(mktemp -d)"
+          tar -xzf qualification/d5000-runtime.tgz manifest.json -C "$t"
+          jq -e --arg sha "$TESTED_COMMIT" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$sha' "$t/manifest.json"
+          sha256sum qualification/d5000-runtime.tgz
+          echo "TRUYN_D5000_QUALIFICATION=PASS tested_sha=$TESTED_COMMIT tested_tree=$TESTED_TREE_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: truyn-d5000-exact-qualification-${{ github.run_id }}
+          path: |
+            d5000-source-delta.txt
+            qualification/d5000-runtime.tgz.sha256
+          if-no-files-found: warn
+          retention-days: 60
