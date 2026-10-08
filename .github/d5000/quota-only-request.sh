@@ -43,7 +43,10 @@ if ((reglimit>=target && famlimit>=target)); then
 fi
 # Quota API is primary. Denied RBAC is a hard fact: do not attempt unauthorized self-grant again.
 quota_data=''
-if quota_data="$(az rest --method get --url "${base}?api-version=${version}" -o json 2>quota-api-error.txt)"; then
+quota_probe=''
+# Single-resource permission probe is mandatory: list can be empty even without quotas/read.
+if quota_probe="$(az rest --method get --url "${base}/${regional}?api-version=${version}" -o json 2>quota-api-error.txt)"; then
+  quota_data="$(az rest --method get --url "${base}?api-version=${version}" -o json 2>quota-list-error.txt)" || fail quota_list_failed_after_authorized_probe
   jq -e '(.value|type)=="array"' <<<"$quota_data" >/dev/null || fail malformed_quota_list
   status quota_api_read_authorized
   for resource in "$regional" "$family_entry"; do
@@ -56,7 +59,7 @@ if quota_data="$(az rest --method get --url "${base}?api-version=${version}" -o 
     fi
     name="$(jq -r '.properties.name.value//.name//empty' <<<"$item")"
     unit="$(jq -r '.properties.unit//"Count"' <<<"$item")"
-    applicable="$(jq -r '.properties.isQuotaApplicable//true' <<<"$item")"
+    applicable="$(jq -r 'if (.properties|has("isQuotaApplicable")) then .properties.isQuotaApplicable else true end' <<<"$item")"
     [[ -n "$name" && "$applicable" == true ]] || fail quota_resource_not_applicable
     body="$(jq -n --arg n "$name" --arg u "$unit" --argjson x "$target" '{properties:{name:{value:$n},unit:$u,limit:{limitObjectType:"LimitValue",value:$x}}}')"
     status "submit=QuotaAPI resource=$name target=$target"
@@ -82,7 +85,7 @@ else
   if existing="$(az rest --method get --url "$ticket_url" -o json 2>support-existing-error.txt)"; then
     status "existing_support_ticket=$ticket no_duplicate=true"
   else
-    if ! grep -q 'NotFound\\|ResourceNotFound\\|404' support-existing-error.txt; then fail SUPPORT_TICKET_READ_UNAUTHORIZED; fi
+    if ! grep -Eqi 'NotFound|ResourceNotFound|404|Not Found' support-existing-error.txt; then fail SUPPORT_TICKET_READ_UNAUTHORIZED; fi
     # Corporate operations mailbox is used for this corporate quota request, not personal data.
     family_name="$(jq -r --arg n "$family_entry" '[.[]|select(.name.value==$n)][0].name.localizedValue//empty' usage.json)"
     family_display="$(sed -E 's/^Standard //;s/ Family vCPUs$//;s/ vCPUs$//' <<<"$family_name") Series"
