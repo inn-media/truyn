@@ -164,3 +164,27 @@ Benchmark and acceptance evidence is preserved under **redact-not-delete**. Oper
 ## Operational rule
 
 D-200, D-500 and D-1000 are closed and immutable accepted gates. Any future Class-D campaign is a new, explicitly named scale/repeatability gate and must preserve the accepted safety, topology, durability and evidence thresholds; no new result may overwrite the immutable D-1000 Attempt 1 PASS.
+
+## D-1000 exact-frozen Double-Check — 2026-10-08 (authoritative update)
+
+**Class D-1000 status: ACCEPTED / PASS / REPEATABILITY CONFIRMED / CLOSED (defined scale gate only).** The primary accepted Attempt 1 remains workflow run [37687469411](https://github.com/inn-media/truyn/actions/runs/37687469411), successful GitHub run_attempt=2. The independent exact-frozen Double-Check is [37785777704](https://github.com/inn-media/truyn/actions/runs/37785777704), GitHub run_attempt=1, `completed/success`, strict `TRUYN_D1000_TERMINAL result=PASS`. It is **not** a second attempt of the original GitHub run and does not overwrite the primary immutable evidence.
+
+Both successful executions checked out the **identical source** `c1d3fa087716dbf24d0b3b65bceae303e907160a`, **identical tree** `266c83c8520d486cc6f1d44f63c8bd9b6e185c38` and identical runtime digest `sha256:df45fa29e982bab8dfe83e02824690d5af6b8b5b0f4aa5ff385dc9d2bb193c88`. Double-Check launcher SHA: `e5c957123efa449e14fb225fd8be5df2d0e6e995`; Azure placement: `southcentralus / Standard_E8as_v7`; **20 real hosts × 50 processes = 1,000 processes**.
+
+| Verified metric | Primary PASS | Double-Check PASS |
+|---|---:|---:|
+| Baseline routing | 1.000 | 1.000 |
+| Post-restart routing | 0.990 | 1.000 |
+| Healed routing | 1.000 | 1.000 |
+| Convergence routing | 1.000 | 1.000 |
+| Convergence p95 (ms) | 285.988 | 251.139 |
+| Restart recovery p95 (ms) | 26,627 | 10,950 |
+| Packet-partition recovery (ms) | 32,696 | 32,901 |
+| Acknowledged durable writes | 100 | 100 |
+| Acknowledged-write losses | 0 | 0 |
+| Campaign / staging remaining resources | 0 / 0 | 0 / 0 |
+| Strict terminal | PASS | PASS |
+
+Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`, `staging_cleanup=true`; evidence artifact **11557320070** and digest **sha256:3b84a2acf39ad34735a069e5a3e62f84be675f11636f68812eb0b78a64959a32**. Launcher-only changes were isolated from frozen benchmark source. Historical branch-OIDC failure [37784820939](https://github.com/inn-media/truyn/actions/runs/37784820939) happened before provisioning (`AADSTS700213`) and is **not** a D-1000 network regression. The prior primary run_attempt=1 quota failure also remains immutable pre-provision evidence. No tests, thresholds, network source, old reports, or negative evidence are weakened or deleted.
+
+**Scope boundary:** this demonstrates repeatability of the specified 1,000-process Class-D scale acceptance. It does not establish long-duration production SLO compliance, private managed-production acceptance, or mainnet readiness. Public repository remains the authoritative source of benchmark/evaluator/evidence; private repository consumes only immutable identifiers and sanitized public metrics.
