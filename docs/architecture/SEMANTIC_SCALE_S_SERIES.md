@@ -1,6 +1,6 @@
 # TRUYN Semantic Scale S-Series Architecture
 
-Status: **S-10 + S-20 + S-50 ACCEPTED / S-100+ OPEN**  
+Status: **S-10 + S-20 + S-50 + S-100 ACCEPTED / S-200+ OPEN**  
 Track: **S-Series (Semantic Scale)**  
 Target ladder: **S-10 → S-20 → S-50 → S-100 → S-200 → S-500**
 
@@ -84,11 +84,11 @@ Provider transport implementation may be shared where TRUYN already shares it; v
 | **S-10** | bounded integration baseline | accepted ECON/MIX proof before larger semantic-node scale |
 | **S-20** | 20 | accepted five-scenario gate: ECON, MIX, COST-ROUTING, CONTENTION, LANG |
 | **S-50** | 50 | **accepted full eight-scenario scale gate on Attempt 3** |
-| **S-100** | 100 | confirm invariance as semantic node count doubles; produce comparable scale curves |
+| **S-100** | 100 | **accepted full eight-scenario scale gate on Attempt 1** |
 | **S-200** | 200 | semantic counterpart at the already-proven D-200 network scale |
 | **S-500** | 500 | large live semantic-network benchmark for economics, cross-border operation, contention and policy routing |
 
-Passing S-10 does not imply S-20; passing S-20 does not imply S-50; and passing S-50 does not imply S-100/S-200/S-500. Each gate requires its own immutable run identity and evidence.
+Passing S-10 does not imply S-20; passing S-20 does not imply S-50; passing S-50 does not imply S-100; and passing S-100 does not imply S-200/S-500. Each gate requires its own immutable run identity and evidence.
 
 ## Provider assignment profiles
 
@@ -209,11 +209,12 @@ Private raw telemetry and managed operational detail remain in `inn-media/truyn-
 
 ## Current execution status
 
-S-Series has three accepted checkpoints:
+S-Series has four accepted checkpoints:
 
 - **S-10 Attempt 6** — accepted bounded ECON/MIX integration baseline.
 - **S-20 Attempt 3** — accepted five-scenario 20-node gate covering `ECON`, `MIX`, `COST-ROUTING`, `CONTENTION` and `LANG`.
 - **S-50 Attempt 3** — accepted full eight-scenario 50-node gate covering `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION` and `LANG`.
+- **S-100 Attempt 1** — accepted full eight-scenario 100-node gate covering the same declared matrix, with Azure bearer fan-out repaired before execution.
 
 Accepted public evidence:
 
@@ -227,10 +228,10 @@ Therefore:
 - S-10 — **ACCEPTED / PASS**;
 - S-20 — **ACCEPTED / PASS** for the five declared scenarios;
 - S-50 — **ACCEPTED / PASS**;
-- S-100 — **OPEN / not accepted**;
+- S-100 — **ACCEPTED / PASS**;
 - S-200 — **OPEN / not accepted**;
 - S-500 — **OPEN / not accepted**.
 
-S-20 does not accept `XBORDER`, `CHAIN` or `CHURN`; those were independently exercised and accepted at S-50. S-50 Attempt 3 passed all eight scenarios with 50 live nodes, CHURN recovery p95 58,616 ms, 50/50 contention completion and 50/50 multilingual cases. The active acceptance path remains exact candidate SHA → minimal preflight → one real run → post-run evidence, with fail-collect permitted so independent scenarios can complete and preserve evidence before final reconciliation.
+S-20 does not accept `XBORDER`, `CHAIN` or `CHURN`; those were independently exercised and accepted at S-50. S-50 Attempt 3 passed all eight scenarios with 50 live nodes. S-100 Attempt 1 independently passed the same full matrix with 100 live nodes: CHURN recovery p95 54,002 ms, 100/100 contention completion, 100/100 multilingual cases, and auth p95 3 ms after removal of worker-local Azure CLI token acquisition. The remaining contention non-provider residual p95 was 5,874 ms and is the next diagnostic target.
 
-No S-100/S-200/S-500 claim may be inferred from S-50.
+No S-200/S-500 claim may be inferred from S-100.
