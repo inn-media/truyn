@@ -230,9 +230,26 @@ export class TruynLocalNodeClient {
 
   private async runEventPump(): Promise<void> {
     while (!this.closed && this.eventWaiters.size > 0) {
-      let polled: any;
       try {
-        polled = await this.runtime.poll({ waitMs: 25_000 });
+        if (typeof this.runtime.nextSocketEvent === 'function') {
+          try {
+            const event = await this.runtime.nextSocketEvent({ timeoutMs: 25_000 });
+            if (event) this.dispatchEvent(event);
+            continue;
+          } catch (error) {
+            const message = String((error as any)?.message || error || '');
+            if (message === 'fast_socket_event_timeout') continue;
+            if (message === 'fast_socket_closed') {
+              await new Promise((resolve) => setTimeout(resolve, 25));
+              continue;
+            }
+            // Fall back to one legacy long-poll cycle for compatibility/transient socket failures.
+          }
+        }
+
+        const polled = await this.runtime.poll({ waitMs: 25_000 });
+        const events = Array.isArray(polled?.events) ? polled.events : [];
+        for (const event of events) this.dispatchEvent(event);
       } catch (error) {
         const normalized = normalizedRuntimeError(error);
         for (const waiter of [...this.eventWaiters]) {
@@ -241,8 +258,6 @@ export class TruynLocalNodeClient {
         }
         return;
       }
-      const events = Array.isArray(polled?.events) ? polled.events : [];
-      for (const event of events) this.dispatchEvent(event);
     }
   }
 

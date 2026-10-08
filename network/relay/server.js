@@ -217,11 +217,17 @@ export function createRelay({
   }
 
   function queue(nodeId, event) {
-    if (deliverLegacyWaiter(nodeId, event)) return;
+    const socketDelivery = sendSocketEvent(nodeId, event, { requireCapacity: true });
+    if (socketDelivery === true) return 'socket';
+    if (deliverLegacyWaiter(nodeId, event)) return 'long-poll';
     boundedQueue(events, nodeId, event);
+    return socketDelivery === 'full' ? 'queued-after-socket-backpressure' : 'queued';
   }
 
   function queueCritical(nodeId, event) {
+    const socketDelivery = sendSocketEvent(nodeId, event, { requireCapacity: true });
+    if (socketDelivery === true) return true;
+    if (socketDelivery === 'full') return false;
     if (deliverLegacyWaiter(nodeId, event)) return true;
     const queueForNode = events.get(nodeId) || [];
     if (queueForNode.length >= maxQueuedEventsPerNode) return false;
@@ -1113,19 +1119,26 @@ export function createRelay({
     providerSockets.set(nodeId, socket);
     socket.isAlive = true;
     touch(nodeId);
+    const legacyQueued = events.get(nodeId) || [];
     const queued = fastEvents.get(nodeId) || [];
     const terminalQueued = fastTerminalEvents.get(nodeId) || [];
     let saturated = false;
-    while (queued.length > 0 && !saturated) {
+    while (legacyQueued.length > 0 && !saturated) {
+      const delivered = sendSocketEvent(nodeId, legacyQueued[0], { requireCapacity: true });
+      if (delivered === true) legacyQueued.shift();
+      else saturated = true;
+    }
+    while (legacyQueued.length === 0 && queued.length > 0 && !saturated) {
       const delivered = sendSocketEvent(nodeId, queued[0], { requireCapacity: true });
       if (delivered === true) queued.shift();
       else saturated = true;
     }
-    while (queued.length === 0 && terminalQueued.length > 0 && !saturated) {
+    while (legacyQueued.length === 0 && queued.length === 0 && terminalQueued.length > 0 && !saturated) {
       const delivered = sendSocketEvent(nodeId, terminalQueued[0], { requireCapacity: true });
       if (delivered === true) terminalQueued.shift();
       else saturated = true;
     }
+    events.set(nodeId, legacyQueued);
     fastEvents.set(nodeId, queued);
     fastTerminalEvents.set(nodeId, terminalQueued);
     if (saturated && connectedSocket(nodeId) === socket) {

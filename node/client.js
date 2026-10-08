@@ -382,6 +382,10 @@ export class TruynNode {
     return { ...event, verification, priorVerification };
   }
 
+  async nextSocketEvent({ timeoutMs = 0 } = {}) {
+    return this.nextCompactSocketEvent({ timeoutMs });
+  }
+
   async nextCompactSocketEvent({ timeoutMs = 0 } = {}) {
     await this.ensureFastSocket();
     if (this.fastSocketQueue.length > 0) return this.verifyCompactEvent(this.fastSocketQueue.shift());
