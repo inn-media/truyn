@@ -26,3 +26,8 @@ controller_commit=4e690e09ea2f6ce23cb597280b6d55228c560634
 quota_probe_repair=a862be34518521532e3d5807b1f5ebc86dfade34
 static_qualification_commit=5d7bedcb6cb0b37415a507f8e5d09356348293ba
 permit_benchmark=false
+
+retry=v6-approved-family-quota-reconciliation-20261008
+source_quota_controller_sha=95d6b03500069bf083a0e400d6462319bdfe2b72
+reference_sku_gate=37814898585
+permit_benchmark=false
