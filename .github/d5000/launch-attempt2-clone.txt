@@ -1,0 +1,14 @@
+approved_by_user=true
+attempt=2
+campaign=D-5000
+launcher=d5000-attempt2-clone-attempt1.yml
+source_workflow=.github/workflows/d5000-attempt1.yml
+source_pr=923
+tested_commit=4889e3b6bcf7d876ac9a3543f2ea0de5ec718eeb
+tested_tree=7146f06d2279e0fe6bad9403a3687f65cafd95ea
+qualification_run=37857444064
+hosts=20
+nodes_per_host=250
+nodes_total=5000
+single_shot=true
+strict_network_safety_acceptance=unchanged
