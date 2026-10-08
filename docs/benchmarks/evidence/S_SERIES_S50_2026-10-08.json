@@ -1,0 +1,109 @@
+{
+  "schema": "truyn.public.s-series-s50-accepted/v1",
+  "date": "2026-10-08",
+  "status": "PASS",
+  "level": "S-50",
+  "attempt": 3,
+  "githubRun": 37782488279,
+  "job": 113328810009,
+  "launchSha": "a5d9adcbce0a7fb332714e724bdd6adcd446afbc",
+  "preparedParentSha": "fae606e97cd1349eb770c2b53ad34814c821caa9",
+  "artifact": {
+    "id": 11555246174,
+    "digest": "sha256:373ad84ee2d41d170b3035a9e34419891edaa2a41fca2cd0138687177faebbf5"
+  },
+  "nodeTarget": 50,
+  "scenarios": [
+    "ECON",
+    "MIX",
+    "XBORDER",
+    "CHAIN",
+    "CHURN",
+    "COST-ROUTING",
+    "CONTENTION",
+    "LANG"
+  ],
+  "scenarioStatus": {
+    "ECON": "PASS",
+    "MIX": "PASS",
+    "XBORDER": "PASS",
+    "CHAIN": "PASS",
+    "CHURN": "PASS",
+    "COST-ROUTING": "PASS",
+    "CONTENTION": "PASS",
+    "LANG": "PASS"
+  },
+  "headline": {
+    "econMix": {
+      "observations": 150,
+      "directInputTokens": 1974602,
+      "truynInputTokens": 42959,
+      "inputTokenReductionPct": 97.8102894640068,
+      "comparableProviderCostReductionPct": 97.41284171441056,
+      "directP50Ms": 2131,
+      "directP95Ms": 26007,
+      "truynP50Ms": 1518,
+      "truynP95Ms": 16361,
+      "retrievalP95Ms": 34
+    },
+    "xborder": {
+      "clouds": 2,
+      "regions": 3,
+      "geographies": 2,
+      "requests": 50,
+      "successRatio": 1
+    },
+    "chain": {
+      "chains": 16,
+      "hops": 48,
+      "chainSuccessRatio": 1,
+      "provenanceLineageRatio": 1
+    },
+    "churn": {
+      "events": 20,
+      "recoveryP50Ms": 21945,
+      "recoveryP95Ms": 58616,
+      "recoveryP99Ms": 62009,
+      "recoveryLimitMs": 120000
+    },
+    "costRouting": {
+      "requests": 50,
+      "eligibilityViolations": 0,
+      "authorizationViolations": 0,
+      "policyHitRate": 1,
+      "blendedCostReductionPct": -0.6432913897921856
+    },
+    "contention": {
+      "offered": 50,
+      "completed": 50,
+      "maxInFlight": 50,
+      "e2eP50Ms": 19562,
+      "e2eP95Ms": 22723,
+      "e2eP99Ms": 23071,
+      "latencyInflationVsControlP95": 7.287684413085311,
+      "cascadingFailures": 0
+    },
+    "lang": {
+      "samples": 50,
+      "languages": [
+        "EN",
+        "TR",
+        "ZH",
+        "RU",
+        "AZ"
+      ],
+      "retrievalRatio": 1,
+      "answerRatio": 1,
+      "provenanceRatio": 1
+    },
+    "transport": {
+      "attempts": 655,
+      "http200": 652,
+      "http429": 3,
+      "azure": 557,
+      "gcp": 98,
+      "terminalFailures": 0
+    }
+  },
+  "scopeBoundary": "Bounded S-50 benchmark only. S-100/S-200/S-500 and universal throughput/latency/pricing/mainnet claims remain open."
+}
