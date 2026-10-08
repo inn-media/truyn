@@ -1,0 +1,7 @@
+task=truyn-d5000-attempt1-exact-source-20261008
+target_run_id=37824934693
+operation=FORCE_CANCEL_ONLY
+user_requested_stop=true
+prior_graceful_abort_controller=37845931904
+azure_cleanup_owned_by_abort_controller=true
+no_benchmark_restart=true
