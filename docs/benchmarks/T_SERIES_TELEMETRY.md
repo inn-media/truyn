@@ -388,3 +388,55 @@ Before a paid final run, execute a zero/low-cost telemetry qualification that pr
 - no private resource name/credential appears in the public export.
 
 If telemetry completeness or cross-series isolation fails, the benchmark MUST NOT proceed to an expensive final run.
+
+
+## 16. Context-pressure extension
+
+`T/HEAD-TO-HEAD-CONTEXT-PRESSURE` extends the common telemetry vocabulary without redefining existing T-series records.
+
+Context-pressure runs additionally record, at request/hop/workflow scope where applicable:
+
+```text
+pressure_stratum             P2|P10|P25|P50
+planned_hop_count
+observed_hop_count
+agent_count
+node_count
+network_profile              local_control|wan_distributed
+knowledge_reuse_key
+semantic_unit_id
+semantic_unit_digest
+unique_semantic_bytes
+total_context_materialized_bytes
+duplicated_context_bytes
+evidence_bytes
+cross_node_context_bytes
+wan_tx_bytes
+wan_rx_bytes
+retransmitted_bytes
+retrieval_storage_read_bytes
+retrieval_storage_write_bytes
+orchestration_cpu_ms
+serialization_ms
+deserialization_ms
+completed_workflow
+```
+
+Derived values:
+
+```text
+duplicated_context_bytes =
+  max(0, total_context_materialized_bytes - unique_semantic_bytes)
+
+context_duplication_ratio =
+  total_context_materialized_bytes / unique_semantic_bytes
+
+fully_loaded_cost_per_completed_workflow =
+  sum(all attributable frozen accounting components) / completed_valid_workflows
+```
+
+The same semantic-unit normalization and digest rule MUST be applied to every arm. A comparator's native reference or artifact is not counted as repeated semantic content unless the referenced content is actually re-materialized/transmitted at that measured boundary.
+
+Provider tokens, protocol bytes, semantic bytes and WAN bytes remain separate dimensions. Protocol/network bytes MUST NOT be converted into artificial provider tokens.
+
+Cold and warm reuse, and local-control versus WAN-distributed execution, are distinct strata and must not be silently pooled.
