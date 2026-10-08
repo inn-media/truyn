@@ -53,3 +53,55 @@ test('TypeScript SDK local-node E2E completes verified NEED -> RESULT through th
     await relay.close();
   }
 });
+
+
+test('TypeScript SDK local-node shares one event pump across 100 concurrent result waiters', async () => {
+  let polls = 0;
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const events = Array.from({ length: 100 }, (_, index) => ({
+    kind: 'RESULT',
+    trust: { score: 1 },
+    verification: { ok: true },
+    envelope: {
+      from: `provider-${index}`,
+      payload: {
+        requestId: `need-${index}`,
+        output: { index },
+        metadata: { index }
+      }
+    }
+  }));
+  let delivered = false;
+  const runtime = {
+    identity: { nodeId: 'requester-shared-pump' },
+    need: async () => ({ ok: true, needId: 'unused', provider: 'unused' }),
+    poll: async ({ waitMs = 0 } = {}) => {
+      polls += 1;
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, Math.min(25, waitMs || 25)));
+        if (delivered) return { ok: true, events: [] };
+        delivered = true;
+        return { ok: true, events };
+      } finally {
+        inFlight -= 1;
+      }
+    },
+    closeFastSocket() {}
+  };
+
+  const client = new TruynLocalNodeClient(runtime);
+  try {
+    const results = await Promise.all(
+      Array.from({ length: 100 }, (_, index) => client.waitForResult(`need-${index}`, { timeoutMs: 2_000 }))
+    );
+    assert.equal(results.length, 100);
+    assert.deepEqual(results.map((result) => result.output), Array.from({ length: 100 }, (_, index) => ({ index })));
+    assert.equal(maxInFlight, 1, 'concurrent waiters must share a single in-flight event poll');
+    assert.equal(polls, 1, 'one relay event response can satisfy all 100 registered waiters');
+  } finally {
+    client.close();
+  }
+});
