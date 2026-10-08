@@ -541,9 +541,10 @@ export class TruynNode {
     });
   }
 
-  async poll() {
+  async poll({ waitMs = 0 } = {}) {
     this.requireSession('polling');
-    const result = await requestJson(`${this.relayUrl}/v1/events?nodeId=${encodeURIComponent(this.identity.nodeId)}`, { headers: this.authHeaders() });
+    const boundedWait = Math.max(0, Math.min(120_000, Math.floor(Number(waitMs) || 0)));
+    const result = await requestJson(`${this.relayUrl}/v1/events?nodeId=${encodeURIComponent(this.identity.nodeId)}&waitMs=${boundedWait}`, { headers: this.authHeaders() });
     return { ...result, events: result.events.map((event) => ({ ...event, verification: verifyEnvelope(event.envelope) })) };
   }
 
