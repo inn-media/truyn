@@ -1,6 +1,6 @@
 # TRUYN S-Series Execution Isolation and Telemetry
 
-Status: **S-10 + S-20 + S-50 ACCEPTED / EXECUTION CONTRACT ACTIVE — S-100+ OPEN**  
+Status: **S-10 + S-20 + S-50 + S-100 ACCEPTED / EXECUTION CONTRACT ACTIVE — S-200+ OPEN**  
 Applies to: `S-10`, `S-20`, `S-50`, `S-100`, `S-200`, `S-500`  
 Documentation reconciliation: **2026-09-25**
 
@@ -129,7 +129,7 @@ S-50 has real attempt history through **Attempt 15**. In particular:
 - Attempt 14, workflow run `35913581603`, is terminal FAILURE and immutable `NEVER_RERUN`;
 - Attempt 15, workflow run `35948814208`, is terminal FAILURE and immutable `NEVER_RERUN`; subsequent capacity/429 repair qualification does not rewrite that result.
 
-**S-10 Attempt 6 is accepted / PASS** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3 is accepted / PASS** for `ECON`, `MIX`, `COST-ROUTING`, `CONTENTION` and `LANG`. Public sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md` and `../benchmarks/S_SERIES_S20_2026-10-07.md`. `XBORDER`, `CHAIN`, `CHURN` and S-50+ remain independently OPEN.
+**S-10 Attempt 6 is accepted / PASS** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3, S-50 Attempt 3 and S-100 Attempt 1 are accepted / PASS** at their declared scopes. Public sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md`, `../benchmarks/S_SERIES_S20_2026-10-07.md`, `../benchmarks/S_SERIES_S50_2026-10-08.md` and `../benchmarks/S_SERIES_S100_2026-10-08.md`. S-200+ remain independently OPEN.
 
 ## 10. Current factual state
 
@@ -151,8 +151,8 @@ Each level is independent acceptance evidence:
 1. preserve accepted S-10 evidence as the bounded integration baseline;
 2. preserve accepted S-20 five-scenario evidence;
 3. preserve accepted S-50 eight-scenario scale evidence and its immutable attempt lineage;
-4. analyze the S-50 contention/backpressure curve without redefining the accepted S-50 gate;
-5. execute and accept S-100 separately;
+4. preserve accepted S-100 eight-scenario evidence and the Azure-auth harness repair;
+5. decompose the measured S-100 non-provider contention residual without redefining the accepted S-100 gate;
 6. execute and accept S-200 separately;
 7. execute and accept S-500 separately;
 8. perform independent final-goal reconciliation before declaring the S-Series task complete.
