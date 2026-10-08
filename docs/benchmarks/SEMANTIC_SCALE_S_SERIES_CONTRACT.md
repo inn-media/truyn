@@ -1,6 +1,6 @@
 # TRUYN Semantic Scale S-Series Benchmark Contract
 
-Status: **METHODOLOGY / S-10 + S-20 + S-50 ACCEPTED CHECKPOINTS**  
+Status: **METHODOLOGY / S-10 + S-20 + S-50 + S-100 ACCEPTED CHECKPOINTS**  
 Applies to: **S-10 bounded baseline; S-20 five-scenario gate; S-50, S-100, S-200, S-500 scale gates**
 
 This document defines the fixed benchmark method and acceptance boundary for the live semantic-node scale family described in `../architecture/SEMANTIC_SCALE_S_SERIES.md`.
@@ -270,7 +270,11 @@ S-20 is the accepted 20-node intermediate gate for `ECON`, `MIX`, `COST-ROUTING`
 
 S-50 is accepted on Attempt 3 for the full declared matrix: `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION`, `LANG`. Accepted sanitized evidence: `S_SERIES_S50_2026-10-08.md`. Future S-50 reruns do not redefine this contract unless a new run identity explicitly changes the benchmark contract before execution.
 
-### S-100 / S-200
+### S-100
+
+S-100 is accepted on Attempt 1 for the full declared matrix at 100 live semantic nodes. Accepted sanitized evidence: `S_SERIES_S100_2026-10-08.md`. The run retained the fixed correctness/recovery/policy gates and added contention latency decomposition after removing worker-local Azure CLI token acquisition.
+
+### S-200
 
 Repeat the same comparable core scenarios to produce scale curves and detect degradation. A prior smaller PASS is baseline evidence, not a substitute for the larger gate.
 
@@ -317,4 +321,4 @@ A failed or invalid run is never silently replaced. Subsequent attempts get new 
 
 ## 16. Current state
 
-The S-Series architecture and methodology are defined. **S-10 is accepted / PASS for the bounded ECON/MIX integration baseline, S-20 Attempt 3 is accepted / PASS for the five-scenario 20-node gate, and S-50 Attempt 3 is accepted / PASS for the full eight-scenario 50-node gate.** S-100, S-200 and S-500 remain OPEN and require independent immutable evidence. No larger-scale acceptance claim may be inferred from S-50.
+The S-Series architecture and methodology are defined. **S-10, S-20, S-50 and S-100 are accepted / PASS at their respective immutable checkpoints.** S-200 and S-500 remain OPEN and require independent immutable evidence. No larger-scale acceptance claim may be inferred from S-100.
