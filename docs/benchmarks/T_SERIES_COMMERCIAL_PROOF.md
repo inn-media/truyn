@@ -1,8 +1,16 @@
 # T-Series Commercial Proof — Benchmark Contract
 
-Status: **FOUNDATION / NOT YET A RESULT**  
+Status: **ACTIVE PROGRAM — T/HEAD-TO-HEAD EXECUTED AND CLOSED WITH NEGATIVE ECONOMIC RESULT**  
 Owner: **OPEN methodology + sanitized public evidence**  
 Private execution owner: `inn-media/truyn-platform`
+
+## HEAD-TO-HEAD closure — 2026-10-07
+
+T/HEAD-TO-HEAD has been executed and closed. The final public record is [`T_HEAD_TO_HEAD_2026-10-07.md`](T_HEAD_TO_HEAD_2026-10-07.md).
+
+The benchmark execution itself passed its evidence, telemetry, quality and native-comparator requirements, but the pre-frozen 30% gross provider-cost hypothesis versus competent BARE_MCP and BARE_A2A comparators did not pass. This negative result is final for the frozen methodology and is not a reason to alter thresholds or comparator configuration.
+
+Attempt 4 additionally reports measurable fully-loaded accounting as a diagnostic extension. It does not retroactively change the original gross-provider-cost gate.
 
 The T-series is the commercial benchmark program for proving three claims without weakening TRUYN's existing technical acceptance discipline:
 
