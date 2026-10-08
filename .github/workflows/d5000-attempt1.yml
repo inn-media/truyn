@@ -28,7 +28,7 @@ jobs:
       - name: Verify exact-source admission, one-shot identity and safe Azure namespace
         shell: bash
         env:
-          GH_TOKEN: "\${{ github.token }}"
+          GH_TOKEN: "${{ github.token }}"
         run: |
           set -Eeuo pipefail
           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
