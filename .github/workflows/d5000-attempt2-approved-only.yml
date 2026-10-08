@@ -10,8 +10,8 @@ on:
 permissions: { contents: read, actions: read, id-token: write }
 concurrency: { group: truyn-d5000-attempt2-single-shot, cancel-in-progress: false }
 env:
-  TESTED_COMMIT: f8352f34a770bd1be771e2410dd65c59d00f40d8
-  TESTED_TREE_SHA: 606ed82878afa2802fa938a1f895b43f4ff93bb4
+  TESTED_COMMIT: 4889e3b6bcf7d876ac9a3543f2ea0de5ec718eeb
+  TESTED_TREE_SHA: 7146f06d2279e0fe6bad9403a3687f65cafd95ea
   EXACT_MAIN_CI_RUN: 'disabled'
   EXACT_MAIN_FIVE_PATCH_RUN: 'disabled'
   QUALIFIED_TREE_CODEQL_CHECK: 'disabled'
@@ -40,8 +40,12 @@ jobs:
           [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE_SHA" ]]
           repair_pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/921")"
           [[ "$(jq -r '.merged' <<<"$repair_pr")" == true ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=repair_pr_not_merged'; exit 1; }
-          [[ "$(jq -r '.head.sha' <<<"$repair_pr")" == "$TESTED_COMMIT" ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=repair_pr_sha_mismatch'; exit 1; }
-          qualifier="$(gh api repos/inn-media/truyn/actions/runs/37852561784)"
+          [[ "$(jq -r '.head.sha' <<<"$repair_pr")" == "3d315f85c2cea001477944992f1e3595ad40fd35" ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=merged_repair_pr_head_mismatch'; exit 1; }
+          # The frozen source is exactly one corrective commit on top of the
+          # merged repair PR. No unqualified source substitution is allowed.
+          source_parent="$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/$TESTED_COMMIT" --jq '.parents[0].sha')"
+          [[ "$source_parent" == "3d315f85c2cea001477944992f1e3595ad40fd35" ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=unproven_frozen_source_parent'; exit 1; }
+          qualifier="$(gh api repos/inn-media/truyn/actions/runs/37857444064)"
           [[ "$(jq -r '.status' <<<"$qualifier")" == completed && "$(jq -r '.conclusion' <<<"$qualifier")" == success ]] || { echo "TRUYN_D5000_ADMISSION=BLOCKED reason=exact_sha_qualification_not_green"; exit 1; }
           historical="$(gh api 'repos/inn-media/truyn/actions/workflows/d5000-attempt2-approved-only.yml/runs?per_page=100')"
           echo "TRUYN_D5000_PRIOR_RUNS=$(jq -c '[.workflow_runs[]|{id,name,status,conclusion}]' <<<"$historical")"
@@ -50,7 +54,7 @@ jobs:
           bash -n benchmarks/scale/class-d-azure-5000-provision.sh
           bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
           node --test benchmarks/scale/class-d-5000-admission.test.js
-          echo "TRUYN_D5000_ADMISSION=PASS tested_sha=$TESTED_COMMIT qualification_run=37852561784"
+          echo "TRUYN_D5000_ADMISSION=PASS tested_sha=$TESTED_COMMIT qualification_run=37857444064"
       - name: Install runtime dependencies
         shell: bash
         run: npm install --ignore-scripts --no-audit --no-fund
