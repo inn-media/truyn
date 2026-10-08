@@ -10,8 +10,8 @@ on:
 permissions: { contents: read, actions: read, id-token: write }
 concurrency: { group: truyn-d5000-attempt2-single-shot, cancel-in-progress: false }
 env:
-  TESTED_COMMIT: d6a6323b486986c14446c116894de0043a31261a
-  TESTED_TREE_SHA: a3010fc11c932fefa69995397344c21aa175144a
+  TESTED_COMMIT: 8a8845a9bd93a6c240f13f13e8a7897008715a04
+  TESTED_TREE_SHA: 3e21cafe5fa87e386736ab46bb566e44abc23b06
   EXACT_MAIN_CI_RUN: 'disabled'
   EXACT_MAIN_FIVE_PATCH_RUN: 'disabled'
   QUALIFIED_TREE_CODEQL_CHECK: 'disabled'
@@ -41,7 +41,7 @@ jobs:
           repair_pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/921")"
           [[ "$(jq -r '.merged' <<<"$repair_pr")" == true ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=repair_pr_not_merged'; exit 1; }
           [[ "$(jq -r '.head.sha' <<<"$repair_pr")" == "$TESTED_COMMIT" ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=repair_pr_sha_mismatch'; exit 1; }
-          qualifier="$(gh api repos/inn-media/truyn/actions/runs/37850206602)"
+          qualifier="$(gh api repos/inn-media/truyn/actions/runs/37850948905)"
           [[ "$(jq -r '.status' <<<"$qualifier")" == completed && "$(jq -r '.conclusion' <<<"$qualifier")" == success ]] || { echo "TRUYN_D5000_ADMISSION=BLOCKED reason=exact_sha_qualification_not_green"; exit 1; }
           historical="$(gh api 'repos/inn-media/truyn/actions/workflows/d5000-attempt2-approved-only.yml/runs?per_page=100')"
           echo "TRUYN_D5000_PRIOR_RUNS=$(jq -c '[.workflow_runs[]|{id,name,status,conclusion}]' <<<"$historical")"
@@ -50,7 +50,7 @@ jobs:
           bash -n benchmarks/scale/class-d-azure-5000-provision.sh
           bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
           node --test benchmarks/scale/class-d-5000-admission.test.js
-          echo "TRUYN_D5000_ADMISSION=PASS tested_sha=$TESTED_COMMIT qualification_run=37850206602"
+          echo "TRUYN_D5000_ADMISSION=PASS tested_sha=$TESTED_COMMIT qualification_run=37850948905"
       - name: Install runtime dependencies
         shell: bash
         run: npm install --ignore-scripts --no-audit --no-fund
