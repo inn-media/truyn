@@ -5,3 +5,7 @@ repair_tree=75873b1631c62a941f54f1deb386e09b0451fec1
 no_vm=true
 no_paid_benchmark=true
 exact_source_tests=true
+
+retry=stale-periodic-refresh-test-corrected
+source_sha=0bb91f7a0b370b52af6a30afde5e587d4add5635
+source_tree=b1c33892889ca681eb995f71178ae669eeef4064
