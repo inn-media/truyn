@@ -8,3 +8,6 @@ requires-additional-qualification=true
 
 retry=provider-registration-repair-20261008
 prior_failed_run=37795027151
+
+retry=quota-properties-name-json-repair-20261008
+prior_failed_run=37795943235
