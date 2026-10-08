@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { evaluateAzureClassD5000Evidence } from './class-d-5000-evidence.js';
 
 const mandatoryStages = ['topology','readiness-barrier','convergence','pre-baseline-peer-freshness','baseline','healed-routing','resources','evidence'];
@@ -73,4 +77,31 @@ const invalidRun = fixture(5000,250); invalidRun.workflowRunId='not-a-run';
 assert.equal(evaluateAzureClassD5000Evidence(invalidRun).passed, false);
 const wrongScope = fixture(5000,250); wrongScope.scope='1000-real-process-scale+safety-contract-v2';
 assert.equal(evaluateAzureClassD5000Evidence(wrongScope).passed, false);
+
+const tempDir = mkdtempSync(join(tmpdir(), 'truyn-d5000-terminal-'));
+try {
+  const evidencePath = join(tempDir, 'evidence.json');
+  writeFileSync(evidencePath, JSON.stringify(fixture(5000,250)));
+  const exactSha = '1234567890abcdef1234567890abcdef12345678';
+  function terminal(overrides={}) {
+    return spawnSync(process.execPath, ['benchmarks/scale/verify-class-d-5000-terminal.js', evidencePath], {
+      encoding: 'utf8',
+      env: { ...process.env, TESTED_COMMIT: exactSha, GITHUB_RUN_ID: '37852326390', ...overrides }
+    });
+  }
+  const acceptedTerminal = terminal();
+  assert.equal(acceptedTerminal.status, 0, acceptedTerminal.stdout + acceptedTerminal.stderr);
+  assert.equal(JSON.parse(acceptedTerminal.stdout).ok, true);
+  const wrongSource = terminal({TESTED_COMMIT: 'abcdef0123456789abcdef0123456789abcdef01'});
+  assert.equal(wrongSource.status, 1);
+  assert.ok(JSON.parse(wrongSource.stdout).failed.includes('exactSourceSha'));
+  const wrongRun = terminal({GITHUB_RUN_ID: '37852326391'});
+  assert.equal(wrongRun.status, 1);
+  assert.ok(JSON.parse(wrongRun.stdout).failed.includes('exactRunId'));
+  const missingExpectedSource = terminal({TESTED_COMMIT: ''});
+  assert.equal(missingExpectedSource.status, 1);
+  assert.ok(JSON.parse(missingExpectedSource.stdout).failed.includes('exactSourceSha'));
+} finally {
+  rmSync(tempDir, {recursive:true, force:true});
+}
 console.log('TRUYN_D5000_EVALUATOR_REGRESSION=PASS accepted_5000=true rejected_1000=true safety=true readiness=true full_stage_evidence=true source_contract=true source_identity=true');
