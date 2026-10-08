@@ -25,9 +25,9 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Class C WAN | **ACCEPTED / PASS** | — |
 | Class D-100 | **ACCEPTED / PASS** | — |
 | Class D-200 | **ACCEPTED / PASS + repeatability confirmed** | — |
-| Class D-500 | **ACCEPTED / PASS / REPEATABILITY CONFIRMED** | preserve both immutable PASS runs; D-1000 remains independent |
+| Class D-500 | **ACCEPTED / PASS / REPEATABILITY CONFIRMED** | preserve both immutable PASS runs; D-1000 is independently accepted |
 | Class D-1000 | **ACCEPTED / PASS** | preserve immutable Attempt 1 / run_attempt=2 evidence |
-| D-Series execution architecture | **Swarm-Blockwise lock active** | preserve through remaining D-Series work |
+| D-Series execution architecture | **Swarm-Blockwise lock retained as accepted baseline** | preserve for future repeatability/new explicit D-scale gates |
 | Semantic Scale S-Series | **S-10 + S-20 accepted / PASS; S-50+ OPEN** | preserve accepted S-10/S-20 evidence; execute S-50 independently |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
 | Emergent Network N-Series | **FOUNDATION DEFINED / NOT YET EXECUTED** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
@@ -60,7 +60,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Open 1.0 productization | **S01–S102 completed; S103 active on task branch; not yet stable 1.0** | S103 qualification → remaining S104–S200 → final G1–G34 reconciliation |
 | Live developer site | **OPEN** | deployment/liveness evidence |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers/TSC/neutral stewardship |
-| Mainnet | **Not productionized** | larger D/S evidence + live ops + release/governance gates |
+| Mainnet | **Not productionized** | long-duration live ops + remaining S/security/reliability + release/governance gates |
 
 ## Network-scale acceptance boundary
 

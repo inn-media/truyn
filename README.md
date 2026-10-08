@@ -41,7 +41,7 @@ Website: https://truyn.org/
 | Governance | **G1 / bootstrap Founding Stewardship** |
 | Stable mainnet | **Not yet** |
 
-The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Operational D-scale status remains delegated to [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md). The latest documentation reconciliation is recorded in [Documentation Sanitation — 2026-10-07](docs/operations/DOCUMENTATION_SANITATION_2026-10-07.md).
+The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Operational D-scale status remains delegated to [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md). The latest documentation reconciliation is recorded in [Documentation Sanitation — 2026-10-08](docs/operations/DOCUMENTATION_SANITATION_2026-10-08.md).
 
 ### Status vocabulary
 

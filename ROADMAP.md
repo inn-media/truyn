@@ -23,7 +23,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Commercial proof / T-series | **FOUNDATION ACTIVE / no result claim** | telemetry qualification → pilots → immutable final T/BREAK-EVEN, T/HEAD-TO-HEAD, T/PREDICT |
 | Hidden-value / H-series | **FOUNDATION ACTIVE / no result claim** | telemetry + private runner qualification → isolated pilots → immutable H/CACHE-COMPOUND, H/SECOND-OPINION, H/ARBITRAGE, H/CHAOS-FUZZ |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
-| Mainnet | **Not productionized** | larger D-scale + live ops + release/governance gates |
+| Mainnet | **Not productionized** | long-duration live ops + security/reliability + release/governance gates |
 
 ## Network scale
 
@@ -383,6 +383,6 @@ Foundation documents are not benchmark results.
 
 ## Stable/mainnet gate
 
-Stable/mainnet remains gated by the remaining external D-scale/security/reliability qualification, live production operations/authority evidence, stable protocol/ecosystem compatibility, complete stable SDK/Descriptor/site evidence and appropriate governance maturity. D-200 acceptance and NLWeb 0.5 bounded interoperability acceptance do not by themselves declare stable TRUYN or mainnet.
+Stable/mainnet remains gated by long-duration production security/reliability qualification, live production operations/authority evidence, stable protocol/ecosystem compatibility, complete stable SDK/Descriptor/site evidence and appropriate governance maturity. Accepted D-1000 network scale and NLWeb 0.5 bounded interoperability do not by themselves declare stable TRUYN or mainnet.
 
 Operational network-scale status remains delegated to [docs/operations/NETWORK_SCALE_STATUS.md](docs/operations/NETWORK_SCALE_STATUS.md).
