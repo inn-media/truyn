@@ -471,7 +471,13 @@ export class DirectFirstP2P {
               continue;
             }
             const current = this.discovery.get(peerNodeId);
-            if (current && verifyPeerRecord(current).ok &&
+            // An unchanged binding already came from the canonical discovery
+            // path. Do not impose a second signature validator here: it breaks
+            // permitted discovery adapters while adding no transport trust.
+            const sameBinding = current?.nodeId === peerNodeId &&
+              selectedQuicEndpoint(current)?.value === selected?.value &&
+              peerRecordBinding(current, selected.value) === attemptedBinding;
+            if (sameBinding &&
                 this.#remainingMs(routeDeadlineAt) > this.directConnectTimeoutMs) {
               record = current;
               continue;
