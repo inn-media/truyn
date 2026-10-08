@@ -18,3 +18,13 @@ The frozen D-1000 provisioner only allows 10/25/50 processes per host. A new D-5
 
 ## Public/private boundary
 Only safe public state, SHA and evidence identifiers are recorded. No private quota authority, credentials, subscription IDs, sensitive cloud inventory or public tested runtime code are copied to the private repository. D-1000 remains ACCEPTED/REPEATABILITY CONFIRMED; D-5000 remains NOT RUN.
+
+## Azure quota-only RBAC repair — 2026-10-08
+
+Confirmed public run `37799470103` was **FAIL / AUTHORIZATION**, not a D-5000 benchmark failure. OIDC login and provider registration `Microsoft.Quota=Registered` succeeded. Live Compute usage in `southcentralus`: regional `cores` quota **200**, used **0**; `StandardEasv7Family` quota **350**, used **0**. Planned target is **800 for both** (capacity request, not approved quota). The Quota API refused `Microsoft.Quota/quotas/read` (`AuthorizationFailed`) for the existing OIDC service principal.
+
+Microsoft documents the subscription-scope **Quota Request Operator** role (built-in ID `0e5f05e5-9ab9-446b-b98d-1e2157c94125`) for quota API requests. The repaired quota-only workflow performs the read RBAC preflight, attempts **only least-privilege same-principal assignment if the existing credential already has roleAssignments/write**, and stops clearly with `RBAC_GRANT_REQUIRED` if it cannot legally grant the role. It then awaits RBAC propagation and verifies quota resources before submitting any request.
+
+Repair workflow commit `70cd89d1d9265a5165d3e3326831e971e5051b91`. Follow-up quota-only workflow run [`37800470741`](https://github.com/inn-media/truyn/actions/runs/37800470741) (launcher `7b5fa93507a3c882162359ebf25cf582cea26262`): **submitted, result to be verified; do not infer quota approval**. Any privileged RBAC changes or requests must be independently verified against effective regional/family quotas, and 20-VM placement still needs a separate real-capacity gate.
+
+**D-5000 benchmark remains NOT LAUNCHED.** Never start the network campaign from a quota-only run. The previously accepted D-1000 evidence remains unchanged.
