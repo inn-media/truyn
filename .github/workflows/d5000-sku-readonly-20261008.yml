@@ -17,6 +17,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           bash -n .github/d5000/d5000-sku-readonly-preflight.sh
+          jq -en --arg statusLabel QUOTA_SKU_ELIGIBLE '{status:$statusLabel}|.status=="QUOTA_SKU_ELIGIBLE"'
+          ! grep -Eq 'status:\$label([^[:alnum:]_]|$)' .github/d5000/d5000-sku-readonly-preflight.sh
           ! grep -E 'az[[:space:]]+(vm[[:space:]]+create|deployment[[:space:]]+|role[[:space:]]+assignment[[:space:]]+create|provider[[:space:]]+register)' .github/d5000/d5000-sku-readonly-preflight.sh
           ! grep -E 'az[[:space:]]+rest[[:space:]]+--method[[:space:]]+(put|post|patch|delete)' .github/d5000/d5000-sku-readonly-preflight.sh
           echo "TRUYN_D5000_READONLY_STATIC=PASS"
