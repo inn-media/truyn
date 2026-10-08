@@ -9,3 +9,7 @@ exact_source_tests=true
 retry=stale-periodic-refresh-test-corrected
 source_sha=0bb91f7a0b370b52af6a30afde5e587d4add5635
 source_tree=b1c33892889ca681eb995f71178ae669eeef4064
+
+retry=per-host-red-snapshot-regression
+source_sha=72d7bf6daed2454d34239260ac82c314f5a92e8a
+source_tree=d822af4f811f09479b68d79ed597d303c29247c2
