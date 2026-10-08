@@ -47,6 +47,14 @@ export interface LocalResultEvent {
 }
 
 type RuntimeEvent = Record<string, any>;
+type EventWaiter = {
+  predicate: (event: RuntimeEvent) => boolean;
+  resolve: (event: RuntimeEvent) => void;
+  reject: (error: unknown) => void;
+  timer: ReturnType<typeof setTimeout> | null;
+  signal?: AbortSignal;
+  onAbort?: () => void;
+};
 
 function nonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
@@ -96,6 +104,9 @@ function normalizedRuntimeError(error: any): TruynError {
 export class TruynLocalNodeClient {
   readonly runtime: any;
   private readonly pendingEvents: RuntimeEvent[] = [];
+  private readonly eventWaiters = new Set<EventWaiter>();
+  private eventPumpPromise: Promise<void> | null = null;
+  private closed = false;
 
   constructor(runtime: any) {
     if (!runtime || typeof runtime.need !== 'function' || typeof runtime.poll !== 'function') {
@@ -193,67 +204,107 @@ export class TruynLocalNodeClient {
     return this.pendingEvents.splice(index, 1)[0] ?? null;
   }
 
-  async *streamEvents({ signal, pollIntervalMs = 20 }: LocalNodeStreamOptions = {}): AsyncGenerator<RuntimeEvent> {
-    const interval = Math.max(0, Math.floor(pollIntervalMs));
-    for (;;) {
-      throwIfAborted(signal);
-      const pending = this.pendingEvents.shift();
-      if (pending) {
-        yield pending;
-        continue;
-      }
+  private cleanupWaiter(waiter: EventWaiter): void {
+    this.eventWaiters.delete(waiter);
+    if (waiter.timer) clearTimeout(waiter.timer);
+    if (waiter.signal && waiter.onAbort) waiter.signal.removeEventListener('abort', waiter.onAbort);
+  }
+
+  private dispatchEvent(event: RuntimeEvent): void {
+    for (const waiter of this.eventWaiters) {
+      if (!waiter.predicate(event)) continue;
+      this.cleanupWaiter(waiter);
+      waiter.resolve(event);
+      return;
+    }
+    this.pendingEvents.push(event);
+  }
+
+  private ensureEventPump(): void {
+    if (this.closed || this.eventPumpPromise || this.eventWaiters.size === 0) return;
+    this.eventPumpPromise = this.runEventPump().finally(() => {
+      this.eventPumpPromise = null;
+      if (!this.closed && this.eventWaiters.size > 0) this.ensureEventPump();
+    });
+  }
+
+  private async runEventPump(): Promise<void> {
+    while (!this.closed && this.eventWaiters.size > 0) {
       let polled: any;
       try {
-        polled = await this.runtime.poll();
+        polled = await this.runtime.poll({ waitMs: 25_000 });
       } catch (error) {
-        throw normalizedRuntimeError(error);
+        const normalized = normalizedRuntimeError(error);
+        for (const waiter of [...this.eventWaiters]) {
+          this.cleanupWaiter(waiter);
+          waiter.reject(normalized);
+        }
+        return;
       }
-      throwIfAborted(signal);
       const events = Array.isArray(polled?.events) ? polled.events : [];
-      if (events.length > 0) {
-        this.pendingEvents.push(...events);
-        continue;
+      for (const event of events) this.dispatchEvent(event);
+    }
+  }
+
+  async *streamEvents({ signal }: LocalNodeStreamOptions = {}): AsyncGenerator<RuntimeEvent> {
+    for (;;) {
+      throwIfAborted(signal);
+      try {
+        yield await this.waitForEvent(() => true, { timeoutMs: 30_000, signal });
+      } catch (error) {
+        if (error instanceof TruynError && error.code === 'deadline_exceeded') continue;
+        throw error;
       }
-      if (interval > 0) await sleep(interval, signal);
     }
   }
 
   private async waitForEvent(
     predicate: (event: RuntimeEvent) => boolean,
-    { timeoutMs = 5_000, pollIntervalMs = 20, signal }: LocalNodeWaitOptions = {}
+    { timeoutMs = 5_000, signal }: LocalNodeWaitOptions = {}
   ): Promise<RuntimeEvent> {
     const timeout = Math.max(1, Math.floor(timeoutMs));
-    const interval = Math.max(0, Math.floor(pollIntervalMs));
-    const deadline = Date.now() + timeout;
+    throwIfAborted(signal);
+    const pending = this.takePending(predicate);
+    if (pending) return pending;
+    if (this.closed) {
+      throw new TruynError({ code: 'cancelled', message: 'TRUYN local-node client is closed', retryable: false });
+    }
 
-    for (;;) {
-      throwIfAborted(signal);
-      const pending = this.takePending(predicate);
-      if (pending) return pending;
-      let polled: any;
-      try {
-        polled = await this.runtime.poll();
-      } catch (error) {
-        throw normalizedRuntimeError(error);
-      }
-      throwIfAborted(signal);
-      const events = Array.isArray(polled?.events) ? polled.events : [];
-      const index = events.findIndex(predicate);
-      if (index >= 0) {
-        const [match] = events.splice(index, 1);
-        this.pendingEvents.push(...events);
-        return match;
-      }
-      this.pendingEvents.push(...events);
-      if (Date.now() >= deadline) {
-        throw new TruynError({
+    return new Promise<RuntimeEvent>((resolve, reject) => {
+      const waiter: EventWaiter = {
+        predicate,
+        resolve,
+        reject,
+        timer: null,
+        signal
+      };
+      waiter.timer = setTimeout(() => {
+        if (!this.eventWaiters.has(waiter)) return;
+        this.cleanupWaiter(waiter);
+        reject(new TruynError({
           code: 'deadline_exceeded',
           message: 'Timed out waiting for TRUYN local-node event',
           retryable: true
-        });
+        }));
+      }, timeout);
+      if (signal) {
+        waiter.onAbort = () => {
+          if (!this.eventWaiters.has(waiter)) return;
+          this.cleanupWaiter(waiter);
+          reject(cancelledError(signal));
+        };
+        signal.addEventListener('abort', waiter.onAbort, { once: true });
       }
-      if (interval > 0) await sleep(Math.min(interval, Math.max(0, deadline - Date.now())), signal);
-    }
+      this.eventWaiters.add(waiter);
+
+      const latePending = this.takePending(predicate);
+      if (latePending) {
+        this.cleanupWaiter(waiter);
+        resolve(latePending);
+        return;
+      }
+      this.ensureEventPump();
+    });
   }
 
   async nextNeed(options: LocalNodeWaitOptions = {}): Promise<LocalNeedEvent> {
@@ -312,6 +363,13 @@ export class TruynLocalNodeClient {
   }
 
   close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    const error = new TruynError({ code: 'cancelled', message: 'TRUYN local-node client is closed', retryable: false });
+    for (const waiter of [...this.eventWaiters]) {
+      this.cleanupWaiter(waiter);
+      waiter.reject(error);
+    }
     if (typeof this.runtime.closeFastSocket === 'function') this.runtime.closeFastSocket();
   }
 }
