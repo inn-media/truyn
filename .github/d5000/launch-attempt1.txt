@@ -17,3 +17,9 @@ no_duplicate=true
 zero_safety_weakenings=true
 cleanup_mandatory=true
 explicit_user_approval=true
+
+preprovision_retry_authorized=true
+previous_run=37824520669
+previous_run_terminal=FAIL_BEFORE_AZURE_LOGIN_VM_CREATE_OR_PAID_BENCHMARK
+repair_commit=c39a3f17d87760ba5598ac7bcb6146dcb91b5d7a
+fresh_source_and_quota_gates_required=true
