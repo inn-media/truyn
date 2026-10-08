@@ -28,7 +28,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Class D-500 | **ACCEPTED / PASS / REPEATABILITY CONFIRMED** | preserve both immutable PASS runs; D-1000 is independently accepted |
 | Class D-1000 | **ACCEPTED / PASS** | preserve immutable Attempt 1 / run_attempt=2 evidence |
 | D-Series execution architecture | **Swarm-Blockwise lock retained as accepted baseline** | preserve for future repeatability/new explicit D-scale gates |
-| Semantic Scale S-Series | **S-10 + S-20 + S-50 accepted / PASS; S-100+ OPEN** | preserve accepted S-50 evidence; analyze contention/backpressure; execute S-100 independently |
+| Semantic Scale S-Series | **S-10 + S-20 + S-50 + S-100 accepted / PASS; S-200+ OPEN** | preserve accepted S-100 evidence; decompose contention residual; execute S-200 independently |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
 | Emergent Network N-Series | **FOUNDATION DEFINED / NOT YET EXECUTED** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
@@ -101,7 +101,7 @@ Permanent rules:
 
 The latest old Blockwise Admission run `36114076355` had B01–B22 individually GREEN; its terminal aggregate failure was in public-source materialization/control-plane handling, not a B01–B22 product regression. That mutable public-source dependency is superseded by the immutable public-contract consumption model.
 
-****S-10 is accepted** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3 is accepted** for the five-scenario 20-node gate. **S-50 Attempt 3 is accepted** for the full eight-scenario 50-node scale gate: `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION` and `LANG`. Sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md`, `../benchmarks/S_SERIES_S20_2026-10-07.md` and `../benchmarks/S_SERIES_S50_2026-10-08.md`. S-100, S-200 and S-500 remain unaccepted and must be executed separately.
+****S-10 is accepted** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3 is accepted** for the five-scenario 20-node gate. **S-50 Attempt 3 is accepted** for the full eight-scenario 50-node scale gate: `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION` and `LANG`. Sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md`, `../benchmarks/S_SERIES_S20_2026-10-07.md` and `../benchmarks/S_SERIES_S50_2026-10-08.md`. S-100 Attempt 1 is accepted for the full eight-scenario 100-node gate; sanitized evidence: `../benchmarks/S_SERIES_S100_2026-10-08.md`. S-200 and S-500 remain unaccepted and must be executed separately.
 
 Canonical S documents:
 
