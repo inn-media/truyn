@@ -1,8 +1,8 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot:** 2026-10-07  
-**Canonical D-500 runtime main:** `61469b6934066ce0719aecd68356419240d95988`  
+**Snapshot:** 2026-10-08  
+**Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
@@ -26,7 +26,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Class D-100 | **ACCEPTED / PASS** | — |
 | Class D-200 | **ACCEPTED / PASS + repeatability confirmed** | — |
 | Class D-500 | **ACCEPTED / PASS / REPEATABILITY CONFIRMED** | preserve both immutable PASS runs; D-1000 remains independent |
-| Class D-1000 | **OPEN** | distinct qualified D-1000 acceptance campaign |
+| Class D-1000 | **ACCEPTED / PASS** | preserve immutable Attempt 1 / run_attempt=2 evidence |
 | D-Series execution architecture | **Swarm-Blockwise lock active** | preserve through remaining D-Series work |
 | Semantic Scale S-Series | **S-10 + S-20 accepted / PASS; S-50+ OPEN** | preserve accepted S-10/S-20 evidence; execute S-50 independently |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
@@ -72,7 +72,9 @@ The successful A22 runtime lineage is preserved by merge `5d0f8c3480ef8ff0188759
 
 Repeatability is independently confirmed by exact-frozen Double-Check workflow run `37676472133`, `run_attempt=1`, on the same source/tree. It passed baseline `1.0`, post-restart `1.0`, healed `1.0`, convergence `1.0` / p95 `250.921 ms`, recovery p95 `19,633 ms`, packet-partition recovery `32,196 ms`, acknowledged writes `100`, acknowledged-write loss `0`, campaign/staging cleanup `0` remaining resources. Artifact `11510022526`, digest `sha256:def31ad674ca39f44d07df91e397bb1f3ac63b8ea5c65b05d4fc4bc78c98d8c5`.
 
-D-1000 remains a separate future gate; D-500 acceptance does not imply D-1000 or mainnet acceptance.
+D-1000 is independently **accepted** on Attempt 1 workflow run `37687469411`, GitHub `run_attempt=2`, with strict `TRUYN_D1000_TERMINAL result=PASS`. Frozen source `c1d3fa087716dbf24d0b3b65bceae303e907160a` / tree `266c83c8520d486cc6f1d44f63c8bd9b6e185c38` proved 20 hosts / 1,000 real processes, readiness 1,000/1,000, baseline 100%, post-restart 99%, healed 100%, convergence 100% / p95 `285.988 ms`, recovery p95 `26,627 ms`, packet-partition recovery `32,696 ms`, 100/100 acknowledged writes retained, zero safety violations and zero-resource cleanup. Artifact `11543285161`, digest `sha256:faf3f8665f074e32cf120751e8fc04decfba4ff42420bb8d834d4f1942e6a789`. The first execution of the same Attempt 1 (`run_attempt=1`) is preserved as infrastructure-only failure evidence: placement failed before VM creation because regional free vCPU was 120 < required 160. After quota repair run `37686421545` raised `westeurope` and `southcentralus` to 200 free regional vCPUs, `run_attempt=2` completed the full real campaign. The accepted scale-floor source delta is canonical in `main` at `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`.
+
+D-1000 acceptance closes the defined Class-D 1,000-real-process scale gate. It does **not** by itself claim long-duration operational stability, stable protocol, mainnet or managed-production acceptance.
 
 Canonical live operational status: `../operations/NETWORK_SCALE_STATUS.md`.
 

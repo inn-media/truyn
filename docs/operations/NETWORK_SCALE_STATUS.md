@@ -2,12 +2,12 @@
 
 This is the single repository-owned source for **current D-Series operational acceptance**. Architecture, roadmap and top-level documentation must link here rather than copy ephemeral run state.
 
-**Snapshot:** 2026-10-07  
+**Snapshot:** 2026-10-08  
 **Qualification architecture:** locked Frozen Candidate → Branch Qualification → Admission to Main, with Sanitation Swarm → Blockwise B01-B16. Parallel movement of `main` does not invalidate expensive frozen-candidate qualification by itself.
 
 ## Accepted baseline
 
-Class C heterogeneous WAN, Class D-100 and **Class D-200 are accepted**.
+Class C heterogeneous WAN, Class D-100, **Class D-200, Class D-500 and Class D-1000 are accepted**.
 
 **D-200 status: CLOSED / COMPLETE / REPEATABILITY CONFIRMED.**
 
@@ -89,11 +89,50 @@ This is a **repeatability PASS**, not a new repair generation: the tested source
 
 Historical D-500 failures remain immutable. A19 exposed 2-vCPU CPU saturation; A20 exposed regional quota and provisioning-reconciliation defects; A21 reached the full campaign but failed durability with 99/100 retained acknowledged writes. Attempt 22 supersedes those attempts only for current D-500 acceptance status.
 
-## D-1000 current boundary
+## D-1000 accepted boundary
 
-**D-1000 status: OPEN.**
+**D-1000 status: CLOSED / ACCEPTED / PASS.**
 
-D-1000 is a distinct scale gate. It does not inherit PASS from accepted D-200 or accepted D-500 evidence. A future D-1000 acceptance requires its own frozen-candidate qualification, final Admission to then-current `main`, single-shot launch identity, strict terminal PASS, immutable artifacts, cleanup proof and durable evidence.
+Canonical accepted execution is **Attempt 1, workflow run `37687469411`, GitHub `run_attempt=2`**:
+
+- terminal: `TRUYN_D1000_TERMINAL result=PASS`
+- launch SHA: `e0da36ffb633b456f22bb29faccfba213fe28888`
+- frozen tested source: `c1d3fa087716dbf24d0b3b65bceae303e907160a`
+- frozen tested tree: `266c83c8520d486cc6f1d44f63c8bd9b6e185c38`
+- runtime digest: `sha256:df45fa29e982bab8dfe83e02824690d5af6b8b5b0f4aa5ff385dc9d2bb193c88`
+- artifact: `11543285161`
+- artifact digest: `sha256:faf3f8665f074e32cf120751e8fc04decfba4ff42420bb8d834d4f1942e6a789`
+- accepted scale-floor forward-port / canonical main: `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`
+- Azure placement: `southcentralus` / `Standard_E8as_v7`
+- retained density floor: 50 real processes per host / minimum 8 vCPU per host.
+
+Accepted result:
+
+- 20 hosts / 1,000 real processes / 1,000 identities / 1,000 endpoints;
+- readiness: 1,000/1,000;
+- baseline routing: `1.0` (2,000/2,000 probes);
+- post-restart routing: `0.99` (99/100), first-attempt only, zero application retries;
+- healed routing: `1.0` (1,000/1,000);
+- convergence routing: `1.0`, p95 `285.988 ms`, p99 `347.477 ms`;
+- restart recovery p95: `26,627 ms`, restarted nodes: 100;
+- real packet-partition recovery: `32,696 ms`, blocked-path successes 0/20;
+- acknowledged durable writes: `100`;
+- acknowledged-write loss: `0`;
+- confirmed missing durable writes: `0`;
+- read errors: `0`;
+- invalid signed state accepted: `0`;
+- stale/revoked receipt accepted: `0`;
+- unauthorized provider execution: `0`;
+- campaign cleanup: confirmed, `remaining=0`;
+- staging cleanup: confirmed, `remaining=0`.
+
+### Attempt 1 infrastructure pre-run history
+
+The first execution of the same workflow identity, `run_attempt=1`, is preserved as negative infrastructure evidence, **not a network/runtime regression**. It failed at fail-closed placement before any VM was created: 20 × 8-vCPU hosts required 160 regional vCPUs, while candidate regions had at most 120 free. No 1,000-process campaign, routing, durability or recovery stages ran.
+
+That first execution produced artifact `11513876833`, digest `sha256:8a84958b1458d533012e42df69d419f446707f073c15006cea06771ca7d67d2f`. Protected operator quota repair run `37686421545` subsequently raised both `westeurope` and `southcentralus` to 200 free regional vCPUs, after which the exact same Attempt 1 was rerun as `run_attempt=2` and passed.
+
+Durable public evidence: [`../benchmarks/CLASS_D_1000_2026-10-08.md`](../benchmarks/CLASS_D_1000_2026-10-08.md).
 
 ## Historical immutable failures
 
@@ -124,4 +163,4 @@ Benchmark and acceptance evidence is preserved under **redact-not-delete**. Oper
 
 ## Operational rule
 
-D-200 and D-500 are closed and immutable accepted gates. D-1000 remains separate and open. Any future real D-Series campaign belongs to D-1000 (or an explicitly new scale gate) with a new task/launch identity and must preserve the accepted D-Series safety, topology, durability and evidence thresholds.
+D-200, D-500 and D-1000 are closed and immutable accepted gates. Any future Class-D campaign is a new, explicitly named scale/repeatability gate and must preserve the accepted safety, topology, durability and evidence thresholds; no new result may overwrite the immutable D-1000 Attempt 1 PASS.

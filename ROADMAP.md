@@ -2,7 +2,7 @@
 
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`.
 
-**Snapshot:** 2026-10-07  
+**Snapshot:** 2026-10-08  
 **Protocol:** `TRUYN/1` draft  
 **Stable A2A/MCP v1:** **not declared**
 
@@ -10,7 +10,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 
 | Track | Current state | Immediate next gate |
 |---|---|---|
-| Network | **Class C + D-100 + D-200 + D-500 accepted** | D-1000 external scale qualification |
+| Network | **Class C + D-100 + D-200 + D-500 + D-1000 accepted** | long-duration operational/mainnet closure |
 | Semantic Scale (S-Series) | **S-10 + S-20 accepted; S-50+ OPEN** | execute/accept S-50 independently, then S-100/S-200/S-500 |
 | Efficiency Limits (E-Series) | **FOUNDATION DEFINED / no E result claim** | instrumentation + isolation qualification → E/DECOMPOSE → E/PER-RESULT → E/KNEE → E/DEGRADE |
 | Emergent Network (N-Series) | **Foundation architecture/methodology/telemetry/isolation defined; no N PASS claimed** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
@@ -33,7 +33,7 @@ Accepted milestones:
 - [x] Class D-100 — accepted.
 - [x] **Class D-200 — accepted** on immutable single-shot run `35503894414`, attempt 1, strict terminal `TRUYN_D200_TERMINAL result=PASS`.
 - [x] **Class D-500 — accepted and repeatability-confirmed**: Attempt 22 run `37666768998` and exact-frozen Double-Check run `37676472133`, both `run_attempt=1`, both strict terminal `TRUYN_D500_TERMINAL result=PASS` on the same tested source/tree.
-- [ ] Class D-1000 — open.
+- [x] **Class D-1000 — accepted** on Attempt 1 workflow run `37687469411`, `run_attempt=2`, strict terminal `TRUYN_D1000_TERMINAL result=PASS`.
 - [ ] long-duration operational stability / mainnet-scale closure — open.
 
 D-200 accepted evidence is frozen to source `e91c165c67c655deb80df4511ca346acb9f1f45b` / tree `3a402ba72502de12ed2277db3c9f472872f44b46`, with artifact ID `10603748497` and digest `sha256:386387165b729ed2167140747a310d85822d9d1987dce812812408f2468bccd4`.
@@ -47,6 +47,12 @@ D-500 accepted evidence is frozen to source `1d6746b57104175e295f8fdc3d9643db8e9
 The D-500 gate proved 20 hosts / 500 real processes / 500 identities / 500 endpoints, baseline routing 100%, post-restart routing 100%, healed routing 99.8%, convergence routing 100% with p95 `288.664 ms`, restart recovery p95 `12,105 ms`, real packet-partition recovery `32,561 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign + staging cleanup with zero remaining resources.
 
 Evidence: [`docs/benchmarks/CLASS_D_500_2026-10-07.md`](docs/benchmarks/CLASS_D_500_2026-10-07.md).
+
+D-1000 accepted evidence is frozen to source `c1d3fa087716dbf24d0b3b65bceae303e907160a` / tree `266c83c8520d486cc6f1d44f63c8bd9b6e185c38`, launch SHA `e0da36ffb633b456f22bb29faccfba213fe28888`, artifact ID `11543285161`, artifact digest `sha256:faf3f8665f074e32cf120751e8fc04decfba4ff42420bb8d834d4f1942e6a789`, runtime digest `sha256:df45fa29e982bab8dfe83e02824690d5af6b8b5b0f4aa5ff385dc9d2bb193c88`, and canonical runtime forward-port `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`.
+
+The accepted gate proved 20 hosts / 1,000 real processes / 1,000 identities / 1,000 endpoints, readiness 1,000/1,000, baseline routing 100%, post-restart routing 99%, healed routing 100%, convergence routing 100% with p95 `285.988 ms`, restart recovery p95 `26,627 ms`, real packet-partition recovery `32,696 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign + staging cleanup with zero remaining resources. The first execution of Attempt 1 (`run_attempt=1`) failed before VM creation because only 120 regional vCPUs were free versus the required 160; after quota repair, the same run identity succeeded on `run_attempt=2`.
+
+Evidence: [`docs/benchmarks/CLASS_D_1000_2026-10-08.md`](docs/benchmarks/CLASS_D_1000_2026-10-08.md).
 
 Repeatability evidence: run `37676472133` repeated the same frozen source/tree and passed with baseline `1.0`, post-restart `1.0`, healed `1.0`, convergence `1.0` / p95 `250.921 ms`, recovery p95 `19,633 ms`, packet-partition recovery `32,196 ms`, 100 acknowledged writes with zero loss, and zero-resource cleanup.
 

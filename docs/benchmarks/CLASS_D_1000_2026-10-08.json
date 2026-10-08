@@ -1,0 +1,101 @@
+{
+  "schema": "truyn.class-d1000.public-evidence.v1",
+  "status": "PASS",
+  "date": "2026-10-08",
+  "scale": {
+    "hosts": 20,
+    "realProcessesPerHost": 50,
+    "realProcesses": 1000,
+    "uniqueIdentities": 1000,
+    "uniqueEndpoints": 1000,
+    "minVcpusPerHost": 8
+  },
+  "acceptedRun": {
+    "workflowRunId": 37687469411,
+    "runAttempt": 2,
+    "terminal": "TRUYN_D1000_TERMINAL result=PASS",
+    "launchSha": "e0da36ffb633b456f22bb29faccfba213fe28888",
+    "sourceSha": "c1d3fa087716dbf24d0b3b65bceae303e907160a",
+    "treeSha": "266c83c8520d486cc6f1d44f63c8bd9b6e185c38",
+    "canonicalRuntimeCommit": "1974926e392c6e208a8fa5c7b54cfb224a13b7fc",
+    "runtimeSha256": "df45fa29e982bab8dfe83e02824690d5af6b8b5b0f4aa5ff385dc9d2bb193c88",
+    "artifact": {
+      "id": 11543285161,
+      "digestSha256": "faf3f8665f074e32cf120751e8fc04decfba4ff42420bb8d834d4f1942e6a789"
+    },
+    "placement": {
+      "location": "southcentralus",
+      "vmSize": "Standard_E8as_v7"
+    },
+    "readiness": {
+      "ready": 1000,
+      "total": 1000
+    },
+    "routing": {
+      "baseline": 1,
+      "baselineProbes": 2000,
+      "postRestart": 0.99,
+      "postRestartSuccesses": 99,
+      "postRestartProbes": 100,
+      "applicationRetries": 0,
+      "healed": 1,
+      "healedProbes": 1000,
+      "convergence": 1,
+      "convergenceProbes": 1000,
+      "convergenceP95Ms": 285.988,
+      "convergenceP99Ms": 347.477
+    },
+    "recovery": {
+      "restartedNodeCount": 100,
+      "restartP95Ms": 26627,
+      "packetPartitionBlockedSuccesses": 0,
+      "packetPartitionProbeCount": 20,
+      "packetPartitionRecoveryMs": 32696
+    },
+    "durability": {
+      "acknowledgedWrites": 100,
+      "acknowledgedWriteLoss": 0,
+      "confirmedMissing": 0,
+      "readErrors": 0
+    },
+    "safety": {
+      "invalidSignedStateAccepted": 0,
+      "staleRevokedReceiptAccepted": 0,
+      "unauthorizedProviderExecution": 0
+    },
+    "cleanup": {
+      "campaignConfirmed": true,
+      "campaignRemaining": 0,
+      "stagingConfirmed": true,
+      "stagingRemaining": 0
+    }
+  },
+  "preProvisionFailure": {
+    "workflowRunId": 37687469411,
+    "runAttempt": 1,
+    "classification": "INFRASTRUCTURE_QUOTA_PRE_PROVISION",
+    "vcpusRequired": 160,
+    "bestRegionalFreeVcpus": 120,
+    "vmCreated": false,
+    "campaignStarted": false,
+    "artifact": {
+      "id": 11513876833,
+      "digestSha256": "8a84958b1458d533012e42df69d419f446707f073c15006cea06771ca7d67d2f"
+    }
+  },
+  "quotaRepair": {
+    "workflowRunId": 37686421545,
+    "status": "PASS",
+    "targetRegions": [
+      "westeurope",
+      "southcentralus"
+    ],
+    "freeRegionalVcpusAfter": 200
+  },
+  "scope": {
+    "d1000Accepted": true,
+    "longDurationOperationalStabilityAccepted": false,
+    "mainnetAccepted": false,
+    "managedProductionAccepted": false
+  }
+}

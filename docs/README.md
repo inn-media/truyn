@@ -2,8 +2,8 @@
 
 Human-facing documentation for TRUYN architecture, implementation status, governance, operations, security, Trustability, compatibility, SDK/DX and benchmark evidence.
 
-**Snapshot:** 2026-10-07  
-**Canonical D-500 runtime main:** `61469b6934066ce0719aecd68356419240d95988`  
+**Snapshot:** 2026-10-08  
+**Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
 
@@ -40,7 +40,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - Class D-100 — **ACCEPTED**.
 - Class D-200 — **ACCEPTED / PASS + repeatability confirmed**.
 - Class D-500 — **ACCEPTED / PASS / REPEATABILITY CONFIRMED** by Attempt 22 run `37666768998` and exact-frozen Double-Check run `37676472133`; both used the same tested source/tree, 20 hosts / 500 real processes, zero acknowledged-write loss, strict terminal PASS and complete cleanup.
-- Class D-1000 — **OPEN**.
+- Class D-1000 — **ACCEPTED / PASS** on Attempt 1 workflow run `37687469411`, `run_attempt=2`: 20 hosts / 1,000 real processes, baseline 100%, post-restart 99%, healed 100%, zero acknowledged-write loss, strict terminal PASS and complete cleanup.
 - D-Series execution architecture — **Swarm diagnostics/repair → full B01–B16 exact-SHA admission → live/collision gates → exactly one real scale run**; durable lock tracked in issue #737.
 - Semantic Scale S-Series — **EXECUTED / DIAGNOSTIC; NO ACCEPTED S PASS**. S-50 Attempt 13 is immutable failure evidence (`fast_socket_closed`) under bounded public WebSocket repair/qualification tracked in issue #726.
 - Efficiency E-Series — **ACTIVE QUALIFICATION / NO FINAL E PASS**; qualification/isolation/provider-smoke work does not substitute for final DECOMPOSE/PER-RESULT/KNEE/DEGRADE evidence.
@@ -68,7 +68,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - governance — **G1 / bootstrap Founding Stewardship**.
 - stable mainnet — **not yet**.
 
-Accepted D-200 evidence: [`benchmarks/CLASS_D_200_2026-09-20.md`](benchmarks/CLASS_D_200_2026-09-20.md). Operational scale status: [`operations/NETWORK_SCALE_STATUS.md`](operations/NETWORK_SCALE_STATUS.md).
+Accepted D-200 evidence: [`benchmarks/CLASS_D_200_2026-09-20.md`](benchmarks/CLASS_D_200_2026-09-20.md). Accepted D-500 evidence: [`benchmarks/CLASS_D_500_2026-10-07.md`](benchmarks/CLASS_D_500_2026-10-07.md). Accepted D-1000 evidence: [`benchmarks/CLASS_D_1000_2026-10-08.md`](benchmarks/CLASS_D_1000_2026-10-08.md). Operational scale status: [`operations/NETWORK_SCALE_STATUS.md`](operations/NETWORK_SCALE_STATUS.md).
 
 ## Status vocabulary
 

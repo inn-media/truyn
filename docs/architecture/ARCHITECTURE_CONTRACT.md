@@ -2,7 +2,7 @@
 
 This document prevents architecture, implementation status, public documentation, governance and benchmark evidence from silently diverging.
 
-**Snapshot:** 2026-10-07  
+**Snapshot:** 2026-10-08  
 **Synchronized source:** `main` at this documentation revision  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
@@ -60,13 +60,13 @@ The currently evidenced bounded profile is NLWeb protocol 0.5 pinned to exact up
 
 ## Network scale
 
-Class C heterogeneous WAN, Class D-100, **Class D-200 and Class D-500 are accepted**. Class D-1000 remains a separate open gate.
+Class C heterogeneous WAN, Class D-100, **Class D-200, Class D-500 and Class D-1000 are accepted**. D-1000 is the accepted 20-host / 1,000-real-process Class-D scale boundary.
 
 The accepted D-200 tuple is immutable workflow run `35503894414`, attempt 1, strict terminal `TRUYN_D200_TERMINAL result=PASS`, frozen tested source `e91c165c67c655deb80df4511ca346acb9f1f45b`, tested tree `3a402ba72502de12ed2277db3c9f472872f44b46`, launcher merge `e785815530a59a56787e20ceb6bb232ccc93ad4f`, artifact ID `10603748497`, artifact digest `sha256:386387165b729ed2167140747a310d85822d9d1987dce812812408f2468bccd4`.
 
 Measured D-200 evidence includes 20 hosts / 200 real processes, readiness 200/200, baseline 400/400, post-restart 100/100 first-attempt with zero application retries, healed 200/200, convergence p95 `256.43 ms`, restart recovery p95 `28,717 ms`, real packet-partition recovery `32,159 ms`, 100 acknowledged durable writes with zero loss, zero safety violations, and complete campaign + staging cleanup with zero remaining resources.
 
-D-200 acceptance does not imply D-500. D-500 is independently accepted on run `37666768998`, but D-500 acceptance still does not imply D-1000, long-duration operational stability, stable protocol, mainnet or managed-production acceptance. Durable D-200 evidence is `../benchmarks/CLASS_D_200_2026-09-20.md`; durable D-500 evidence is `../benchmarks/CLASS_D_500_2026-10-07.md`; current scale status is `../operations/NETWORK_SCALE_STATUS.md`.
+D-200, D-500 and D-1000 are independently accepted gates. D-1000 acceptance on run `37687469411` / `run_attempt=2` does not imply long-duration operational stability, stable protocol, mainnet or managed-production acceptance. Durable evidence: D-200 `../benchmarks/CLASS_D_200_2026-09-20.md`; D-500 `../benchmarks/CLASS_D_500_2026-10-07.md`; D-1000 `../benchmarks/CLASS_D_1000_2026-10-08.md`; current scale status is `../operations/NETWORK_SCALE_STATUS.md`.
 
 ## Production operations
 
