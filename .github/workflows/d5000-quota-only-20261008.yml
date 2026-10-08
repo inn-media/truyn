@@ -12,6 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
+      - name: Static syntax and no-benchmark safety qualification
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n .github/d5000/quota-only-request.sh
+          grep -Fq 'TRUYN_D5000_QUOTA_TERMINAL' .github/d5000/quota-only-request.sh
+          ! grep -E '(az[[:space:]]+vm[[:space:]]+create|class-d-azure-1000-provision[.]sh|workflow_dispatch)' .github/d5000/quota-only-request.sh
+          jq -en --argjson a '{"value":[{"properties":{"name":{"value":"cores"},"isQuotaApplicable":false}}]}' '$a.value[0].properties.isQuotaApplicable==false'
+          echo 'TRUYN_D5000_QUOTA_STATIC=PASS'
       - uses: azure/login@v2
         with:
           client-id: "${{ secrets[format('AZURE_{0}_ID','CLIENT')] }}"
