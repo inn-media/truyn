@@ -51,6 +51,8 @@ export function normalizeAzureClassD5000Evidence(raw = {}) {
     requiredStages.every((name) => stageRows.some((stage) => stage?.stage === name && stage.status === 'PASS'));
   const sourceContractValid = raw?.class === 'D-5000' &&
     raw?.scope === '5000-real-process-scale+safety-contract-v2';
+  const sourceIdentityPresent = /^[0-9a-f]{40}$/.test(raw?.testedCommit || '') &&
+    /^[0-9]+$/.test(String(raw?.workflowRunId ?? ''));
 
   const normalized = {
     readiness: {
@@ -59,6 +61,7 @@ export function normalizeAzureClassD5000Evidence(raw = {}) {
     },
     stageResults: { complete: stageResultsComplete },
     sourceContract: { valid: sourceContractValid },
+    sourceIdentity: { present: sourceIdentityPresent },
     topology: {
       realNodeCount: finite(raw?.topology?.realProcessCount ?? raw?.topology?.nodeCount, 0),
       realProcessesPerHost: finite(raw?.topology?.realProcessesPerHost, 0),
@@ -128,7 +131,8 @@ export function evaluateAzureClassD5000Evidence(raw = {}) {
     readinessAll5000: normalized.readiness.readyNodeCount === 5000,
     readinessRatioFull: normalized.readiness.readyNodeRatio === 1,
     allMandatoryStagesPass: normalized.stageResults.complete === true,
-    d5000SourceContract: normalized.sourceContract.valid === true
+    d5000SourceContract: normalized.sourceContract.valid === true,
+    exactIdentityPresent: normalized.sourceIdentity.present === true
   };
   const failed = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
   return {
