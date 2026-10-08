@@ -1,7 +1,7 @@
 name: D-1000 Scale Run - Attempt 1
 on:
   push:
-    branches: [main]
+    branches: [d1000/attempt1-double-check-20261008]
     paths: ['.github/d1000/launch-1.txt']
 permissions: { contents: read, actions: read, id-token: write }
 concurrency: { group: truyn-d1000-attempt1-single-shot, cancel-in-progress: false }
