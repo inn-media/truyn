@@ -36,3 +36,27 @@ Repair workflow commit `70cd89d1d9265a5165d3e3326831e971e5051b91`. Follow-up quo
 - Public repair implements a quota-only controller at `.github/d5000/quota-only-request.sh`: a direct single-resource Quota API permission probe, ID and unit validation, preservation of `isQuotaApplicable=false`, no role escalation, optional independent Microsoft.Support quota ticket fallback only if authorized, fixed ticket identity to prevent duplicates, and Compute readback distinguishing `EFFECTIVE` from `REQUEST_SUBMITTED_PENDING` and `BLOCKED`. The Azure Support REST path may itself require a suitable subscription role and eligible support plan; the fallback is not a promise of approval.
 - New quota-only run [37803082829](https://github.com/inn-media/truyn/actions/runs/37803082829), launcher SHA `4825d5822f091de3d249a2fae66cfd4b86c77834`, is the single attempted follow-up. Check its terminal result and Azure effective quota before declaring success. If still blocked, subscription admin must grant **Quota Request Operator** (role ID `0e5f05e5-9ab9-446b-b98d-1e2157c94125`) to the already configured GitHub OIDC service principal at subscription scope, or supply an authorized support path. Never bypass Azure RBAC.
 - Public frozen D-1000 evidence remains accepted and unchanged. **D-5000 benchmark remains NOT LAUNCHED**; no VM provisioning is part of this quota-only operation.
+
+
+## Updated Azure capacity plan: approved alternative families (2026-10-08)
+
+The user reports actual Azure South Central US quotas: **Total Regional vCPUs=800**, **Standard Ddsv6 Family=800**, **Standard Dldsv6 Family=800**, **Standard Edsv6 Family=800**. **Standard Easv7 Family remains denied** and is no longer a necessary dependency. The effective limits and SKU permissions must be independently verified through Azure on the intended subscription; do not interpret this user-reported state as completed cloud-side validation.
+
+Target 20 VMs × 32 vCPU = 640 regional vCPU, leaving a theoretical 160-vCPU regional quota margin when no other workloads consume cores. Each family quota is independent and shares the *same* 800 regional vCPU ceiling; do **not** add family quotas together.
+
+Validated Microsoft SKU specifications:
+1. Preferred **Standard_E32ds_v6** (Edsv6), 32 vCPU, **256 GiB RAM**.
+2. Backup **Standard_D32ds_v6** (Ddsv6), 32 vCPU, **128 GiB RAM**.
+3. Memory-constrained backup **Standard_D32lds_v6** (Dldsv6), 32 vCPU, **64 GiB RAM**; require explicit per-process RSS and host headroom validation for 250 processes/VM.
+
+Official references:
+- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/memory-optimized/edsv6-series
+- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/ddsv6-series
+- https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dldsv6-series
+- https://learn.microsoft.com/en-us/azure/virtual-machines/quotas
+
+Read-only discovery on public main: `.github/workflows/d5000-sku-readonly-20261008.yml` and `.github/d5000/d5000-sku-readonly-preflight.sh`, scoped to `southcentralus`. It tests actual regional and exact-family free quota, subscription SKU listing, and location restrictions and emits evidence without VM provisioning, quota mutations or benchmark dispatch. Results marked `QUOTA_SKU_PASS` mean **quota/SKU eligible, not actual 20-VM capacity guaranteed**; Azure placement capacity, RAM consumption, exact-D5000 implementation, and all safety and acceptance gates remain pending.
+
+Current GitHub Azure OIDC service-principal corporate ownership was questioned by the user and must be separately reconciled by authorized administrators before granting broader credentials or running a paid benchmark. The read-only probe does not grant Azure roles or modify cloud resources.
+
+**D-5000 Attempt 1 remains PREPARING / NOT LAUNCHED.**
