@@ -9,3 +9,7 @@ benchmark_launch=false
 retry=allowlist-audit-20261008
 prior_run=37823790504
 repair_sha=897f32cf9efe8d91c50995352983ab12ee6f56d9
+
+retry=runtime-manifest-extract-corrected
+prior_run=37823888092
+repair=d8eeacad94cdeb8ffcbb5e5b32b3df4e13d6b5db
