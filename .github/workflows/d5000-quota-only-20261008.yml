@@ -46,22 +46,29 @@ jobs:
           fi
           [[ "$state" == Registered ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=provider_not_registered state=$state"; exit 1; }
           echo "TRUYN_D5000_QUOTA_PROVIDER state=Registered"
-          az rest --method get --url "${base}?api-version=${version}" -o json > quota.json
-          jq -e '.value|type=="array"' quota.json >/dev/null
-          # Azure Quota API exposes the canonical name under properties.name.value,
-          # unlike Compute usage's name.value; tolerate the optional top-level name.
-          jq -r '.value[] | [(.properties.name.value // .name // ""), (.properties.name.localizedValue // ""), (.properties.limit.value // -1 | tostring)] | @tsv' quota.json | sed -n '1,90p' | sed 's/^/TRUYN_D5000_QUOTA_DISCOVERY /'
-          regional="$(jq -r '[.value[] | select((.properties.name.localizedValue // "" | ascii_downcase | contains("total regional vcpus")) or ((.properties.name.value // .name // "" | ascii_downcase) | test("totalregional|total.regional|^cores$")))] | .[0].properties.name.value // .[0].name // empty' quota.json)"
-          family_entry="$(jq -r --arg f "$family" '[.value[] | select(((.properties.name.value // .name // "") | ascii_downcase) == ($f | ascii_downcase))] | .[0].properties.name.value // .[0].name // empty' quota.json)"
-          [[ -n "$regional" && -n "$family_entry" ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=quota_resource_discovery_failed family=$family regional=$regional family_entry=$family_entry"; exit 1; }
+          # Compute usage is the authoritative quota-name discovery source.
+          # Some subscriptions return an empty Quota API collection.
+          az vm list-usage --location "$location" -o json --only-show-errors > usage.json
+          jq -e 'type=="array" and length>0' usage.json >/dev/null
+          jq -r '.[] | [.name.value, .name.localizedValue, (.currentValue|tostring), (.limit|tostring)] | @tsv' usage.json | grep -Ei 'regional|easv7|total' | sed 's/^/TRUYN_D5000_COMPUTE_USAGE /' || true
+          regional="$(jq -r '[.[]|select((.name.localizedValue//""|ascii_downcase|contains("total regional vcpus")) or (.name.value//""|ascii_downcase|test("totalregional|^cores$")))]|.[0].name.value//empty' usage.json)"
+          family_entry="$(jq -r --arg f "$family" '[.[]|select((.name.value//""|ascii_downcase)==($f|ascii_downcase))]|.[0].name.value//empty' usage.json)"
+          [[ -n "$regional" && -n "$family_entry" ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=compute_usage_missing_quota family=$family regional=$regional family_entry=$family_entry"; exit 1; }
           for resource in "$regional" "$family_entry"; do
-            current="$(jq -r --arg n "$resource" '[.value[] | select((.properties.name.value // .name // "") == $n)] | .[0].properties.limit.value // -1' quota.json)"
-            unit="$(jq -r --arg n "$resource" '[.value[] | select((.properties.name.value // .name // "") == $n)] | .[0].properties.unit // "Count"' quota.json)"
-            [[ "$current" =~ ^[0-9]+$ ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=invalid_current_limit resource=$resource"; exit 1; }
-            if ((current>=target)); then echo "TRUYN_D5000_QUOTA_ALREADY_SUFFICIENT resource=$resource limit=$current target=$target"; continue; fi
-            body="$(jq -n --arg name "$resource" --arg unit "$unit" --argjson limit "$target" '{properties:{name:{value:$name},unit:$unit,limit:{limitObjectType:"LimitValue",value:$limit}}}')"
-            echo "TRUYN_D5000_QUOTA_SUBMIT resource=$resource current=$current requested=$target"
-            az rest --method put --url "${base}/${resource}?api-version=${version}" --body "$body" --headers "Content-Type=application/json" --output json | jq '{name,properties:{limit:.properties.limit,provisioningState:.properties.provisioningState}}'
+            current="$(jq -r --arg n "$resource" '[.[]|select(.name.value==$n)]|.[0].limit//-1' usage.json)"
+            used="$(jq -r --arg n "$resource" '[.[]|select(.name.value==$n)]|.[0].currentValue//-1' usage.json)"
+            [[ "$current" =~ ^[0-9]+$ && "$used" =~ ^[0-9]+$ ]] || exit 1
+            echo "TRUYN_D5000_QUOTA_CURRENT resource=$resource limit=$current used=$used target=$target"
+            if ((current>=target)); then echo "TRUYN_D5000_QUOTA_ALREADY_SUFFICIENT resource=$resource"; continue; fi
+            # Resolve exact quota resource and avoid a blind PUT if API doesn't expose it.
+            detail="$(az rest --method get --url "${base}/${resource}?api-version=${version}" -o json 2>&1)" || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=quota_detail_unavailable resource=$resource detail=$detail"; exit 1; }
+            api_name="$(jq -r '.properties.name.value//.name//empty' <<<"$detail")"
+            unit="$(jq -r '.properties.unit//"Count"' <<<"$detail")"
+            applicable="$(jq -r '.properties.isQuotaApplicable//false' <<<"$detail")"
+            [[ -n "$api_name" && "$applicable" == true ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=quota_resource_not_applicable resource=$resource api_name=$api_name applicable=$applicable"; exit 1; }
+            body="$(jq -n --arg name "$api_name" --arg unit "$unit" --argjson limit "$target" '{properties:{name:{value:$name},unit:$unit,limit:{limitObjectType:"LimitValue",value:$limit}}}')"
+            echo "TRUYN_D5000_QUOTA_SUBMIT resource=$api_name previous=$current target=$target"
+            az rest --method put --url "${base}/${api_name}?api-version=${version}" --body "$body" --headers "Content-Type=application/json" --output json | jq '{name,properties:{limit:.properties.limit,provisioningState:.properties.provisioningState}}'
           done
           echo "TRUYN_D5000_QUOTA_REQUESTS_SUBMITTED no_vms_created=true benchmark_launched=false"
       - name: Warn quota acceptance is not effective allocation
