@@ -23,6 +23,10 @@ The repository regression suite treats the evidence files below as protected and
 
 ## Current evidence ledger
 
+### New prospective methodologies
+
+- [`T_HEAD_TO_HEAD_CONTEXT_PRESSURE_METHODOLOGY.md`](T_HEAD_TO_HEAD_CONTEXT_PRESSURE_METHODOLOGY.md) — prospectively frozen distributed-context scaling benchmark. Separates native protocol-surface measurement from end-to-end economic context-pressure measurement across 2/10/25/50 hops, multiple agents/nodes, cold/warm reuse and WAN execution. No result claim yet.
+
 ### Measured results
 
 - [`T_HEAD_TO_HEAD_2026-10-07.md`](T_HEAD_TO_HEAD_2026-10-07.md) — **closed T/HEAD-TO-HEAD negative economic result**: Attempts 3 and 4 each completed 312 provider calls with zero retries, 100% telemetry completeness and 1.0 accuracy across NAIVE, BARE_MCP, BARE_A2A, NLWEB, TRUYN and NLWEB_OVER_TRUYN. Attempt 3 measured TRUYN gross provider cost at $0.00478368: 98.155% below NAIVE, 2.160% below BARE_MCP and equal to BARE_A2A/NLWeb, therefore failing the pre-frozen 30% MCP/A2A gate. Attempt 4 added measurable setup/orchestration compute and remained RED: TRUYN $0.00483371123 vs BARE_MCP $0.00491031695, BARE_A2A $0.00479809762 and NLWeb $0.00479276441. Machine-readable summary: [`T_HEAD_TO_HEAD_2026-10-07.json`](T_HEAD_TO_HEAD_2026-10-07.json). Negative result preserved; no rerun is required for this methodology.
