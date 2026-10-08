@@ -24,3 +24,14 @@
 - [Immutable GitHub artifact 11579008955](https://github.com/inn-media/truyn/actions/runs/37824934693/artifacts/11579008955): `class-d-200-diagnostic.log`, runtime manifest and digest, staging cleanup.
 - User-provided heartbeat/traceback excerpt from the same run confirmed the freshness barrier (host 13 node 186) and degraded baseline diagnostic collection.
 - Cleanup run [37845931904](https://github.com/inn-media/truyn/actions/runs/37845931904); force-cancel [37846096504](https://github.com/inn-media/truyn/actions/runs/37846096504). Do not launch a new D-5000 benchmark before independent cleanup and fresh qualification.
+
+
+## Confirmed final Azure cleanup
+
+The independent cleanup controller [37845931904](https://github.com/inn-media/truyn/actions/runs/37845931904) completed **SUCCESS**. Its final Azure readback marker was:
+```text
+TRUYN_D5000_ABORT_TERMINAL run=37824934693 conclusion=cancelled
+TRUYN_D5000_ABORT_CLEANUP remaining=0 staging=absent
+TRUYN_D5000_ABORT_CLEANUP=PASS zero_campaign_resources=true zero_staging_resources=true
+```
+Scope was strictly `truyn-d5000-37824934693*` and `td2d20037824934693` in resource group `truyn`. Original workflow final terminal status remains **FAIL**; the independently confirmed cleanup is a separate positive result, not a reason to change benchmark acceptance. Emergency force-cancel workflow [37846096504](https://github.com/inn-media/truyn/actions/runs/37846096504) also completed successfully. No new benchmark attempt was dispatched.
