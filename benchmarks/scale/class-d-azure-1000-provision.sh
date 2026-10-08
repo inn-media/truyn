@@ -27,6 +27,7 @@ case " ${DIAGNOSTIC_NODES_PER_HOST_SIZES} " in
 esac
 NODE_COUNT=$((HOST_COUNT * NODES_PER_HOST))
 D500_MIN_VCPUS_PER_HOST=4
+D1000_MIN_VCPUS_PER_HOST=8
 D500_PROVISION_WORKERS="${TRUYN_D500_PROVISION_WORKERS:-4}"
 D500_PROVISION_ATTEMPTS="${TRUYN_D500_PROVISION_ATTEMPTS:-3}"
 [[ "$D500_PROVISION_WORKERS" =~ ^[1-9][0-9]*$ && "$D500_PROVISION_WORKERS" -le 8 ]]
@@ -446,13 +447,19 @@ for ns in Microsoft.Network Microsoft.Compute; do
   state=$(az provider show --namespace "$ns" --query registrationState -o tsv --only-show-errors)
   [[ "$state" == Registered ]]
 done
-if [[ "$NODES_PER_HOST" == 25 ]]; then
+if [[ "$NODES_PER_HOST" == 25 || "$NODES_PER_HOST" == 50 ]]; then
   selected_vcpus="$(az vm list-skus -l "$LOCATION" --size "$VM_SIZE" --all -o json --only-show-errors | jq -r '[.[].capabilities[]? | select(.name=="vCPUs") | (.value|tonumber?)] | max // 0')"
-  [[ "$selected_vcpus" =~ ^[0-9]+$ && "$selected_vcpus" -ge "$D500_MIN_VCPUS_PER_HOST" ]] || {
-    echo "TRUYN_D500_CPU_FLOOR=FAIL location=${LOCATION} size=${VM_SIZE} vcpus=${selected_vcpus:-0} required=${D500_MIN_VCPUS_PER_HOST}" >&2
+  required_vcpus="$D500_MIN_VCPUS_PER_HOST"
+  marker="TRUYN_D500_CPU_FLOOR"
+  if [[ "$NODES_PER_HOST" == 50 ]]; then
+    required_vcpus="$D1000_MIN_VCPUS_PER_HOST"
+    marker="TRUYN_D1000_CPU_FLOOR"
+  fi
+  [[ "$selected_vcpus" =~ ^[0-9]+$ && "$selected_vcpus" -ge "$required_vcpus" ]] || {
+    echo "${marker}=FAIL location=${LOCATION} size=${VM_SIZE} vcpus=${selected_vcpus:-0} required=${required_vcpus}" >&2
     exit 1
   }
-  echo "TRUYN_D500_CPU_FLOOR=PASS location=${LOCATION} size=${VM_SIZE} vcpus=${selected_vcpus} required=${D500_MIN_VCPUS_PER_HOST}"
+  echo "${marker}=PASS location=${LOCATION} size=${VM_SIZE} vcpus=${selected_vcpus} required=${required_vcpus}"
 fi
 echo "TRUYN_CLASS_D_1000 stage=preflight status=PASS commit=${GITHUB_SHA}"
 
@@ -652,7 +659,7 @@ TRUYN_TESTNET_FAULT_CONTROL=1
 ENV
 done
 # Reserve 0.25 vCPU for the Azure guest agent, systemd and journald even when
-# all 25 TRUYN processes saturate the host. The cap is aggregate for the slice.
+# all TRUYN processes saturate the host. The cap is aggregate for the slice.
 truyn_slice_quota=\$(( \$(nproc) * 100 - 25 ))
 [[ "\$truyn_slice_quota" -ge 375 ]]
 cat >/etc/systemd/system/truyn-d1000.slice <<SLICE
