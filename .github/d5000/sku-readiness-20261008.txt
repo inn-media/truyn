@@ -6,3 +6,8 @@ vcpus_per_host=32
 require_placement_capacity_separately=true
 no_azure_mutations=true
 no_benchmark_dispatch=true
+
+retry=jq-label-syntax-fixed
+repair_sha=12758f20b9270818bae2b236e15477b4b06f37db
+previous_run=37814898585
+no_benchmark_dispatch=true
