@@ -12,14 +12,14 @@ fail() { printf 'TRUYN_D5000_QUOTA_TERMINAL result=BLOCKED reason=%s no_vm_creat
 status() { printf 'TRUYN_D5000_QUOTA_EVENT status=%s\n' "$1"; }
 # Exact single-shot identity, safe to re-evaluate; never blindly resubmit a pending ticket.
 sku=''; family=''
-for candidate in Standard_E32as_v7 Standard_E32as_v5 Standard_D32as_v5 Standard_D32s_v5; do
+for candidate in Standard_E32ds_v6 Standard_D32ds_v6 Standard_D32lds_v6; do
   items="$(az vm list-skus -l "$location" --size "$candidate" --all -o json --only-show-errors)" || continue
   allowed="$(jq -r --arg c "$candidate" '[.[]|select(.name==$c and (([.restrictions[]?|select(.reasonCode=="NotAvailableForSubscription")]|length)==0))][0].name//empty' <<<"$items")"
   f="$(jq -r --arg c "$candidate" '[.[]|select(.name==$c)][0].family//empty' <<<"$items")"
   [[ -n "$allowed" && -n "$f" ]] && { sku="$allowed"; family="$f"; break; }
 done
 [[ -n "$sku" && -n "$family" ]] || fail no_permitted_32_vcpu_sku
-status "candidate_validated location=$location sku=$sku family=$family target=$target"
+status "candidate_validated location=$location sku=$sku family=$family target=$target minimum_required=640"
 state="$(az provider show --namespace Microsoft.Quota --query registrationState -o tsv 2>/dev/null || true)"
 if [[ "$state" != Registered ]]; then
   az provider register --namespace Microsoft.Quota --wait --only-show-errors || fail provider_registration_denied
