@@ -60,7 +60,7 @@ jobs:
           TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh qualification/d5000-runtime.tgz
           sha256sum -c qualification/d5000-runtime.tgz.sha256
           t="$(mktemp -d)"
-          tar -xzf qualification/d5000-runtime.tgz manifest.json -C "$t"
+          tar -xzf qualification/d5000-runtime.tgz -C "$t" manifest.json
           jq -e --arg sha "$TESTED_COMMIT" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$sha' "$t/manifest.json"
           sha256sum qualification/d5000-runtime.tgz
           echo "TRUYN_D5000_QUALIFICATION=PASS tested_sha=$TESTED_COMMIT tested_tree=$TESTED_TREE_SHA"
