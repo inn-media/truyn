@@ -40,3 +40,9 @@ repair_tree=6cd04cf8a84ddc3a35ef958ff6806db02e6b1ac7
 old_d5000_quota_and_readiness_thresholds_unmodified=true
 no_azure_deploy=true
 no_benchmark_launch=true
+
+checkpoint=stage-evidence-and-frozen-source-provenance-P0
+source_sha=f8352f34a770bd1be771e2410dd65c59d00f40d8
+source_tree=606ed82878afa2802fa938a1f895b43f4ff93bb4
+negative_tests=readiness-stage-scope-run-identity
+benchmark_launch=false
