@@ -48,14 +48,18 @@ jobs:
           echo "TRUYN_D5000_QUOTA_PROVIDER state=Registered"
           az rest --method get --url "${base}?api-version=${version}" -o json > quota.json
           jq -e '.value|type=="array"' quota.json >/dev/null
-          regional="$(jq -r '[.value[]|select((.name|ascii_downcase|test("totalregional|total.regional")) or (.properties.name.localizedValue//""|ascii_downcase|contains("total regional vcpus")) )][0].name//empty' quota.json)"
-          family_entry="$(jq -r --arg f "$family" '[.value[]|select((.name|ascii_downcase)==($f|ascii_downcase))][0].name//empty' quota.json)"
+          # Azure Quota API exposes the canonical name under properties.name.value,
+          # unlike Compute usage's name.value; tolerate the optional top-level name.
+          jq -r '.value[] | [(.properties.name.value // .name // ""), (.properties.name.localizedValue // ""), (.properties.limit.value // -1 | tostring)] | @tsv' quota.json | sed -n '1,90p' | sed 's/^/TRUYN_D5000_QUOTA_DISCOVERY /'
+          regional="$(jq -r '[.value[] | select((.properties.name.localizedValue // "" | ascii_downcase | contains("total regional vcpus")) or ((.properties.name.value // .name // "" | ascii_downcase) | test("totalregional|total.regional|^cores$")))] | .[0].properties.name.value // .[0].name // empty' quota.json)"
+          family_entry="$(jq -r --arg f "$family" '[.value[] | select(((.properties.name.value // .name // "") | ascii_downcase) == ($f | ascii_downcase))] | .[0].properties.name.value // .[0].name // empty' quota.json)"
           [[ -n "$regional" && -n "$family_entry" ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=quota_resource_discovery_failed family=$family regional=$regional family_entry=$family_entry"; exit 1; }
           for resource in "$regional" "$family_entry"; do
-            current="$(jq -r --arg n "$resource" '[.value[]|select(.name==$n)][0].properties.limit.value//-1' quota.json)"
-            [[ "$current" =~ ^[0-9]+$ ]] || exit 1
+            current="$(jq -r --arg n "$resource" '[.value[] | select((.properties.name.value // .name // "") == $n)] | .[0].properties.limit.value // -1' quota.json)"
+            unit="$(jq -r --arg n "$resource" '[.value[] | select((.properties.name.value // .name // "") == $n)] | .[0].properties.unit // "Count"' quota.json)"
+            [[ "$current" =~ ^[0-9]+$ ]] || { echo "TRUYN_D5000_QUOTA_STATUS=BLOCKED reason=invalid_current_limit resource=$resource"; exit 1; }
             if ((current>=target)); then echo "TRUYN_D5000_QUOTA_ALREADY_SUFFICIENT resource=$resource limit=$current target=$target"; continue; fi
-            body="$(jq -n --arg name "$resource" --argjson limit "$target" '{properties:{name:{value:$name},limit:{limitObjectType:"LimitValue",value:$limit}}}')"
+            body="$(jq -n --arg name "$resource" --arg unit "$unit" --argjson limit "$target" '{properties:{name:{value:$name},unit:$unit,limit:{limitObjectType:"LimitValue",value:$limit}}}')"
             echo "TRUYN_D5000_QUOTA_SUBMIT resource=$resource current=$current requested=$target"
             az rest --method put --url "${base}/${resource}?api-version=${version}" --body "$body" --headers "Content-Type=application/json" --output json | jq '{name,properties:{limit:.properties.limit,provisioningState:.properties.provisioningState}}'
           done
