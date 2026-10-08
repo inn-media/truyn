@@ -62,36 +62,36 @@ TRUYN_REMOTE_BUDGET_SECONDS="${TRUYN_REMOTE_BUDGET_SECONDS:-2400}"
 [[ "$TRUYN_REMOTE_BUDGET_SECONDS" =~ ^[1-9][0-9]*$ ]]
 
 remote() {
-  local vm="$1" body="$2" budget="${3:-${REMOTE_STAGE_BUDGET_SECONDS:-${TRUYN_REMOTE_BUDGET_SECONDS:-2400}}}" enc remote_script output rc attempt host_budget
+  local vm="$1" body="$2" budget="${3:-${REMOTE_STAGE_BUDGET_SECONDS:-${TRUYN_REMOTE_BUDGET_SECONDS:-2400}}}"
+  local enc remote_script output transport_rc guest_rc marker_line nonce host_budget
   [[ "$budget" =~ ^[1-9][0-9]*$ ]] || budget=2400
   host_budget=$(( budget > 120 ? budget - 60 : budget ))
   enc="$(printf '%s' "$body" | base64 -w0)"
-  remote_script="printf '%s' '$enc' | base64 -d >/tmp/truyn-d1000-run.sh; chmod 700 /tmp/truyn-d1000-run.sh; timeout -k 20 ${host_budget} /bin/bash /tmp/truyn-d1000-run.sh; host_rc=\$?; [ \$host_rc -eq 124 ] && echo TRUYN_REMOTE_HOST_TIMEOUT=${host_budget}; exit \$host_rc"
-  remote_script="${remote_script//truyn/truyn}"
-  remote_script="${remote_script//truyn/truyn}"
-  for attempt in 1 2 3 4 5; do
-    if output=$(timeout -k 30 "$budget" az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1); then
-      rc=0
-    else
-      rc=$?
-    fi
+  nonce="${GITHUB_RUN_ID:-local}-$(date +%s%N)-${RANDOM}-${RANDOM}"
+  # Azure Run Command transport exit 0 is NOT evidence of bash success in the VM.
+  # A nonce-bound terminal marker emitted as the last output is mandatory.
+  remote_script="set +e; printf '%s' '$enc' | base64 -d >/tmp/truyn-d5000-run.sh && chmod 700 /tmp/truyn-d5000-run.sh; setup_rc=\$?; if [[ \$setup_rc -eq 0 ]]; then timeout -k 20 ${host_budget} /bin/bash /tmp/truyn-d5000-run.sh; guest_rc=\$?; else guest_rc=\$setup_rc; fi; printf '\\nTRUYN_D5000_GUEST_TERMINAL nonce=${nonce} rc=%s\\n' \"\$guest_rc\"; exit 0"
+  transport_rc=0
+  output="$(timeout -k 30 "$budget" az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1)" || transport_rc=$?
+  if [[ "$transport_rc" != 0 ]]; then
     printf '%s\n' "$output" >&2
-    if [[ $rc -eq 0 ]]; then
-      printf '%s\n' "$output"
-      return 0
-    fi
-    if [[ $rc -eq 124 || $rc -eq 137 ]]; then
-      echo "TRUYN_REMOTE_TIMEOUT vm=${vm} budgetSec=${budget} hostBudgetSec=${host_budget} attempt=${attempt} rc=${rc}" >&2
-      printf '%s\n' "$output"
-      printf 'TRUYN_REMOTE_TIMEOUT=%s\n' "$budget"
-      return 124
-    fi
-    echo "TRUYN_REMOTE_RETRY vm=${vm} attempt=${attempt} rc=${rc}" >&2
-    [[ $attempt -lt 5 ]] || break
-    sleep $((attempt*3))
-  done
-  echo "TRUYN_REMOTE_FAILURE vm=${vm} attempts=5 rc=${rc}" >&2
-  return "$rc"
+    echo "TRUYN_D5000_REMOTE=RED reason=azure_transport_failure vm=$vm rc=$transport_rc" >&2
+    return "$transport_rc"
+  fi
+  marker_line="$(printf '%s\n' "$output" | grep -F "TRUYN_D5000_GUEST_TERMINAL nonce=${nonce} rc=" || true)"
+  if [[ "$(printf '%s\n' "$marker_line" | grep -c 'TRUYN_D5000_GUEST_TERMINAL' || true)" != 1 ]]; then
+    printf '%s\n' "$output" >&2
+    echo "TRUYN_D5000_REMOTE=RED reason=guest_terminal_missing_or_duplicated vm=$vm" >&2
+    return 85
+  fi
+  guest_rc="${marker_line##* rc=}"
+  if [[ ! "$guest_rc" =~ ^[0-9]+$ || "$guest_rc" != 0 ]]; then
+    printf '%s\n' "$output" >&2
+    echo "TRUYN_D5000_REMOTE=RED reason=guest_script_failed vm=$vm rc=$guest_rc" >&2
+    return 86
+  fi
+  printf '%s\n' "$output"
+  echo "TRUYN_D5000_REMOTE=PASS vm=$vm guest_rc=0" >&2
 }
 
 marker() {
