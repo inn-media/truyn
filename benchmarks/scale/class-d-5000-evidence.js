@@ -42,7 +42,23 @@ export function normalizeAzureClassD5000Evidence(raw = {}) {
   const providerAuthorizationProbe = validProviderAuthorizationProbe(raw);
   const packetPartitionProbe = validPacketPartitionProbe(raw);
 
+  const stageRows = raw?.stageResults?.stages;
+  const requiredStages = ['topology', 'readiness-barrier', 'convergence', 'pre-baseline-peer-freshness', 'baseline'];
+  const stageResultsComplete = raw?.stageResults?.overall === 'PASS' &&
+    raw?.stageResults?.allPossibleStagesAttempted === true &&
+    Array.isArray(stageRows) && stageRows.length >= requiredStages.length &&
+    stageRows.every((stage) => stage?.status === 'PASS') &&
+    requiredStages.every((name) => stageRows.some((stage) => stage?.stage === name && stage.status === 'PASS'));
+  const sourceContractValid = raw?.class === 'D-5000' &&
+    raw?.scope === '5000-real-process-scale+safety-contract-v2';
+
   const normalized = {
+    readiness: {
+      readyNodeCount: finite(raw?.readiness?.readyNodeCount, 0),
+      readyNodeRatio: finite(raw?.readiness?.readyNodeRatio, 0)
+    },
+    stageResults: { complete: stageResultsComplete },
+    sourceContract: { valid: sourceContractValid },
     topology: {
       realNodeCount: finite(raw?.topology?.realProcessCount ?? raw?.topology?.nodeCount, 0),
       realProcessesPerHost: finite(raw?.topology?.realProcessesPerHost, 0),
@@ -108,7 +124,11 @@ export function evaluateAzureClassD5000Evidence(raw = {}) {
   const base = evaluateClassD1000(normalized, { ...CLASS_D_1000_THRESHOLDS, nodeCount: 5000 });
   const checks = {
     ...base.checks,
-    strictNodesPerHost: normalized.topology.realProcessesPerHost === STRICT_D5000_NODES_PER_HOST
+    strictNodesPerHost: normalized.topology.realProcessesPerHost === STRICT_D5000_NODES_PER_HOST,
+    readinessAll5000: normalized.readiness.readyNodeCount === 5000,
+    readinessRatioFull: normalized.readiness.readyNodeRatio === 1,
+    allMandatoryStagesPass: normalized.stageResults.complete === true,
+    d5000SourceContract: normalized.sourceContract.valid === true
   };
   const failed = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name);
   return {
