@@ -31,7 +31,7 @@ test('legacy NEED and RESULT events use persistent socket while commands stay HT
   assert.equal(resultEvent.verification.ok, true);
 });
 
-test('legacy socket backpressure preserves fail-closed critical delivery semantics', async (t) => {
+test('legacy socket backpressure falls back to the bounded HTTP event queue without loss', async (t) => {
   const relay = createRelay({ localDevelopmentMode: true, maxSocketBufferedBytes: 1 });
   const relayUrl = await relay.listen({ port: 0 });
   t.after(() => relay.close());
@@ -46,5 +46,7 @@ test('legacy socket backpressure preserves fail-closed critical delivery semanti
   const receipt = await requester.need('legacy.socket.pressure', { payload: 'x'.repeat(100) });
   assert.ok(receipt.needId);
   const polled = await provider.poll({ waitMs: 0 });
-  assert.equal(polled.events.length, 0, 'connected socket owns legacy event delivery; HTTP queue must not duplicate it');
+  assert.equal(polled.events.length, 1, 'socket backpressure must preserve the legacy event in the bounded fallback queue');
+  assert.equal(polled.events[0].kind, 'NEED');
+  assert.equal(polled.events[0].envelope.id, receipt.needId);
 });
