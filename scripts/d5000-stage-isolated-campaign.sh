@@ -257,7 +257,7 @@ with open(sys.argv[1], encoding='utf-8') as handle:
 value={
   'schema':'truyn.d200.stage-results.v1',
   'overall':'FAIL' if int(sys.argv[3]) else 'PASS',
-  'allPossibleStagesAttempted':False,
+  'allPossibleStagesAttempted':int(sys.argv[3]) == 0,
   'acceptanceWeakened':False,
   'd5000FailFastAfterRed':True,
   'stages':rows,
