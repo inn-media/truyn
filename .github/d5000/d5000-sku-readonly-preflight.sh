@@ -41,7 +41,7 @@ for candidate in Standard_E32ds_v6 Standard_D32ds_v6 Standard_D32lds_v6; do
     label=QUOTA_SKU_ELIGIBLE
     eligible=$((eligible+1))
   fi
-  jq -n --arg sku "$candidate" --arg family "$family" --arg label "$label" --argjson vcpus "$cpu" --arg memory "$memory" --argjson familyLimit "$family_limit" --argjson familyUsed "$family_used" --argjson restriction "$restriction" --argjson zones "$zones" '{sku:$sku,family:$family,status:$label,vcpus:$vcpus,memoryGB:$memory,familyQuota:$familyLimit,familyUsed:$familyUsed,locationRestrictionCount:$restriction,restrictedZones:$zones}' >candidate.json
+  jq -n --arg sku "$candidate" --arg family "$family" --arg statusLabel "$label" --argjson vcpus "$cpu" --arg memory "$memory" --argjson familyLimit "$family_limit" --argjson familyUsed "$family_used" --argjson restriction "$restriction" --argjson zones "$zones" '{sku:$sku,family:$family,status:$statusLabel,vcpus:$vcpus,memoryGB:$memory,familyQuota:$familyLimit,familyUsed:$familyUsed,locationRestrictionCount:$restriction,restrictedZones:$zones}' >candidate.json
   jq --slurpfile e candidate.json '.candidates+=[$e[0]]' d5000-sku-readonly-evidence.json >tmp.json && mv tmp.json d5000-sku-readonly-evidence.json
   echo "TRUYN_D5000_SKU_RESULT sku=$candidate family=$family vcpus=$cpu memoryGB=$memory family_limit=$family_limit family_used=$family_used family_available=$family_free location_restrictions=$restriction zone_restrictions=$zones status=$label"
 done
