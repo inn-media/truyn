@@ -5,6 +5,8 @@ const mandatoryStages = ['topology','readiness-barrier','convergence','pre-basel
 const fixture = (count, perHost) => ({
   class: 'D-5000',
   scope: '5000-real-process-scale+safety-contract-v2',
+  testedCommit: '1234567890abcdef1234567890abcdef12345678',
+  workflowRunId: '37852326390',
   readiness: { readyNodeCount: count, readyNodeRatio: 1 },
   stageResults: { overall: 'PASS', allPossibleStagesAttempted: true, stages: mandatoryStages.map((stage) => ({ stage, status: 'PASS' })) },
   topology: {
@@ -65,6 +67,10 @@ const stagePartial = fixture(5000,250); stagePartial.stageResults.allPossibleSta
 assert.equal(evaluateAzureClassD5000Evidence(stagePartial).passed, false);
 const wrongClass = fixture(5000,250); wrongClass.class='D-1000';
 assert.equal(evaluateAzureClassD5000Evidence(wrongClass).passed, false);
+const missingCommit = fixture(5000,250); delete missingCommit.testedCommit;
+assert.equal(evaluateAzureClassD5000Evidence(missingCommit).passed, false);
+const invalidRun = fixture(5000,250); invalidRun.workflowRunId='not-a-run';
+assert.equal(evaluateAzureClassD5000Evidence(invalidRun).passed, false);
 const wrongScope = fixture(5000,250); wrongScope.scope='1000-real-process-scale+safety-contract-v2';
 assert.equal(evaluateAzureClassD5000Evidence(wrongScope).passed, false);
-console.log('TRUYN_D5000_EVALUATOR_REGRESSION=PASS accepted_5000=true rejected_1000=true safety=true readiness=true full_stage_evidence=true source_contract=true');
+console.log('TRUYN_D5000_EVALUATOR_REGRESSION=PASS accepted_5000=true rejected_1000=true safety=true readiness=true full_stage_evidence=true source_contract=true source_identity=true');
