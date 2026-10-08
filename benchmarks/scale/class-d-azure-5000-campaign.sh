@@ -257,8 +257,13 @@ for j in \$(seq 0 $((NODES_PER_HOST-1))); do
   fi
 done
 readiness_node_observations_b64=\$(jq -s -c 'sort_by(.nodeIndex)' "\$readiness_observations_dir"/*.json | gzip -c -9 | base64 -w0)
-[[ "\${#readiness_node_observations_b64}" -le 3000 ]]
-echo READINESS_NODE_OBSERVATIONS_B64=\$readiness_node_observations_b64
+readiness_payload_path="/var/lib/truyn-d1000/readiness-host-${i}.b64"
+printf '%s' "\$readiness_node_observations_b64" > "\$readiness_payload_path"
+readiness_payload_sha=\$(sha256sum "\$readiness_payload_path" | cut -d' ' -f1)
+readiness_chunks=\$(( (${#readiness_node_observations_b64} + 2399) / 2400 ))
+[[ "\$readiness_chunks" -ge 1 && "\$readiness_chunks" -le 256 ]]
+echo READINESS_NODE_OBSERVATIONS_CHUNKS=\$readiness_chunks
+echo READINESS_NODE_OBSERVATIONS_SHA256=\$readiness_payload_sha
 rm -rf "\$readiness_observations_dir" "\$readiness_round_dir"
 [[ "\$ready" -eq ${NODES_PER_HOST} ]]
 EOS
@@ -294,7 +299,7 @@ readiness_failed=0
 if ! wait_host_stage readiness "$readiness_dir" "${readiness_pids[@]}"; then readiness_failed=1; fi
 readiness_markers_present() {
   local text="$1" key
-  for key in READINESS_READY READINESS_TOTAL READINESS_MIN_VALID READINESS_MAX_VALID READINESS_MIN_BUCKETS READINESS_MAX_BUCKETS READINESS_MIN_HOSTS READINESS_MAX_HOSTS READINESS_NODE_OBSERVATIONS_B64; do
+  for key in READINESS_READY READINESS_TOTAL READINESS_MIN_VALID READINESS_MAX_VALID READINESS_MIN_BUCKETS READINESS_MAX_BUCKETS READINESS_MIN_HOSTS READINESS_MAX_HOSTS READINESS_NODE_OBSERVATIONS_CHUNKS READINESS_NODE_OBSERVATIONS_SHA256; do
     [[ -n "$(marker "$text" "$key")" ]] || return 1
   done
 }
@@ -347,17 +352,32 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
     false
   fi
   ready=$(marker "$out" READINESS_READY); total=$(marker "$out" READINESS_TOTAL)
-  node_observations_b64=$(marker "$out" READINESS_NODE_OBSERVATIONS_B64)
+  readiness_chunks=$(marker "$out" READINESS_NODE_OBSERVATIONS_CHUNKS)
+  readiness_sha=$(marker "$out" READINESS_NODE_OBSERVATIONS_SHA256)
   node_observations_file="$readiness_dir/$i.nodes.json"
-  if [[ -z "$node_observations_b64" ]] || ! printf '%s' "$node_observations_b64" | base64 -d | gzip -dc | jq -e 'if type=="array" and length=='"$NODES_PER_HOST"' then . else error("invalid readiness observation payload") end' >"$node_observations_file"; then
-    printf '[]
-' >"$node_observations_file"
+  payload_file="$readiness_dir/$i.observations.b64"
+  : >"$payload_file"
+  payload_failed=0
+  if [[ ! "$readiness_chunks" =~ ^[1-9][0-9]*$ || "$readiness_chunks" -gt 256 || ! "$readiness_sha" =~ ^[0-9a-f]{64}$ ]]; then
+    payload_failed=1
+  else
+    for chunk_index in $(seq 0 $((readiness_chunks-1))); do
+      chunk_out=$(remote "${VMS[$i]}" "set -Eeuo pipefail; python3 -c 'import pathlib; p=pathlib.Path(\"/var/lib/truyn-d1000/readiness-host-${i}.b64\"); d=p.read_text(); i=${chunk_index}; print(\"D500_READINESS_CHUNK=\"+d[i*2400:(i+1)*2400])'") || { payload_failed=1; break; }
+      chunk_part=$(marker "$chunk_out" D500_READINESS_CHUNK)
+      if [[ -z "$chunk_part" || ${#chunk_part} -gt 2400 ]]; then payload_failed=1; break; fi
+      printf '%s' "$chunk_part" >>"$payload_file"
+    done
+  fi
+  if [[ "$payload_failed" != 0 || "$(sha256sum "$payload_file" | cut -d' ' -f1)" != "$readiness_sha" ]] ||
+     ! base64 -d "$payload_file" | gzip -dc | jq -e 'if type=="array" and length=='"$NODES_PER_HOST"' then . else error("invalid readiness observation count") end' >"$node_observations_file"; then
+    printf '[]\n' >"$node_observations_file"
     readiness_gate_failed=1
-    echo "TRUYN_D200_READINESS_OBSERVATION_ERROR node_observations_missing host=$i" >&2
+    echo "TRUYN_D5000_READINESS_PAYLOAD=RED reason=missing_or_invalid_chunks host=$i" >&2
   else
     tmp_nodes="$readiness_dir/$i.nodes.tmp.json"
     jq --argjson host "$i" 'map(. + {hostIndex:$host})' "$node_observations_file" >"$tmp_nodes"
     mv "$tmp_nodes" "$node_observations_file"
+    echo "TRUYN_D5000_READINESS_PAYLOAD=PASS host=$i chunks=$readiness_chunks sha256=$readiness_sha"
   fi
   if [[ "$ready" != "$NODES_PER_HOST" || "$total" != "$NODES_PER_HOST" ]]; then
     readiness_gate_failed=1
