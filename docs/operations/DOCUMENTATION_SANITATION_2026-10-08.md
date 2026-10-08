@@ -54,3 +54,14 @@ Historical workflow runs, commits and immutable artifacts remain append-only und
 ## Current boundary
 
 All defined Class-D scale gates through D-1000 are accepted. This closes the defined 1,000-real-process network-scale gate only. Long-duration operations, rolling production SLO evidence, stable protocol/mainnet and managed-production acceptance remain separate gates.
+
+
+## Post-PASS branch sanitation
+
+One-shot sanitation run `37782522256` deleted only the temporary preparation branch `prep/d1000-a1-from-d500-a22` and completed successfully.
+
+Terminal sanitation marker:
+
+`TRUYN_D1000_SANITATION=PASS removed_or_absent=1`
+
+The successful frozen source commit `c1d3fa087716dbf24d0b3b65bceae303e907160a`, accepted workflow run `37687469411`, both immutable artifacts, and Git history remain preserved. The temporary sanitation workflow/trigger are removed by the commit recording this section.
