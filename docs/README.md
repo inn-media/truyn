@@ -42,7 +42,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - Class D-500 — **ACCEPTED / PASS / REPEATABILITY CONFIRMED** by Attempt 22 run `37666768998` and exact-frozen Double-Check run `37676472133`; both used the same tested source/tree, 20 hosts / 500 real processes, zero acknowledged-write loss, strict terminal PASS and complete cleanup.
 - Class D-1000 — **ACCEPTED / PASS** on Attempt 1 workflow run `37687469411`, `run_attempt=2`: 20 hosts / 1,000 real processes, baseline 100%, post-restart 99%, healed 100%, zero acknowledged-write loss, strict terminal PASS and complete cleanup.
 - D-Series execution architecture — **Swarm diagnostics/repair → full B01–B16 exact-SHA admission → live/collision gates → exactly one real scale run**; durable lock tracked in issue #737.
-- Semantic Scale S-Series — **EXECUTED / DIAGNOSTIC; NO ACCEPTED S PASS**. S-50 Attempt 13 is immutable failure evidence (`fast_socket_closed`) under bounded public WebSocket repair/qualification tracked in issue #726.
+- Semantic Scale S-Series — **S-10 + S-20 + S-50 ACCEPTED / PASS; S-100+ OPEN**. S-50 Attempt 3 run `37782488279` is the canonical 50-node eight-scenario acceptance; historical failed S-50 attempts remain immutable audit evidence.
 - Efficiency E-Series — **ACTIVE QUALIFICATION / NO FINAL E PASS**; qualification/isolation/provider-smoke work does not substitute for final DECOMPOSE/PER-RESULT/KNEE/DEGRADE evidence.
 - N-Series emergent network behavior — **FOUNDATION DEFINED / NOT YET EXECUTED**; N/SOVEREIGNTY, N/MARKETPLACE, N/TRUST-DECAY and N/SUSTAINED-CHURN have no PASS claim.
 - Account → Organization → Tenant — **IMPLEMENTED / accepted**.
@@ -85,7 +85,7 @@ Do not infer PASS from a workflow, launcher, task branch, diagnostic run or merg
 
 S-Series is the **live semantic-node** benchmark family. It reuses the accepted TRUYN network, provider and semantic retrieval paths and adds no second network architecture. The earlier `SEMANTIC_SCALE_GATE_V3` remains corpus/index-scale evidence and does not by itself prove S-50/100/200/500 with real heterogeneous inference.
 
-S-Series has now been exercised. That does not mean it has passed. Current factual state is diagnostic/open until fresh exact-qualified acceptance evidence exists.
+S-Series has accepted S-10, S-20 and S-50 checkpoints. S-100, S-200 and S-500 remain open and require their own immutable acceptance evidence.
 
 S-Series and D-Series have separate workflow/concurrency/resource/evidence namespaces. A S run may execute beside a D run only when capacity/quota and resource isolation prevent either benchmark from altering the other's result.
 
