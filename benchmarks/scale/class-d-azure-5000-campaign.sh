@@ -1624,7 +1624,7 @@ if [[ "$heal_code" != 200 ]]; then
 {
   "class":"D-5000",
   "scope":"5000-real-process-scale+safety-contract-v2",
-  "testedCommit":"${GITHUB_SHA}",
+  "testedCommit":"${TESTED_COMMIT:?exact frozen source commit required}",
   "workflowRunId":"${GITHUB_RUN_ID}",
   "topology":{"nodeCount":${NODE_COUNT},"realProcessCount":${NODE_COUNT},"hostCount":${HOST_COUNT},"realProcessesPerHost":${NODES_PER_HOST},"uniqueIdentityCount":${NODE_COUNT},"uniqueEndpointCount":${NODE_COUNT},"syntheticNodeCount":0},
   "readiness":{"readyNodeCount":${readiness_ready},"readyNodeRatio":1,"barrierMs":${readiness_ms},"validPeers":{"min":${readiness_min_valid},"max":${readiness_max_valid}},"populatedBuckets":{"min":${readiness_min_buckets},"max":${readiness_max_buckets}},"remoteEndpointHosts":{"min":${readiness_min_hosts},"max":${readiness_max_hosts}}},
@@ -2117,7 +2117,7 @@ cat >"$EVIDENCE" <<JSON
 {
   "class":"D-5000",
   "scope":"5000-real-process-scale+safety-contract-v2",
-  "testedCommit":"${GITHUB_SHA}",
+  "testedCommit":"${TESTED_COMMIT:?exact frozen source commit required}",
   "workflowRunId":"${GITHUB_RUN_ID}",
   "topology":{"nodeCount":${NODE_COUNT},"realProcessCount":${NODE_COUNT},"hostCount":${HOST_COUNT},"realProcessesPerHost":${NODES_PER_HOST},"uniqueIdentityCount":${NODE_COUNT},"uniqueEndpointCount":${NODE_COUNT},"syntheticNodeCount":0,"transport":"real UDP/QUIC over Azure VNet","bootstrap":"sparse Kademlia local+bridge"},
   "readiness":{"readyNodeCount":${readiness_ready},"readyNodeRatio":1,"barrierMs":${readiness_ms},"validPeers":{"min":${readiness_min_valid},"max":${readiness_max_valid}},"populatedBuckets":{"min":${readiness_min_buckets},"max":${readiness_max_buckets}},"remoteEndpointHosts":{"min":${readiness_min_hosts},"max":${readiness_max_hosts}}},
