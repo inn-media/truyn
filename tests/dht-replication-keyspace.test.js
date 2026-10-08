@@ -226,3 +226,38 @@ test('DHT put enforces one end-to-end deadline across lookup and replication', a
   assert.ok(Number.isFinite(deadlineSeen));
   assert.ok(Date.now() - started < 350, 'deadline failure must return promptly instead of inheriting the HTTP client timeout');
 });
+
+test('DHT placement deadline returns the documented timeout error, not an out-of-scope exception', async () => {
+  const publisher = createIdentity();
+  const holder = createIdentity();
+  const record = createDhtRecord({
+    identity: publisher,
+    namespace: 'durability',
+    key: 'placement-deadline-scope',
+    value: { bounded: true },
+    ttlMs: 120_000
+  });
+  const discovery = {
+    identity: publisher,
+    closest: () => [{ nodeId: holder.nodeId }],
+    walk: async () => ({ queried: [], rounds: 0, responses: 0 })
+  };
+  const rpc = {
+    async store() {
+      await new Promise(resolve => setTimeout(resolve, 180));
+      return { stored: false };
+    }
+  };
+  const manager = new DhtReplicationManager({
+    discovery,
+    rpc,
+    recordStore: new KademliaRecordStore(),
+    replicationFactor: 2,
+    writeQuorum: 2,
+    writeTimeoutMs: 100
+  });
+  await assert.rejects(
+    manager.put(record, { replicationFactor: 2, minAcks: 2, lookupRounds: 0, timeoutMs: 100 }),
+    error => error?.code === 'TRUYN_DHT_WRITE_TIMEOUT' && error.timeoutMs === 100
+  );
+});
