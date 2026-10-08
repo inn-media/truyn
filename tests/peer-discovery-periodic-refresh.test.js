@@ -85,7 +85,7 @@ test('PeerDiscovery periodic refresh uses bounded fake timers and close clears t
   timerApi.timers[0].fn();
   await flushPromises();
 
-  assert.deepEqual(calls, [{ targetCount: 2, maxRounds: 3, targetConcurrency: 3, timeoutMs: 900, seed: 'periodic-test:1' }]);
+  assert.deepEqual(calls, [{ targetCount: 2, maxRounds: 3, targetConcurrency: 3, timeoutMs: 900, seed: 'periodic-test:1', earlyExitIdleWalks: 4, nearExpiryHorizonMs: 120000 }]);
   const afterRun = discovery.periodicRefreshSnapshot();
   assert.equal(afterRun.runs, 1);
   assert.equal(afterRun.failures, 0);
@@ -208,7 +208,9 @@ test('PeerDiscovery periodic refresh applies bounded deterministic jitter and an
     maxRounds: 3,
     targetConcurrency: 2,
     timeoutMs: 7_500,
-    seed: 'jitter-proof:1'
+    seed: 'jitter-proof:1',
+    earlyExitIdleWalks: 4,
+    nearExpiryHorizonMs: 120000
   }]);
   discovery.close();
 });
