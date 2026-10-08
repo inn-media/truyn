@@ -37,7 +37,15 @@
   "qualificationSwarm": {
     "mode": "fail-collect",
     "failFast": false,
-    "blocks": ["TS0", "TS1", "TS2", "TS3", "TS4", "TS5", "TS6"],
+    "blocks": [
+      "TS0",
+      "TS1",
+      "TS2",
+      "TS3",
+      "TS4",
+      "TS5",
+      "TS6"
+    ],
     "parallelByDefault": true,
     "allRequiredGreenBeforeMeasuredLaneAdmission": true,
     "paidProviderCallsAllowed": false,
@@ -50,9 +58,39 @@
     "crossLaneCancellationForbidden": true,
     "crossLaneMutableStateReuseForbidden": true,
     "lanes": [
-      {"id":"BREAK_EVEN","benchmarkId":"T/BREAK-EVEN","roadmapStage":"TS7","independent":true,"runManifestRequired":true,"paidExecution":true},
-      {"id":"HEAD_TO_HEAD","benchmarkId":"T/HEAD-TO-HEAD","roadmapStage":"TS8","independent":true,"runManifestRequired":true,"paidExecution":true},
-      {"id":"PREDICT","benchmarkId":"T/PREDICT","roadmapStage":"TS9","independent":true,"runManifestRequired":true,"paidExecution":true}
+      {
+        "id": "BREAK_EVEN",
+        "benchmarkId": "T/BREAK-EVEN",
+        "roadmapStage": "TS7",
+        "independent": true,
+        "runManifestRequired": true,
+        "paidExecution": true
+      },
+      {
+        "id": "HEAD_TO_HEAD",
+        "benchmarkId": "T/HEAD-TO-HEAD",
+        "roadmapStage": "TS8",
+        "independent": true,
+        "runManifestRequired": true,
+        "paidExecution": true
+      },
+      {
+        "id": "PREDICT",
+        "benchmarkId": "T/PREDICT",
+        "roadmapStage": "TS9",
+        "independent": true,
+        "runManifestRequired": true,
+        "paidExecution": true
+      },
+      {
+        "id": "HEAD_TO_HEAD_CONTEXT_PRESSURE",
+        "benchmarkId": "T/HEAD-TO-HEAD-CONTEXT-PRESSURE",
+        "roadmapStage": "TS8B",
+        "independent": true,
+        "runManifestRequired": true,
+        "paidExecution": true,
+        "status": "FOUNDATION_FROZEN_NOT_ARMED"
+      }
     ]
   },
   "sharedPaidBoundary": {
@@ -114,5 +152,11 @@
     "rerunning all TS0-TS6 when only a classified subset changed",
     "using one lane PASS as evidence for another lane",
     "weakening thresholds to manufacture GREEN"
+  ],
+  "hardInvariants": [
+    "context_pressure_is_a_new_benchmark_and_never_rewrites_closed_head_to_head_evidence",
+    "context_pressure_comparators_keep_normal_native_reference_cache_and_reuse_optimizations",
+    "context_pressure_protocol_surface_and_economic_system_results_are_reported_separately",
+    "semantic_bytes_protocol_bytes_wan_bytes_and_provider_tokens_are_never_conflated"
   ]
 }
