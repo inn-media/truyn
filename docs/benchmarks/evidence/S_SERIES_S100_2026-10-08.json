@@ -1,0 +1,119 @@
+{
+  "schema": "truyn.public.s-series-s100-accepted/v1",
+  "date": "2026-10-08",
+  "status": "PASS",
+  "level": "S-100",
+  "attempt": 1,
+  "githubRun": 37802170819,
+  "job": 113396919570,
+  "launchSha": "b32d59cdf2cbbc4849b30a0d87e5814869b3f82f",
+  "preparedParentSha": "74b41b44e65f5938a71f687948ea129e9026aff6",
+  "artifact": {
+    "id": 11564432004,
+    "digest": "sha256:a5f45b27004230bb2ca6a6de8f69d24d14d97729d62d08a77bdbf974543fbc69"
+  },
+  "nodeTarget": 100,
+  "scenarios": [
+    "ECON",
+    "MIX",
+    "XBORDER",
+    "CHAIN",
+    "CHURN",
+    "COST-ROUTING",
+    "CONTENTION",
+    "LANG"
+  ],
+  "scenarioStatus": {
+    "ECON": "PASS",
+    "MIX": "PASS",
+    "XBORDER": "PASS",
+    "CHAIN": "PASS",
+    "CHURN": "PASS",
+    "COST-ROUTING": "PASS",
+    "CONTENTION": "PASS",
+    "LANG": "PASS"
+  },
+  "headline": {
+    "econMix": {
+      "observations": 300,
+      "directInputTokens": 7904556,
+      "truynInputTokens": 86159,
+      "inputTokenReductionPct": 98.90318941377166,
+      "directOutputTokens": 10374,
+      "truynOutputTokens": 16009,
+      "comparableProviderCostReductionPct": 98.68217899146197,
+      "directComparableCostUsd": 0.29488982,
+      "truynComparableCostUsd": 0.00388612,
+      "directP50Ms": 2268,
+      "directP95Ms": 5321,
+      "truynP50Ms": 1157,
+      "truynP95Ms": 61646,
+      "retrievalP95Ms": 170
+    },
+    "xborder": {
+      "clouds": 2,
+      "regions": 3,
+      "geographies": 2,
+      "requests": 100,
+      "successRatio": 1
+    },
+    "chain": {
+      "chains": 32,
+      "hops": 96,
+      "chainSuccessRatio": 1,
+      "provenanceLineageRatio": 1
+    },
+    "churn": {
+      "events": 41,
+      "recoveryP50Ms": 19671,
+      "recoveryP95Ms": 54002,
+      "recoveryP99Ms": 56763,
+      "recoveryLimitMs": 120000
+    },
+    "costRouting": {
+      "requests": 100,
+      "eligibilityViolations": 0,
+      "authorizationViolations": 0,
+      "policyHitRate": 1,
+      "blendedCostReductionPct": -1.8154106306147588
+    },
+    "contention": {
+      "offered": 100,
+      "completed": 100,
+      "maxInFlight": 100,
+      "e2eP50Ms": 5786,
+      "e2eP95Ms": 7741,
+      "e2eP99Ms": 8310,
+      "authP50Ms": 0,
+      "authP95Ms": 3,
+      "providerHttpP50Ms": 1030,
+      "providerHttpP95Ms": 3476,
+      "nonProviderP50Ms": 4586,
+      "nonProviderP95Ms": 5874,
+      "completedRequestRatePerSec": 10.750376263169212,
+      "cascadingFailures": 0
+    },
+    "lang": {
+      "samples": 100,
+      "languages": [
+        "EN",
+        "TR",
+        "ZH",
+        "RU",
+        "AZ"
+      ],
+      "retrievalRatio": 1,
+      "answerRatio": 1,
+      "provenanceRatio": 1
+    },
+    "transport": {
+      "attempts": 1290,
+      "http200": 1271,
+      "http429": 19,
+      "azure": 1087,
+      "gcp": 203,
+      "terminalFailures": 0
+    }
+  },
+  "scopeBoundary": "Bounded S-100 benchmark only. No universal throughput, latency, pricing, geographic-coverage, production-mainnet, S-200 or S-500 claim."
+}
