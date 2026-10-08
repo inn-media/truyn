@@ -16,6 +16,10 @@ const evaluation = evaluateAzureClassD5000Evidence(raw);
 const n = evaluation.normalized || {};
 const checks = {
   canonicalEvaluator: evaluation.passed === true && evaluation.failed.length === 0,
+  readinessAll5000: n.readiness?.readyNodeCount === 5000,
+  readinessRatioFull: n.readiness?.readyNodeRatio === 1,
+  allMandatoryStagesPass: n.stageResults?.complete === true,
+  d5000SourceContract: n.sourceContract?.valid === true,
   realNodes: n.topology?.realNodeCount === 5000,
   strictNodesPerHost: n.topology?.realProcessesPerHost === 250,
   distinctIdentities: n.topology?.distinctIdentityCount === 5000,
