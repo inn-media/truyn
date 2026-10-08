@@ -55,10 +55,11 @@ test('TypeScript SDK local-node E2E completes verified NEED -> RESULT through th
 });
 
 
-test('TypeScript SDK local-node shares one event pump across 100 concurrent result waiters', async () => {
-  let polls = 0;
+test('TypeScript SDK local-node shares one persistent socket pump across 100 concurrent result waiters', async () => {
+  let socketReads = 0;
   let inFlight = 0;
   let maxInFlight = 0;
+  let polls = 0;
   const events = Array.from({ length: 100 }, (_, index) => ({
     kind: 'RESULT',
     trust: { score: 1 },
@@ -72,22 +73,23 @@ test('TypeScript SDK local-node shares one event pump across 100 concurrent resu
       }
     }
   }));
-  let delivered = false;
   const runtime = {
-    identity: { nodeId: 'requester-shared-pump' },
+    identity: { nodeId: 'requester-shared-socket-pump' },
     need: async () => ({ ok: true, needId: 'unused', provider: 'unused' }),
-    poll: async ({ waitMs = 0 } = {}) => {
-      polls += 1;
+    nextSocketEvent: async () => {
+      socketReads += 1;
       inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
       try {
-        await new Promise((resolve) => setTimeout(resolve, Math.min(25, waitMs || 25)));
-        if (delivered) return { ok: true, events: [] };
-        delivered = true;
-        return { ok: true, events };
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return events.shift();
       } finally {
         inFlight -= 1;
       }
+    },
+    poll: async () => {
+      polls += 1;
+      return { ok: true, events: [] };
     },
     closeFastSocket() {}
   };
@@ -99,8 +101,9 @@ test('TypeScript SDK local-node shares one event pump across 100 concurrent resu
     );
     assert.equal(results.length, 100);
     assert.deepEqual(results.map((result) => result.output), Array.from({ length: 100 }, (_, index) => ({ index })));
-    assert.equal(maxInFlight, 1, 'concurrent waiters must share a single in-flight event poll');
-    assert.equal(polls, 1, 'one relay event response can satisfy all 100 registered waiters');
+    assert.equal(maxInFlight, 1, 'concurrent waiters must share a single in-flight socket read');
+    assert.equal(socketReads, 100, 'the shared pump serially consumes one socket event per result');
+    assert.equal(polls, 0, 'healthy socket delivery must not fall back to HTTP event polling');
   } finally {
     client.close();
   }
