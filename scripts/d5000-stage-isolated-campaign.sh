@@ -243,6 +243,15 @@ else
       fi
 
       d200_run_stage "$stage" "$stage_file"
+      if [[ "$d200_overall_failed" != 0 && "${D5000_RED_SNAPSHOTS_CAPTURED:-0}" == 0 ]]; then
+        D5000_RED_SNAPSHOTS_CAPTURED=1
+        if [[ -f scripts/d5000-red-host-snapshot.sh ]]; then
+          source scripts/d5000-red-host-snapshot.sh
+          if ! d5000_collect_red_host_snapshots; then
+            echo "TRUYN_D5000_RED_SNAPSHOTS=PARTIAL_OR_FAILED" >&2
+          fi
+        fi
+      fi
     done
   fi
 fi
