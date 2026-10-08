@@ -1,0 +1,35 @@
+name: D-5000 Exact Run Emergency Force Cancel
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d5000/force-cancel-37824934693.txt']
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: truyn-d5000-force-cancel-37824934693-only
+  cancel-in-progress: false
+jobs:
+  force-cancel:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Force-cancel only stuck D-5000 run after graceful cancellation attempt
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          target=37824934693
+          [[ "$GITHUB_RUN_ID" != "$target" ]]
+          details="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$target")"
+          [[ "$(jq -r '.name' <<<"$details")" == "D-5000 Scale Run - Attempt 1" ]]
+          current="$(jq -r '.status' <<<"$details")"
+          echo "TRUYN_D5000_EMERGENCY_FORCE_CANCEL_BEFORE run=$target status=$current"
+          if [[ "$current" != completed ]]; then
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/$target/force-cancel" >/dev/null
+            echo "TRUYN_D5000_EMERGENCY_FORCE_CANCEL_REQUEST=ACCEPTED run=$target"
+          else
+            echo "TRUYN_D5000_EMERGENCY_FORCE_CANCEL_REQUEST=ALREADY_TERMINAL"
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$target" --jq '{id,status,conclusion}'
