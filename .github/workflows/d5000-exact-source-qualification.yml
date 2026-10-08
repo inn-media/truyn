@@ -33,8 +33,8 @@ jobs:
           git diff --name-status "$D1000_ACCEPTED_COMMIT" HEAD >d5000-source-delta.txt
           cat d5000-source-delta.txt
           # Exact parent clone with only D-5000-specific additions; D-1000 not rewritten.
-          ! grep -Ev '^A[[:space:]]+(benchmarks/scale/class-d-(azure-5000-|5000-)|docs/benchmarks/CLASS_D_5000_EXACT_CLONE_ATTEMPT1.md)' d5000-source-delta.txt
-          [[ $(wc -l <d5000-source-delta.txt) -eq 6 ]]
+          ! grep -Ev '^A[[:space:]]+(benchmarks/scale/(class-d-azure-5000-|class-d-5000-|evaluate-class-d-5000-|verify-class-d-5000-)|docs/benchmarks/CLASS_D_5000_EXACT_CLONE_ATTEMPT1[.]md)' d5000-source-delta.txt
+          [[ $(wc -l <d5000-source-delta.txt) -eq 7 ]]
           echo "TRUYN_D5000_SOURCE_CLONE=PASS sha=$TESTED_COMMIT tree=$TESTED_TREE_SHA"
       - name: D-5000 shell and JS checks
         shell: bash
