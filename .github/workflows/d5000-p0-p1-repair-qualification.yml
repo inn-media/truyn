@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
-      TESTED_COMMIT: 'd6a6323b486986c14446c116894de0043a31261a'
+      TESTED_COMMIT: 'fb8b50236d6148546cb633cdb080428ceafdea64'
       TESTED_TREE: 'a3010fc11c932fefa69995397344c21aa175144a'
       FROZEN_PRE_REPAIR: '984aea39e09030fd4ac66c1c8695deb45562060d'
     steps:
