@@ -5,3 +5,7 @@ parent_d1000_accepted_sha=c1d3fa087716dbf24d0b3b65bceae303e907160a
 operation=STATIC_EXACT_SOURCE_QUALIFICATION_ONLY
 vm_create=false
 benchmark_launch=false
+
+retry=allowlist-audit-20261008
+prior_run=37823790504
+repair_sha=897f32cf9efe8d91c50995352983ab12ee6f56d9
