@@ -1,0 +1,121 @@
+{
+  "schema": "truyn.t-series.context-pressure-architecture-lock/v1",
+  "benchmarkId": "T/HEAD-TO-HEAD-CONTEXT-PRESSURE",
+  "status": "FOUNDATION_FROZEN_NO_RESULT",
+  "predecessor": {
+    "benchmarkId": "T/HEAD-TO-HEAD",
+    "state": "CLOSED_NEGATIVE_RESULT",
+    "mayOverwrite": false
+  },
+  "surfaces": {
+    "protocolSurface": {
+      "economicWinner": false
+    },
+    "economicContextPressure": {
+      "primary": true
+    }
+  },
+  "pressureStrata": [
+    {
+      "id": "P2",
+      "hops": 2,
+      "agents": 2,
+      "nodes": 1
+    },
+    {
+      "id": "P10",
+      "hops": 10,
+      "agents": 5,
+      "nodes": 3
+    },
+    {
+      "id": "P25",
+      "hops": 25,
+      "agents": 10,
+      "nodes": 5
+    },
+    {
+      "id": "P50",
+      "hops": 50,
+      "agents": 20,
+      "nodes": 10
+    }
+  ],
+  "reuseStrata": [
+    "cold",
+    "warm"
+  ],
+  "networkProfiles": [
+    "LOCAL_CONTROL",
+    "WAN_DISTRIBUTED"
+  ],
+  "primaryArms": [
+    "BARE_MCP",
+    "BARE_A2A",
+    "NLWEB",
+    "TRUYN"
+  ],
+  "controlArms": [
+    "NAIVE"
+  ],
+  "extensionArms": [
+    "NLWEB_OVER_TRUYN"
+  ],
+  "comparatorFairness": {
+    "goodFaithNativeOptimizationsRequired": true,
+    "nativeReferencesAllowed": true,
+    "nativeArtifactsAllowed": true,
+    "nativeCachingAndReuseAllowed": true,
+    "hiddenTruynServicesInBareComparatorsForbidden": true,
+    "intentionalPromptInflationForbidden": true,
+    "qualityReductionForSavingsForbidden": true
+  },
+  "requiredMetrics": [
+    "billed_input_tokens",
+    "billed_output_tokens",
+    "unique_semantic_bytes",
+    "duplicated_context_bytes",
+    "protocol_bytes",
+    "wan_bytes",
+    "provider_gross_cost_usd",
+    "orchestration_compute_cost_usd",
+    "storage_retrieval_cost_usd",
+    "end_to_end_latency_ms",
+    "quality",
+    "fully_loaded_cost_per_completed_workflow"
+  ],
+  "pilotAcceptance": {
+    "executionTelemetryCompletenessMin": 0.999,
+    "qualityFloor": "frozen-comparator-floor",
+    "pairIdLossMax": 0,
+    "unattributedPaidProviderCallsMax": 0,
+    "providerRetriesMax": 0,
+    "hypothesis": {
+      "duplicatedContextBytesLowerAt": [
+        "P10",
+        "P25",
+        "P50"
+      ],
+      "providerInputTokensLowerAt": [
+        "P25",
+        "P50"
+      ],
+      "wanBytesLowerAt": [
+        "P25",
+        "P50"
+      ],
+      "fullyLoadedCostLowerAt": [
+        "P25",
+        "P50"
+      ],
+      "advantageMustNotShrinkP25ToP50": true
+    },
+    "percentageSavingsThreshold": null,
+    "rule": "Pilot measures the scaling curve. Any fixed percentage gate for a later final campaign requires a new prospective freeze."
+  },
+  "nonClaims": [
+    "No assumption that 2-hop must show a large advantage.",
+    "No claim that TRUYN is universally cheaper than MCP/A2A/NLWeb.",
+    "No conversion of protocol/network bytes into synthetic provider tokens."
+  ]
+}
