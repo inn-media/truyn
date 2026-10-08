@@ -3,4 +3,4 @@ source=c1d3fa087716dbf24d0b3b65bceae303e907160a
 tree=266c83c8520d486cc6f1d44f63c8bd9b6e185c38
 nodes_per_host=50
 min_vcpus_per_host=8
-mode=first-real-d1000
+mode=double-check
