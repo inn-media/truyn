@@ -1,0 +1,115 @@
+name: D-5000 Attempt 1 Abort and Targeted Azure Cleanup
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d5000/abort-37824934693.txt']
+permissions:
+  contents: read
+  actions: write
+  id-token: write
+concurrency:
+  group: truyn-d5000-37824934693-abort-cleanup-single
+  cancel-in-progress: false
+jobs:
+  abort-and-reconcile:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      TARGET_RUN: '37824934693'
+      RESOURCE_GROUP: truyn
+      PREFIX: truyn-d5000-37824934693
+      STAGING_ACCOUNT: td2d20037824934693
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Cancel the exact campaign run, never this cleanup run
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$TARGET_RUN" == 37824934693 && "$TARGET_RUN" != "$GITHUB_RUN_ID" ]]
+          state="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${TARGET_RUN}" --jq '.status')"
+          echo "TRUYN_D5000_ABORT_INITIAL run=$TARGET_RUN status=$state"
+          if [[ "$state" != completed ]]; then
+            if gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${TARGET_RUN}/cancel" >/dev/null; then
+              echo "TRUYN_D5000_ABORT_REQUEST=ACCEPTED"
+            else
+              echo "TRUYN_D5000_ABORT_REQUEST=ERROR attempting force-cancel of exact run"
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${TARGET_RUN}/force-cancel" >/dev/null || {
+                echo "TRUYN_D5000_ABORT=BLOCKED reason=github_actions_cancel_permission_or_api"; exit 1;
+              }
+            fi
+          fi
+          stopped=0
+          for n in $(seq 1 90); do
+            state="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${TARGET_RUN}" --jq '.status')"
+            [[ "$state" == completed ]] && { stopped=1; break; }
+            echo "TRUYN_D5000_ABORT_WAIT run=$TARGET_RUN status=$state check=$n"
+            sleep 10
+          done
+          [[ "$stopped" == 1 ]] || { echo "TRUYN_D5000_ABORT=BLOCKED reason=target_run_not_terminal"; exit 1; }
+          conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${TARGET_RUN}" --jq '.conclusion')"
+          echo "TRUYN_D5000_ABORT_TERMINAL run=$TARGET_RUN conclusion=$conclusion"
+      - name: Azure login for targeted cleanup
+        uses: azure/login@v2
+        with:
+          client-id: '${{ secrets[format(''AZURE_{0}_ID'',''CLIENT'')] }}'
+          tenant-id: '${{ secrets[format(''AZURE_{0}_ID'',''TENANT'')] }}'
+          subscription-id: '${{ secrets[format(''AZURE_{0}_ID'',''SUBSCRIPTION'')] }}'
+      - name: Delete ONLY this campaign VMs, NICs, disks, VNet, NSG, staging account
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$PREFIX" == "truyn-d5000-$TARGET_RUN" ]]
+          [[ "$STAGING_ACCOUNT" == "td2d200$TARGET_RUN" ]]
+          [[ "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${TARGET_RUN}" --jq '.status')" == completed ]] || { echo "TRUYN_D5000_CLEANUP=BLOCKED reason=campaign_not_terminal"; exit 1; }
+          az group exists -n "$RESOURCE_GROUP" -o tsv | grep -Fx true
+          echo "TRUYN_D5000_CLEANUP_SCOPE group=$RESOURCE_GROUP prefix=$PREFIX staging=$STAGING_ACCOUNT"
+          az resource list -g "$RESOURCE_GROUP" -o json --only-show-errors | jq --arg p "$PREFIX" '[.[]|select(.name|startswith($p))|{name,type,id}]' > d5000-abort-before.json
+          jq -c '.' d5000-abort-before.json
+          for n in $(seq 0 19); do
+            vm="${PREFIX}-h${n}"
+            az vm delete -g "$RESOURCE_GROUP" -n "$vm" --yes --force-deletion --no-wait --only-show-errors >/dev/null 2>&1 || true
+          done
+          # Ensure VM deletion has finished before deleting NICs/disks.
+          vmremaining=-1
+          for poll in $(seq 1 75); do
+            snapshot="$(az vm list -g "$RESOURCE_GROUP" -o json --only-show-errors)"
+            vmremaining="$(jq --arg p "$PREFIX" '[.[]|select(.name|startswith($p))]|length' <<<"$snapshot")"
+            [[ "$vmremaining" == 0 ]] && break
+            echo "TRUYN_D5000_ABORT_VM_WAIT remaining=$vmremaining poll=$poll"
+            sleep 8
+          done
+          [[ "$vmremaining" == 0 ]] || { echo "TRUYN_D5000_CLEANUP=BLOCKED reason=vm_delete_not_confirmed remaining=$vmremaining"; exit 1; }
+          for n in $(seq 0 19); do
+            az network nic delete -g "$RESOURCE_GROUP" -n "${PREFIX}-h${n}-nic" --only-show-errors >/dev/null 2>&1 || true
+            az disk delete -g "$RESOURCE_GROUP" -n "${PREFIX}-h${n}-os" --yes --only-show-errors >/dev/null 2>&1 || true
+          done
+          az network vnet delete -g "$RESOURCE_GROUP" -n "${PREFIX}-vnet" --only-show-errors >/dev/null 2>&1 || true
+          az network nsg delete -g "$RESOURCE_GROUP" -n "${PREFIX}-nsg" --only-show-errors >/dev/null 2>&1 || true
+          az storage account delete -g "$RESOURCE_GROUP" -n "$STAGING_ACCOUNT" --yes --only-show-errors >/dev/null 2>&1 || true
+          remaining=-1; staging='unknown'
+          for poll in $(seq 1 30); do
+            az resource list -g "$RESOURCE_GROUP" -o json --only-show-errors | jq --arg p "$PREFIX" '[.[]|select(.name|startswith($p))|{name,type,id}]' >d5000-abort-after.json
+            remaining="$(jq 'length' d5000-abort-after.json)"
+            if az storage account show -g "$RESOURCE_GROUP" -n "$STAGING_ACCOUNT" -o none --only-show-errors >/dev/null 2>&1; then
+              staging=present
+            else
+              staging=absent
+            fi
+            [[ "$remaining" == 0 && "$staging" == absent ]] && break
+            echo "TRUYN_D5000_ABORT_RESOURCES_WAIT count=$remaining staging=$staging poll=$poll"
+            sleep 10
+          done
+          echo "TRUYN_D5000_ABORT_CLEANUP remaining=$remaining staging=$staging"
+          jq -c '.' d5000-abort-after.json
+          [[ "$remaining" == 0 && "$staging" == absent ]] || { echo "TRUYN_D5000_ABORT_CLEANUP=RED"; exit 1; }
+          echo "TRUYN_D5000_ABORT_CLEANUP=PASS zero_campaign_resources=true zero_staging_resources=true"
+      - name: Preserve scoped pre/post cleanup inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d5000-37824934693-abort-cleanup-${{ github.run_id }}
+          path: |
+            d5000-abort-before.json
+            d5000-abort-after.json
+          if-no-files-found: warn
+          retention-days: 90
