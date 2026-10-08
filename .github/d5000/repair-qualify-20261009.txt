@@ -1,0 +1,7 @@
+TASK_ID=truyn-d5000-attempt1-p0-p1-repair-20261009
+frozen_source=983429dd6f83f361ec665f452e4974bb0cae91bc
+repair_sha=a8082430028370a3a482f606b8ca34bc041ba687
+repair_tree=75873b1631c62a941f54f1deb386e09b0451fec1
+no_vm=true
+no_paid_benchmark=true
+exact_source_tests=true
