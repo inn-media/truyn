@@ -217,11 +217,17 @@ export function createRelay({
   }
 
   function queue(nodeId, event) {
-    if (deliverLegacyWaiter(nodeId, event)) return;
+    const socketDelivery = sendSocketEvent(nodeId, event);
+    if (socketDelivery === true) return 'socket';
+    if (deliverLegacyWaiter(nodeId, event)) return 'long-poll';
     boundedQueue(events, nodeId, event);
+    return 'queued';
   }
 
   function queueCritical(nodeId, event) {
+    const socketDelivery = sendSocketEvent(nodeId, event, { requireCapacity: true });
+    if (socketDelivery === true) return true;
+    if (socketDelivery === 'full') return false;
     if (deliverLegacyWaiter(nodeId, event)) return true;
     const queueForNode = events.get(nodeId) || [];
     if (queueForNode.length >= maxQueuedEventsPerNode) return false;
