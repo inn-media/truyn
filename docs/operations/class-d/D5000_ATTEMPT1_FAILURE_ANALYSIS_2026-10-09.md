@@ -1,8 +1,8 @@
 # D-5000 Attempt 1 — fail-closed failure analysis and abort
 
 **Task:** `truyn-d5000-attempt1-exact-d1000-source-20261008`.
-**Campaign:** [GitHub Actions run 37824934693](https://github.com/inn-media/truyn/actions/runs/37824934693), source SHA `983429dd6f83f361ec665f452e4974bb0cae91bc`, source tree `f304e4d5726f5f804ce392832f7dd14d8f7b81a6`, launcher SHA `816b228544f643356332adb68dd16f6be5ffb314`.
-**Outcome:** **CANCELLED / D-5000 TERMINAL FAIL**, not accepted. User requested stop. The cancellation was confirmed by GitHub and a targeted independent Azure cleanup workflow was started: [37845931904](https://github.com/inn-media/truyn/actions/runs/37845931904). **Do not claim Azure cleanup PASS unless that workflow proves zero remaining resources plus zero staging storage.**
+**Campaign:** [GitHub Actions run 37824934693](/inn-media/truyn/actions/runs/37824934693), source SHA `983429dd6f83f361ec665f452e4974bb0cae91bc`, source tree `f304e4d5726f5f804ce392832f7dd14d8f7b81a6`, launcher SHA `816b228544f643356332adb68dd16f6be5ffb314`.
+**Outcome:** **CANCELLED / D-5000 TERMINAL FAIL**, not accepted. User requested stop. The cancellation was confirmed by GitHub and a targeted independent Azure cleanup workflow was started: [37845931904](/inn-media/truyn/actions/runs/37845931904). **Do not claim Azure cleanup PASS unless that workflow proves zero remaining resources plus zero staging storage.**
 
 ## Ground truth
 - The provisioner allocated **20** Azure VMs, `southcentralus`, `Standard_E32ds_v6`; installation/bootstrap/network topology and identity proof passed: **5000 real processes / identities / QUIC endpoints over 20 hosts**. Azure quotas and initial placement were sufficient and are not the observed failure.
@@ -20,27 +20,27 @@
 5. **Scale tuning:** qualify 250 local nodes under full 20-host load (not a 50-node extrapolation), then strict 5000-node topology/readiness/convergence/baseline/peer-freshness/safety on **new exact SHA** before any new paid run. Do not lower thresholds, suppress errors, or re-run this Attempt 1.
 
 ## Evidence
-- [Run log](https://github.com/inn-media/truyn/actions/runs/37824934693)
-- [Immutable GitHub artifact 11579008955](https://github.com/inn-media/truyn/actions/runs/37824934693/artifacts/11579008955): `class-d-200-diagnostic.log`, runtime manifest and digest, staging cleanup.
+- [Run log](/inn-media/truyn/actions/runs/37824934693)
+- [Immutable GitHub artifact 11579008955](/inn-media/truyn/actions/runs/37824934693/artifacts/11579008955): `class-d-200-diagnostic.log`, runtime manifest and digest, staging cleanup.
 - User-provided heartbeat/traceback excerpt from the same run confirmed the freshness barrier (host 13 node 186) and degraded baseline diagnostic collection.
-- Cleanup run [37845931904](https://github.com/inn-media/truyn/actions/runs/37845931904); force-cancel [37846096504](https://github.com/inn-media/truyn/actions/runs/37846096504). Do not launch a new D-5000 benchmark before independent cleanup and fresh qualification.
+- Cleanup run [37845931904](/inn-media/truyn/actions/runs/37845931904); force-cancel [37846096504](/inn-media/truyn/actions/runs/37846096504). Do not launch a new D-5000 benchmark before independent cleanup and fresh qualification.
 
 
 ## Confirmed final Azure cleanup
 
-The independent cleanup controller [37845931904](https://github.com/inn-media/truyn/actions/runs/37845931904) completed **SUCCESS**. Its final Azure readback marker was:
+The independent cleanup controller [37845931904](/inn-media/truyn/actions/runs/37845931904) completed **SUCCESS**. Its final Azure readback marker was:
 ```text
 TRUYN_D5000_ABORT_TERMINAL run=37824934693 conclusion=cancelled
 TRUYN_D5000_ABORT_CLEANUP remaining=0 staging=absent
 TRUYN_D5000_ABORT_CLEANUP=PASS zero_campaign_resources=true zero_staging_resources=true
 ```
-Scope was strictly `truyn-d5000-37824934693*` and `td2d20037824934693` in resource group `truyn`. Original workflow final terminal status remains **FAIL**; the independently confirmed cleanup is a separate positive result, not a reason to change benchmark acceptance. Emergency force-cancel workflow [37846096504](https://github.com/inn-media/truyn/actions/runs/37846096504) also completed successfully. No new benchmark attempt was dispatched.
+Scope was strictly `truyn-d5000-37824934693*` and `td2d20037824934693` in resource group `truyn`. Original workflow final terminal status remains **FAIL**; the independently confirmed cleanup is a separate positive result, not a reason to change benchmark acceptance. Emergency force-cancel workflow [37846096504](/inn-media/truyn/actions/runs/37846096504) also completed successfully. No new benchmark attempt was dispatched.
 
 
 ## 2026-10-09 Repair checkpoint (do not conflate offline PASS with a measured D-5000 PASS)
 
 - Isolated repair PR: [#920](https://github.com/inn-media/truyn/pull/920), branch `repair/d5000-attempt1-p0-p1-20261009`, exact source `72d7bf6daed2454d34239260ac82c314f5a92e8a`, tree `d822af4f811f09479b68d79ed597d303c29247c2`. Parent immutable D-5000 code is `983429dd6f83f361ec665f452e4974bb0cae91bc`.
-- Offline qualification: [run 37849586716](https://github.com/inn-media/truyn/actions/runs/37849586716) **PASS**. Provenance and unchanged canonical D-1000, bash syntax, mock Azure guest nonzero/missing-marker failures, chunked readiness SHA256 serialization static contracts, DHT unit tests, strict D-5000 admission tests, and SHA-checked immutable runtime.
+- Offline qualification: [run 37849586716](/inn-media/truyn/actions/runs/37849586716) **PASS**. Provenance and unchanged canonical D-1000, bash syntax, mock Azure guest nonzero/missing-marker failures, chunked readiness SHA256 serialization static contracts, DHT unit tests, strict D-5000 admission tests, and SHA-checked immutable runtime.
 - D-5000-specific fixes: fail-closed remote guest exit attestation; separate fail-fast stage controller marking dependent stages SKIPPED_DEPENDENCY; verified 250-node readiness observation chunks rather than Azure Run Command truncation; one jq field parse per readiness probe; pre-expiry owner lease renewal at `1350000ms` (was `900000ms`); bounded CPU-pressure/memory/socket host snapshot at first RED with checksums. Peer-record TTL remains `1800000ms` and observer acceptance **retains `900000ms` minimum**, baseline and healed each **>=0.99**, recovery and convergence **p95<=120000ms**, zero safety violations and mandatory cleanup.
 - Future launcher `.github/workflows/d5000-attempt2-approved-only.yml` is staged on `main` but **has not been triggered**. It checks out the exact qualified repair SHA, requires an explicit new user-approved marker, runs the new D-5000 stage wrapper and includes failure snapshots in artifacts. There is currently **no** `.github/d5000/launch-attempt2-approved.txt`; do not create it automatically.
 - **Unresolved / not claimed:** real 20-host × 250-process readiness, DHT convergence and baseline under load. Offline checks cannot prove 5000-node performance. Lower-cost 250-process host and multi-host load diagnostics remain necessary; do not hide residual 80.04% baseline problem with timeout/threshold changes. Also validate live operation under the revised transport marker against Azure Run Command output limits before any D-5000 paid campaign.
