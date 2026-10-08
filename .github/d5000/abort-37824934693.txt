@@ -1,0 +1,10 @@
+TASK_ID=truyn-d5000-attempt1-exact-source-20261008
+authorized_by_user=true
+operation=ABORT_AND_TARGETED_CLEANUP
+target_run_id=37824934693
+target_status_at_request=in_progress
+failure_observed=pre-baseline-peer-freshness-900000ms-barrier-and-baseline-diagnostic
+resource_prefix=truyn-d5000-37824934693
+staging_account=td2d20037824934693
+do_not_launch_other_benchmark=true
+do_not_mutate_other_azure_resources=true
