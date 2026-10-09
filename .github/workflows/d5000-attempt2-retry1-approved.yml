@@ -43,8 +43,16 @@ jobs:
           [[ "$(jq -r '.status' <<<"$qualifier")" == completed && "$(jq -r '.conclusion' <<<"$qualifier")" == success ]] || { echo "TRUYN_D5000_ADMISSION=BLOCKED reason=exact_sha_qualification_not_green"; exit 1; }
           historical="$(gh api 'repos/inn-media/truyn/actions/workflows/d5000-attempt2-retry1-approved.yml/runs?per_page=100')"
           echo "TRUYN_D5000_PRIOR_RUNS=$(jq -c '[.workflow_runs[]|{id,name,status,conclusion}]' <<<"$historical")"
-          duplicates="$(jq --argjson current "$GITHUB_RUN_ID" '[.workflow_runs[]|select(.name=="D-5000 Scale Run - Attempt 2 (Install Retry 1)")|select(.id!=$current)]|length' <<<"$historical")"
-          [[ "$duplicates" == 0 ]] || { echo "TRUYN_D5000_ADMISSION=BLOCKED reason=duplicate_campaign_run"; exit 1; }
+          # The only allowed prior entry is failed admission-only run 37903723805.
+          # Reject any completed/in-flight paid retry regardless of workflow outcome.
+          blocked="$(jq --argjson current "$GITHUB_RUN_ID" '[.workflow_runs[]|select(.name=="D-5000 Scale Run - Attempt 2 (Install Retry 1)")|select(.id!=$current and .id!=37903723805)]|length' <<<"$historical")"
+          [[ "$blocked" == 0 ]] || { echo "TRUYN_D5000_ADMISSION=BLOCKED reason=additional_retry_run"; exit 1; }
+          preflight="$(gh api repos/inn-media/truyn/actions/runs/37903723805)"
+          [[ "$(jq -r '.status' <<<"$preflight")" == completed && "$(jq -r '.conclusion' <<<"$preflight")" == failure && "$(jq -r '.run_attempt' <<<"$preflight")" == 1 ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=unknown_first_preflight'; exit 1; }
+          preflight_jobs="$(gh api repos/inn-media/truyn/actions/runs/37903723805/jobs)"
+          jq -e '[.jobs[].steps[]|select(.name=="Verify exact-source admission, one-shot identity and safe Azure namespace" and .conclusion=="failure")]|length == 1' <<<"$preflight_jobs" >/dev/null
+          jq -e '[.jobs[].steps[]|select((.name=="Run azure/login@v2" or .name=="Execute real 20-host 5000-process campaign") and .conclusion=="success")]|length == 0' <<<"$preflight_jobs" >/dev/null
+          echo 'TRUYN_D5000_RETRY1_FIRST_PREFLIGHT_CLOSED=PASS no_azure_launch=true'
           previous="$(gh api repos/inn-media/truyn/actions/runs/37858332492)"
           [[ "$(jq -r '.status' <<<"$previous")" == completed &&
              "$(jq -r '.conclusion' <<<"$previous")" == failure &&
@@ -52,7 +60,7 @@ jobs:
              "$(jq -r '.head_sha' <<<"$previous")" == f8547816ce59dc1873fd50e444febf86be6dd535 ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=previous_run_not_terminal_failed'; exit 1; }
           prior_dir="$RUNNER_TEMP/d5000-previous-terminal"
           mkdir -p "$prior_dir"
-          gh run download 37858332492 -R "$GITHUB_REPOSITORY" -n truyn-class-d5000-attempt2-retry1-37858332492 -D "$prior_dir"
+          gh run download 37858332492 -R "$GITHUB_REPOSITORY" -n truyn-class-d5000-attempt2-clone-37858332492 -D "$prior_dir"
           jq -e '.failure.stage=="install" and .cleanup.confirmed==true and .cleanup.remainingResources==0' "$prior_dir/class-d-5000-evidence.json" >/dev/null || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=prior_cleanup_unproven'; exit 1; }
           grep -Fxq 'confirmed=true' "$prior_dir/class-d-200-runtime-staging-cleanup.txt" && grep -Fxq 'remaining=0' "$prior_dir/class-d-200-runtime-staging-cleanup.txt" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=prior_staging_cleanup_unproven'; exit 1; }
           original_runs="$(gh api 'repos/inn-media/truyn/actions/workflows/d5000-attempt2-clone-attempt1.yml/runs?per_page=100')"
