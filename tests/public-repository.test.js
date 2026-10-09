@@ -14,6 +14,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/ci.yml',
   '.github/workflows/a-series-foundation.yml',
   '.github/workflows/a-soak-wan-runtime-release.yml',
+  '.github/workflows/a-soak-wan-runtime-release-request.yml',
   '.github/workflows/native-clients.yml',
   '.github/workflows/class-d-blockwise-preflight.yml',
   '.github/workflows/class-d-bootstrap-launcher.yml',
