@@ -6,6 +6,6 @@
   "soakAttemptOneDispatchAllowed": false,
   "source": "exact-main-after-required-CI",
   "bundle": "digest-pinned-public-release",
-  "requestNonce": "asoak-release-request-20261009-002",
-  "requestReason": "User authorizes immutable public WAN runtime publication only. No cloud mutation or SOAK dispatch."
+  "requestNonce": "asoak-public-selfcontained-release-20261009-003",
+  "requestReason": "Workflow-dispatch startup_failure no jobs: publish in already-accepted exact-main request job, same safety requirements."
 }
