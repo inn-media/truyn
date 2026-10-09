@@ -15,3 +15,6 @@ hosts=20
 nodes_per_host=250
 strict_acceptance_unchanged=true
 authorized_paid_retry=true
+preflight_only_failed_run=37903723805
+preflight_failure=incorrect_prior_artifact_name
+preflight_provisioned_vms=0
