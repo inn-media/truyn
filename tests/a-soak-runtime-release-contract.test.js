@@ -38,3 +38,15 @@ test('runtime release never allocates clouds or reads private provider secrets',
  ];
  for (const identifier of forbiddenProviderCredentialNames) assert.ok(!workflow.includes(identifier), `release workflow contains provider credential reference: ${identifier}`);
 });
+
+test('runtime release independently qualifies DCO on exact main and request stays single-shot and non-cloud',()=>{
+ assert.match(workflow,/scripts\/check-dco\.mjs/);
+ assert.match(workflow,/A_SOAK_EXACT_MAIN_DCO=PASS/);
+ assert.match(workflow,/fetch-depth: 2/);
+ const request=readFileSync(new URL('../.github/workflows/a-soak-wan-runtime-release-request.yml',import.meta.url),'utf8');
+ assert.match(request,/branches: \[main\]/);
+ assert.match(request,/GITHUB_RUN_ATTEMPT/);
+ assert.match(request,/A_SOAK_RUNTIME_REQUEST=DISPATCHED/);
+ assert.match(request,/gh workflow run a-soak-wan-runtime-release\.yml/);
+ assert.doesNotMatch(request,/azure\/login|google-github-actions\/auth|az vm create|gcloud compute instances create/);
+});

@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  checks: read
 concurrency:
   group: a-soak-wan-runtime-${{ github.sha }}
   cancel-in-progress: false
@@ -15,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - name: Require exact accepted public main, DCO and safety checks
@@ -27,12 +28,16 @@ jobs:
           [[ "$GITHUB_REF" == refs/heads/main && "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
           current="$(gh api repos/${{ github.repository }}/branches/main --jq '.commit.sha')"
           [[ "$current" == "$GITHUB_SHA" ]] || { echo 'A_SOAK_RUNTIME=BLOCKED_MOVING_MAIN'; exit 74; }
+          # Main's GitHub DCO job is intentionally skipped on push; run the
+          # identical DCO 1.1 verifier on the exact immutable main commit.
+          node scripts/check-dco.mjs "$(git rev-parse HEAD^)" "$GITHUB_SHA"
+          echo 'A_SOAK_EXACT_MAIN_DCO=PASS'
           gh api --method GET "repos/${{ github.repository }}/commits/$GITHUB_SHA/check-runs?per_page=100" \
             > "$RUNNER_TEMP/asoak-public-checks.json"
           jq -e '.total_count<=100 and (.check_runs|type=="array")' "$RUNNER_TEMP/asoak-public-checks.json" >/dev/null || { echo 'A_SOAK_RUNTIME=BLOCKED_PAGINATION'; exit 73; }
           # Require all independent acceptance jobs on the EXACT commit,
           # not only this workflow's own green state.
-          for name in test DCO mandatory-security-safety network integration component regression 'Analyze (javascript-typescript)' 'Analyze (actions)'; do
+          for name in test mandatory-security-safety network integration component regression 'Analyze (javascript-typescript)' 'Analyze (actions)'; do
             jq -e --arg name "$name" \
               '[.check_runs[]|select(.name==$name and .status=="completed" and .conclusion=="success")]|length>0' \
               "$RUNNER_TEMP/asoak-public-checks.json" >/dev/null ||
