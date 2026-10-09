@@ -1188,6 +1188,48 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   cat "$bootstrap_dir/$i" || true
   echo "TRUYN_D500_HOST_LOG_END stage=bootstrap host=$i rc=$(cat "$bootstrap_dir/.host-$i.rc" 2>/dev/null || echo 255)"
 done
+# Run Command may end without returning the guest's stdout. Independently
+# retrieve the host-local bounded transcript and per-node phases *before*
+# unconditional Azure teardown; a diagnostic failure never masks bootstrap RED.
+if [[ "$bootstrap_failed" != 0 ]]; then
+  mkdir -p "${GITHUB_WORKSPACE:-$PWD}/d5000-a4-telemetry"
+  telemetry_pids=()
+  for i in $(seq 0 $((HOST_COUNT-1))); do
+    [[ "$(cat "$bootstrap_dir/.host-$i.rc" 2>/dev/null || echo 255)" != 0 ]] || continue
+    snapshot_script=$(cat <<EOS_A4_SNAPSHOT
+set +e
+echo "TRUYN_D5000_A4_SNAPSHOT host=${i} epochMs=\$(date +%s%3N)"
+echo "HOST_LOAD=\$(cut -d' ' -f1-3 /proc/loadavg | tr ' ' '/')"
+echo "HOST_PROCESSES=\$(pgrep -fc 'network/testnet/node-service.js' || echo 0)"
+d=/tmp/truyn-bootstrap-node-results
+echo "NODE_COMPLETED=\$(find "\$d" -maxdepth 1 -name '*.rc' -type f 2>/dev/null | wc -l)"
+for phase in bootstrap refresh complete; do echo "NODE_PHASE_\$phase=\$(grep -lFx "\$phase" "\$d"/*.phase 2>/dev/null | wc -l)"; done
+echo 'TRUYN_D5000_A4_SNAPSHOT_TRANSCRIPT_START'
+tail -n 35 /var/lib/truyn-d1000/d5000-attempt4-bootstrap.log 2>/dev/null || true
+echo 'TRUYN_D5000_A4_SNAPSHOT_TRANSCRIPT_END'
+for j in 0 25 50 100 150 200 249; do
+  raw=\$(curl -fsS --max-time 2 "http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))/status" 2>/dev/null)
+  printf '%s' "\$raw" | jq -c --argjson j "\$j" '{node:\$j,up:(.uptimeMs//0),routing:(.peerCount//0),rpcQueued:([.health.rpc.lanes[]?.queued//0]|add//0),rpcQueuedTotal:([.health.rpc.lanes[]?.queuedTotal//0]|add//0),rpcShed:(.health.rpc.server.shed//{}),loopP99:(.health.eventLoop.delayP99Ms//0)}' 2>/dev/null | sed 's/^/TRUYN_D5000_A4_SAMPLE=/'
+done
+echo 'TRUYN_D5000_A4_SNAPSHOT_END'
+EOS_A4_SNAPSHOT
+)
+    (
+      set +e
+      remote "${VMS[$i]}" "$snapshot_script" 150 >"${GITHUB_WORKSPACE:-$PWD}/d5000-a4-telemetry/host-$i-bootstrap.txt" 2>&1
+      rc=$?
+      echo "TRUYN_D5000_A4_SNAPSHOT_TRANSPORT_RC=$rc" >>"${GITHUB_WORKSPACE:-$PWD}/d5000-a4-telemetry/host-$i-bootstrap.txt"
+      exit 0
+    ) &
+    telemetry_pids+=("$!")
+  done
+  for pid in "${telemetry_pids[@]}"; do wait "$pid" || true; done
+  for snapshot in "${GITHUB_WORKSPACE:-$PWD}"/d5000-a4-telemetry/*-bootstrap.txt; do
+    [[ -f "$snapshot" ]] || continue
+    echo "TRUYN_D5000_A4_SNAPSHOT_FILE=$(basename "$snapshot")"
+    tail -n 75 "$snapshot"
+  done
+fi
 rm -rf "$bootstrap_dir"
 [[ "$bootstrap_failed" == 0 ]]
 
