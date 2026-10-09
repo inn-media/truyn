@@ -75,7 +75,13 @@ for j in range(5):
             row['publisherDiagnostic']=diag
     rows.append(row)
 value={'schema':'truyn.d200.write-retention.host.v2','host':host,'rows':rows,'retained':sum(r['classification']=='retained' for r in rows),'confirmedMissing':sum(r['classification']=='confirmed-missing' for r in rows),'readErrors':sum(r['classification']=='read-error' for r in rows)}
-print('RETENTION_HOST_JSON='+json.dumps(value,separators=(',',':')))
+import base64,gzip,hashlib,pathlib
+payload=base64.b64encode(gzip.compress(json.dumps(value,separators=(',',':')).encode('utf-8'),compresslevel=9,mtime=0)).decode('ascii')
+payload_path=pathlib.Path('/var/lib/truyn-d1000/retention-host-'+str(host)+'.b64')
+payload_path.write_text(payload,encoding='ascii')
+print('RETENTION_HOST_SHA256='+hashlib.sha256(payload.encode('ascii')).hexdigest())
+print('RETENTION_HOST_BYTES='+str(len(payload)))
+print('RETENTION_HOST_CHUNKS='+str((len(payload)+1799)//1800))
 PY
 EOS
 )
@@ -100,11 +106,60 @@ for i in $(seq 0 $((HOST_COUNT-1))); do
   out="$(cat "$retention_dir/$i.out" 2>/dev/null || true)"
   err="$(cat "$retention_dir/$i.err" 2>/dev/null || true)"
   remote_rc="$(cat "$retention_dir/$i.rc" 2>/dev/null || echo 99)"
-  host_json=$(printf '%s\n' "$out" | sed -n 's/^RETENTION_HOST_JSON=//p' | tail -1)
-  if [[ "$remote_rc" != 0 || -z "$host_json" ]]; then
-    host_json=$(python3 - "$i" "$remote_rc" "$err" <<'PY'
+  # Azure Run Command can truncate large stdout while reporting guest_rc=0.
+  # Read an immutable, SHA-checked compressed payload in bounded chunks.
+  host_json=''
+  report_error=''
+  if [[ "$remote_rc" != 0 ]]; then
+    report_error=remote_failure
+  else
+    payload_sha=$(marker "$out" RETENTION_HOST_SHA256)
+    payload_bytes=$(marker "$out" RETENTION_HOST_BYTES)
+    payload_chunks=$(marker "$out" RETENTION_HOST_CHUNKS)
+    if [[ ! "$payload_sha" =~ ^[0-9a-f]{64}$ || ! "$payload_bytes" =~ ^[1-9][0-9]*$ || ! "$payload_chunks" =~ ^[1-9][0-9]*$ || "$payload_chunks" -gt 256 || "$payload_bytes" -gt 460800 ]]; then
+      report_error=invalid_payload_manifest
+    else
+      payload_file="$retention_dir/$i.payload.b64"
+      : >"$payload_file"
+      for chunk_index in $(seq 0 $((payload_chunks-1))); do
+        chunk_script="set -Eeuo pipefail; python3 -c 'from pathlib import Path; p=Path(\"/var/lib/truyn-d1000/retention-host-${i}.b64\"); data=p.read_text(); index=${chunk_index}; print(\"RETENTION_HOST_CHUNK=\"+data[index*1800:(index+1)*1800])'"
+        if ! chunk_out=$(remote "${VMS[$i]}" "$chunk_script" 180); then
+          report_error=chunk_transport_failure
+          break
+        fi
+        chunk=$(marker "$chunk_out" RETENTION_HOST_CHUNK)
+        if [[ ! "$chunk" =~ ^[A-Za-z0-9+/=]+$ || "${#chunk}" -gt 1800 || -z "$chunk" ]]; then
+          report_error=invalid_chunk
+          break
+        fi
+        printf '%s' "$chunk" >>"$payload_file"
+      done
+      if [[ -z "$report_error" ]] && [[ "$(wc -c <"$payload_file" | tr -d ' ')" != "$payload_bytes" || "$(sha256sum "$payload_file" | cut -d' ' -f1)" != "$payload_sha" ]]; then
+        report_error=payload_digest_mismatch
+      fi
+      if [[ -z "$report_error" ]]; then
+        if ! host_json=$(base64 -d "$payload_file" | gzip -dc); then
+          report_error=payload_decode_failure
+        fi
+      fi
+      if [[ -z "$report_error" ]] && ! printf '%s' "$host_json" | jq -e --argjson host "$i" --arg prefix "d1000-$i-" '
+        .schema=="truyn.d200.write-retention.host.v2" and .host==$host
+        and (.rows|type=="array" and length==5)
+        and ([.rows[].key]|sort)==([range(0;5)|($prefix+tostring)]|sort)
+        and ([.rows[].classification]|all(.=="retained" or .=="confirmed-missing" or .=="read-error"))
+        and .retained==([.rows[]|select(.classification=="retained")]|length)
+        and .confirmedMissing==([.rows[]|select(.classification=="confirmed-missing")]|length)
+        and .readErrors==([.rows[]|select(.classification=="read-error")]|length)
+        and (.retained+.confirmedMissing+.readErrors)==5
+      ' >/dev/null 2>&1; then
+        report_error=invalid_host_observations
+      fi
+    fi
+  fi
+  if [[ -n "$report_error" ]]; then
+    host_json=$(python3 - "$i" "$remote_rc" "$err" "$report_error" <<'PY'
 import json,sys
-print(json.dumps({'schema':'truyn.d200.write-retention.host.v2','host':int(sys.argv[1]),'transportError':True,'remoteRc':int(sys.argv[2]),'stderr':sys.argv[3][-1500:],'rows':[],'retained':0,'confirmedMissing':0,'readErrors':5},separators=(',',':')))
+print(json.dumps({'schema':'truyn.d200.write-retention.host.v2','host':int(sys.argv[1]),'transportError':True,'observationError':sys.argv[4],'remoteRc':int(sys.argv[2]),'stderr':sys.argv[3][-1500:],'rows':[],'retained':0,'confirmedMissing':0,'readErrors':5},separators=(',',':')))
 PY
 )
   fi
