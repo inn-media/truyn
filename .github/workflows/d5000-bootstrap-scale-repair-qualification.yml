@@ -1,0 +1,73 @@
+name: D-5000 Superlinear Bootstrap Repair Qualification (No Azure)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d5000/bootstrap-scale-repair-qualify-20261009.txt']
+permissions: { contents: read }
+concurrency: { group: truyn-d5000-bootstrap-scale-repair-qualify, cancel-in-progress: false }
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    env:
+      TESTED_COMMIT: d407b96d7d1b93fa677fd2f8e0f09eca2d5f9fb6
+      TESTED_TREE_SHA: 883fcb530717301a9d87ff635dbb2b4e2a5984a2
+      FAILED_ATTEMPT3_SOURCE: 6e66dab54d703654886a5b396d1dc9ed41f3a713
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: '${{ env.TESTED_COMMIT }}'
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Verify exact frozen source, 3-file scope and immutable Attempt 3
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE_SHA" ]]
+          [[ "$(git merge-base "$FAILED_ATTEMPT3_SOURCE" HEAD)" == "$FAILED_ATTEMPT3_SOURCE" ]]
+          git diff --name-only "$FAILED_ATTEMPT3_SOURCE" HEAD > d5000-bootstrap-scale-delta.txt
+          [[ "$(wc -l < d5000-bootstrap-scale-delta.txt)" == 3 ]]
+          grep -Fxq 'benchmarks/scale/class-d-1000-bootstrap.js' d5000-bootstrap-scale-delta.txt
+          grep -Fxq 'benchmarks/scale/class-d-azure-5000-provision.sh' d5000-bootstrap-scale-delta.txt
+          grep -Fxq 'tests/d5000-bootstrap-scale-guard.test.js' d5000-bootstrap-scale-delta.txt
+          [[ "$(grep -c '^' d5000-bootstrap-scale-delta.txt)" == 3 ]]
+          echo "TRUYN_D5000_SCALE_SCOPE=PASS source=$TESTED_COMMIT tree=$TESTED_TREE_SHA"
+      - name: Verify Bash, POSIX transport and strict D5000 readiness invariants
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n benchmarks/scale/class-d-azure-5000-provision.sh
+          bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
+          bash tests/d5000-remote-exit-contract.test.sh
+          bash tests/d5000-red-host-snapshot.test.sh
+          grep -Fq 'if [ \$setup_rc -eq 0 ]; then' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'BOOTSTRAP_MAX_PEERS_PER_NODE=32' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'BOOTSTRAP_REFRESH_MIN_HOSTS' benchmarks/scale/class-d-azure-5000-provision.sh
+          echo 'TRUYN_D5000_SCALE_TRANSPORT=PASS'
+      - name: Run exact plan equivalence, real 5000-record planning and DHT security regressions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --test tests/d5000-bootstrap-scale-guard.test.js tests/class-d-1000-bootstrap.test.js tests/peer-discovery-periodic-refresh.test.js tests/peer-discovery-refresh-bounds.test.js benchmarks/scale/class-d-5000-admission.test.js
+          echo 'TRUYN_D5000_SCALE_REGRESSION=PASS'
+      - name: Rebuild immutable runtime bundle with exact candidate source SHA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          mkdir -p qualification
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh qualification/d5000-scale-fixed.tgz
+          sha256sum -c qualification/d5000-scale-fixed.tgz.sha256
+          tar -xOf qualification/d5000-scale-fixed.tgz manifest.json | jq -e --arg sha "$TESTED_COMMIT" '.sourceSha==$sha'
+          echo "TRUYN_D5000_SCALE_QUALIFICATION=PASS tested_sha=$TESTED_COMMIT tree=$TESTED_TREE_SHA no_azure=true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: truyn-d5000-bootstrap-scale-qualification-${{ github.run_id }}
+          path: |
+            d5000-bootstrap-scale-delta.txt
+            qualification/d5000-scale-fixed.tgz.sha256
+          if-no-files-found: warn
