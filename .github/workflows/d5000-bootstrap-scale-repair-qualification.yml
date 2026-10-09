@@ -10,9 +10,10 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 50
     env:
-      TESTED_COMMIT: 48d51f4da63fc2f7712f4d6be4b8808baf2bfd1a
-      TESTED_TREE_SHA: 099a05a0909dbcabe01cef178f9e62c7efed4a7b
+      TESTED_COMMIT: 6635bc0f8a0302ce8d814a4e1b5ba89797b3a647
+      TESTED_TREE_SHA: 0703978d521ac2c82ab6341e33e68c81ddd664eb
       FAILED_ATTEMPT3_SOURCE: 6e66dab54d703654886a5b396d1dc9ed41f3a713
+      BASE_MAIN: cdcd683d4f6f32242bb42d3c3517bd4e9b24a5b4
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,8 +28,8 @@ jobs:
           set -Eeuo pipefail
           [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
           [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE_SHA" ]]
-          [[ "$(git merge-base "$FAILED_ATTEMPT3_SOURCE" HEAD)" == "$FAILED_ATTEMPT3_SOURCE" ]]
-          git diff --name-only "$FAILED_ATTEMPT3_SOURCE" HEAD > d5000-bootstrap-scale-delta.txt
+          [[ "$(git merge-base "$BASE_MAIN" HEAD)" == "$BASE_MAIN" ]]
+          git diff --name-only "$BASE_MAIN" HEAD > d5000-bootstrap-scale-delta.txt
           [[ "$(wc -l < d5000-bootstrap-scale-delta.txt)" == 3 ]]
           grep -Fxq 'benchmarks/scale/class-d-1000-bootstrap.js' d5000-bootstrap-scale-delta.txt
           grep -Fxq 'benchmarks/scale/class-d-azure-5000-provision.sh' d5000-bootstrap-scale-delta.txt
