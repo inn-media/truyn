@@ -763,10 +763,71 @@ echo PROCESSES=\$proc
 EOS
 )
   script="${script//truyn/truyn}"
+  # Azure Run Command may truncate the output of a long installation. Never
+  # infer readiness from that truncated stdout, even when the guest rc is 0.
+  # Execute an independent, bounded on-guest readiness/identity/endpoints
+  # verification, whose tiny output has unambiguous machine-readable markers.
+  verify_script=$(cat <<EOSVERIFY
+set -Eeuo pipefail
+python3 - <<'PYVERIFY'
+import concurrent.futures, json, subprocess, urllib.request
+
+expected = ${NODES_PER_HOST}
+base = ${CONTROL_BASE}
+with open('/var/lib/truyn-d1000/records.json', encoding='utf8') as handle:
+    records = json.load(handle)
+if len(records) != expected:
+    raise SystemExit(f'INSTALL_VERIFY_FAIL records={len(records)} expected={expected}')
+identities = len({row['nodeId'] for row in records})
+endpoints = len({row['endpoints'][0] for row in records})
+if identities != expected or endpoints != expected:
+    raise SystemExit(f'INSTALL_VERIFY_FAIL identities={identities} endpoints={endpoints} expected={expected}')
+
+def check_status(j):
+    with urllib.request.urlopen(f'http://127.0.0.1:{base+j}/status', timeout=5) as response:
+        if response.status != 200:
+            raise RuntimeError(f'not ready: node={j} http={response.status}')
+    return 1
+with concurrent.futures.ThreadPoolExecutor(max_workers=min(32, expected)) as executor:
+    ready = sum(executor.map(check_status, range(expected)))
+if ready != expected:
+    raise SystemExit(f'INSTALL_VERIFY_FAIL ready={ready} expected={expected}')
+processes = int(subprocess.check_output(['pgrep','-fc','network/testnet/node-service.js'], text=True).strip())
+if processes < expected:
+    raise SystemExit(f'INSTALL_VERIFY_FAIL processes={processes} expected={expected}')
+print(f'READY={ready}')
+print(f'IDENTITIES={identities}')
+print(f'ENDPOINTS={endpoints}')
+print(f'PROCESSES={processes}')
+print('TRUYN_D5000_INSTALL_VERIFIED=PASS')
+PYVERIFY
+EOSVERIFY
+)
   (
     host_status_arm "$install_dir" "$i"
-    out=$(remote "${VMS[$i]}" "$script")
-    [[ "$(marker "$out" READY)" == "$NODES_PER_HOST" ]]
+    if ! out=$(remote "${VMS[$i]}" "$script"); then
+      echo "TRUYN_D5000_INSTALL_GUEST=RED host=$i" >&2
+      exit 1
+    fi
+    if [[ "$(marker "$out" READY)" != "$NODES_PER_HOST" ]]; then
+      echo "TRUYN_D5000_INSTALL_INLINE_MARKER=NOT_VISIBLE host=$i independent_probe=required" >&2
+    fi
+    # A transport/guest success is insufficient: verify 250 HTTP status
+    # responses, 250 unique identities and endpoints, and live processes.
+    verify_out=$(remote "${VMS[$i]}" "$verify_script")
+    for field in READY IDENTITIES ENDPOINTS; do
+      observed=$(marker "$verify_out" "$field")
+      if [[ "$observed" != "$NODES_PER_HOST" ]]; then
+        echo "TRUYN_D5000_INSTALL_VERIFICATION=RED host=$i field=$field observed=${observed:-missing} expected=$NODES_PER_HOST" >&2
+        printf '%s\n' "$verify_out" >&2
+        exit 1
+      fi
+    done
+    if [[ "$(marker "$verify_out" TRUYN_D5000_INSTALL_VERIFIED)" != PASS ]]; then
+      echo "TRUYN_D5000_INSTALL_VERIFICATION=RED host=$i reason=verdict_missing" >&2
+      printf '%s\n' "$verify_out" >&2
+      exit 1
+    fi
     echo "TRUYN_CLASS_D_1000 stage=install host=$i processes=${NODES_PER_HOST} identities=${NODES_PER_HOST} endpoints=${NODES_PER_HOST} status=PASS"
   ) >"$install_dir/$i" 2>&1 &
   install_pids+=("$!")
