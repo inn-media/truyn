@@ -1,0 +1,17 @@
+approved_by_user=true
+attempt=2
+repair_retry=1
+campaign=D-5000
+previous_run=37858332492
+previous_result=FAIL
+previous_failed_stage=install
+previous_cleanup=confirmed_zero
+launcher=d5000-attempt2-retry1-approved.yml
+tested_commit=a65114b899ccf3d46f8db911bf37118463cd3911
+tested_tree_sha=a9b475e255c63746f8cc5c82de074f5a0f6bfe18
+exact_source_qualification_run=37903498272
+nodes_total=5000
+hosts=20
+nodes_per_host=250
+strict_acceptance_unchanged=true
+authorized_paid_retry=true
