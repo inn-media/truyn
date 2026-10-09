@@ -34,7 +34,7 @@ jobs:
           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
           approved="$(gh api "repos/${GITHUB_REPOSITORY}/contents/.github/d5000/launch-attempt3.txt?ref=$GITHUB_SHA" --jq .content | base64 -d)"
           grep -Fxq 'approved_by_user=true' <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=no_user_approval'; exit 1; }
-          grep -Fxq 'attempt=2' <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=wrong_attempt'; exit 1; }
+          grep -Fxq 'attempt=3' <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=wrong_attempt'; exit 1; }
           grep -Fxq 'source_run=37903841984' <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=source_run_mismatch'; exit 1; }
           [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
           [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE_SHA" ]]
