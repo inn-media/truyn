@@ -80,14 +80,27 @@ export function verifyPeerRecord(record, { now = Date.now(), allowExpired = fals
 // performing signature verification for every snapshot/persistence barrier.
 const leaseLive = (record, now) => expiryMs(record) > now;
 
+function sameEndpoints(left = [], right = []) {
+  if (left.length !== right.length) return false;
+  return left.every((endpoint, index) => endpoint === right[index]);
+}
+
+// Signed, previously verified routing contacts are maintained. Opportunistic
+// non-routing peer-record copies are held only in a bounded LRU cache.
+export const DEFAULT_MAX_CACHED_PEER_RECORDS = 512;
+const RECORD_TRIM_SLACK = 32;
+
 export class PeerDiscovery {
-  constructor({ identity, k = 20, alpha = 3, rpc = null, onChange = null, onRecordAccepted = null } = {}) {
+  constructor({ identity, k = 20, alpha = 3, rpc = null, onChange = null, onRecordAccepted = null, maxCachedRecords = DEFAULT_MAX_CACHED_PEER_RECORDS } = {}) {
     assertIdentity(identity);
+    if (!Number.isInteger(maxCachedRecords) || maxCachedRecords < 0) throw new Error('maxCachedRecords must be a non-negative integer');
     this.identity = identity;
     this.k = k;
     this.alpha = alpha;
     this.routing = new KademliaRoutingTable({ localNodeId: identity.nodeId, k });
     this.records = new Map();
+    this.maxCachedRecords = maxCachedRecords;
+    this.recordEvictions = 0;
     this.rpc = rpc;
     this.onChange = onChange;
     this.onRecordAccepted = typeof onRecordAccepted === 'function' ? onRecordAccepted : null;
@@ -118,9 +131,14 @@ export class PeerDiscovery {
     if (existing && existing.sequence > record.sequence) return { accepted: false, reason: 'peer_record_older_sequence' };
     if (existing && existing.sequence === record.sequence && existing.recordId !== record.recordId) return { accepted: false, reason: 'peer_record_equivocation' };
     const changed = !existing || existing.recordId !== record.recordId;
+    // Renewing an unchanged QUIC binding is not a discovery novelty.
+    const novel = !existing || existing.instanceId !== record.instanceId || !sameEndpoints(existing.endpoints, record.endpoints);
     if (changed) this.ingestChanges += 1;
-    this.records.set(record.nodeId, structuredClone(record));
+    // Map order tracks LRU recency while retaining fresh signed content.
+    this.records.delete(record.nodeId);
+    this.records.set(record.nodeId, changed ? structuredClone(record) : existing);
     this.routing.upsert({ nodeId: record.nodeId, endpoints: record.endpoints, publicKey: record.publicKey, lastSeenAt: new Date().toISOString() });
+    this.#trimRecordCache();
     if (notify && changed) {
       this.onRecordAccepted?.({
         nodeId: record.nodeId,
@@ -129,7 +147,28 @@ export class PeerDiscovery {
       });
       this.onChange?.();
     }
-    return { accepted: true, nodeId: record.nodeId, updated: Boolean(existing && changed), unchanged: !changed };
+    return { accepted: true, nodeId: record.nodeId, updated: Boolean(existing && changed), unchanged: !changed, novel };
+  }
+
+  // Keep all signed routing contacts, with at most a bounded number of
+  // opportunistic non-routing copies. Oldest excess copies are evicted first.
+  #trimRecordCache() {
+    const limit = this.routing.size() + this.maxCachedRecords;
+    if (this.records.size <= limit + RECORD_TRIM_SLACK) return;
+    for (const nodeId of this.records.keys()) {
+      if (this.records.size <= limit) break;
+      if (this.routing.has(nodeId)) continue;
+      this.records.delete(nodeId);
+      this.recordEvictions += 1;
+    }
+  }
+
+  routingRecords() {
+    const result = [];
+    for (const [nodeId, record] of this.records) {
+      if (nodeId !== this.identity.nodeId && this.routing.has(nodeId)) result.push(record);
+    }
+    return result;
   }
 
   get(nodeId, { now = Date.now() } = {}) {
@@ -231,6 +270,7 @@ export class PeerDiscovery {
         lastSeenAt: record.issuedAt || new Date(0).toISOString()
       });
     }
+    this.#trimRecordCache();
     return accepted;
   }
 
@@ -416,7 +456,7 @@ export class PeerDiscovery {
     const defaultExpiryBudget = Math.max(1, Math.ceil(limit / 4));
     const expiryBudget = Math.min(limit, boundedInteger(expiryTargetCount, defaultExpiryBudget, { min: 0, max: limit }));
     const nearExpiryTargets = liveRecords
-      .slice()
+      .filter((record) => this.routing.has(record.nodeId))
       .sort((left, right) => {
         const le = expiryMs(left);
         const re = expiryMs(right);
@@ -511,18 +551,20 @@ export class PeerDiscovery {
     }
     let idleWalks = 0;
     let converged = false;
-    let lastChanges = this.ingestChanges;
+    let shed = false;
     const worker = async () => {
       while (true) {
         if (deadlineAt != null && Date.now() >= deadlineAt) { deadlineExceeded = true; return; }
-        if (converged) return;
+        if (converged || shed) return;
         const index = nextTargetIndex++;
         if (index >= selectedTargets.length) return;
         const targetNodeId = selectedTargets[index];
         const result = await this.walk(targetNodeId, { maxRounds: rounds, stopOnFound: false });
+        if (result.shed) shed = true;
         if (idleLimit != null) {
-          if (this.ingestChanges === lastChanges) idleWalks += 1;
-          else { idleWalks = 0; lastChanges = this.ingestChanges; }
+          // Unrelated peer renewal cannot extend this walk's refresh budget.
+          if ((result.novel || 0) === 0) idleWalks += 1;
+          else idleWalks = 0;
           if (index >= protectedTargets && idleWalks >= idleLimit) converged = true;
         }
         walks[index] = {
@@ -544,8 +586,10 @@ export class PeerDiscovery {
     const responses = completedWalks.reduce((sum, walk) => sum + walk.responses, 0);
 
     return {
-      refreshed: !deadlineExceeded,
-      reason: deadlineExceeded ? 'refresh_deadline_exceeded' : (converged ? 'refresh_converged' : null),
+      // A backpressured pass did NOT complete the requested refresh. Never
+      // allow it to satisfy the Class-D fail-closed refresh admission gate.
+      refreshed: !deadlineExceeded && !shed,
+      reason: deadlineExceeded ? 'refresh_deadline_exceeded' : (shed ? 'refresh_backpressure' : (converged ? 'refresh_converged' : null)),
       before,
       after,
       targets: selectedTargets,
@@ -580,12 +624,17 @@ export class PeerDiscovery {
     const alpha = Math.max(1, Number.isInteger(this.alpha) ? this.alpha : 3);
     const budget = Math.max(0, Number.isInteger(maxRounds) ? maxRounds : 16) * alpha;
     const hedgeAfterMs = Math.max(250, Math.min(1_500, Math.floor((Number(this.rpc?.timeoutMs) || 5_000) / 4)));
+    // Foreground lookups still hedge/fail over; background refresh must not
+    // amplify remote TRUYN_BUSY by speculatively retrying another contact.
+    const background = (typeof this.rpc?.currentLane === 'function' ? this.rpc.currentLane() : 'control') === BACKGROUND_LANE;
     const queried = new Set();
     const responded = new Set();
     const order = [];
     const hints = new Map();
     const slow = new Set();
     let responsesReceived = 0;
+    let novel = 0;
+    let shed = false;
     let inFlight = 0;
     let finished = false;
     let stableAnswers = 0;
@@ -620,13 +669,15 @@ export class PeerDiscovery {
           found: this.get(targetNodeId),
           queried: [...order],
           rounds: Math.ceil(order.length / alpha),
-          responses: responsesReceived
+          responses: responsesReceived,
+          novel,
+          shed
         });
       };
       const pump = () => {
         if (finished) return;
         if (stopOnFound && order.length > 0 && this.get(targetNodeId)) { finish(); return; }
-        if (order.length < budget && inFlight < alpha + slow.size) {
+        if (!shed && order.length < budget && inFlight < alpha + slow.size) {
           for (const peer of candidates()) {
             if (order.length >= budget || inFlight >= alpha + slow.size) break;
             launch(peer);
@@ -638,27 +689,31 @@ export class PeerDiscovery {
         queried.add(peer.nodeId);
         order.push(peer.nodeId);
         inFlight += 1;
-        let hedgeTimer = setTimeout(() => {
+        let hedgeTimer = background ? null : setTimeout(() => {
           hedgeTimer = null;
           if (finished || slow.size >= alpha) return;
           slow.add(peer.nodeId);
           pump();
         }, hedgeAfterMs);
-        hedgeTimer.unref?.();
+        hedgeTimer?.unref?.();
         Promise.resolve()
           .then(() => this.rpc.findNode(peer, targetNodeId))
           .then((response) => {
             if (!response) return;
             responsesReceived += 1;
             responded.add(peer.nodeId);
-            for (const record of response.records || []) this.ingest(record);
+            for (const record of response.records || []) {
+              const accepted = this.ingest(record);
+              if (accepted.accepted && accepted.novel) novel += 1;
+            }
             for (const record of response.hints || []) {
               if (record?.nodeId && record.nodeId !== this.identity.nodeId && !this.get(record.nodeId)) {
                 hints.set(record.nodeId, { nodeId: record.nodeId, endpoints: record.endpoints, publicKey: record.publicKey });
               }
             }
-          }, () => {
+          }, (error) => {
             // QuicDiscoveryRpc retires the exact failed transport when required.
+            if (background && error?.code === 'TRUYN_BUSY') shed = true;
           })
           .finally(() => {
             if (hedgeTimer) clearTimeout(hedgeTimer);

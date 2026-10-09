@@ -98,16 +98,24 @@ export class RpcLaneScheduler {
       this.queues[normalized].push(waiter);
       this.stats[normalized].queued += 1;
       this.stats[normalized].maxQueueDepth = Math.max(this.stats[normalized].maxQueueDepth, this.queues[normalized].length);
+      // A waiter blocked by its own peer must not block independent peers.
+      this.#pump();
     });
   }
 
   snapshot() {
-    return Object.fromEntries(RPC_LANES.map((lane) => [lane, {
-      limit: this.laneLimits[lane],
-      inFlight: this.inFlight[lane],
-      queued: this.queues[lane].length,
-      ...this.stats[lane]
-    }]));
+    return Object.fromEntries(RPC_LANES.map((lane) => {
+      // queued is the *instantaneous depth*, queuedTotal the cumulative count.
+      // Previously spreading stats last overwrote the live queue depth.
+      const { queued: queuedTotal, ...stats } = this.stats[lane];
+      return [lane, {
+        limit: this.laneLimits[lane],
+        inFlight: this.inFlight[lane],
+        ...stats,
+        queued: this.queues[lane].length,
+        queuedTotal
+      }];
+    }));
   }
 }
 

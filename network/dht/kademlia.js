@@ -42,7 +42,10 @@ export class KademliaRoutingTable {
     this.localNodeId = localNodeId;
     this.k = k;
     this.buckets = Array.from({ length: KADEMLIA_ID_BITS }, () => []);
+    this.members = new Set();
   }
+
+  has(nodeId) { return this.members.has(nodeId); }
 
   upsert(peer) {
     if (!peer?.nodeId || peer.nodeId === this.localNodeId) return false;
@@ -52,7 +55,8 @@ export class KademliaRoutingTable {
     const existing = bucket.findIndex((item) => item.nodeId === peer.nodeId);
     if (existing >= 0) bucket.splice(existing, 1);
     bucket.push({ ...peer, lastSeenAt: peer.lastSeenAt || new Date().toISOString() });
-    if (bucket.length > this.k) bucket.shift();
+    this.members.add(peer.nodeId);
+    if (bucket.length > this.k) this.members.delete(bucket.shift().nodeId);
     return true;
   }
 
@@ -61,7 +65,9 @@ export class KademliaRoutingTable {
     if (index < 0) return false;
     const before = this.buckets[index].length;
     this.buckets[index] = this.buckets[index].filter((item) => item.nodeId !== nodeId);
-    return this.buckets[index].length !== before;
+    const removed = this.buckets[index].length !== before;
+    if (removed) this.members.delete(nodeId);
+    return removed;
   }
 
   closest(target, count = this.k) {
@@ -100,7 +106,7 @@ export class KademliaRoutingTable {
 
   snapshot() { return this.buckets.flat().map((peer) => ({ ...peer })); }
   restore(peers = []) { for (const peer of peers) this.upsert(peer); return this.size(); }
-  size() { return this.buckets.reduce((sum, bucket) => sum + bucket.length, 0); }
+  size() { return this.members.size; }
 }
 
 function assertIdentity(identity) {
