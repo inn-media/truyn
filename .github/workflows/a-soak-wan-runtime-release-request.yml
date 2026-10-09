@@ -1,0 +1,53 @@
+name: A-SOAK Immutable Runtime Release Request (no cloud)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/a-series/a-soak-wan-runtime-release-request.json']
+permissions:
+  contents: read
+  actions: write
+  checks: read
+concurrency:
+  group: truyn-a-soak-wan-runtime-request-exact-main
+  cancel-in-progress: false
+jobs:
+  exact-source-request:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false, fetch-depth: 2}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Require one non-cloud user-approved runtime-only request
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main && "$GITHUB_RUN_ATTEMPT" == 1 ]]
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          jq -e '.taskId=="truyn-a-series-20261008" and .request=="publish-exact-main-wan-runtime" and .cloudMutationAllowed==false and .soakAttemptOneDispatchAllowed==false' .github/a-series/a-soak-wan-runtime-release-request.json >/dev/null
+          node scripts/check-dco.mjs "$(git rev-parse HEAD^)" "$GITHUB_SHA"
+      - name: Wait for independent exact-main CI and CodeQL before dispatch
+        env:
+          GH_TOKEN: '${{ github.token }}'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          found=false
+          for i in $(seq 1 90); do
+            current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            [[ "$current" == "$GITHUB_SHA" ]] || { echo 'A_SOAK_RUNTIME_REQUEST=BLOCKED_MOVING_MAIN'; exit 70; }
+            c="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100")"
+            jq -e '.total_count<=100 and (.check_runs|type=="array")' <<< "$c" >/dev/null || { echo 'A_SOAK_RUNTIME_REQUEST=BLOCKED_PAGINATION'; exit 71; }
+            found=true
+            for name in test mandatory-security-safety network integration component regression 'Analyze (javascript-typescript)' 'Analyze (actions)'; do
+              state="$(jq -r --arg n "$name" '[.check_runs[]|select(.name==$n)]|map(select(.status=="completed" and .conclusion=="success"))|length' <<< "$c")"
+              if [[ "$state" -lt 1 ]]; then found=false; break; fi
+            done
+            [[ "$found" == true ]] && break
+            sleep 20
+          done
+          [[ "$found" == true ]] || { echo 'A_SOAK_RUNTIME_REQUEST=BLOCKED_EXACT_MAIN_CI'; exit 72; }
+          gh workflow run a-soak-wan-runtime-release.yml --ref main -R "$GITHUB_REPOSITORY"
+          echo "A_SOAK_RUNTIME_REQUEST=DISPATCHED source=$GITHUB_SHA cloud_mutations=0 soak_attempt1=UNUSED"

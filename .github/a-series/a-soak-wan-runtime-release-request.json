@@ -1,0 +1,9 @@
+{
+  "schema": "truyn.assurance.wan-runtime-release-request.v1",
+  "taskId": "truyn-a-series-20261008",
+  "request": "publish-exact-main-wan-runtime",
+  "cloudMutationAllowed": false,
+  "soakAttemptOneDispatchAllowed": false,
+  "source": "exact-main-after-required-CI",
+  "bundle": "digest-pinned-public-release"
+}
