@@ -1,0 +1,11 @@
+task=D-5000 Attempt 4
+request=exact-source-offline-qualification
+user_approved_attempt=4
+source_run=37908203516
+source_sha=42d88897ea304595a6fdfdc4c6bf249a0a6090a9
+source_tree=a0d7af07990071c188e5fe3240cafa0e3a1b2d58
+base_main=cd4b766c7ec64a81beff75f45efd735c0e863fb1
+test_only_delta=benchmarks/scale/class-d-azure-5000-provision.sh;tests/d5000-attempt4-telemetry.test.js
+paid_dispatch=false
+azure=false
+run_attempt=1
