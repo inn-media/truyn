@@ -1,0 +1,9 @@
+scope=offline-only
+purpose=prove-azure-guest-agent-outer-shell-is-posix
+failed_original_run=37858332492
+failed_retry_run=37903841984
+root_cause=the-bash-only-double-bracket-prevented-running-guest-install
+exact_repaired_source=f013cd3697ad7761e7ce8b11f5e3eb6fece7202f
+exact_tree=ff590c212e80f6e060a3b26bf9eeae0508979e46
+strict_acceptance=unchanged
+provision_vm=false
