@@ -1,0 +1,70 @@
+name: D-5000 Attempt 2 Retry 1 Install Qualification (No Azure)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d5000/attempt2-retry1-qualify.txt']
+permissions: { contents: read }
+concurrency: { group: truyn-d5000-attempt2-retry1-qualification, cancel-in-progress: false }
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      TESTED_COMMIT: a65114b899ccf3d46f8db911bf37118463cd3911
+      TESTED_TREE_SHA: a9b475e255c63746f8cc5c82de074f5a0f6bfe18
+      BASE_REPAIR: 4889e3b6bcf7d876ac9a3543f2ea0de5ec718eeb
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ env.TESTED_COMMIT }}', fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Freeze exact one-file install verification repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE_SHA" ]]
+          [[ "$(git rev-parse HEAD^)" == "$BASE_REPAIR" ]]
+          git diff --name-only "$BASE_REPAIR" HEAD > d5000-retry1-delta.txt
+          [[ "$(wc -l < d5000-retry1-delta.txt)" -eq 1 ]]
+          grep -Fxq 'benchmarks/scale/class-d-azure-5000-provision.sh' d5000-retry1-delta.txt
+          echo "TRUYN_D5000_RETRY1_SOURCE=PASS sha=$TESTED_COMMIT tree=$TESTED_TREE_SHA"
+      - name: Shell and strict install marker contracts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n benchmarks/scale/class-d-azure-5000-provision.sh
+          bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
+          bash -n scripts/d5000-stage-isolated-campaign.sh
+          bash tests/d5000-remote-exit-contract.test.sh
+          bash tests/d5000-red-host-snapshot.test.sh
+          grep -Fq "TRUYN_D5000_INSTALL_VERIFIED=PASS" benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'verify_out=$(remote' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'if processes < expected:' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'if ready != expected:' benchmarks/scale/class-d-azure-5000-provision.sh
+          echo 'TRUYN_D5000_RETRY1_INSTALL_CONTRACT=PASS'
+      - name: D-5000 strict network, topology and terminal regression tests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/check-class-d-five-patches.mjs
+          node --test benchmarks/scale/class-d-5000-admission.test.js tests/peer-discovery-periodic-refresh.test.js tests/peer-discovery-refresh-bounds.test.js tests/dht-refresh-testnet-endpoint.test.js
+          echo 'TRUYN_D5000_RETRY1_REGRESSION=PASS'
+      - name: Rebuild immutable retry runtime without Azure
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          mkdir -p qualification
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh qualification/d5000-retry-runtime.tgz
+          sha256sum -c qualification/d5000-retry-runtime.tgz.sha256
+          tar -xOf qualification/d5000-retry-runtime.tgz manifest.json | jq -e --arg sha "$TESTED_COMMIT" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$sha'
+          echo "TRUYN_D5000_RETRY1_QUALIFICATION=PASS sha=$TESTED_COMMIT tree=$TESTED_TREE_SHA no_azure=true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: truyn-d5000-retry1-qualify-${{ github.run_id }}
+          path: |
+            d5000-retry1-delta.txt
+            qualification/d5000-retry-runtime.tgz.sha256
+          if-no-files-found: warn
