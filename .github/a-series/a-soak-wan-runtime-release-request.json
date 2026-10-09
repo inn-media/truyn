@@ -6,6 +6,6 @@
   "soakAttemptOneDispatchAllowed": false,
   "source": "exact-main-after-required-CI",
   "bundle": "digest-pinned-public-release",
-  "requestNonce": "asoak-public-selfcontained-release-20261009-003",
-  "requestReason": "Workflow-dispatch startup_failure no jobs: publish in already-accepted exact-main request job, same safety requirements."
+  "requestNonce": "asoak-public-wan-release-identical-cp-repair-004",
+  "requestReason": "Fix cp identical source/destination after a fully verified bundle; republish on new exact main after unchanged independent CI and SHA256 checks."
 }
