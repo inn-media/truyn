@@ -35,6 +35,12 @@ D500_PROVISION_ATTEMPTS="${TRUYN_D500_PROVISION_ATTEMPTS:-3}"
 [[ "$D500_PROVISION_ATTEMPTS" =~ ^[1-9][0-9]*$ && "$D500_PROVISION_ATTEMPTS" -le 5 ]]
 BOOTSTRAP_MAX_PEERS_PER_NODE=32
 BOOTSTRAP_PEERS_PER_BUCKET=2
+# D-5000 discovery refresh walks are not bootstrap peer count. The full 32
+# signed bootstrap records still span 20 hosts. Eight real Kademlia target
+# walks validate dynamic discovery without amplifying millions of redundant
+# RPCs after seeds are installed.
+D5000_BOOTSTRAP_REFRESH_TARGET_COUNT=8
+D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY=2
 BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS=900000
 QUIC_BASE=4400
 CONTROL_BASE=8700
@@ -953,6 +959,11 @@ import {
 } from '/opt/truyn/benchmarks/scale/class-d-1000-bootstrap.js';
 
 const records = JSON.parse(fs.readFileSync('/tmp/all-records.json', 'utf8'));
+const byHost = JSON.parse(fs.readFileSync('/tmp/records-by-host.json', 'utf8'));
+const localRecords = byHost[${i}];
+if (!Array.isArray(localRecords) || localRecords.length !== ${NODES_PER_HOST}) {
+  throw new Error('bootstrap plan local node count mismatch');
+}
 const maxPeersPerNode = Number.parseInt(process.env.TRUYN_BOOTSTRAP_MAX_PEERS_PER_NODE || '32', 10);
 const peersPerBucket = Number.parseInt(process.env.TRUYN_BOOTSTRAP_PEERS_PER_BUCKET || '2', 10);
 const requiredFailureDomains = Number.parseInt(process.env.TRUYN_BOOTSTRAP_REQUIRED_FAILURE_DOMAINS || '0', 10);
@@ -960,10 +971,11 @@ const plan = buildClassD1000BootstrapPlan(records, {
   seed: process.env.TRUYN_BOOTSTRAP_PLAN_SEED || 'truyn-class-d-1000',
   maxPeersPerNode,
   peersPerBucket,
-  requiredFailureDomains
+  requiredFailureDomains,
+  localNodeIds: localRecords.map((record) => record.nodeId)
 });
 const summary = summarizeClassD1000BootstrapPlan(plan);
-if (summary.nodeCount !== records.length) throw new Error('bootstrap plan node count mismatch');
+if (summary.nodeCount !== localRecords.length) throw new Error('bootstrap plan local node count mismatch');
 if (summary.minPeers !== maxPeersPerNode || summary.maxPeers !== maxPeersPerNode) throw new Error('bootstrap plan peer bound mismatch');
 if (summary.allToAll) throw new Error('bootstrap plan must not be all-to-all');
 if (summary.minFailureDomains !== requiredFailureDomains || summary.maxFailureDomains !== requiredFailureDomains) throw new Error('bootstrap plan failure-domain coverage mismatch');
@@ -1016,7 +1028,12 @@ for j in \$(seq 0 $((NODES_PER_HOST-1))); do
       [[ "\$bytes" -lt 900000 ]]
       control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
       curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" "\${control_url}/bootstrap" >/dev/null
-      refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${BOOTSTRAP_MAX_PEERS_PER_NODE},maxRounds:4,targetConcurrency:4,timeoutMs:240000,seed:\$seed}')
+      # Validate all 32 signed peers, including every one of the 20 failure
+      # domains, before bounded RPC refresh. No safety/acceptance reduction.
+      seed_readiness=\$(curl -fsS --max-time 20 "\${control_url}/dht/readiness")
+      [[ "\$(printf '%s' "\$seed_readiness" | jq -r '.validPeers')" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE} ]]
+      [[ "\$(printf '%s' "\$seed_readiness" | jq -r '.remoteEndpointDiversity.hostCount')" -eq ${HOST_COUNT} ]]
+      refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${D5000_BOOTSTRAP_REFRESH_TARGET_COUNT},maxRounds:4,targetConcurrency:${D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY},timeoutMs:240000,seed:\$seed}')
       refresh_result=''
       refresh_rc=1
       refresh_reason=none
@@ -1043,6 +1060,7 @@ for j in \$(seq 0 $((NODES_PER_HOST-1))); do
       endpoints=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.endpointCount')
       hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount')
       [[ "\$valid" -ge "\$records" ]]
+      [[ "\$hosts" -eq ${HOST_COUNT} ]]
       jq -nc --argjson node "\$j" --argjson records "\$records" --argjson bytes "\$bytes" --argjson valid "\$valid" --argjson buckets "\$buckets" --argjson endpoints "\$endpoints" --argjson hosts "\$hosts" '{node:\$node,records:\$records,bytes:\$bytes,valid:\$valid,buckets:\$buckets,endpoints:\$endpoints,hosts:\$hosts}' >"\$node_dir/\$j.metrics"
     ) >"\$node_dir/\$j.log" 2>&1
     rc=\$?
@@ -1117,6 +1135,8 @@ echo BOOTSTRAP_MAX_BYTES=\$max_bytes
 echo BOOTSTRAP_MEAN_BYTES=\$mean_bytes
 echo BOOTSTRAP_REFRESH_COUNT=\$refresh_count
 echo BOOTSTRAP_REFRESH_STATUS=refreshed
+echo BOOTSTRAP_REFRESH_TARGETS=${D5000_BOOTSTRAP_REFRESH_TARGET_COUNT}
+echo BOOTSTRAP_REFRESH_CONCURRENCY=${D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY}
 echo BOOTSTRAP_REFRESH_MIN_VALID=\$refresh_min_valid
 echo BOOTSTRAP_REFRESH_MAX_VALID=\$refresh_max_valid
 echo BOOTSTRAP_REFRESH_MIN_BUCKETS=\$refresh_min_buckets
@@ -1139,6 +1159,9 @@ EOS
     [[ "$(marker "$out" BOOTSTRAP_PLAN_MAX_FAILURE_DOMAINS)" == "$HOST_COUNT" ]]
     [[ "$(marker "$out" BOOTSTRAP_REFRESH_COUNT)" == "$NODES_PER_HOST" ]]
     [[ "$(marker "$out" BOOTSTRAP_REFRESH_STATUS)" == refreshed ]]
+    [[ "$(marker "$out" BOOTSTRAP_REFRESH_TARGETS)" == "$D5000_BOOTSTRAP_REFRESH_TARGET_COUNT" ]]
+    [[ "$(marker "$out" BOOTSTRAP_REFRESH_CONCURRENCY)" == "$D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY" ]]
+    [[ "$(marker "$out" BOOTSTRAP_REFRESH_MIN_HOSTS)" == "$HOST_COUNT" ]]
     echo "TRUYN_CLASS_D_1000 stage=bootstrap host=$i plan=host-stratified-xor refresh=bounded-node-parallelism nodeWorkers=$D500_NODE_WORKERS recordsMin=$(marker "$out" BOOTSTRAP_PLAN_MIN_RECORDS) recordsMax=$(marker "$out" BOOTSTRAP_PLAN_MAX_RECORDS) refreshCount=$(marker "$out" BOOTSTRAP_REFRESH_COUNT) validMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_VALID) validMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_VALID) bucketsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_BUCKETS) bucketsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_BUCKETS) endpointsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_ENDPOINTS) endpointsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_ENDPOINTS) hostsMin=$(marker "$out" BOOTSTRAP_REFRESH_MIN_HOSTS) hostsMax=$(marker "$out" BOOTSTRAP_REFRESH_MAX_HOSTS) bytesMin=$(marker "$out" BOOTSTRAP_MIN_BYTES) bytesMax=$(marker "$out" BOOTSTRAP_MAX_BYTES) bytesMean=$(marker "$out" BOOTSTRAP_MEAN_BYTES) ms=$(marker "$out" BOOTSTRAP_MS)"
   ) >"$bootstrap_dir/$i" 2>&1 &
   bootstrap_pids+=("$!")
