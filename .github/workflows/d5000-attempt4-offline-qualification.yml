@@ -1,0 +1,73 @@
+name: D-5000 Attempt 4 Exact-Source Qualification (No Azure)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d5000/qualify-attempt4.txt']
+permissions: { contents: read }
+concurrency: { group: truyn-d5000-attempt4-offline-qualify, cancel-in-progress: false }
+env:
+  TESTED_COMMIT: 42d88897ea304595a6fdfdc4c6bf249a0a6090a9
+  TESTED_TREE_SHA: a0d7af07990071c188e5fe3240cafa0e3a1b2d58
+  BASE_MAIN: cd4b766c7ec64a81beff75f45efd735c0e863fb1
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: '${{ env.TESTED_COMMIT }}'
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Verify exact frozen source and surgical harness-only scope
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE_SHA" ]]
+          [[ "$(git merge-base "$BASE_MAIN" HEAD)" == "$BASE_MAIN" ]]
+          git diff --name-only "$BASE_MAIN" HEAD > d5000-attempt4-telemetry-delta.txt
+          [[ "$(wc -l < d5000-attempt4-telemetry-delta.txt)" -eq 2 ]]
+          grep -Fxq 'benchmarks/scale/class-d-azure-5000-provision.sh' d5000-attempt4-telemetry-delta.txt
+          grep -Fxq 'tests/d5000-attempt4-telemetry.test.js' d5000-attempt4-telemetry-delta.txt
+          [[ "$(grep -c '^' d5000-attempt4-telemetry-delta.txt)" == 2 ]]
+          echo "TRUYN_D5000_ATTEMPT4_EXACT_SOURCE=PASS tested=$TESTED_COMMIT tree=$TESTED_TREE_SHA"
+      - name: Validate strict unchanged campaign, guest shell and early failure evidence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n benchmarks/scale/class-d-azure-5000-provision.sh
+          bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
+          bash tests/d5000-remote-exit-contract.test.sh
+          bash tests/d5000-red-host-snapshot.test.sh
+          grep -Fq 'D5000_BOOTSTRAP_REFRESH_TARGET_COUNT=32' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY=4' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'TRUYN_D5000_A4_SNAPSHOT_TRANSPORT_RC' benchmarks/scale/class-d-azure-5000-provision.sh
+          echo 'TRUYN_D5000_ATTEMPT4_HARNESS=PASS'
+      - name: Restore runtime dependencies and verify all relevant regressions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          node --test tests/d5000-attempt4-telemetry.test.js tests/d5000-bootstrap-scale-guard.test.js tests/d5000-dht-maintenance-regression.test.js tests/peer-discovery-periodic-refresh.test.js benchmarks/scale/class-d-5000-admission.test.js
+          echo 'TRUYN_D5000_ATTEMPT4_REGRESSION=PASS'
+      - name: Build and attest immutable runtime from exact tested commit
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p qualification
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh qualification/d5000-attempt4-runtime.tgz
+          sha256sum -c qualification/d5000-attempt4-runtime.tgz.sha256
+          tar -xOf qualification/d5000-attempt4-runtime.tgz manifest.json | jq -e --arg sha "$TESTED_COMMIT" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$sha'
+          echo "TRUYN_D5000_ATTEMPT4_QUALIFICATION=PASS sha=$TESTED_COMMIT tree=$TESTED_TREE_SHA paid=false"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: truyn-d5000-attempt4-qualify-${{ github.run_id }}
+          path: |
+            d5000-attempt4-telemetry-delta.txt
+            qualification/d5000-attempt4-runtime.tgz.sha256
+          if-no-files-found: warn
+          retention-days: 60
