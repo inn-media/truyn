@@ -260,7 +260,7 @@ readiness_node_observations_b64=\$(jq -s -c 'sort_by(.nodeIndex)' "\$readiness_o
 readiness_payload_path="/var/lib/truyn-d1000/readiness-host-${i}.b64"
 printf '%s' "\$readiness_node_observations_b64" > "\$readiness_payload_path"
 readiness_payload_sha=\$(sha256sum "\$readiness_payload_path" | cut -d' ' -f1)
-readiness_chunks=\$(( (${#readiness_node_observations_b64} + 2399) / 2400 ))
+readiness_chunks=\$(( (\${#readiness_node_observations_b64} + 2399) / 2400 ))
 [[ "\$readiness_chunks" -ge 1 && "\$readiness_chunks" -le 256 ]]
 echo READINESS_NODE_OBSERVATIONS_CHUNKS=\$readiness_chunks
 echo READINESS_NODE_OBSERVATIONS_SHA256=\$readiness_payload_sha
