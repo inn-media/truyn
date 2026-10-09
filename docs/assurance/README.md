@@ -3,6 +3,10 @@
 **Status: FOUNDATION ONLY / not an accepted network, wire, SLO or managed-production gate.**
 This is an independent series. It must not mutate D/S/H/T control capsules, their workflow identities, or accepted evidence.
 
+## Accepted foundation checkpoint (2026-10-09)
+
+Public [PR #922](https://github.com/inn-media/truyn/pull/922) merged as `64fc6e845339880da19f43298a3f863122759496`; follow-up immutable-runtime release controller [PR #925](https://github.com/inn-media/truyn/pull/925) merged as `480d70442b4044057399a031f895f6f9ab97231d`. No accepted WAN-runtime release or live A-SOAK 1h Attempt 1 is evidenced. A cloud preflight or offline evaluator is never terminal PASS. The active D-5000 Attempt 3 [run #37908203516](https://github.com/inn-media/truyn/actions/runs/37908203516) was in progress at this checkpoint, so fresh collision/capacity verification remains mandatory. Private operator acceptance is separate; consult [private assurance](https://github.com/inn-media/truyn-platform/blob/main/docs/assurance/README.md). This is a documentation-only status note; immutable evidence and acceptance floors are unchanged.
+
 ## Repo sovereignty
 
 - **Public `inn-media/truyn`** owns the protocol contract, open conformance/golden vectors, A-WIRE, network node test tooling, A-SOAK, A-OPS, A-SLO measurement definitions and A-NET. Public execution does not import private source, credentials, entitlement logic or production configuration.

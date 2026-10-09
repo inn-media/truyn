@@ -2,7 +2,7 @@
 
 Human-facing documentation for TRUYN architecture, implementation status, governance, operations, security, Trustability, compatibility, SDK/DX and benchmark evidence.
 
-**Snapshot:** 2026-10-08  
+**Snapshot:** 2026-10-09 (A-Series docs reconciliation)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
@@ -11,8 +11,9 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 
 - [Implementation Status](architecture/IMPLEMENTATION_STATUS.md) — canonical repository-wide factual maturity/status.
 - [Network Scale Status](operations/NETWORK_SCALE_STATUS.md) — current D-Series operational acceptance.
-- [Documentation Sanitation 2026-09-23](operations/DOCUMENTATION_SANITATION_2026-09-23.md) — latest repository-wide reconciliation and status vocabulary.
+- [Documentation Sanitation 2026-10-09: A-Series](operations/DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md) — latest A-Series documentation sync; [2026-10-08 D-1000 sanitation](operations/DOCUMENTATION_SANITATION_2026-10-08.md) remains historical benchmark reconciliation.
 - [Architecture Contract](architecture/ARCHITECTURE_CONTRACT.md) — source ownership and invariants.
+- [A-Series Assurance](assurance/README.md) — public A-SOAK/OPS/SLO/WIRE/NET and private A-MGMT boundary; foundation only, no measured SOAK PASS.
 - [Roadmap](../ROADMAP.md) — accepted gates and next work.
 - [Semantic Scale S-Series](architecture/SEMANTIC_SCALE_S_SERIES.md) — live semantic-node scale architecture for S-50/100/200/500.
 - [S-Series Open/Private Boundary](architecture/S_SERIES_OPEN_PRIVATE_BOUNDARY.md) — canonical repository ownership split for S-Series.
@@ -43,6 +44,8 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - Class D-1000 — **ACCEPTED / PASS** on Attempt 1 workflow run `37687469411`, `run_attempt=2`: 20 hosts / 1,000 real processes, baseline 100%, post-restart 99%, healed 100%, zero acknowledged-write loss, strict terminal PASS and complete cleanup.
 - D-Series execution architecture — **Swarm diagnostics/repair → full B01–B16 exact-SHA admission → live/collision gates → exactly one real scale run**; durable lock tracked in issue #737.
 - Semantic Scale S-Series — **S-10 + S-20 + S-50 + S-100 ACCEPTED / PASS; S-200+ OPEN**. S-50 Attempt 3 run `37782488279` is the canonical 50-node eight-scenario acceptance; historical failed S-50 attempts remain immutable audit evidence.
+- A-Series — **public foundation merged; real 1h SOAK Attempt 1 NOT LAUNCHED**; see [Assurance contract](assurance/README.md).
+- D-5000 — **not accepted**; [Attempt 3 run #37908203516](https://github.com/inn-media/truyn/actions/runs/37908203516) was in progress at this dated snapshot; recheck live status.
 - Efficiency E-Series — **ACTIVE QUALIFICATION / NO FINAL E PASS**; qualification/isolation/provider-smoke work does not substitute for final DECOMPOSE/PER-RESULT/KNEE/DEGRADE evidence.
 - N-Series emergent network behavior — **FOUNDATION DEFINED / NOT YET EXECUTED**; N/SOVEREIGNTY, N/MARKETPLACE, N/TRUST-DECAY and N/SUSTAINED-CHURN have no PASS claim.
 - Account → Organization → Tenant — **IMPLEMENTED / accepted**.
