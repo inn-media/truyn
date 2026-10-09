@@ -1,0 +1,10 @@
+task=D-5000 bootstrap superlinear performance repair
+failed_attempt=3
+failed_run=37908203516
+failure=bootstrap-host6-remote-timeout-2400-seconds
+candidate=d407b96d7d1b93fa677fd2f8e0f09eca2d5f9fb6
+tree=883fcb530717301a9d87ff635dbb2b4e2a5984a2
+baseline_source=6e66dab54d703654886a5b396d1dc9ed41f3a713
+test_scope=offline_only
+azure_resources=none
+paid_dispatch=false
