@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
-      TESTED_COMMIT: f013cd3697ad7761e7ce8b11f5e3eb6fece7202f
-      TESTED_TREE_SHA: ff590c212e80f6e060a3b26bf9eeae0508979e46
+      TESTED_COMMIT: 6e66dab54d703654886a5b396d1dc9ed41f3a713
+      TESTED_TREE_SHA: 606d3dc0795c353c463466776b4f0a6f1bf6d3fa
       PRIOR_SOURCE: a65114b899ccf3d46f8db911bf37118463cd3911
     steps:
       - uses: actions/checkout@v4
