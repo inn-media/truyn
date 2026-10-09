@@ -5,5 +5,7 @@
   "cloudMutationAllowed": false,
   "soakAttemptOneDispatchAllowed": false,
   "source": "exact-main-after-required-CI",
-  "bundle": "digest-pinned-public-release"
+  "bundle": "digest-pinned-public-release",
+  "requestNonce": "asoak-release-request-20261009-002",
+  "requestReason": "User authorizes immutable public WAN runtime publication only. No cloud mutation or SOAK dispatch."
 }
