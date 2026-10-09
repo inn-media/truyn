@@ -1,0 +1,9 @@
+retry=1
+campaign=D-5000 Attempt 2
+previous_run=37858332492
+previous_status=failure
+previous_cleanup=confirmed_zero
+candidate=a65114b899ccf3d46f8db911bf37118463cd3911
+candidate_tree=a9b475e255c63746f8cc5c82de074f5a0f6bfe18
+purpose=offline_qualification_only
+azure_dispatch=false
