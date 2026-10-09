@@ -81,7 +81,7 @@ remote() {
   output="$(timeout -k 30 "$budget" az vm run-command invoke -g "$RG" -n "$vm" --command-id RunShellScript --scripts "$remote_script" --query 'value[0].message' -o tsv --only-show-errors 2>&1)" || transport_rc=$?
   if [[ "$transport_rc" != 0 ]]; then
     printf '%s\n' "$output" >&2
-    echo "TRUYN_D5000_REMOTE=RED reason=azure_transport_failure vm=$vm rc=$transport_rc" >&2
+    echo "TRUYN_D5000_REMOTE=RED reason=azure_transport_failure vm=$vm rc=$transport_rc transport_budget_seconds=$budget guest_budget_seconds=$host_budget nonce=$nonce" >&2
     return "$transport_rc"
   fi
   marker_line="$(printf '%s\n' "$output" | grep -F "TRUYN_D5000_GUEST_TERMINAL nonce=${nonce} rc=" || true)"
@@ -938,6 +938,11 @@ bootstrap_pids=()
 for i in $(seq 0 $((HOST_COUNT-1))); do
   script=$(cat <<EOS
 set -Eeuo pipefail
+# Host-local durable transcript survives an Azure Run Command transport timeout.
+# Never make admission depend on telemetry availability.
+exec > >(tee -a /var/lib/truyn-d1000/d5000-attempt4-bootstrap.log) 2>&1
+echo "TRUYN_D5000_A4_BOOTSTRAP_BEGIN host=${i} epochMs=\$(date +%s%3N)"
+plan_t0=\$(date +%s%3N)
 ips='${IPS_JSON}'
 rm -f /tmp/all-host-records.jsonl
 for ip in \$(printf '%s' "\$ips" | jq -r '.[]'); do
@@ -988,6 +993,7 @@ for (const [nodeId, peers] of plan.entries()) {
 fs.writeFileSync('/tmp/bootstrap-plan-by-node.json', JSON.stringify(byNode));
 fs.writeFileSync('/tmp/bootstrap-plan-summary.json', JSON.stringify(summary));
 NODE
+echo "TRUYN_D5000_A4_PLAN_MS=\$(($(date +%s%3N)-plan_t0)) host=${i}"
 cp /tmp/records-by-host.json /var/lib/truyn-d1000/records-by-host.json
 cp /tmp/bootstrap-plan-by-node.json /var/lib/truyn-d1000/bootstrap-plan-by-node.json
 cp /tmp/bootstrap-plan-summary.json /var/lib/truyn-d1000/bootstrap-plan-summary.json
@@ -1026,12 +1032,16 @@ for j in \$(seq 0 $((NODES_PER_HOST-1))); do
       bytes=\$(printf '%s' "\$payload" | wc -c | tr -d ' ')
       [[ "\$bytes" -lt 900000 ]]
       control_url="http://127.0.0.1:\$(( ${CONTROL_BASE} + j ))"
+      node_t0=\$(date +%s%3N)
+      echo bootstrap >"\$node_dir/\$j.phase"
       curl -fsS --max-time 90 -H 'content-type: application/json' --data-binary "\$payload" "\${control_url}/bootstrap" >/dev/null
       # Validate all 32 signed peers, including every one of the 20 failure
       # domains, before bounded RPC refresh. No safety/acceptance reduction.
       seed_readiness=\$(curl -fsS --max-time 20 "\${control_url}/dht/readiness")
       [[ "\$(printf '%s' "\$seed_readiness" | jq -r '.validPeers')" -ge ${BOOTSTRAP_MAX_PEERS_PER_NODE} ]]
       [[ "\$(printf '%s' "\$seed_readiness" | jq -r '.remoteEndpointDiversity.hostCount')" -eq ${HOST_COUNT} ]]
+      echo refresh >"\$node_dir/\$j.phase"
+      refresh_t0=\$(date +%s%3N)
       refresh_payload=\$(jq -cn --arg seed "${GITHUB_SHA}:bootstrap-refresh:${i}:\$j" '{targetCount:${D5000_BOOTSTRAP_REFRESH_TARGET_COUNT},maxRounds:4,targetConcurrency:${D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY},timeoutMs:240000,seed:\$seed}')
       refresh_result=''
       refresh_rc=1
@@ -1060,7 +1070,10 @@ for j in \$(seq 0 $((NODES_PER_HOST-1))); do
       hosts=\$(printf '%s' "\$readiness" | jq -r '.remoteEndpointDiversity.hostCount')
       [[ "\$valid" -ge "\$records" ]]
       [[ "\$hosts" -eq ${HOST_COUNT} ]]
-      jq -nc --argjson node "\$j" --argjson records "\$records" --argjson bytes "\$bytes" --argjson valid "\$valid" --argjson buckets "\$buckets" --argjson endpoints "\$endpoints" --argjson hosts "\$hosts" '{node:\$node,records:\$records,bytes:\$bytes,valid:\$valid,buckets:\$buckets,endpoints:\$endpoints,hosts:\$hosts}' >"\$node_dir/\$j.metrics"
+      refresh_ms=\$(($(date +%s%3N)-refresh_t0))
+      node_ms=\$(($(date +%s%3N)-node_t0))
+      echo complete >"\$node_dir/\$j.phase"
+      jq -nc --argjson node "\$j" --argjson records "\$records" --argjson bytes "\$bytes" --argjson valid "\$valid" --argjson buckets "\$buckets" --argjson endpoints "\$endpoints" --argjson hosts "\$hosts" --argjson nodeMs "\$node_ms" --argjson refreshMs "\$refresh_ms" --argjson attempts "\$refresh_attempt" --argjson refreshResult "\$refresh_result" '{node:\$node,records:\$records,bytes:\$bytes,valid:\$valid,buckets:\$buckets,endpoints:\$endpoints,hosts:\$hosts,nodeMs:\$nodeMs,refreshMs:\$refreshMs,attempts:\$attempts,walks:(\$refreshResult.walks|length),responses:(\$refreshResult.responses // 0),queries:(\$refreshResult.queriedPeers|length),reason:(\$refreshResult.reason // "none")}' >"\$node_dir/\$j.metrics"
     ) >"\$node_dir/\$j.log" 2>&1
     rc=\$?
     printf '%s\n' "\$rc" >"\$node_dir/\$j.rc"
@@ -1123,6 +1136,9 @@ done
 t1=\$(date +%s%3N)
 mean_bytes=\$((total_bytes / ${NODES_PER_HOST}))
 echo BOOTSTRAP_MS=\$((t1-t0))
+# Diagnostics-only aggregates; neither acceptance nor routing targets change.
+jq -s -c '{nodes:length,meanNodeMs:([.[].nodeMs]|add/length|floor),meanRefreshMs:([.[].refreshMs]|add/length|floor),maxNodeMs:([.[].nodeMs]|max),maxRefreshMs:([.[].refreshMs]|max),totalWalks:([.[].walks]|add),totalResponses:([.[].responses]|add),totalDistinctQueriesPerNode:([.[].queries]|add),retryNodes:([.[]|select(.attempts>1)]|length)}' "\$node_dir"/*.metrics | sed 's/^/TRUYN_D5000_A4_NODE_AGGREGATE=/'
+echo "TRUYN_D5000_A4_HOST_LOAD host=${i} loadavg=\$(cut -d' ' -f1-3 /proc/loadavg | tr ' ' '/')"
 echo BOOTSTRAP_PLAN_NODE_COUNT=\$(jq -r '.nodeCount' /tmp/bootstrap-plan-summary.json)
 echo BOOTSTRAP_PLAN_MIN_RECORDS=\$min_records
 echo BOOTSTRAP_PLAN_MAX_RECORDS=\$max_records
