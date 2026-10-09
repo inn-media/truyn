@@ -1,0 +1,67 @@
+name: D-5000 Azure POSIX Wrapper Repair Qualification (No Azure)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d5000/posix-shell-repair-qualify-20261009.txt']
+permissions: { contents: read }
+concurrency: { group: truyn-d5000-posix-wrapper-qualify-20261009, cancel-in-progress: false }
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      TESTED_COMMIT: f013cd3697ad7761e7ce8b11f5e3eb6fece7202f
+      TESTED_TREE_SHA: ff590c212e80f6e060a3b26bf9eeae0508979e46
+      PRIOR_SOURCE: a65114b899ccf3d46f8db911bf37118463cd3911
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ env.TESTED_COMMIT }}', fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Verify minimal exact-source repair and host shell contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE_SHA" ]]
+          git diff --name-only "$PRIOR_SOURCE" HEAD > d5000-posix-repair-delta.txt
+          [[ "$(wc -l < d5000-posix-repair-delta.txt)" -eq 2 ]]
+          grep -Fxq 'benchmarks/scale/class-d-azure-5000-provision.sh' d5000-posix-repair-delta.txt
+          grep -Fxq 'tests/d5000-remote-exit-contract.test.sh' d5000-posix-repair-delta.txt
+          grep -Fq 'if [ \$setup_rc -eq 0 ]; then' benchmarks/scale/class-d-azure-5000-provision.sh
+          ! grep -Fq 'if [[ \$setup_rc -eq 0 ]]; then' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq '/bin/sh -c "$command"' tests/d5000-remote-exit-contract.test.sh
+          bash -n benchmarks/scale/class-d-azure-5000-provision.sh
+          bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
+          echo 'TRUYN_D5000_POSIX_EXACT_SOURCE=PASS'
+      - name: Prove guest body runs correctly under Azure POSIX sh wrapper
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash tests/d5000-remote-exit-contract.test.sh
+          bash tests/d5000-red-host-snapshot.test.sh
+          echo 'TRUYN_D5000_POSIX_REMOTE_TEST=PASS'
+      - name: Strict 5000-node safety and admission contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --test benchmarks/scale/class-d-5000-admission.test.js
+          echo 'TRUYN_D5000_POSIX_ACCEPTANCE=PASS'
+      - name: Verify immutable runtime can build without Azure
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          mkdir -p qualification
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh qualification/d5000-posix-runtime.tgz
+          sha256sum -c qualification/d5000-posix-runtime.tgz.sha256
+          tar -xOf qualification/d5000-posix-runtime.tgz manifest.json | jq -e --arg sha "$TESTED_COMMIT" '.sourceSha==$sha'
+          echo "TRUYN_D5000_POSIX_QUALIFICATION=PASS sha=$TESTED_COMMIT tree=$TESTED_TREE_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: truyn-d5000-posix-qualify-${{ github.run_id }}
+          path: |
+            d5000-posix-repair-delta.txt
+            qualification/d5000-posix-runtime.tgz.sha256
+          if-no-files-found: warn
