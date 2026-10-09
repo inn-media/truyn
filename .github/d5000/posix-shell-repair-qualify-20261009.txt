@@ -7,3 +7,9 @@ exact_repaired_source=f013cd3697ad7761e7ce8b11f5e3eb6fece7202f
 exact_tree=ff590c212e80f6e060a3b26bf9eeae0508979e46
 strict_acceptance=unchanged
 provision_vm=false
+
+qualifier_revision=2
+first_offline_qualifier=37905876407
+first_offline_failure=test_file_quasi_quote
+candidate=6e66dab54d703654886a5b396d1dc9ed41f3a713
+candidate_tree=606d3dc0795c353c463466776b4f0a6f1bf6d3fa
