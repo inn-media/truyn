@@ -28,7 +28,8 @@ export function buildClassD1000BootstrapPlan(records, {
   seed = 'truyn-class-d-1000',
   maxPeersPerNode = 32,
   peersPerBucket = 2,
-  requiredFailureDomains = null
+  requiredFailureDomains = null,
+  localNodeIds = null
 } = {}) {
   if (!Array.isArray(records) || records.length < 2) throw new Error('at least two peer records are required');
   if (!Number.isInteger(maxPeersPerNode) || maxPeersPerNode < 1) throw new Error('maxPeersPerNode must be >= 1');
@@ -60,8 +61,37 @@ export function buildClassD1000BootstrapPlan(records, {
     }
   }
 
+  // D-5000: each VM owns only its local nodes. Evaluate every candidate peer
+  // against the full globally validated set, but do not rebuild plans for
+  // nodes hosted by the other 19 VMs. With H hosts this removes H-fold
+  // redundant per-host CPU and SHA256 work without changing any peer choice.
+  let localRecords = records;
+  if (localNodeIds !== null) {
+    if (!Array.isArray(localNodeIds) || localNodeIds.length === 0 ||
+        localNodeIds.some((id) => typeof id !== 'string' || !id)) {
+      throw new Error('localNodeIds must be a nonempty array of node IDs');
+    }
+    const requested = new Set(localNodeIds);
+    if (requested.size !== localNodeIds.length || [...requested].some((id) => !unique.has(id))) {
+      throw new Error('localNodeIds must be unique and present in full peer records');
+    }
+    localRecords = records.filter((record) => requested.has(record.nodeId));
+  }
+
+  // Pre-index the failure domains once rather than filtering every global
+  // record for each domain on each local node. Original candidate ordering,
+  // score, tie-breaking and all 20-domain acceptance rules remain identical.
+  const domainRecords = new Map();
+  if (requiredFailureDomains != null) {
+    for (const record of records) {
+      const domain = failureDomains.get(record.nodeId);
+      if (!domainRecords.has(domain)) domainRecords.set(domain, []);
+      domainRecords.get(domain).push(record);
+    }
+  }
+
   const plan = new Map();
-  for (const local of records) {
+  for (const local of localRecords) {
     const localDhtId = dhtIds.get(local.nodeId);
     const buckets = new Map();
     for (const peer of records) {
@@ -82,8 +112,8 @@ export function buildClassD1000BootstrapPlan(records, {
     if (requiredFailureDomains != null) {
       const domains = [...new Set(failureDomains.values())].sort();
       for (const domain of domains) {
-        const candidates = records
-          .filter((peer) => peer.nodeId !== local.nodeId && failureDomains.get(peer.nodeId) === domain)
+        const candidates = domainRecords.get(domain)
+          .filter((peer) => peer.nodeId !== local.nodeId)
           .map((peer) => ({
             peer,
             score: deterministicScore(`${seed}:failure-domain:${domain}`, local.nodeId, peer.nodeId)
