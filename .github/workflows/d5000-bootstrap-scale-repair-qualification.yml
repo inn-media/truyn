@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 50
     env:
-      TESTED_COMMIT: d407b96d7d1b93fa677fd2f8e0f09eca2d5f9fb6
-      TESTED_TREE_SHA: 883fcb530717301a9d87ff635dbb2b4e2a5984a2
+      TESTED_COMMIT: 48d51f4da63fc2f7712f4d6be4b8808baf2bfd1a
+      TESTED_TREE_SHA: 099a05a0909dbcabe01cef178f9e62c7efed4a7b
       FAILED_ATTEMPT3_SOURCE: 6e66dab54d703654886a5b396d1dc9ed41f3a713
     steps:
       - uses: actions/checkout@v4
@@ -51,8 +51,30 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          node --test tests/d5000-bootstrap-scale-guard.test.js tests/class-d-1000-bootstrap.test.js tests/peer-discovery-periodic-refresh.test.js tests/peer-discovery-refresh-bounds.test.js benchmarks/scale/class-d-5000-admission.test.js
+          node --test tests/d5000-bootstrap-scale-guard.test.js tests/peer-discovery-periodic-refresh.test.js tests/peer-discovery-refresh-bounds.test.js benchmarks/scale/class-d-5000-admission.test.js
           echo 'TRUYN_D5000_SCALE_REGRESSION=PASS'
+      - name: Prove original immutable D1000 planner selects exactly the same peers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git show "$FAILED_ATTEMPT3_SOURCE:benchmarks/scale/class-d-1000-bootstrap.js" > benchmarks/scale/.frozen-d5000-original-bootstrap.mjs
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { buildClassD1000BootstrapPlan as original } from './benchmarks/scale/.frozen-d5000-original-bootstrap.mjs';
+          import { buildClassD1000BootstrapPlan as repaired } from './benchmarks/scale/class-d-1000-bootstrap.js';
+          const hosts=20, perHost=50;
+          const records=Array.from({length:hosts*perHost},(_,i)=>({nodeId:'truyn:node:h'+Math.floor(i/perHost)+'-n'+i,endpoints:['quic://10.42.'+Math.floor(i/perHost)+'.10:'+(4400+i%perHost)]}));
+          const options={seed:'frozen-plan-equivalence',maxPeersPerNode:32,peersPerBucket:2,requiredFailureDomains:20};
+          const full=original(records,options);
+          for(let host=0;host<hosts;host++){
+            const localNodeIds=records.slice(host*perHost,(host+1)*perHost).map(r=>r.nodeId);
+            const local=repaired(records,{...options,localNodeIds});
+            assert.equal(local.size,perHost);
+            for(const nodeId of localNodeIds)assert.deepEqual(local.get(nodeId).map(p=>p.nodeId),full.get(nodeId).map(p=>p.nodeId));
+          }
+          console.log('TRUYN_D5000_ORIGINAL_IMMUTABLE_D1000_PLANNER_EQUIVALENCE=PASS nodes=1000 hosts=20 per_node_peers=32 domains=20');
+          NODE
+          rm -f benchmarks/scale/.frozen-d5000-original-bootstrap.mjs
       - name: Rebuild immutable runtime bundle with exact candidate source SHA
         shell: bash
         run: |
