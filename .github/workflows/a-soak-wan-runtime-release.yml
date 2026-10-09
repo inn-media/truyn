@@ -1,0 +1,90 @@
+name: A-SOAK WAN Runtime Immutable Release
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: a-soak-wan-runtime-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  frozen-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Require exact accepted public main, DCO and safety checks
+        env:
+          GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main && "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          current="$(gh api repos/${{ github.repository }}/branches/main --jq '.commit.sha')"
+          [[ "$current" == "$GITHUB_SHA" ]] || { echo 'A_SOAK_RUNTIME=BLOCKED_MOVING_MAIN'; exit 74; }
+          gh api --method GET "repos/${{ github.repository }}/commits/$GITHUB_SHA/check-runs?per_page=100" \
+            > "$RUNNER_TEMP/asoak-public-checks.json"
+          jq -e '.total_count<=100 and (.check_runs|type=="array")' "$RUNNER_TEMP/asoak-public-checks.json" >/dev/null || { echo 'A_SOAK_RUNTIME=BLOCKED_PAGINATION'; exit 73; }
+          # Require all independent acceptance jobs on the EXACT commit,
+          # not only this workflow's own green state.
+          for name in test DCO mandatory-security-safety network integration component regression 'Analyze (javascript-typescript)' 'Analyze (actions)'; do
+            jq -e --arg name "$name" \
+              '[.check_runs[]|select(.name==$name and .status=="completed" and .conclusion=="success")]|length>0' \
+              "$RUNNER_TEMP/asoak-public-checks.json" >/dev/null ||
+              { echo "A_SOAK_RUNTIME=BLOCKED_EXACT_MAIN_CHECK name=$name"; exit 75; }
+          done
+          echo 'A_SOAK_RUNTIME_EXACT_MAIN_ADMISSION=PASS'
+      - name: Install pinned source runtime dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Build, hash and independently inspect exact public WAN runtime
+        id: bundle
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          out="$RUNNER_TEMP/truyn-a-soak-wan-runtime.tgz"
+          TRUYN_TESTED_COMMIT="$GITHUB_SHA" scripts/build-class-d-1000-runtime-bundle.sh "$out"
+          digest="$(awk '{print $1}' "$out.sha256")"
+          [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || exit 76
+          printf '%s  %s\n' "$digest" "$out" | sha256sum --check
+          tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+          tar -xzf "$out" -C "$tmp"
+          jq -e --arg sha "$GITHUB_SHA" \
+            '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$sha and .osCompatibility=="ubuntu-22.04-amd64"' \
+            "$tmp/manifest.json" >/dev/null
+          test -f "$tmp/app/network/testnet/node-service.js"
+          test -x "$tmp/runtime/bin/node"
+          jq -e '.contents|index("node_modules")!=null' "$tmp/manifest.json" >/dev/null
+          cp "$tmp/manifest.json" "$RUNNER_TEMP/a-soak-wan-runtime-manifest.json"
+          cp "$out.sha256" "$RUNNER_TEMP/truyn-a-soak-wan-runtime.tgz.sha256"
+          echo "sha=$digest" >> "$GITHUB_OUTPUT"
+          echo "file=$out" >> "$GITHUB_OUTPUT"
+          echo "A_SOAK_WAN_RUNTIME_BUILD=PASS sha256:$digest source=$GITHUB_SHA"
+      - name: Publish exactly one source- and digest-pinned release
+        env:
+          GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          BUNDLE_FILE: '${{ steps.bundle.outputs.file }}'
+          BUNDLE_SHA256: '${{ steps.bundle.outputs.sha }}'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          current="$(gh api repos/${{ github.repository }}/branches/main --jq '.commit.sha')"
+          [[ "$current" == "$GITHUB_SHA" ]] || { echo 'A_SOAK_RUNTIME=BLOCKED_MAIN_MOVED_AFTER_BUILD'; exit 77; }
+          tag="a-soak-wan-runtime-$GITHUB_SHA"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "A_SOAK_RUNTIME=BLOCKED_DUPLICATE_RELEASE tag=$tag"; exit 78
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "A_SOAK_RUNTIME=BLOCKED_DUPLICATE_TAG tag=$tag"; exit 79
+          fi
+          gh release create "$tag" "$BUNDLE_FILE" \
+            "$RUNNER_TEMP/truyn-a-soak-wan-runtime.tgz.sha256" \
+            "$RUNNER_TEMP/a-soak-wan-runtime-manifest.json" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "TRUYN A-SOAK WAN runtime $GITHUB_SHA" \
+            --notes "Exact accepted public source SHA: $GITHUB_SHA. Runtime SHA256: $BUNDLE_SHA256. Not an acceptance claim; users must verify byte-identical bundle and exercise real WAN tests."
+          echo "A_SOAK_WAN_RUNTIME_RELEASE=PUBLISHED tag=$tag sha256=$BUNDLE_SHA256"
