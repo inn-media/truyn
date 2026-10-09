@@ -51,7 +51,7 @@ test('Attempt 4 snapshots timeouts independently, bounded and without influencin
 });
 
 test('Attempt 4 cannot pass without full strict evidence and cleanup', async () => {
-  const evaluator = await readFile('benchmarks/scale/evaluate-class-d-5000-evidence.js', 'utf8');
+  const evaluator = await readFile('benchmarks/scale/class-d-5000-evidence.js', 'utf8');
   const terminal = await readFile('benchmarks/scale/verify-class-d-5000-terminal.js', 'utf8');
   assert.match(evaluator, /readiness/);
   assert.match(evaluator, /baseline/);
