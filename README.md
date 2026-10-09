@@ -8,11 +8,11 @@ TRUYN is a logical network for agent-to-agent communication, decentralized AI, c
 
 Website: https://truyn.org/
 
-[Manifesto](MANIFESTO.md) · [Whitepaper](WHITEPAPER.md) · [Architecture](STRUCTURE.md) · [Status](docs/architecture/IMPLEMENTATION_STATUS.md) · [Roadmap](ROADMAP.md) · [Open/Private Boundary](docs/architecture/OPEN_PRIVATE_BOUNDARY.md) · [Cross-Repo Routing](docs/architecture/CROSS_REPO_TASK_ROUTING.md) · [A2A/MCP](docs/architecture/A2A_MCP_INTEROPERABILITY.md) · [NLWeb](docs/architecture/NLWEB_INTEROPERABILITY.md) · [SDK/DX](docs/architecture/SDK_DEVELOPER_EXPERIENCE.md) · [Native Clients](docs/architecture/NATIVE_CLIENTS.md) · [Governance](GOVERNANCE.md) · [Security](SECURITY.md)
+[A-Series Assurance](docs/assurance/README.md) · [Manifesto](MANIFESTO.md) · [Whitepaper](WHITEPAPER.md) · [Architecture](STRUCTURE.md) · [Status](docs/architecture/IMPLEMENTATION_STATUS.md) · [Roadmap](ROADMAP.md) · [Open/Private Boundary](docs/architecture/OPEN_PRIVATE_BOUNDARY.md) · [Cross-Repo Routing](docs/architecture/CROSS_REPO_TASK_ROUTING.md) · [A2A/MCP](docs/architecture/A2A_MCP_INTEROPERABILITY.md) · [NLWeb](docs/architecture/NLWEB_INTEROPERABILITY.md) · [SDK/DX](docs/architecture/SDK_DEVELOPER_EXPERIENCE.md) · [Native Clients](docs/architecture/NATIVE_CLIENTS.md) · [Governance](GOVERNANCE.md) · [Security](SECURITY.md)
 
 ## Current factual status
 
-**Snapshot:** 2026-10-08  
+**Snapshot:** 2026-10-09 (A-Series docs reconciliation)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`  
@@ -26,6 +26,8 @@ Website: https://truyn.org/
 | Class D-500 | **Accepted / PASS; repeatability-confirmed by two consecutive exact-frozen runs** |
 | Class D-1000 | **Accepted / PASS; 20 hosts / 1,000 real processes** |
 | Semantic Scale S-Series | **S-10 + S-20 + S-50 + S-100 accepted / PASS; S-200+ remain OPEN** |
+| A-Series Assurance | **Public foundation merged / real A-SOAK Attempt 1 not launched** |
+| D-5000 | **NOT ACCEPTED**; live Attempt 3 run `37908203516` was in progress at the documentation snapshot |
 | Efficiency E-Series | **Active qualification; no final E PASS claimed** |
 | Account → Organization → Tenant | **Implemented / accepted; managed implementation owned by TRUYN Platform** |
 | Managed authority runtime/accounting | **Implemented / accepted in TRUYN Platform; public repository exposes contracts/reference seams only** |
@@ -41,7 +43,7 @@ Website: https://truyn.org/
 | Governance | **G1 / bootstrap Founding Stewardship** |
 | Stable mainnet | **Not yet** |
 
-The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Operational D-scale status remains delegated to [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md). The latest documentation reconciliation is recorded in [Documentation Sanitation — 2026-10-08](docs/operations/DOCUMENTATION_SANITATION_2026-10-08.md).
+The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Operational D-scale status remains delegated to [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md). The latest documentation reconciliation is recorded in [Documentation Sanitation — 2026-10-09 A-Series](docs/operations/DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md).
 
 ### Status vocabulary
 
@@ -53,6 +55,8 @@ Repository documentation distinguishes:
 - **open** — the acceptance boundary is not closed.
 
 A failed/diagnostic attempt is evidence, not PASS.
+
+A-Series public foundation [PR #922](https://github.com/inn-media/truyn/pull/922) was merged at `64fc6e845339880da19f43298a3f863122759496`; public runtime release controller [PR #925](https://github.com/inn-media/truyn/pull/925) at `480d70442b4044057399a031f895f6f9ab97231d`. Neither merge is real A-SOAK acceptance. [Assurance contract](docs/assurance/README.md) defines A-SOAK → A-OPS → A-SLO → A-WIRE → A-NET; private A-MGMT belongs to TRUYN Platform. No published immutable A-SOAK runtime or paid SOAK Attempt 1 was verified at this snapshot.
 
 ## Current scale boundaries
 
@@ -99,10 +103,10 @@ npm test
 4. `docs/architecture/CROSS_REPO_TASK_ROUTING.md` — OPEN / PRIVATE / BOTH routing contract;
 5. `docs/operations/NETWORK_SCALE_STATUS.md` — current D-Series operational acceptance;
 6. `docs/architecture/IMPLEMENTATION_STATUS.md` — repository-wide factual maturity;
-7. `docs/operations/DOCUMENTATION_SANITATION_2026-10-07.md` — latest repository-wide documentation reconciliation;
+7. `docs/operations/DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md` — latest A-Series documentation reconciliation; `docs/operations/DOCUMENTATION_SANITATION_2026-10-08.md` retains D-1000 acceptance sanitation;
 8. `docs/operations/S_SERIES_SANITATION_S100_2026-10-08.md` — current S-Series reconciliation;
 9. `docs/benchmarks/` — immutable accepted/failed measured evidence;
-9. `ROADMAP.md` — next gates.
+10. `ROADMAP.md` — next gates.
 
 Historical issues/PRs/docs remain audit history and do not override later accepted evidence. Historical benchmark evidence is append-only under the repository **redact-not-delete** policy.
 
@@ -134,6 +138,8 @@ Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`,
 
 **Scope boundary:** this demonstrates repeatability of the specified 1,000-process Class-D scale acceptance. It does not establish long-duration production SLO compliance, private managed-production acceptance, or mainnet readiness. Public repository remains the authoritative source of benchmark/evaluator/evidence; private repository consumes only immutable identifiers and sanitized public metrics.
 
-## D-5000 Attempt 1 — PREPARING / QUOTA FIRST / NOT RUN (2026-10-08)
+**D-5000 current update:** Attempt 1 was later executed and failed; additional attempts followed. At this snapshot [Attempt 3 run #37908203516](https://github.com/inn-media/truyn/actions/runs/37908203516) was in progress. Do not treat the dated preparation passage below as current status or any offline pass as final D-5000 acceptance.
+
+## Historical D-5000 Attempt 1 preparation snapshot (2026-10-08; superseded)
 
 D-1000 Attempt 1 and independent exact-frozen Double-Check are **PASS / REPEATABILITY CONFIRMED** (runs `37687469411` and `37785777704`). The next planned gate is **D-5000 Attempt 1: 20 hosts × 250 real processes = 5,000**. Exact D-1000 launchers and original launch marker are preserved on public branch [`d5000/attempt1-preparation-20261008`](https://github.com/inn-media/truyn/tree/d5000/attempt1-preparation-20261008), without changing frozen D-1000 evidence. Azure quota-only workflow run [`37795027151`](https://github.com/inn-media/truyn/actions/runs/37795027151) was dispatched separately with a provisional 800-vCPU regional/family quota target in `southcentralus`; do not infer approval or usable VM capacity from dispatch. D-5000 benchmark **has not been launched**. Work remains: adapt 50-node cap to 250 per host, exact 5,000-node evaluator, runtime qualification, live Azure quota/capacity, security/durability/recovery/cleanup gates. Never run D-5000 without a new explicit launch authorization. Authority: [`docs/operations/class-d/D5000_ATTEMPT1_PREPARATION_2026-10-08.md`](https://github.com/inn-media/truyn/blob/main/docs/operations/class-d/D5000_ATTEMPT1_PREPARATION_2026-10-08.md).

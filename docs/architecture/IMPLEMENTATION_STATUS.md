@@ -1,7 +1,7 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot:** 2026-10-08  
+**Snapshot:** 2026-10-09 (A-Series docs reconciliation)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
@@ -29,6 +29,8 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Class D-1000 | **ACCEPTED / PASS** | preserve immutable Attempt 1 / run_attempt=2 evidence |
 | D-Series execution architecture | **Swarm-Blockwise lock retained as accepted baseline** | preserve for future repeatability/new explicit D-scale gates |
 | Semantic Scale S-Series | **S-10 + S-20 + S-50 + S-100 accepted / PASS; S-200+ OPEN** | preserve accepted S-100 evidence; decompose contention residual; execute S-200 independently |
+| A-Series Assurance | **PUBLIC FOUNDATION MERGED, no measured A-SOAK PASS** | exact runtime release + full independent four-VM assurance |
+| D-5000 | **Not accepted; Attempt 3 live at dated snapshot** | independently verified terminal and cleanup, isolated from A-Series |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
 | Emergent Network N-Series | **FOUNDATION DEFINED / NOT YET EXECUTED** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
@@ -114,6 +116,10 @@ Canonical S documents:
 - `../../config/s-series-swarm-blockwise-architecture-lock.json`
 - `../../config/s-series-public-contract-manifest.json`
 
+## A-Series assurance boundary (2026-10-09)
+
+Merged [A-Series foundation](../assurance/README.md) PR #922 source merge `64fc6e845339880da19f43298a3f863122759496` and release-controller PR #925 merge `480d70442b4044057399a031f895f6f9ab97231d` are **foundation only**. No independently verified published A-SOAK WAN .tgz SHA256 or real 3600s Attempt 1 was observed. Public A-SOAK → A-OPS → A-SLO → A-WIRE → A-NET; private A-MGMT/VM/budget/ledger owned by TRUYN Platform. No stable TRUYN/1 or production/network PASS follows from documentation. See [sanitation record](../operations/DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md).
+
 ## Efficiency E-Series boundary
 
 E-Series is no longer accurately described as merely “not yet executed”. Qualification, isolation/interference and provider-smoke work exists, but no final E/DECOMPOSE, E/PER-RESULT, E/KNEE or E/DEGRADE acceptance result is claimed here. Current status should therefore be read as **active qualification / no final E PASS**.
@@ -171,7 +177,7 @@ For N-Series specifically, public owns reproducible methodology, public-safe tel
 
 Current-state documents must use the vocabulary **implemented / exercised / accepted / open** consistently. Historical benchmark/evidence documents are append-only and are not rewritten to make current status look cleaner. Security sanitation is **redact-not-delete** for evidence. Ephemeral active-run state belongs in task anchors/operational status, not copied into many architecture documents.
 
-Latest repository-wide sanitation record: `../operations/DOCUMENTATION_SANITATION_2026-10-07.md`. The 2026-09-23 record remains historical evidence.
+Latest A-Series documentation reconciliation: `../operations/DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md`. D-1000 accepted-scale sanitation remains in `../operations/DOCUMENTATION_SANITATION_2026-10-08.md`; older 2026-10-07 / 2026-09-23 records are historical.
 
 ## D-1000 exact-frozen Double-Check — 2026-10-08 (authoritative update)
 

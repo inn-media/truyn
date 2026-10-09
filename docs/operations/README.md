@@ -12,6 +12,12 @@
 - recovery/DR objectives and executable restore-drill contract (`RECOVERY_DR.md`, PR `#441`);
 - managed authority runtime architecture (`MANAGED_AUTHORITY_RUNTIME.md`, PR `#457`).
 
+## Current A-Series documentation coordination (2026-10-09)
+
+- [A-Series assurance methodology](../assurance/README.md) is a merged public foundation, not a real 3600-second SOAK PASS.
+- [2026-10-09 A-Series sanitation](DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md) reconciles current status and public/private ownership. [2026-10-08 D-1000 sanitation](DOCUMENTATION_SANITATION_2026-10-08.md) remains accepted historical benchmark evidence.
+- Private A-MGMT owns cloud leases, costs, tenant billing and teardown; no public source depends on private runtime, and no documentation update is launch authorization.
+
 ## Accepted D-Series scale closure
 
 - `class-d/D_SERIES_FINAL_CLOSURE_2026-10-08.md` is the compact closure ledger for accepted D-200, repeatability-confirmed D-500 and accepted D-1000. D-1000 Attempt 1 run `37687469411`, successful `run_attempt=2`, closes the defined 20-host / 1,000-real-process Class-D scale gate. This is benchmark acceptance, not production SLO/mainnet acceptance.

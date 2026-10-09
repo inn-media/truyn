@@ -2,7 +2,7 @@
 
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`.
 
-**Snapshot:** 2026-10-08  
+**Snapshot:** 2026-10-09 (A-Series docs reconciliation)  
 **Protocol:** `TRUYN/1` draft  
 **Stable A2A/MCP v1:** **not declared**
 
@@ -12,6 +12,8 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 |---|---|---|
 | Network | **Class C + D-100 + D-200 + D-500 + D-1000 accepted** | long-duration operational/mainnet closure |
 | Semantic Scale (S-Series) | **S-10 + S-20 + S-50 + S-100 accepted; S-200+ OPEN** | decompose S-100 non-provider contention residual, then execute S-200 independently |
+| A-Series (Time × Reality) | **PUBLIC FOUNDATION MERGED / A-SOAK 1h NOT LAUNCHED** | immutable WAN runtime release + independent cloud/budget/teardown → A-SOAK → A-OPS → A-SLO → A-WIRE → A-NET → private A-MGMT |
+| D-5000 | **Not accepted; Attempt 3 was in progress at 2026-10-09 snapshot** | preserve separate scale acceptance and cloud isolation |
 | Efficiency Limits (E-Series) | **FOUNDATION DEFINED / no E result claim** | instrumentation + isolation qualification → E/DECOMPOSE → E/PER-RESULT → E/KNEE → E/DEGRADE |
 | Emergent Network (N-Series) | **Foundation architecture/methodology/telemetry/isolation defined; no N PASS claimed** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
 | Production operations | **contracts implemented** | live evidence |
@@ -24,6 +26,19 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Hidden-value / H-series | **FOUNDATION ACTIVE / no result claim** | telemetry + private runner qualification → isolated pilots → immutable H/CACHE-COMPOUND, H/SECOND-OPINION, H/ARBITRAGE, H/CHAOS-FUZZ |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Mainnet | **Not productionized** | long-duration live ops + security/reliability + release/governance gates |
+
+## A-Series independent assurance roadmap
+
+Public [A-Series contract](docs/assurance/README.md) was admitted as foundation in [PR #922](https://github.com/inn-media/truyn/pull/922), merge `64fc6e845339880da19f43298a3f863122759496`; release-workflow [PR #925](https://github.com/inn-media/truyn/pull/925), merge `480d70442b4044057399a031f895f6f9ab97231d`, is not proof of an actual released .tgz or live SOAK.
+
+- [ ] **A-SOAK:** 2 Azure + 2 GCP real VMs, 8 signed processes per VM (32), RF3, 3600s, NEED/RESULT, genuine partition/heal/churn and hour-zero write retention, independent signed evidence, verified hard cost cap and provider-native teardown; Attempt 1 UNUSED.
+- [ ] **A-OPS:** ≥24h real maintenance/rolling change/rollback with uninterrupted safety/recovery evidence.
+- [ ] **A-SLO:** full independently observed rolling 28-day period under the existing fixed SLO thresholds.
+- [ ] **A-WIRE:** 13 canonical protocol objects and separate Agent Descriptor, open interoperability and negative conformance; TRUYN/1 remains draft.
+- [ ] **A-NET:** external operators and independent network-path/sovereignty evidence.
+- [ ] **A-MGMT (PRIVATE):** private cloud leases, hard budget, tenant authority, meter/ledger/origin-lock and audited managed admission; public never consumes private secrets or implementation.
+
+The sequence is a gated evidence progression, not permission to dispatch. See [2026-10-09 sanitation report](docs/operations/DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md).
 
 ## Network scale
 
@@ -411,6 +426,8 @@ Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`,
 
 **Scope boundary:** this demonstrates repeatability of the specified 1,000-process Class-D scale acceptance. It does not establish long-duration production SLO compliance, private managed-production acceptance, or mainnet readiness. Public repository remains the authoritative source of benchmark/evaluator/evidence; private repository consumes only immutable identifiers and sanitized public metrics.
 
-## D-5000 Attempt 1 — PREPARING / QUOTA FIRST / NOT RUN (2026-10-08)
+**D-5000 current update:** Attempt 3 [run #37908203516](https://github.com/inn-media/truyn/actions/runs/37908203516) was in progress at reconciliation; no final accepted D-5000 evidence was verified. The passage below is preserved historical text.
+
+## Historical D-5000 Attempt 1 preparation snapshot (2026-10-08; superseded)
 
 D-1000 Attempt 1 and independent exact-frozen Double-Check are **PASS / REPEATABILITY CONFIRMED** (runs `37687469411` and `37785777704`). The next planned gate is **D-5000 Attempt 1: 20 hosts × 250 real processes = 5,000**. Exact D-1000 launchers and original launch marker are preserved on public branch [`d5000/attempt1-preparation-20261008`](https://github.com/inn-media/truyn/tree/d5000/attempt1-preparation-20261008), without changing frozen D-1000 evidence. Azure quota-only workflow run [`37795027151`](https://github.com/inn-media/truyn/actions/runs/37795027151) was dispatched separately with a provisional 800-vCPU regional/family quota target in `southcentralus`; do not infer approval or usable VM capacity from dispatch. D-5000 benchmark **has not been launched**. Work remains: adapt 50-node cap to 250 per host, exact 5,000-node evaluator, runtime qualification, live Azure quota/capacity, security/durability/recovery/cleanup gates. Never run D-5000 without a new explicit launch authorization. Authority: [`docs/operations/class-d/D5000_ATTEMPT1_PREPARATION_2026-10-08.md`](https://github.com/inn-media/truyn/blob/main/docs/operations/class-d/D5000_ATTEMPT1_PREPARATION_2026-10-08.md).
