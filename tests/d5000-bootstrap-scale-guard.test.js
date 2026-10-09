@@ -85,8 +85,8 @@ test('D5000 bootstrap still executes real DHT RPC refresh and requires 20-domain
   assert.match(provision, /maxRounds:4/);
   assert.match(provision, /timeoutMs:240000/);
   assert.match(provision, /\/dht\/refresh/);
-  assert.match(provision, /\.remoteEndpointDiversity\.hostCount/);
-  assert.match(provision, /remoteEndpointDiversity\\.hostCount/);
+  assert.ok(provision.includes('.remoteEndpointDiversity.hostCount'));
+  assert.ok(provision.includes('.remoteEndpointDiversity.hostCount'));
   assert.match(provision, /BOOTSTRAP_REFRESH_MIN_HOSTS/);
   assert.match(evaluator, /5000/);
   assert.match(evaluator, /250/);
