@@ -12,6 +12,8 @@ const EXECUTABLE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.sh', '.ps1', '.c
 const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/autonomous-repair.yml',
   '.github/workflows/ci.yml',
+  '.github/workflows/a-series-foundation.yml',
+  '.github/workflows/a-soak-wan-runtime-release.yml',
   '.github/workflows/native-clients.yml',
   '.github/workflows/class-d-blockwise-preflight.yml',
   '.github/workflows/class-d-bootstrap-launcher.yml',
@@ -56,6 +58,8 @@ const ALLOWED_WORKFLOWS = new Set([
 // and a new independently qualified exact Git blob SHA. Existing secret/topology
 // scanners run unchanged on these files, including all credential patterns.
 const PINNED_D5000_WORKFLOWS = new Map([
+  ['.github/workflows/d5000-attempt2-retry1-approved.yml', 'a402af7871c794a00f8d86662e5c436751d503b9'],
+  ['.github/workflows/d5000-attempt2-retry1-qualification.yml', '38c45016bccbb57d7c34b7d4f57fde4f6845990a'],
   ['.github/workflows/d5000-abort-37824934693.yml', '69f30f678d3cf7bcbd4e1270a353f10ebf682536'],
   ['.github/workflows/d5000-attempt1.yml', 'a56e56234196eb97f771e70f1359e530bc6d0948'],
   ['.github/workflows/d5000-attempt2-approved-only.yml', '33b202f6d1743045f19fe98fc212d41b2edc6dcc'],

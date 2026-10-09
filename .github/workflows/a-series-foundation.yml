@@ -1,0 +1,33 @@
+name: A-Series Foundation (offline, non-admitting)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/a-series-foundation.yml'
+      - 'assurance/**'
+      - 'tests/a-series-assurance.test.js'
+      - 'tests/a-soak-runtime-release-contract.test.js'
+      - '.github/workflows/a-soak-wan-runtime-release.yml'
+      - 'docs/assurance/**'
+      - 'spec/**'
+      - 'core/protocol/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Preliminary A-WIRE existing protocol/interop guards (not stable TRUYN/1)
+        run: node --test tests/protocol-v1-rc.test.js tests/protocol-v1-negotiation-fixtures.test.js tests/interoperability-bidirectional.test.js tests/agent-descriptor-refresh.test.js
+      - name: A-Series pre-admission evaluator contract and negatives
+        run: node --test tests/a-series-assurance.test.js tests/a-soak-runtime-release-contract.test.js
+      - name: Ensure public/private boundary remains fail closed
+        run: node scripts/check-open-private-boundary.mjs

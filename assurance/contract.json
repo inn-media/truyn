@@ -1,0 +1,103 @@
+{
+  "schema": "truyn.assurance.foundation.v1",
+  "status": "FOUNDATION_NOT_ACCEPTED",
+  "d1000Reference": {
+    "runId": "37687469411",
+    "runAttempt": 2,
+    "source": "docs/operations/NETWORK_SCALE_STATUS.md",
+    "thresholdSource": "benchmarks/scale/class-d.js"
+  },
+  "soak": {
+    "rungs": [
+      {
+        "name": "1h",
+        "seconds": 3600,
+        "mode": "github-hosted"
+      },
+      {
+        "name": "3h",
+        "seconds": 10800,
+        "mode": "github-hosted"
+      },
+      {
+        "name": "6h",
+        "seconds": 21600,
+        "mode": "detached-vm"
+      },
+      {
+        "name": "24h",
+        "seconds": 86400,
+        "mode": "detached-vm"
+      },
+      {
+        "name": "72h",
+        "seconds": 259200,
+        "mode": "detached-vm"
+      },
+      {
+        "name": "7d",
+        "seconds": 604800,
+        "mode": "detached-vm"
+      },
+      {
+        "name": "30d",
+        "seconds": 2592000,
+        "mode": "detached-vm"
+      }
+    ],
+    "topology": {
+      "azureVMs": 2,
+      "gcpVMs": 2,
+      "processesPerVM": 8,
+      "processes": 32,
+      "replicationFactor": 3
+    },
+    "resourceMetrics": [
+      "rssBytes",
+      "heapBytes",
+      "fdCount",
+      "dhtEntries",
+      "diskBytes"
+    ],
+    "requiredEvents": [
+      "churn",
+      "partitionHeal"
+    ],
+    "sampleIntervalSeconds": 60
+  },
+  "wire": {
+    "protocol": "TRUYN/1",
+    "status": "draft",
+    "canonicalObjects": [
+      "IDENTITY",
+      "OFFER",
+      "NEED",
+      "OBJECT",
+      "CLAIM",
+      "ATTEST",
+      "STATE",
+      "DELTA",
+      "SUBSCRIBE",
+      "COMPUTE",
+      "RESULT",
+      "TRUST_RECEIPT",
+      "REVOKE"
+    ],
+    "extra": "Agent Descriptor"
+  },
+  "slo": {
+    "contract": "docs/operations/PRODUCTION_SLO.md",
+    "windowDays": 28,
+    "independentProbes": [
+      "azure",
+      "gcp"
+    ]
+  },
+  "admission": {
+    "requiresExternalCloudProof": true,
+    "requiresImmutableEvidence": true,
+    "requiresCleanup": true,
+    "defaultSpendEnabled": false,
+    "defaultDispatchEnabled": false
+  }
+}
