@@ -80,12 +80,18 @@ test('D5000 bootstrap still executes real DHT RPC refresh and requires 20-domain
   assert.match(provision, /STRICT_NODES_PER_HOST=250/);
   assert.match(provision, /BOOTSTRAP_MAX_PEERS_PER_NODE=32/);
   assert.match(provision, /localNodeIds: localRecords\.map/);
-  assert.match(provision, /D5000_BOOTSTRAP_REFRESH_TARGET_COUNT=8/);
-  assert.match(provision, /D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY=2/);
+  // Full D-5000 is a strict comparable scale test; no silent low-load 8/2 profile.
+  assert.match(provision, /^D5000_BOOTSTRAP_REFRESH_TARGET_COUNT=32$/m);
+  assert.match(provision, /^D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY=4$/m);
+  assert.doesNotMatch(provision, /^D5000_BOOTSTRAP_REFRESH_TARGET_COUNT=8$/m);
+  assert.doesNotMatch(provision, /^D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY=2$/m);
+  assert.match(provision, /targetCount:\$\{D5000_BOOTSTRAP_REFRESH_TARGET_COUNT\}/);
+  assert.match(provision, /targetConcurrency:\$\{D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY\}/);
+  assert.match(provision, /BOOTSTRAP_REFRESH_TARGETS\)/);
+  assert.match(provision, /BOOTSTRAP_REFRESH_CONCURRENCY\)/);
   assert.match(provision, /maxRounds:4/);
   assert.match(provision, /timeoutMs:240000/);
   assert.match(provision, /\/dht\/refresh/);
-  assert.ok(provision.includes('.remoteEndpointDiversity.hostCount'));
   assert.ok(provision.includes('.remoteEndpointDiversity.hostCount'));
   assert.match(provision, /BOOTSTRAP_REFRESH_MIN_HOSTS/);
   assert.match(evaluator, /5000/);

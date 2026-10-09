@@ -35,12 +35,11 @@ D500_PROVISION_ATTEMPTS="${TRUYN_D500_PROVISION_ATTEMPTS:-3}"
 [[ "$D500_PROVISION_ATTEMPTS" =~ ^[1-9][0-9]*$ && "$D500_PROVISION_ATTEMPTS" -le 5 ]]
 BOOTSTRAP_MAX_PEERS_PER_NODE=32
 BOOTSTRAP_PEERS_PER_BUCKET=2
-# D-5000 discovery refresh walks are not bootstrap peer count. The full 32
-# signed bootstrap records still span 20 hosts. Eight real Kademlia target
-# walks validate dynamic discovery without amplifying millions of redundant
-# RPCs after seeds are installed.
-D5000_BOOTSTRAP_REFRESH_TARGET_COUNT=8
-D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY=2
+# Main D-5000 acceptance must retain the original D-1000-equivalent DHT
+# refresh workload. Do not substitute the lighter 8/2 diagnostic profile.
+# All 32 signed bootstrap peers across 20 failure domains remain mandatory.
+D5000_BOOTSTRAP_REFRESH_TARGET_COUNT=32
+D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY=4
 BOOTSTRAP_MIN_PEER_LEASE_REMAINING_MS=900000
 QUIC_BASE=4400
 CONTROL_BASE=8700
