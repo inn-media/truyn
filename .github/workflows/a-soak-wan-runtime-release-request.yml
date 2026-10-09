@@ -4,8 +4,7 @@ on:
     branches: [main]
     paths: ['.github/a-series/a-soak-wan-runtime-release-request.json']
 permissions:
-  contents: read
-  actions: write
+  contents: write
   checks: read
 concurrency:
   group: truyn-a-soak-wan-runtime-request-exact-main
@@ -49,5 +48,52 @@ jobs:
             sleep 20
           done
           [[ "$found" == true ]] || { echo 'A_SOAK_RUNTIME_REQUEST=BLOCKED_EXACT_MAIN_CI'; exit 72; }
-          gh workflow run a-soak-wan-runtime-release.yml --ref main -R "$GITHUB_REPOSITORY"
-          echo "A_SOAK_RUNTIME_REQUEST=DISPATCHED source=$GITHUB_SHA cloud_mutations=0 soak_attempt1=UNUSED"
+          echo "A_SOAK_RUNTIME_REQUEST=EXACT_MAIN_ADMITTED source=$GITHUB_SHA cloud_mutations=0 soak_attempt1=UNUSED"
+      - name: Install exact public runtime dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Build and inspect immutable public WAN archive
+        id: bundle
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          out="$RUNNER_TEMP/truyn-a-soak-wan-runtime.tgz"
+          TRUYN_TESTED_COMMIT="$GITHUB_SHA" scripts/build-class-d-1000-runtime-bundle.sh "$out"
+          digest="$(awk '{print $1}' "$out.sha256")"
+          [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || exit 76
+          printf '%s  %s\n' "$digest" "$out" | sha256sum --check
+          tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+          tar -xzf "$out" -C "$tmp"
+          jq -e --arg sha "$GITHUB_SHA" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$sha and .osCompatibility=="ubuntu-22.04-amd64"' "$tmp/manifest.json" >/dev/null
+          test -f "$tmp/app/network/testnet/node-service.js"
+          test -x "$tmp/runtime/bin/node"
+          jq -e '.contents|index("node_modules")!=null' "$tmp/manifest.json" >/dev/null
+          cp "$tmp/manifest.json" "$RUNNER_TEMP/a-soak-wan-runtime-manifest.json"
+          cp "$out.sha256" "$RUNNER_TEMP/truyn-a-soak-wan-runtime.tgz.sha256"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "file=$out" >> "$GITHUB_OUTPUT"
+          echo "A_SOAK_WAN_RUNTIME_BUILD=PASS source=$GITHUB_SHA sha256:$digest"
+      - name: Publish exactly one immutable archive after exact-main recheck
+        shell: bash
+        env:
+          GH_TOKEN: '${{ github.token }}'
+          BUNDLE_FILE: '${{ steps.bundle.outputs.file }}'
+          BUNDLE_SHA256: '${{ steps.bundle.outputs.digest }}'
+        run: |
+          set -Eeuo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$current" == "$GITHUB_SHA" ]] || { echo 'A_SOAK_RUNTIME=BLOCKED_MOVING_MAIN_AFTER_BUILD'; exit 77; }
+          tag="a-soak-wan-runtime-$GITHUB_SHA"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "A_SOAK_RUNTIME=BLOCKED_DUPLICATE_RELEASE tag=$tag"; exit 78
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "A_SOAK_RUNTIME=BLOCKED_DUPLICATE_TAG tag=$tag"; exit 79
+          fi
+          gh release create "$tag" "$BUNDLE_FILE" \
+            "$RUNNER_TEMP/truyn-a-soak-wan-runtime.tgz.sha256" \
+            "$RUNNER_TEMP/a-soak-wan-runtime-manifest.json" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "TRUYN A-SOAK WAN runtime $GITHUB_SHA" \
+            --notes "Exact accepted public main SHA: $GITHUB_SHA. Runtime SHA256: $BUNDLE_SHA256. No A-SOAK Attempt 1 was launched."
+          echo "A_SOAK_WAN_RUNTIME_RELEASE=PUBLISHED tag=$tag sha256=$BUNDLE_SHA256"
+
