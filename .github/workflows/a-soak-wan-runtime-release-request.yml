@@ -68,7 +68,8 @@ jobs:
           test -x "$tmp/runtime/bin/node"
           jq -e '.contents|index("node_modules")!=null' "$tmp/manifest.json" >/dev/null
           cp "$tmp/manifest.json" "$RUNNER_TEMP/a-soak-wan-runtime-manifest.json"
-          cp "$out.sha256" "$RUNNER_TEMP/truyn-a-soak-wan-runtime.tgz.sha256"
+          # build script already wrote $out.sha256 at the final release asset path.
+          test -s "$RUNNER_TEMP/truyn-a-soak-wan-runtime.tgz.sha256"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           echo "file=$out" >> "$GITHUB_OUTPUT"
           echo "A_SOAK_WAN_RUNTIME_BUILD=PASS source=$GITHUB_SHA sha256:$digest"
