@@ -472,15 +472,16 @@ export class TruynNetworkNode {
     // Never race the control plane: skip owners we are still placing our own record with.
     const placing = new Set(this.peerRecordLifecycle.propagation?.pendingNodeIds || []);
     const horizon = 2 * this.#leaseKeeperIntervalMs() + this.peerRecordRenewBeforeMs;
-    const due = [...this.discovery.records.values()]
-      .filter((record) => record.nodeId !== this.identity.nodeId && !placing.has(record.nodeId))
+    const due = this.discovery.routingRecords()
+      .filter((record) => !placing.has(record.nodeId))
       .map((record) => ({ record, expires: Date.parse(record.expiresAt) }))
       .filter(({ expires }) => Number.isFinite(expires) && expires - now <= horizon && now - expires <= horizon)
       .sort((a, b) => a.expires - b.expires)
       .slice(0, maxPeers);
     let cursor = 0;
+    let backpressure = false;
     await Promise.all(Array.from({ length: Math.min(concurrency, due.length) }, async () => {
-      while (cursor < due.length && this.started && !this.closing) {
+      while (cursor < due.length && !backpressure && this.started && !this.closing) {
         const { record, expires } = due[cursor++];
         this.leaseKeeperStats.pinged += 1;
         try {
@@ -488,8 +489,9 @@ export class TruynNetworkNode {
           await new Promise((resolve) => setImmediate(resolve));
           const current = this.discovery.records.get(record.nodeId);
           if (current && Date.parse(current.expiresAt) > expires) this.leaseKeeperStats.refreshed += 1;
-        } catch {
+        } catch (error) {
           this.leaseKeeperStats.failed += 1;
+          if (error?.code === 'TRUYN_BUSY') backpressure = true;
         }
       }
     }));

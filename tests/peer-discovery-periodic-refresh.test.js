@@ -135,7 +135,8 @@ test('PeerDiscovery periodic refresh does not overlap an in-flight refresh', asy
 
 test('PeerDiscovery reserves bounded refresh budget for records nearest to expiry', () => {
   const local = createIdentity();
-  const discovery = new PeerDiscovery({ identity: local, k: 4 });
+  // Keep all 8 test contacts inside routing buckets before evaluating expiries.
+  const discovery = new PeerDiscovery({ identity: local, k: 8 });
   const now = Date.parse('2026-09-08T18:00:00.000Z');
   const remotes = Array.from({ length: 8 }, () => createIdentity());
   const expiries = [90_000, 10_000, 50_000, 20_000, 70_000, 30_000, 80_000, 40_000];
@@ -158,6 +159,80 @@ test('PeerDiscovery reserves bounded refresh budget for records nearest to expir
   assert.deepEqual(plan.nearExpiryTargets, [remotes[1].nodeId, remotes[3].nodeId]);
   assert.equal(plan.xorTargets.length, 2);
   assert.deepEqual(plan.targets.slice(0, 2), plan.nearExpiryTargets);
+});
+
+test('bounded signed peer cache never evicts routing contacts and refresh targets route contacts', () => {
+  const local = createIdentity();
+  const discovery = new PeerDiscovery({ identity: local, k: 2, maxCachedRecords: 3 });
+  const now = Date.parse('2026-10-09T12:00:00Z');
+  const remotes = Array.from({ length: 80 }, () => createIdentity());
+  remotes.forEach((identity, index) => {
+    const record = peerRecord({ identity, issuedAtMs: now, ttlMs: 60_000 + index * 1_000, port: 5800 + index });
+    assert.equal(discovery.ingest(record, { now }).accepted, true);
+  });
+  const routing = new Set(discovery.routing.snapshot().map((peer) => peer.nodeId));
+  assert.ok(routing.size > 0);
+  for (const id of routing) assert.ok(discovery.records.has(id), 'never evict a current routing contact');
+  assert.ok(discovery.records.size <= routing.size + 3 + 32);
+  assert.ok(discovery.recordEvictions > 0);
+  assert.deepEqual(new Set(discovery.routingRecords().map((record) => record.nodeId)), routing);
+  const plan = discovery.refreshTargetPlan({ targetCount: 8, expiryTargetCount: 4, now, seed: 'bounded-routing' });
+  assert.ok(plan.nearExpiryTargets.length > 0);
+  for (const id of plan.nearExpiryTargets) assert.ok(routing.has(id));
+});
+
+test('renewed lease is not a novel transport binding; restart generation is novel', () => {
+  const discovery = new PeerDiscovery({ identity: createIdentity() });
+  const remote = createIdentity();
+  const now = Date.now();
+  const gen = (sequence, instanceId, millis) => createPeerRecord({
+    identity: remote, endpoints: ['quic://10.0.0.7:4400'], sequence,
+    instanceId, issuedAt: new Date(millis).toISOString(), ttlMs: 60_000
+  });
+  const original = gen(1, 'a', now);
+  assert.equal(discovery.ingest(original).novel, true);
+  assert.equal(discovery.ingest(original).novel, false);
+  const renewed = discovery.ingest(gen(2, 'a', now + 1));
+  assert.equal(renewed.updated, true);
+  assert.equal(renewed.novel, false);
+  assert.equal(discovery.ingest(gen(3, 'b', now + 2)).novel, true);
+});
+
+test('background DHT refresh yields on busy, fails closed, and does not create hedge amplification', async () => {
+  const { AsyncLocalStorage } = await import('node:async_hooks');
+  const lane = new AsyncLocalStorage();
+  const local = createIdentity();
+  const now = Date.now();
+  const peers = Array.from({ length: 12 }, (_, i) => peerRecord({
+    identity: createIdentity(), issuedAtMs: now, ttlMs: 600_000, port: 5900 + i
+  }));
+  let calls = 0;
+  const rpc = {
+    timeoutMs: 5_000,
+    currentLane: () => lane.getStore() || 'control',
+    withLane: (value, op) => lane.run(value, op),
+    async findNode() {
+      calls += 1;
+      const error = new Error('TRUYN_BUSY');
+      error.code = 'TRUYN_BUSY';
+      throw error;
+    }
+  };
+  const discovery = new PeerDiscovery({ identity: local, rpc, k: 20 });
+  for (const record of peers) discovery.ingest(record, { now });
+  const result = await rpc.withLane('background', () => discovery.refreshRoutingTable({
+    targetCount: 8, maxRounds: 4, targetConcurrency: 1, seed: 'busy'
+  }));
+  assert.equal(result.reason, 'refresh_backpressure');
+  assert.equal(result.refreshed, false, 'do not accept deferred refresh as PASS');
+  assert.equal(result.walks.length, 1);
+  assert.ok(calls <= 3, 'do not fan out once remote reports busy');
+  calls = 0;
+  const foreground = await discovery.refreshRoutingTable({
+    targetCount: 1, maxRounds: 4, targetConcurrency: 1, seed: 'busy-fg'
+  });
+  assert.equal(foreground.walks.length, 1);
+  assert.ok(calls > 3, 'foreground retains peer fallback');
 });
 
 test('PeerDiscovery walk does not globally forget a peer after one failed lookup stream', async () => {
