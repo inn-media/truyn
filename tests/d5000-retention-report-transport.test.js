@@ -81,7 +81,7 @@ test('actual retention-stage controller recovers oversized guest evidence, and r
         ' result=$(PATH="$MOCK_DIR:$PATH" bash -c "$body") || rc=$?;',
         ' [[ "$rc" == 0 ]] || return "$rc";',
         ' if [[ "$MOCK_CORRUPT" == 1 && "$vm" == h1 && "$body" == *RETENTION_HOST_CHUNK=* ]]; then',
-        '   result=$(printf "%s" "$result" | sed "s/RETENTION_HOST_CHUNK=/RETENTION_HOST_CHUNK=X/");',
+        '   result=$(printf "%s" "$result" | sed "s/RETENTION_HOST_CHUNK=./RETENTION_HOST_CHUNK=X/");',
         ' fi;',
         ' printf "%s\\n" "$result" | tail -c 4096;',
         '}',
