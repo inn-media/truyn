@@ -1,0 +1,146 @@
+{
+  "schema": "truyn.public.h-series.cache-compound-final/v1",
+  "benchmarkId": "H-CACHE-COMPOUND",
+  "date": "2026-10-10",
+  "status": "PASS_CLOSED",
+  "methodology": {
+    "publicSha": "3979bfaa1e0371ec2377fe5a0d3a38dc8eb2d8a7",
+    "confidenceLevel": 0.95,
+    "bootstrapReplicates": 5000,
+    "networkEffectPassRule": "CI95 lower > 0",
+    "nodeSemantics": "logical benchmark nodes"
+  },
+  "primaryRun": {
+    "workflowRunId": 37903237195,
+    "measuredSha": "0b1bae93b624fd8d40650025abf464a188e3b00f",
+    "artifactId": 11614325815,
+    "artifactSha256": "sha256:5d16ebac085a712f2bef984a3f23ee6cca4b9f0ade134339bb8326851d49b408",
+    "scientificPass": false,
+    "rows": 37800,
+    "providerCalls": 21664,
+    "providerUsage": {
+      "inputTokens": 541600,
+      "outputTokens": 64992,
+      "totalTokens": 606592
+    },
+    "frozenPriceEstimatedUsd": 0.35268992,
+    "metrics": {
+      "reuseCostReduction": {
+        "estimate": 0.9358730158730074,
+        "ci95": [
+          0.9210473424849667,
+          0.9478838693437482
+        ],
+        "status": "PASS"
+      },
+      "crossNodeReuseShare": {
+        "estimate": 0.9916892808683854,
+        "ci95": [
+          0.9892070395429723,
+          0.99391747941683
+        ],
+        "status": "PASS"
+      },
+      "compoundingSlope": {
+        "estimate": -6.392314118629908e-7,
+        "ci95": [
+          -0.0000012832321978524055,
+          -1.0586033355202393e-7
+        ],
+        "status": "PASS"
+      },
+      "networkEffectDelta": {
+        "0.8": {
+          "estimate": 0.1850000000000015,
+          "ci95": [
+            0.12921077975350584,
+            0.24923065489506604
+          ],
+          "status": "PASS"
+        },
+        "1.1": {
+          "estimate": 0.12250000000000127,
+          "ci95": [
+            0.05197919101685281,
+            0.2229033970258762
+          ],
+          "status": "PASS"
+        },
+        "1.4": {
+          "estimate": 0.06583333333333419,
+          "ci95": [
+            -0.0044222258296409585,
+            0.19986281734975797
+          ],
+          "status": "INCONCLUSIVE"
+        }
+      }
+    }
+  },
+  "firstConfirmatory": {
+    "workflowRunId": 37952123783,
+    "measuredSha": "7abec058b50d2622ef465ec4899eef38ceda1933",
+    "artifactId": 11631363129,
+    "artifactSha256": "sha256:4d695720bc802b306ae5f8538efb3cdb38f3c239ee4332511bdda03eacd6fcd8",
+    "targetZipf": 1.4,
+    "estimate": 0.042261904761905944,
+    "ci95": [
+      -0.013600982601332781,
+      0.1348327874735192
+    ],
+    "targetGatePass": false,
+    "safetyPass": true
+  },
+  "highPowerReplication": {
+    "workflowRunId": 37988342234,
+    "measuredSha": "c5fcee3bd0b449b38c653be94b8b86395adfed98",
+    "artifactId": 11653630872,
+    "artifactSha256": "sha256:ab4fb1ea42f1d9ef23944ac3492406dda996362f59a1c0db9636a0362c119915",
+    "targetZipf": 1.4,
+    "rows": 50400,
+    "samplesPerCell": {
+      "50": 1680,
+      "200": 6720
+    },
+    "providerCalls": 25951,
+    "providerUsage": {
+      "inputTokens": 648775,
+      "outputTokens": 77853,
+      "totalTokens": 726628
+    },
+    "frozenPriceEstimatedUsd": 0.42248228,
+    "estimate": 0.02053571428571288,
+    "ci95": [
+      0.0043011962719546135,
+      0.05797874262157719
+    ],
+    "targetGatePass": true,
+    "replicationPass": true,
+    "safetyPass": true
+  },
+  "azureCorroboration": {
+    "workflowRunId": 37952259071,
+    "artifactId": 11625669653,
+    "artifactSha256": "sha256:04e377ecbba17bc55d86d204018964dfba9dfc9b71af144de17161da9ca38aaa",
+    "exactWindowTotalTokens": 638941,
+    "exactWindowPromptTokens": 573326,
+    "exactWindowGeneratedTokens": 65665,
+    "role": "corroboration only; shared resource-window metrics do not override request-scoped meter"
+  },
+  "safety": {
+    "wrongReusedResultAccepted": 0,
+    "provenanceInvalidReuseAccepted": 0,
+    "crossTenantUnauthorizedReuse": 0,
+    "materialInterference": 0,
+    "authorizationViolations": 0,
+    "crossSeriesMutationOrCleanup": 0,
+    "postFreezeAcceptanceMutation": 0
+  },
+  "limitations": [
+    "Logical node counts are benchmark-node identities, not a claim of independent physical-host count.",
+    "Attempt 7 and the first confirmatory remain immutable non-passing evidence; closure uses the separately frozen high-power independent replication for the previously inconclusive Zipf 1.4 gate.",
+    "No selective pooling was used to produce the closing statistic.",
+    "Dollar figures are provider-returned request-scoped usage multiplied by the frozen price profile, not exact per-run invoice attribution.",
+    "Results are bounded to the frozen corpus, overlap distributions, provider/model profile and workload."
+  ]
+}
