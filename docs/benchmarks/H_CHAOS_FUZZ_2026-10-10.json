@@ -1,0 +1,74 @@
+{
+  "schema": "truyn.public.h-series.chaos-fuzz-final/v1",
+  "benchmarkId": "H-CHAOS-FUZZ",
+  "date": "2026-10-10",
+  "status": "PASS_CLOSED",
+  "run": {
+    "workflowRunId": 38036951794,
+    "launchSha": "b49634b98f2627c1e8f5c8bbdff8776658af1f47",
+    "frozenCandidateSha": "9d363977e0e7842302e16150a43558b845d5e3b0",
+    "measuredArtifactId": 11664587004,
+    "measuredArtifactSha256": "sha256:3b9a605f70d174f7996f164f11a0c16caf239fb9351ce4447e20f81b2b561fab",
+    "reconciledArtifactId": 11664253633,
+    "reconciledArtifactSha256": "sha256:3a099b59221f2041a3e21cbc7f558d1b8f7da989ad579952c931b5dac76a472f",
+    "reconciliationStatus": "PASS_RECONCILED",
+    "claimEligible": true
+  },
+  "runtime": {
+    "sourceSha": "5e0a0cc5615d9a50ba43ed95c7990a32135ed8cc",
+    "methodologyBlobSha": "91612a6fe639da472686d93f3dd396f0da7716cc",
+    "releaseTag": "a-soak-wan-runtime-5e0a0cc5615d9a50ba43ed95c7990a32135ed8cc",
+    "asset": "truyn-a-soak-wan-runtime.tgz",
+    "assetSha256": "0baaeb0c384f6fdb2e69a47b737ed27b20c06708ed568d5e8c2f338615380525"
+  },
+  "campaign": {
+    "plannedCases": 140,
+    "completedCases": 140,
+    "casesPerClass": 28,
+    "classes": {
+      "protocol": 28,
+      "provider": 28,
+      "identity_auth": 28,
+      "timing_network_storage": 28,
+      "trust_provenance": 28
+    },
+    "criticalSafetyInvariantViolations": 0,
+    "openHighOrCriticalFailureModes": 0,
+    "distinctFailureModes": 0,
+    "invariantFailures": 0,
+    "safetyViolations": 0,
+    "recoveryRate": 1,
+    "providerCalls": 0,
+    "estimatedCostUsd": 0,
+    "sharedMutableFaultTargetsUsed": false
+  },
+  "reconciliationGates": {
+    "acceptanceDigest": true,
+    "claimBoundary": true,
+    "classCoverage": true,
+    "completeCases": true,
+    "criticalSafety": true,
+    "exactPublicSha": true,
+    "openHighCritical": true,
+    "productFacing": true,
+    "profileDigest": true,
+    "safetyCounters": true,
+    "seedCommitment": true,
+    "zeroPaid": true,
+    "zeroSharedMutation": true
+  },
+  "checksums": {
+    "telemetryJsonl": "sha256:c1f58457180542836538ee1bb1d2e4a476ba22947150e58e0f9559fed371e52c",
+    "caseResultsJsonl": "sha256:04f5632b33ab3d71b8811466c46135f2c4d9d3d30ef263d1256a1e0bbae77b43",
+    "summaryJson": "sha256:6bfad2c5997a2e493a2e0040acfffaf3b3004965e2beacb97eb4fe5b301180c6"
+  },
+  "limitations": [
+    "The accepted claim is isolated product-facing core robustness.",
+    "No physical WAN fault coverage is claimed.",
+    "No physical shared-storage fault coverage is claimed.",
+    "No paid-provider fault execution occurred.",
+    "No shared destructive fault target was used.",
+    "Hidden seed values and raw security-sensitive fuzz payloads remain private."
+  ],
+  "hSeriesFinalStatus": "4_OF_4_PASS_CLOSED"
+}
