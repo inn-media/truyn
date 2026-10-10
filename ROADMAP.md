@@ -10,7 +10,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 
 | Track | Current state | Immediate next gate |
 |---|---|---|
-| Network | **Class C + D-100 + D-200 + D-500 + D-1000 accepted** | long-duration operational/mainnet closure |
+| Network | **Class C + D-100 + D-200 + D-500 + D-1000 accepted** | long-duration operational/mainnet closure |\n| Physical Chaos F-Series | **FOUNDATION DEFINED / ATTEMPT 1 NOT LAUNCHED** | private fault-domain runner → physical episodes → independent reconciliation |
 | Semantic Scale (S-Series) | **S-10 + S-20 + S-50 + S-100 accepted; S-200+ OPEN** | decompose S-100 non-provider contention residual, then execute S-200 independently |
 | A-Series (Time × Reality) | **PUBLIC FOUNDATION MERGED / A-SOAK 1h NOT LAUNCHED** | immutable WAN runtime release + independent cloud/budget/teardown → A-SOAK → A-OPS → A-SLO → A-WIRE → A-NET → private A-MGMT |
 | D-5000 | **Not accepted; Attempt 3 was in progress at 2026-10-09 snapshot** | preserve separate scale acceptance and cloud isolation |
