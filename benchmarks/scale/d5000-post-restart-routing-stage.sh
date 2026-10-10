@@ -143,12 +143,16 @@ for pid in "${obs_pids[@]}"; do wait "$pid" || true; done
 
 for i in $(seq 0 $((HOST_COUNT-1))); do
   target_host=$(((i+1)%HOST_COUNT))
-  observed=$(sed -n 's/^POST_TARGET_JSON=//p' "$post_dir/target-$target_host.out" 2>/dev/null | tail -1)
-  # Secondary diagnostics must never abort evidence assembly if the Azure
-  # response is truncated; mark unavailable, never convert a failure into PASS.
-  if ! printf '%s' "${observed:-}" | jq -e 'type=="object"' >/dev/null 2>&1; then observed=null; fi
   if [[ -n "${post_failed_targets[$target_host]:-}" ]]; then
-    jq -c --argjson obs "${observed:-null}" '. + {targetObservations: ($obs // {observationUnavailable: true})}' "$post_dir/$i.json" >>"$post_jsonl"
+    # Optional diagnostics exist only for hosts with failed first-attempt probes.
+    # An absent/truncated observation cannot change the immutable first-attempt result.
+    observed=null
+    target_diag="$post_dir/target-$target_host.out"
+    if [[ -f "$target_diag" ]]; then
+      observed=$(sed -n 's/^POST_TARGET_JSON=//p' "$target_diag" | tail -1) || observed=null
+    fi
+    if ! printf '%s' "$observed" | jq -e 'type=="object"' >/dev/null 2>&1; then observed=null; fi
+    jq -c --argjson obs "$observed" '. + {targetObservations: ($obs // {observationUnavailable: true})}' "$post_dir/$i.json" >>"$post_jsonl"
   else
     cat "$post_dir/$i.json" >>"$post_jsonl"
   fi
