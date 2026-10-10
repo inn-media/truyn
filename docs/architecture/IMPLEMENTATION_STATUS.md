@@ -1,7 +1,7 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot:** 2026-10-10 (H/CACHE-COMPOUND closure reconciliation)  
+**Snapshot:** 2026-10-10 (H-Series 4/4 closure reconciliation)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
@@ -32,7 +32,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | A-Series Assurance | **PUBLIC FOUNDATION MERGED, no measured A-SOAK PASS** | exact runtime release + full independent four-VM assurance |
 | D-5000 | **Not accepted; Attempt 3 live at dated snapshot** | independently verified terminal and cleanup, isolated from A-Series |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
-| Hidden-value H-Series | **H/CACHE-COMPOUND + H/SECOND-OPINION + H/ARBITRAGE ACCEPTED / PASS / CLOSED; H/CHAOS-FUZZ OPEN** | preserve immutable evidence; execute CHAOS-FUZZ independently |
+| Hidden-value H-Series | **4/4 ACCEPTED / PASS / CLOSED** | preserve immutable evidence; future work requires versioned successor campaigns |
 | Emergent Network N-Series | **FOUNDATION DEFINED / NOT YET EXECUTED** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
 | Claim-centric + active Trustability | **Implemented bounded slices** | Production Trust Authority remains open |
@@ -131,7 +131,9 @@ A setup/qualification run, provider smoke or isolated paid call is not a substit
 
 H/CACHE-COMPOUND is **ACCEPTED / PASS / CLOSED**. The primary full-factorial run remains historically non-passing because the Zipf 1.4 network-effect confidence interval crossed zero; the first targeted confirmatory also remained inconclusive. A separately frozen high-power independent replication run `37988342234` closed the unchanged Zipf 1.4 gate with estimate **+2.054 pp** and 95% CI **[+0.430, +5.798] pp**, with all safety counters zero. Public evidence: `../benchmarks/H_CACHE_COMPOUND_2026-10-10.md` and `../benchmarks/H_CACHE_COMPOUND_2026-10-10.json`.
 
-Together with already closed H/SECOND-OPINION and H/ARBITRAGE, three of four H final lanes are closed. H/CHAOS-FUZZ remains OPEN.
+H/CHAOS-FUZZ is **ACCEPTED / PASS / CLOSED**. Attempt 1 run `38036951794` completed 140/140 deterministic cases with 28 per declared fault class, zero critical safety-invariant violations, zero open HIGH/CRITICAL failure modes, zero provider calls and independent `PASS_RECONCILED` evidence. The claim is bounded to isolated product-facing core robustness and does not claim physical WAN/storage chaos.
+
+All four H final lanes are now closed. **H-Series = 4/4 PASS / CLOSED.**
 
 ## Emergent Network N-Series boundary
 
