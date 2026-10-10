@@ -375,15 +375,30 @@ export class DhtReplicationManager {
         const changed = desiredNodeIds.length !== previousNodeIds.length
           || desiredNodeIds.some((nodeId) => !previousSet.has(nodeId));
 
-        if (!changed) {
-          details.push({ recordId: record.recordId, key: record.key, changed: false, desiredNodeIds, succeededNodeIds: [], failedNodeIds: [] });
+        // A stable placement is not evidence of durable retention after restart.
+        // Query each assigned holder for the exact signed recordId; repair only
+        // replicas that cannot prove it is still present, within the same deadline.
+        const recordDeadlineAt = Date.now() + perRecordTimeoutMs;
+        const verified = await Promise.all(desiredPeers.map(async (peer) => {
+          try {
+            const read = () => this.rpc.findValue(peer, record.namespace, record.key);
+            const result = typeof this.rpc?.withDeadline === 'function'
+              ? await this.rpc.withDeadline(recordDeadlineAt, read) : await read();
+            return { peer, retained: (result?.records || []).some((found) =>
+              found.recordId === record.recordId && verifyDhtRecord(found).ok), error: null };
+          } catch (error) {
+            return { peer, retained: false, error: error?.message || 'dht_holder_read_failed' };
+          }
+        }));
+        const missingPeers = verified.filter(({ retained }) => !retained).map(({ peer }) => peer);
+        if (!changed && missingPeers.length === 0) {
+          details.push({ recordId: record.recordId, key: record.key, changed: false, desiredNodeIds, verifiedNodeIds: desiredNodeIds, succeededNodeIds: [], failedNodeIds: [] });
           continue;
         }
 
-        changedPlacement += 1;
-        const recordDeadlineAt = Date.now() + perRecordTimeoutMs;
-        storesAttempted += desiredPeers.length;
-        const settled = await Promise.all(desiredPeers.map(async (peer) => {
+        if (changed) changedPlacement += 1;
+        storesAttempted += missingPeers.length;
+        const settled = await Promise.all(missingPeers.map(async (peer) => {
           try {
             const store = () => this.rpc.store(peer, record);
             const result = typeof this.rpc?.withDeadline === 'function'
@@ -399,15 +414,16 @@ export class DhtReplicationManager {
         const failedNodeIds = settled.filter((entry) => !entry.ok).map((entry) => entry.peer.nodeId);
         storesSucceeded += succeededNodeIds.length;
         storesFailed += failedNodeIds.length;
-        if (failedNodeIds.length === 0 && succeededNodeIds.length === desiredNodeIds.length) {
+        if (failedNodeIds.length === 0 && succeededNodeIds.length + verified.filter(({ retained }) => retained).length === desiredNodeIds.length) {
           this.placementByRecordId.set(record.recordId, [...desiredNodeIds].sort());
         }
         details.push({
           recordId: record.recordId,
           key: record.key,
-          changed: true,
+          changed,
           previousNodeIds,
           desiredNodeIds,
+          verifiedNodeIds: verified.filter(({ retained }) => retained).map(({ peer }) => peer.nodeId),
           succeededNodeIds,
           failedNodeIds
         });
