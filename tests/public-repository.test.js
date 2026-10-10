@@ -59,8 +59,8 @@ const ALLOWED_WORKFLOWS = new Set([
 // and a new independently qualified exact Git blob SHA. Existing secret/topology
 // scanners run unchanged on these files, including all credential patterns.
 const PINNED_D5000_WORKFLOWS = new Map([
-  ['.github/workflows/d5000-attempt8-approved.yml', '5cbdafaf24d10cb839056a0769fe728be1dee7dc'],
-  ['.github/workflows/d5000-attempt8-offline-qualification.yml', 'a81c22506b10b77c9b2882cec3f99bb5656f6e84'],
+  ['.github/workflows/d5000-attempt8-approved.yml', '7120635885e07dda9f07824de735edf9a2e5a0c4'],
+  ['.github/workflows/d5000-attempt8-offline-qualification.yml', 'a6499ff877c7c9eee40f229f7eb9b1bdc0b4dde1'],
   ['.github/workflows/d5000-attempt7-approved.yml', '74b90b672c816981d7d836d93bb23a8d4f51b41b'],
   ['.github/workflows/d5000-attempt7-offline-qualification.yml', '5764f8a97a806ba9b5f8f76cfc153fd38a3d0550'],
   ['.github/workflows/d5000-attempt6-approved.yml', '73ec2330948a2af4e7a769b752e5c4e79acbb16f'],
