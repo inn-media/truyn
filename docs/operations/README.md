@@ -62,3 +62,6 @@ Public `/health` remains intentionally minimal; detailed operational state belon
 ## Evidence rule
 
 Checked-in dashboards, runbooks and runtime support prove repository capability, not live production compliance. Production claims require deployment-specific evidence.
+
+
+Independent repository/capsule/deploy audit: [2026-10-10 dependency and deployment reconciliation](INDEPENDENT_DEPENDENCY_CAPSULE_DEPLOYMENT_AUDIT_2026-10-10.md). No code removal or production acceptance is inferred from its candidate inventory.
