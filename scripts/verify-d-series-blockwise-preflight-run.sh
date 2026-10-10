@@ -117,4 +117,4 @@ fi
 # Expensive evidence belongs to the frozen candidate; merge/launch authority comes only from fresh integration Admission.
 bash scripts/verify-d-series-admission-run.sh "$SOURCE_SHA"
 
-echo "TRUYN_D_SERIES_BLOCKWISE_GATE=PASS run_id=$RUN_ID source_sha=$SOURCE_SHA blocks=16/16 swarm_provenance=true exact_sha=true admission=true provenance=$provenance"
+echo "TRUYN_D_SERIES_BLOCKWISE_GATE=PASS run_id=$RUN_ID source_sha=$SOURCE_SHA blocks=12/12 swarm_provenance=true exact_sha=true admission=true provenance=$provenance"

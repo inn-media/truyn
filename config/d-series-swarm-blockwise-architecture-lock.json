@@ -4,12 +4,36 @@
   "authority": "D-Series",
   "effectiveUntil": "ALL_D_SERIES_TESTS_COMPLETE",
   "primaryEngine": "sanitation-swarm",
-  "subordinateAdmissionGate": "blockwise-b01-b16",
+  "subordinateAdmissionGate": "blockwise-active12",
   "priorityOnConflict": "sanitation-swarm",
   "qualificationModel": "Frozen Candidate -> Branch Qualification -> Admission to Main",
   "admissionPolicyFile": "config/d-series-frozen-candidate-policy.json",
-  "canonicalChain": ["SOURCE_CHANGE", "SANITATION_SWARM", "ROOT_CAUSE_DEDUP", "ACCEPTANCE_PRESERVING_REPAIR", "TARGETED_BLOCK_QUALIFICATION", "FULL_B01_B16_EXACT_SHA", "ISOLATED_LIVE_QUALIFICATION_WHERE_REQUIRED", "SHARED_CAPACITY_COLLISION_CHECK", "ONE_REAL_D_SERIES_RUN", "IMMUTABLE_EVIDENCE"],
-  "admissionChain": ["FREEZE_CANDIDATE_SHA", "CAPTURE_BASE_SHA", "QUALIFY_CANDIDATE_BRANCH", "WRITE_QUALIFICATION_MANIFEST_AND_FINGERPRINTS", "ALLOW_MAIN_TO_MOVE", "COMPARE_BASE_SHA_TO_CURRENT_MAIN", "BUILD_INTEGRATION_CANDIDATE", "RECOMPUTE_D_SENSITIVE_FINGERPRINTS", "RUN_ONLY_IMPACTED_BLOCKS", "REQUIRE_LIVE_RERUN_ONLY_WHEN_POLICY_SAYS_REQUIRED", "FINAL_ADMISSION_GATE_ON_INTEGRATED_STATE", "MERGE_OR_LAUNCH_ONLY_WITH_FRESH_ADMISSION"],
+  "canonicalChain": [
+    "SOURCE_CHANGE",
+    "SANITATION_SWARM",
+    "ROOT_CAUSE_DEDUP",
+    "ACCEPTANCE_PRESERVING_REPAIR",
+    "TARGETED_BLOCK_QUALIFICATION",
+    "FULL_ACTIVE12_EXACT_SHA",
+    "ISOLATED_LIVE_QUALIFICATION_WHERE_REQUIRED",
+    "SHARED_CAPACITY_COLLISION_CHECK",
+    "ONE_REAL_D_SERIES_RUN",
+    "IMMUTABLE_EVIDENCE"
+  ],
+  "admissionChain": [
+    "FREEZE_CANDIDATE_SHA",
+    "CAPTURE_BASE_SHA",
+    "QUALIFY_CANDIDATE_BRANCH",
+    "WRITE_QUALIFICATION_MANIFEST_AND_FINGERPRINTS",
+    "ALLOW_MAIN_TO_MOVE",
+    "COMPARE_BASE_SHA_TO_CURRENT_MAIN",
+    "BUILD_INTEGRATION_CANDIDATE",
+    "RECOMPUTE_D_SENSITIVE_FINGERPRINTS",
+    "RUN_ONLY_IMPACTED_BLOCKS",
+    "REQUIRE_LIVE_RERUN_ONLY_WHEN_POLICY_SAYS_REQUIRED",
+    "FINAL_ADMISSION_GATE_ON_INTEGRATED_STATE",
+    "MERGE_OR_LAUNCH_ONLY_WITH_FRESH_ADMISSION"
+  ],
   "invariants": {
     "swarmOwnsDiagnosticsAndRepair": true,
     "blockwiseMayNotReplaceSwarm": true,
@@ -31,5 +55,20 @@
     "automaticFullRerunOnMainMovementForbidden": true,
     "admissionPolicyCannotBeBypassedOrSilentlyRemoved": true
   },
-  "changePolicy": "This lock and its frozen-candidate admission model may be removed, bypassed, weakened, renamed out of enforcement, or materially changed before ALL_D_SERIES_TESTS_COMPLETE only by an explicit user-authorized architecture change. Historical evidence identity MUST be bound to immutable execution-time workflow SHA fields; mutable embedded pull-request metadata MUST NOT authorize candidate qualification. Any pull request that changes the admission or qualification contract itself MUST pass the candidate-side D-Series Self-Admission gate on the exact frozen candidate before merge. Main movement, ordinary refactors, repairs, optimizations, sprint transitions, D-200/D-500/D-1000 launcher work, CI cleanup, or historical GREEN evidence MUST NOT restore the old exact-current-main qualification model."
+  "changePolicy": "This lock and its frozen-candidate admission model may be removed, bypassed, weakened, renamed out of enforcement, or materially changed before ALL_D_SERIES_TESTS_COMPLETE only by an explicit user-authorized architecture change. Historical evidence identity MUST be bound to immutable execution-time workflow SHA fields; mutable embedded pull-request metadata MUST NOT authorize candidate qualification. Any pull request that changes the admission or qualification contract itself MUST pass the candidate-side D-Series Self-Admission gate on the exact frozen candidate before merge. Main movement, ordinary refactors, repairs, optimizations, sprint transitions, D-200/D-500/D-1000 launcher work, CI cleanup, or historical GREEN evidence MUST NOT restore the old exact-current-main qualification model. Explicit user-authorized removal of active B03/B05/B06/B16 checks on 2026-10-10, with preserved history; full active 12/12 qualification required. No D-5000 strict acceptance changes.",
+  "activeBlocks": [
+    "B01",
+    "B02",
+    "B04",
+    "B07",
+    "B08",
+    "B09",
+    "B10",
+    "B11",
+    "B12",
+    "B13",
+    "B14",
+    "B15"
+  ],
+  "retiredBlocksHistory": "docs/operations/class-d/history/D_SERIES_RETIRED_BLOCKS_2026-10-10.json"
 }

@@ -9,22 +9,20 @@ const runner = fs.readFileSync('scripts/d-series-block-runner.mjs', 'utf8');
 const aggregate = fs.readFileSync('scripts/d-series-block-aggregate.mjs', 'utf8');
 const verifier = fs.readFileSync('scripts/verify-d-series-blockwise-preflight-run.sh', 'utf8');
 
-test('D-Series permanently defines exactly sixteen independently testable blocks', () => {
+test('D-Series has exactly twelve active blocks and four archived legacy blocks', () => {
   assert.equal(config.schema, 'truyn.d-series.blockwise-preflight.v1');
   assert.deepEqual(config.classes, [200, 500, 1000]);
-  const expected = Array.from({ length: 16 }, (_, i) => `B${String(i + 1).padStart(2, '0')}`);
+  const expected = ["B01","B02","B04","B07","B08","B09","B10","B11","B12","B13","B14","B15"];
   assert.deepEqual(config.blocks.map((block) => block.id), expected);
-  assert.equal(new Set(config.blocks.map((block) => block.id)).size, 16);
+  assert.equal(new Set(config.blocks.map((block) => block.id)).size, 12);
   for (const block of config.blocks) assert.ok(Array.isArray(block.commands) && block.commands.length > 0, block.id);
 });
 
-test('B06 is the permanent isolated bootstrap qualification block', () => {
-  const block = config.blocks.find((candidate) => candidate.id === 'B06');
-  assert.equal(block.name, 'bootstrap-refresh');
-  assert.equal(block.liveQualification, 'class-d-bootstrap-qualification.yml');
-  const joined = JSON.stringify(block);
-  assert.match(joined, /peer-discovery-refresh-bounds/);
-  assert.match(joined, /class-d-bootstrap-qualification/);
+test('retired blocks are absent from active config but remain in immutable history', () => {
+  const historical = JSON.parse(fs.readFileSync('docs/operations/class-d/history/D_SERIES_RETIRED_BLOCKS_2026-10-10.json','utf8'));
+  assert.deepEqual(historical.retired, ["B03","B05","B06","B16"]);
+  assert.equal(historical.legacyDefinitions.length, 4);
+  for (const block of historical.retired) assert.ok(!config.blocks.some(candidate => candidate.id === block));
 });
 
 test('blockwise workflow runs all blocks in parallel without fail-fast and supports targeted repair', () => {
@@ -37,7 +35,8 @@ test('blockwise workflow runs all blocks in parallel without fail-fast and suppo
   assert.match(workflow, /verify-d-series-swarm-run\.sh/);
   assert.match(workflow, /- name: Require clean Swarm before full admission[\s\S]*?env:\s*\n\s*GH_TOKEN: \$\{\{ github\.token \}\}[\s\S]*?TRUYN_D_SERIES_SWARM_RUN/);
   assert.match(workflow, /fail-fast: false/);
-  for (let i = 1; i <= 16; i += 1) assert.match(workflow, new RegExp(`B${String(i).padStart(2, '0')}`));
+  for (const id of ["B01","B02","B04","B07","B08","B09","B10","B11","B12","B13","B14","B15"]) assert.match(workflow, new RegExp(id));
+  for (const id of ["B03","B05","B06","B16"]) assert.doesNotMatch(workflow, new RegExp('\\b'+id+'\\b'));
   assert.match(workflow, /Run complete block cycle and retain all failures/);
   assert.match(workflow, /--scope targeted --selected-block/);
   assert.match(workflow, /--scope full --enforce/);
@@ -47,7 +46,7 @@ test('blockwise workflow runs all blocks in parallel without fail-fast and suppo
 test('block runners retain failures while the aggregate alone fails closed', () => {
   assert.match(runner, /Deliberately return zero/);
   assert.match(runner, /process\.exitCode = 0/);
-  assert.match(aggregate, /expectedBlocks = Array\.from\(\{ length: 16 \}/);
+  assert.match(aggregate, /const expectedBlocks = \\[/);
   assert.match(aggregate, /TRUYN_D_SERIES_BLOCKWISE_TERMINAL/);
   assert.match(aggregate, /if \(enforce && !clean\) process\.exitCode = 1/);
 });

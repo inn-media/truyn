@@ -19,7 +19,7 @@ on:
         required: true
         default: all
         type: choice
-        options: [all, B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12, B13, B14, B15, B16]
+        options: [all, B01, B02, B04, B07, B08, B09, B10, B11, B12, B13, B14, B15]
       swarm_run_id:
         description: Exact-SHA GREEN D-Series Sanitation Swarm run; required only for full admission
         required: false
@@ -98,7 +98,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        block: [B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12, B13, B14, B15, B16]
+        block: [B01, B02, B04, B07, B08, B09, B10, B11, B12, B13, B14, B15]
     steps:
       - name: Decide block selection
         id: selection
@@ -209,7 +209,7 @@ jobs:
             "scale": "${{ inputs.scale }}",
             "swarmRunId": "${{ inputs.swarm_run_id }}",
             "blockwiseRunId": "${{ github.run_id }}",
-            "blocks": "16/16"
+            "blocks": "12/12"
           }
           EOF
 
