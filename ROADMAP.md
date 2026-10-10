@@ -10,19 +10,20 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 
 | Track | Current state | Immediate next gate |
 |---|---|---|
-| Network | **Class C + D-100 + D-200 + D-500 + D-1000 accepted** | long-duration operational/mainnet closure |\n| Physical Chaos F-Series | **FOUNDATION DEFINED / ATTEMPT 1 NOT LAUNCHED** | private fault-domain runner → physical episodes → independent reconciliation |
+| Network | **Class C + D-100 + D-200 + D-500 + D-1000 accepted** | long-duration operational/mainnet closure |
+| Physical Chaos F-Series | **FOUNDATION DEFINED / ATTEMPT 1 NOT LAUNCHED** | private fault-domain runner → physical episodes → independent reconciliation |
 | Semantic Scale (S-Series) | **S-10 + S-20 + S-50 + S-100 accepted; S-200+ OPEN** | decompose S-100 non-provider contention residual, then execute S-200 independently |
 | A-Series (Time × Reality) | **PUBLIC FOUNDATION MERGED / A-SOAK 1h NOT LAUNCHED** | immutable WAN runtime release + independent cloud/budget/teardown → A-SOAK → A-OPS → A-SLO → A-WIRE → A-NET → private A-MGMT |
-| D-5000 | **Not accepted; Attempt 3 was in progress at 2026-10-09 snapshot** | preserve separate scale acceptance and cloud isolation |
+| D-5000 | **NOT ACCEPTED**; public PRs #950–#954 establish Attempt 7–8 repair/launch progression, not terminal benchmark PASS | preserve immutable attempts and require independent final acceptance |
 | Efficiency Limits (E-Series) | **FOUNDATION DEFINED / no E result claim** | instrumentation + isolation qualification → E/DECOMPOSE → E/PER-RESULT → E/KNEE → E/DEGRADE |
-| Emergent Network (N-Series) | **Foundation architecture/methodology/telemetry/isolation defined; no N PASS claimed** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
+| Emergent Network (N-Series) | **N/SOVEREIGNTY-10 qualification GREEN (not a measured scale PASS); 50/100 measured gate remains open** | qualify real multi-cloud measured nodes/flows, then advance N lanes |
 | Production operations | **contracts implemented** | live evidence |
 | Provider authority | **repository/runtime semantics accepted** | live managed deployment evidence |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + ecosystem evidence |
 | NLWeb | **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later profiles require explicit requalification |
 | SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 + Maven Central + NuGet accepted** | Descriptor/site completeness and stable-v1 ecosystem gate |
 | Native clients | **Requester GUI implemented and exact-head `.exe/.dmg/.deb/.apk` build-qualified** | production signing/notarization → immutable public distribution |
-| Commercial proof / T-series | **FOUNDATION ACTIVE / no result claim** | telemetry qualification → pilots → immutable final T/BREAK-EVEN, T/HEAD-TO-HEAD, T/PREDICT |
+| Commercial proof / T-series | **T/BREAK-EVEN-REAL Attempt 6 audited PASS (diagnostic only); HEAD-TO-HEAD final economic gate RED; T/PREDICT not established as final accepted** | preserve distinct lane claims; remaining economic acceptance must be independently evidenced |
 | Hidden-value / H-series | **4/4 final lanes PASS/CLOSED** | preserve immutable H evidence; new work requires versioned successor campaigns |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Mainnet | **Not productionized** | long-duration live ops + security/reliability + release/governance gates |
@@ -171,6 +172,8 @@ E-Series lanes may execute in parallel with D, S, T and H on disjoint state/reso
 
 Foundation documents are not benchmark results.
 
+Current-status reconciliation: [cross-repository evidence matrix](docs/operations/GLOBAL_STATUS_RECONCILIATION_2026-10-10.md).
+
 ## Emergent Network (N-Series)
 
 N-Series measures behavior that should emerge from a real multi-provider TRUYN network rather than being hard-coded into a requester or benchmark runner.
@@ -204,7 +207,7 @@ Canonical documents:
 - [`docs/operations/N_SERIES_EXECUTION_AND_ISOLATION.md`](docs/operations/N_SERIES_EXECUTION_AND_ISOLATION.md)
 - [`docs/roadmap/N_SERIES_ROADMAP.md`](docs/roadmap/N_SERIES_ROADMAP.md)
 
-No N-Series PASS is currently claimed.
+N/SOVEREIGNTY-10 has a GREEN qualification/smoke record, but no independent final measured N-Series scale PASS is established in this public evidence.
 
 ## A2A / MCP
 
@@ -428,7 +431,7 @@ Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`,
 
 **Scope boundary:** this demonstrates repeatability of the specified 1,000-process Class-D scale acceptance. It does not establish long-duration production SLO compliance, private managed-production acceptance, or mainnet readiness. Public repository remains the authoritative source of benchmark/evaluator/evidence; private repository consumes only immutable identifiers and sanitized public metrics.
 
-**D-5000 current update:** Attempt 3 [run #37908203516](https://github.com/inn-media/truyn/actions/runs/37908203516) was in progress at reconciliation; no final accepted D-5000 evidence was verified. The passage below is preserved historical text.
+**D-5000 current update (2026-10-10):** PRs #950–#954 document Attempt 7 repair, Attempt 7 launch, Attempt 8 dependency repair and Attempt 8 launch. These are not a final D-5000 PASS. Attempt 3 was an older snapshot. The passage below is preserved historical text.
 
 ## Historical D-5000 Attempt 1 preparation snapshot (2026-10-08; superseded)
 
