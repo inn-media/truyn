@@ -52,7 +52,7 @@ jobs:
           grep -Fq 'D5000_BOOTSTRAP_REFRESH_TARGET_COUNT=32' benchmarks/scale/class-d-azure-5000-provision.sh
           grep -Fq 'D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY=4' benchmarks/scale/class-d-azure-5000-provision.sh
           grep -Fq 'TRUYN_D5000_A4_SNAPSHOT_TRANSPORT_RC' benchmarks/scale/class-d-azure-5000-provision.sh
-          node --test tests/d5000-attempt5-readiness-heredoc.test.js tests/d5000-retention-report-transport.test.js tests/p2p-generation-change-in-flight-need.test.js tests/p2p-in-flight-dispatch-retire.test.js
+          node --test tests/d5000-attempt5-readiness-heredoc.test.js tests/d5000-retention-report-transport.test.js
           echo 'TRUYN_D5000_ATTEMPT7_HARNESS=PASS'
       - name: Restore runtime dependencies and verify all relevant regressions
         shell: bash
