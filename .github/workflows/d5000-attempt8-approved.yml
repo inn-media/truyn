@@ -46,7 +46,7 @@ jobs:
           qualified_id="$(grep -E '^qualification_run=[0-9]+$' <<<"$approved" | tail -1 | cut -d= -f2)"
           [[ "$qualified_id" =~ ^[1-9][0-9]+$ ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=missing_qualified_run'; exit 1; }
           qualifier="$(gh api "repos/inn-media/truyn/actions/runs/$qualified_id")"
-          [[ "$(jq -r '.head_branch' <<<"$qualifier")" == 'd5000/attempt8-quic-retirement-20261010' ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=qualifier_wrong_branch'; exit 1; }
+          [[ "$(jq -r '.head_branch' <<<"$qualifier")" == 'd5000/attempt8-quic-preflight-deps-20261010' ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=qualifier_wrong_branch'; exit 1; }
           [[ "$(jq -r '.status' <<<"$qualifier")" == completed && "$(jq -r '.conclusion' <<<"$qualifier")" == success && "$(jq -r '.path' <<<"$qualifier")" == '.github/workflows/d5000-attempt8-offline-qualification.yml' && "$(jq -r '.run_attempt' <<<"$qualifier")" == 1 ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=attempt8_exact_source_not_qualified'; exit 1; }
           grep -Fxq 'previous_cleanup=confirmed_zero' <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=no_confirmed_cleanup'; exit 1; }
           previous="$(gh api repos/inn-media/truyn/actions/runs/38056328064)"
