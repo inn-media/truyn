@@ -310,6 +310,26 @@ export async function createTestnetNodeService({
     };
   };
 
+  // Diagnostic view of one peer from this node: which record generation it holds and
+  // whether a direct connection is pooled. Read-only, loopback control API only.
+  const peerView = (peerNodeId) => {
+    if (typeof peerNodeId !== 'string' || !peerNodeId) throw new Error('nodeId_required');
+    const record = node.discovery.hint(peerNodeId);
+    const connection = node.router?.connections?.get?.(peerNodeId) || null;
+    return {
+      ok: true,
+      nodeId: identity.nodeId,
+      peerNodeId,
+      present: Boolean(record),
+      live: Boolean(node.discovery.get(peerNodeId)),
+      sequence: record?.sequence ?? null,
+      instanceId: record?.instanceId ?? null,
+      expiresAt: record?.expiresAt ?? null,
+      routingContact: typeof node.discovery.routing?.has === 'function' ? node.discovery.routing.has(peerNodeId) : null,
+      directConnection: connection ? { binding: connection.binding, lastUsedAt: connection.lastUsedAt ?? null } : null
+    };
+  };
+
   const requireFaultControl = () => {
     if (faultControlEnabled) return;
     const error = new Error('testnet_fault_control_disabled');
@@ -532,11 +552,16 @@ export async function createTestnetNodeService({
       if (req.method === 'POST' && url.pathname === '/faults/heal') return json(res, 200, heal(await readJson(req)));
       if (req.method === 'POST' && url.pathname === '/faults/relay') return json(res, 200, relayFault(await readJson(req)));
       if (req.method === 'POST' && url.pathname === '/faults/store') return json(res, 200, await storeFaultRecord(await readJson(req)));
+      if (req.method === 'GET' && url.pathname === '/dht/peer') return json(res, 200, peerView(url.searchParams.get('nodeId')));
       return json(res, 404, { ok: false, error: 'not_found' });
     } catch (error) {
+      // A null/codeless rejection must stay distinguishable from a generic handler error.
+      const bounded = (value) => (typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(value) ? value : undefined);
       return json(res, error?.statusCode || 500, {
         ok: false,
-        error: error?.code || error?.message || 'testnet_control_error',
+        error: error?.code || error?.message || (error === null ? 'testnet_control_null_rejection' : `testnet_control_error:${bounded(error?.constructor?.name) || typeof error}`),
+        phase: bounded(error?.phase),
+        causeClass: bounded(error?.causeClass),
         acknowledgements: error?.acknowledgements,
         required: error?.required
       });

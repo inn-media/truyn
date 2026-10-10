@@ -190,8 +190,10 @@ export class TruynNetworkNode {
       );
       if (sessionChanged) {
         this.rpc?.forget?.(nodeId);
-        const forgotten = this.router?.forget?.(nodeId);
-        if (forgotten?.catch) void forgotten.catch(() => {});
+        // Retire, not forget: a NEED already dispatched to the restarted process on the
+        // same endpoint must complete (D-5000 A5/A6 post-restart HTTP 500).
+        const retired = typeof this.router?.retire === 'function' ? this.router.retire(nodeId) : this.router?.forget?.(nodeId);
+        if (retired?.catch) void retired.catch(() => {});
       }
       // Any first-seen or changed valid peer record can change the Kademlia
       // placement set for our own current record. Reconcile it on the control
