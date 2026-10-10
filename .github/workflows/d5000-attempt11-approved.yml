@@ -1,0 +1,204 @@
+# D-5000 Attempt 11: exact Attempt 11 launcher clone, bounded recovery lookup surgical repair.
+# Single-shot strict acceptance; previous Attempt 11 immutable and cleaned.
+name: D-5000 Scale Run - Attempt 11 (Post-Restart Diagnostics Repair)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/d5000/launch-attempt11.txt']
+permissions: { contents: read, actions: read, id-token: write }
+concurrency: { group: truyn-d5000-attempt11-single-shot, cancel-in-progress: false }
+env:
+  TESTED_COMMIT: d54c95926c26127ea1e2506f32c8f62f4e7a2c8d
+  TESTED_TREE_SHA: 948217cd0542b9873fcfdaf01085bf50e792bf57
+  EXACT_MAIN_CI_RUN: '38088260083'
+  EXACT_MAIN_FIVE_PATCH_RUN: '38088260074'
+  QUALIFIED_TREE_CODEQL_CHECK: 'disabled'
+  QUALIFIED_TREE_CODEQL_SHA: disabled
+  AZURE_RESOURCE_GROUP: truyn
+  NODES_PER_HOST: '250'
+jobs:
+  d5000-scale-run:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ env.TESTED_COMMIT }}', persist-credentials: false, fetch-depth: 1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Install runtime dependencies
+        shell: bash
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Verify exact-source admission, one-shot identity and safe Azure namespace
+        shell: bash
+        env:
+          GH_TOKEN: "${{ github.token }}"
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
+          approved="$(gh api "repos/${GITHUB_REPOSITORY}/contents/.github/d5000/launch-attempt11.txt?ref=$GITHUB_SHA" --jq .content | base64 -d)"
+          grep -Fxq 'approved_by_user=true' <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=no_user_approval'; exit 1; }
+          grep -Fxq 'attempt=11' <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=wrong_attempt'; exit 1; }
+          grep -Fxq 'source_run=38079448317' <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=source_run_mismatch'; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE_SHA" ]]
+          grep -Fxq "tested_commit=$TESTED_COMMIT" <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=wrong_tested_commit'; exit 1; }
+          grep -Fxq "tested_tree_sha=$TESTED_TREE_SHA" <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=wrong_tested_tree'; exit 1; }
+          qualified_id="$(grep -E '^qualification_run=[0-9]+$' <<<"$approved" | tail -1 | cut -d= -f2)"
+          [[ "$qualified_id" =~ ^[1-9][0-9]+$ ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=missing_qualified_run'; exit 1; }
+          qualifier="$(gh api "repos/inn-media/truyn/actions/runs/$qualified_id")"
+          [[ "$(jq -r '.head_branch' <<<"$qualifier")" == 'd5000/attempt11-launcher-20261010' ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=qualifier_wrong_branch'; exit 1; }
+          [[ "$(jq -r '.status' <<<"$qualifier")" == completed && "$(jq -r '.conclusion' <<<"$qualifier")" == success && "$(jq -r '.path' <<<"$qualifier")" == '.github/workflows/d5000-attempt11-offline-qualification.yml' && "$(jq -r '.run_attempt' <<<"$qualifier")" == 1 ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=attempt11_exact_source_not_qualified'; exit 1; }
+          grep -Fxq 'previous_cleanup=confirmed_zero' <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=no_confirmed_cleanup'; exit 1; }
+          previous="$(gh api repos/inn-media/truyn/actions/runs/38079448317)"
+          prior_artifact="$(gh api repos/inn-media/truyn/actions/artifacts/11681613750)"
+          [[ "$(jq -r '.workflow_run.id' <<<"$prior_artifact")" == 38079448317 && "$(jq -r '.expired' <<<"$prior_artifact")" == false && "$(jq -r '.digest' <<<"$prior_artifact")" == 'sha256:172d3c26076fdcbc22d801edb4773cd9631ea1a129164c8c98dc1daad33e3f63' ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=previous_artifact_invalid'; exit 1; }
+          [[ "$(jq -r '.status' <<<"$previous")" == completed && "$(jq -r '.conclusion' <<<"$previous")" == failure && "$(jq -r '.run_attempt' <<<"$previous")" == 1 ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=previous_attempt10_not_terminal_failure'; exit 1; }
+          # Attempt 9 completed the 20-host campaign but RED at strict write-retention (99/100); preserve failure and cleanup evidence.
+          # Require immutable terminal step evidence of cleanup; never infer cleanup from probe success.
+          previous_jobs="$(gh api 'repos/inn-media/truyn/actions/runs/38079448317/jobs?per_page=100')"
+          jq -e '
+            [.jobs[] | select(.name=="d5000-scale-run")] as $jobs |
+            ($jobs|length)==1 and
+            (($jobs[0].steps|any(.name=="Execute real 20-host 5000-process campaign" and .conclusion=="success"))) and
+            (($jobs[0].steps|any(.name=="Cleanup runtime staging fail-closed" and .conclusion=="success"))) and
+            (($jobs[0].steps|any(.name=="Upload immutable diagnostic artifact" and .conclusion=="success"))) and
+            (($jobs[0].steps|any(.name=="Record strict terminal marker" and .conclusion=="failure")))
+          ' <<<"$previous_jobs" >/dev/null || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=attempt10_cleanup_evidence_missing'; exit 1; }
+          grep -Fxq 'previous_azure_cleanup=confirmed_zero' <<<"$approved" || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=previous_azure_cleanup_unconfirmed'; exit 1; }
+          historical="$(gh api 'repos/inn-media/truyn/actions/workflows/d5000-attempt11-approved.yml/runs?per_page=100')"
+          echo "TRUYN_D5000_ATTEMPT11_PRIOR_RUNS=$(jq -c '[.workflow_runs[]|{id,name,status,conclusion}]' <<<"$historical")"
+          duplicates="$(jq --argjson current "$GITHUB_RUN_ID" '[.workflow_runs[]|select(.name=="D-5000 Scale Run - Attempt 11 (Post-Restart Diagnostics Repair)")|select(.id!=$current)]|length' <<<"$historical")"
+          [[ "$duplicates" == 0 ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=duplicate_attempt11_campaign'; exit 1; }
+          for gate_id in "$EXACT_MAIN_CI_RUN" "$EXACT_MAIN_FIVE_PATCH_RUN"; do
+            gate="$(gh api "repos/inn-media/truyn/actions/runs/$gate_id")"
+            [[ "$(jq -r '.status' <<<"$gate")" == completed && "$(jq -r '.conclusion' <<<"$gate")" == success && "$(jq -r '.head_sha' <<<"$gate")" == "$TESTED_COMMIT" && "$(jq -r '.run_attempt' <<<"$gate")" == 1 ]] || { echo "TRUYN_D5000_ADMISSION=BLOCKED reason=exact_main_gate_not_green run=$gate_id"; exit 1; }
+          done
+          echo "TRUYN_D5000_ATTEMPT11_EXACT_SOURCE=PASS prior_attempt9=38079448317 qualifier=$qualified_id"
+          bash -n benchmarks/scale/class-d-azure-5000-provision.sh
+          bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
+          node --test benchmarks/scale/class-d-5000-admission.test.js
+          bash tests/d5000-remote-exit-contract.test.sh
+          node --test tests/d5000-attempt5-readiness-heredoc.test.js
+          bash -n benchmarks/scale/d200-write-retention-stage.sh
+          node --test tests/d5000-retention-report-transport.test.js
+          bash -n benchmarks/scale/d5000-post-restart-routing-stage.sh
+          node --test tests/d5000-post-restart-evidence.test.js
+          node --test tests/p2p-generation-change-in-flight-need.test.js tests/p2p-in-flight-dispatch-retire.test.js
+          echo "TRUYN_D5000_ADMISSION=PASS tested_sha=$TESTED_COMMIT qualification_run=$qualified_id"
+      - name: Build immutable runtime bundle
+        id: runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail; b="$RUNNER_TEMP/truyn-d200-runtime.tgz"
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh "$b"
+          s="$(awk '{print $1}' "${b}.sha256")"; [[ "$s" =~ ^[0-9a-f]{64}$ ]]; printf '%s  %s\n' "$s" "$b"|sha256sum -c -
+          d="$(mktemp -d)"; tar -xzf "$b" -C "$d"; jq -e --arg s "$TESTED_COMMIT" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$s' "$d/manifest.json" >/dev/null
+          cp "$d/manifest.json" class-d-200-runtime-manifest.json; printf 'sha256:%s\n' "$s" > class-d-200-runtime-bundle-digest.txt
+          echo "path=$b" >>"$GITHUB_OUTPUT"; echo "sha=$s" >>"$GITHUB_OUTPUT"; rm -rf "$d"
+      - uses: azure/login@v2
+        with:
+          client-id: '${{ secrets[format(''AZURE_{0}_ID'',''CLIENT'')] }}'
+          tenant-id: '${{ secrets[format(''AZURE_{0}_ID'',''TENANT'')] }}'
+          subscription-id: '${{ secrets[format(''AZURE_{0}_ID'',''SUBSCRIPTION'')] }}'
+      - name: Select fail-closed 20-VM D-5000 placement
+        shell: bash
+        run: |
+          set -Eeuo pipefail; ok=false
+          for l in southcentralus; do
+            u="$(az vm list-usage -l "$l" -o json --only-show-errors)"||continue; rc="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].currentValue//-1'<<<"$u")"; rl="$(jq -r '[.[]|select(((.name.localizedValue//.name.value//"")|ascii_downcase|contains("total regional vcpus")))][0].limit//-1'<<<"$u")"
+            for z in Standard_E32ds_v6 Standard_D32ds_v6 Standard_D32lds_v6; do q="$(az vm list-skus -l "$l" --size "$z" --all -o json --only-show-errors)"||continue; [[ "$(jq length<<<"$q")" -ge 1 ]]||continue; v="$(jq -r '[.[].capabilities[]?|select(.name=="vCPUs")|.value][0]//empty'<<<"$q")"; f="$(jq -r '.[0].family//empty'<<<"$q")"; [[ "$v" =~ ^[0-9]+$ && "$v" -eq 32 && -n "$f" ]]||continue; fc="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].currentValue//-1'<<<"$u")"; fl="$(jq -r --arg f "$f" '[.[]|select(.name.value==$f)][0].limit//-1'<<<"$u")"; blocks="$(jq '[.[].restrictions[]?|select(.type=="Location" and .reasonCode=="NotAvailableForSubscription")]|length'<<<"$q")"; need=$((v*20)); echo "TRUYN_D500_CAPACITY_PROBE location=$l size=$z vcpus=$v required=$need regionalRemaining=$((rl-rc)) familyRemaining=$((fl-fc)) blocks=$blocks"; if [[ "$blocks" == 0 && "$rc" -ge 0 && "$fc" -ge 0 && $((rl-rc)) -ge "$need" && $((fl-fc)) -ge "$need" ]]; then echo "TRUYN_D200_LOCATION=$l" >>"$GITHUB_ENV"; echo "TRUYN_D200_VM_SIZE=$z" >>"$GITHUB_ENV"; ok=true; break 2; fi; done
+          done; [[ "$ok" == true ]]
+      - uses: azure/login@v2
+        with:
+          client-id: '${{ secrets[format(''AZURE_{0}_ID'',''CLIENT'')] }}'
+          tenant-id: '${{ secrets[format(''AZURE_{0}_ID'',''TENANT'')] }}'
+          subscription-id: '${{ secrets[format(''AZURE_{0}_ID'',''SUBSCRIPTION'')] }}'
+      - name: Block collision with any abandoned D-5000 cloud resources
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          abandoned="$(az resource list -g "$AZURE_RESOURCE_GROUP" -o json --only-show-errors | jq '[.[]|select(.name|startswith("truyn-d5000-"))]|length')"
+          [[ "$abandoned" == 0 ]] || { echo "TRUYN_D5000_ADMISSION=BLOCKED reason=previous_cloud_resources remain=$abandoned"; exit 1; }
+          echo "TRUYN_D5000_COLLISION_GUARD=PASS"
+      - name: Stage immutable runtime bundle with OIDC data-plane auth
+        env: { RUNTIME_BUNDLE: '${{ steps.runtime.outputs.path }}', RUNTIME_SHA: '${{ steps.runtime.outputs.sha }}' }
+        shell: bash
+        run: bash scripts/d200-stage-runtime-bundle.sh
+      - name: Execute real 20-host 5000-process campaign
+        id: campaign
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          TRUYN_AZURE_RESOURCE_GROUP="$AZURE_RESOURCE_GROUP" TRUYN_CLASS_D1000_LOCATION="$TRUYN_D200_LOCATION" TRUYN_CLASS_D1000_VM_SIZE="$TRUYN_D200_VM_SIZE" TRUYN_CLASS_D1000_NODES_PER_HOST="$NODES_PER_HOST" TRUYN_CLASS_D1000_RUNTIME_URL="$TRUYN_D200_RUNTIME_URL" TRUYN_CLASS_D1000_RUNTIME_SHA256="$TRUYN_D200_RUNTIME_SHA256" bash -c 'set -Eeuo pipefail; source benchmarks/scale/class-d-azure-5000-provision.sh; D200_CAMPAIGN_SOURCE=benchmarks/scale/class-d-azure-5000-campaign.sh; source scripts/d5000-stage-isolated-campaign.sh' 2>&1|tee class-d-200-diagnostic.log
+          rc=${PIPESTATUS[0]}; set -e; echo "campaign_rc=$rc" >>"$GITHUB_OUTPUT"; exit "$rc"
+      - name: Evaluate strict D-5000 evidence
+        id: evaluate
+        if: always()
+        shell: bash
+        run: |
+          set +e; f=class-d-5000-evidence.json
+          if [[ ! -f "$f" ]]; then for x in evaluator_rc=99 terminal_rc=99 cleanup=false remaining=-1 ack_count=-1 ack_loss=-1; do echo "$x" >>"$GITHUB_OUTPUT"; done; exit 0; fi
+          node benchmarks/scale/evaluate-class-d-5000-evidence.js "$f" > class-d-5000-evaluation.json; erc=$?
+          node benchmarks/scale/verify-class-d-5000-terminal.js "$f" > class-d-5000-terminal-verification.json; trc=$?
+          echo "evaluator_rc=$erc" >>"$GITHUB_OUTPUT"
+          echo "terminal_rc=$trc" >>"$GITHUB_OUTPUT"
+          echo "cleanup=$(jq -r '.cleanup.confirmed//false' "$f")" >>"$GITHUB_OUTPUT"
+          echo "remaining=$(jq -r '.cleanup.remainingResources//-1' "$f")" >>"$GITHUB_OUTPUT"
+          echo "ack_count=$(jq -r '.safety.acknowledgedWriteCount//-1' "$f")" >>"$GITHUB_OUTPUT"
+          echo "ack_loss=$(jq -r '.safety.acknowledgedWriteLossCount//-1' "$f")" >>"$GITHUB_OUTPUT"
+          for q in baseline=.routing.baselineSuccessRatio post_restart=.routing.postRestartSuccessRatio healed=.routing.healedSuccessRatio convergence_routing=.convergence.routingSuccessRatio convergence_p95=.convergence.latencyMs.p95 recovery_p95=.recovery.latencyMs.p95 partition_recovery=.recovery.packetPartitionRecoveryMs; do k=${q%%=*}; e=${q#*=}; echo "$k=$(jq -r "$e//-1" "$f")" >>"$GITHUB_OUTPUT"; done
+      - name: Cleanup runtime staging fail-closed
+        id: staging_cleanup
+        if: always()
+        shell: bash
+        run: |
+          set +e; a="${TRUYN_D200_STAGING_ACCOUNT:-}"; if [[ -z "$a" ]]; then echo confirmed=true >>"$GITHUB_OUTPUT"; echo remaining=0 >>"$GITHUB_OUTPUT"; exit 0; fi
+          az storage account delete -g "$AZURE_RESOURCE_GROUP" -n "$a" --yes --only-show-errors >/dev/null 2>&1; ok=false; rem=-1
+          for _ in $(seq 1 60); do err="$(mktemp)"; az storage account show -g "$AZURE_RESOURCE_GROUP" -n "$a" --only-show-errors -o json >/dev/null 2>"$err"; rc=$?; last="$(cat "$err")"; rm -f "$err"; if [[ $rc -ne 0 ]]&&grep -Eqi 'ResourceNotFound|StorageAccountNotFound|could not be found|was not found'<<<"$last"; then ok=true; rem=0; break; fi; sleep 5; done; echo "confirmed=$ok" >>"$GITHUB_OUTPUT"; echo "remaining=$rem" >>"$GITHUB_OUTPUT"; printf 'confirmed=%s\nremaining=%s\naccount=%s\n' "$ok" "$rem" "$a" >class-d-200-runtime-staging-cleanup.txt
+      - name: Upload immutable diagnostic artifact
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 'truyn-class-d5000-attempt11-${{ github.run_id }}'
+          path: |
+            class-d-200-*.json
+            class-d-200-*.txt
+            class-d-200-*.log
+            class-d-5000-evidence.json
+            class-d-5000-evaluation.json
+            class-d-5000-terminal-verification.json
+            d5000-red-host-diagnostics/**
+            d5000-a4-telemetry/**
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Record strict terminal marker
+        if: always()
+        env:
+          CAMPAIGN_RC: '${{ steps.campaign.outputs.campaign_rc }}'
+          EVALUATOR_RC: '${{ steps.evaluate.outputs.evaluator_rc }}'
+          TERMINAL_RC: '${{ steps.evaluate.outputs.terminal_rc }}'
+          CLEANUP: '${{ steps.evaluate.outputs.cleanup }}'
+          REMAINING: '${{ steps.evaluate.outputs.remaining }}'
+          ACK_COUNT: '${{ steps.evaluate.outputs.ack_count }}'
+          ACK_LOSS: '${{ steps.evaluate.outputs.ack_loss }}'
+          STAGING_CLEANUP: '${{ steps.staging_cleanup.outputs.confirmed }}'
+          STAGING_REMAINING: '${{ steps.staging_cleanup.outputs.remaining }}'
+          ARTIFACT_ID: '${{ steps.upload.outputs.artifact-id }}'
+          DIGEST: '${{ steps.upload.outputs.artifact-digest }}'
+          RUNTIME_SHA: '${{ steps.runtime.outputs.sha }}'
+          BASELINE: '${{ steps.evaluate.outputs.baseline }}'
+          POST_RESTART: '${{ steps.evaluate.outputs.post_restart }}'
+          HEALED: '${{ steps.evaluate.outputs.healed }}'
+          CONV: '${{ steps.evaluate.outputs.convergence_routing }}'
+          CONV_P95: '${{ steps.evaluate.outputs.convergence_p95 }}'
+          RECOVERY_P95: '${{ steps.evaluate.outputs.recovery_p95 }}'
+          PARTITION: '${{ steps.evaluate.outputs.partition_recovery }}'
+        shell: bash
+        run: |
+          set -Eeuo pipefail; result=FAIL
+          [[ "$DIGEST" =~ ^(sha256:)?[0-9a-f]{64}$ ]] || DIGEST=invalid
+          if [[ "${CAMPAIGN_RC:-99}" == 0 && "${EVALUATOR_RC:-99}" == 0 && "${TERMINAL_RC:-99}" == 0 && "$CLEANUP" == true && "$REMAINING" == 0 && "$ACK_COUNT" == 100 && "$ACK_LOSS" == 0 && "$STAGING_CLEANUP" == true && "$STAGING_REMAINING" == 0 && -n "$ARTIFACT_ID" && "$DIGEST" != invalid && "$RUNTIME_SHA" =~ ^[0-9a-f]{64}$ ]]; then result=PASS; fi
+          echo "TRUYN_D5000_TERMINAL attempt=11 source_attempt10_run=38079448317 result=$result run=$GITHUB_RUN_ID launcher_sha=$GITHUB_SHA tested_sha=$TESTED_COMMIT tested_tree_sha=$TESTED_TREE_SHA exact_main_ci_run=$EXACT_MAIN_CI_RUN exact_main_five_patch_run=$EXACT_MAIN_FIVE_PATCH_RUN qualified_tree_codeql_check=$QUALIFIED_TREE_CODEQL_CHECK qualified_tree_codeql_sha=$QUALIFIED_TREE_CODEQL_SHA runtime_sha256=sha256:${RUNTIME_SHA:-none} azure_location=${TRUYN_D200_LOCATION:-none} vm_size=${TRUYN_D200_VM_SIZE:-none} baseline=${BASELINE:-none} post_restart=${POST_RESTART:-none} healed=${HEALED:-none} convergence_routing=${CONV:-none} convergence_p95_ms=${CONV_P95:-none} recovery_p95_ms=${RECOVERY_P95:-none} partition_recovery_ms=${PARTITION:-none} acknowledged_writes=${ACK_COUNT:-none} acknowledged_write_loss=${ACK_LOSS:-none} cleanup=$CLEANUP remaining=$REMAINING staging_cleanup=$STAGING_CLEANUP staging_remaining=$STAGING_REMAINING artifact_id=${ARTIFACT_ID:-none} artifact_digest=$DIGEST"
+          [[ "$result" == PASS ]]
