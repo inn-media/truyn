@@ -19,7 +19,27 @@ Expensive H qualification is evidence for an exact frozen candidate, not for a m
 | H/CACHE-COMPOUND | **PASS / CLOSED** | [`H_CACHE_COMPOUND_2026-10-10.md`](H_CACHE_COMPOUND_2026-10-10.md) + [`H_CACHE_COMPOUND_2026-10-10.json`](H_CACHE_COMPOUND_2026-10-10.json) | no ordinary rerun |
 | H/SECOND-OPINION | **PASS / CLOSED** | [`H_SECOND_OPINION_2026-10-07.md`](H_SECOND_OPINION_2026-10-07.md) + [`H_SECOND_OPINION_2026-10-07.json`](H_SECOND_OPINION_2026-10-07.json) | no ordinary rerun |
 | H/ARBITRAGE | **PASS / CLOSED** | [`H_ARBITRAGE_2026-09-24.md`](H_ARBITRAGE_2026-09-24.md) + [`H_ARBITRAGE_2026-09-24.json`](H_ARBITRAGE_2026-09-24.json) | no ordinary rerun |
-| H/CHAOS-FUZZ | **PENDING FINAL** | methodology only | create/qualify lane-specific frozen candidate |
+| H/CHAOS-FUZZ | **PASS / CLOSED** | [`H_CHAOS_FUZZ_2026-10-10.md`](H_CHAOS_FUZZ_2026-10-10.md) + [`H_CHAOS_FUZZ_2026-10-10.json`](H_CHAOS_FUZZ_2026-10-10.json) | no ordinary rerun |
+
+## H/CHAOS-FUZZ closure
+
+H/CHAOS-FUZZ Attempt 1 is **PASS / CLOSED** after independent reconciliation.
+
+Accepted bounded result:
+
+- run `38036951794`, frozen candidate `9d363977e0e7842302e16150a43558b845d5e3b0`;
+- measured artifact `11664587004`, digest `sha256:3b9a605f70d174f7996f164f11a0c16caf239fb9351ce4447e20f81b2b561fab`;
+- reconciled artifact `11664253633`, digest `sha256:3a099b59221f2041a3e21cbc7f558d1b8f7da989ad579952c931b5dac76a472f`;
+- 140/140 deterministic cases, exactly 28 per class across protocol, provider, identity/auth, timing/network/storage and trust/provenance;
+- critical safety-invariant violations **0**;
+- open HIGH/CRITICAL failure modes **0**;
+- invariant failures **0**;
+- recovery rate **100%**;
+- provider calls **0**, measured provider spend **$0**;
+- shared mutable fault targets **0**;
+- final reconciliation status **PASS_RECONCILED**, claim eligible **true**.
+
+The public result is bounded to isolated product-facing core robustness and does not claim physical WAN/storage chaos coverage.
 
 ## H/CACHE-COMPOUND closure
 
@@ -96,4 +116,8 @@ A new measurement for any closed H lane is justified only after a material, vers
 
 Such a campaign must receive a new immutable run identity and may not overwrite earlier accepted or negative evidence.
 
-For the remaining open H lane, CHAOS-FUZZ, movement of `main` alone is never a sufficient reason for a full live rerun. H/CACHE-COMPOUND, H/SECOND-OPINION and H/ARBITRAGE are closed and require a new versioned successor before any new final measurement.
+H/CACHE-COMPOUND, H/SECOND-OPINION, H/ARBITRAGE and H/CHAOS-FUZZ are all closed. Any new H measurement requires a material versioned successor and a new immutable campaign identity.
+
+## H-Series terminal state
+
+All four final H lanes are **PASS / CLOSED**. **H-Series = 4/4 PASS / CLOSED.**
