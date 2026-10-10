@@ -1,7 +1,7 @@
 name: D-5000 Attempt 11 Exact-Source Qualification (No Azure)
 on:
   push:
-    branches: [d5000/attempt11-launcher-20261010]
+    branches: [d5000/attempt11-launcher-20261011]
     paths: ['.github/workflows/d5000-attempt11-offline-qualification.yml']
 permissions: { contents: read }
 concurrency: { group: truyn-d5000-attempt11-offline-qualify, cancel-in-progress: false }
@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          grep -Fq "attempt=10" .github/workflows/d5000-attempt11-approved.yml
+          grep -Fq "attempt=11" .github/workflows/d5000-attempt11-approved.yml
           grep -Fq "source_run=38079448317" .github/workflows/d5000-attempt11-approved.yml
           grep -Fq 'ACK_LOSS" == 0' .github/workflows/d5000-attempt11-approved.yml
           grep -Fq "truyn-d5000-attempt11-single-shot" .github/workflows/d5000-attempt11-approved.yml
