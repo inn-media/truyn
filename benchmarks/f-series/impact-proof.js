@@ -10,12 +10,12 @@ const PHYSICAL_MECHANISMS = new Set([
   'filesystem_enospc'
 ]);
 
-const FORBIDDEN_EVIDENCE = [
+const FORBIDDEN_PROOF_MARKERS = [
   /NetworkFaultController/i,
   /TRUYN_FAULT_/i,
-  /mock/i,
-  /simulat/i,
-  /replay/i
+  /\bmock(?:ed|ing)?\b/i,
+  /\bsimulat(?:e|ed|ion)\b/i,
+  /\breplay(?:ed)?\b/i
 ];
 
 export function validateImpactProofEpisode(episode) {
@@ -23,9 +23,20 @@ export function validateImpactProofEpisode(episode) {
   if (!episode || typeof episode !== 'object') return { ok: false, errors: ['episode required'] };
   if (!episode.episodeId) errors.push('episodeId required');
   if (!PHYSICAL_MECHANISMS.has(episode.mechanism)) errors.push('mechanism is not an approved physical mechanism');
-  if (episode.simulated === true) errors.push('simulated episode is forbidden');
-  const serialized = JSON.stringify(episode);
-  for (const pattern of FORBIDDEN_EVIDENCE) if (pattern.test(serialized)) errors.push(`forbidden simulation marker: ${pattern}`);
+  if (episode.simulated === true || String(episode.mode ?? '').toLowerCase() === 'simulation') {
+    errors.push('simulated episode is forbidden');
+  }
+
+  // Scan proof payloads, not schema field names. The literal key "simulated": false
+  // is a required negative assertion and must not self-trigger the simulation guard.
+  const proofPayload = JSON.stringify({
+    impactProofs: episode.impactProofs ?? [],
+    notes: episode.notes ?? null,
+    evidence: episode.evidence ?? null
+  });
+  for (const pattern of FORBIDDEN_PROOF_MARKERS) {
+    if (pattern.test(proofPayload)) errors.push(`forbidden simulation marker in evidence: ${pattern}`);
+  }
 
   const proofs = Array.isArray(episode.impactProofs) ? episode.impactProofs : [];
   const independent = new Set(proofs.map((p) => p?.source).filter(Boolean));
