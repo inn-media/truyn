@@ -47,6 +47,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - A-Series — **public foundation merged; real 1h SOAK Attempt 1 NOT LAUNCHED**; see [Assurance contract](assurance/README.md).
 - D-5000 — **not accepted**; [Attempt 3 run #37908203516](https://github.com/inn-media/truyn/actions/runs/37908203516) was in progress at this dated snapshot; recheck live status.
 - Efficiency E-Series — **ACTIVE QUALIFICATION / NO FINAL E PASS**; qualification/isolation/provider-smoke work does not substitute for final DECOMPOSE/PER-RESULT/KNEE/DEGRADE evidence.
+- Hidden-value H-Series — **H/CACHE-COMPOUND + H/SECOND-OPINION + H/ARBITRAGE PASS/CLOSED; H/CHAOS-FUZZ OPEN**; see [H-Series status](benchmarks/H_SERIES_STATUS.md) and [H/CACHE-COMPOUND final evidence](benchmarks/H_CACHE_COMPOUND_2026-10-10.md).
 - N-Series emergent network behavior — **FOUNDATION DEFINED / NOT YET EXECUTED**; N/SOVEREIGNTY, N/MARKETPLACE, N/TRUST-DECAY and N/SUSTAINED-CHURN have no PASS claim.
 - Account → Organization → Tenant — **IMPLEMENTED / accepted**.
 - durable grants/entitlements/accounting/revocation — **IMPLEMENTED / accepted**.
