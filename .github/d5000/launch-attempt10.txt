@@ -1,0 +1,8 @@
+approved_by_user=true
+attempt=10
+source_run=38064370097
+tested_commit=8a1ad1eb4384b821c63ffc9b99cd6f223267fde2
+tested_tree_sha=70e543fc3b3291b9b4ae25b7bd3389151280132b
+qualification_run=38078673728
+previous_cleanup=confirmed_zero
+previous_azure_cleanup=confirmed_zero
