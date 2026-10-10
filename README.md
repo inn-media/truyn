@@ -148,3 +148,7 @@ D-1000 Attempt 1 and independent exact-frozen Double-Check are **PASS / REPEATAB
 ### Verified real T-Series benchmark
 
 The independently audited [T/BREAK-EVEN-REAL-BENCHMARK Attempt 6 results](docs/benchmarks/T_BREAK_EVEN_REAL_ATTEMPT6_ACCEPTED_RESULTS.md) are **PASS** (57/57 HTTP 200, 57/57 exact-answer, all A–E scenarios). This establishes valid measured execution, **not** a universal USD cost break-even.
+
+## Physical AI / embodied intelligence (planned)
+
+TRUYN's capability-first model can extend to robots: **a robot need not know who provides intelligence; it discovers a capability, is authorized to use it and receives a verifiable result.** [Physical AI interoperability and safety boundary](docs/architecture/PHYSICAL_AI_INTEROPERABILITY.md) defines planned public ROS 2, MQTT and Device adapters. Physical actuation requires a separate local safety gate; no physical robot is production-qualified. All Physical AI and robotics, including Edge Controller, belong exclusively to **V2/post-first-mainnet**, not V1.
