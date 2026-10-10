@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createIdentity } from '../core/identity/index.js';
-import { dhtId, KademliaRecordStore, createDhtRecord } from '../network/dht/kademlia.js';
+import { dhtId, xorDistance, KademliaRecordStore, createDhtRecord } from '../network/dht/kademlia.js';
 import { createQuicDiscoveryControlHandler, QUIC_DHT_METHOD_STORE } from '../network/discovery/quic-rpc.js';
 import { DhtReplicationManager } from '../network/replication/dht-replication.js';
 
@@ -226,3 +226,39 @@ test('DHT put enforces one end-to-end deadline across lookup and replication', a
   assert.ok(Number.isFinite(deadlineSeen));
   assert.ok(Date.now() - started < 350, 'deadline failure must return promptly instead of inheriting the HTTP client timeout');
 });
+
+test('D-5000 Attempt 9 recovery read prioritizes closer discovered replica within unchanged bounded budget', async () => {
+  const reader = createIdentity();
+  const publisher = createIdentity();
+  const namespace = 'class-d1000';
+  const key = 'd1000-7-4';
+  const record = createDhtRecord({ identity: publisher, namespace, key, value: { recovered: true }, ttlMs: 120_000 });
+  const target = namespace + ':' + key;
+  const peers = Array.from({ length: 28 }, (_, index) => ({ nodeId: 'truyn:node:recovery-probe-' + index }));
+  peers.sort((a, b) => {
+    const left = xorDistance(a.nodeId, target);
+    const right = xorDistance(b.nodeId, target);
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
+  const holder = peers[0];
+  const distant = peers.slice(-3);
+  const called = [];
+  const discovery = { identity: reader, alpha: 1, closest: () => distant };
+  const rpc = {
+    async findValue(peer) {
+      called.push(peer.nodeId);
+      if (peer.nodeId === holder.nodeId) return { records: [record], hints: [] };
+      return { records: [], hints: [holder] };
+    }
+  };
+  const manager = new DhtReplicationManager({
+    discovery, rpc, recordStore: new KademliaRecordStore()
+  });
+  const result = await manager.get(namespace, key, { fanout: 3, lookupRounds: 0 });
+  assert.equal(result.records.length, 1, 'recovered durable record must remain network-readable');
+  assert.equal(result.records[0].recordId, record.recordId);
+  assert.equal(called.length, 2, 'do not raise the 3-query read budget');
+  assert.equal(called[1], holder.nodeId, 'new closer replica hint must outrank remaining distant seeds');
+  assert.equal(result.readTelemetry.iterativeQueryBudget, 3);
+});
+
