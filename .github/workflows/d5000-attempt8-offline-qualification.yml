@@ -1,7 +1,7 @@
 name: D-5000 Attempt 8 Exact-Source Qualification (No Azure)
 on:
   push:
-    branches: [d5000/attempt8-quic-retirement-20261010]
+    branches: [d5000/attempt8-quic-preflight-deps-20261010]
     paths: ['.github/workflows/d5000-attempt8-offline-qualification.yml']
 permissions: { contents: read }
 concurrency: { group: truyn-d5000-attempt8-offline-qualify, cancel-in-progress: false }
