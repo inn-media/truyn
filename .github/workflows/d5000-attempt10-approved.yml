@@ -59,7 +59,7 @@ jobs:
           jq -e '
             [.jobs[] | select(.name=="d5000-scale-run")] as $jobs |
             ($jobs|length)==1 and
-            (($jobs[0].steps|any(.name=="Execute real 20-host 5000-process campaign" and .conclusion=="failure"))) and
+            (($jobs[0].steps|any(.name=="Execute real 20-host 5000-process campaign" and .conclusion=="success"))) and
             (($jobs[0].steps|any(.name=="Cleanup runtime staging fail-closed" and .conclusion=="success"))) and
             (($jobs[0].steps|any(.name=="Upload immutable diagnostic artifact" and .conclusion=="success"))) and
             (($jobs[0].steps|any(.name=="Record strict terminal marker" and .conclusion=="failure")))
