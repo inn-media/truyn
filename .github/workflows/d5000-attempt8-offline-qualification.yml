@@ -1,0 +1,90 @@
+name: D-5000 Attempt 8 Exact-Source Qualification (No Azure)
+on:
+  push:
+    branches: [d5000/attempt8-quic-preflight-deps-20261010]
+    paths: ['.github/workflows/d5000-attempt8-offline-qualification.yml']
+permissions: { contents: read }
+concurrency: { group: truyn-d5000-attempt8-offline-qualify, cancel-in-progress: false }
+env:
+  TESTED_COMMIT: d15a4376e1216b10b37bb712263dad87e8c5da41
+  TESTED_TREE_SHA: edef423f4c2affbe3d43ee9715f501c309cce6f4
+  BASE_MAIN: 349ee4fb55dc68d457484aad6a654cdc8023e39b
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ github.sha }}', persist-credentials: false, fetch-depth: 1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Verify A8 launcher has QUIC dependencies installed before admission
+        shell: bash
+        run: node --test tests/d5000-attempt8-workflow-order.test.js
+      - uses: actions/checkout@v4
+        with:
+          ref: '${{ env.TESTED_COMMIT }}'
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Freeze A7 source, verify repaired QUIC and unchanged strict D-5000 acceptance
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE_SHA" ]]
+          [[ "$(git merge-base "$BASE_MAIN" HEAD)" == "$BASE_MAIN" ]]
+          git diff --name-only "$BASE_MAIN" HEAD >d5000-attempt8-source-delta.txt
+          for required in network/runtime.js network/transport/p2p.js network/testnet/node-service.js benchmarks/scale/d5000-post-restart-routing-stage.sh scripts/d5000-stage-isolated-campaign.sh tests/p2p-generation-change-in-flight-need.test.js tests/p2p-in-flight-dispatch-retire.test.js; do
+            git diff --name-only "$BASE_MAIN" HEAD | grep -Fxq "$required"
+          done
+          git diff --quiet "$BASE_MAIN" HEAD -- benchmarks/scale/evaluate-class-d-5000-evidence.js benchmarks/scale/verify-class-d-5000-terminal.js
+          grep -Fq 'router.retire(nodeId)' network/runtime.js
+          grep -Fq 'async retire(peerNodeId)' network/transport/p2p.js
+          grep -Fq 'D200_POST_RESTART_STAGE_SOURCE' scripts/d5000-stage-isolated-campaign.sh
+          grep -Fq 'd5000-post-restart-routing-stage.sh' scripts/d5000-stage-isolated-campaign.sh
+          node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
+          echo "TRUYN_D5000_ATTEMPT8_EXACT_SOURCE=PASS tested=$TESTED_COMMIT tree=$TESTED_TREE_SHA"
+
+      - name: Validate strict unchanged campaign, guest shell and early failure evidence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash -n benchmarks/scale/class-d-azure-5000-provision.sh
+          bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
+          bash -n benchmarks/scale/d200-write-retention-stage.sh
+          bash -n benchmarks/scale/d5000-post-restart-routing-stage.sh
+          bash tests/d5000-remote-exit-contract.test.sh
+          bash tests/d5000-red-host-snapshot.test.sh
+          grep -Fq 'D5000_BOOTSTRAP_REFRESH_TARGET_COUNT=32' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'D5000_BOOTSTRAP_REFRESH_TARGET_CONCURRENCY=4' benchmarks/scale/class-d-azure-5000-provision.sh
+          grep -Fq 'TRUYN_D5000_A4_SNAPSHOT_TRANSPORT_RC' benchmarks/scale/class-d-azure-5000-provision.sh
+          node --test tests/d5000-attempt5-readiness-heredoc.test.js tests/d5000-retention-report-transport.test.js
+          echo 'TRUYN_D5000_ATTEMPT8_HARNESS=PASS'
+      - name: Restore runtime dependencies and verify all relevant regressions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          node scripts/run-test-suite.mjs network
+          node --test tests/d5000-retention-report-transport.test.js tests/p2p-generation-change-in-flight-need.test.js tests/p2p-in-flight-dispatch-retire.test.js tests/d5000-attempt5-readiness-heredoc.test.js tests/d5000-attempt4-telemetry.test.js tests/d5000-bootstrap-scale-guard.test.js tests/d5000-dht-maintenance-regression.test.js tests/peer-discovery-periodic-refresh.test.js benchmarks/scale/class-d-5000-admission.test.js
+          echo 'TRUYN_D5000_ATTEMPT8_REGRESSION=PASS'
+      - name: Build and attest immutable runtime from exact tested commit
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p qualification
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh qualification/d5000-attempt8-runtime.tgz
+          sha256sum -c qualification/d5000-attempt8-runtime.tgz.sha256
+          tar -xOf qualification/d5000-attempt8-runtime.tgz manifest.json | jq -e --arg sha "$TESTED_COMMIT" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$sha'
+          echo "TRUYN_D5000_ATTEMPT8_QUALIFICATION=PASS sha=$TESTED_COMMIT tree=$TESTED_TREE_SHA paid=false"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: truyn-d5000-attempt8-qualify-${{ github.run_id }}
+          path: |
+            d5000-attempt8-source-delta.txt
+            qualification/d5000-attempt8-runtime.tgz.sha256
+          if-no-files-found: warn
+          retention-days: 60
