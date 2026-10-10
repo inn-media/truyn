@@ -4,7 +4,7 @@ import fs from 'node:fs';
 const lockPath = 'config/d-series-swarm-blockwise-architecture-lock.json';
 const policyPath = 'config/d-series-frozen-candidate-policy.json';
 const requiredChain = [
-  'SOURCE_CHANGE','SANITATION_SWARM','ROOT_CAUSE_DEDUP','ACCEPTANCE_PRESERVING_REPAIR','TARGETED_BLOCK_QUALIFICATION','FULL_B01_B16_EXACT_SHA','ISOLATED_LIVE_QUALIFICATION_WHERE_REQUIRED','SHARED_CAPACITY_COLLISION_CHECK','ONE_REAL_D_SERIES_RUN','IMMUTABLE_EVIDENCE'
+  'SOURCE_CHANGE','SANITATION_SWARM','ROOT_CAUSE_DEDUP','ACCEPTANCE_PRESERVING_REPAIR','TARGETED_BLOCK_QUALIFICATION','FULL_ACTIVE12_EXACT_SHA','ISOLATED_LIVE_QUALIFICATION_WHERE_REQUIRED','SHARED_CAPACITY_COLLISION_CHECK','ONE_REAL_D_SERIES_RUN','IMMUTABLE_EVIDENCE'
 ];
 const requiredAdmissionChain = [
   'FREEZE_CANDIDATE_SHA','CAPTURE_BASE_SHA','QUALIFY_CANDIDATE_BRANCH','WRITE_QUALIFICATION_MANIFEST_AND_FINGERPRINTS','ALLOW_MAIN_TO_MOVE','COMPARE_BASE_SHA_TO_CURRENT_MAIN','BUILD_INTEGRATION_CANDIDATE','RECOMPUTE_D_SENSITIVE_FINGERPRINTS','RUN_ONLY_IMPACTED_BLOCKS','REQUIRE_LIVE_RERUN_ONLY_WHEN_POLICY_SAYS_REQUIRED','FINAL_ADMISSION_GATE_ON_INTEGRATED_STATE','MERGE_OR_LAUNCH_ONLY_WITH_FRESH_ADMISSION'
@@ -19,7 +19,7 @@ if (lock.state !== 'LOCKED') fail('state_not_locked');
 if (lock.authority !== 'D-Series') fail('authority_changed');
 if (lock.effectiveUntil !== 'ALL_D_SERIES_TESTS_COMPLETE') fail('lifetime_changed');
 if (lock.primaryEngine !== 'sanitation-swarm') fail('primary_engine_changed');
-if (lock.subordinateAdmissionGate !== 'blockwise-b01-b16') fail('admission_gate_changed');
+if (lock.subordinateAdmissionGate !== 'blockwise-active12') fail('admission_gate_changed');
 if (lock.priorityOnConflict !== 'sanitation-swarm') fail('priority_changed');
 if (lock.qualificationModel !== 'Frozen Candidate -> Branch Qualification -> Admission to Main') fail('qualification_model_changed');
 if (lock.admissionPolicyFile !== policyPath) fail('admission_policy_path_changed');
@@ -33,4 +33,4 @@ if (!/explicit user-authorized architecture change/i.test(lock.changePolicy || '
 if (!/immutable execution-time workflow SHA fields/.test(lock.changePolicy || '')) fail('immutable_evidence_binding_not_locked');
 if (!/candidate-side D-Series Self-Admission gate/.test(lock.changePolicy || '')) fail('candidate_self_admission_not_locked');
 if (!/MUST NOT restore the old exact-current-main qualification model/.test(lock.changePolicy || '')) fail('legacy_model_restore_not_forbidden');
-console.log('TRUYN_D_SERIES_ARCHITECTURE_LOCK=PASS primary=sanitation-swarm admission=blockwise-b01-b16 qualification=frozen-candidate evidence-binding=immutable-run-sha self-admission=mandatory lifetime=ALL_D_SERIES_TESTS_COMPLETE');
+console.log('TRUYN_D_SERIES_ARCHITECTURE_LOCK=PASS primary=sanitation-swarm admission=blockwise-active12 qualification=frozen-candidate evidence-binding=immutable-run-sha self-admission=mandatory lifetime=ALL_D_SERIES_TESTS_COMPLETE');

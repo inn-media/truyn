@@ -10,15 +10,15 @@ The machine authority for this rule is `config/d-series-frozen-candidate-policy.
 
 ## Candidate-bound qualification
 
-B01-B16 run against an exact frozen candidate SHA/tree. The full candidate proof requires clean Sanitation Swarm evidence plus 16/16 Blockwise PASS. `D-Series Frozen Candidate Qualification` then emits an automatic qualification manifest containing `BASE_SHA`, candidate SHA/tree, evidence run IDs and D-sensitive fingerprints.
+active-12 Blockwise run against an exact frozen candidate SHA/tree. The full candidate proof requires clean Sanitation Swarm evidence plus 12/12 Blockwise PASS. `D-Series Frozen Candidate Qualification` then emits an automatic qualification manifest containing `BASE_SHA`, candidate SHA/tree, evidence run IDs and D-sensitive fingerprints.
 
 Expensive evidence is attached to this candidate. `main` may move while the qualification is running. Main movement alone does not cancel the run, stale the candidate evidence, or authorize an automatic full rerun.
 
 Targeted mode remains diagnostic: a repaired block may be rerun quickly, but targeted GREEN alone is not candidate qualification and never authorizes merge or launch.
 
-## B01-B16
+## active-12 Blockwise
 
-B01 contracts/repository; B02 runtime/staging; B03 cloud/OIDC; B04 topology/placement; B05 process startup/identity; B06 bootstrap/refresh; B07 readiness/leases; B08 baseline routing; B09 restart injection; B10 post-restart routing; B11 healing/convergence/recovery; B12 durable writes/retention; B13 adversarial partition; B14 safety/security negative paths; B15 resources/telemetry/evidence; B16 cleanup/terminal assembly.
+Active: B01, B02, B04, B07, B08, B09, B10, B11, B12, B13, B14, B15. Legacy B03/B05/B06/B16 retired and preserved in `history/D_SERIES_RETIRED_BLOCKS_2026-10-10.json`.
 
 The canonical block definition remains `config/d-series-blockwise-preflight.json`. Local proof remains bounded and is not represented as a 20-host live-scale proof.
 
@@ -37,3 +37,7 @@ A GREEN frozen branch SHA is never merge authority by itself. The final Admissio
 Real D-200/D-500/D-1000 acceptance remains downstream of Sanitation Swarm and Blockwise, but launch authorization additionally requires a fresh successful integration Admission manifest. `scripts/verify-d-series-blockwise-preflight-run.sh` calls `scripts/verify-d-series-admission-run.sh` fail-closed.
 
 This model does not weaken routing, recovery, topology, safety, cleanup, evidence or terminal thresholds and does not weaken the single-shot rule.
+
+## User-approved retirement (2026-10-10)
+
+Active Blockwise and Swarm execution excludes B03, B05, B06 and B16. Their original definitions, former run IDs and immutable Git history remain available under `history/D_SERIES_RETIRED_BLOCKS_2026-10-10.json`. Other 12 blocks remain fail-closed. The D-5000 strict first-attempt >=99%, 100 ack/zero loss, 20 x 250 topology, recovery, evidence and zero-resource cleanup acceptance remain unchanged.

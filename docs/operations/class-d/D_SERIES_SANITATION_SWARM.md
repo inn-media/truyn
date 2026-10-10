@@ -2,7 +2,7 @@
 
 ## Authority
 
-Sanitation / Swarm is the primary D-Series diagnostic and repair engine. Blockwise B01-B16 is subordinate to it and is used twice: first as parallel diagnostic shards inside the Swarm, then as the mandatory admission gate after the repair loop is clean.
+Sanitation / Swarm is the primary D-Series diagnostic and repair engine. Blockwise active-12 Blockwise is subordinate to it and is used twice: first as parallel diagnostic shards inside the Swarm, then as the mandatory admission gate after the repair loop is clean.
 
 If Swarm and Blockwise semantics ever conflict, preserve the stricter safety/acceptance rule and prefer the Swarm execution model: fail-collect, maximum parallel diagnosis, root-cause deduplication, resumable checkpoints, frozen-candidate evidence and no silent weakening.
 
@@ -15,12 +15,12 @@ The machine-readable authorities are `config/d-series-swarm-blockwise-architectu
 All defined D-Series gates through D-1000 are now accepted. Ordinary refactors, repairs, CI cleanup, optimizations, launcher changes and any future D-Series/repeatability work MUST preserve all of the following accepted invariants:
 
 - Sanitation / Swarm remains the primary diagnostic and repair engine.
-- Blockwise B01-B16 remains subordinate to Swarm.
+- Blockwise active-12 Blockwise remains subordinate to Swarm.
 - Expensive qualification is bound to an immutable frozen candidate, not to moving `main`.
 - Movement of `main` triggers admission analysis, not automatic full D-Series requalification.
 - Swarm owns massively parallel diagnostics, fail-collect execution, root-cause classification/deduplication and the repair loop.
 - Targeted Bxx runs are repair accelerators only and can never authorize a real D-Series launch.
-- Full B01-B16 on the frozen candidate remains a mandatory qualification/admission input after a clean Swarm.
+- Full active-12 Blockwise on the frozen candidate remains a mandatory qualification/admission input after a clean Swarm.
 - Before merge, the final Admission Gate integrates the frozen candidate with current `main`, recomputes fingerprints, and reruns only affected D-sensitive blocks.
 - D-500 is accepted on immutable Attempt 22 run `37666768998` and repeatability-confirmed by run `37676472133`.
 - D-1000 is accepted on Attempt 1 workflow run `37687469411`, successful `run_attempt=2`; the first `run_attempt=1` remains infrastructure-only quota-failure evidence.
@@ -36,15 +36,15 @@ Removal or material modification of this lock before `ALL_D_SERIES_TESTS_COMPLET
 2. SANITATION / SWARM — massively parallel diagnostics on the frozen candidate
 3. root causes — deduplicated fingerprints, FAIL / INFRA / BLOCKED separated
 4. repairs — minimal and acceptance-preserving
-5. targeted block qualification — rerun only affected B01-B16 domains while repairing
-6. FULL B01-B16 on the frozen candidate — mandatory qualification evidence after the Swarm is clean
+5. targeted block qualification — rerun only affected active-12 Blockwise domains while repairing
+6. FULL active-12 Blockwise on the frozen candidate — mandatory qualification evidence after the Swarm is clean
 7. FINAL ADMISSION TO CURRENT MAIN — compare `BASE_SHA → current main`, build integration candidate, recompute fingerprints, rerun only affected blocks
 8. isolated LIVE qualification where required by D-sensitive drift/policy
 9. shared-resource / capacity collision check
 10. ONE REAL D-SERIES RUN
 11. immutable evidence
 
-The Swarm phase is a loop, not a single command. A RED Swarm is expected to produce root causes, not permission to launch. Repair the root causes, use targeted Bxx runs for fast confirmation, rerun the affected Swarm evidence until clean, and only then execute the full B01-B16 qualification pass. Parallel movement of `main` does not invalidate this expensive evidence by itself.
+The Swarm phase is a loop, not a single command. A RED Swarm is expected to produce root causes, not permission to launch. Repair the root causes, use targeted Bxx runs for fast confirmation, rerun the affected Swarm evidence until clean, and only then execute the full active-12 Blockwise qualification pass. Parallel movement of `main` does not invalidate this expensive evidence by itself.
 
 ## What the Swarm owns
 
@@ -80,21 +80,21 @@ This caller is not a launcher-direct architecture: it cannot run Blockwise, live
 
 ## What Blockwise owns
 
-B01-B16 is the normalized domain model and final qualification/admission input. During the Swarm, all B01-B16 domains run as diagnostic shards so one pass exposes as many independent failures as possible. During repair, one Bxx block may be rerun in targeted mode. A targeted GREEN is never launch authorization.
+active-12 Blockwise is the normalized domain model and final qualification/admission input. During the Swarm, all active-12 Blockwise domains run as diagnostic shards so one pass exposes as many independent failures as possible. During repair, one Bxx block may be rerun in targeted mode. A targeted GREEN is never launch authorization.
 
 A full frozen-candidate Blockwise run is valid only when:
 
 - it executes against the immutable frozen candidate SHA, not necessarily current `main`;
 - a successful exact-SHA `D-Series Sanitation Swarm` provenance run is supplied, either as the canonical direct `workflow_dispatch` or the strictly verified canonical one-shot reusable caller described above;
 - the Swarm scope is the requested D-class or `all`;
-- the full Blockwise aggregate is 16/16 PASS on that same frozen candidate SHA;
+- the full Blockwise aggregate is 12/12 PASS on that same frozen candidate SHA;
 - the qualification provenance artifact is retained.
 
 Merge/launch authority additionally requires the final Admission Gate against current `main`. The gate builds the integration candidate, recomputes fingerprints, selectively requalifies D-sensitive drift, fails closed when live requalification is required, and becomes stale if `main` moves during admission.
 
 ## Real scale
 
-Neither local Swarm diagnostics nor Blockwise 16/16 is represented as production-scale proof. D-500 and D-1000 have both completed their isolated real-scale acceptance campaigns. Future D-Series work must use a new explicit gate/repeatability identity and must not overwrite, rerun as if new, or weaken the immutable D-500/D-1000 accepted evidence.
+Neither local Swarm diagnostics nor Blockwise 12/12 is represented as production-scale proof. D-500 and D-1000 have both completed their isolated real-scale acceptance campaigns. Future D-Series work must use a new explicit gate/repeatability identity and must not overwrite, rerun as if new, or weaken the immutable D-500/D-1000 accepted evidence.
 
 No routing, recovery, topology, durability, safety, cleanup, evidence, terminal or process-count acceptance threshold is weakened by this architecture.
 
@@ -102,3 +102,7 @@ No routing, recovery, topology, durability, safety, cleanup, evidence, terminal 
 ## Final accepted scale ledger
 
 The compact final D-Series closure ledger is [`D_SERIES_FINAL_CLOSURE_2026-10-08.md`](D_SERIES_FINAL_CLOSURE_2026-10-08.md). It records the immutable accepted tuples and measured conclusions for D-200, D-500 and D-1000 without replacing their individual benchmark reports.
+
+## User-approved retirement (2026-10-10)
+
+Active Blockwise and Swarm execution excludes B03, B05, B06 and B16. Their original definitions, former run IDs and immutable Git history remain available under `history/D_SERIES_RETIRED_BLOCKS_2026-10-10.json`. Other 12 blocks remain fail-closed. The D-5000 strict first-attempt >=99%, 100 ack/zero loss, 20 x 250 topology, recovery, evidence and zero-resource cleanup acceptance remain unchanged.

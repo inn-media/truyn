@@ -11,7 +11,7 @@ test('D-Series Swarm-Blockwise architecture lock remains active until all D-Seri
   assert.equal(lock.state, 'LOCKED');
   assert.equal(lock.effectiveUntil, 'ALL_D_SERIES_TESTS_COMPLETE');
   assert.equal(lock.primaryEngine, 'sanitation-swarm');
-  assert.equal(lock.subordinateAdmissionGate, 'blockwise-b01-b16');
+  assert.equal(lock.subordinateAdmissionGate, 'blockwise-active12');
   assert.equal(lock.priorityOnConflict, 'sanitation-swarm');
   assert.equal(lock.invariants.swarmOwnsDiagnosticsAndRepair, true);
   assert.equal(lock.invariants.blockwiseMayNotReplaceSwarm, true);
@@ -42,7 +42,7 @@ test('Sanitation Swarm remains the primary D-Series engine and consumes Blockwis
     'd200-bug-hunt-aggregate.mjs'
   ]) assert.ok(workflow.includes(marker), `Swarm workflow lost marker: ${marker}`);
   assert.ok(docs.includes('Sanitation / Swarm is the primary D-Series diagnostic and repair engine'));
-  assert.ok(docs.includes('Blockwise B01-B16 is subordinate to it'));
+  assert.ok(docs.includes('Blockwise active-12 is subordinate to it'));
   assert.ok(docs.includes('LOCKED until `ALL_D_SERIES_TESTS_COMPLETE`'));
   assert.ok(docs.includes('competing `blockwise-only` or launcher-direct architecture is forbidden'));
   assert.ok(!workflow.includes('commits/main'), 'frozen-candidate Swarm qualification must not require current main equality');
