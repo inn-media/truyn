@@ -34,8 +34,12 @@ Advertise semantic capabilities such as `vision.object.detect`, `inspection.perf
 ## Version boundary
 **V1 / first mainnet:** capability discovery, authorization, signed results, *offboard* ROS 2/MQTT/Device bridge integrations for bounded non-safety-critical tasks; can integrate an existing robot controller but TRUYN does not operate an Edge Controller product.
 **V2 / post-mainnet:** managed/on-device Edge Controller product and advanced local orchestration/offline behaviors, with dedicated hardware qualification. The Edge Controller is explicitly excluded from V1 first-mainnet acceptance.
-Physical AI adapters and safety reference gates are additional roadmap deliverables, **not retroactive prerequisites for already accepted D/S/H evidence**, and not a claim that existing TRUYN/1 or stable mainnet is ready.
+Physical AI adapters, robot network and safety reference gates are **V2-only future roadmap deliverables**, not prerequisites for first mainnet or already accepted D/S/H evidence, and not a claim that TRUYN/1 or mainnet is ready.
 
 ## Open/private boundary
 **OPEN:** public bridge contracts, reference connectors, capability extension schemas, SDK entrypoints, conformance, simulator harness and local safety reference/policy enforcement examples.
 **PRIVATE:** managed device fleet/tenant registry, commercial policy/ranking, audited device enrollment, managed incident/telemetry operations, billing and enterprise fleet controls. Private consumes only accepted released public interfaces; no private production secrets or hardware identities in Open.
+
+## Explicit release exclusion
+
+**V1: no robots, no physical AI, no ROS 2/MQTT/Device robot bridges, no robot networks, no autonomous-operation safety gates, no hardware pilots and no Edge Controller. The entire track starts in V2 after the first mainnet.**

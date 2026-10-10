@@ -245,4 +245,4 @@ Canonical maturity remains `docs/architecture/IMPLEMENTATION_STATUS.md`.
 | `adapters/physical/simulation/` | — (planned simulation/HIL harness) |
 | `core/physical-safety/` | — (planned reference safety policy/gates; local actuation remains outside TRUYN) |
 
-Edge Controller is a V2 product, not a V1 placeholder module. See `PHYSICAL_AI_INTEROPERABILITY.md`.
+All Physical AI and robotics modules are V2/post-first-mainnet planned paths, not V1 modules or prerequisites. See `PHYSICAL_AI_INTEROPERABILITY.md`.

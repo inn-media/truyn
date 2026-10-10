@@ -447,7 +447,9 @@ Physical AI is a distinct interoperability track. Do not confuse it with F-Serie
 - [ ] **PA-3 Generic Device Adapter:** public portable hardware-facing adapter contract for sensors/edge gateways and device capabilities, without direct unsafe actuator passthrough.
 - [ ] **PA-4 Robot Network:** two heterogeneous simulated robot nodes discover/authorize/perform task/verify signed RESULT; cross-adapter ROS 2↔MQTT/Device, failure/replay/tenant-negative tests.
 - [ ] **PA-5 Autonomous-operation safety gates:** local independent policy/approval/watchdog/E-stop, replay and action dedup, TTL/freshness/limits, fault injection and evidence; simulation→HIL→scoped real robot pilot, never conflate network PASS with hardware-safety PASS.
-- [ ] **PA-6 V1 interoperability acceptance:** public released reference bridges and bounded non-safety-critical offboard tasks; first mainnet does **not** depend on completing an Edge Controller.
-- [ ] **PA-7 V2 post-mainnet:** Edge Controller product, on-device orchestration/offline operation and hardware-specific qualification, separately accepted.
+- [ ] **PA-6 V2 interoperability acceptance:** public released reference bridges and bounded robot tasks; entirely excluded from V1 and first-mainnet acceptance.
+- [ ] **PA-7 V2 post-mainnet:** Edge Controller product, on-device orchestration/offline operation and hardware-specific qualification, separately accepted. No Physical AI or robotics deliverable belongs to V1.
 
 All stages are **PLANNED / OPEN**, not an accepted production claim; PA milestones do not retroactively modify existing D/S/H fixed gates or rewrite mainnet status.
+
+**Release scope invariant:** V1 / first mainnet has ZERO robotics or Physical AI scope. Every PA/P-AI milestone is a V2/post-first-mainnet plan only; listing it here does not add a V1 acceptance gate.
