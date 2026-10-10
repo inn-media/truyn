@@ -85,3 +85,7 @@ Current governance is G1 public-process/bootstrap Founding Stewardship. Neutral-
 A material accepted subsystem change should update current-status prose in the same release window. Open PRs remain candidates; merged repository/runtime support must not be overstated as live production evidence; historical benchmark/changelog/acceptance records remain audit history.
 
 Operational network-scale status: [../operations/NETWORK_SCALE_STATUS.md](../operations/NETWORK_SCALE_STATUS.md).
+
+## Physical AI extension / version boundary
+
+Planned ROS 2, MQTT and generic Device adapters are public interoperability bridges, like A2A/MCP, not TRUYN/1 dependencies or independent command authority. The open safety reference denies unsafe/stale/replayed actions before local actuation. Robot networking is planned; no physical safety/robot-certification claim is accepted. **Edge Controller belongs to V2 after first mainnet**, not first-mainnet V1. See `PHYSICAL_AI_INTEROPERABILITY.md`.
