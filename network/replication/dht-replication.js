@@ -1,4 +1,4 @@
-import { verifyDhtRecord } from '../dht/kademlia.js';
+import { verifyDhtRecord, xorDistance } from '../dht/kademlia.js';
 
 function uniquePeers(peers = []) {
   const seen = new Set();
@@ -261,8 +261,23 @@ export class DhtReplicationManager {
     let iterativeQueries = 0;
     let iterativeResponses = 0;
     let frontierHintsAccepted = 0;
+    const target = keyspaceTarget(namespace, key);
+    // A recovered key can be held by a close replica absent from the first
+    // routing frontier. FIFO exhausted the bounded read budget on farther
+    // seed/hint peers (Attempt 9: 36/36 replies, 125 hints, publisher still held
+    // the record). Re-rank the *unqueried* frontier by the same Kademlia XOR
+    // distance used for replica placement, without increasing read budgets.
+    const rankPending = () => {
+      const ranked = queue.slice(cursor).sort((a, b) => {
+        const left = xorDistance(a.nodeId, target);
+        const right = xorDistance(b.nodeId, target);
+        return left < right ? -1 : left > right ? 1 : a.nodeId.localeCompare(b.nodeId);
+      });
+      queue.splice(cursor, ranked.length, ...ranked);
+    };
 
     while (cursor < queue.length && iterativeQueries < iterativeQueryBudget && byId.size === 0) {
+      rankPending();
       const batch = [];
       while (cursor < queue.length && batch.length < alpha && iterativeQueries + batch.length < iterativeQueryBudget) {
         const peer = queue[cursor++];
