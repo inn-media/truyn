@@ -1,5 +1,5 @@
 # D-5000 Attempt 11: exact Attempt 11 launcher clone, bounded recovery lookup surgical repair.
-# Single-shot strict acceptance; previous Attempt 11 immutable and cleaned.
+# Single-shot strict acceptance; previous Attempt 10 immutable and cleaned.
 name: D-5000 Scale Run - Attempt 11 (Post-Restart Diagnostics Repair)
 on:
   push:
@@ -53,7 +53,7 @@ jobs:
           prior_artifact="$(gh api repos/inn-media/truyn/actions/artifacts/11681613750)"
           [[ "$(jq -r '.workflow_run.id' <<<"$prior_artifact")" == 38079448317 && "$(jq -r '.expired' <<<"$prior_artifact")" == false && "$(jq -r '.digest' <<<"$prior_artifact")" == 'sha256:172d3c26076fdcbc22d801edb4773cd9631ea1a129164c8c98dc1daad33e3f63' ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=previous_artifact_invalid'; exit 1; }
           [[ "$(jq -r '.status' <<<"$previous")" == completed && "$(jq -r '.conclusion' <<<"$previous")" == failure && "$(jq -r '.run_attempt' <<<"$previous")" == 1 ]] || { echo 'TRUYN_D5000_ADMISSION=BLOCKED reason=previous_attempt10_not_terminal_failure'; exit 1; }
-          # Attempt 9 completed the 20-host campaign but RED at strict write-retention (99/100); preserve failure and cleanup evidence.
+          # Attempt 10 completed the 20-host campaign but RED at strict write-retention (98/100); preserve failure and cleanup evidence.
           # Require immutable terminal step evidence of cleanup; never infer cleanup from probe success.
           previous_jobs="$(gh api 'repos/inn-media/truyn/actions/runs/38079448317/jobs?per_page=100')"
           jq -e '
@@ -73,7 +73,7 @@ jobs:
             gate="$(gh api "repos/inn-media/truyn/actions/runs/$gate_id")"
             [[ "$(jq -r '.status' <<<"$gate")" == completed && "$(jq -r '.conclusion' <<<"$gate")" == success && "$(jq -r '.head_sha' <<<"$gate")" == "$TESTED_COMMIT" && "$(jq -r '.run_attempt' <<<"$gate")" == 1 ]] || { echo "TRUYN_D5000_ADMISSION=BLOCKED reason=exact_main_gate_not_green run=$gate_id"; exit 1; }
           done
-          echo "TRUYN_D5000_ATTEMPT11_EXACT_SOURCE=PASS prior_attempt9=38079448317 qualifier=$qualified_id"
+          echo "TRUYN_D5000_ATTEMPT11_EXACT_SOURCE=PASS prior_attempt10=38079448317 qualifier=$qualified_id"
           bash -n benchmarks/scale/class-d-azure-5000-provision.sh
           bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
           node --test benchmarks/scale/class-d-5000-admission.test.js
