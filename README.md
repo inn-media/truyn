@@ -27,7 +27,7 @@ Website: https://truyn.org/
 | Class D-1000 | **Accepted / PASS; 20 hosts / 1,000 real processes** |
 | Semantic Scale S-Series | **S-10 + S-20 + S-50 + S-100 accepted / PASS; S-200+ remain OPEN** |
 | A-Series Assurance | **Public foundation merged / real A-SOAK Attempt 1 not launched** |
-| D-5000 | **NOT ACCEPTED**; live Attempt 3 run `37908203516` was in progress at the documentation snapshot |
+| D-5000 | **NOT ACCEPTED** as of this reconciliation; Attempts 7–8 have newer launch/repair history; no final accepted D-5000 evidence verified |
 | Efficiency E-Series | **Active qualification; no final E PASS claimed** |
 | Hidden-value H-Series | **4/4 PASS/CLOSED — CACHE-COMPOUND, SECOND-OPINION, ARBITRAGE, CHAOS-FUZZ** |
 | Account → Organization → Tenant | **Implemented / accepted; managed implementation owned by TRUYN Platform** |
@@ -40,11 +40,11 @@ Website: https://truyn.org/
 | PyPI / Go / npm alpha.2 | **Accepted immutable public releases** |
 | Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.1`** |
 | NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** |
-| Open 1.0 productization | **S01–S102 complete; S103 active; stable 1.0 not reached** |
+| Open 1.0 productization | **IN PROGRESS**; historical S103 checkpoint is not a live task-state authority; stable 1.0 requires independent G1–G34 final reconciliation |
 | Governance | **G1 / bootstrap Founding Stewardship** |
 | Stable mainnet | **Not yet** |
 
-The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Operational D-scale status remains delegated to [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md). The latest H-Series closure sanitation is [H/CHAOS-FUZZ publication sanitation — 2026-10-10](docs/operations/H_CHAOS_FUZZ_SANITATION_2026-10-10.md). H/CACHE-COMPOUND sanitation remains recorded at [H/CACHE-COMPOUND publication sanitation — 2026-10-10](docs/operations/H_CACHE_COMPOUND_SANITATION_2026-10-10.md). A-Series reconciliation remains recorded in [Documentation Sanitation — 2026-10-09 A-Series](docs/operations/DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md).
+Cross-repository status reconciliation: [2026-10-10 evidence-qualified matrix](docs/operations/GLOBAL_STATUS_RECONCILIATION_2026-10-10.md). The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Operational D-scale status remains delegated to [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md). The latest H-Series closure sanitation is [H/CHAOS-FUZZ publication sanitation — 2026-10-10](docs/operations/H_CHAOS_FUZZ_SANITATION_2026-10-10.md). H/CACHE-COMPOUND sanitation remains recorded at [H/CACHE-COMPOUND publication sanitation — 2026-10-10](docs/operations/H_CACHE_COMPOUND_SANITATION_2026-10-10.md). A-Series reconciliation remains recorded in [Documentation Sanitation — 2026-10-09 A-Series](docs/operations/DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md).
 
 ### Status vocabulary
 
@@ -57,7 +57,7 @@ Repository documentation distinguishes:
 
 A failed/diagnostic attempt is evidence, not PASS.
 
-A-Series public foundation [PR #922](https://github.com/inn-media/truyn/pull/922) was merged at `64fc6e845339880da19f43298a3f863122759496`; public runtime release controller [PR #925](https://github.com/inn-media/truyn/pull/925) at `480d70442b4044057399a031f895f6f9ab97231d`. Neither merge is real A-SOAK acceptance. [Assurance contract](docs/assurance/README.md) defines A-SOAK → A-OPS → A-SLO → A-WIRE → A-NET; private A-MGMT belongs to TRUYN Platform. No published immutable A-SOAK runtime or paid SOAK Attempt 1 was verified at this snapshot.
+A-Series public foundation [PR #922](https://github.com/inn-media/truyn/pull/922) was merged at `64fc6e845339880da19f43298a3f863122759496`; public runtime release controller [PR #925](https://github.com/inn-media/truyn/pull/925) at `480d70442b4044057399a031f895f6f9ab97231d`. Neither merge is real A-SOAK acceptance. [Assurance contract](docs/assurance/README.md) defines A-SOAK → A-OPS → A-SLO → A-WIRE → A-NET; private A-MGMT belongs to TRUYN Platform. The A-SOAK private control/evidence and native cleanup preparations have subsequently advanced (private PRs #439–#448). Those foundation and smoke tasks do not establish a completed 3600-second A-SOAK Attempt 1.
 
 ## Current scale boundaries
 
@@ -87,7 +87,7 @@ This is not a stable NLWeb-v1 claim and does not make NLWeb a TRUYN transport or
 
 TypeScript/JavaScript, Python, Go, Java and C#/.NET first-party clients participate in shared executable conformance. PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2` are accepted immutable public releases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 
-Open 1.0 productization is still in progress. The durable task anchor records S01–S102 complete and S103 active; stable Open 1.0 is not declared until the remaining sequence and final independent reconciliation close.
+Open 1.0 productization is still in progress. Historical documentation recorded S01–S102 complete and S103 active. That checkpoint is not proof of the current sprint; issue #615 and task-scoped durable state must be reconciled with latest main. Stable Open 1.0 is not declared without independent G1–G34 final reconciliation.
 
 ## Quick local verification
 
@@ -139,7 +139,7 @@ Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`,
 
 **Scope boundary:** this demonstrates repeatability of the specified 1,000-process Class-D scale acceptance. It does not establish long-duration production SLO compliance, private managed-production acceptance, or mainnet readiness. Public repository remains the authoritative source of benchmark/evaluator/evidence; private repository consumes only immutable identifiers and sanitized public metrics.
 
-**D-5000 current update:** Attempt 1 was later executed and failed; additional attempts followed. At this snapshot [Attempt 3 run #37908203516](https://github.com/inn-media/truyn/actions/runs/37908203516) was in progress. Do not treat the dated preparation passage below as current status or any offline pass as final D-5000 acceptance.
+**D-5000 current update (2026-10-10):** Attempts 7 and 8 have newer public launch/repair lineage (PRs #950–#954); no accepted D-5000 final result is verified. Earlier Attempt 3 status is historical. Do not treat the dated preparation passage below as current status or any offline pass as final D-5000 acceptance.
 
 ## Historical D-5000 Attempt 1 preparation snapshot (2026-10-08; superseded)
 
