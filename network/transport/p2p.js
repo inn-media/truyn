@@ -52,6 +52,26 @@ function routeDeadlineError(peerNodeId, phase) {
   return error;
 }
 
+function supersededConnectionError(peerNodeId) {
+  const error = new Error(`p2p_connection_superseded:${peerNodeId}`);
+  error.code = 'TRUYN_P2P_CONNECTION_SUPERSEDED';
+  return error;
+}
+
+// @matrixai/quic rejects cancelled streams with `null` or with errors that carry
+// neither a code nor a message. Keep control-flow codes untouched; give every
+// other failure a stable code, the route phase and the original class.
+function classifiedDirectError(error, phase) {
+  if (typeof error?.code === 'string' && error.code) return error;
+  const causeClass = error === null ? 'null' : error === undefined ? 'undefined' : (error?.constructor?.name || typeof error);
+  const classified = new Error(`p2p_${phase}_failed:${causeClass}${typeof error?.message === 'string' && error.message ? `:${error.message.slice(0, 96)}` : ''}`);
+  classified.code = phase === 'direct-envelope' ? 'TRUYN_P2P_DISPATCH_FAILED' : 'TRUYN_P2P_DIRECT_FAILED';
+  classified.phase = phase;
+  classified.causeClass = causeClass;
+  if (error != null) classified.cause = error;
+  return classified;
+}
+
 export class ExplicitBackpressureQueue extends BoundedAdmissionQueue {
   constructor({ maxInFlight = 64, maxQueued = 256 } = {}) {
     super({ maxInFlight, maxQueued, errorCode: 'TRUYN_BACKPRESSURE', errorMessage: 'p2p_backpressure' });
@@ -118,6 +138,11 @@ export class DirectFirstP2P {
     this.discoveryRecoveries = new Map();
     this.queue = new ExplicitBackpressureQueue({ maxInFlight, maxQueued });
     this.idleSweepTimer = null;
+    // Application envelopes currently in flight per QUIC client. A connection that
+    // is removed from reuse while a dispatch is in flight is closed when the last
+    // dispatch settles, never underneath it.
+    this.clientLeases = new WeakMap();
+    this.retiredClients = new WeakSet();
   }
 
   #ensureIdleSweep() {
@@ -131,7 +156,7 @@ export class DirectFirstP2P {
       const lastUsedAt = Number.isFinite(entry?.lastUsedAt) ? entry.lastUsedAt : 0;
       if (now - lastUsedAt < this.directConnectionReuseIdleMs) continue;
       this.connections.delete(peerNodeId);
-      void this.#disconnectClient(entry.client);
+      void this.#retireClient(entry.client);
     }
     if (this.connections.size === 0 && this.idleSweepTimer) {
       clearInterval(this.idleSweepTimer);
@@ -180,7 +205,35 @@ export class DirectFirstP2P {
     try { await this.quic.disconnect(client); } catch { /* stale connection disposal is best-effort */ }
   }
 
-  async #discardConnection(peerNodeId) {
+  #leaseClient(client) {
+    if (!client || (typeof client !== 'object' && typeof client !== 'function')) return () => {};
+    this.clientLeases.set(client, (this.clientLeases.get(client) || 0) + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const remaining = (this.clientLeases.get(client) || 1) - 1;
+      if (remaining > 0) { this.clientLeases.set(client, remaining); return; }
+      this.clientLeases.delete(client);
+      if (this.retiredClients.has(client)) {
+        this.retiredClients.delete(client);
+        void this.#disconnectClient(client);
+      }
+    };
+  }
+
+  // Remove-from-reuse is immediate; the close waits for in-flight dispatches unless forced.
+  async #retireClient(client, { force = false } = {}) {
+    if (!client) return;
+    if (!force && (this.clientLeases.get(client) || 0) > 0) {
+      this.retiredClients.add(client);
+      return;
+    }
+    this.retiredClients.delete(client);
+    await this.#disconnectClient(client);
+  }
+
+  async #discardConnection(peerNodeId, { force = false } = {}) {
     const pending = this.connectingByNodeId.get(peerNodeId);
     if (pending) {
       pending.discarded = true;
@@ -188,7 +241,7 @@ export class DirectFirstP2P {
     }
     const existing = this.connections.get(peerNodeId);
     this.connections.delete(peerNodeId);
-    await this.#disconnectClient(existing?.client);
+    await this.#retireClient(existing?.client, { force });
   }
 
   async #discardBinding(peerNodeId, binding) {
@@ -201,7 +254,7 @@ export class DirectFirstP2P {
     const existing = this.connections.get(peerNodeId);
     if (existing?.binding !== binding) return;
     this.connections.delete(peerNodeId);
-    await this.#disconnectClient(existing.client);
+    await this.#retireClient(existing.client);
   }
 
   async #boundedConnect(peerNodeId, endpoint, deadlineAt) {
@@ -254,9 +307,7 @@ export class DirectFirstP2P {
       }
       const existing = this.connections.get(peerRecord.nodeId);
       if (existing) return existing.client;
-      const error = new Error(`p2p_connection_superseded:${peerRecord.nodeId}`);
-      error.code = 'TRUYN_P2P_CONNECTION_SUPERSEDED';
-      throw error;
+      throw supersededConnectionError(peerRecord.nodeId);
     }
     this.connections.set(peerRecord.nodeId, { client, binding, lastUsedAt: Date.now() });
     this.#watchConnection(peerRecord.nodeId, client);
@@ -430,16 +481,25 @@ export class DirectFirstP2P {
         try {
           this.faults?.assertPeer(peerNodeId, 'direct');
           const client = await this.#directClient(record, routeDeadlineAt);
+          // Retired between connect and dispatch (peer generation change, close or
+          // sweep): nothing has been sent yet, so re-resolve instead of dispatching.
+          if (this.connections.get(peerNodeId)?.client !== client) throw supersededConnectionError(peerNodeId);
           applicationDispatched = true;
-          const result = await this.#boundedPhase(
-            peerNodeId,
-            routeDeadlineAt,
-            'direct-envelope',
-            () => this.quic.sendEnvelope(client, envelope)
-          );
+          const releaseClient = this.#leaseClient(client);
+          let result;
+          try {
+            result = await this.#boundedPhase(
+              peerNodeId,
+              routeDeadlineAt,
+              'direct-envelope',
+              () => this.quic.sendEnvelope(client, envelope)
+            );
+          } finally {
+            releaseClient();
+          }
           return { transport: 'quic-direct', result };
         } catch (error) {
-          directError = error;
+          directError = classifiedDirectError(error, applicationDispatched ? 'direct-envelope' : 'direct-connect');
           await this.#discardBinding(peerNodeId, attemptedBinding);
           if (
             !applicationDispatched &&
@@ -508,7 +568,13 @@ export class DirectFirstP2P {
     });
   }
 
-  async forget(peerNodeId) { await this.#discardConnection(peerNodeId); }
+  // Peer generation change (restart / new endpoint): stop reusing the old binding now,
+  // but let envelopes already dispatched on it complete. A fresh connection made with
+  // the pre-restart record reaches the restarted process on the same endpoint, and
+  // the NEED it carries must not be cancelled after delivery.
+  async retire(peerNodeId) { await this.#discardConnection(peerNodeId); }
+  // Explicit fault/partition control stays destructive.
+  async forget(peerNodeId) { await this.#discardConnection(peerNodeId, { force: true }); }
   admissionSnapshot() { return this.queue.snapshot(); }
 }
 

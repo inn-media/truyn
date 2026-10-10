@@ -12,7 +12,8 @@
 
 D200_CAMPAIGN_SOURCE="${D200_CAMPAIGN_SOURCE:-benchmarks/scale/class-d-azure-1000-campaign.sh}"
 D200_RESTART_STAGE_SOURCE="${D200_RESTART_STAGE_SOURCE:-benchmarks/scale/d200-restart-recovery-stage.sh}"
-D200_POST_RESTART_STAGE_SOURCE="${D200_POST_RESTART_STAGE_SOURCE:-benchmarks/scale/d200-post-restart-routing-stage.sh}"
+# D-5000 only: same acceptance, stricter success proof and target-host diagnostics.
+D200_POST_RESTART_STAGE_SOURCE="${D200_POST_RESTART_STAGE_SOURCE:-benchmarks/scale/d5000-post-restart-routing-stage.sh}"
 D200_RETENTION_STAGE_SOURCE="${D200_RETENTION_STAGE_SOURCE:-benchmarks/scale/d200-write-retention-stage.sh}"
 D200_RESOURCES_STAGE_SOURCE="${D200_RESOURCES_STAGE_SOURCE:-benchmarks/scale/d200-resources-stage.sh}"
 D200_STAGE_RESULTS_JSON="${GITHUB_WORKSPACE:-$PWD}/class-d-200-stage-results.json"
