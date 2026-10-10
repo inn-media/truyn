@@ -109,8 +109,7 @@ if (selectedClasses.includes(200)) {
 }
 
 const blockEvidence = [];
-for (let index = 1; index <= 16; index += 1) {
-  const blockId = `B${String(index).padStart(2, '0')}`;
+for (const blockId of ['B01','B02','B04','B07','B08','B09','B10','B11','B12','B13','B14','B15']) {
   const file = path.join(blocksDir, `d-series-block-${blockId}.json`);
   if (!fs.existsSync(file)) {
     clean = false;

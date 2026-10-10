@@ -1,0 +1,151 @@
+{
+  "schema": "truyn.d-series.legacy-block-retirement.v1",
+  "userApprovedAt": "2026-10-10",
+  "retired": [
+    "B03",
+    "B05",
+    "B06",
+    "B16"
+  ],
+  "priorSourceSha": "e4059f8f9c014f238dfd2ca7d2cda8eb843f660b",
+  "legacyDefinitions": [
+    {
+      "id": "B03",
+      "name": "cloud-oidc-capacity",
+      "domain": "cloud-control-plane",
+      "commands": [
+        {
+          "label": "Azure OIDC contract",
+          "argv": [
+            "node",
+            "scripts/check-d200-cloud-contract.mjs"
+          ]
+        },
+        {
+          "label": "bootstrap workflow contract",
+          "argv": [
+            "node",
+            "--test",
+            "tests/class-d-bootstrap-qualification.test.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B05",
+      "name": "process-startup-identity",
+      "domain": "process-lifecycle",
+      "commands": [
+        {
+          "label": "run-command boundary",
+          "argv": [
+            "node",
+            "--test",
+            "tests/class-d-1000-run-command-boundary.test.js"
+          ]
+        },
+        {
+          "label": "local real process identity",
+          "classes": [
+            200,
+            500,
+            1000
+          ],
+          "argv": [
+            "node",
+            "scripts/class-d-local-multiprocess-repro.mjs",
+            "--class",
+            "{class}",
+            "--scenario",
+            "topology",
+            "--nodes",
+            "6"
+          ],
+          "timeoutMs": 120000
+        }
+      ]
+    },
+    {
+      "id": "B06",
+      "name": "bootstrap-refresh",
+      "domain": "bootstrap",
+      "liveQualification": "class-d-bootstrap-qualification.yml",
+      "commands": [
+        {
+          "label": "bootstrap/refresh regressions",
+          "argv": [
+            "node",
+            "--test",
+            "tests/class-d-1000-bootstrap.test.js",
+            "tests/class-d-1000-hermetic-bootstrap.test.js",
+            "tests/peer-discovery-refresh-bounds.test.js",
+            "tests/class-d-bootstrap-qualification.test.js",
+            "tests/dht-readiness-testnet-endpoint.test.js"
+          ],
+          "timeoutMs": 180000
+        },
+        {
+          "label": "local bootstrap path",
+          "classes": [
+            200,
+            500,
+            1000
+          ],
+          "argv": [
+            "node",
+            "scripts/class-d-local-multiprocess-repro.mjs",
+            "--class",
+            "{class}",
+            "--scenario",
+            "readiness",
+            "--nodes",
+            "6"
+          ],
+          "timeoutMs": 120000
+        }
+      ]
+    },
+    {
+      "id": "B16",
+      "name": "cleanup-terminal-assembly",
+      "domain": "terminal-assembly",
+      "commands": [
+        {
+          "label": "provision cleanup syntax",
+          "argv": [
+            "bash",
+            "-n",
+            "benchmarks/scale/class-d-azure-1000-provision.sh"
+          ]
+        },
+        {
+          "label": "isolated campaign syntax",
+          "argv": [
+            "bash",
+            "-n",
+            "scripts/d200-stage-isolated-campaign.sh"
+          ]
+        },
+        {
+          "label": "terminal/cleanup regressions",
+          "argv": [
+            "node",
+            "--test",
+            "tests/class-d-terminal-verifier.test.js",
+            "tests/d500-prelaunch.test.js"
+          ],
+          "timeoutMs": 180000
+        },
+        {
+          "label": "repository diff check",
+          "argv": [
+            "git",
+            "diff",
+            "--check"
+          ]
+        }
+      ]
+    }
+  ],
+  "strictD5000AcceptanceUnchanged": true
+}

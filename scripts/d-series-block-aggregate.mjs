@@ -13,7 +13,7 @@ const outputPath = outputIndex >= 0 ? argv[outputIndex + 1] : 'd-series-blockwis
 const expectedSourceSha = sourceIndex >= 0 ? argv[sourceIndex + 1] : (process.env.TRUYN_CLASS_D_SOURCE_SHA || process.env.GITHUB_SHA || null);
 const scope = scopeIndex >= 0 ? argv[scopeIndex + 1] : 'full';
 const selectedBlock = selectedIndex >= 0 ? argv[selectedIndex + 1] : null;
-const expectedBlocks = Array.from({ length: 16 }, (_, index) => `B${String(index + 1).padStart(2, '0')}`);
+const expectedBlocks = ['B01','B02','B04','B07','B08','B09','B10','B11','B12','B13','B14','B15'];
 
 const files = fs.existsSync(root)
   ? fs.readdirSync(root).filter((name) => name.endsWith('.json')).map((name) => path.join(root, name))
@@ -33,7 +33,7 @@ const missing = required.filter((blockId) => !byBlock.has(blockId));
 const stale = [...byBlock.values()].filter((row) => expectedSourceSha && row.sourceSha !== expectedSourceSha).map((row) => row.blockId);
 const failed = required.filter((blockId) => byBlock.get(blockId)?.status !== 'PASS');
 const passCount = required.filter((blockId) => byBlock.get(blockId)?.status === 'PASS').length;
-const clean = missing.length === 0 && stale.length === 0 && failed.length === 0 && (scope === 'targeted' || required.length === 16);
+const clean = missing.length === 0 && stale.length === 0 && failed.length === 0 && (scope === 'targeted' || required.length === 12);
 
 const summary = {
   schema: 'truyn.d-series.blockwise-summary.v1',
