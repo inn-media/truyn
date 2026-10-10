@@ -1,7 +1,7 @@
 # Benchmark Series Isolation Contract
 
 Status: **NORMATIVE**  
-Scope: all TRUYN benchmark/test families, including T, D, S, H, E and future series.
+Scope: all TRUYN benchmark/test families, including T, D, S, H, E, N, F and future series.
 
 TRUYN benchmark families are designed to execute concurrently. A run from one series MUST NOT invalidate, perturb, overwrite, throttle, warm, fault-inject, spend from, or otherwise contaminate another series except where an explicitly declared shared dependency is immutable/read-only and proven not to alter measured conditions.
 
@@ -34,7 +34,7 @@ H/<benchmark>/<run-id>
 E/E-DECOMPOSE/<run-id>
 E/E-PER-RESULT/<run-id>
 E/E-KNEE/<run-id>
-E/E-DEGRADE/<run-id>
+E/E-DEGRADE/<run-id>\nF/F-PHYSICAL-CHAOS/<run-id>
 ```
 
 `run_id` MUST be globally unique within the repository evidence domain. A mutable alias such as `latest`, `current`, or a branch name MUST NOT be an evidence identity.
@@ -165,6 +165,21 @@ rollback path = proven
 If another series is active in the same fault domain, the injector MUST wait or select a disjoint target. It MUST NOT proceed merely because the tests have different benchmark names.
 
 E/DEGRADE offered-load ramps are not permission to inject faults into foreign/shared mutable resources. Any capacity/configuration/fault mutation follows the same R2 lease rule.
+
+## 8.1 F-Series dedicated destructive-domain rule
+
+F-Series is the physical-chaos exception to product-level fault isolation **inside its own domain**, not an exception to cross-series ownership.
+
+For an F physical-chaos run:
+
+- all F workload nodes may intentionally share the network/storage resources under test;
+- the F destructive domain MUST be dedicated and disjoint from A/D/S/T/H/E/N measured resources by construction;
+- the F observer and immutable evidence destination MUST remain outside the destructive domain;
+- one exclusive R2 lease covers the dedicated F destructive domain;
+- F MUST NOT require destructive access to another benchmark family's active resources;
+- a simulation, mock, replay or product-local fault flag never satisfies a physical F claim.
+
+This permits real correlated failures inside F without contaminating foreign benchmark evidence.
 
 ## 9. Cross-series interference detection
 

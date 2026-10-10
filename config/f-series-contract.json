@@ -1,0 +1,50 @@
+{
+  "schema": "truyn.f-series.contract/v1",
+  "seriesId": "F",
+  "name": "Physical Infrastructure Chaos",
+  "status": "FOUNDATION_DEFINED_NOT_EXECUTED",
+  "claimBoundary": "physical WAN/storage/node-failure resilience in a dedicated destructive Azure fault domain",
+  "prohibitions": {
+    "simulationCountsAsPhysicalEvidence": false,
+    "mockFaultsCountAsPhysicalEvidence": false,
+    "replayCountsAsPhysicalEvidence": false,
+    "productFaultFlagsCountAsPhysicalEvidence": false,
+    "foreignBenchmarkResourcesMayBeMutated": false
+  },
+  "faultDomain": {
+    "dedicated": true,
+    "cloud": "azure",
+    "seriesExclusive": true,
+    "crossSeriesDisjointByConstruction": true,
+    "requiredLeaseClass": "R2",
+    "evidenceStoreOutsideDestructiveDomain": true,
+    "observerOutsideDestructiveDomain": true
+  },
+  "lanes": {
+    "F1": ["packet_loss", "latency_spike", "packet_reordering"],
+    "F2": ["wan_partition", "partition_heal"],
+    "F3": ["process_sigkill", "vm_poweroff", "node_restart_inflight"],
+    "F4": ["storage_unavailable", "disk_detach", "write_eio", "disk_enospc", "replica_loss"],
+    "F5": ["compound_network_node_storage_faults_under_load"],
+    "F6": ["independent_reconciliation"]
+  },
+  "loadFloor": {
+    "requestsPerSecond": 20,
+    "writesPerMinute": 50,
+    "replicationFactor": 3,
+    "minimumAcks": 2
+  },
+  "acceptance": {
+    "recoveryP95MsMax": 120000,
+    "acknowledgedWriteLossMax": 0,
+    "phantomWriteMax": 0,
+    "ackWithoutQuorumMax": 0,
+    "identitySafetyViolationMax": 0,
+    "provenanceSafetyViolationMax": 0,
+    "foreignResourceMutationMax": 0,
+    "minimumIndependentImpactProofsPerEpisode": 2,
+    "azureMutationRequiresActivityLog": true,
+    "candidateStatus": "PASS_CANDIDATE",
+    "terminalStatus": "PASS_RECONCILED"
+  }
+}
