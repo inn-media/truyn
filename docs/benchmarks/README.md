@@ -57,6 +57,10 @@ The repository regression suite treats the evidence files below as protected and
 - [`TRUST_NETWORK_V2_2026-08-16.md`](TRUST_NETWORK_V2_2026-08-16.md) — decentralized placement + Byzantine read-quorum + active Trustability proof.
 - [`ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md`](ORIGIN_BYPASS_SECURITY_EVALUATION_2026-08-16.md) — preserved earlier production origin-bypass evaluation and negative experiments. It remains historical evidence and is superseded **only for the current production origin-lock status** by `AZURE_ORIGIN_LOCK_2026-08-23.md`.
 
+### Qualification-only evidence (not final measured acceptance)
+
+- [`N_SOVEREIGNTY_10_2026-09-25.md`](N_SOVEREIGNTY_10_2026-09-25.md) — GREEN 10-node policy/control-plane qualification using deterministic cost/latency fixtures, not real 50/100-node multi-cloud performance or final sovereignty acceptance.
+
 ### Unaccepted / negative scale evidence
 
 - [`CLASS_D_100_ATTEMPT_2026-08-17.md`](CLASS_D_100_ATTEMPT_2026-08-17.md) — preserved first Class D 100-node launch attempt. No durable accepted run result was available for that attempt, so the record remains explicitly **not a PASS claim**. It is retained as negative history and is superseded for the accepted D-100 status only by `CLASS_D_100_2026-08-22.md`.

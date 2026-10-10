@@ -33,7 +33,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | D-5000 | **Not accepted; Attempt 3 live at dated snapshot** | independently verified terminal and cleanup, isolated from A-Series |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
 | Hidden-value H-Series | **4/4 ACCEPTED / PASS / CLOSED** | preserve immutable evidence; future work requires versioned successor campaigns |
-| Emergent Network N-Series | **FOUNDATION DEFINED / NOT YET EXECUTED** | runner/schema/isolation qualification → N/SOVEREIGNTY pilot |
+| Emergent Network N-Series | **N/SOVEREIGNTY-10 qualification GREEN; no accepted real 50/100 measured scale claim** | real multi-cloud measured sovereignty and remaining N lanes |
 | Semantic/distributed retrieval | **Implemented bounded CI/benchmark slices** | broader decentralized/adversarial scale |
 | Claim-centric + active Trustability | **Implemented bounded slices** | Production Trust Authority remains open |
 | Account → Organization → Tenant | **Historical public acceptance; managed ownership is TRUYN Platform** | public contract/reference seams |
@@ -60,10 +60,12 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.1`** | — |
 | NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** | — |
 | Agent Descriptor | **Bounded valid-profile implemented** | endpoint/interface parity + refresh/re-sign + full serving parity |
-| Open 1.0 productization | **S01–S102 completed; S103 active on task branch; not yet stable 1.0** | S103 qualification → remaining S104–S200 → final G1–G34 reconciliation |
+| Open 1.0 productization | **IN PROGRESS; S103 was a historical checkpoint, not current authoritative sprint** | reconcile issue #615 / task capsule and exact main; final G1–G34 reconciliation before stable 1.0 |
 | Live developer site | **OPEN** | deployment/liveness evidence |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers/TSC/neutral stewardship |
 | Mainnet | **Not productionized** | long-duration live ops + remaining S/security/reliability + release/governance gates |
+
+Current cross-repository truth table: [Global Status Reconciliation](../operations/GLOBAL_STATUS_RECONCILIATION_2026-10-10.md).
 
 ## Network-scale acceptance boundary
 
@@ -152,11 +154,11 @@ Public hard gates include routing >=99% and recovery p95 <=120 s when exercised,
 
 The N foundation also fixes false-PASS controls: requester provider blindness, actual data-plane sovereignty evidence, independent hidden oracle, continuous load during churn and immutable acceptance before final execution.
 
-No N-Series run has executed or passed. Canonical foundation: `N_SERIES_EMERGENT_NETWORK.md`, `N_SERIES_OPEN_PRIVATE_BOUNDARY.md`, `../benchmarks/N_SERIES_EMERGENT_BEHAVIOR_CONTRACT.md`, `../benchmarks/N_SERIES_TELEMETRY.md`, `../operations/N_SERIES_EXECUTION_AND_ISOLATION.md`, `../roadmap/N_SERIES_ROADMAP.md`.
+N/SOVEREIGNTY-10 qualification/smoke executed with deterministic fixture values (2 allowed executions, 2 policy denials, 0 leak events and 0 paid calls). This is not a real 50/100 multi-cloud measured PASS. Other N lanes and measured scale remain unaccepted. Canonical foundation: `N_SERIES_EMERGENT_NETWORK.md`, `N_SERIES_OPEN_PRIVATE_BOUNDARY.md`, `../benchmarks/N_SERIES_EMERGENT_BEHAVIOR_CONTRACT.md`, `../benchmarks/N_SERIES_TELEMETRY.md`, `../operations/N_SERIES_EXECUTION_AND_ISOLATION.md`, `../roadmap/N_SERIES_ROADMAP.md`.
 
 ## Open 1.0 / SDK-DX boundary
 
-Issue #615 is the durable Open 1.0 task anchor. On this snapshot, S01–S102 are completed and S103 is active on a task branch; `main` has not yet accepted S103. Stable Open 1.0 remains forbidden until all applicable S01–S200 work and independent G1–G34 final reconciliation are complete.
+Issue #615 is the durable Open 1.0 task anchor. An earlier documentation snapshot recorded S01–S102 complete and S103 active; that is not verified current sprint state. Reconcile issue #615, durable task capsule and exact current main before claiming sprint progress. Stable Open 1.0 remains forbidden until all applicable S01–S200 work and independent G1–G34 final reconciliation are complete.
 
 Five first-party clients and shared executable conformance already exist. Accepted immutable releases remain PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 

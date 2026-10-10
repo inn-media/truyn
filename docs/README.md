@@ -45,10 +45,10 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - D-Series execution architecture — **Swarm diagnostics/repair → full B01–B16 exact-SHA admission → live/collision gates → exactly one real scale run**; durable lock tracked in issue #737.
 - Semantic Scale S-Series — **S-10 + S-20 + S-50 + S-100 ACCEPTED / PASS; S-200+ OPEN**. S-50 Attempt 3 run `37782488279` is the canonical 50-node eight-scenario acceptance; historical failed S-50 attempts remain immutable audit evidence.
 - A-Series — **public foundation merged; real 1h SOAK Attempt 1 NOT LAUNCHED**; see [Assurance contract](assurance/README.md).
-- D-5000 — **not accepted**; [Attempt 3 run #37908203516](https://github.com/inn-media/truyn/actions/runs/37908203516) was in progress at this dated snapshot; recheck live status.
+- D-5000 — **not accepted**; PRs #950–#954 document more recent Attempt 7–8 repair/launch lineage, but no accepted terminal measured result is established.
 - Efficiency E-Series — **ACTIVE QUALIFICATION / NO FINAL E PASS**; qualification/isolation/provider-smoke work does not substitute for final DECOMPOSE/PER-RESULT/KNEE/DEGRADE evidence.
 - Hidden-value H-Series — **4/4 PASS/CLOSED**; see [H-Series status](benchmarks/H_SERIES_STATUS.md), [H/CHAOS-FUZZ final evidence](benchmarks/H_CHAOS_FUZZ_2026-10-10.md), and [H/CACHE-COMPOUND final evidence](benchmarks/H_CACHE_COMPOUND_2026-10-10.md).
-- N-Series emergent network behavior — **FOUNDATION DEFINED / NOT YET EXECUTED**; N/SOVEREIGNTY, N/MARKETPLACE, N/TRUST-DECAY and N/SUSTAINED-CHURN have no PASS claim.
+- N-Series emergent network behavior — **N/SOVEREIGNTY-10 qualification GREEN**, using deterministic control-plane fixtures rather than live 50/100-node measurements. Final measured N-series acceptance remains open.
 - Account → Organization → Tenant — **IMPLEMENTED / accepted**.
 - durable grants/entitlements/accounting/revocation — **IMPLEMENTED / accepted**.
 - managed authority repository/runtime support — **IMPLEMENTED / accepted**.
@@ -67,7 +67,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - PyPI alpha + Go alpha + npm alpha.2 — **accepted immutable public releases**.
 - npm alpha.1 — immutable historical artifact with failed required clean-room ESM import.
 - Maven Central — **accepted immutable public release** (`org.truyn:truyn-sdk:0.1.0-alpha.1`); NuGet — **status reconciled independently**.
-- Open 1.0 productization — **S01–S102 complete; S103 active; stable 1.0 not reached**.
+- Open 1.0 productization — **in progress**; the historical S103 snapshot is not authoritative current sprint state. Stable 1.0 requires independent final G1–G34 reconciliation.
 - Production Trust Authority — **OPEN** unless/until separately accepted by canonical evidence.
 - governance — **G1 / bootstrap Founding Stewardship**.
 - stable mainnet — **not yet**.
@@ -102,6 +102,8 @@ E-Series measures **efficiency limits**, not protocol correctness by proxy. It k
 Current qualification/provider-smoke activity must not be described as a final E result. Final E claims require immutable comparable evidence and independent reconciliation.
 
 E can execute concurrently with D/S/T/H only through the common benchmark isolation contract. Read-only immutable dependencies are R0; shared services may be R1 only with distinct attribution and active interference detection; capacity/cache/index/fault mutation is R2-exclusive.
+
+Cross-repository evidence-qualified status: [global reconciliation 2026-10-10](operations/GLOBAL_STATUS_RECONCILIATION_2026-10-10.md).
 
 ## N-Series scope reminder
 

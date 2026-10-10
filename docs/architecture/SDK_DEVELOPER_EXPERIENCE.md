@@ -248,7 +248,7 @@ A source tree being Pages-ready is not the same as a live deployment. Public sit
 - [x] stable compatibility/deprecation/migration policy;
 - [x] bounded Agent Descriptor serving + five-language fetch/verify/negotiation lifecycle;
 - [x] immutable public npm alpha.2 publication/evidence;
-- [ ] Maven Central publication evidence;
+- [x] Maven Central publication evidence (`org.truyn:truyn-sdk:0.1.0-alpha.1`; accepted immutable public release);
 - [x] NuGet.org publication evidence (`Truyn.Sdk 0.1.0-alpha.1`; independent verification run `35905748486`);
 - [ ] archive-member byte-content leakage scanning;
 - [ ] automatic Descriptor refresh/re-signing and complete endpoint parity;
@@ -260,6 +260,6 @@ A source tree being Pages-ready is not the same as a live deployment. Public sit
 - [ ] chain-stage cancellation only if/when a separate bounded protocol contract is defined and proven;
 - [ ] delegated Descriptor-signing key/revocation profile only after portable proof and conformance exists.
 
-Therefore: **DX-3 runtime/API core is closed; npm/PyPI/Go public alphas are accepted, while Maven Central, NuGet, Descriptor completion, archive scanning and live-site activation remain the Developer Release closure gates.**
+Therefore: **DX-3 runtime/API core is closed; npm/PyPI/Go/Maven Central/NuGet public alphas are accepted. Remaining Developer Release gates concern Descriptor/product completeness, any not-yet-accepted archive security requirements, stable API maturity and live-site activation, not already-published Maven/NuGet packages.**
 
 See `IMPLEMENTATION_STATUS.md`, `../../ROADMAP.md`, `../compatibility/SDK_COMPATIBILITY.md` and `../../sdk/release/PUBLISHING.md`.
