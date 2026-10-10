@@ -23,7 +23,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 + Maven Central + NuGet accepted** | Descriptor/site completeness and stable-v1 ecosystem gate |
 | Native clients | **Requester GUI implemented and exact-head `.exe/.dmg/.deb/.apk` build-qualified** | production signing/notarization → immutable public distribution |
 | Commercial proof / T-series | **FOUNDATION ACTIVE / no result claim** | telemetry qualification → pilots → immutable final T/BREAK-EVEN, T/HEAD-TO-HEAD, T/PREDICT |
-| Hidden-value / H-series | **FOUNDATION ACTIVE / no result claim** | telemetry + private runner qualification → isolated pilots → immutable H/CACHE-COMPOUND, H/SECOND-OPINION, H/ARBITRAGE, H/CHAOS-FUZZ |
+| Hidden-value / H-series | **3/4 final lanes PASS/CLOSED** | preserve H/CACHE-COMPOUND + H/SECOND-OPINION + H/ARBITRAGE evidence → execute H/CHAOS-FUZZ independently |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers → multi-org TSC → neutral stewardship |
 | Mainnet | **Not productionized** | long-duration live ops + security/reliability + release/governance gates |
 
@@ -327,6 +327,7 @@ Canonical public contract: [`docs/benchmarks/H_SERIES_HIDDEN_BENCHMARKS.md`](doc
 - [x] define paired-control and frozen-manifest rules;
 - [x] define common H telemetry/evidence schema;
 - [x] define H/CACHE-COMPOUND methodology;
+- [x] close H/CACHE-COMPOUND with full-factorial evidence plus independent high-power Zipf 1.4 replication;
 - [x] define H/SECOND-OPINION methodology;
 - [x] define H/ARBITRAGE methodology;
 - [x] define H/CHAOS-FUZZ methodology;

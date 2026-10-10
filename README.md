@@ -12,7 +12,7 @@ Website: https://truyn.org/
 
 ## Current factual status
 
-**Snapshot:** 2026-10-09 (A-Series docs reconciliation)  
+**Snapshot:** 2026-10-10 (H/CACHE-COMPOUND closure reconciliation)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`  
@@ -29,6 +29,7 @@ Website: https://truyn.org/
 | A-Series Assurance | **Public foundation merged / real A-SOAK Attempt 1 not launched** |
 | D-5000 | **NOT ACCEPTED**; live Attempt 3 run `37908203516` was in progress at the documentation snapshot |
 | Efficiency E-Series | **Active qualification; no final E PASS claimed** |
+| Hidden-value H-Series | **H/CACHE-COMPOUND + H/SECOND-OPINION + H/ARBITRAGE PASS/CLOSED; H/CHAOS-FUZZ OPEN** |
 | Account → Organization → Tenant | **Implemented / accepted; managed implementation owned by TRUYN Platform** |
 | Managed authority runtime/accounting | **Implemented / accepted in TRUYN Platform; public repository exposes contracts/reference seams only** |
 | Managed authority live production deployment | **OPEN** |
@@ -43,7 +44,7 @@ Website: https://truyn.org/
 | Governance | **G1 / bootstrap Founding Stewardship** |
 | Stable mainnet | **Not yet** |
 
-The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Operational D-scale status remains delegated to [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md). The latest documentation reconciliation is recorded in [Documentation Sanitation — 2026-10-09 A-Series](docs/operations/DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md).
+The canonical factual source is [Implementation Status](docs/architecture/IMPLEMENTATION_STATUS.md). Operational D-scale status remains delegated to [Network Scale Status](docs/operations/NETWORK_SCALE_STATUS.md). The latest H-Series closure sanitation is [H/CACHE-COMPOUND publication sanitation — 2026-10-10](docs/operations/H_CACHE_COMPOUND_SANITATION_2026-10-10.md). A-Series reconciliation remains recorded in [Documentation Sanitation — 2026-10-09 A-Series](docs/operations/DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md).
 
 ### Status vocabulary
 
