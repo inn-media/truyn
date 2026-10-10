@@ -262,3 +262,54 @@ test('D-5000 Attempt 9 recovery read prioritizes closer discovered replica withi
   assert.equal(result.readTelemetry.iterativeQueryBudget, 3);
 });
 
+
+test('D-5000 Attempt 11 rechecks unchanged replica placement and repairs missing acknowledged record', async () => {
+  const publisher = createIdentity();
+  const replica = createIdentity();
+  const record = createDhtRecord({ identity: publisher, namespace: 'class-d1000',
+    key: 'd1000-2-1', value: { durable: true }, ttlMs: 120_000 });
+  let present = true;
+  let stores = 0;
+  let probes = 0;
+  const peer = { nodeId: replica.nodeId };
+  const manager = new DhtReplicationManager({
+    discovery: { identity: publisher, closest: () => [peer] },
+    rpc: {
+      async findValue() { probes++; return { records: present ? [record] : [] }; },
+      async store(_peer, stored) { assert.equal(stored.recordId, record.recordId); stores++; present = true; return { stored: true }; }
+    },
+    recordStore: new KademliaRecordStore(), replicationFactor: 2, writeQuorum: 2
+  });
+  manager.recordStore.put(record);
+  manager.placementByRecordId.set(record.recordId, [replica.nodeId]);
+  const healthy = await manager.reconcilePublishedRecords();
+  assert.equal(healthy.storesAttempted, 0);
+  assert.equal(healthy.storesFailed, 0);
+  present = false; // restart evicted the replica but its identity/placement did not change
+  const repaired = await manager.reconcilePublishedRecords();
+  assert.equal(repaired.storesAttempted, 1);
+  assert.equal(repaired.storesSucceeded, 1);
+  assert.equal(repaired.storesFailed, 0);
+  assert.equal(stores, 1);
+  assert.ok(probes >= 2);
+  assert.ok(repaired.details[0].succeededNodeIds.includes(replica.nodeId));
+  const stable = await manager.reconcilePublishedRecords();
+  assert.equal(stable.storesAttempted, 0, 'healthy replicas must not cause unnecessary writes');
+});
+
+test('D-5000 Attempt 11 preserves fail-closed missing replica outcome', async () => {
+  const publisher = createIdentity();
+  const replica = createIdentity();
+  const record = createDhtRecord({ identity: publisher, namespace: 'class-d1000',
+    key: 'd1000-12-2', value: { durable: true }, ttlMs: 120_000 });
+  const manager = new DhtReplicationManager({
+    discovery: { identity: publisher, closest: () => [{ nodeId: replica.nodeId }] },
+    rpc: { async findValue() { return { records: [] }; }, async store() { throw new Error('replica_down'); } },
+    recordStore: new KademliaRecordStore(), replicationFactor: 2, writeQuorum: 2
+  });
+  manager.recordStore.put(record);
+  manager.placementByRecordId.set(record.recordId, [replica.nodeId]);
+  const result = await manager.reconcilePublishedRecords();
+  assert.equal(result.storesFailed, 1);
+  assert.deepEqual(result.details[0].failedNodeIds, [replica.nodeId]);
+});
