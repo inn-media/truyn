@@ -1,0 +1,7 @@
+approved_by_user=true
+attempt=7
+source_run=37991716586
+tested_commit=d15a4376e1216b10b37bb712263dad87e8c5da41
+tested_tree_sha=edef423f4c2affbe3d43ee9715f501c309cce6f4
+qualification_run=38055846346
+previous_cleanup=confirmed_zero
