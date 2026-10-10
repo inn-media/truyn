@@ -1,6 +1,8 @@
 # T/BREAK-EVEN-REAL-BENCHMARK — Diagnostic methodology v1
 
-Status: **FOUNDATION ONLY / NOT EXECUTED / NO PAID INFERENCE ARMED**.
+Historical design-time status (before execution): **FOUNDATION ONLY / NOT EXECUTED / NO PAID INFERENCE ARMED**.
+
+**2026-10-10 outcome update:** A separately versioned real paid Attempt 6 has now completed with independent audit **PASS** (57/57 HTTP 200, 57/57 exact-answer, A–E complete). Its verified accepted measurements, qualifications, methodological differences, and limits are recorded in [T_BREAK_EVEN_REAL_ATTEMPT6_ACCEPTED_RESULTS.md](./T_BREAK_EVEN_REAL_ATTEMPT6_ACCEPTED_RESULTS.md). The frozen historical methodology remains unchanged; this update does not retroactively reclassify Attempts 1–5 or assert dollar break-even.
 Independent T-series subtest; not a rerun, replacement, or change to accepted T/BREAK-EVEN evidence or TS8 negative result.
 
 ## Question
