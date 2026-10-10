@@ -95,3 +95,7 @@ The computers can remain.
 **Trust must be computed, not assumed.**
 
 **TRUYN — The Intelligence Network.**
+
+## Intelligence can inhabit a physical machine
+
+A robot should not need to know which company or model provides intelligence. It should discover a capability, obtain permission to use it, and receive an independently verifiable result. Physical autonomy adds a non-negotiable boundary: discovery and trust cannot replace local physical safety, operator authority or emergency stop. TRUYN connects intelligence; it does not turn remote reasoning into unrestricted motor commands.

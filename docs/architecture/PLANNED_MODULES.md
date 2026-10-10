@@ -234,3 +234,15 @@ Canonical maturity remains `docs/architecture/IMPLEMENTATION_STATUS.md`.
 ## Removed accidental duplicate
 
 `adapters/nlweb/` also contained a byte-identical copy of `adapters/{a2a,mcp,http,compatibility,providers,sdk}` plus `adapters/nlweb/nlweb/*` (49 files) and 25 provider placeholders, introduced by the replay commit `6e7f3c7`. Its relative imports (for example `../../core/protocol/index.js`) did not resolve, so nothing could load it. Only the six NLWeb bridge modules restored in `a28cba1` remain: `ask.js`, `bridge-matrix.js`, `client.js`, `provider-edge.js`, `response.js`, `who.js`.
+
+## Physical AI reference bridges (planned, no placeholder folders)
+
+| Planned path | Current implementation |
+|---|---|
+| `adapters/physical/ros2/` | — (planned ROS 2 Bridge) |
+| `adapters/physical/mqtt/` | — (planned MQTT Bridge) |
+| `adapters/physical/device/` | — (planned generic Device Adapter) |
+| `adapters/physical/simulation/` | — (planned simulation/HIL harness) |
+| `core/physical-safety/` | — (planned reference safety policy/gates; local actuation remains outside TRUYN) |
+
+Edge Controller is a V2 product, not a V1 placeholder module. See `PHYSICAL_AI_INTEROPERABILITY.md`.

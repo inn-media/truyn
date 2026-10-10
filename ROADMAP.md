@@ -436,3 +436,18 @@ Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`,
 ## Historical D-5000 Attempt 1 preparation snapshot (2026-10-08; superseded)
 
 D-1000 Attempt 1 and independent exact-frozen Double-Check are **PASS / REPEATABILITY CONFIRMED** (runs `37687469411` and `37785777704`). The next planned gate is **D-5000 Attempt 1: 20 hosts × 250 real processes = 5,000**. Exact D-1000 launchers and original launch marker are preserved on public branch [`d5000/attempt1-preparation-20261008`](https://github.com/inn-media/truyn/tree/d5000/attempt1-preparation-20261008), without changing frozen D-1000 evidence. Azure quota-only workflow run [`37795027151`](https://github.com/inn-media/truyn/actions/runs/37795027151) was dispatched separately with a provisional 800-vCPU regional/family quota target in `southcentralus`; do not infer approval or usable VM capacity from dispatch. D-5000 benchmark **has not been launched**. Work remains: adapt 50-node cap to 250 per host, exact 5,000-node evaluator, runtime qualification, live Azure quota/capacity, security/durability/recovery/cleanup gates. Never run D-5000 without a new explicit launch authorization. Authority: [`docs/operations/class-d/D5000_ATTEMPT1_PREPARATION_2026-10-08.md`](https://github.com/inn-media/truyn/blob/main/docs/operations/class-d/D5000_ATTEMPT1_PREPARATION_2026-10-08.md).
+
+## Physical AI / embodied robots — NEW PLANNED TRACK (not F-Series)
+
+Physical AI is a distinct interoperability track. Do not confuse it with F-Series physical-*infrastructure* chaos. Canonical [bridge/safety architecture](docs/architecture/PHYSICAL_AI_INTEROPERABILITY.md).
+
+- [ ] **PA-0 Contracts:** semantic physical capabilities in OFFER/Descriptor extensions; formats, units, coordinate frames, correlation, authority, signed result, safety-class and freshness metadata; separate stable spec from dynamic OFFER.
+- [ ] **PA-1 ROS 2 Bridge:** public independent adapter for allowlisted topics/services/actions, goal/result/feedback/cancel; simulation and negative conformance.
+- [ ] **PA-2 MQTT Bridge:** public MQTT topic-to-capability mapping, authentication, QoS/reconnect, bounded payload, redelivery dedup and explicit broker/TRUYN authorization.
+- [ ] **PA-3 Generic Device Adapter:** public portable hardware-facing adapter contract for sensors/edge gateways and device capabilities, without direct unsafe actuator passthrough.
+- [ ] **PA-4 Robot Network:** two heterogeneous simulated robot nodes discover/authorize/perform task/verify signed RESULT; cross-adapter ROS 2↔MQTT/Device, failure/replay/tenant-negative tests.
+- [ ] **PA-5 Autonomous-operation safety gates:** local independent policy/approval/watchdog/E-stop, replay and action dedup, TTL/freshness/limits, fault injection and evidence; simulation→HIL→scoped real robot pilot, never conflate network PASS with hardware-safety PASS.
+- [ ] **PA-6 V1 interoperability acceptance:** public released reference bridges and bounded non-safety-critical offboard tasks; first mainnet does **not** depend on completing an Edge Controller.
+- [ ] **PA-7 V2 post-mainnet:** Edge Controller product, on-device orchestration/offline operation and hardware-specific qualification, separately accepted.
+
+All stages are **PLANNED / OPEN**, not an accepted production claim; PA milestones do not retroactively modify existing D/S/H fixed gates or rewrite mainnet status.
