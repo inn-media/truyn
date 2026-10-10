@@ -1,0 +1,65 @@
+name: D-5000 Attempt 11 Exact-Source Qualification (No Azure)
+on:
+  push:
+    branches: [d5000/attempt11-launcher-20261011]
+    paths: ['.github/workflows/d5000-attempt11-offline-qualification.yml']
+permissions: { contents: read }
+concurrency: { group: truyn-d5000-attempt11-offline-qualify, cancel-in-progress: false }
+env:
+  TESTED_COMMIT: d54c95926c26127ea1e2506f32c8f62f4e7a2c8d
+  TESTED_TREE_SHA: 948217cd0542b9873fcfdaf01085bf50e792bf57
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ github.sha }}', persist-credentials: false, fetch-depth: 1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Inspect Attempt 11 admission contract without cloud spend
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          grep -Fq "attempt=11" .github/workflows/d5000-attempt11-approved.yml
+          grep -Fq "source_run=38079448317" .github/workflows/d5000-attempt11-approved.yml
+          grep -Fq 'ACK_LOSS" == 0' .github/workflows/d5000-attempt11-approved.yml
+          grep -Fq "truyn-d5000-attempt11-single-shot" .github/workflows/d5000-attempt11-approved.yml
+          grep -Fq "d54c95926c26127ea1e2506f32c8f62f4e7a2c8d" .github/workflows/d5000-attempt11-approved.yml
+          echo TRUYN_D5000_ATTEMPT11_LAUNCHER_CONTRACT=PASS
+      - uses: actions/checkout@v4
+        with: { ref: '${{ env.TESTED_COMMIT }}', persist-credentials: false, fetch-depth: 1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Qualify exact repaired source and immutable strict acceptance
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$TESTED_COMMIT" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$TESTED_TREE_SHA" ]]
+          grep -Fq 'const rankPending = () =>' network/replication/dht-replication.js
+          grep -Fq "D-5000 Attempt 9 recovery read prioritizes closer discovered replica" tests/dht-replication-keyspace.test.js
+          grep -Fq '[[ "$ack_loss" == 0 ]]' benchmarks/scale/d200-write-retention-stage.sh
+          bash -n benchmarks/scale/class-d-azure-5000-provision.sh
+          bash -n benchmarks/scale/class-d-azure-5000-campaign.sh
+          bash -n benchmarks/scale/d200-write-retention-stage.sh
+          bash -n scripts/d5000-stage-isolated-campaign.sh
+          npm install --ignore-scripts --no-audit --no-fund
+          node --test tests/dht-replication-keyspace.test.js tests/d5000-dht-maintenance-regression.test.js tests/d5000-retention-report-transport.test.js tests/d5000-post-restart-evidence.test.js
+          echo "TRUYN_D5000_ATTEMPT11_EXACT_SOURCE=PASS sha=$TESTED_COMMIT tree=$TESTED_TREE_SHA"
+      - name: Build and attest exact source runtime
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p qualification
+          TRUYN_TESTED_COMMIT="$TESTED_COMMIT" scripts/build-class-d-1000-runtime-bundle.sh qualification/d5000-attempt11-runtime.tgz
+          sha256sum -c qualification/d5000-attempt11-runtime.tgz.sha256
+          tar -xOf qualification/d5000-attempt11-runtime.tgz manifest.json | jq -e --arg sha "$TESTED_COMMIT" '.schema=="truyn.class-d1000.runtime-bundle.v1" and .sourceSha==$sha'
+          echo "TRUYN_D5000_ATTEMPT11_QUALIFICATION=PASS sha=$TESTED_COMMIT paid=false"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: truyn-d5000-attempt11-qualify-${{ github.run_id }}
+          path: qualification/d5000-attempt11-runtime.tgz.sha256
+          if-no-files-found: warn
+          retention-days: 60
