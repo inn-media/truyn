@@ -7,6 +7,11 @@ on:
         description: 'Immutable sdk/npm/v* tag to create on exact current main'
         required: true
         type: string
+      retry_existing_frozen:
+        description: 'Retry the accepted immutable alpha.5 without tag creation (after npm Trusted Publisher configuration)'
+        required: false
+        type: boolean
+        default: false
   push:
     tags:
       - 'sdk/npm/v*'
@@ -20,7 +25,7 @@ permissions:
 
 jobs:
   bootstrap-tag:
-    if: github.repository == 'inn-media/truyn' && github.event_name == 'workflow_dispatch'
+    if: github.repository == 'inn-media/truyn' && github.event_name == 'workflow_dispatch' && !inputs.retry_existing_frozen
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -71,10 +76,13 @@ jobs:
             -f sha="$source_sha"
 
   publish:
-    if: github.repository == 'inn-media/truyn' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/sdk/npm/v')))
+    if: github.repository == 'inn-media/truyn' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (startsWith(github.ref, 'refs/tags/sdk/npm/v') || (github.ref == 'refs/heads/main' && inputs.retry_existing_frozen == true && inputs.release_tag == 'sdk/npm/v0.1.0-alpha.5'))))
     runs-on: ubuntu-latest
     environment: sdk-release
     timeout-minutes: 30
+    concurrency:
+      group: truyn-npm-sdk-immutable-publication
+      cancel-in-progress: false
     env:
       TRUYN_RELEASE_TAG: ${{ github.ref == 'refs/heads/main' && 'sdk/npm/v0.1.0-alpha.5' || github.ref_name }}
       NPM_PACKAGE: '@truyn/sdk'
@@ -92,7 +100,27 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$GITHUB_REF" == 'refs/heads/main' ]]; then
-            bash sdk/release/resolve-frozen-recovery.sh sdk/npm/v npm
+            if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+              # Explicit retrial of the already-qualified frozen package. Never retag or rebuild.
+              test '${{ inputs.retry_existing_frozen }}' = true
+              test '${{ inputs.release_tag }}' = 'sdk/npm/v0.1.0-alpha.5'
+              test "$GITHUB_RUN_ATTEMPT" = 1
+              test "$GITHUB_ACTOR" != 'github-actions[bot]'
+              test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+              git fetch --no-tags origin main:refs/remotes/origin/main
+              test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/main)"
+              frozen=57971b134a41c3e3ea4b42f68e86a7d117036006
+              git merge-base --is-ancestor "$frozen" HEAD
+              test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TRUYN_RELEASE_TAG" --jq '.object.sha')" = "$frozen"
+              actual="$(git show "$frozen:sdk/typescript/package.json" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>console.log(JSON.parse(s).version))')"
+              test "$actual" = '0.1.0-alpha.5'
+              echo 'version=0.1.0-alpha.5' >> "$GITHUB_OUTPUT"
+              echo "source_sha=$frozen" >> "$GITHUB_OUTPUT"
+              echo 'dist_tag=alpha' >> "$GITHUB_OUTPUT"
+              echo 'NPM_FROZEN_EXISTING_VERSION_RETRY=ADMITTED'
+            else
+              bash sdk/release/resolve-frozen-recovery.sh sdk/npm/v npm
+            fi
             git checkout --detach 57971b134a41c3e3ea4b42f68e86a7d117036006
             test "$(git rev-parse HEAD)" = '57971b134a41c3e3ea4b42f68e86a7d117036006'
             exit 0
