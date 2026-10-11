@@ -58,3 +58,7 @@ Protocol/profile negotiation for the bounded Open 1.0 path is deterministic and 
 7. optional semantic overlap MAY be returned for feature selection, but it does not widen identity, authorization, tenant, provider, billing, cancellation or provenance authority.
 
 The public reference implementation exposes this behavior through `core/protocol/negotiation.js`. Negotiation is a compatibility decision only; it never grants authority and never substitutes for signed-message verification or server-side authorization.
+
+## Lifecycle release-candidate boundary
+
+[`lifecycle.md`](lifecycle.md) defines the bounded direct OFFER/NEED/PARTIAL/RESULT/REVOKE state machine. It keeps the physical five-envelope vocabulary unchanged and explicitly distinguishes relay-epoch replay suppression from not-yet-qualified durable exactly-once semantics.

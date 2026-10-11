@@ -110,6 +110,7 @@ export function createRelay({
   commandKeepAliveTimeoutMs = 60_000,
   commandHeadersTimeoutMs = 65_000,
   maxRequests = 8192,
+  maxSeenNeedIds = 262144,
   requestTtlMs = 15 * 60 * 1000,
   maxChains = 1024,
   allowedNodeIds = [],
@@ -128,6 +129,7 @@ export function createRelay({
   if (!Number.isFinite(commandKeepAliveTimeoutMs) || commandKeepAliveTimeoutMs < 1) throw new Error('commandKeepAliveTimeoutMs must be positive');
   if (!Number.isFinite(commandHeadersTimeoutMs) || commandHeadersTimeoutMs <= commandKeepAliveTimeoutMs) throw new Error('commandHeadersTimeoutMs must exceed commandKeepAliveTimeoutMs');
   if (!Number.isFinite(requestTtlMs) || requestTtlMs < 1) throw new Error('requestTtlMs must be positive');
+  if (!Number.isSafeInteger(maxSeenNeedIds) || maxSeenNeedIds < 1) throw new Error('maxSeenNeedIds must be a positive safe integer');
 
   const nodes = new Map();
   const sessions = new Map();
@@ -141,6 +143,10 @@ export function createRelay({
   const providerSockets = new Map();
   const resultWaiters = new Map();
   const requests = new Map();
+  // Accepted direct NEED IDs must outlive request detail pruning within this relay epoch.
+  // A bounded ledger fails closed at capacity instead of silently permitting replay.
+  // This in-memory reference implementation is NOT durable across restart or replicas.
+  const seenNeedIds = new Set();
   const chains = new Map();
   const contexts = new Map();
   const stats = new Map();
@@ -473,6 +479,12 @@ export function createRelay({
     return null;
   }
 
+  function admitDirectNeedId(id) {
+    if (requests.has(id) || seenNeedIds.has(id)) throw httpError(409, 'duplicate_request');
+    if (seenNeedIds.size >= maxSeenNeedIds) throw httpError(503, 'need_idempotency_capacity_reached');
+    seenNeedIds.add(id);
+  }
+
   function pruneCompleted(map, maxSize) {
     if (map.size < maxSize) return;
     for (const [key, value] of map) {
@@ -753,7 +765,8 @@ export function createRelay({
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         const capability = envelope.payload?.capability?.name || envelope.payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
-        if (!offers.has(envelope.id) && offers.size >= maxOffers) return json(res, 503, { ok: false, error: 'offer_capacity_reached' });
+        if (offers.has(envelope.id)) return json(res, 409, { ok: false, error: 'duplicate_offer' });
+        if (offers.size >= maxOffers) return json(res, 503, { ok: false, error: 'offer_capacity_reached' });
         const policy = providerPolicyFromOffer(envelope);
         offers.set(envelope.id, { envelope, capability, policy, revoked: false });
         touch(envelope.from);
@@ -860,7 +873,7 @@ export function createRelay({
         const { frame, payload } = await readJson(req, maxBodyBytes);
         const verification = verifyCompactFrame(frame, payload, requester.publicKey, { allowedTypes: ['NEED'] });
         if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
-        if (requests.has(frame.i)) return json(res, 409, { ok: false, error: 'duplicate_request' });
+        if (requests.has(frame.i) || seenNeedIds.has(frame.i)) return json(res, 409, { ok: false, error: 'duplicate_request' });
         const capability = payload?.capability?.name || payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
         const match = matchingOffers({ capability, requesterNodeId })[0];
@@ -869,6 +882,7 @@ export function createRelay({
         if (!reserveFastTerminal(requesterNodeId)) return json(res, 429, { ok: false, error: 'terminal_backpressure' });
         try {
           pruneCompleted(requests, maxRequests);
+          admitDirectNeedId(frame.i);
         } catch (error) {
           const rollback = { requester: requesterNodeId, terminalReserved: true };
           releaseFastTerminal(rollback);
@@ -959,11 +973,13 @@ export function createRelay({
         if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         if (!requesterCanDispatch(envelope.from)) return json(res, 403, { ok: false, error: 'provider_access_denied' });
+        if (requests.has(envelope.id) || seenNeedIds.has(envelope.id)) return json(res, 409, { ok: false, error: 'duplicate_request' });
         const capability = envelope.payload?.capability?.name || envelope.payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
         const match = matchingOffers({ capability, requesterNodeId: envelope.from })[0];
         if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
         pruneCompleted(requests, maxRequests);
+        admitDirectNeedId(envelope.id);
         requests.set(envelope.id, { needId: envelope.id, requester: envelope.from, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'legacy' });
         queue(match.envelope.from, { kind: 'NEED', envelope });
         touch(envelope.from);
@@ -1026,7 +1042,7 @@ export function createRelay({
         const cancellationReason = rawReason || 'cancelled_by_requester';
         const request = requests.get(targetId);
         const offer = offers.get(targetId);
-        if (targetKind === 'auto' && request && offer) return json(res, 409, { ok: false, error: 'ambiguous_revoke_target', targetId });
+        if (targetKind === 'auto' && (request || seenNeedIds.has(targetId)) && offer) return json(res, 409, { ok: false, error: 'ambiguous_revoke_target', targetId });
         const targetsNeed = targetKind === 'need' || (targetKind === 'auto' && Boolean(request));
 
         if (targetsNeed) {

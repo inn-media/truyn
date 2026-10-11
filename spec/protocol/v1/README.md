@@ -131,3 +131,7 @@ The bounded pre-v1 → Open 1.0 migration, stable breaking-change policy and min
 ## Normative language
 
 `MUST`, `MUST NOT`, `SHOULD`, `SHOULD NOT` and `MAY` are used in the RFC 2119 sense when capitalized. The current documents remain draft until the protocol is stabilized.
+
+## Direct request lifecycle candidate
+
+The bounded normative state-machine, correlation, PARTIAL ordering, cancellation, relay-epoch idempotency and explicit *durable exactly-once gap* are recorded in [`lifecycle.md`](lifecycle.md). This RC contract does not imply stable TRUYN/1 or G5 PASS.

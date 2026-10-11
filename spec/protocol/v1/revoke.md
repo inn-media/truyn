@@ -52,3 +52,7 @@ A `REVOKE` that targets a missing object, an object already in an incompatible t
 Claims, credentials, key bindings, capabilities, subscriptions, trust receipts and other security-sensitive objects may define revocation semantics in future compatible profiles. They are not silently promoted into the bounded Open 1.0 REVOKE contract by this document.
 
 Security-critical key/credential revocations, when later specified, SHOULD receive high propagation priority and short cache invalidation latency without weakening issuer authorization.
+
+## Shared state-machine reference
+
+The cross-message terminal transitions, correlation and replay boundary are defined together in [`lifecycle.md`](lifecycle.md). Runtime implementation and negative tests do not by themselves establish durable cross-restart or cross-replica exactly-once.

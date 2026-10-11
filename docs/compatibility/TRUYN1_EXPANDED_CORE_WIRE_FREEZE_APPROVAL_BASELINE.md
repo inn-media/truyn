@@ -50,3 +50,7 @@ Never upgrade an OPEN status merely because this design file is merged.
 ## Work order
 
 Read-only inventory → normative spec/registry reconciliation → machine-readable golden fixtures → SDK repairs on exact source → default-off negotiation implementation → old/new transport and authority regression → independently qualified public release → private consumer pin/staging → separate rollout approval. Repository updates and full documentation sanitation follow this ordering; historical evidence stays append-only/redact-not-delete.
+
+## 2026-10-11 candidate lifecycle implementation checkpoint
+
+This is additive progress tracking; it does **not** edit or override the approved source manifest or original G5=OPEN classification. A separate task-scoped branch adds the bounded direct lifecycle state machine at `spec/protocol/v1/lifecycle.md` and a reference relay-epoch replay guard with targeted negatives. Since durable cross-restart, multi-replica idempotency and provider-side exactly-once are not proven, G5 stays **OPEN** pending exact-head/post-merge conformance and independent qualification. No Mainnet or private deployment is implied.
