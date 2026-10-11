@@ -6,7 +6,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 
 **Snapshot:** 2026-10-09 (A-Series docs reconciliation)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
-**Protocol:** `TRUYN/1` draft  
+**Protocol:** `TRUYN/1` draft; expanded CORE source merged via PR #975; immutable stable-v1/Mainnet not admitted  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
 
 ## Start here
