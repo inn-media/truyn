@@ -1,0 +1,66 @@
+name: D-5000 Attempt 12 Immutable Evidence Requalification (No Azure)
+on:
+  push:
+    branches: [d5000/attempt12-immutable-evidence-requalification-20261011]
+    paths: ['.github/workflows/d5000-attempt12-immutable-evidence-proof.yml']
+permissions: { contents: read, actions: read }
+jobs:
+  prove:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Download original immutable Attempt 12 evidence artifact
+        env:
+          GH_TOKEN: '${{ github.token }}'
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/a12"
+          gh run download 38122820787 --repo inn-media/truyn --name truyn-class-d5000-attempt12-38122820787 --dir "$RUNNER_TEMP/a12"
+          f="$RUNNER_TEMP/a12/class-d-5000-evidence.json"
+          echo '6814dfb4bab9b37d221c766f5d8dad418fc9e495c6590fad2a33a6a1160cdf28  '"$f" | sha256sum -c -
+          jq -e '.workflowRunId == "38122820787" and .testedCommit == "d54c95926c26127ea1e2506f32c8f62f4e7a2c8d" and .stageResults.overall == "PASS"' "$f"
+          echo "EVIDENCE_SHA256=6814dfb4bab9b37d221c766f5d8dad418fc9e495c6590fad2a33a6a1160cdf28"
+      - name: Show original evaluator reproduces historical rejection
+        run: |
+          set -Eeuo pipefail
+          f="$RUNNER_TEMP/a12/class-d-5000-evidence.json"
+          git show 20d5968697c3db811864d4552dd846b0b9bbba51:benchmarks/scale/class-d-5000-evidence.js > benchmarks/scale/class-d-5000-evidence.js
+          set +e
+          node benchmarks/scale/evaluate-class-d-5000-evidence.js "$f" > "$RUNNER_TEMP/old-evaluation.json"
+          rc=$?
+          set -e
+          [[ "$rc" == 1 ]]
+          jq -e '.passed == false and .failed == ["allMandatoryStagesPass"]' "$RUNNER_TEMP/old-evaluation.json"
+          echo "ORIGINAL_EVALUATOR_REJECTS=PASS"
+      - name: Prove minimally corrected evaluator accepts same bytes
+        run: |
+          set -Eeuo pipefail
+          f="$RUNNER_TEMP/a12/class-d-5000-evidence.json"
+          git show HEAD:benchmarks/scale/class-d-5000-evidence.js > benchmarks/scale/class-d-5000-evidence.js
+          node benchmarks/scale/evaluate-class-d-5000-evidence.js "$f" > "$RUNNER_TEMP/new-evaluation.json"
+          jq -e '.passed == true and (.failed|length)==0 and .checks.allMandatoryStagesPass == true' "$RUNNER_TEMP/new-evaluation.json"
+          env TESTED_COMMIT=d54c95926c26127ea1e2506f32c8f62f4e7a2c8d GITHUB_RUN_ID=38122820787 node benchmarks/scale/verify-class-d-5000-terminal.js "$f" > "$RUNNER_TEMP/new-terminal.json"
+          jq -e '.ok == true and (.failed|length)==0' "$RUNNER_TEMP/new-terminal.json"
+          jq -e --slurpfile old "$RUNNER_TEMP/old-evaluation.json" '
+            (.checks | del(.allMandatoryStagesPass)) == ($old[0].checks | del(.allMandatoryStagesPass))
+            and .normalized.safety.acknowledgedWriteLossCount == 0
+            and .normalized.topology.realNodeCount == 5000
+            and .normalized.cleanup.remainingResources == 0
+          ' "$RUNNER_TEMP/new-evaluation.json"
+          echo '6814dfb4bab9b37d221c766f5d8dad418fc9e495c6590fad2a33a6a1160cdf28  '"$f" | sha256sum -c -
+          echo "A12_IMMUTABLE_EVIDENCE_REQUALIFIED=PASS no_azure=true"
+      - name: Upload proof outputs only, do not modify original
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d5000-a12-immutable-evidence-requalification-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/old-evaluation.json
+            ${{ runner.temp }}/new-evaluation.json
+            ${{ runner.temp }}/new-terminal.json
+          if-no-files-found: warn
+          retention-days: 90
