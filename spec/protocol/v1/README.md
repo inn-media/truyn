@@ -124,6 +124,10 @@ See `docs/architecture/SDK_DEVELOPER_EXPERIENCE.md` and `docs/compatibility/SDK_
 
 See `security.md` for protocol security assumptions and `provider-policy.md` for provider execution authorization. Public relay reachability, an Agent Descriptor entry or SDK discovery result does not create an entitlement to private provider capacity.
 
+## Migration and deprecation
+
+The bounded pre-v1 → Open 1.0 migration, stable breaking-change policy and minimum **180 calendar days** public deprecation notice are specified in [`migration.md`](migration.md). This is a release-candidate contract, not a stable `TRUYN/1` declaration. Stable required semantics cannot be silently removed within the same generation, regardless of elapsed notice time.
+
 ## Normative language
 
 `MUST`, `MUST NOT`, `SHOULD`, `SHOULD NOT` and `MAY` are used in the RFC 2119 sense when capitalized. The current documents remain draft until the protocol is stabilized.
