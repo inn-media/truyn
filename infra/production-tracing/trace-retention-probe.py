@@ -129,10 +129,14 @@ def override_observed(tenant):
     runtime_overrides = str(payload.get('runtime_overrides') or '')
     source = str(payload.get('using_default_or_wildcard_runtime_overrides') or '')
     expected = TENANTS[tenant]['retention']
+    # Tempo 3.0.2 omits default-false compaction_disabled (omitempty).
+    # An absent field is equivalent to false, but explicit true or any
+    # unexpected/duplicate field must fail closed.
+    compaction_fields = re.findall(r'(?m)^\s*compaction_disabled:\s*(\S+)\s*$', runtime_overrides)
     return (
         source == tenant
-        and re.search(r'(?m)^\s*block_retention:\s*' + re.escape(expected), runtime_overrides) is not None
-        and re.search(r'(?m)^\s*compaction_disabled:\s*false\s*$', runtime_overrides) is not None
+        and re.search(r'(?m)^\s*block_retention:\s*' + re.escape(expected) + r'\s*$', runtime_overrides) is not None
+        and (not compaction_fields or compaction_fields == ['false'])
     )
 
 
