@@ -21,6 +21,19 @@ public final class ConformanceMain {
     if (!"{\"n\":0}".equals(Json.stringify(Map.of("n", -0.0d)))) throw new AssertionError("TCJ1 negative-zero byte mismatch");
     if (!"{\"n\":1e+21}".equals(Json.stringify(Map.of("n", 1e21d)))) throw new AssertionError("TCJ1 float exponent byte mismatch");
 
+    try {
+      String fixture = java.nio.file.Files.readString(java.nio.file.Path.of("sdk/conformance/v1/tcj1-wire-freeze-vectors.json"));
+      Map<String,Object> corpus = Json.object(Json.parse(fixture));
+      @SuppressWarnings("unchecked") var vectors = (java.util.List<Object>) corpus.get("cases");
+      if (vectors.size() < 14) throw new AssertionError("shared TCJ1 corpus incomplete");
+      for (Object entry : vectors) {
+        Map<String,Object> vector = Json.object(entry);
+        String actual = Json.stringify(vector.get("input"));
+        String expected = (String) vector.get("canonicalUnsigned");
+        if (!actual.equals(expected)) throw new AssertionError("TCJ1 shared vector " + vector.get("id") + ": " + actual + " != " + expected);
+      }
+    } catch (java.io.IOException error) { throw new RuntimeException("could not read TCJ1 corpus", error); }
+
     TruynClient provider = TruynClient.connect(relay, "java-provider");
     TruynClient requester = TruynClient.connect(relay, "java-requester");
     String capability = "sdk.release.java." + UUID.randomUUID();
