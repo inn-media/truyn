@@ -51,3 +51,21 @@ test('missing optional to remains a compatible signed form when signed without t
   assert.deepEqual(verifyEnvelope(withoutTo),{ok:false,reason:'invalid_signature'});
   // A signed field cannot be dropped by a relay even if optional in the schema.
 });
+
+test('negative crypto corpus rejects replayed edits across every signed envelope surface', () => {
+  const base=signNeed();
+  const cases=[
+    ['id', {...base,id:base.id+'-replayed'}],
+    ['createdAt', {...base,createdAt:'2026-10-11T12:01:00.000Z'}],
+    ['payload-nested', {...base,payload:{...base.payload,input:{...base.payload.input,topK:43}}}],
+    ['unsigned-ext', {...base,ext:{expiresAt:'2026-10-11T13:00:00Z'}}],
+    ['optional-field-injection', {...base,legacyTrace:'injected'}],
+    ['signature-tamper', {...base,signature:(base.signature[0]==='A'?'B':'A')+base.signature.slice(1)}]
+  ];
+  for(const [name,envelope] of cases)
+    assert.deepEqual(verifyEnvelope(envelope),{ok:false,reason:'invalid_signature'},name);
+  assert.deepEqual(verifyEnvelope({...base,protocol:'TRUYN/2'}),{ok:false,reason:'unsupported_protocol'});
+  assert.deepEqual(verifyEnvelope({...base,payload:null}),{ok:false,reason:'missing_required_field'});
+  assert.deepEqual(verifyEnvelope({...base,signature:''}),{ok:false,reason:'missing_required_field'});
+  assert.deepEqual(verifyEnvelope(base),{ok:true});
+});
