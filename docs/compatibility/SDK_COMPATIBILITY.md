@@ -68,10 +68,12 @@ For a stable API after v1:
 1. mark the API deprecated in code and documentation;
 2. name the replacement and migration path;
 3. keep the deprecated API through at least the next minor release unless retaining it would preserve a security vulnerability;
-4. remove it only in a major release, or earlier only for a security emergency with a release-note advisory;
+4. remove it only in a major release **and after at least 180 calendar days of publicly announced deprecation**, or earlier only for a security emergency with a dated release-note advisory;
 5. never use deprecation to change requester identity, provider ownership, billing responsibility or signature/correlation rules silently.
 
-Pre-v1 alpha APIs may move faster, but release notes must still identify the break and migration.
+The shared stable deprecation minimum is **180 calendar days**, measured from the first dated public UTC notice, with the affected API/version range, replacement, migration steps and earliest UTC retirement date specified. A deprecated stable API MUST remain available through both the next minor release **and** the entire 180-day notice window (whichever finishes later), and its removal still requires a major release. Stable-major end-of-support must also receive at least 180 calendar days of public notice; any longer commitment prevails. The canonical protocol-wide rule is in `../../spec/protocol/v1/migration.md`. Security emergencies are exceptional, fail closed, and require a public explanation/mitigation rather than a silent compatibility bypass.
+
+Pre-v1 alpha APIs may move faster and have no stable 180-day guarantee, but release notes must still identify the break, version bump and migration.
 
 ## Protocol and SDK independence
 

@@ -45,9 +45,9 @@ A stable `TRUYN/1` promise requires at least:
 - storage/config migration and rollback strategy;
 - updater/release authenticity policy;
 - cross-version interoperability tests;
-- documented deprecation windows.
+- documented deprecation windows (at least **180 calendar days** of public notice for stable surfaces; see `../../spec/protocol/v1/migration.md`, with stricter major/generation removal rules preserved).
 
-These are not all complete today.
+These are not all complete today. The bounded pre-v1→Open 1.0 migration/breaking/deprecation **policy** is written, but full stable-v1 interoperability, persisted-state migration/rollback and exact-release qualification are separate outstanding gates. The 180-day support promise applies once a stable feature is declared; `TRUYN/1` remains draft.
 
 ## Security compatibility
 
