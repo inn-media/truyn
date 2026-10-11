@@ -60,7 +60,7 @@ The currently evidenced bounded profile is NLWeb protocol 0.5 pinned to exact up
 
 ## Network scale
 
-Class C heterogeneous WAN, Class D-100, **Class D-200, Class D-500 and Class D-1000 are accepted**. D-1000 is the accepted 20-host / 1,000-real-process Class-D scale boundary.
+Class C heterogeneous WAN, Class D-100, **Class D-200, Class D-500, Class D-1000 and Class D-5000 are accepted** as distinct bounded scale gates. Canonical [D-5000 accepted evidence](../benchmarks/CLASS_D_5000_2026-10-11.md). Independently [H-Series 4/4 PASS/CLOSED](../benchmarks/H_SERIES_STATUS.md). Neither result is 28-day Production SLO acceptance. D-1000 is the accepted 20-host / 1,000-real-process Class-D scale boundary.
 
 The accepted D-200 tuple is immutable workflow run `35503894414`, attempt 1, strict terminal `TRUYN_D200_TERMINAL result=PASS`, frozen tested source `e91c165c67c655deb80df4511ca346acb9f1f45b`, tested tree `3a402ba72502de12ed2277db3c9f472872f44b46`, launcher merge `e785815530a59a56787e20ceb6bb232ccc93ad4f`, artifact ID `10603748497`, artifact digest `sha256:386387165b729ed2167140747a310d85822d9d1987dce812812408f2468bccd4`.
 
