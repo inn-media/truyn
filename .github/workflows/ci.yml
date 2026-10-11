@@ -166,10 +166,12 @@ jobs:
             cleanroom="$(mktemp -d)"
             python -m venv "$cleanroom/venv"
             "$cleanroom/venv/bin/python" -m pip install --disable-pip-version-check --quiet "$package"
-            "$cleanroom/venv/bin/python" - <<'PY'
+            TRUYN_EXPECTED_PY_VERSION="$(node -p "require('./sdk/release/version.json').python")" "$cleanroom/venv/bin/python" - <<'PY'
           from importlib.metadata import version
           import truyn
-          assert version("truyn-sdk") == "0.1.0a1"
+          import os
+          expected = os.environ["TRUYN_EXPECTED_PY_VERSION"]
+          assert version("truyn-sdk") == expected
           assert callable(truyn.TruynClient)
           assert callable(truyn.TruynLocalNodeClient)
           PY
