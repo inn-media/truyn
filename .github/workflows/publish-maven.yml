@@ -15,7 +15,7 @@ on:
     tags:
       - 'sdk/maven/v*'
     branches: [main]
-    paths: ['.github/wire-freeze/recovery-request.json', '.github/wire-freeze/registry-verification-request.json']
+    paths: ['.github/wire-freeze/recovery-request.json', '.github/wire-freeze/registry-verification-request.json', '.github/wire-freeze/maven-key-armor-repair-request.json']
   workflow_dispatch:
 
 permissions:
@@ -106,21 +106,43 @@ jobs:
           set -euo pipefail
           test -n "$MAVEN_GPG_PRIVATE_KEY"
           export GNUPGHOME="$RELEASE_ROOT/gnupg"; mkdir -p -m 700 "$GNUPGHOME"
-          printf '%s\n' "$MAVEN_GPG_PRIVATE_KEY" | gpg --batch --quiet --import
-          fpr="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
+          # Normalize historical armored secret as successfully done for Maven alpha.1.
+          # Preserve the original signing key; no new key, no lowered verification.
+          export KEYFILE="$RELEASE_ROOT/registry/release-signing-key.asc"
+          python3 - <<'PY'
+          import os
+          s = os.environ['MAVEN_GPG_PRIVATE_KEY'].strip()
+          s = s.replace('\\r\\n', '\n').replace('\\n', '\n').replace('\r\n', '\n')
+          begin = '-----BEGIN PGP PRIVATE KEY BLOCK-----'
+          end = '-----END PGP PRIVATE KEY BLOCK-----'
+          bi, ei = s.find(begin), s.rfind(end)
+          if bi < 0 or ei < bi: raise SystemExit('Expected OpenPGP secret armor markers missing')
+          lines = s[bi:ei + len(end)].splitlines()
+          interior = [line.rstrip('\r') for line in lines[1:-1]]
+          while interior and not interior[0].strip(): interior.pop(0)
+          with open(os.environ['KEYFILE'], 'w', encoding='ascii', newline='\n') as f:
+              f.write('\n'.join([begin, ''] + interior + [end, '']))
+          PY
+          gpg --batch --quiet --import "$KEYFILE"
+          rm -f "$KEYFILE"
+          fpr="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^fpr/{print toupper($10);exit}')"
+          # Independently accepted alpha.1 signature fingerprint: never trust an arbitrary imported key.
+          test "$fpr" = "CA6D3B7C71B66647C22219D2AF546A33EA38ADD8"
           if [[ -n "$EXPECTED_FPR" ]]; then
-            test "$fpr" = "$EXPECTED_FPR"
-          else
-            # Historical accepted alpha.1 artifact is a second independent immutable key anchor.
-            # Without either an explicit fingerprint or matching accepted release signer, fail closed.
-            previous="$CENTRAL_REPO/$MAVEN_GROUP_PATH/$MAVEN_ARTIFACT/0.1.0-alpha.1/$MAVEN_ARTIFACT-0.1.0-alpha.1.jar"
-            curl -fsS --retry 3 -o "$RELEASE_ROOT/registry/previous.jar" "$previous"
-            curl -fsS --retry 3 -o "$RELEASE_ROOT/registry/previous.jar.asc" "$previous.asc"
-            gpg --batch --verify "$RELEASE_ROOT/registry/previous.jar.asc" "$RELEASE_ROOT/registry/previous.jar"
-            echo 'MAVEN_SIGNING_KEY_REUSE_PROVEN_BY_IMMUTABLE_ALPHA1=PASS'
+            configured="$(printf %s "$EXPECTED_FPR" | tr -d "[:space:]" | tr "[:lower:]" "[:upper:]")"
+            test "$fpr" = "$configured"
           fi
-          # Central validates signatures against public keyservers; fail before upload if the key is not discoverable.
-          test "$(curl -sS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr")" = '200'
+          previous="$CENTRAL_REPO/$MAVEN_GROUP_PATH/$MAVEN_ARTIFACT/0.1.0-alpha.1/$MAVEN_ARTIFACT-0.1.0-alpha.1.jar"
+          curl -fsS --retry 3 -o "$RELEASE_ROOT/registry/previous.jar" "$previous"
+          curl -fsS --retry 3 -o "$RELEASE_ROOT/registry/previous.jar.asc" "$previous.asc"
+          gpg --batch --verify "$RELEASE_ROOT/registry/previous.jar.asc" "$RELEASE_ROOT/registry/previous.jar"
+          # Historical Maven success (run 35902114613): openpgp.org HTTP 404, Ubuntu keyserver HTTP 200.
+          # Check this exact signer is publicly discoverable, not a specific keyserver.
+          keyserver_file="$RELEASE_ROOT/registry/release-public-key.asc"
+          code="$(curl --connect-timeout 5 --max-time 25 -LsS -o "$keyserver_file" -w '%{http_code}' "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fpr")"
+          test "$code" = 200
+          grep -q '^-----BEGIN PGP PUBLIC KEY BLOCK-----' "$keyserver_file"
+          echo "MAVEN_SIGNER_HISTORICAL_ALPHA1_AND_PUBLIC_KEY=PASS"
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
           echo "fingerprint=$fpr" >> "$GITHUB_OUTPUT"
 

@@ -1,0 +1,72 @@
+name: P13 Production Readiness (read-only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'operations/p13-production-cutover-plan.json'
+      - 'scripts/p13-production-readiness.mjs'
+      - 'docs/operations/P13_PRODUCTION_CUTOVER_READINESS.md'
+      - '.github/workflows/p13-production-readiness.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: p13-production-readiness-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+      AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+      RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Readiness baseline, never admissible
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/p13-production-readiness.mjs --output p13-readiness.json
+          jq -e '.status=="BLOCKED" and .cutoverAuthorized==false and .productionMutationsPerformed==false' p13-readiness.json >/dev/null
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+      - name: Azure read-only metadata observation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+          az group show --name "$RESOURCE_GROUP" --only-show-errors --output none
+          accounts="$(az cosmosdb list --resource-group "$RESOURCE_GROUP" --only-show-errors --output json)"
+          applications="$(az resource list --resource-group "$RESOURCE_GROUP" --resource-type Microsoft.App/containerApps --only-show-errors --output json)"
+          jq -n \
+            --arg sourceSha "$GITHUB_SHA" \
+            --argjson cosmosCount "$(jq 'length' <<<"$accounts")" \
+            --argjson continuousBackup "$(jq '[.[] | select((.backupPolicy.type // "")=="Continuous")]|length' <<<"$accounts")" \
+            --argjson privateCosmos "$(jq '[.[] | select((.publicNetworkAccess // ""|ascii_downcase)=="disabled" and (.disableLocalAuth==true))]|length' <<<"$accounts")" \
+            --argjson containerApps "$(jq 'length' <<<"$applications")" \
+            '{schema:"truyn.p13.azure-readonly-metadata/v1",sourceSha:$sourceSha,mode:"READ_ONLY",status:"OBSERVED_NOT_ADMITTED",cosmosCount:$cosmosCount,continuousBackupCount:$continuousBackup,privateIdentityCosmosCount:$privateCosmos,containerAppsCount:$containerApps,sourceDataRead:false,sourceSnapshotVerified:false,isolatedRestoreVerified:false,liveCutoverPermitted:false,productionMutationsPerformed:false}' > p13-azure-readonly.json
+      - name: Upload sanitized non-admitting audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p13-readiness-${{ github.run_id }}
+          path: |
+            p13-readiness.json
+            p13-azure-readonly.json
+          if-no-files-found: error
+          retention-days: 30
