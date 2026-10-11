@@ -1,0 +1,33 @@
+{
+  "fixtureSet": "truyn.protocol-v1.object-reference-integrity/p12",
+  "protocol": "TRUYN/1",
+  "profile": "truyn.object-reference-integrity/1",
+  "scope": "bounded verified object/artifact references; not a new JSON message kind or generalized OBJECT distribution",
+  "sourceBytesUtf8": "TRUYN Sprint E interop proof\n",
+  "valid": {
+    "kind": "artifact",
+    "ref": "https://interop.invalid/interop-proof.bin",
+    "mediaType": "application/octet-stream",
+    "bytes": 29,
+    "sha256": "257b10be1e90139219f3aa9edbbdea24a80ef453cbbc16e840e1c34d0b24abae"
+  },
+  "expectedNegativeCodes": {
+    "absentDigest": "OBJECT_INTEGRITY_REQUIRED",
+    "absentByteSize": "OBJECT_INTEGRITY_REQUIRED",
+    "wrongDigest": "OBJECT_INTEGRITY_MISMATCH",
+    "wrongByteSize": "OBJECT_INTEGRITY_MISMATCH",
+    "oversizeDeclared": "OBJECT_TOO_LARGE",
+    "oversizeActual": "OBJECT_TOO_LARGE",
+    "noResolver": "OBJECT_RESOLVER_REQUIRED",
+    "conflictingAliases": "OBJECT_INVALID_REFERENCE",
+    "invalidResolverBytes": "OBJECT_INVALID_BYTES"
+  },
+  "nonAuthority": [
+    "no-implicit-fetch",
+    "no-execution-authority",
+    "no-tenant-authority",
+    "no-provider-authority",
+    "no-billing-authority",
+    "no-auto-retry"
+  ]
+}
