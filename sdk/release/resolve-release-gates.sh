@@ -14,7 +14,7 @@
 set -euo pipefail
 
 prefix="${1:?tag prefix}"
-kind="${2:?maven|nuget}"
+kind="${2:?maven|nuget|pypi}"
 
 tag="${GITHUB_REF#refs/tags/}"
 case "$tag" in
@@ -26,6 +26,7 @@ test -n "$version"
 
 case "$kind" in
   maven) declared="$(python3 -c 'import xml.etree.ElementTree as E;n={"m":"http://maven.apache.org/POM/4.0.0"};print(E.parse("sdk/java/pom.xml").getroot().find("m:version",n).text.strip())')" ;;
+  pypi) declared="$(python3 -c 'import tomllib;print(tomllib.load(open("sdk/python/pyproject.toml","rb"))["project"]["version"])')" ;;
   nuget) declared="$(python3 -c 'import xml.etree.ElementTree as E;print(E.parse("sdk/dotnet/Truyn.Sdk.csproj").getroot().find("./PropertyGroup/Version").text.strip())')" ;;
   *) echo "unknown kind: $kind" >&2; exit 1 ;;
 esac

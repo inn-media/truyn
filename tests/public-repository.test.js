@@ -13,6 +13,8 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/autonomous-repair.yml',
   '.github/workflows/ci.yml',
   '.github/workflows/wire-freeze-legacy-sdk-matrix.yml',
+  '.github/workflows/publish-sdk-alpha.yml',
+  '.github/workflows/wire-freeze-release-request.yml',
   '.github/workflows/a-series-foundation.yml',
   '.github/workflows/a-soak-wan-runtime-release.yml',
   '.github/workflows/a-soak-wan-runtime-release-request.yml',

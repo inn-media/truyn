@@ -1,0 +1,99 @@
+name: TRUYN Wire Freeze Immutable SDK Publication Request
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/wire-freeze/release-request.json'
+permissions:
+  contents: read
+  actions: read
+  checks: read
+concurrency:
+  group: wire-freeze-immutable-five-sdk-release
+  cancel-in-progress: false
+jobs:
+  exact-main-publisher:
+    if: github.repository == 'inn-media/truyn' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 2, persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Require explicit one-shot request and exact current main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          request=.github/wire-freeze/release-request.json
+          jq -e --arg parent "$(git rev-parse HEAD^)" '
+            .schema=="truyn.wire-freeze-release-request/v1"
+            and .task=="truyn1-immutable-successor-publication-20261011"
+            and .intent=="publish-fresh-immutable-five-sdk-pre-releases"
+            and .exactParentSha==$parent
+            and .cloudMutationAllowed==false and .managedCanaryAllowed==false
+            and .mainnetAdmissionAllowed==false and .requireExactMainCI==true
+            and .requireHostedCodeQL==true and .requireNewImmutableTags==true
+            and .packages=={"npm":"0.1.0-alpha.5","pypi":"0.1.0a2","go":"v0.1.0-alpha.2","maven":"0.1.0-alpha.2","nuget":"0.1.0-alpha.2"}
+          ' "$request" >/dev/null
+          jq -e '.typescript=="0.1.0-alpha.5" and .python=="0.1.0a2" and .release=="0.1.0-alpha.2" and .goTag=="sdk/go/v0.1.0-alpha.2"' sdk/release/version.json >/dev/null
+          test "$(node -p "require('./sdk/typescript/package.json').version")" = '0.1.0-alpha.5'
+          node scripts/check-dco.mjs "$(git rev-parse HEAD^)" "$GITHUB_SHA"
+      - name: Wait for independently accepted exact-main CI and CodeQL
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          admitted=false
+          for attempt in $(seq 1 120); do
+            current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            test "$current" = "$GITHUB_SHA" || { echo 'RELEASE_ABORT_MOVING_MAIN'; exit 71; }
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=100")"
+            ci="$(jq -r --arg s "$GITHUB_SHA" '[.workflow_runs[]|select(.path==".github/workflows/ci.yml" and .head_sha==$s and .event=="push" and .conclusion=="success")]|first|.id//empty' <<< "$runs")"
+            codeql="$(jq -r --arg s "$GITHUB_SHA" '[.workflow_runs[]|select(.path=="dynamic/github-code-scanning/codeql" and .head_sha==$s and .conclusion=="success")]|first|.id//empty' <<< "$runs")"
+            if test -n "$ci" && test -n "$codeql"; then
+              jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ci/jobs?per_page=100")"
+              for job in mandatory-security-safety sdk-release integration network component regression full-qualification test; do
+                jq -e --arg j "$job" '[.jobs[]|select(.name==$j and .conclusion=="success")]|length>=1' <<< "$jobs" >/dev/null || { echo "RELEASE_MISSING_JOB=$job"; exit 72; }
+              done
+              cq="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$codeql/jobs?per_page=100")"
+              jq -e '(.jobs|length)>0 and (.jobs|all(.[];.conclusion=="success"))' <<< "$cq" >/dev/null
+              admitted=true
+              break
+            fi
+            sleep 15
+          done
+          test "$admitted" = true || { echo 'RELEASE_ABORT_NO_EXACT_MAIN_CI_CODEQL'; exit 73; }
+          echo "TRUYN_IMMUTABLE_SDK_RELEASE_ADMITTED=$GITHUB_SHA"
+      - name: Create immutable SDK release tags using scoped PAT
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$GH_TOKEN"
+          current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$current" = "$GITHUB_SHA" || exit 74
+          tags=(
+            sdk/npm/v0.1.0-alpha.5
+            sdk/python/v0.1.0a2
+            sdk/go/v0.1.0-alpha.2
+            sdk/maven/v0.1.0-alpha.2
+            sdk/nuget/v0.1.0-alpha.2
+          )
+          # Fail before any mutation if a tag already exists, even at same SHA.
+          for tag in "${tags[@]}"; do
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+              echo "RELEASE_ABORT_DUPLICATE_TAG=$tag"; exit 75
+            fi
+          done
+          for tag in "${tags[@]}"; do
+            current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            test "$current" = "$GITHUB_SHA" || exit 76
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$GITHUB_SHA" >/dev/null
+            echo "RELEASE_IMMUTABLE_TAG_CREATED=$tag sha=$GITHUB_SHA"
+          done
+          echo "RELEASE_DISPATCHED_FIVE_PUBLISHERS=YES"
