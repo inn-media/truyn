@@ -213,3 +213,25 @@ test('G5 durable lifecycle status surface enforces requester/provider authority'
   assert.equal((await status(requester, 'effects')).status, 404);
   assert.equal((await status(outsider, 'effects')).status, 404);
 });
+
+
+test('G5 signed OFFER REVOKE remains owner-idempotent after relay restart', async (t) => {
+  const { open } = fixture(t); const ledger = open();
+  t.after(() => ledger.close());
+  const a = createRelay({ localDevelopmentMode: true, lifecycleLedger: ledger });
+  const urlA = await a.listen({ port: 0 });
+  const ownerA = new TruynNode({ relayUrl: urlA });
+  await ownerA.register();
+  const offer = await ownerA.offer('g5.offer.durable.idempotency');
+  await ownerA.revoke(offer.offerId, 'withdrawn', { targetKind: 'offer' });
+  assert.equal(ledger.getOffer(offer.offerId).revoked, 1);
+  await a.close();
+  const b = createRelay({ localDevelopmentMode: true, lifecycleLedger: ledger });
+  t.after(() => b.close());
+  const urlB = await b.listen({ port: 0 });
+  const ownerB = new TruynNode({ relayUrl: urlB, identity: ownerA.identity });
+  await ownerB.register();
+  const repeated = await ownerB.revoke(offer.offerId, 'repeat-after-restart', { targetKind: 'offer' });
+  assert.equal(repeated.idempotent, true);
+  assert.equal(ledger.getOffer(offer.offerId).revoked, 1);
+});

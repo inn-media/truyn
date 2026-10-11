@@ -1172,7 +1172,14 @@ export function createRelay({
           return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: persistedCancellation?.changed === false, provider: request.provider, cancelledAt: request.cancelledAt });
         }
 
-        if (!offer) return json(res, 404, { ok: false, error: 'target_not_found' });
+        if (!offer) {
+          const saved = lifecycleLedger?.getOffer(targetId);
+          if (!saved) return json(res, 404, { ok: false, error: 'target_not_found' });
+          if (saved.owner !== envelope.from) return json(res, 403, { ok: false, error: 'not_target_owner' });
+          const alreadyRevoked = Boolean(saved.revoked);
+          lifecycleLedger.revokeOffer({ id: targetId, owner: envelope.from });
+          return json(res, 200, { ok: true, targetId, targetKind: 'offer', idempotent: alreadyRevoked });
+        }
         if (offer.envelope.from !== envelope.from) return json(res, 403, { ok: false, error: 'not_target_owner' });
         lifecycleLedger?.revokeOffer({ id: targetId, owner: envelope.from });
         offer.revoked = true;
