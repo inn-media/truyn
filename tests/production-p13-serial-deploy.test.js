@@ -77,7 +77,7 @@ test('job-level ACA queue retains pending writers instead of cancel-and-replace'
   for(const file of ['production-dr-foundation.yml','production-logs-retention.yml',
     'production-trace-backend.yml','production-metrics-backend.yml','production-metrics-collector.yml']){
     const source=await wf(file);
-    assert.match(source,/group: truyn-production-aca-exclusive-writer\\n      queue: max\\n      cancel-in-progress: false/);
+    assert.match(source,/group: truyn-production-aca-exclusive-writer\n      queue: max\n      cancel-in-progress: false/);
   }
 });
 test('each bounded DR ACA backoff retries only while exact live main matches', async()=>{
