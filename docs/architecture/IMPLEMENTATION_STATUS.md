@@ -1,7 +1,7 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot:** 2026-10-10 (H-Series 4/4 closure reconciliation)  
+**Snapshot:** 2026-10-11 (D-5000 acceptance reconciliation; other program statuses remain at their documented snapshots)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
@@ -30,7 +30,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | D-Series execution architecture | **Swarm-Blockwise lock retained as accepted baseline** | preserve for future repeatability/new explicit D-scale gates |
 | Semantic Scale S-Series | **S-10 + S-20 + S-50 + S-100 accepted / PASS; S-200+ OPEN** | preserve accepted S-100 evidence; decompose contention residual; execute S-200 independently |
 | A-Series Assurance | **PUBLIC FOUNDATION MERGED, no measured A-SOAK PASS** | exact runtime release + full independent four-VM assurance |
-| D-5000 | **Not accepted; Attempt 3 live at dated snapshot** | independently verified terminal and cleanup, isolated from A-Series |
+| D-5000 | **ACCEPTED / CLOSED / DOUBLE-CHECK VERIFIED** | Attempt 12: 15/15 measured PASS, unchanged immutable evidence requalification PASS (historical GitHub FAIL retained); independent Attempt 13: official terminal PASS, 5,000 real nodes, 100/100 retention, zero acknowledged loss and complete cleanup. [Canonical evidence](../benchmarks/CLASS_D_5000_2026-10-11.md). |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
 | Hidden-value H-Series | **4/4 ACCEPTED / PASS / CLOSED** | preserve immutable evidence; future work requires versioned successor campaigns |
 | Emergent Network N-Series | **N/SOVEREIGNTY-10 qualification GREEN; no accepted real 50/100 measured scale claim** | real multi-cloud measured sovereignty and remaining N lanes |
