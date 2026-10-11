@@ -1,3 +1,5 @@
+> **Superseded D-5000 row (2026-10-11):** D-5000 is now CLOSED: Attempt 12 measured success + immutable requalification, Attempt 13 independently official GREEN. The 2026-10-10 matrix below remains a dated historical snapshot. [Canonical current D-5000 ledger](../benchmarks/CLASS_D_5000_2026-10-11.md). Other program rows have not been reassessed in this closure.
+
 # TRUYN cross-repository status reconciliation — 2026-10-10
 
 Scope: public `main` at `35c937adf8e71119681c6f9243e8b00bcfd0c48e`, private `main` at `b21d15c5941f3596de63685d3dd52e31b45dc4aa`. This is a source-bounded audit, not a new benchmark result.
