@@ -58,14 +58,9 @@ var tags = {
   backendVersion: tempoVersion
 }
 
+// Pass the exact UTF-8 Python source directly as argv, not through a shell
+// heredoc. ACA readback proved SyntaxError at generated probe line 1.
 var probePython = replace(loadTextContent('trace-retention-probe.py'), '__SOURCE_SHA__', sourceSha)
-var probeScript = '''
-set -eu
-cat > /tmp/trace-retention-probe.py <<'PY'
-${probePython}
-PY
-python /tmp/trace-retention-probe.py
-'''
 
 resource traceIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: identityName
@@ -264,11 +259,11 @@ resource traceBackend 'Microsoft.App/containerApps@2025-07-01' = {
           name: 'acceptance-probe'
           image: 'python:3.12.11-slim-bookworm'
           command: [
-            'sh'
+            'python'
             '-c'
           ]
           args: [
-            probeScript
+            probePython
           ]
           resources: {
             cpu: json('0.25')
