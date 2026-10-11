@@ -620,6 +620,21 @@ export function createRelay({
       const durable = await lifecycleLedger?.getNeed(frame.i);
       if (durable && durable.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
       if (durable && durable.status !== 'matched') return { status: 409, body: { ok: false, error: durable.status === 'cancelled' ? 'request_cancelled' : durable.status === 'failed' ? 'request_failed' : 'request_already_completed' } };
+      if (durable && durable.mode === 'fast' && lifecycleLedger?.kind === 'cosmos-multi-host-v1') {
+        // The provider may reconnect to a different relay after a host crash.
+        // Persist its signed PARTIAL against shared CAS without reconstructing
+        // or redispatching the original NEED from transient relay memory.
+        if (!Number.isInteger(payload?.sequence) || payload.sequence < 0)
+          return { status: 400, body: { ok: false, error: 'invalid_partial_sequence' } };
+        const digest = partialDigest(frame, payload);
+        const event = { kind: 'PARTIAL', frame, payload, from: providerNodeId, requestId: frame.i, sequence: payload.sequence };
+        const accepted = await lifecycleLedger.acceptPartial({
+          id: frame.i, provider: providerNodeId, sequence: payload.sequence, digest,
+          delivery: { recipient: durable.requester, kind: 'PARTIAL', event }
+        });
+        touch(providerNodeId);
+        return { status: 200, body: { ok: true, requestId: frame.i, sequence: payload.sequence, transport: 'durable-outbox', idempotent: Boolean(accepted.idempotent), recovered: true } };
+      }
       return { status: durable ? 503 : 404, body: { ok: false, error: durable ? 'request_recovery_required' : 'request_not_found' } };
     }
     if (request.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
@@ -687,6 +702,17 @@ export function createRelay({
       const durable = await lifecycleLedger?.getNeed(frame.i);
       if (durable && durable.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
       if (durable && durable.status !== 'matched') return { status: 409, body: { ok: false, error: durable.status === 'cancelled' ? 'request_cancelled' : durable.status === 'failed' ? 'request_failed' : 'request_already_completed' } };
+      if (durable && durable.mode === 'fast' && lifecycleLedger?.kind === 'cosmos-multi-host-v1') {
+        const signedResult = { kind: 'RESULT', frame, payload, from: providerNodeId };
+        // One shared terminal CAS and signed recipient outbox entry, even if
+        // this process never saw the NEED. Duplicate/rival terminal loses CAS.
+        await lifecycleLedger.transitionNeed({
+          id: frame.i, provider: providerNodeId, to: 'completed',
+          delivery: { recipient: durable.requester, kind: 'RESULT', event: signedResult }
+        });
+        touch(providerNodeId);
+        return { status: 200, body: { ok: true, requestId: frame.i, transport: 'durable-outbox', recovered: true } };
+      }
       return { status: durable ? 503 : 404, body: { ok: false, error: durable ? 'request_recovery_required' : 'request_not_found' } };
     }
     if (request.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
@@ -1153,6 +1179,14 @@ export function createRelay({
           const durable = await lifecycleLedger?.getNeed(requestId);
           if (durable && durable.provider !== envelope.from) return json(res, 403, { ok: false, error: 'provider_mismatch' });
           if (durable && durable.status !== 'matched') return json(res, 409, { ok: false, error: durable.status === 'cancelled' ? 'request_cancelled' : durable.status === 'failed' ? 'request_failed' : 'request_already_completed' });
+          if (durable?.mode === 'legacy' && lifecycleLedger?.kind === 'cosmos-multi-host-v1') {
+            await lifecycleLedger.transitionNeed({
+              id: requestId, provider: envelope.from, to: 'completed',
+              delivery: { recipient: durable.requester, kind: 'RESULT', event: { kind: 'RESULT', envelope } }
+            });
+            touch(envelope.from);
+            return json(res, 200, { ok: true, requestId, transport: 'durable-outbox', recovered: true });
+          }
           if (durable) return json(res, 503, { ok: false, error: 'request_recovery_required' });
           return json(res, 404, { ok: false, error: 'request_not_found' });
         }

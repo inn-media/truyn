@@ -126,3 +126,59 @@ test('G5 async Cosmos relay: shared store outage cannot authorize direct dispatc
   assert.equal(response.status,503);
   assert.equal((await providerA.poll()).events.length,0);
 });
+
+test('G5 cross-host PARTIAL+RESULT handoff: peer relay accepts verified signed work without redispatch',async t=>{
+  const {providerA,providerB,requesterA,requesterB,ledgers}=await pair(t);
+  const id='g5-crosshost-missing-memory-fast-990';
+  const admitted=await post(requesterA,'/v1/fast/needs?waitMs=0',makeFast(requesterA,id,'g5.cosmos.public'));
+  assert.equal(admitted.status,200);
+  // Provider identity and requester identity are the same across two distinct
+  // registered relays. Only relay A has volatile request state.
+  const partPayload={sequence:0,delta:'signed chunk from remote provider',metadata:{}};
+  const partFrame=providerB.compactFrame('PARTIAL',partPayload,{id});
+  const partial=await post(providerB,'/v1/fast/partials',{frame:partFrame,payload:partPayload});
+  assert.equal(partial.status,200);
+  assert.equal(partial.body.recovered,true);
+  assert.equal(partial.body.transport,'durable-outbox');
+  assert.equal((await ledgers[0].getNeed(id)).partial_sequence,1);
+  const duplicate=await post(providerB,'/v1/fast/partials',{frame:partFrame,payload:partPayload});
+  assert.equal(duplicate.status,200);
+  assert.equal(duplicate.body.idempotent,true);
+  const forgedPayload={sequence:0,delta:'modified replay',metadata:{}};
+  const forgedFrame=providerB.compactFrame('PARTIAL',forgedPayload,{id});
+  assert.equal((await post(providerB,'/v1/fast/partials',{frame:forgedFrame,payload:forgedPayload})).status,409);
+  const completed=await providerB.compactResult(id,{ok:true,origin:'relayB'});
+  assert.equal(completed.ok,true);
+  assert.equal(completed.recovered,true);
+  assert.equal((await ledgers[0].getNeed(id)).status,'completed');
+  const resultRetry=await post(providerB,'/v1/fast/results',{frame:completed.frame,payload:completed.payload});
+  assert.equal(resultRetry.status,409);
+  assert.equal(resultRetry.body.error,'request_already_completed');
+  const response=await fetch(requesterB.relayUrl+'/v1/lifecycle/deliveries?limit=32',{headers:requesterB.authHeaders()});
+  assert.equal(response.status,200);
+  const deliveries=(await response.json()).deliveries.filter(x=>x.requestId===id);
+  assert.equal(deliveries.filter(x=>x.kind==='PARTIAL').length,1);
+  assert.equal(deliveries.filter(x=>x.kind==='RESULT').length,1);
+  for(const entry of deliveries) {
+    const ack=await post(requesterB,'/v1/lifecycle/deliveries/ack',{eventId:entry.eventId});
+    assert.equal(ack.status,200);
+  }
+  const recovered=await fetch(requesterA.relayUrl+'/v1/lifecycle/deliveries?limit=32',{headers:requesterA.authHeaders()});
+  assert.equal((await recovered.json()).deliveries.filter(x=>x.requestId===id&&['PARTIAL','RESULT'].includes(x.kind)).length,0);
+});
+
+test('G5 cross-host legacy RESULT handoff: CAS writes signed result to durable requester outbox once',async t=>{
+  const {providerB,requesterA,requesterB,ledgers}=await pair(t);
+  const id='g5-crosshost-missing-memory-legacy-990';
+  assert.equal((await post(requesterA,'/v1/needs',{envelope:makeLegacy(requesterA,id,'g5.cosmos.public')})).status,200);
+  const accepted=await providerB.result(id,{ok:true,origin:'relayB'});
+  assert.equal(accepted.recovered,true);
+  assert.equal(accepted.transport,'durable-outbox');
+  assert.equal((await ledgers[0].getNeed(id)).status,'completed');
+  const other=await post(requesterB,'/v1/needs',{envelope:makeLegacy(requesterB,id,'g5.cosmos.public')});
+  assert.equal(other.status,409,'completed id tombstone remains globally reserved');
+  const response=await fetch(requesterB.relayUrl+'/v1/lifecycle/deliveries?limit=32',{headers:requesterB.authHeaders()});
+  const results=(await response.json()).deliveries.filter(x=>x.requestId===id&&x.kind==='RESULT');
+  assert.equal(results.length,1);
+  await assert.rejects(()=>providerB.result(id,{ok:true}),error=>error.status===409||/request_already_completed/.test(error.message));
+});
