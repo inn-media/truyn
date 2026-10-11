@@ -9,6 +9,22 @@ if (string.IsNullOrWhiteSpace(descriptorUrl) || string.IsNullOrWhiteSpace(descri
 var descriptor = await AgentDescriptors.FetchAsync(new Uri(descriptorUrl), descriptorPublicKey);
 if (descriptor.Descriptor.Identity != descriptorIdentity || descriptor.Selection.Protocol != "TRUYN/1" || descriptor.Selection.Interface.GetProperty("type").GetString() != "https" || descriptor.Signer.KeyBinding != "identity") throw new InvalidOperationException("invalid Agent Descriptor verification");
 
+// TCJ1 byte conformance probes use reflection solely to keep the production
+// canonicalizer internal; no public SDK API change or alternate signer.
+var canonicalType = typeof(TruynClient).Assembly.GetType("Truyn.Sdk.CanonicalJson", throwOnError: true)!;
+var canonicalMethod = canonicalType.GetMethod("Serialize", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public)!;
+void AssertCanonical(object input, string expected)
+{
+    var actual = (byte[])canonicalMethod.Invoke(null, new object?[] {input})!;
+    if (!actual.AsSpan().SequenceEqual(System.Text.Encoding.UTF8.GetBytes(expected)))
+        throw new InvalidOperationException("dotnet TCJ1 byte mismatch: " + System.Text.Encoding.UTF8.GetString(actual) + " vs " + expected);
+}
+AssertCanonical(new Dictionary<string, object> {["n"] = -0.0}, "{\"n\":0}");
+AssertCanonical(new Dictionary<string, object> {["n"] = 1e21}, "{\"n\":1e+21}");
+AssertCanonical(new Dictionary<string, object> {["n"] = 1e-7}, "{\"n\":1e-7}");
+AssertCanonical(new Dictionary<string, object> {["n"] = 0.000025}, "{\"n\":0.000025}");
+AssertCanonical(new Dictionary<string, object> {["q"] = "R&D <b>"}, "{\"q\":\"R&D <b>\"}");
+
 await using var provider = await TruynClient.ConnectAsync(new TruynClientOptions(relay), "dotnet-provider");
 await using var requester = await TruynClient.ConnectAsync(new TruynClientOptions(relay), "dotnet-requester");
 var capability = "sdk.release.dotnet." + Guid.NewGuid().ToString("N");
