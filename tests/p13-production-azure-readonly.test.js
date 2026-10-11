@@ -34,3 +34,16 @@ test('P13 DR/trace incident forensics expose only whitelisted Azure metadata and
   assert.doesNotMatch(workflow,/az containerapp logs show/);
   assert.doesNotMatch(workflow,/\baz (deployment|cosmosdb|containerapp|resource) (create|update|delete|set)\b/);
 });
+
+test('DR/Tempo forensic classification stays read-only and exports only restricted enums',()=>{
+  assert.match(workflow,/az deployment group list/);
+  assert.match(workflow,/az deployment operation group list/);
+  assert.match(workflow,/az containerapp logs show/);
+  assert.match(workflow,/rawDeploymentErrorsExported:false/);
+  assert.match(workflow,/rawLogBodiesExported:false/);
+  assert.match(workflow,/p13-failure-diagnostic\.json/);
+  assert.match(workflow,/LOGSTREAM_RBAC_DENIED/);
+  assert.match(workflow,/DR_TEMPO_FORENSICS=COMPLETE/);
+  assert.doesNotMatch(workflow,/az\s+deployment\s+group\s+create/);
+  assert.doesNotMatch(workflow,/az\s+role\s+assignment\s+create/);
+});

@@ -114,6 +114,75 @@ jobs:
               dr:{listObserved:$drListObserved,operationsObserved:$drOperationsObserved,provisioningState:$drState,errorCodes:$drErrorCodes},
               trace:{appsObserved:$traceAppsObserved,tempoApps:$tempoApps,acceptanceProbeContainers:$acceptanceProbes,runningTraceRevisions:$runningTraceRevisions,retentionReadbackVerified:false},
               sourceDataRead:false,consoleLogsRead:false,liveCutoverPermitted:false,productionMutationsPerformed:false}' > p13-dr-trace-readonly.json
+      - name: Read-only DR and Tempo failed-run classification
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+          # Collect only whitelisted reason codes. Never print deployment payloads,
+          # resource IDs, endpoints, log bodies, account names, or tenant values.
+          d="$(az deployment group list --resource-group "$RESOURCE_GROUP" --only-show-errors -o json 2>/dev/null || echo '[]')"
+          [[ "$(jq -r 'type' <<<"$d")" == array ]]
+          known='^(InvalidTemplate|AuthorizationFailed|LinkedAuthorizationFailed|ResourceNotFound|Conflict|DeploymentFailed|BadRequest|QuotaExceeded|RequestDisallowedByPolicy|RegionNotAvailable|ServiceUnavailable|InvalidResourceReference|MissingSubscriptionRegistration|OperationNotAllowed|ResourceQuotaExceeded)        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p13-readiness-${{ github.run_id }}
+          path: |
+            p13-readiness.json
+            p13-azure-readonly.json
+            p13-failure-diagnostic.json
+            p13-dr-trace-readonly.json
+          if-no-files-found: error
+          retention-days: 30
+
+          observed=0
+          statuses='[]'
+          while IFS= read -r deployment; do
+            [[ -n "$deployment" ]] || continue
+            # Only the known failing source run is examined; names stay private.
+            operation="$(az deployment operation group list -g "$RESOURCE_GROUP" -n "$deployment" --only-show-errors -o json 2>/dev/null || echo '[]')"
+            if [[ "$(jq -r 'type' <<<"$operation")" != array ]]; then
+              class='OPERATIONS_READ_DENIED'
+            else
+              rawcode="$(jq -r '[.[] | (.properties.statusMessage.error.code // .properties.statusMessage.code // .statusMessage.error.code // empty)] | map(select(type=="string")) | first // empty' <<<"$operation")"
+              if [[ "$rawcode" =~ $known ]]; then class="$rawcode"; else class="UNKNOWN_OR_NO_OPERATION_CODE"; fi
+            fi
+            statuses="$(jq -cn --argjson a "$statuses" --arg code "$class" '$a + [$code]')"
+            observed=$((observed+1))
+          done < <(jq -r '[.[] | select((.name//"") | startswith("production-dr-01fb6431-"))] | sort_by(.properties.timestamp // "") | reverse | .[:4][].name' <<<"$d")
+          app_list="$(az resource list --resource-group "$RESOURCE_GROUP" --resource-type Microsoft.App/containerApps --only-show-errors -o json)"
+          trace_count="$(jq '[.[] | select((.name//"") | startswith("truyn-traces-"))] | length' <<<"$app_list")"
+          trace_class='NOT_UNIQUELY_IDENTIFIED'
+          if [[ "$trace_count" -eq 1 ]]; then
+            trace_app="$(jq -r '.[] | select((.name//"") | startswith("truyn-traces-")) | .name' <<<"$app_list")"
+            printf '::add-mask::%s\n' "$trace_app"
+            if probe="$(az containerapp logs show --resource-group "$RESOURCE_GROUP" --name "$trace_app" --container acceptance-probe --type console --tail 200 --follow false --format text --only-show-errors 2>&1)"; then
+              if grep -Fq 'TRUYN_TRACE_RETENTION_PASS normal_days=30 incident_days=90 normal_readback=1 incident_readback=1' <<<"$probe" &&
+                 grep -Fq 'TRUYN_TRACE_CANARY_PASS otlp_http=accepted trace_readback=observed storage=azure-blob' <<<"$probe"; then
+                trace_class='CANARY_AND_RETENTION_READBACK_PRESENT'
+              else
+                trace_class='LOGSTREAM_READABLE_MARKERS_MISSING'
+              fi
+            elif grep -Eiq 'AuthorizationFailed|Forbidden|Unauthorized|not authorized|permission denied' <<<"$probe"; then
+              trace_class='LOGSTREAM_RBAC_DENIED'
+            elif grep -Eiq 'no running replicas|No active replicas|not running' <<<"$probe"; then
+              trace_class='NO_RUNNING_PROBE_REPLICA'
+            elif grep -Eiq 'WebSocket|websocket|connection|timed out|timeout' <<<"$probe"; then
+              trace_class='LOGSTREAM_TRANSPORT_UNREACHABLE'
+            else
+              trace_class='LOGSTREAM_UNCLASSIFIED_READ_FAILURE'
+            fi
+          fi
+          jq -n --arg sourceSha "$GITHUB_SHA" \
+            --argjson drDeploymentCount "$observed" \
+            --argjson drCodes "$statuses" \
+            --argjson tempoCandidateCount "$trace_count" \
+            --arg tempoReadbackClass "$trace_class" \
+            '{schema:"truyn.p13.failure-diagnostic/v1",sourceSha:$sourceSha,readOnly:true,admission:false,
+             drDeploymentCount:$drDeploymentCount,drReasonCodes:$drCodes,tempoCandidateCount:$tempoCandidateCount,
+             tempoReadbackClass:$tempoReadbackClass,liveCutoverPermitted:false,productionMutationsPerformed:false,
+             secretValuesRead:false,rawDeploymentErrorsExported:false,rawLogBodiesExported:false}' > p13-failure-diagnostic.json
+          echo "P13_READONLY_DR_TEMPO_FORENSICS=COMPLETE sanitized=1 cutover=0"
       - name: Upload sanitized non-admitting audit
         if: always()
         uses: actions/upload-artifact@v4
