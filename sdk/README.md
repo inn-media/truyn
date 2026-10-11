@@ -2,7 +2,7 @@
 
 Native first-party client libraries for applications that integrate directly with TRUYN without depending on an agent-specific provider adapter.
 
-**Current maturity:** Developer Release relay-client implementation is source/build complete. TypeScript/JavaScript, Python, Go, Java and C#/.NET are implemented first-party relay clients and share one executable five-language conformance path. PyPI, Go and npm alpha.2 have accepted immutable public release evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease. Agent Descriptor serving/fetch/signature happy paths exist, while automatic refresh and complete usable-interface validation/mapping parity remain open.
+**Current maturity:** Five required first-party SDKs are implemented, five-language conformance passed and the immutable **Wire Freeze pre-release set** has independent public-registry acceptance (**6/6 source + npm + PyPI + Go + Maven + NuGet proofs PASS**). This is pre-stable `TRUYN/1`, not stable v1. The previous alpha.1/alpha.2 Developer Release versions are preserved as historical artifacts, not overwritten. See [Wire Freeze SDK registry closure](../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md).
 
 **Historical Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73` (not the current source HEAD or new SDK publication). **Expanded Wire Freeze source merge:** `main@10fac0de290a303b7e39205fb895adfaa01dc30e`.  
 **Protocol:** `TRUYN/1` draft; five-language TCJ1 and published-alpha legacy/new matrix verified for the accepted PR-head scope, not stable-v1  
@@ -12,11 +12,11 @@ Native first-party client libraries for applications that integrate directly wit
 
 | Language | Directory | Distribution coordinate | Current status |
 |---|---|---|---|
-| JavaScript / TypeScript | `typescript/` | npm `@truyn/sdk@0.1.0-alpha.2` | **Implemented client + Descriptor valid-fixture verification + executable conformance; accepted immutable public release** |
-| Python | `python/` | PyPI `truyn-sdk==0.1.0a1` | **Implemented client + Descriptor valid-fixture verification + executable conformance; accepted immutable public release** |
-| Go | `go/` | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | **Implemented relay client + Descriptor valid-fixture verification + executable conformance; accepted immutable public release** |
-| Java | `java/` | Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | **Implemented relay client + Descriptor valid-fixture verification + executable conformance; Maven Central publication is accepted (`org.truyn:truyn-sdk:0.1.0-alpha.1`)** |
-| C# / .NET | `dotnet/` | NuGet `Truyn.Sdk 0.1.0-alpha.1` | **Implemented relay client + Descriptor valid-fixture verification + executable conformance; NuGet.org accepted immutable public release** |
+| JavaScript / TypeScript | `typescript/` | npm `@truyn/sdk@0.1.0-alpha.5` | **Wire Freeze prerelease, public registry bytes/attestation/signatures/clean-room PASS** |
+| Python | `python/` | PyPI `truyn-sdk==0.1.0a2` | **Wire Freeze prerelease, independent registry package/digest PASS** |
+| Go | `go/` | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` | **Wire Freeze prerelease, independent proxy/sumDB and source-content PASS** |
+| Java | `java/` | Maven `org.truyn:truyn-sdk:0.1.0-alpha.2` | **Wire Freeze prerelease, independent Maven Central/PGP PASS** |
+| C# / .NET | `dotnet/` | NuGet `Truyn.Sdk 0.1.0-alpha.2` | **Wire Freeze prerelease, independent NuGet signature/content PASS** |
 | Rust | `rust/` | optional | optional secondary track |
 
 The five required first-party targets are **JavaScript/TypeScript, Python, Go, Java and C#/.NET**. Rust may be maintained as an additional SDK but does not replace any required language.
