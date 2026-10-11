@@ -45,6 +45,12 @@ test('G5 SQLite CAS: competing processes share single-use ID and irreversible te
   assert.equal(b.getNeed('atomic-1').status, 'completed');
   b.reserveNeed({ ...candidate, id: 'atomic-2' });
   assert.throws(() => a.reserveNeed({ ...candidate, id: 'atomic-3' }), (e) => e.httpStatus === 503 && e.publicCode === 'need_idempotency_capacity_reached');
+  a.reserveOffer({ id: 'cap-offer-1', owner: 'bob', fingerprint: 'f1' });
+  b.reserveOffer({ id: 'cap-offer-2', owner: 'bob', fingerprint: 'f2' });
+  assert.throws(() => a.reserveOffer({ id: 'cap-offer-3', owner: 'bob', fingerprint: 'f3' }), (e) => e.httpStatus === 503 && e.publicCode === 'offer_idempotency_capacity_reached');
+  a.beginEffect({ id: 'cap-effect-1', provider: 'bob', requester: 'alice', fingerprint: 'f1' });
+  b.beginEffect({ id: 'cap-effect-2', provider: 'bob', requester: 'alice', fingerprint: 'f2' });
+  assert.throws(() => a.beginEffect({ id: 'cap-effect-3', provider: 'bob', requester: 'alice', fingerprint: 'f3' }), (e) => e.httpStatus === 503 && e.publicCode === 'effect_idempotency_capacity_reached');
 });
 
 test('G5 durable OFFER withdrawal and PARTIAL terminal CAS across independent connections', (t) => {
