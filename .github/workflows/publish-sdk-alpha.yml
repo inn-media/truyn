@@ -1,0 +1,77 @@
+name: Publish Python SDK via PyPI Trusted Publishing
+on:
+  push:
+    tags:
+      - 'sdk/python/v*'
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+concurrency:
+  group: publish-truyn-pypi
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'inn-media/truyn'
+    runs-on: ubuntu-24.04
+    environment: sdk-release
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0, persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Exact tag, main, CI, hosted CodeQL gate
+        id: gates
+        run: bash sdk/release/resolve-release-gates.sh sdk/python/v pypi
+      - name: Obtain exact CI-produced immutable wheel and sdist
+        shell: bash
+        env:
+          CI_RUN_ID: ${{ steps.gates.outputs.ci_run_id }}
+          SOURCE_SHA: ${{ steps.gates.outputs.source_sha }}
+          VERSION: ${{ steps.gates.outputs.version }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p dist "$RUNNER_TEMP/truyn-ci"
+          gh run download "$CI_RUN_ID" --name "truyn-sdk-release-$CI_RUN_ID" --dir "$RUNNER_TEMP/truyn-ci"
+          node sdk/release/verify-release.mjs "$RUNNER_TEMP/truyn-ci"
+          jq -e --arg sha "$SOURCE_SHA" --arg v "$VERSION" '.sourceSha==$sha and .python==$v' "$RUNNER_TEMP/truyn-ci/manifest.json" >/dev/null
+          cp "$RUNNER_TEMP/truyn-ci/python/"*.whl "$RUNNER_TEMP/truyn-ci/python/"*.tar.gz dist/
+          test "$(find dist -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 1
+          test "$(find dist -maxdepth 1 -type f -name '*.tar.gz' | wc -l)" -eq 1
+          for file in dist/*; do
+            name="python/$(basename "$file")"
+            expected="$(jq -r --arg name "$name" '.artifacts[]|select(.path==$name)|.sha256' "$RUNNER_TEMP/truyn-ci/manifest.json")"
+            test -n "$expected"
+            printf '%s  %s\n' "$expected" "$file" | sha256sum --check
+          done
+          http="$(curl -sS -o "$RUNNER_TEMP/pypi-existing.json" -w '%{http_code}' "https://pypi.org/pypi/truyn-sdk/$VERSION/json")"
+          test "$http" = '404' || { echo "PYPI_RELEASE_BLOCKED_EXISTING_VERSION http=$http"; exit 78; }
+      - name: Publish exact CI bytes using OIDC (no API tokens)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          attestations: true
+      - name: Independently verify published PyPI SHA256 files
+        shell: bash
+        env:
+          VERSION: ${{ steps.gates.outputs.version }}
+        run: |
+          set -Eeuo pipefail
+          for try in $(seq 1 30); do
+            code="$(curl -sS -o "$RUNNER_TEMP/pypi-result.json" -w '%{http_code}' "https://pypi.org/pypi/truyn-sdk/$VERSION/json")"
+            test "$code" = 200 && break
+            sleep 10
+          done
+          jq -e '.urls|length>=2' "$RUNNER_TEMP/pypi-result.json" >/dev/null
+          for file in dist/*; do
+            name="$(basename "$file")"
+            expected="$(sha256sum "$file" | awk '{print $1}')"
+            remote="$(jq -r --arg n "$name" '.urls[]|select(.filename==$n)|.digests.sha256' "$RUNNER_TEMP/pypi-result.json")"
+            test "$remote" = "$expected" || { echo "PYPI_BYTE_MISMATCH:$name"; exit 79; }
+          done
+          echo "TRUYN_PYPI_IMMUTABLE_SUCCESSOR=PASS source=${{ steps.gates.outputs.source_sha }} version=$VERSION"

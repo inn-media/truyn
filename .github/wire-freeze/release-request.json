@@ -1,0 +1,19 @@
+{
+  "schema": "truyn.wire-freeze-release-request/v1",
+  "task": "truyn1-immutable-successor-publication-20261011",
+  "intent": "publish-fresh-immutable-five-sdk-pre-releases",
+  "exactParentSha": "79752162d2e5d3e87d394da4f4fd066cf3e2cf03",
+  "packages": {
+    "npm": "0.1.0-alpha.5",
+    "pypi": "0.1.0a2",
+    "go": "v0.1.0-alpha.2",
+    "maven": "0.1.0-alpha.2",
+    "nuget": "0.1.0-alpha.2"
+  },
+  "cloudMutationAllowed": false,
+  "managedCanaryAllowed": false,
+  "mainnetAdmissionAllowed": false,
+  "requireExactMainCI": true,
+  "requireHostedCodeQL": true,
+  "requireNewImmutableTags": true
+}
