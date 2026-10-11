@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DIST="$ROOT/sdk/release/dist"
-VERSION="0.1.0-alpha.1"
+VERSION="$(node -p "require('$ROOT/sdk/release/version.json').release")"
 
 rm -rf "$DIST" "$ROOT/sdk/typescript/dist" "$ROOT/sdk/python/dist" "$ROOT/sdk/java/target" "$ROOT/sdk/dotnet/bin" "$ROOT/sdk/dotnet/obj"
 mkdir -p "$DIST"/{typescript,python,go,java,dotnet}
