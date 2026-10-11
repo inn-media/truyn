@@ -107,6 +107,33 @@ internal static class CanonicalJson
         return stream.ToArray();
     }
 
+    private static string EcmaNumber(double number)
+    {
+        if (number == 0d) return "0";
+        var text = number.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+        var negative = text.StartsWith("-", StringComparison.Ordinal);
+        var unsigned = negative ? text[1..] : text;
+        var parts = unsigned.Split('E', 'e');
+        var mantissa = parts[0];
+        var exp = parts.Length == 2 ? int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
+        var before = mantissa.IndexOf('.');
+        if (before < 0) before = mantissa.Length;
+        var digits = mantissa.Replace(".", "").TrimStart('0');
+        if (digits.Length == 0) return "0";
+        var leadingZeros = mantissa.Replace(".", "").Length - mantissa.Replace(".", "").TrimStart('0').Length;
+        var effectiveExponent = before + exp - leadingZeros - 1;
+        var sign = negative ? "-" : "";
+        if (effectiveExponent >= -6 && effectiveExponent < 21)
+        {
+            var offset = effectiveExponent + 1;
+            if (offset <= 0) return sign + "0." + new string('0', -offset) + digits.TrimEnd('0');
+            if (offset >= digits.Length) return sign + digits + new string('0', offset - digits.Length);
+            return sign + digits[..offset] + "." + digits[offset..].TrimEnd('0');
+        }
+        var trimmed = digits.TrimEnd('0');
+        return sign + trimmed[0] + (trimmed.Length > 1 ? "." + trimmed[1..] : "") + "e" + (effectiveExponent >= 0 ? "+" : "") + effectiveExponent.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     private static void Write(JsonElement element, Utf8JsonWriter writer)
     {
         switch (element.ValueKind)
@@ -131,10 +158,9 @@ internal static class CanonicalJson
                     // Emit a JavaScript-compatible JSON number, including -0 -> 0.
                     // Exponent/fixed-format edge vectors must be independently qualified
                     // before asserting full TCJ1 conformance.
-                    if (element.TryGetDouble(out var number) && number == 0d)
-                        writer.WriteNumberValue(0);
-                    else
-                        element.WriteTo(writer);
+                    if (!element.TryGetDouble(out var number) || !double.IsFinite(number))
+                        throw new JsonException("TCJ1 numeric value must be a finite ECMAScript number");
+                    writer.WriteRawValue(EcmaNumber(number), skipInputValidation: false);
                 }
                 else element.WriteTo(writer);
                 break;
