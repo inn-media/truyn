@@ -20,7 +20,21 @@ for(const [filename,asset] of targets){
     assert.ok(push.includes("'"+asset+"'"));
     assert.doesNotMatch(push,/^\s*-\s*'tests\//m);
     assert.doesNotMatch(push,/^\s*-\s*'\.github\/workflows\//m);
-    assert.match(source,/if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'/);
+    if(['production-logs-retention.yml','production-trace-backend.yml'].includes(filename)){
+      // A production foundation release is now sequentially admitted through
+      // workflow_run. Preserve the direct material-source main push guard and
+      // require a successful MAIN push plus exact evidence for the second path.
+      assert.match(source,/github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'/);
+      assert.match(source,/github\.event_name == 'workflow_run'/);
+      assert.match(source,/github\.event\.workflow_run\.event == 'push'/);
+      assert.match(source,/github\.event\.workflow_run\.head_branch == 'main'/);
+      assert.match(source,/github\.event\.workflow_run\.conclusion == 'success'/);
+      assert.match(source,/if: github\.event_name == 'workflow_run'/);
+      assert.match(source,/GITHUB_SHA" == "\$UPSTREAM_SHA/);
+      assert.match(source,/immutable_evidence=true/);
+    }else{
+      assert.match(source,/if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'/);
+    }
     assert.match(source,/if: github\.event_name == 'pull_request'/);
   });
 }
