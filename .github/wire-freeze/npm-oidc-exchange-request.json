@@ -1,7 +1,7 @@
 {
   "schema": "truyn.wire-freeze-npm-protected-oidc-one-shot/v1",
   "task": "truyn1-immutable-successor-publication-20261011",
-  "attempt": 1,
+  "attempt": 2,
   "frozenSourceSha": "57971b134a41c3e3ea4b42f68e86a7d117036006",
   "frozenCiRunId": 38154701595,
   "frozenCodeqlRunId": 38154701311,
@@ -9,13 +9,25 @@
   "immutableVersion": "0.1.0-alpha.5",
   "previousFailedRuns": [
     38157824903,
-    38161066015
+    38161066015,
+    38164044619
   ],
-  "acceptedRepairPr": 1006,
+  "acceptedRepairPr": 1017,
   "mode": "protected-main-push-original-npm-publisher-only",
   "noStaticRegistryCredentials": true,
   "noRetagging": true,
   "noOverwrite": true,
   "privateCanaryAdmission": false,
-  "wanAdmission": false
+  "wanAdmission": false,
+  "previousFailureClass": "NPM_TRUSTED_PUBLISHER_EXCHANGE_REJECTED_HTTP_404",
+  "trustedPublisher": {
+    "npmPackage": "@truyn/sdk",
+    "githubRepository": "inn-media/truyn",
+    "workflowFile": "publish-npm.yml",
+    "githubEnvironment": "sdk-release",
+    "permission": "npm publish",
+    "statusAtAuthorization": "pending_validation",
+    "validationDeadlineUtc": "2026-10-13T19:27:00Z"
+  },
+  "retryPurpose": "First trusted publisher validation using existing immutable CI-built alpha.5 package; only one fresh protected main push"
 }
