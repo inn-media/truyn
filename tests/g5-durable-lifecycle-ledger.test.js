@@ -136,12 +136,48 @@ test('G5 provider effect intent survives SIGKILL and rejects blind side-effect r
   assert.equal(child.signal, 'SIGKILL');
   const ledger = open(); t.after(() => ledger.close());
   assert.equal(ledger.getEffect('paid-opaque-1').status, 'started');
-  assert.equal(ledger.beginEffect({ id: 'paid-opaque-1', provider: 'provider', requester: 'alice', fingerprint: 'changed' }).acquired, false);
+  assert.throws(
+    () => ledger.beginEffect({ id: 'paid-opaque-1', provider: 'provider', requester: 'alice', fingerprint: 'changed' }),
+    (error) => error.httpStatus === 409 && error.publicCode === 'effect_identity_conflict'
+  );
+  assert.throws(
+    () => ledger.beginEffect({ id: 'paid-opaque-1', provider: 'evil-provider', requester: 'alice', fingerprint: 'request-v1' }),
+    (error) => error.httpStatus === 409 && error.publicCode === 'effect_identity_conflict'
+  );
+  assert.throws(
+    () => ledger.beginEffect({ id: 'paid-opaque-1', provider: 'provider', requester: 'mallory', fingerprint: 'request-v1' }),
+    (error) => error.httpStatus === 409 && error.publicCode === 'effect_identity_conflict'
+  );
+  assert.equal(ledger.beginEffect({ id: 'paid-opaque-1', provider: 'provider', requester: 'alice', fingerprint: 'request-v1' }).acquired, false);
   const marked = ledger.finishEffect({ id: 'paid-opaque-1', provider: 'provider', outcome: 'unknown' });
   assert.equal(marked.row.status, 'unknown');
   assert.equal(ledger.beginEffect({ id: 'paid-opaque-1', provider: 'provider', requester: 'alice', fingerprint: 'request-v1' }).acquired, false);
 });
 
+
+test('G5 effect collision remains fail-closed for both SQLite handles, cross-process races and restart', (t) => {
+  const { open } = fixture(t);
+  const a = open(), b = open();
+  t.after(() => { a.close(); b.close(); });
+  const original = { id: 'collision-v1', provider: 'provider-a', requester: 'alice', fingerprint: 'signed-need-v1' };
+  assert.equal(a.beginEffect(original).acquired, true);
+  const mutations = [
+    { ...original, provider: 'provider-b' },
+    { ...original, requester: 'mallory' },
+    { ...original, fingerprint: 'signed-need-v2' }
+  ];
+  for (const other of mutations) {
+    assert.throws(() => b.beginEffect(other), (e) => e.httpStatus === 409 && e.publicCode === 'effect_identity_conflict');
+    assert.deepEqual(
+      { provider: a.getEffect(original.id).provider, requester: a.getEffect(original.id).requester, fingerprint: a.getEffect(original.id).fingerprint },
+      { provider: original.provider, requester: original.requester, fingerprint: original.fingerprint }
+    );
+  }
+  assert.equal(b.beginEffect(original).acquired, false);
+  assert.equal(b.finishEffect({ id: original.id, provider: 'provider-a', outcome: 'unknown' }).changed, true);
+  assert.throws(() => a.beginEffect(mutations[2]), (e) => e.httpStatus === 409);
+  assert.equal(a.beginEffect(original).acquired, false, 'ambiguous provider effect never blindly re-executes');
+});
 
 test('G5 provider adapter host effect fence blocks duplicate external execution across two worker instances', async (t) => {
   const { open } = fixture(t);
