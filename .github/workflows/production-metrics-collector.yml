@@ -70,6 +70,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     concurrency:
       group: truyn-production-aca-exclusive-writer
+      queue: max
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 75

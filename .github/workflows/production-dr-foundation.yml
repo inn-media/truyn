@@ -36,6 +36,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     concurrency:
       group: truyn-production-aca-exclusive-writer
+      queue: max
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -133,6 +134,13 @@ jobs:
             # operation-in-progress error. Retry only the exact same immutable
             # ARM deployment: no source, name, region or acceptance changes.
             for environment_retry in 1 2 3 4; do
+              # Each retry may follow a long Azure ACA backoff. A new main
+              # invalidates this attempt even while the old job holds the lock.
+              current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+              [[ "$current_main" == "$GITHUB_SHA" ]] || {
+                echo '::error::DR retry refused: protected main changed during backoff.'
+                exit 43
+              }
               rm -f /tmp/foundation-contract.json /tmp/foundation-deploy.err
               if az deployment group create \
                 --resource-group "$RESOURCE_GROUP" \

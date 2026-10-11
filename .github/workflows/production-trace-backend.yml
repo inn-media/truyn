@@ -127,6 +127,7 @@ jobs:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_run') && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
     concurrency:
       group: truyn-production-aca-exclusive-writer
+      queue: max
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 55

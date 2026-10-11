@@ -72,3 +72,22 @@ test('Metrics refuse a mixed DR source push before Azure login and writers have 
       source.indexOf('      - name: '+firstWrite)) > source.indexOf('- uses: azure/login@v2'));
   }
 });
+
+test('job-level ACA queue retains pending writers instead of cancel-and-replace', async () => {
+  for(const file of ['production-dr-foundation.yml','production-logs-retention.yml',
+    'production-trace-backend.yml','production-metrics-backend.yml','production-metrics-collector.yml']){
+    const source=await wf(file);
+    assert.match(source,/group: truyn-production-aca-exclusive-writer\\n      queue: max\\n      cancel-in-progress: false/);
+  }
+});
+test('each bounded DR ACA backoff retries only while exact live main matches', async()=>{
+  const source=await wf('production-dr-foundation.yml');
+  const p=source.indexOf('for environment_retry in 1 2 3 4; do');
+  const arm=source.indexOf('if az deployment group create',p);
+  assert.ok(p>=0 && arm>p);
+  const pre=source.slice(p,arm);
+  assert.match(pre,/git ls-remote --exit-code/);
+  assert.match(pre,/current_main.*GITHUB_SHA/);
+  assert.match(pre,/exit 43/);
+  assert.match(source,/sleep "\$\(\(30 \* environment_retry\)\)"/);
+});
