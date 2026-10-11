@@ -1,7 +1,7 @@
 # TRUYN SDK Compatibility and Migration Policy
 
 **Status:** Developer Release policy implemented for the `0.1.0-alpha.x` family; npm, PyPI, Go, Maven Central and NuGet have accepted immutable public releases.  
-**Protocol:** `TRUYN/1` remains draft.  
+**Protocol:** `TRUYN/1` remains draft. PR #975 established five-SDK TCJ1 conformance and 20/20 legacy/new published-alpha peer combinations; neither implies stable-v1 or Mainnet.  
 **Stable SDK API contract:** `1` is a separately versioned developer-facing contract and does not imply protocol stable-v1.
 
 TRUYN requires first-party SDKs for JavaScript/TypeScript, Python, Go, Java and C#/.NET. The SDKs expose equivalent TRUYN semantics without requiring identical language syntax.
