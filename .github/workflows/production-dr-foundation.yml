@@ -96,30 +96,46 @@ jobs:
             printf '::add-mask::%s\n' "$prefix"
             printf '::add-mask::%s\n' "$deployment_name"
 
-            rm -f /tmp/foundation-contract.json /tmp/foundation-deploy.err
-            if az deployment group create \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "$deployment_name" \
-              --template-file infra/production-dr/foundation.bicep \
-              --parameters \
-                namePrefix="$prefix" \
-                sourceSha="$GITHUB_SHA" \
-                location="$primary" \
-                secondaryLocation="$secondary" \
-                backupTier="$BACKUP_TIER" \
-              --only-show-errors \
-              --query properties.outputs.contract.value \
-              -o json > /tmp/foundation-contract.json 2> /tmp/foundation-deploy.err; then
-              selected_primary="$primary"
-              selected_secondary="$secondary"
-              selected_prefix="$prefix"
-              selected_attempt="$attempt"
+            # Azure ACA can reject simultaneous updates with this transient
+            # operation-in-progress error. Retry only the exact same immutable
+            # ARM deployment: no source, name, region or acceptance changes.
+            for environment_retry in 1 2 3 4; do
+              rm -f /tmp/foundation-contract.json /tmp/foundation-deploy.err
+              if az deployment group create \
+                --resource-group "$RESOURCE_GROUP" \
+                --name "$deployment_name" \
+                --template-file infra/production-dr/foundation.bicep \
+                --parameters \
+                  namePrefix="$prefix" \
+                  sourceSha="$GITHUB_SHA" \
+                  location="$primary" \
+                  secondaryLocation="$secondary" \
+                  backupTier="$BACKUP_TIER" \
+                --only-show-errors \
+                --query properties.outputs.contract.value \
+                -o json > /tmp/foundation-contract.json 2> /tmp/foundation-deploy.err; then
+                selected_primary="$primary"
+                selected_secondary="$secondary"
+                selected_prefix="$prefix"
+                selected_attempt="$attempt"
+                break
+              fi
+              if grep -Fq 'ManagedEnvironmentOperationInProgress' /tmp/foundation-deploy.err; then
+                if [[ "$environment_retry" -ge 4 ]]; then
+                  echo '::error::DR managed environment operation still in progress after four bounded attempts.'
+                  exit 26
+                fi
+                echo "DR ACA conflict; retry same immutable candidate after backoff $environment_retry/3"
+                sleep "$((30 * environment_retry))"
+                continue
+              fi
               break
-            fi
+            done
+            [[ -n "$selected_prefix" ]] && break
 
             if grep -Eiq 'Microsoft\.DocumentDB|database account|Cosmos' /tmp/foundation-deploy.err && \
                grep -Eiq 'ServiceUnavailable|high demand|capacity|region access|LocationNotAvailableForResourceType|RegionNotAvailable|NotAvailableForSubscription' /tmp/foundation-deploy.err; then
-              echo "Azure Cosmos regional capacity unavailable for bounded candidate #${attempt}; trying the next candidate."
+              echo "Azure Cosmos regional capacity unavailable for bounded candidate #$attempt; trying the next candidate."
               continue
             fi
 

@@ -139,3 +139,7 @@ The production persistence / backup / DR layer is closed only when both categori
 **Live production evidence:** foundation apply PASS, real state migration PASS, private authority deployment PASS, relay/provider cutover PASS, isolated PITR restore PASS and all nine live recovery scenarios PASS within their numerical RTO/RPO and integrity/security-negative gates.
 
 A configured backup that has not been restored is not accepted DR evidence.
+
+## Bounded retry for Azure managed-environment conflict
+
+Read-only ARM RCA [#38165121660](https://github.com/inn-media/truyn/actions/runs/38165121660) found `ManagedEnvironmentOperationInProgress` on failed DR run [#38160940813](https://github.com/inn-media/truyn/actions/runs/38160940813). This is not a proven Cosmos capacity failure. The deployment now retries that exact Azure conflict at most four times with 30/60/90-second waits, using the SAME immutable source SHA, deployment name and region pair. Exhaustion is FAIL (exit 26), never another-region fallback. The original Cosmos-capacity-only fallback and full live backup/identity/private-network/RBAC gates are unchanged. Updating the workflow alone does not initiate Azure apply after trigger-isolation PR #1009. Historic failure remains valid until a new specifically qualified live deployment passes.
