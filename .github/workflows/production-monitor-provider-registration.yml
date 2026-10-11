@@ -52,6 +52,53 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_VALUE }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
 
+      - name: Read-only production ACA provisioning and network diagnostics
+        shell: bash
+        env:
+          RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+          REGION_PAIRS: ${{ vars.TRUYN_DR_REGION_PAIRS || 'germanywestcentral:francecentral northeurope:swedencentral' }}
+        run: |
+          set -euo pipefail
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+          candidate=0
+          for pair in $REGION_PAIRS; do
+            candidate=$((candidate + 1))
+            [[ "$candidate" -le 2 ]] || break
+            [[ "$pair" == *:* ]] || { echo '::error::Invalid region pair'; exit 1; }
+            primary="${pair%%:*}"
+            secondary="${pair#*:}"
+            suffix="$(printf '%s' "${GITHUB_REPOSITORY}:${GITHUB_REPOSITORY_ID}:${primary}:${secondary}" | sha256sum | cut -c1-10)"
+            environment="truyn${suffix}-aca-env"
+            printf '::add-mask::%s\n' "$environment"
+            if ! cli="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$environment" --only-show-errors -o json 2>/dev/null)"; then
+              echo "TRUYN_ACA_READONLY candidate=$candidate existence=NOT_FOUND_OR_UNREADABLE"
+              continue
+            fi
+            environment_id="$(jq -r '.id // empty' <<< "$cli")"
+            [[ -n "$environment_id" ]] || { echo "TRUYN_ACA_READONLY candidate=$candidate existence=INVALID_ID"; continue; }
+            printf '::add-mask::%s\n' "$environment_id"
+            arm="$(az resource show --ids "$environment_id" --api-version 2025-07-01 --only-show-errors -o json 2>/dev/null || echo '{}')"
+            cli_state="$(jq -r '.properties.provisioningState // "UNKNOWN"' <<< "$cli")"
+            arm_state="$(jq -r '.properties.provisioningState // "UNKNOWN"' <<< "$arm")"
+            internal="$(jq -r '.properties.vnetConfiguration.internal // false' <<< "$arm")"
+            private="$(jq -r '.properties.publicNetworkAccess // "UNKNOWN"' <<< "$arm")"
+            profiles="$(jq -r '(.properties.workloadProfiles // []) | length' <<< "$cli")"
+            infrastructure="$(jq -r '.properties.vnetConfiguration.infrastructureSubnetId // empty' <<< "$arm")"
+            delegations='UNKNOWN'
+            if [[ -n "$infrastructure" ]]; then
+              printf '::add-mask::%s\n' "$infrastructure"
+              subnet="$(az network vnet subnet show --ids "$infrastructure" --only-show-errors -o json 2>/dev/null || echo '{}')"
+              delegations="$(jq -r '(.delegations // []) | length' <<< "$subnet")"
+            fi
+            echo "TRUYN_ACA_READONLY candidate=$candidate cli_state=$cli_state arm_state=$arm_state internal=$internal public_network=$private workload_profiles=$profiles subnet_delegations=$delegations mutations=0"
+          done
+          registration="$(az provider show --namespace Microsoft.Monitor --query registrationState -o tsv --only-show-errors)"
+          case "$registration" in
+            Registered|Registering|NotRegistered|Unregistered) ;;
+            *) registration='OTHER' ;;
+          esac
+          echo "TRUYN_MONITOR_READONLY registration=$registration mutations=0"
+
       - name: Register Microsoft.Monitor resource provider
         shell: bash
         run: |
@@ -59,7 +106,10 @@ jobs:
           namespace='Microsoft.Monitor'
           state="$(az provider show --namespace "$namespace" --query registrationState -o tsv --only-show-errors)"
           if [[ "$state" != 'Registered' ]]; then
-            az provider register --namespace "$namespace" --wait --only-show-errors
+            if ! az provider register --namespace "$namespace" --wait --only-show-errors; then
+              echo '::error::Microsoft.Monitor is not registered and this OIDC principal cannot perform subscription-level register/action. An authorized subscription operator must register it; registration cannot be skipped or treated as PASS.'
+              exit 1
+            fi
           fi
           state="$(az provider show --namespace "$namespace" --query registrationState -o tsv --only-show-errors)"
           [[ "$state" == 'Registered' ]] || {
