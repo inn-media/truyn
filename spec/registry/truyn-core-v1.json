@@ -1,0 +1,674 @@
+{
+  "schema": "truyn.registry.core/1",
+  "status": "approved_architecture_candidate_not_wire_admission",
+  "reference": "TRUYN_WIRE_FREEZE_CORE_FINAL(1).md",
+  "code_format": "fixed_eight_decimal_digits_registry_only",
+  "wire_generation": "TRUYN/1",
+  "baseline_signed_envelope_types": [
+    "IDENTITY",
+    "OFFER",
+    "NEED",
+    "RESULT",
+    "REVOKE"
+  ],
+  "policy": {
+    "registry_membership_does_not_imply_wire_support": true,
+    "unknown_required_semantic": "version_mismatch",
+    "unimplemented_optional": "unimplemented",
+    "historical_signed_bytes_immutable": true,
+    "extension_default_off": true
+  },
+  "entries": [
+    {
+      "code": "00000000",
+      "short": null,
+      "name": "UNSPECIFIED",
+      "class": "reserved",
+      "form": "reserved",
+      "admission": "reject_when_code_encoded"
+    },
+    {
+      "code": "10000000",
+      "short": "A00",
+      "name": "SESSION",
+      "class": "A",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "11000000",
+      "short": "A1",
+      "name": "HELLO",
+      "class": "A",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "12000000",
+      "short": "A2",
+      "name": "WELCOME",
+      "class": "A",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "13000000",
+      "short": "A3",
+      "name": "VERSION",
+      "class": "A",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "20000000",
+      "short": "B00",
+      "name": "CONTROL",
+      "class": "B",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "21000000",
+      "short": "B1",
+      "name": "PING",
+      "class": "B",
+      "form": "quic_control_method",
+      "admission": "existing_distinct_wire",
+      "wire_method": "dht.ping"
+    },
+    {
+      "code": "22000000",
+      "short": "B2",
+      "name": "FIND_NODE",
+      "class": "B",
+      "form": "quic_control_method",
+      "admission": "existing_distinct_wire",
+      "wire_method": "dht.find-node"
+    },
+    {
+      "code": "23000000",
+      "short": "B3",
+      "name": "ANNOUNCE",
+      "class": "B",
+      "form": "quic_control_method",
+      "admission": "existing_distinct_wire",
+      "wire_method": "peer.announce"
+    },
+    {
+      "code": "24000000",
+      "short": "B4",
+      "name": "STORE",
+      "class": "B",
+      "form": "quic_control_method",
+      "admission": "existing_distinct_wire",
+      "wire_method": "dht.store"
+    },
+    {
+      "code": "25000000",
+      "short": "B5",
+      "name": "FIND_VALUE",
+      "class": "B",
+      "form": "quic_control_method",
+      "admission": "existing_distinct_wire",
+      "wire_method": "dht.find-value"
+    },
+    {
+      "code": "26000000",
+      "short": "B6",
+      "name": "SYNC",
+      "class": "B",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "27000000",
+      "short": "B7",
+      "name": "ADVERTISE",
+      "class": "B",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "28000000",
+      "short": "B8",
+      "name": "DISCOVER",
+      "class": "B",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "30000000",
+      "short": "C00",
+      "name": "ENVELOPE",
+      "class": "C",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "31000000",
+      "short": "C1",
+      "name": "IDENTITY",
+      "class": "C",
+      "form": "signed_envelope_v1",
+      "admission": "baseline"
+    },
+    {
+      "code": "32000000",
+      "short": "C2",
+      "name": "OFFER",
+      "class": "C",
+      "form": "signed_envelope_v1",
+      "admission": "baseline"
+    },
+    {
+      "code": "33000000",
+      "short": "C3",
+      "name": "NEED",
+      "class": "C",
+      "form": "signed_envelope_v1",
+      "admission": "baseline"
+    },
+    {
+      "code": "34000000",
+      "short": "C4",
+      "name": "RESULT",
+      "class": "C",
+      "form": "signed_envelope_v1",
+      "admission": "baseline"
+    },
+    {
+      "code": "35000000",
+      "short": "C5",
+      "name": "REVOKE",
+      "class": "C",
+      "form": "signed_envelope_v1",
+      "admission": "baseline"
+    },
+    {
+      "code": "36000000",
+      "short": "C6",
+      "name": "CAPABILITY",
+      "class": "C",
+      "form": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "37000000",
+      "short": "C7",
+      "name": "COMMITMENT",
+      "class": "C",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "37100000",
+      "short": "C71",
+      "name": "CONTRACT",
+      "class": "C",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "37200000",
+      "short": "C72",
+      "name": "ORDER",
+      "class": "C",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "37300000",
+      "short": "C73",
+      "name": "ACCEPT",
+      "class": "C",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "37400000",
+      "short": "C74",
+      "name": "REJECT",
+      "class": "C",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "37500000",
+      "short": "C75",
+      "name": "STATUS",
+      "class": "C",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "40000000",
+      "short": "D00",
+      "name": "COMPACT",
+      "class": "D",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "41000000",
+      "short": "D1",
+      "name": "C_NEED",
+      "class": "D",
+      "form": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "compact_alias": "N"
+    },
+    {
+      "code": "42000000",
+      "short": "D2",
+      "name": "C_RESULT",
+      "class": "D",
+      "form": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "compact_alias": "R"
+    },
+    {
+      "code": "43000000",
+      "short": "D3",
+      "name": "PARTIAL",
+      "class": "D",
+      "form": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "compact_alias": "T"
+    },
+    {
+      "code": "44000000",
+      "short": "D4",
+      "name": "CHAIN",
+      "class": "D",
+      "form": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "compact_alias": "C"
+    },
+    {
+      "code": "45000000",
+      "short": "D5",
+      "name": "CONTEXT_PUT",
+      "class": "D",
+      "form": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "compact_alias": "P"
+    },
+    {
+      "code": "46000000",
+      "short": "D6",
+      "name": "CONTEXT_DELTA",
+      "class": "D",
+      "form": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "compact_alias": "D"
+    },
+    {
+      "code": "50000000",
+      "short": "E00",
+      "name": "OUTCOME",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "51000000",
+      "short": "E1",
+      "name": "SUCCESS",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "51100000",
+      "short": "E11",
+      "name": "completed",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "51200000",
+      "short": "E12",
+      "name": "queued",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "51300000",
+      "short": "E13",
+      "name": "idempotent",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "51400000",
+      "short": "E14",
+      "name": "degraded",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52000000",
+      "short": "E2",
+      "name": "ERROR",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52100000",
+      "short": "E21",
+      "name": "REQUEST",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52110000",
+      "short": "E211",
+      "name": "invalid_argument",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52120000",
+      "short": "E212",
+      "name": "not_found",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52130000",
+      "short": "E213",
+      "name": "already_exists",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52200000",
+      "short": "E22",
+      "name": "ACCESS",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52210000",
+      "short": "E221",
+      "name": "unauthenticated",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52220000",
+      "short": "E222",
+      "name": "permission_denied",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52300000",
+      "short": "E23",
+      "name": "COMPAT",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52310000",
+      "short": "E231",
+      "name": "version_mismatch",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52320000",
+      "short": "E232",
+      "name": "unimplemented",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52400000",
+      "short": "E24",
+      "name": "TEMPORARY",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52410000",
+      "short": "E241",
+      "name": "resource_exhausted",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52420000",
+      "short": "E242",
+      "name": "unavailable",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52500000",
+      "short": "E25",
+      "name": "UNKNOWN_OUTCOME",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52510000",
+      "short": "E251",
+      "name": "deadline_exceeded",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52520000",
+      "short": "E252",
+      "name": "transport_error",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52530000",
+      "short": "E253",
+      "name": "internal",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52600000",
+      "short": "E26",
+      "name": "TERMINAL",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52610000",
+      "short": "E261",
+      "name": "invalid_response",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "52620000",
+      "short": "E262",
+      "name": "cancelled",
+      "class": "E",
+      "form": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "60000000",
+      "short": "F00",
+      "name": "TELEMETRY",
+      "class": "F",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "61000000",
+      "short": "F1",
+      "name": "METRICS",
+      "class": "F",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "62000000",
+      "short": "F2",
+      "name": "HEALTH",
+      "class": "F",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "63000000",
+      "short": "F3",
+      "name": "TRACE",
+      "class": "F",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "64000000",
+      "short": "F4",
+      "name": "HEARTBEAT",
+      "class": "F",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "70000000",
+      "short": "G00",
+      "name": "DATA",
+      "class": "G",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "71000000",
+      "short": "G1",
+      "name": "OBJECT",
+      "class": "G",
+      "form": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "72000000",
+      "short": "G2",
+      "name": "STATE",
+      "class": "G",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "73000000",
+      "short": "G3",
+      "name": "DELTA",
+      "class": "G",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "74000000",
+      "short": "G4",
+      "name": "SUBSCRIBE",
+      "class": "G",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "80000000",
+      "short": "H00",
+      "name": "TRUST",
+      "class": "H",
+      "form": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "81000000",
+      "short": "H1",
+      "name": "CLAIM",
+      "class": "H",
+      "form": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "82000000",
+      "short": "H2",
+      "name": "ATTEST",
+      "class": "H",
+      "form": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "83000000",
+      "short": "H3",
+      "name": "TRUST_RECEIPT",
+      "class": "H",
+      "form": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "84000000",
+      "short": "H4",
+      "name": "CHALLENGE",
+      "class": "H",
+      "form": "composed_behavior",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "85000000",
+      "short": "H5",
+      "name": "VERIFY",
+      "class": "H",
+      "form": "composed_behavior",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "86000000",
+      "short": "H6",
+      "name": "DISPUTE",
+      "class": "H",
+      "form": "composed_behavior",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "87000000",
+      "short": "H7",
+      "name": "PROOF",
+      "class": "H",
+      "form": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in"
+    },
+    {
+      "code": "90000000",
+      "short": "I00",
+      "name": "COMPUTE",
+      "class": "I",
+      "form": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in"
+    }
+  ]
+}
