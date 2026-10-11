@@ -9,7 +9,7 @@ This is the single repository-owned source for **current D-Series operational ac
 
 ## Accepted baseline
 
-Class C heterogeneous WAN, Class D-100, **Class D-200, Class D-500 and Class D-1000 are accepted**.
+Class C heterogeneous WAN, Class D-100, **Class D-200, Class D-500, Class D-1000 and Class D-5000 are accepted** as distinct bounded scale gates. D-5000 is proven by the [2026-10-11 5,000-process ledger](../benchmarks/CLASS_D_5000_2026-10-11.md). This does not prove 28-day Production SLO.
 
 **D-200 status: CLOSED / COMPLETE / REPEATABILITY CONFIRMED.**
 
@@ -165,7 +165,7 @@ Benchmark and acceptance evidence is preserved under **redact-not-delete**. Oper
 
 ## Operational rule
 
-D-200, D-500 and D-1000 are closed and immutable accepted gates. Any future Class-D campaign is a new, explicitly named scale/repeatability gate and must preserve the accepted safety, topology, durability and evidence thresholds; no new result may overwrite the immutable D-1000 Attempt 1 PASS.
+D-200, D-500, D-1000 and D-5000 are closed and immutable accepted gates. Any future Class-D campaign is a new, explicitly named scale/repeatability gate and must preserve the accepted safety, topology, durability and evidence thresholds; no new result may overwrite the immutable D-1000 Attempt 1 PASS.
 
 ## D-1000 exact-frozen Double-Check — 2026-10-08 (authoritative update)
 
