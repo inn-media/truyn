@@ -5,7 +5,7 @@ import { createRelay } from '../../../network/relay/server.js';
 
 const relay = createRelay({localDevelopmentMode:true});
 const relayUrl = await relay.listen({port:0});
-const languages = ['typescript','python'];
+const languages = ['typescript','python','go'];
 const combinations = [
   ['legacy','legacy'],['legacy','candidate'],
   ['candidate','legacy'],['candidate','candidate']
@@ -16,6 +16,11 @@ function executable(lang, mode, role, capability) {
     command:process.execPath,
     args:['--experimental-strip-types','sdk/conformance/legacy-peer/role.ts',mode,role,relayUrl,capability]
   };
+  if(lang === 'go') {
+    const command=mode==='legacy' ? process.env.TRUYN_LEGACY_GO_BINARY : process.env.TRUYN_CANDIDATE_GO_BINARY;
+    if(!command) throw new Error('published and candidate Go binaries are required');
+    return {command,args:[mode,role,relayUrl,capability]};
+  }
   const python= mode==='legacy' ? process.env.TRUYN_LEGACY_PYTHON : process.env.TRUYN_CANDIDATE_PYTHON;
   if(!python) throw new Error('Both Python interpreters must be explicitly installed from separate published/current SDK sources');
   return {
