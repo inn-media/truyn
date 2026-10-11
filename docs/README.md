@@ -1,3 +1,5 @@
+> D-5000 acceptance **CLOSED / verified double-check** (2026-10-11): [canonical 5,000-node benchmark ledger](benchmarks/CLASS_D_5000_2026-10-11.md). Attempt 12 measured PASS but historical workflow FAIL, corrected immutable replay PASS; Attempt 13 official full GREEN. Historical claims remain intact.
+
 # TRUYN Documentation
 
 Human-facing documentation for TRUYN architecture, implementation status, governance, operations, security, Trustability, compatibility, SDK/DX and benchmark evidence.
