@@ -32,6 +32,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Install immutable published npm alpha in separate clean-room
         run: |
@@ -72,6 +75,13 @@ jobs:
           javac -cp sdk/java/target/classes -d /tmp/truyn-wire-candidate-java sdk/conformance/legacy-peer/LegacyPeerRole.java
           echo "TRUYN_LEGACY_JAVA_CP=/tmp/truyn-wire-legacy-java:$legacyJar" >> "$GITHUB_ENV"
           echo "TRUYN_CANDIDATE_JAVA_CP=/tmp/truyn-wire-candidate-java:$GITHUB_WORKSPACE/sdk/java/target/classes" >> "$GITHUB_ENV"
+      - name: Build separate NuGet public prerelease and candidate .NET binaries
+        run: |
+          set -Eeuo pipefail
+          dotnet build sdk/conformance/legacy-peer/dotnet/legacy/LegacyPeer.csproj --configuration Release --nologo
+          dotnet build sdk/conformance/legacy-peer/dotnet/candidate/CandidatePeer.csproj --configuration Release --nologo
+          echo "TRUYN_LEGACY_DOTNET_DLL=$GITHUB_WORKSPACE/sdk/conformance/legacy-peer/dotnet/legacy/bin/Release/net8.0/LegacyPeer.dll" >> "$GITHUB_ENV"
+          echo "TRUYN_CANDIDATE_DOTNET_DLL=$GITHUB_WORKSPACE/sdk/conformance/legacy-peer/dotnet/candidate/bin/Release/net8.0/CandidatePeer.dll" >> "$GITHUB_ENV"
       - name: Four-way relay peers using actual published SDK packages
         env:
           TRUYN_LEGACY_NPM_ROOT: /tmp/truyn-wire-legacy-npm
