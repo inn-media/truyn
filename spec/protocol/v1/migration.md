@@ -59,3 +59,9 @@ For stable SDK APIs the deprecated symbol MUST additionally survive at least the
 Draft/pre-v1 wording is removed only when exact-head and post-merge qualification prove the bounded TRUYN/1 release contract. A green partial test, old PR, old package, or documentation edit alone is not a stable-v1 declaration.
 
 After any repair commit, prior exact-head qualification is stale. Stable release claims must point to the exact merged revision and immutable artifacts that passed the final applicable gates.
+
+## Bounded executable migration evidence (pre-stable)
+
+The offline BYOK schema-1→schema-2 migration/rollback implementation lives at `../../../migrations/p13-byok-file.js` and is exercised by `../../../tests/p13-migration-rollback-interoperability.test.js`. It preserves requester/provider Node IDs, authorization/billing modes, raw pre-migration bytes in a mode-0600 checkpoint, and fails closed on malformed/unknown schema, unexpected target changes, corrupt checkpoint and symlinks. Its caller MUST stop the consuming process and protect the checkpoint from disclosure; it is not a network protocol upgrader. Cross-generation compatibility is decided by the actual `core/protocol/negotiation.js`, not by silently promoting alpha versions.
+
+This executable bounded evidence is not a claim of completed stable-v1 production migration, global storage schema transformation, universal SDK compatibility or successful rollback of live deployed state.
