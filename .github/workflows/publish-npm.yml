@@ -210,9 +210,10 @@ jobs:
           # The npm account's Trusted Publisher is authoritative; derive ONLY an ephemeral
           # package-scoped registry token from this exact protected GitHub Actions OIDC identity.
           # A failed OIDC exchange aborts before touching the registry package version.
-          temp_auth="$RUNNER_TEMP/truyn-npm-oidc-auth-$.npmrc"
-          oidc_response="$RUNNER_TEMP/truyn-github-oidc-$.json"
-          npm_response="$RUNNER_TEMP/truyn-npm-oidc-$.json"
+          umask 077
+          temp_auth="$(mktemp "$RUNNER_TEMP/truyn-npm-oidc-auth.XXXXXX.npmrc")"
+          oidc_response="$(mktemp "$RUNNER_TEMP/truyn-github-oidc.XXXXXX.json")"
+          npm_response="$(mktemp "$RUNNER_TEMP/truyn-npm-oidc.XXXXXX.json")"
           cleanup() { rm -f "$temp_auth" "$oidc_response" "$npm_response"; }
           trap cleanup EXIT
           test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
