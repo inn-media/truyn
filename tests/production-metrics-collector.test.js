@@ -79,6 +79,13 @@ test('Sprint 7 acceptance requires all four relay metric families in the backend
   }
   assert.match(collectorBicep, /truyn_runtime_ready\{role="relay"/);
   assert.match(collectorBicep, /TRUYN_METRICS_COLLECTOR_PASS http=1 dispatch=1 result=1 ready=1 loopback=1 remote_write=1/);
+  // Stage evidence cannot replace the terminal remote-write and PromQL proof.
+  for (const stage of [
+    'loopback_wait', 'loopback_ready', 'local_families_ready',
+    'remote_readback_wait', 'remote_readback_progress', 'remote_readback_missing'
+  ]) {
+    assert.ok(collectorBicep.includes('TRUYN_METRICS_PROBE_STAGE stage=' + stage));
+  }
   assert.match(workflow, /status: "PASS"/);
 });
 
