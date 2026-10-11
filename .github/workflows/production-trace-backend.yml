@@ -124,13 +124,34 @@ jobs:
           ' operations/production-trace-export.json >/dev/null
 
   apply-and-prove:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_run') && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      # A single commit may change DR, Logs and Trace material sources.
+      # In that case the direct Trace push arm must refuse writes and the
+      # accepted DR -> Logs -> Trace workflow_run chain handles this SHA.
+      - name: Reject mixed upstream push before direct Trace apply
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$PUSH_BEFORE" =~ ^[0-9a-f]{40}$ && ! "$PUSH_BEFORE" =~ ^0{40}$ ]] || {
+            echo '::error::Cannot verify pre-push base; direct Trace apply denied.'
+            exit 41
+          }
+          git fetch --no-tags --depth=1 origin "$PUSH_BEFORE" >/dev/null
+          changed="$(git diff --name-only "$PUSH_BEFORE" "$GITHUB_SHA")"
+          if grep -Eq '^(infra/production-dr/|infra/production-observability/logs-retention[.]bicep$|operations/production-logs-retention[.]json$)' <<<"$changed"; then
+            echo '::error::Mixed DR/Logs/Trace push must complete upstream release before Trace apply.'
+            exit 42
+          fi
+
       - name: Verify exact-main upstream admission and immutable live evidence
         if: github.event_name == 'workflow_run'
         env:
@@ -146,7 +167,7 @@ jobs:
           [[ "$(git rev-parse HEAD)" == "$UPSTREAM_SHA" ]]
           source_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID")"
           jq -e --arg sha "$UPSTREAM_SHA" '
-            .head_sha==$sha and .event=="push" and .head_branch=="main"
+            .head_sha==$sha and (.event=="push" or .event=="workflow_run") and .head_branch=="main"
             and .status=="completed" and .conclusion=="success"
           ' <<<"$source_run" >/dev/null
           artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID/artifacts?per_page=100")"

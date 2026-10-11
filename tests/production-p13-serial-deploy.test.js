@@ -1,0 +1,44 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+const wf = async (name) => readFile(new URL('../.github/workflows/' + name, import.meta.url), 'utf8');
+
+test('mixed material main pushes cannot run concurrent DR/Logs/Trace Azure writers', async () => {
+  const logs = await wf('production-logs-retention.yml');
+  const trace = await wf('production-trace-backend.yml');
+
+  for (const [label, source] of [['Logs', logs], ['Trace', trace]]) {
+    const guard = source.indexOf('Reject mixed ');
+    const azureLogin = source.indexOf('- uses: azure/login@v2', guard);
+    assert.ok(guard > 0 && azureLogin > guard, label + ' must guard BEFORE Azure login');
+    assert.match(source.slice(guard, azureLogin), /github\.event_name == 'push'/);
+    assert.match(source.slice(guard, azureLogin), /git diff --name-only "\$PUSH_BEFORE" "\$GITHUB_SHA"/);
+    assert.match(source.slice(guard, azureLogin), /infra\/production-dr\//);
+    assert.match(source.slice(guard, azureLogin), /exit 42/);
+    assert.match(source.slice(guard, azureLogin), /exit 41/);
+  }
+  const traceGuard = trace.slice(trace.indexOf('Reject mixed '), trace.indexOf('- uses: azure/login@v2'));
+  assert.match(traceGuard, /infra\/production-observability\/logs-retention/);
+  assert.match(traceGuard, /operations\/production-logs-retention/);
+});
+
+test('Trace consumes both standalone and nested accepted Logs runs without skipping DR-dependent chain', async () => {
+  const trace = await wf('production-trace-backend.yml');
+  assert.match(trace, /github\.event\.workflow_run\.event == 'workflow_run'/);
+  assert.match(trace, /\.event=="push" or \.event=="workflow_run"/);
+  assert.match(trace, /production-logs-retention-evidence/);
+  assert.match(trace, /\.expired==false and \.size_in_bytes>0/);
+  assert.match(trace, /\$GITHUB_SHA" == "\$UPSTREAM_SHA/);
+});
+
+test('Redaction consumes accepted nested Trace run only with two immutable readback artifacts', async () => {
+  const redaction = await wf('production-telemetry-redaction.yml');
+  assert.match(redaction, /github\.event\.workflow_run\.event == 'workflow_run'/);
+  assert.match(redaction, /actions: read/);
+  assert.match(redaction, /production-trace-backend-evidence/);
+  assert.match(redaction, /production-trace-export-evidence/);
+  assert.match(redaction, /\.expired==false and \.size_in_bytes>0/);
+  assert.ok(redaction.indexOf('Admit only immutable successful production Trace read-back') <
+            redaction.indexOf('- uses: azure/login@v2', redaction.indexOf('prove-exact-main:')));
+});
