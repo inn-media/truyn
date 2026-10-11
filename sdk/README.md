@@ -5,7 +5,7 @@ Native first-party client libraries for applications that integrate directly wit
 **Current maturity:** Developer Release relay-client implementation is source/build complete. TypeScript/JavaScript, Python, Go, Java and C#/.NET are implemented first-party relay clients and share one executable five-language conformance path. PyPI, Go and npm alpha.2 have accepted immutable public release evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease. Agent Descriptor serving/fetch/signature happy paths exist, while automatic refresh and complete usable-interface validation/mapping parity remain open.
 
 **Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`  
-**Protocol:** `TRUYN/1` draft  
+**Protocol:** `TRUYN/1` draft; five-language TCJ1 and published-alpha legacy/new matrix verified for the accepted PR-head scope, not stable-v1  
 **Stable SDK API contract:** `1`
 
 ## Required first-party SDKs
