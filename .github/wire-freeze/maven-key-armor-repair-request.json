@@ -1,0 +1,15 @@
+{
+  "schema": "truyn.maven-signing-key-armor-repair/v1",
+  "task": "truyn1-immutable-successor-publication-20261011",
+  "attempt": 1,
+  "sourceSha": "57971b134a41c3e3ea4b42f68e86a7d117036006",
+  "previousMavenRuns": [
+    38157824874,
+    38158715292
+  ],
+  "allowOnly": "maven-central-immutable-alpha.2",
+  "authorizedSigner": "historical-accepted-alpha.1-key-or-explicit-fingerprint",
+  "cloudMutationAllowed": false,
+  "canaryAllowed": false,
+  "mainnetAdmissionAllowed": false
+}

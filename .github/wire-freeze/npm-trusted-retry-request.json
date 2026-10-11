@@ -1,0 +1,11 @@
+{
+  "schema": "truyn.npm-trusted-frozen-retry/v1",
+  "task": "truyn1-immutable-successor-publication-20261011",
+  "attempt": 1,
+  "frozenSourceSha": "57971b134a41c3e3ea4b42f68e86a7d117036006",
+  "priorFailedRunId": 38157824903,
+  "action": "original-publisher-oidc-only",
+  "noCredentialFallback": true,
+  "managedCanaryAllowed": false,
+  "wanAdmissionAllowed": false
+}

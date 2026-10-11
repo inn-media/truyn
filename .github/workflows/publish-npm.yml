@@ -11,7 +11,7 @@ on:
     tags:
       - 'sdk/npm/v*'
     branches: [main]
-    paths: ['.github/wire-freeze/recovery-request.json']
+    paths: ['.github/wire-freeze/recovery-request.json', '.github/wire-freeze/npm-trusted-retry-request.json']
 
 permissions:
   contents: read
@@ -136,9 +136,28 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.14.0'
-          package-manager-cache: false
       - name: Pin npm trusted-publishing client
         run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+      - name: Confirm GitHub OIDC npm client and absence of conflicting legacy auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || { echo NPM_OIDC_REQUEST_URL_MISSING; exit 88; }
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" || { echo NPM_OIDC_REQUEST_TOKEN_MISSING; exit 88; }
+          test -z "${NODE_AUTH_TOKEN:-}" && test -z "${NPM_TOKEN:-}"
+          test "$(npm --version)" = 11.19.1
+          test "$(node --version)" = v22.14.0
+          npmrc="$(npm config get userconfig)"
+          if [[ -f "$npmrc" ]]; then
+            if grep -Fq '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' "$npmrc"; then
+              sed -i '/\/\/registry.npmjs.org\/:_authToken=${NODE_AUTH_TOKEN}/d' "$npmrc"
+            fi
+            if grep -Eq '^//registry[.]npmjs[.]org/:_authToken=' "$npmrc"; then
+              echo NPM_LEGACY_AUTH_CONFIG_PRESENT
+              exit 88
+            fi
+          fi
+          echo NPM_OIDC_ENVIRONMENT_PREREQUISITES_PASS
       - name: Download and verify exact CI package artifact
         id: artifact
         shell: bash
