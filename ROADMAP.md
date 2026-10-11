@@ -3,7 +3,7 @@
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`.
 
 **Snapshot:** 2026-10-09 (A-Series docs reconciliation)  
-**Protocol:** `TRUYN/1` draft  
+**Protocol:** `TRUYN/1` draft (expanded CORE source merged; stable protocol and Mainnet remain gated)  
 **Stable A2A/MCP v1:** **not declared**
 
 ## Current top-level state
