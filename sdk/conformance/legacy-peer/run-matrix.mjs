@@ -5,7 +5,7 @@ import { createRelay } from '../../../network/relay/server.js';
 
 const relay = createRelay({localDevelopmentMode:true});
 const relayUrl = await relay.listen({port:0});
-const languages = ['typescript','python','go'];
+const languages = ['typescript','python','go','java'];
 const combinations = [
   ['legacy','legacy'],['legacy','candidate'],
   ['candidate','legacy'],['candidate','candidate']
@@ -16,6 +16,11 @@ function executable(lang, mode, role, capability) {
     command:process.execPath,
     args:['--experimental-strip-types','sdk/conformance/legacy-peer/role.ts',mode,role,relayUrl,capability]
   };
+  if(lang === 'java') {
+    const classpath=mode==='legacy' ? process.env.TRUYN_LEGACY_JAVA_CP : process.env.TRUYN_CANDIDATE_JAVA_CP;
+    if(!classpath) throw new Error('Published and candidate Java classpaths required');
+    return {command:'java',args:['-cp',classpath,'LegacyPeerRole',mode,role,relayUrl,capability]};
+  }
   if(lang === 'go') {
     const command=mode==='legacy' ? process.env.TRUYN_LEGACY_GO_BINARY : process.env.TRUYN_CANDIDATE_GO_BINARY;
     if(!command) throw new Error('published and candidate Go binaries are required');
