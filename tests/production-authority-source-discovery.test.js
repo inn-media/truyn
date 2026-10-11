@@ -85,3 +85,20 @@ test('public evidence is sanitized and ambiguity fails closed', () => {
   assert.match(workflow, /::add-mask::%s/);
   assert.doesNotMatch(workflow, /selectedResource(?:Id|Name|Group)|resourceGroupName|resourceId|resourceName/);
 });
+
+test('P13 adoption discovery is metadata-only and cannot authorize production cutover', async () => {
+  const contract=JSON.parse(await readFile(new URL('../operations/p13-production-cutover-plan.json',import.meta.url),'utf8'));
+  const readiness=await readFile(new URL('../scripts/p13-production-readiness.mjs',import.meta.url),'utf8');
+  assert.equal(contract.status,'BLOCKED_PRE_STABLE');
+  assert.equal(contract.rules.noSyntheticSource,true);
+  assert.equal(contract.rules.noLiveMutationByReadinessGate,true);
+  assert.equal(contract.rules.requireIndependentAttestation,true);
+  assert.match(workflow,/resourceMetadataOnly:true/);
+  assert.match(workflow,/dataPlaneRead:false/);
+  assert.match(workflow,/topologyPublished:false/);
+  assert.match(readiness,/cutoverAuthorized:false/);
+  assert.match(readiness,/productionMutationsPerformed:false/);
+  assert.match(readiness,/real_source_snapshot_digest_revision_unverified/);
+  // This push-triggered audit can identify a source candidate; no data has
+  // been read, no snapshot has been attested and no traffic switch is allowed.
+});
