@@ -31,6 +31,22 @@ function makeCompactNeed(node, id, capability) {
   return { frame: node.compactFrame('NEED', payload, { id }), payload };
 }
 
+test('G5 production/public relay configuration rejects single-host SQLite even when CAS tests pass', (t) => {
+  const { open } = fixture(t);
+  const ledger = open();
+  t.after(() => ledger.close());
+  for (const config of [
+    { productionMode: true },
+    { allowPublicDispatch: true },
+    { allowPublicRegistration: true }
+  ]) {
+    assert.throws(() => createRelay({ lifecycleLedger: ledger, ...config }),
+      /G5 production and public dispatch require a cross-host durable ledger/);
+  }
+  assert.ok(createRelay({ lifecycleLedger: ledger, localDevelopmentMode: true }),
+    'SQLite remains allowed only for the explicit local development profile');
+});
+
 test('G5 SQLite CAS: competing processes share single-use ID and irreversible terminal across reopen', (t) => {
   const { open } = fixture(t, 2);
   const a = open(), b = open();

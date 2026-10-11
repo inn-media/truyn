@@ -126,6 +126,11 @@ export function createRelay({
   if (localDevelopmentMode && (productionMode || allowPublicRegistration || allowPublicDispatch)) {
     throw new Error('localDevelopmentMode cannot be combined with production or public relay access');
   }
+  // A local SQLite WAL serializes only one host. Do not let public/mainnet
+  // configuration present it as a replica-safe durable G5 ledger.
+  if (lifecycleLedger?.kind === 'sqlite-single-host-v1' && (productionMode || allowPublicRegistration || allowPublicDispatch)) {
+    throw new Error('G5 production and public dispatch require a cross-host durable ledger; local SQLite profile is forbidden');
+  }
   if (!Number.isInteger(maxQueuedEventsPerNode) || maxQueuedEventsPerNode < 1) throw new Error('maxQueuedEventsPerNode must be a positive integer');
   if (!Number.isFinite(maxSocketBufferedBytes) || maxSocketBufferedBytes < 1) throw new Error('maxSocketBufferedBytes must be positive');
   if (!Number.isFinite(commandKeepAliveTimeoutMs) || commandKeepAliveTimeoutMs < 1) throw new Error('commandKeepAliveTimeoutMs must be positive');
