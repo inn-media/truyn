@@ -60,7 +60,7 @@ jobs:
                 jq -e --arg j "$job" '[.jobs[]|select(.name==$j and .conclusion=="success")]|length>=1' <<< "$jobs" >/dev/null || { echo "RELEASE_MISSING_JOB=$job"; exit 72; }
               done
               cq="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$codeql/jobs?per_page=100")"
-              jq -e '.jobs|length>0 and all(.[];.conclusion=="success")' <<< "$cq" >/dev/null
+              jq -e '(.jobs|length)>0 and (.jobs|all(.[];.conclusion=="success"))' <<< "$cq" >/dev/null
               admitted=true
               break
             fi
