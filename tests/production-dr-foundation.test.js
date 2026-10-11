@@ -183,3 +183,18 @@ test('ManagedEnvironmentOperationInProgress is bounded same-candidate retry, nev
   assert.doesNotMatch(workflow.slice(retry,capacity),/trying the next candidate/);
   assert.match(workflow,/non-regional-capacity reason; fallback is forbidden/);
 });
+
+test('DR-only push is isolated from observability deployments; PR DR validation stays intact',async()=>{
+  const trace=await text(new URL('../.github/workflows/production-trace-backend.yml',import.meta.url));
+  const logs=await text(new URL('../.github/workflows/production-logs-retention.yml',import.meta.url));
+  const dr=await text(WORKFLOW);
+  const push=(s)=>s.split('  push:')[1].split('permissions:')[0];
+  assert.match(push(dr),/infra\/production-dr\/\*\*/);
+  for(const [name,source] of [['trace',trace],['logs',logs]]){
+    assert.doesNotMatch(push(source),/infra\/production-dr\/\*\*/,'unsafe DR-triggered '+name+' apply');
+    const pull=source.split('  pull_request:')[1].split('  push:')[0];
+    assert.match(pull,/infra\/production-dr\/\*\*/,'DR PR validation retained for '+name);
+  }
+  assert.match(push(trace),/infra\/production-tracing\/\*\*/);
+  assert.match(push(logs),/infra\/production-observability\/logs-retention\.bicep/);
+});

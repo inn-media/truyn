@@ -15,7 +15,6 @@ on:
     paths:
       - 'infra/production-observability/logs-retention.bicep'
       - 'operations/production-logs-retention.json'
-      - 'infra/production-dr/**'
 
 permissions:
   contents: read

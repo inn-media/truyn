@@ -23,7 +23,6 @@ on:
       - 'runtime/trace-export-canary.js'
       - 'operations/production-trace-backend.json'
       - 'operations/production-trace-export.json'
-      - 'infra/production-dr/**'
 
 permissions:
   contents: read
