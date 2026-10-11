@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Truyn.Sdk</PackageId>
-    <Version>0.1.0-alpha.1</Version>
+    <Version>0.1.0-alpha.2</Version>
     <Authors>TRUYN maintainers</Authors>
     <Description>First-party C#/.NET SDK for the TRUYN Intelligence Network.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
