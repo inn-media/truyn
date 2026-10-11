@@ -21,7 +21,8 @@ final class Json {
   private static void write(Object value, StringBuilder out) {
     if (value == null) { out.append("null"); return; }
     if (value instanceof String s) { writeString(s, out); return; }
-    if (value instanceof Boolean || value instanceof Number) { out.append(value); return; }
+    if (value instanceof Boolean) { out.append(value); return; }
+    if (value instanceof Number n) { writeNumber(n, out); return; }
     if (value instanceof Map<?, ?> map) {
       TreeMap<String,Object> sorted = new TreeMap<>();
       for (var entry : map.entrySet()) sorted.put(String.valueOf(entry.getKey()), entry.getValue());
@@ -50,6 +51,29 @@ final class Json {
       write(record, out); return;
     }
     throw new IllegalArgumentException("unsupported JSON value: " + value.getClass().getName());
+  }
+
+  private static void writeNumber(Number number, StringBuilder out) {
+    if (number instanceof Float || number instanceof Double) {
+      double d = number.doubleValue();
+      if (!Double.isFinite(d)) throw new IllegalArgumentException("TCJ1 nonfinite number");
+      if (d == 0.0d) { out.append('0'); return; }
+      var v = java.math.BigDecimal.valueOf(d).stripTrailingZeros();
+      int exponent = v.precision() - v.scale() - 1;
+      if (exponent >= -6 && exponent < 21) {
+        out.append(v.toPlainString());
+      } else {
+        String digits = v.unscaledValue().abs().toString();
+        if (v.signum() < 0) out.append('-');
+        out.append(digits.charAt(0));
+        if (digits.length() > 1) out.append('.').append(digits.substring(1));
+        out.append('e');
+        if (exponent >= 0) out.append('+');
+        out.append(exponent);
+      }
+      return;
+    }
+    out.append(number);
   }
 
   private static void writeString(String value, StringBuilder out) {
