@@ -42,3 +42,33 @@ test('Redaction consumes accepted nested Trace run only with two immutable readb
   assert.ok(redaction.indexOf('Admit only immutable successful production Trace read-back') <
             redaction.indexOf('- uses: azure/login@v2', redaction.indexOf('prove-exact-main:')));
 });
+
+test('all production ACA writers share one fail-closed exclusive lock', async () => {
+  for (const file of ['production-dr-foundation.yml','production-logs-retention.yml',
+    'production-trace-backend.yml','production-metrics-backend.yml','production-metrics-collector.yml']) {
+    const source = await wf(file);
+    assert.match(source,/    concurrency:\n      group: truyn-production-aca-exclusive-writer\n      cancel-in-progress: false/);
+    assert.match(source,/Verify live remote main before Azure production mutation/);
+    assert.match(source,/git ls-remote --exit-code/);
+    assert.match(source,/current_main.*GITHUB_SHA/);
+    assert.match(source,/exit 43/);
+    assert.ok(source.indexOf('Verify live remote main before Azure production mutation') <
+      source.indexOf('- uses: azure/login@v2'),'remote main checked before Azure login: '+file);
+  }
+});
+test('Metrics refuse a mixed DR source push before Azure login and writers have recheck before first writes', async () => {
+  for (const file of ['production-metrics-backend.yml','production-metrics-collector.yml']) {
+    const source = await wf(file);
+    assert.match(source,/Fail closed on concurrent foundation material push/);
+    assert.match(source,/git diff --name-only/);
+    assert.match(source,/infra\\/production-dr\\//);
+    assert.ok(source.indexOf('Fail closed on concurrent foundation material push') <
+      source.indexOf('- uses: azure/login@v2'));
+  }
+  const logs = await wf('production-logs-retention.yml');
+  const trace = await wf('production-trace-backend.yml');
+  for (const [source, firstWrite] of [[logs,'Provision 30-day hot'],[trace,'Build exact-main Tempo image']]) {
+    assert.ok(source.lastIndexOf('Verify live remote main before Azure production mutation',
+      source.indexOf('      - name: '+firstWrite)) > source.indexOf('- uses: azure/login@v2'));
+  }
+});

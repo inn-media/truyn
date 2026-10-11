@@ -75,12 +75,47 @@ jobs:
 
   apply-and-prove:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: truyn-production-aca-exclusive-writer
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
+
+      - name: Fail closed on concurrent foundation material push
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$PUSH_BEFORE" =~ ^[0-9a-f]{40}$ && ! "$PUSH_BEFORE" =~ ^0{40}$ ]] || {
+            echo '::error::Unknown push base; require independently qualified production release.'
+            exit 41
+          }
+          git fetch --no-tags --depth=1 origin "$PUSH_BEFORE" >/dev/null
+          changed="$(git diff --name-only "$PUSH_BEFORE" "$GITHUB_SHA")"
+          if grep -Eq '^infra/production-dr/' <<<"$changed"; then
+            echo '::error::Metrics direct apply denied on mixed DR push; require subsequent independent source admission.'
+            exit 42
+          fi
 
       - uses: azure/login@v2
         with:
@@ -166,6 +201,21 @@ jobs:
           printf 'ACA_ENVIRONMENT_ID=%s\n' "$selected_environment_id" >> "$GITHUB_ENV"
           printf 'METRICS_REGION=%s\n' "$selected_region" >> "$GITHUB_ENV"
           printf 'METRICS_APP=%s\n' "$app_name" >> "$GITHUB_ENV"
+
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
 
       - name: Provision private VictoriaMetrics backend with 90-day SLO and probe retention
         shell: bash

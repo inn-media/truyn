@@ -125,6 +125,9 @@ jobs:
 
   apply-and-prove:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_run') && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
+    concurrency:
+      group: truyn-production-aca-exclusive-writer
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
@@ -176,6 +179,21 @@ jobs:
           ' <<<"$artifacts" >/dev/null
           echo 'TRUYN_PRODUCTION_CHAIN=PASS exact_upstream_sha=true immutable_evidence=true auto_fallback=false'
 
+
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
 
       - uses: azure/login@v2
         with:
@@ -271,6 +289,21 @@ jobs:
           printf 'TRACE_IMAGE=%s\n' "$image_name" >> "$GITHUB_ENV"
           printf 'TRACE_RUNTIME_IMAGE=%s\n' "$runtime_image" >> "$GITHUB_ENV"
 
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
+
       - name: Build exact-main Tempo image
         shell: bash
         run: |
@@ -307,6 +340,21 @@ jobs:
             exit 1
           }
           echo 'TRUYN_ACA_TRACE_ADMISSION=PASS control_planes=2 public_ingress=disabled mutations=0'
+
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
 
       - name: Provision private OTLP trace storage and runtime export canary
         shell: bash

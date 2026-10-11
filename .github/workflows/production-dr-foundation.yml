@@ -34,6 +34,9 @@ jobs:
 
   apply:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: truyn-production-aca-exclusive-writer
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -48,6 +51,21 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
+
       - uses: azure/login@v2
         with:
           client-id: ${{ env.AZURE_CLIENT_VALUE }}
@@ -61,6 +79,21 @@ jobs:
           az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
           az bicep install >/dev/null
           printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
 
       - name: Provision production persistence foundation
         shell: bash
