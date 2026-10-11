@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS provider_effects (
   const oneOffer = db.prepare('SELECT * FROM lifecycle_offers WHERE id = ?');
   const oneEffect = db.prepare('SELECT * FROM provider_effects WHERE id = ?');
   const countNeeds = db.prepare('SELECT COUNT(*) AS count FROM lifecycle_needs');
+  const countOffers = db.prepare('SELECT COUNT(*) AS count FROM lifecycle_offers');
+  const countEffects = db.prepare('SELECT COUNT(*) AS count FROM provider_effects');
   const insertNeed = db.prepare("INSERT INTO lifecycle_needs (id,requester,provider,fingerprint,capability,mode,status,created_at) VALUES (?,?,?,?,?,?,'matched',?)");
   const insertOffer = db.prepare('INSERT INTO lifecycle_offers (id,owner,fingerprint) VALUES (?,?,?)');
   const updateOffer = db.prepare('UPDATE lifecycle_offers SET revoked=1 WHERE id=? AND owner=? AND revoked=0');
@@ -108,6 +110,7 @@ CREATE TABLE IF NOT EXISTS provider_effects (
       if (![id, owner, fingerprint].every(x => typeof x === 'string' && x.length > 0)) throw fault(400, 'invalid_offer_reservation');
       return transaction(() => {
         if (oneOffer.get(id)) throw fault(409, 'duplicate_offer');
+        if (countOffers.get().count >= maxRecords) throw fault(503, 'offer_idempotency_capacity_reached');
         insertOffer.run(id, owner, fingerprint);
         return oneOffer.get(id);
       });
@@ -160,6 +163,7 @@ CREATE TABLE IF NOT EXISTS provider_effects (
       return transaction(() => {
         const existing = oneEffect.get(id);
         if (existing) return { acquired: false, existing };
+        if (countEffects.get().count >= maxRecords) throw fault(503, 'effect_idempotency_capacity_reached');
         insertEffect.run(id, provider, requester, fingerprint, new Date().toISOString());
         return { acquired: true, existing: null };
       });
