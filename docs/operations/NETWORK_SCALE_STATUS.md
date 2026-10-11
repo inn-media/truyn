@@ -1,3 +1,5 @@
+> **CURRENT D-5000 STATUS (2026-10-11): CLOSED / DOUBLE-CHECK VERIFIED.** Attempt 12 had 15/15 measured PASS and immutable requalification PASS, but historical GitHub conclusion remains failure due to the old evaluator's `baseline` versus `baseline-routing` mismatch. Attempt 13 independently ran the full 5,000-node campaign and has terminal PASS, evaluator RC=0, terminal RC=0, 100/100 retention, 0 loss, 0 remaining Azure resources. Canonical [D-5000 benchmark and sanitation closure ledger](../benchmarks/CLASS_D_5000_2026-10-11.md). Historical snapshots below remain historical, not active status.
+
 # TRUYN Network-Scale Operational Status
 
 This is the single repository-owned source for **current D-Series operational acceptance**. Architecture, roadmap and top-level documentation must link here rather than copy ephemeral run state.
