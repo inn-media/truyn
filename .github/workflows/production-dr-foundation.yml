@@ -11,9 +11,6 @@ on:
     branches: [main]
     paths:
       - 'infra/production-dr/**'
-      - '.github/workflows/production-dr-foundation.yml'
-      - 'tests/production-dr-foundation.test.js'
-      - 'tests/public-repository.test.js'
 
 permissions:
   contents: read

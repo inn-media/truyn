@@ -13,9 +13,6 @@ on:
     paths:
       - 'infra/production-observability/**'
       - 'operations/production-metrics-backend.json'
-      - '.github/workflows/production-metrics-backend.yml'
-      - 'tests/production-metrics-backend.test.js'
-      - 'tests/public-repository.test.js'
 
 permissions:
   contents: read
