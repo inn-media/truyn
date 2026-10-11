@@ -3,6 +3,8 @@ on:
   push:
     tags:
       - 'sdk/python/v*'
+    branches: [main]
+    paths: ['.github/wire-freeze/recovery-request.json']
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,6 +20,7 @@ jobs:
     environment: sdk-release
     timeout-minutes: 45
     env:
+      TRUYN_RELEASE_TAG: ${{ github.ref == 'refs/heads/main' && 'sdk/python/v0.1.0a2' || github.ref_name }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +31,14 @@ jobs:
         with: {node-version: '22'}
       - name: Exact tag, main, CI, hosted CodeQL gate
         id: gates
-        run: bash sdk/release/resolve-release-gates.sh sdk/python/v pypi
+        run: |
+          if [[ "$GITHUB_REF" == 'refs/heads/main' ]]; then
+            bash sdk/release/resolve-frozen-recovery.sh sdk/python/v pypi
+            git checkout --detach 57971b134a41c3e3ea4b42f68e86a7d117036006
+            test "$(git rev-parse HEAD)" = '57971b134a41c3e3ea4b42f68e86a7d117036006'
+          else
+            bash sdk/release/resolve-release-gates.sh sdk/python/v pypi
+          fi
       - name: Obtain exact CI-produced immutable wheel and sdist
         shell: bash
         env:

@@ -10,6 +10,8 @@ on:
   push:
     tags:
       - 'sdk/npm/v*'
+    branches: [main]
+    paths: ['.github/wire-freeze/recovery-request.json']
 
 permissions:
   contents: read
@@ -74,6 +76,7 @@ jobs:
     environment: sdk-release
     timeout-minutes: 30
     env:
+      TRUYN_RELEASE_TAG: ${{ github.ref == 'refs/heads/main' && 'sdk/npm/v0.1.0-alpha.5' || github.ref_name }}
       NPM_PACKAGE: '@truyn/sdk'
       NPM_REGISTRY: 'https://registry.npmjs.org/'
       GH_TOKEN: ${{ github.token }}
@@ -88,7 +91,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF#refs/tags/}"
+          if [[ "$GITHUB_REF" == 'refs/heads/main' ]]; then
+            bash sdk/release/resolve-frozen-recovery.sh sdk/npm/v npm
+            git checkout --detach 57971b134a41c3e3ea4b42f68e86a7d117036006
+            test "$(git rev-parse HEAD)" = '57971b134a41c3e3ea4b42f68e86a7d117036006'
+            exit 0
+          fi
+          tag="$TRUYN_RELEASE_TAG"
           case "$tag" in
             sdk/npm/v*) ;;
             *) echo "Unexpected release ref: $GITHUB_REF" >&2; exit 1 ;;
@@ -219,7 +228,7 @@ jobs:
           node --input-type=module -e "import('${NPM_PACKAGE}').then((m)=>{if(typeof m.TruynClient!=='function')throw new Error('TruynClient export missing');if(typeof m.TruynLocalNodeClient!=='function')throw new Error('TruynLocalNodeClient export missing')})"
           npm audit signatures --json --include-attestations > /tmp/truyn-npm-release/npm-audit-signatures.json
           cd "$GITHUB_WORKSPACE"
-          jq -n --arg package "$NPM_PACKAGE" --arg version "$NPM_VERSION" --arg sourceSha "${{ steps.source.outputs.source_sha }}" --arg releaseTag "${GITHUB_REF#refs/tags/}" --arg ciRunId "${{ steps.gates.outputs.ci_run_id }}" --arg codeqlRunId "${{ steps.gates.outputs.codeql_run_id }}" --arg publicationRunId "$GITHUB_RUN_ID" --arg sha256 "$remote_sha" --arg integrity "$integrity" --arg shasum "$shasum" --arg attestationUrl "$attestation_url" --arg distTag "$NPM_DIST_TAG" '{package:$package,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,ciRunId:$ciRunId,codeqlRunId:$codeqlRunId,publicationRunId:$publicationRunId,publicationAuthentication:"npm Trusted Publishing (GitHub Actions OIDC)",sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,distTag:$distTag,byteIdentity:"PASS",signatureAudit:"PASS",cleanRoomInstall:"PASS"}' > /tmp/truyn-npm-release/npm-trusted-publishing-evidence.json
+          jq -n --arg package "$NPM_PACKAGE" --arg version "$NPM_VERSION" --arg sourceSha "${{ steps.source.outputs.source_sha }}" --arg releaseTag "$TRUYN_RELEASE_TAG" --arg ciRunId "${{ steps.gates.outputs.ci_run_id }}" --arg codeqlRunId "${{ steps.gates.outputs.codeql_run_id }}" --arg publicationRunId "$GITHUB_RUN_ID" --arg sha256 "$remote_sha" --arg integrity "$integrity" --arg shasum "$shasum" --arg attestationUrl "$attestation_url" --arg distTag "$NPM_DIST_TAG" '{package:$package,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,ciRunId:$ciRunId,codeqlRunId:$codeqlRunId,publicationRunId:$publicationRunId,publicationAuthentication:"npm Trusted Publishing (GitHub Actions OIDC)",sha256:$sha256,integrity:$integrity,shasum:$shasum,attestationUrl:$attestationUrl,distTag:$distTag,byteIdentity:"PASS",signatureAudit:"PASS",cleanRoomInstall:"PASS"}' > /tmp/truyn-npm-release/npm-trusted-publishing-evidence.json
       - name: Upload release evidence
         uses: actions/upload-artifact@v4
         with:
