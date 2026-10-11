@@ -24,6 +24,11 @@ tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
   -czf "$DIST/go/truyn-sdk-go-${VERSION}.tar.gz" -C "$ROOT/sdk/go" .
 
 mvn -q -f "$ROOT/sdk/java/pom.xml" package
+# Attach the required distribution license notices to the Javadoc archive,
+# then manifest and publish precisely these CI-qualified archive bytes.
+jar uf "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-javadoc.jar" \
+  -C "$ROOT/sdk/java" LICENSE \
+  -C "$ROOT/sdk/java" NOTICE
 cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}.jar" "$DIST/java/"
 cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-sources.jar" "$DIST/java/"
 cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-javadoc.jar" "$DIST/java/"
