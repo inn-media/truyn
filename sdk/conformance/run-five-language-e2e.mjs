@@ -74,6 +74,7 @@ const descriptorEnv = {
 try {
   await run(process.execPath, ['--experimental-strip-types', 'sdk/typescript/test/release-conformance.ts', relayUrl], { env: descriptorEnv });
   await run('python', ['sdk/python/tests/release_conformance.py', relayUrl], { env: descriptorEnv });
+  await run('python', ['-m', 'unittest', 'discover', '-s', 'sdk/python/tests', '-p', 'test_tcj1_wire_freeze.py']);
   await run('go', ['test', './...', '-run', 'TestDeveloperReleaseConformance', '-count=1'], {
     cwd: resolve(repoRoot, 'sdk/go'),
     env: { TRUYN_CONFORMANCE_RELAY: relayUrl, ...descriptorEnv }
