@@ -110,6 +110,41 @@
         "e": false
       },
       "canonicalUnsigned": "{\"a\":{},\"b\":[],\"c\":null,\"d\":true,\"e\":false}"
+    },
+    {
+      "id": "control_del",
+      "input": {
+        "q": "a\u0001b\u001fcd"
+      },
+      "canonicalUnsigned": "{\"q\":\"a\\u0001b\\u001fcd\"}"
+    },
+    {
+      "id": "float_1_5",
+      "input": {
+        "n": 1.5
+      },
+      "canonicalUnsigned": "{\"n\":1.5}"
+    },
+    {
+      "id": "float_0_1",
+      "input": {
+        "n": 0.1
+      },
+      "canonicalUnsigned": "{\"n\":0.1}"
+    },
+    {
+      "id": "quotes_slash",
+      "input": {
+        "q": "\"\\/"
+      },
+      "canonicalUnsigned": "{\"q\":\"\\\"\\\\/\"}"
+    },
+    {
+      "id": "tab_newline",
+      "input": {
+        "q": "tab\tnl\n"
+      },
+      "canonicalUnsigned": "{\"q\":\"tab\\tnl\\n\"}"
     }
   ],
   "negativeCases": [
