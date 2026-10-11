@@ -166,3 +166,20 @@ test('live foundation evidence is emitted only after the semantic backup, replic
   assert.match(workflow, /actions\/upload-artifact@v4/);
   assert.doesNotMatch(workflow, /connectionString|accountKey|listKeys/i);
 });
+
+
+test('ManagedEnvironmentOperationInProgress is bounded same-candidate retry, never region fallback', async()=>{
+  const workflow=await text(WORKFLOW);
+  assert.match(workflow,/for environment_retry in 1 2 3 4/);
+  assert.match(workflow,/grep -Fq 'ManagedEnvironmentOperationInProgress'/);
+  assert.match(workflow,/sleep "\$\(\(30 \* environment_retry\)\)"/);
+  assert.match(workflow,/exit 26/);
+  assert.match(workflow,/--name "\$deployment_name"/);
+  assert.match(workflow,/sourceSha="\$GITHUB_SHA"/);
+  assert.match(workflow,/\[\[ -n "\$selected_prefix" \]\] && break/);
+  const retry=workflow.indexOf("grep -Fq 'ManagedEnvironmentOperationInProgress'");
+  const capacity=workflow.indexOf("grep -Eiq 'Microsoft\\.DocumentDB|database account|Cosmos'",retry);
+  assert.ok(retry>0 && capacity>retry);
+  assert.doesNotMatch(workflow.slice(retry,capacity),/trying the next candidate/);
+  assert.match(workflow,/non-regional-capacity reason; fallback is forbidden/);
+});
