@@ -23,13 +23,7 @@ on:
       - 'runtime/trace-export-canary.js'
       - 'operations/production-trace-backend.json'
       - 'operations/production-trace-export.json'
-      - '.github/workflows/production-trace-backend.yml'
-      - 'tests/production-trace-backend.test.js'
-      - 'tests/production-trace-retention.test.js'
-      - 'tests/observability.test.js'
-      - 'tests/public-repository.test.js'
       - 'infra/production-dr/**'
-      - '.github/workflows/production-dr-foundation.yml'
 
 permissions:
   contents: read

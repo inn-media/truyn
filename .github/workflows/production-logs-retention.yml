@@ -15,11 +15,7 @@ on:
     paths:
       - 'infra/production-observability/logs-retention.bicep'
       - 'operations/production-logs-retention.json'
-      - '.github/workflows/production-logs-retention.yml'
-      - 'tests/production-logs-retention.test.js'
-      - 'tests/public-repository.test.js'
       - 'infra/production-dr/**'
-      - '.github/workflows/production-dr-foundation.yml'
 
 permissions:
   contents: read

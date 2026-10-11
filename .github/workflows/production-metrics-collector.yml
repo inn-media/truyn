@@ -15,9 +15,6 @@ on:
       - 'infra/production-observability/metrics-backend.bicep'
       - 'infra/production-observability/metrics-collector.bicep'
       - 'operations/production-metrics-collector.json'
-      - '.github/workflows/production-metrics-collector.yml'
-      - 'tests/production-metrics-collector.test.js'
-      - 'tests/public-repository.test.js'
 
 permissions:
   contents: read
