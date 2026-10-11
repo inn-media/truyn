@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 env:
@@ -88,7 +89,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.name == 'Production Trace Backend' &&
-      github.event.workflow_run.event == 'push' &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_run') &&
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
@@ -107,6 +108,33 @@ jobs:
             echo '::error::main moved before Sprint 13 live acceptance; a fresh exact-main trace deployment is required.'
             exit 1
           }
+
+      - name: Admit only immutable successful production Trace read-back
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]+$ ]]
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID")"
+          jq -e --arg sha "$SOURCE_SHA" '
+            .name=="Production Trace Backend" and .head_sha==$sha
+            and (.event=="push" or .event=="workflow_run")
+            and .head_branch=="main" and .status=="completed" and .conclusion=="success"
+          ' <<<"$run" >/dev/null
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID/artifacts?per_page=100")"
+          jq -e '
+            [.artifacts[] | select(.name=="production-trace-backend-evidence"
+            and .expired==false and .size_in_bytes>0)] | length==1
+          ' <<<"$artifacts" >/dev/null
+          jq -e '
+            [.artifacts[] | select(.name=="production-trace-export-evidence"
+            and .expired==false and .size_in_bytes>0)] | length==1
+          ' <<<"$artifacts" >/dev/null
+          echo 'TRUYN_REDACTION_UPSTREAM_ADMITTED=PASS immutable_trace_and_export_evidence=true'
 
       - uses: azure/login@v2
         with:

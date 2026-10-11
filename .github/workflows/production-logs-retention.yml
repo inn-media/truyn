@@ -10,15 +10,18 @@ on:
       - 'tests/public-repository.test.js'
       - 'infra/production-dr/**'
       - '.github/workflows/production-dr-foundation.yml'
+  workflow_run:
+    workflows: ['Production DR Foundation']
+    types: [completed]
   push:
     branches: [main]
     paths:
       - 'infra/production-observability/logs-retention.bicep'
       - 'operations/production-logs-retention.json'
-      - 'infra/production-dr/**'
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 env:
@@ -74,13 +77,77 @@ jobs:
           ' operations/production-logs-retention.json >/dev/null
 
   apply-and-prove:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
+    concurrency:
+      group: truyn-production-aca-exclusive-writer
+      queue: max
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      # A mixed DR + Logs main push can launch both workflows at once.
+      # Refuse the direct Logs arm; the successful DR workflow_run is the
+      # only admitted path for that source SHA.
+      - name: Reject mixed foundation push before direct Logs apply
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$PUSH_BEFORE" =~ ^[0-9a-f]{40}$ && ! "$PUSH_BEFORE" =~ ^0{40}$ ]] || {
+            echo '::error::Cannot verify pre-push base; direct Logs apply denied.'
+            exit 41
+          }
+          git fetch --no-tags --depth=1 origin "$PUSH_BEFORE" >/dev/null
+          changed="$(git diff --name-only "$PUSH_BEFORE" "$GITHUB_SHA")"
+          if grep -Eq '^infra/production-dr/' <<<"$changed"; then
+            echo '::error::Mixed DR/Logs push must run DR -> Logs through immutable upstream admission.'
+            exit 42
+          fi
+
+      - name: Verify exact-main upstream admission and immutable live evidence
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          UPSTREAM_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]+$ ]]
+          [[ "$UPSTREAM_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_SHA" == "$UPSTREAM_SHA" ]]
+          [[ "$(git rev-parse HEAD)" == "$UPSTREAM_SHA" ]]
+          source_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID")"
+          jq -e --arg sha "$UPSTREAM_SHA" '
+            .head_sha==$sha and .event=="push" and .head_branch=="main"
+            and .status=="completed" and .conclusion=="success"
+          ' <<<"$source_run" >/dev/null
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID/artifacts?per_page=100")"
+          jq -e --arg name 'production-dr-foundation-evidence' '
+            [.artifacts[] | select(.name==$name and .expired==false and .size_in_bytes>0)] | length==1
+          ' <<<"$artifacts" >/dev/null
+          echo 'TRUYN_PRODUCTION_CHAIN=PASS exact_upstream_sha=true immutable_evidence=true auto_fallback=false'
+
+
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
 
       - uses: azure/login@v2
         with:
@@ -166,6 +233,21 @@ jobs:
           printf 'LOG_WORKSPACE_NAME=%s\n' "$workspace_name" >> "$GITHUB_ENV"
           printf 'LOG_ARCHIVE_ACCOUNT=%s\n' "$archive_name" >> "$GITHUB_ENV"
 
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
+
       - name: Provision 30-day hot and 180-day archive log backends
         shell: bash
         run: |
@@ -218,6 +300,21 @@ jobs:
               .definition.actions.baseBlob.delete.daysAfterModificationGreaterThan == $archive
             )
           ' <<<"$lifecycle_json" >/dev/null
+
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
 
       - name: Route production Container Apps logs to hot and archive backends
         shell: bash

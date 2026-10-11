@@ -12,7 +12,15 @@ test('Sprint 16 reapplies log retention when production foundation changes', asy
   const permissionsStart = workflow.indexOf('\npermissions:', pushStart);
   assert.ok(pushStart >= 0 && permissionsStart > pushStart);
   const pushBlock = workflow.slice(pushStart, permissionsStart);
-  assert.match(pushBlock, /infra\/production-dr\/\*\*/);
+  // Retention must still be re-applied after foundation changes, but only
+  // AFTER an immutable successful DR apply, never concurrently on the same push.
+  assert.doesNotMatch(pushBlock, /infra\/production-dr\/\*\*/);
+  assert.match(workflow,/workflow_run:/);
+  assert.match(workflow,/workflows: \['Production DR Foundation'\]/);
+  assert.match(workflow,/github\.event\.workflow_run\.conclusion == 'success'/);
+  assert.match(workflow,/github\.event\.workflow_run\.event == 'push'/);
+  assert.match(workflow,/UPSTREAM_SHA/);
+  assert.match(workflow,/production-dr-foundation-evidence/);
   assert.doesNotMatch(pushBlock, /\.github\/workflows\/production-dr-foundation\.yml/);
   // YAML-only edits remain PR-reviewed, never an implicit live re-provisioning.
   const prStart = workflow.indexOf('  pull_request:');

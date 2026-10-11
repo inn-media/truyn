@@ -34,6 +34,10 @@ jobs:
 
   apply:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: truyn-production-aca-exclusive-writer
+      queue: max
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -48,6 +52,21 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
+
       - uses: azure/login@v2
         with:
           client-id: ${{ env.AZURE_CLIENT_VALUE }}
@@ -61,6 +80,21 @@ jobs:
           az config set extension.use_dynamic_install=yes_without_prompt >/dev/null
           az bicep install >/dev/null
           printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+
+      - name: Verify live remote main before Azure production mutation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: protected main changed since this run was queued.'
+            exit 43
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo '::error::Production apply refused: checked-out source is not the current main.'
+            exit 44
+          }
 
       - name: Provision production persistence foundation
         shell: bash
@@ -100,6 +134,13 @@ jobs:
             # operation-in-progress error. Retry only the exact same immutable
             # ARM deployment: no source, name, region or acceptance changes.
             for environment_retry in 1 2 3 4; do
+              # Each retry may follow a long Azure ACA backoff. A new main
+              # invalidates this attempt even while the old job holds the lock.
+              current_main="$(git ls-remote --exit-code "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | awk '{print $1}')"
+              [[ "$current_main" == "$GITHUB_SHA" ]] || {
+                echo '::error::DR retry refused: protected main changed during backoff.'
+                exit 43
+              }
               rm -f /tmp/foundation-contract.json /tmp/foundation-deploy.err
               if az deployment group create \
                 --resource-group "$RESOURCE_GROUP" \
