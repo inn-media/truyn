@@ -43,7 +43,7 @@ export function normalizeAzureClassD5000Evidence(raw = {}) {
   const packetPartitionProbe = validPacketPartitionProbe(raw);
 
   const stageRows = raw?.stageResults?.stages;
-  const requiredStages = ['topology', 'readiness-barrier', 'convergence', 'pre-baseline-peer-freshness', 'baseline'];
+  const requiredStages = ['topology', 'readiness-barrier', 'convergence', 'pre-baseline-peer-freshness', 'baseline-routing'];
   const stageResultsComplete = raw?.stageResults?.overall === 'PASS' &&
     raw?.stageResults?.allPossibleStagesAttempted === true &&
     Array.isArray(stageRows) && stageRows.length >= requiredStages.length &&
