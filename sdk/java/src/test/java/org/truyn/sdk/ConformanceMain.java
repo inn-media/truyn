@@ -16,6 +16,11 @@ public final class ConformanceMain {
     AgentDescriptors.Verified descriptor = AgentDescriptors.fetch(URI.create(descriptorUrl), descriptorPublicKey);
     if (!descriptorIdentity.equals(descriptor.descriptor().identity()) || !"TRUYN/1".equals(descriptor.selection().protocol()) || !"https".equals(descriptor.selection().interfaceValue().get("type")) || !"identity".equals(descriptor.signer().keyBinding())) throw new AssertionError("invalid Agent Descriptor verification");
 
+    Map<String, Object> tcj = Map.of("n", 1, "q", "R&D <b>");
+    if (!"{\"n\":1,\"q\":\"R&D <b>\"}".equals(Json.stringify(tcj))) throw new AssertionError("TCJ1 integer/HTML byte mismatch");
+    if (!"{\"n\":0}".equals(Json.stringify(Map.of("n", -0.0d)))) throw new AssertionError("TCJ1 negative-zero byte mismatch");
+    if (!"{\"n\":1e+21}".equals(Json.stringify(Map.of("n", 1e21d)))) throw new AssertionError("TCJ1 float exponent byte mismatch");
+
     TruynClient provider = TruynClient.connect(relay, "java-provider");
     TruynClient requester = TruynClient.connect(relay, "java-requester");
     String capability = "sdk.release.java." + UUID.randomUUID();
