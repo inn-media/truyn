@@ -14,7 +14,7 @@ Website: https://truyn.org/
 
 **Snapshot:** 2026-10-10 (H-Series 4/4 closure reconciliation)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
-**Protocol:** `TRUYN/1` draft  
+**Protocol:** `TRUYN/1` draft (expanded A–I CORE registry on `main`, stable wire release/Mainnet not declared)  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`  
 **Stable A2A/MCP v1:** **not declared**
 

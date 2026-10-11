@@ -2,7 +2,9 @@
 
 **Snapshot:** 2026-09-05  
 **Synchronized source:** `main@95b98ce6890bf13755062d4e71af48d7a572bff1`  
-**Protocol generation:** `TRUYN/1` draft  
+**Protocol generation:** `TRUYN/1` draft; A–I semantic registry does not add physical signed Envelope kinds  
+
+**Canonical Wire Freeze references:** [expanded CORE registry](../../spec/registry/README.md), [exact-SHA qualification ledger](TRUYN1_WIRE_FREEZE_QUALIFICATION_LEDGER.md), [SDK compatibility policy](SDK_COMPATIBILITY.md), [five-language conformance](../../sdk/README.md). Public PR #975 is merged; postmerge independent E2E PR #976 and private consumer PR #458 are distinct reviews. Public source merge ≠ immutable SDK release ≠ Mainnet admission.
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`
 
 Compatibility is tracked separately for protocol/node behavior, adapters/external protocols and SDK packages.

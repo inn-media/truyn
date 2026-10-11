@@ -4,8 +4,8 @@ Native first-party client libraries for applications that integrate directly wit
 
 **Current maturity:** Developer Release relay-client implementation is source/build complete. TypeScript/JavaScript, Python, Go, Java and C#/.NET are implemented first-party relay clients and share one executable five-language conformance path. PyPI, Go and npm alpha.2 have accepted immutable public release evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease. Agent Descriptor serving/fetch/signature happy paths exist, while automatic refresh and complete usable-interface validation/mapping parity remain open.
 
-**Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`  
-**Protocol:** `TRUYN/1` draft  
+**Historical Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73` (not the current source HEAD or new SDK publication). **Expanded Wire Freeze source merge:** `main@10fac0de290a303b7e39205fb895adfaa01dc30e`.  
+**Protocol:** `TRUYN/1` draft; five-language TCJ1 and published-alpha legacy/new matrix verified for the accepted PR-head scope, not stable-v1  
 **Stable SDK API contract:** `1`
 
 ## Required first-party SDKs
@@ -42,6 +42,10 @@ All five required SDKs cover the same bounded relay semantics while remaining id
 - fetch and verify the accepted valid TRUYN Agent Descriptor fixture and select a compatible protocol/interface type.
 
 SDKs are convenience surfaces. They never create authorization, provider ownership or billing authority, and they do not transport upstream provider credentials in TRUYN metadata.
+
+## Expanded CORE Wire Freeze and published-alpha backwards compatibility
+
+The public [semantic A–I registry](../spec/registry/README.md) is an architectural classification, **not** a change to the five physical signed Envelope types or six compact codes. PR #975 merged the TCJ1 interoperability changes at `main@10fac0de290a303b7e39205fb895adfaa01dc30e`, qualified on source head `cb7618170422270628ac96b5fbb53ae307cdc7f3`. Shared Unicode/numeric vectors and all five SDKs passed the [CI conformance run](https://github.com/inn-media/truyn/actions/runs/38144117793); the [published-alpha old/new relay matrix](https://github.com/inn-media/truyn/actions/runs/38144117794) passed 20/20. It uses actual immutable npm/PyPI/Go/Maven/NuGet prereleases across four old/new provider/requester combinations. The result covers the observed NEED/RESULT interchange, not every negative replay, revocation, QUIC, DHT or exactly-once side effect across all SDK generations. No existing immutable registry coordinate was overwritten. The merged public source SHA is not itself a new publicly distributed release or private consumer pin.
 
 ## Five-language executable conformance
 
