@@ -139,6 +139,6 @@ test('REST discovery fails closed when canonical registration or discovery denie
 
   const response = await fetch(`${baseUrl}/v1/discovery?capability=private.internal`);
   assert.equal(response.status, 403);
-  assertNormalizedError(await response.json(), 'authorization_denied', 'request is not authorized');
+  assertNormalizedError(await response.json(), 'permission_denied', 'request is not authorized');
   assert.equal(findCalls, 0, 'denied registration must prevent provider discovery/enumeration');
 });

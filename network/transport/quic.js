@@ -1,7 +1,7 @@
 import { createHmac, randomFillSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { QUICSocket, QUICServer, QUICClient, events } from '@matrixai/quic';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import { verifyEnvelope } from '../../core/protocol/index.js';
+import { verifyEnvelope, PROTOCOL } from '../../core/protocol/index.js';
 import { BoundedAdmissionQueue } from '../admission/bounded-queue.js';
 import { sharedEventLoopMonitor } from '../admission/load-monitor.js';
 import { createSessionHello, createSessionAccept, verifySessionHello, verifySessionAccept, sessionHandshakeBinding, sessionId, SessionReplayCache } from '../sessions/authenticated-session.js';
@@ -126,11 +126,17 @@ export class TruynQuicTransport {
     maxCriticalInFlight = 64,
     maxCriticalQueued = 1024,
     backgroundShedLagMs = 150,
-    loadMonitor = null
+    loadMonitor = null,
+    supportedProtocols = [PROTOCOL],
+    supportedSemantics = [],
+    requiredSemantics = []
   } = {}) {
     if (!identity?.nodeId || !identity?.publicKeyPem || !identity?.privateKeyPem) throw new Error('QUIC transport identity is required');
     if (!tls?.key || !tls?.cert) throw new Error('QUIC server TLS key and certificate are required');
     this.identity = identity;
+    this.supportedProtocols = supportedProtocols;
+    this.supportedSemantics = supportedSemantics;
+    this.requiredSemantics = requiredSemantics;
     this.host = host;
     this.port = port;
     this.tls = tls;
@@ -225,10 +231,10 @@ export class TruynQuicTransport {
     try { message = JSON.parse(decoder.decode(bytes)); } catch { await writeJson(stream, { ok: false, error: 'invalid_json' }); return; }
 
     if (message?.kind === 'session-hello') {
-      const verification = verifySessionHello(message.hello, { replayCache: this.replayCache });
-      if (!verification.ok) { await writeJson(stream, { ok: false, error: verification.reason }); return; }
+      const verification = verifySessionHello(message.hello, { replayCache: this.replayCache, localProtocols: this.supportedProtocols, localSemantics: this.supportedSemantics, localRequiredSemantics: this.requiredSemantics });
+      if (!verification.ok) { await writeJson(stream, { ok: false, error: verification.code || verification.reason, reason: verification.reason }); return; }
       const binding = sessionHandshakeBinding(message.hello);
-      const accept = createSessionAccept({ identity: this.identity, hello: message.hello, transportBinding: binding });
+      const accept = createSessionAccept({ identity: this.identity, hello: message.hello, transportBinding: binding, localProtocols: this.supportedProtocols, localSemantics: this.supportedSemantics, localRequiredSemantics: this.requiredSemantics });
       const id = sessionId(message.hello, accept);
       this.serverSessions.set(connection, { id, peerNodeId: message.hello.nodeId, peerPublicKey: message.hello.publicKey, binding });
       await writeJson(stream, { ok: true, accept, sessionId: id });
@@ -305,11 +311,11 @@ export class TruynQuicTransport {
       }
     });
     this.clients.add(client);
-    const hello = createSessionHello({ identity: this.identity, endpoints: [`quic://${this.host}:${this.port}`] });
+    const hello = createSessionHello({ identity: this.identity, endpoints: [`quic://${this.host}:${this.port}`], protocols: this.supportedProtocols, semantics: this.supportedSemantics, requiredSemantics: this.requiredSemantics });
     const response = await requestJson(client.connection, { kind: 'session-hello', hello }, this.maxMessageBytes);
     if (!response?.ok) { await this.disconnect(client); throw new Error(response?.error || 'quic_session_rejected'); }
     const binding = sessionHandshakeBinding(hello);
-    const verification = verifySessionAccept(response.accept, hello, { expectedTransportBinding: binding });
+    const verification = verifySessionAccept(response.accept, hello, { expectedTransportBinding: binding, localProtocols: this.supportedProtocols, localSemantics: this.supportedSemantics });
     if (!verification.ok) { await this.disconnect(client); throw new Error(`quic_session_accept_invalid:${verification.reason}`); }
     const expectedSessionId = sessionId(hello, response.accept);
     if (response.sessionId !== expectedSessionId) { await this.disconnect(client); throw new Error('quic_session_id_mismatch'); }

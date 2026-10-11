@@ -41,7 +41,7 @@ test('S48 bounds request bodies and does not execute canonical NEED after overfl
     });
     assert.equal(response.status, 413);
     const body = await response.json();
-    assert.equal(body.error.code, 'payload_too_large');
+    assert.equal(body.error.code, 'resource_exhausted');
     assert.equal(body.correlationId, 's48-body-bound');
     assert.equal(needCalls, 0);
   }, { maxBodyBytes: 8 });
@@ -57,7 +57,7 @@ test('S48 rejects unsafe correlation metadata and never reflects it', async () =
     assert.equal(text.includes('secret-internal-detail'), false);
     const body = JSON.parse(text);
     assert.match(body.correlationId, /^[0-9a-f-]{36}$/i);
-    assert.equal(body.error.code, 'authorization_denied');
+    assert.equal(body.error.code, 'permission_denied');
   });
 });
 

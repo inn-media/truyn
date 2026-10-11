@@ -29,7 +29,7 @@ def _nonempty(value: Any) -> bool:
 def _absolute_http_url(value: str) -> str:
     parsed = urlparse(value)
     if parsed.scheme not in ('http', 'https') or not parsed.netloc:
-        raise TruynError({'code': 'validation_error', 'message': 'relayUrl must be an absolute HTTP(S) URL', 'retryable': False})
+        raise TruynError({'code': 'invalid_argument', 'message': 'relayUrl must be an absolute HTTP(S) URL', 'retryable': False})
     return value.rstrip('/')
 
 
@@ -209,7 +209,7 @@ class TruynLocalNodeClient:
 
     def offer(self, capability_id: str, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
         if not _nonempty(capability_id):
-            raise TruynError({'code': 'validation_error', 'message': 'capabilityId is required', 'retryable': False})
+            raise TruynError({'code': 'invalid_argument', 'message': 'capabilityId is required', 'retryable': False})
         envelope = create_envelope(
             type='OFFER',
             identity=self.identity,
@@ -219,7 +219,7 @@ class TruynLocalNodeClient:
 
     def need(self, capability_id: str, input: Any, policy: dict[str, Any] | None = None) -> dict[str, Any]:
         if not _nonempty(capability_id):
-            raise TruynError({'code': 'validation_error', 'message': 'capabilityId is required', 'retryable': False})
+            raise TruynError({'code': 'invalid_argument', 'message': 'capabilityId is required', 'retryable': False})
         envelope = create_envelope(
             type='NEED',
             identity=self.identity,
@@ -232,7 +232,7 @@ class TruynLocalNodeClient:
 
     def result(self, request_id: str, output: Any, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
         if not _nonempty(request_id):
-            raise TruynError({'code': 'validation_error', 'message': 'requestId is required', 'retryable': False})
+            raise TruynError({'code': 'invalid_argument', 'message': 'requestId is required', 'retryable': False})
         envelope = create_envelope(
             type='RESULT',
             identity=self.identity,
@@ -308,7 +308,7 @@ class TruynLocalNodeClient:
 
     def wait_for_result(self, need_id: str, *, timeout_ms: int = 5000, poll_interval_ms: int = 20) -> dict[str, Any]:
         if not _nonempty(need_id):
-            raise TruynError({'code': 'validation_error', 'message': 'needId is required', 'retryable': False})
+            raise TruynError({'code': 'invalid_argument', 'message': 'needId is required', 'retryable': False})
         event = self._wait_for_event(
             lambda candidate: candidate.get('kind') == 'RESULT'
             and isinstance(candidate.get('envelope'), dict)

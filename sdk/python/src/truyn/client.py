@@ -33,7 +33,7 @@ def _plain(value): return isinstance(value, dict)
 def _absolute_http_url(value: str, label: str) -> str:
     parsed = urlparse(value)
     if parsed.scheme not in ('http', 'https') or not parsed.netloc:
-        raise TruynError({'code': 'validation_error', 'message': f'{label} must be an absolute HTTP(S) URL', 'retryable': False})
+        raise TruynError({'code': 'invalid_argument', 'message': f'{label} must be an absolute HTTP(S) URL', 'retryable': False})
     return value.rstrip('/')
 
 def _decode_json(response: HttpResponse, label: str):
@@ -63,14 +63,14 @@ def _valid_offer(value):
 class TruynClient:
     def __init__(self, relay_url: str, *, session_token: str | None = None, transport: Transport | None = None):
         if not _nonempty(relay_url):
-            raise TruynError({'code': 'validation_error', 'message': 'relayUrl is required', 'retryable': False})
+            raise TruynError({'code': 'invalid_argument', 'message': 'relayUrl is required', 'retryable': False})
         self.relay_url = _absolute_http_url(relay_url, 'relayUrl')
         self.session_token = session_token
         self._transport = transport or _default_transport
 
     def set_session_token(self, session_token: str | None):
         if session_token is not None and not _nonempty(session_token):
-            raise TruynError({'code': 'validation_error', 'message': 'sessionToken must be a non-empty string or null', 'retryable': False})
+            raise TruynError({'code': 'invalid_argument', 'message': 'sessionToken must be a non-empty string or null', 'retryable': False})
         self.session_token = session_token
 
     def _authorization(self):
@@ -87,19 +87,22 @@ class TruynClient:
             raise TruynError(normalize_error(client_kind='transport', message=str(error))) from error
         body = _decode_json(response, 'Relay')
         if not 200 <= response.status < 300:
-            relay_code = body.get('error') if _nonempty(body.get('error')) else None
-            raise TruynError(normalize_error(http_status=response.status, relay_code=relay_code, message=relay_code or f'HTTP {response.status}'))
+            error_value = body.get('error')
+            relay_code = error_value if _nonempty(error_value) else (error_value.get('code') if _plain(error_value) and _nonempty(error_value.get('code')) else None)
+            safe_message = error_value.get('message') if _plain(error_value) and _nonempty(error_value.get('message')) else None
+            raise TruynError(normalize_error(http_status=response.status, relay_code=relay_code,
+                                             message=safe_message[:256] if safe_message else relay_code or f'HTTP {response.status}'))
         return body
 
     def get_identity(self, node_id: str):
         if not _nonempty(node_id) or not node_id.startswith('truyn:node:'):
-            raise TruynError({'code': 'validation_error', 'message': 'nodeId must be a TRUYN node identity', 'retryable': False})
+            raise TruynError({'code': 'invalid_argument', 'message': 'nodeId must be a TRUYN node identity', 'retryable': False})
         body = self._request_json('/v1/nodes/' + quote(node_id, safe=''))
         return _validate_identity(body, node_id)
 
     def discover(self, capability_id: str):
         if not _nonempty(capability_id):
-            raise TruynError({'code': 'validation_error', 'message': 'capabilityId is required', 'retryable': False})
+            raise TruynError({'code': 'invalid_argument', 'message': 'capabilityId is required', 'retryable': False})
         body = self._request_json('/v1/offers?capability=' + quote(capability_id, safe=''))
         offers = body.get('offers')
         if not isinstance(offers, list) or not all(_valid_offer(offer) for offer in offers):
@@ -121,7 +124,10 @@ class TruynClient:
             relay_code = None
             try:
                 body = json.loads(text)
-                if _plain(body) and _nonempty(body.get('error')): relay_code = body['error']
+                if _plain(body):
+                    error_value = body.get('error')
+                    if _nonempty(error_value): relay_code = error_value
+                    elif _plain(error_value) and _nonempty(error_value.get('code')): relay_code = error_value['code']
             except Exception:
                 pass
             raise TruynError(normalize_error(http_status=response.status, relay_code=relay_code, message=relay_code or f'Descriptor HTTP {response.status}'))

@@ -217,3 +217,50 @@ test('v0.1 relay-free Kademlia discovery over QUIC finds an unknown peer and the
     await rm(tls.dir, { recursive: true, force: true });
   }
 });
+
+test('TRUYN QUIC refuses incompatible signed generations and critical extensions before admitting a peer', { timeout: 30_000 }, async () => {
+  const tls = await generateTls();
+  const qa = new TruynQuicTransport({ identity: createIdentity(), host: '127.0.0.1', tls, supportedProtocols: ['TRUYN/2'] });
+  const qb = new TruynQuicTransport({ identity: createIdentity(), host: '127.0.0.1', tls });
+  let executed = 0;
+  try {
+    await qa.start();
+    await qb.start();
+    qb.onEnvelope(async () => { executed += 1; return { ok: true }; });
+    await assert.rejects(qa.connect({ host: '127.0.0.1', port: qb.port }), /version_mismatch/);
+    qa.supportedProtocols = ['TRUYN/1'];
+    qa.requiredSemantics = ['critical-extension'];
+    await assert.rejects(qa.connect({ host: '127.0.0.1', port: qb.port }), /version_mismatch/);
+    assert.equal(executed, 0, 'incompatible peers must not execute envelopes');
+    qa.requiredSemantics = [];
+    const client = await qa.connect({ host: '127.0.0.1', port: qb.port });
+    assert.ok(client);
+    await qa.disconnect(client);
+  } finally {
+    await Promise.allSettled([qa.close(), qb.close()]);
+    await rm(tls.dir, { recursive: true, force: true });
+  }
+});
+
+test('real inbound QUIC rejects missing responder-required semantics before execution', { timeout: 30_000 }, async () => {
+  const tls = await generateTls();
+  const requester = new TruynQuicTransport({ identity: createIdentity(), host: '127.0.0.1', tls });
+  const responder = new TruynQuicTransport({
+    identity: createIdentity(), host: '127.0.0.1', tls,
+    supportedSemantics: ['critical-extension'], requiredSemantics: ['critical-extension']
+  });
+  let invocations = 0;
+  try {
+    await requester.start();
+    await responder.start();
+    responder.onEnvelope(async () => { invocations += 1; return { ok: true }; });
+    await assert.rejects(requester.connect({ host: '127.0.0.1', port: responder.port }), /version_mismatch/);
+    assert.equal(invocations, 0);
+    requester.supportedSemantics = ['critical-extension'];
+    const client = await requester.connect({ host: '127.0.0.1', port: responder.port });
+    await requester.disconnect(client);
+  } finally {
+    await Promise.allSettled([requester.close(), responder.close()]);
+    await rm(tls.dir, { recursive: true, force: true });
+  }
+});

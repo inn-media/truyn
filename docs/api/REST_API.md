@@ -61,7 +61,7 @@ Conceptual shape:
 {
   "ok": false,
   "error": {
-    "code": "authorization_denied",
+    "code": "permission_denied",
     "message": "request is not authorized"
   },
   "correlationId": "..."

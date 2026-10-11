@@ -98,6 +98,19 @@ class PythonParityTests(unittest.TestCase):
         self.assertTrue(set(privacy['expect']['absentOfferIds']).isdisjoint({offer['id'] for offer in offers}))
         self.assertTrue(all(call[2].get('authorization') == 'Bearer fixture-session' for call in calls))
 
+    def test_canonical_rest_error_objects_are_normalized_without_retry(self):
+        for status, code in ((403, 'permission_denied'), (413, 'resource_exhausted')):
+            with self.subTest(status=status):
+                def transport(method, url, headers):
+                    return HttpResponse(status, json.dumps({
+                        'ok': False, 'error': {'code': code, 'message': 'bounded public error'}
+                    }).encode())
+                client = TruynClient('https://relay.example', session_token='fixture', transport=transport)
+                with self.assertRaises(Exception) as raised:
+                    client.discover('private.capability')
+                self.assertEqual(getattr(raised.exception, 'code', None), code)
+                self.assertFalse(raised.exception.retryable)
+
     def test_integrated_descriptor_fetch_resolves_identity_and_verifies(self):
         case = RUNTIME_BY_ID['descriptor.signature-valid']
         descriptor = case['value']

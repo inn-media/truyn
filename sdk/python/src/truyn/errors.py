@@ -2,13 +2,32 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 _RELAY_MAPPINGS = {
+    'unauthenticated': ('unauthenticated', False),
+    'permission_denied': ('permission_denied', False),
+    'invalid_argument': ('invalid_argument', False),
+    'unimplemented': ('unimplemented', False),
+    'not_found': ('not_found', False),
+    'conflict': ('conflict', False),
+    'resource_exhausted': ('resource_exhausted', False),
+    'deadline_exceeded': ('deadline_exceeded', False),
+    'cancelled': ('cancelled', False),
+    'transport_error': ('transport_error', False),
+    'invalid_response': ('invalid_response', False),
     'unauthorized': ('unauthenticated', False),
+    'invalid_request': ('invalid_argument', False),
+    'authorization_denied': ('permission_denied', False),
+    'payload_too_large': ('resource_exhausted', False),
+    'validation_error': ('invalid_argument', False),
+    'version_mismatch': ('version_mismatch', False),
     'provider_access_denied': ('permission_denied', False),
     'no_matching_provider': ('not_found', False),
     'duplicate_request': ('conflict', False),
     'offer_capacity_reached': ('resource_exhausted', True),
+    'node_capacity_reached': ('resource_exhausted', True),
+    'cancellation_backpressure': ('resource_exhausted', True),
+    'partial_backpressure': ('resource_exhausted', True),
     'result_wait_timeout': ('deadline_exceeded', True),
-    'invalid_capability': ('validation_error', False),
+    'invalid_capability': ('invalid_argument', False),
     'internal_error': ('internal_error', True),
 }
 
@@ -19,8 +38,9 @@ def _fallback_http(status: int | None) -> tuple[str, bool]:
     if status in (408, 504): return ('deadline_exceeded', True)
     if status == 409: return ('conflict', False)
     if status == 429: return ('resource_exhausted', True)
+    if status == 413: return ('resource_exhausted', False)
     if status is not None and status >= 500: return ('internal_error', True)
-    if status is not None and status >= 400: return ('validation_error', False)
+    if status is not None and status >= 400: return ('invalid_argument', False)
     return ('invalid_response', False)
 
 def normalize_error(source: Mapping[str, Any] | None = None, *, http_status: int | None = None,
@@ -32,7 +52,7 @@ def normalize_error(source: Mapping[str, Any] | None = None, *, http_status: int
         relay_code = source.get('relayCode', relay_code)
         protocol_reason = source.get('protocolReason', protocol_reason)
         client_kind = source.get('clientKind', client_kind)
-    if protocol_reason == 'unsupported_protocol': mapping = ('version_mismatch', False)
+    if protocol_reason in ('unsupported_protocol', 'no_protocol_overlap', 'required_semantic_unavailable'): mapping = ('version_mismatch', False)
     elif client_kind == 'transport': mapping = ('transport_error', True)
     elif client_kind == 'invalid_response': mapping = ('invalid_response', False)
     elif client_kind == 'cancelled': mapping = ('cancelled', False)
