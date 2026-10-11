@@ -267,6 +267,32 @@ func (c *Client) Identity(ctx context.Context) (*Identity, error) {
 	}
 }
 
+// DurableDelivery is an explicitly unacknowledged signed lifecycle event.
+type DurableDelivery struct {
+    EventID string `json:"eventId"`
+    RequestID string `json:"requestId"`
+    Kind string `json:"kind"`
+    Event map[string]any `json:"event"`
+    CreatedAt string `json:"createdAt"`
+}
+
+// RecoverDurable NEVER acknowledges or executes work; callers must verify the
+// signed envelope or compact frame, durably process it, then call ACK.
+func (c *Client) RecoverDurable(ctx context.Context, limit int) ([]DurableDelivery, error) {
+    if limit < 1 || limit > 100 { return nil, NewError(InvalidArgument, "limit must be 1..100", false) }
+    var body struct { Deliveries []DurableDelivery `json:"deliveries"` }
+    if err := c.requestJSON(ctx, http.MethodGet, fmt.Sprintf("/v1/lifecycle/deliveries?limit=%d", limit), nil, true, &body); err != nil { return nil, err }
+    if body.Deliveries == nil { return nil, NewError(InvalidResponse, "Missing durable deliveries", false) }
+    return body.Deliveries,nil
+}
+
+func (c *Client) AcknowledgeDurable(ctx context.Context, eventID string) (map[string]any,error) {
+    if eventID == "" { return nil, NewError(InvalidArgument, "eventId required", false) }
+    var result map[string]any
+    if err := c.requestJSON(ctx,http.MethodPost,"/v1/lifecycle/deliveries/ack",map[string]any{"eventId":eventID},true,&result); err != nil { return nil,err }
+    return result,nil
+}
+
 func (c *Client) Register(ctx context.Context, name string) error {
 	payload := map[string]any{
 		"nodeId": c.identity.NodeID,

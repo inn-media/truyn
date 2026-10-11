@@ -648,12 +648,13 @@ export function createRelay({
     if (durablePartial?.idempotent) return { status: 200, body: { ok: true, requestId: frame.i, sequence: payload.sequence, idempotent: true } };
     let transport = queueFast(request.requester, event, { requireCapacity: true });
     if (transport === 'full') {
-      if (lifecycleLedger?.kind === 'cosmos-multi-host-v1') {
-        // Frame was durably committed before live transport. Its signed data
-        // remains available for authenticated recovery + ACK: never rollback.
+      if (lifecycleLedger) {
+        // Both SQLite v2 and Cosmos have already atomically committed the
+        // signed PARTIAL and its sequence into the durable outbox. A live
+        // delivery failure must not roll back a frame that can be recovered
+        // by the authenticated recipient and explicitly ACKed.
         transport = 'durable-outbox';
       } else {
-        await lifecycleLedger?.rollbackPartial({ id: frame.i, sequence: payload.sequence, digest, previousDigest: durablePartial?.previousDigest });
         return { status: 429, body: { ok: false, error: 'partial_backpressure', requestId: frame.i, sequence: payload.sequence, expected } };
       }
     }

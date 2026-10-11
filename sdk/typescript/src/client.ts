@@ -18,6 +18,14 @@ export interface TruynClientOptions {
   fetch?: typeof globalThis.fetch;
 }
 
+export interface DurableDelivery {
+  eventId: string;
+  requestId: string;
+  kind: 'NEED' | 'PARTIAL' | 'RESULT' | 'REVOKE';
+  event: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface RequestOptions {
   signal?: AbortSignal;
 }
@@ -116,6 +124,22 @@ export class TruynClient {
     this.relayUrl = requireRelayUrl(options.relayUrl);
     this.fetchImpl = fetchImpl;
     this.sessionToken = options.sessionToken ?? null;
+  }
+
+  // The recovery lane is opt-in: do not ACK until the caller has persisted
+  // and verified the signed payload (PARTIAL uses compact frame verification).
+  async recoverDurable(limit = 32): Promise<DurableDelivery[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new TruynError({code:'invalid_argument',message:'limit must be 1..100',retryable:false});
+    const response = await this.requestJson(`/v1/lifecycle/deliveries?limit=${limit}`);
+    if (!Array.isArray(response.deliveries)) throw new TruynError({code:'invalid_response',message:'Missing durable deliveries',retryable:false});
+    return response.deliveries as DurableDelivery[];
+  }
+
+  async acknowledgeDurable(eventId: string): Promise<Record<string, unknown>> {
+    if (!nonEmptyString(eventId)) throw new TruynError({code:'invalid_argument',message:'eventId required',retryable:false});
+    return this.requestJson('/v1/lifecycle/deliveries/ack',{
+      method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({eventId})
+    });
   }
 
   setSessionToken(sessionToken: string | null): void {

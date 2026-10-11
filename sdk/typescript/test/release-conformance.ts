@@ -30,6 +30,14 @@ try {
   const result = await requester.waitForResult(receipt.needId, { timeoutMs: 5_000 });
   assert.equal(result.provider, provider.nodeId);
   assert.equal(result.verification.ok, true);
+  // The five-SDK exact-head G5 fixture uses a durable ledger. No auto-ACK.
+  const requesterRecovery = new TruynClient({ relayUrl, sessionToken: requester.runtime.sessionToken });
+  const pending = await requesterRecovery.recoverDurable();
+  assert.equal(pending.filter(e=>e.eventId==='result:'+receipt.needId).length,1);
+  assert.equal((await requesterRecovery.recoverDurable()).some(e=>e.eventId==='result:'+receipt.needId),true);
+  const receiptAck = await requesterRecovery.acknowledgeDurable('result:'+receipt.needId);
+  assert.equal(receiptAck.acknowledged,true);
+  assert.equal((await requesterRecovery.recoverDurable()).some(e=>e.eventId==='result:'+receipt.needId),false);
   const cancelReceipt = await requester.need(capability, { cancel: true });
   await requester.runtime.revoke(cancelReceipt.needId, 'sdk_conformance_cancel', { targetKind: 'need' });
   process.stdout.write('PASS typescript developer-release conformance\n');

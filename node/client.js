@@ -579,6 +579,35 @@ export class TruynNode {
     });
   }
 
+  // Explicit durable recovery lane: reading signed deliveries NEVER acknowledges
+  // them. The consumer must validate, persist its own result and ACK afterwards.
+  async recoverDurable({ limit = 32 } = {}) {
+    this.requireSession('recovering durable events');
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('limit must be 1..100');
+    const result = await requestJson(`${this.relayUrl}/v1/lifecycle/deliveries?limit=${limit}`, { headers: this.authHeaders() });
+    const deliveries = await Promise.all((result.deliveries || []).map(async (entry) => {
+      const event = entry.event;
+      let verification;
+      if (event?.frame) {
+        const publicKey = await this.resolveIdentity(event.from);
+        verification = verifyCompactFrame(event.frame, event.payload, publicKey, { allowedTypes: [event.kind] });
+      } else if (event?.envelope) {
+        verification = verifyEnvelope(event.envelope, { allowedTypes: [event.kind] });
+      }
+      if (!verification?.ok) throw new Error('durable_event_signature_invalid');
+      return { ...entry, verification };
+    }));
+    return { ...result, deliveries };
+  }
+
+  async acknowledgeDurable(eventId) {
+    this.requireSession('acknowledging durable event');
+    if (typeof eventId !== 'string' || eventId.length === 0) throw new Error('eventId is required');
+    return requestJson(`${this.relayUrl}/v1/lifecycle/deliveries/ack`, {
+      method: 'POST', headers: this.authHeaders(), body: JSON.stringify({ eventId })
+    });
+  }
+
   async poll({ waitMs = 0 } = {}) {
     this.requireSession('polling');
     const boundedWait = Math.max(0, Math.min(120_000, Math.floor(Number(waitMs) || 0)));

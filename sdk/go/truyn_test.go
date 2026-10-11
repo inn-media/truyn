@@ -37,6 +37,15 @@ func TestDeveloperReleaseConformance(t *testing.T) {
 	result, err := requester.WaitForResult(ctx, receipt.NeedID)
 	if err != nil { t.Fatal(err) }
 	if result.Provider != provider.NodeID() || !result.Verification.Ok { t.Fatalf("unexpected RESULT event: %#v", result) }
+	durable, err := requester.RecoverDurable(ctx,32)
+	if err != nil { t.Fatal(err) }
+	seen := false
+	for _, event := range durable { if event.EventID == "result:"+receipt.NeedID { seen = true } }
+	if !seen { t.Fatal("durable result missing before ACK") }
+	if _, err := requester.AcknowledgeDurable(ctx,"result:"+receipt.NeedID); err != nil { t.Fatal(err) }
+	durable, err = requester.RecoverDurable(ctx,32)
+	if err != nil { t.Fatal(err) }
+	for _, event := range durable { if event.EventID == "result:"+receipt.NeedID { t.Fatal("ACKed result replayed") } }
 	cancelReceipt, err := requester.Need(ctx, capability, map[string]any{"cancel":true}, nil)
 	if err != nil { t.Fatal(err) }
 	if err := requester.CancelNeed(ctx, cancelReceipt.NeedID, "sdk_conformance_cancel"); err != nil { t.Fatal(err) }

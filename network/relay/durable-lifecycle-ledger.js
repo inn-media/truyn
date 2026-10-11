@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS lifecycle_outbox (
   event_id TEXT PRIMARY KEY NOT NULL,
   request_id TEXT NOT NULL REFERENCES lifecycle_needs(id),
   recipient TEXT NOT NULL,
-  kind TEXT NOT NULL CHECK(kind IN ('NEED','RESULT','REVOKE')),
+  kind TEXT NOT NULL CHECK(kind IN ('NEED','PARTIAL','RESULT','REVOKE')),
   event_json TEXT NOT NULL,
   created_at TEXT NOT NULL,
   acknowledged_at TEXT
@@ -72,6 +72,28 @@ CREATE TABLE IF NOT EXISTS provider_effects (
   created_at TEXT NOT NULL,
   finished_at TEXT
 );`);
+    // Existing G5 v1 SQLite files constrain outbox kinds to NEED/RESULT/REVOKE.
+    // The migration copies ACKed and pending rows in ONE transaction, so a
+    // power loss cannot expose a mixed schema or discard an old signed event.
+    const schema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='lifecycle_outbox'").get()?.sql || '';
+    if (!schema.includes("'PARTIAL'")) {
+      db.exec(`BEGIN IMMEDIATE;
+CREATE TABLE lifecycle_outbox_g5_v2 (
+ event_id TEXT PRIMARY KEY NOT NULL,
+ request_id TEXT NOT NULL REFERENCES lifecycle_needs(id),
+ recipient TEXT NOT NULL,
+ kind TEXT NOT NULL CHECK (kind IN ('NEED','PARTIAL','RESULT','REVOKE')),
+ event_json TEXT NOT NULL,
+ created_at TEXT NOT NULL,
+ acknowledged_at TEXT
+);
+INSERT INTO lifecycle_outbox_g5_v2 (event_id, request_id, recipient, kind, event_json, created_at, acknowledged_at)
+ SELECT event_id, request_id, recipient, kind, event_json, created_at, acknowledged_at FROM lifecycle_outbox ORDER BY rowid;
+DROP TABLE lifecycle_outbox;
+ALTER TABLE lifecycle_outbox_g5_v2 RENAME TO lifecycle_outbox;
+CREATE INDEX lifecycle_outbox_recipient ON lifecycle_outbox(recipient, acknowledged_at, created_at);
+COMMIT;`);
+    }
   } catch (error) {
     db.close();
     throw error;
@@ -92,7 +114,7 @@ CREATE TABLE IF NOT EXISTS provider_effects (
   const updateEffect = db.prepare("UPDATE provider_effects SET status=?,finished_at=? WHERE id=? AND provider=? AND status='started'");
   const insertOutbox = db.prepare('INSERT INTO lifecycle_outbox (event_id,request_id,recipient,kind,event_json,created_at) VALUES (?,?,?,?,?,?)');
   const countOutbox = db.prepare('SELECT COUNT(*) AS count FROM lifecycle_outbox');
-  const selectOutbox = db.prepare("SELECT e.* FROM lifecycle_outbox e JOIN lifecycle_needs n ON n.id=e.request_id WHERE e.recipient=? AND e.acknowledged_at IS NULL AND (e.kind!='NEED' OR n.status='matched') ORDER BY e.created_at,e.event_id LIMIT ?");
+  const selectOutbox = db.prepare("SELECT e.* FROM lifecycle_outbox e JOIN lifecycle_needs n ON n.id=e.request_id WHERE e.recipient=? AND e.acknowledged_at IS NULL AND (e.kind!='NEED' OR n.status='matched') ORDER BY e.rowid LIMIT ?");
   const oneOutbox = db.prepare('SELECT * FROM lifecycle_outbox WHERE event_id=?');
   const ackOutbox = db.prepare('UPDATE lifecycle_outbox SET acknowledged_at=? WHERE event_id=? AND recipient=? AND acknowledged_at IS NULL');
 
@@ -102,8 +124,11 @@ CREATE TABLE IF NOT EXISTS provider_effects (
     if (recipient !== expectedRecipient || kind !== expectedKind || !event || event.kind !== kind) throw fault(400, 'invalid_lifecycle_delivery');
     const body = JSON.stringify(event);
     if (body.length > 1024 * 1024) throw fault(413, 'lifecycle_delivery_too_large');
-    if (countOutbox.get().count >= maxRecords * 2) throw fault(503, 'lifecycle_outbox_capacity_reached');
-    insertOutbox.run(`${kind.toLowerCase()}:${requestId}`, requestId, recipient, kind, body, new Date().toISOString());
+    if (countOutbox.get().count >= maxRecords * 8) throw fault(503, 'lifecycle_outbox_capacity_reached');
+    const eventId = kind === 'PARTIAL'
+      ? `partial:${requestId}:${event.sequence}`
+      : `${kind.toLowerCase()}:${requestId}`;
+    insertOutbox.run(eventId, requestId, recipient, kind, body, new Date().toISOString());
   }
 
   function transaction(operation) {
@@ -196,7 +221,7 @@ CREATE TABLE IF NOT EXISTS provider_effects (
         return { changed: true, row: oneNeed.get(id) };
       });
     },
-    acceptPartial({ id, provider, sequence, digest }) {
+    acceptPartial({ id, provider, sequence, digest, delivery = null }) {
       if (!Number.isSafeInteger(sequence) || sequence < 0) throw fault(400, 'invalid_partial_sequence');
       return transaction(() => {
         const row = oneNeed.get(id);
@@ -206,12 +231,20 @@ CREATE TABLE IF NOT EXISTS provider_effects (
         if (sequence === row.partial_sequence - 1 && digest === row.partial_digest) return { idempotent: true };
         if (sequence !== row.partial_sequence) throw fault(409, 'partial_sequence_mismatch');
         if (updatePartial.run(sequence + 1, digest, id, sequence).changes !== 1) throw fault(409, 'partial_sequence_mismatch');
+        if (delivery != null) {
+          if (delivery.event?.sequence !== sequence || delivery.event?.requestId !== id) throw fault(400, 'invalid_partial_delivery');
+          persistOutbox(id, row.requester, 'PARTIAL', delivery);
+        }
         return { idempotent: false, previousDigest: row.partial_digest };
       });
     },
     rollbackPartial({ id, sequence, digest, previousDigest = null }) {
-      // Called only when the event could not be queued or delivered at all.
-      return transaction(() => rollbackPartial.run(sequence, previousDigest, id, sequence + 1, digest).changes === 1);
+      // Rollback is only valid in the legacy non-outbox path. A committed
+      // PARTIAL outbox entry is durable and MUST NOT be rolled back.
+      return transaction(() => {
+        if (oneOutbox.get(`partial:${id}:${sequence}`)) return false;
+        return rollbackPartial.run(sequence, previousDigest, id, sequence + 1, digest).changes === 1;
+      });
     },
     beginEffect({ id, provider, requester, fingerprint }) {
       if (![id, provider, requester, fingerprint].every(x => typeof x === 'string' && x.length > 0)) throw fault(400, 'invalid_effect_intent');

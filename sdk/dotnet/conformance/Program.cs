@@ -49,6 +49,12 @@ if (need.NeedId != receipt.NeedId || need.Requester != requester.NodeId || need.
 await provider.SendResultAsync(need.NeedId, new Dictionary<string, object> { ["ok"] = true, ["language"] = "dotnet" });
 var result = await requester.WaitForResultAsync(receipt.NeedId, TimeSpan.FromSeconds(5));
 if (result.Provider != provider.NodeId) throw new InvalidOperationException("invalid RESULT provider");
+var recovered = await requester.RecoverDurableAsync();
+if (!recovered.Any(x => x.GetProperty("eventId").GetString() == "result:" + receipt.NeedId))
+    throw new InvalidOperationException("durable result missing before ACK");
+await requester.AcknowledgeDurableAsync("result:" + receipt.NeedId);
+if ((await requester.RecoverDurableAsync()).Any(x => x.GetProperty("eventId").GetString() == "result:" + receipt.NeedId))
+    throw new InvalidOperationException("ACKed signed result replayed");
 var cancelReceipt = await requester.NeedAsync(capability, new Dictionary<string, object> { ["cancel"] = true });
 await requester.CancelNeedAsync(cancelReceipt.NeedId, "sdk_conformance_cancel");
 Console.WriteLine("PASS dotnet developer-release conformance");

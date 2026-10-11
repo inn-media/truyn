@@ -14,6 +14,17 @@ class HttpResponse:
     body: bytes
 
 Transport = Callable[[str, str, Mapping[str, str]], HttpResponse]
+MutationTransport = Callable[[str, str, Mapping[str, str], bytes], HttpResponse]
+
+def _default_mutation_transport(method: str, url: str, headers: Mapping[str, str], body: bytes) -> HttpResponse:
+    request = Request(url, method=method, headers=dict(headers), data=body)
+    try:
+        with urlopen(request, timeout=30) as response:
+            return HttpResponse(int(response.status), response.read())
+    except HTTPError as error:
+        return HttpResponse(int(error.code), error.read())
+    except (URLError, OSError) as error:
+        raise TruynError(normalize_error(client_kind='transport', message=str(error))) from error
 
 def _default_transport(method: str, url: str, headers: Mapping[str, str]) -> HttpResponse:
     request = Request(url, method=method, headers=dict(headers))
@@ -61,12 +72,13 @@ def _valid_offer(value):
             and _plain(value['payload'].get('metadata')))
 
 class TruynClient:
-    def __init__(self, relay_url: str, *, session_token: str | None = None, transport: Transport | None = None):
+    def __init__(self, relay_url: str, *, session_token: str | None = None, transport: Transport | None = None, mutation_transport: MutationTransport | None = None):
         if not _nonempty(relay_url):
             raise TruynError({'code': 'invalid_argument', 'message': 'relayUrl is required', 'retryable': False})
         self.relay_url = _absolute_http_url(relay_url, 'relayUrl')
         self.session_token = session_token
         self._transport = transport or _default_transport
+        self._mutation_transport = mutation_transport or _default_mutation_transport
 
     def set_session_token(self, session_token: str | None):
         if session_token is not None and not _nonempty(session_token):
@@ -92,6 +104,33 @@ class TruynClient:
             safe_message = error_value.get('message') if _plain(error_value) and _nonempty(error_value.get('message')) else None
             raise TruynError(normalize_error(http_status=response.status, relay_code=relay_code,
                                              message=safe_message[:256] if safe_message else relay_code or f'HTTP {response.status}'))
+        return body
+
+    # Reading does not acknowledge. Verify signed payload and persist locally
+    # before ACK; compact PARTIAL requires compact frame signature checking.
+    def recover_durable(self, limit: int = 32):
+        if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1 or limit > 100:
+            raise TruynError({'code':'invalid_argument','message':'limit must be 1..100','retryable':False})
+        response = self._request_json(f'/v1/lifecycle/deliveries?limit={limit}')
+        if not isinstance(response.get('deliveries'), list):
+            raise TruynError(normalize_error(client_kind='invalid_response', message='Missing durable deliveries'))
+        return response['deliveries']
+
+    def acknowledge_durable(self, event_id: str):
+        if not _nonempty(event_id):
+            raise TruynError({'code':'invalid_argument','message':'eventId required','retryable':False})
+        data = json.dumps({'eventId':event_id},separators=(',',':')).encode('utf-8')
+        headers = {'accept':'application/json','content-type':'application/json','authorization':self._authorization()}
+        try:
+            response = self._mutation_transport('POST',self.relay_url+'/v1/lifecycle/deliveries/ack',headers,data)
+        except TruynError:
+            raise
+        except Exception as error:
+            raise TruynError(normalize_error(client_kind='transport',message=str(error))) from error
+        body = _decode_json(response,'Relay')
+        if not 200 <= response.status < 300:
+            relay_code = body.get('error')
+            raise TruynError(normalize_error(http_status=response.status,relay_code=relay_code if _nonempty(relay_code) else None,message=relay_code or f'HTTP {response.status}'))
         return body
 
     def get_identity(self, node_id: str):

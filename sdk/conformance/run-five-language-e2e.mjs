@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { delimiter, dirname, resolve } from 'node:path';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { createSqliteLifecycleLedger } from '../../network/relay/durable-lifecycle-ledger.js';
+import { delimiter, dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createIdentity, signValue } from '../../core/identity/index.js';
 import { createRelay } from '../../network/relay/server.js';
@@ -63,7 +66,9 @@ async function descriptorFixture() {
   };
 }
 
-const relay = createRelay({ localDevelopmentMode: true });
+const ledgerDir = mkdtempSync(join(tmpdir(), 'truyn-sdk-g5-'));
+const lifecycleLedger = createSqliteLifecycleLedger({ filePath: join(ledgerDir,'lifecycle.sqlite') });
+const relay = createRelay({ localDevelopmentMode: true, lifecycleLedger });
 const relayUrl = await relay.listen({ port: 0 });
 const fixture = await descriptorFixture();
 const descriptorEnv = {
@@ -91,4 +96,6 @@ try {
 } finally {
   await fixture.close();
   await relay.close();
+  lifecycleLedger.close();
+  rmSync(ledgerDir,{recursive:true,force:true});
 }
