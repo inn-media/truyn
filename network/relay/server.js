@@ -486,12 +486,12 @@ export function createRelay({
     return null;
   }
 
-  function admitDirectNeedId({ id, requester, provider, fingerprint, capability, mode }) {
+  function admitDirectNeedId({ id, requester, provider, fingerprint, capability, mode, delivery = null }) {
     if (requests.has(id) || seenNeedIds.has(id) || lifecycleLedger?.getNeed(id)) throw httpError(409, 'duplicate_request');
     if (seenNeedIds.size >= maxSeenNeedIds) throw httpError(503, 'need_idempotency_capacity_reached');
     // SQLite reserveNeed is a cross-process atomic INSERT under BEGIN IMMEDIATE.
     // No provider event may be delivered before this succeeds.
-    lifecycleLedger?.reserveNeed({ id, requester, provider, fingerprint, capability, mode });
+    lifecycleLedger?.reserveNeed({ id, requester, provider, fingerprint, capability, mode, delivery });
     seenNeedIds.add(id);
   }
 
@@ -504,9 +504,9 @@ export function createRelay({
     if (map.size >= maxSize) throw httpError(503, 'relay_capacity_reached');
   }
 
-  function completeRequest(request, providerNodeId) {
-    // Commit the authoritative terminal state BEFORE in-memory accounting or delivery.
-    lifecycleLedger?.transitionNeed({ id: request.needId, provider: providerNodeId, to: 'completed' });
+  function completeRequest(request, providerNodeId, delivery = null) {
+    // Commit the authoritative terminal state AND signed result outbox atomically, before live delivery.
+    if (request.mode !== 'chain-stage') lifecycleLedger?.transitionNeed({ id: request.needId, provider: providerNodeId, to: 'completed', delivery });
     request.status = 'completed';
     request.completedAt = new Date().toISOString();
     const providerStats = stats.get(providerNodeId) || { successfulTasks: 0, failedTasks: 0 };
@@ -686,8 +686,9 @@ export function createRelay({
       else closeChain(chain, 200, { ok: true, chainId: chain.chainId, results: chain.results, providers: chain.providers, providerTrust: chain.providerTrust });
       return { status: 200, body: { ok: true, requestId: frame.i, chainId: request.chainId } };
     }
-    const trust = completeRequest(request, providerNodeId);
-    const event = { kind: 'RESULT', frame, payload, from: providerNodeId, trust };
+    const durableResult = { kind: 'RESULT', frame, payload, from: providerNodeId };
+    const trust = completeRequest(request, providerNodeId, { recipient: request.requester, kind: 'RESULT', event: durableResult });
+    const event = { ...durableResult, trust };
     releaseFastTerminal(request);
     const synchronousResultDelivered = (request.partialCount || 0) === 0
       && finishResultWaiter(frame.i, 200, { ok: true, result: event });
@@ -930,7 +931,7 @@ export function createRelay({
         if (!reserveFastTerminal(requesterNodeId)) return json(res, 429, { ok: false, error: 'terminal_backpressure' });
         try {
           pruneCompleted(requests, maxRequests);
-          admitDirectNeedId({ id: frame.i, requester: requesterNodeId, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify([frame, payload])).digest('hex'), capability, mode: 'fast' });
+          admitDirectNeedId({ id: frame.i, requester: requesterNodeId, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify([frame, payload])).digest('hex'), capability, mode: 'fast', delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', frame, payload, from: requesterNodeId } } });
         } catch (error) {
           const rollback = { requester: requesterNodeId, terminalReserved: true };
           releaseFastTerminal(rollback);
@@ -1036,11 +1037,33 @@ export function createRelay({
         const match = matchingOffers({ capability, requesterNodeId: envelope.from })[0];
         if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
         pruneCompleted(requests, maxRequests);
-        admitDirectNeedId({ id: envelope.id, requester: envelope.from, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'), capability, mode: 'legacy' });
+        admitDirectNeedId({ id: envelope.id, requester: envelope.from, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'), capability, mode: 'legacy', delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', envelope } } });
         requests.set(envelope.id, { needId: envelope.id, requester: envelope.from, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'legacy' });
         queue(match.envelope.from, { kind: 'NEED', envelope });
         touch(envelope.from);
         return json(res, 200, { ok: true, needId: envelope.id, provider: match.envelope.from, providerTrust: trustFor(match.envelope.from) });
+      }
+
+      // Durable recovery is an explicit opt-in surface. Signed events remain in the
+      // outbox until a recipient-authenticated acknowledgment; reading does not ACK.
+      if (req.method === 'GET' && url.pathname === '/v1/lifecycle/deliveries') {
+        const recipient = authenticatedNodeId(req);
+        if (!recipient) return json(res, 401, { ok: false, error: 'unauthorized' });
+        if (!lifecycleLedger) return json(res, 503, { ok: false, error: 'durable_lifecycle_unavailable' });
+        const limitRaw = url.searchParams.get('limit');
+        const limit = limitRaw == null ? 32 : Number(limitRaw);
+        const deliveries = lifecycleLedger.pendingDeliveries({ recipient, limit });
+        touch(recipient);
+        return json(res, 200, { ok: true, deliveries, ackRequired: true });
+      }
+      if (req.method === 'POST' && url.pathname === '/v1/lifecycle/deliveries/ack') {
+        const recipient = authenticatedNodeId(req);
+        if (!recipient) return json(res, 401, { ok: false, error: 'unauthorized' });
+        if (!lifecycleLedger) return json(res, 503, { ok: false, error: 'durable_lifecycle_unavailable' });
+        const { eventId } = await readJson(req, maxBodyBytes);
+        const result = lifecycleLedger.acknowledgeDelivery({ eventId, recipient });
+        touch(recipient);
+        return json(res, 200, { ok: true, eventId, ...result });
       }
 
       const durableNeedStatus = url.pathname.match(/^\/v1\/lifecycle\/needs\/([^/]+)$/);
@@ -1111,7 +1134,7 @@ export function createRelay({
         if (request.provider !== envelope.from) return json(res, 403, { ok: false, error: 'provider_mismatch' });
         const terminalError = terminalRequestError(request);
         if (terminalError) return json(res, 409, { ok: false, error: terminalError });
-        const trust = completeRequest(request, envelope.from);
+        const trust = completeRequest(request, envelope.from, { recipient: request.requester, kind: 'RESULT', event: { kind: 'RESULT', envelope } });
         const acceptedResult = { envelope, trust };
         request.result = acceptedResult;
         queue(request.requester, { kind: 'RESULT', ...acceptedResult });
@@ -1142,7 +1165,7 @@ export function createRelay({
             const durable = lifecycleLedger?.getNeed(targetId);
             if (!durable) return json(res, 404, { ok: false, error: 'target_not_found' });
             if (durable.requester !== envelope.from) return json(res, 403, { ok: false, error: 'not_request_owner' });
-            const outcome = lifecycleLedger.transitionNeed({ id: targetId, requester: envelope.from, to: 'cancelled' });
+            const outcome = lifecycleLedger.transitionNeed({ id: targetId, requester: envelope.from, to: 'cancelled', delivery: { recipient: durable.provider, kind: 'REVOKE', event: { kind: 'REVOKE', targetKind: 'need', targetId, envelope, from: envelope.from } } });
             return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: !outcome.changed, provider: durable.provider, deliveryPending: true });
           }
           expireFastRequest(request);
@@ -1158,7 +1181,7 @@ export function createRelay({
             return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: true, redelivered: true, provider: request.provider, cancelledAt: request.cancelledAt });
           }
 
-          const persistedCancellation = lifecycleLedger?.transitionNeed({ id: targetId, requester: envelope.from, to: 'cancelled' });
+          const persistedCancellation = lifecycleLedger?.transitionNeed({ id: targetId, requester: envelope.from, to: 'cancelled', delivery: { recipient: request.provider, kind: 'REVOKE', event: cancellationEvent } });
           request.status = 'cancelled';
           request.cancelled = true;
           request.cancelledAt = new Date().toISOString();
