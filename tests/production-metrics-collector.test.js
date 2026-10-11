@@ -87,7 +87,7 @@ test('Sprint 7 acceptance requires all four relay metric families in the backend
   assert.ok(!collectorBicep.includes("var collectorConfig = '''"));
   assert.ok(!collectorBicep.includes("var acceptanceScript = '''"));
   for (const marker of ['backendWriteUrl', 'backendQueryUrl', 'deploymentId', 'regionIdentity']) {
-    assert.ok(collectorBicep.includes(' + marker + '), marker);
+    assert.ok(collectorBicep.includes(String.fromCharCode(36) + '{' + marker + '}'), marker);
   }
   for (const stage of [
     'loopback_wait', 'loopback_ready', 'local_families_ready',
@@ -110,8 +110,8 @@ test('Sprint 8 collection layer adds bounded production identity labels and reje
   });
   assert.deepEqual(contract.forbiddenMetricLabels, ['requestId', 'providerId', 'nodeId']);
 
-  const configStart = collectorBicep.indexOf("var collectorConfig = '''");
-  const configEnd = collectorBicep.indexOf("var acceptanceScript = '''", configStart);
+  const configStart = collectorBicep.indexOf("var collectorConfigTemplate = '''");
+  const configEnd = collectorBicep.indexOf("var collectorConfig = replace(", configStart);
   assert.ok(configStart >= 0 && configEnd > configStart, 'collector config block is missing');
   const collectorConfig = collectorBicep.slice(configStart, configEnd);
 
