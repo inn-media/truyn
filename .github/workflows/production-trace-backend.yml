@@ -241,6 +241,31 @@ jobs:
           set -euo pipefail
           az acr build --registry "$TRACE_REGISTRY" --image "truyn-runtime:${GITHUB_SHA}" --file Dockerfile . --only-show-errors -o none
 
+      - name: Recheck private ACA readiness before Tempo and trace canary provisioning
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ready=false
+          for attempt in $(seq 1 12); do
+            arm="$(az resource show --ids "$ACA_ENVIRONMENT_ID" --api-version 2025-07-01 --only-show-errors -o json 2>/dev/null || echo '{}')"
+            cli="$(az containerapp env show --resource-group "$RESOURCE_GROUP" --name "$ACA_ENVIRONMENT" --only-show-errors -o json 2>/dev/null || echo '{}')"
+            if jq -e '
+              (.properties.provisioningState // "") == "Succeeded" and
+              (.properties.vnetConfiguration.internal // false) == true and
+              ((.properties.publicNetworkAccess // "") | ascii_downcase) == "disabled"
+            ' <<<"$arm" >/dev/null &&
+            jq -e '(.properties.provisioningState // "") == "Succeeded"' <<<"$cli" >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$ready" == true ]] || {
+            echo '::error::TRUYN_ACA_TRACE_ADMISSION=BLOCKED; refuse Tempo deployment into an unprovisioned/unknown Container Apps environment.'
+            exit 1
+          }
+          echo 'TRUYN_ACA_TRACE_ADMISSION=PASS control_planes=2 public_ingress=disabled mutations=0'
+
       - name: Provision private OTLP trace storage and runtime export canary
         shell: bash
         run: |
