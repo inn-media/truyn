@@ -17,11 +17,11 @@ for (const key of ['release', 'typescript', 'python', 'goTag']) {
 }
 const escaped = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const required = {
-  typescript: new RegExp(`/truyn-sdk-${escaped(manifest.typescript)}\\.tgz$`),
-  python: /\\.whl$/,
-  go: /\\.tar\\.gz$/,
-  java: new RegExp(`/truyn-sdk-${escaped(manifest.release)}\\.jar$`),
-  dotnet: /\\.nupkg$/
+  typescript: new RegExp('/truyn-sdk-' + escaped(manifest.typescript) + '\\.tgz$'),
+  python: /[.]whl$/,
+  go: /[.]tar[.]gz$/,
+  java: new RegExp('/truyn-sdk-' + escaped(manifest.release) + '\\.jar$'),
+  dotnet: /[.]nupkg$/
 };
 for (const [language, pattern] of Object.entries(required)) {
   if (!manifest.artifacts.some((artifact) => artifact.path.startsWith(`${language}/`) && pattern.test(artifact.path))) {
