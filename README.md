@@ -12,7 +12,7 @@ Website: https://truyn.org/
 
 ## Current factual status
 
-**Snapshot:** 2026-10-10 (H-Series 4/4 closure reconciliation)  
+**Snapshot:** 2026-10-11 (D-5000 accepted; H-Series 4/4 closed; Production SLO not proven)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft (expanded A–I CORE registry on `main`, stable wire release/Mainnet not declared)  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`  
@@ -27,7 +27,7 @@ Website: https://truyn.org/
 | Class D-1000 | **Accepted / PASS; 20 hosts / 1,000 real processes** |
 | Semantic Scale S-Series | **S-10 + S-20 + S-50 + S-100 accepted / PASS; S-200+ remain OPEN** |
 | A-Series Assurance | **Public foundation merged / real A-SOAK Attempt 1 not launched** |
-| D-5000 | **NOT ACCEPTED** as of this reconciliation; Attempts 7–8 have newer launch/repair history; no final accepted D-5000 evidence verified |
+| D-5000 | **ACCEPTED / CLOSED / DOUBLE-CHECK VERIFIED**; 20 hosts / 5,000 real processes, Attempt 12 immutable requalification, Attempt 13 official terminal PASS, 100/100 retention, 0 loss |
 | Efficiency E-Series | **Active qualification; no final E PASS claimed** |
 | Hidden-value H-Series | **4/4 PASS/CLOSED — CACHE-COMPOUND, SECOND-OPINION, ARBITRAGE, CHAOS-FUZZ** |
 | Account → Organization → Tenant | **Implemented / accepted; managed implementation owned by TRUYN Platform** |
@@ -139,7 +139,7 @@ Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`,
 
 **Scope boundary:** this demonstrates repeatability of the specified 1,000-process Class-D scale acceptance. It does not establish long-duration production SLO compliance, private managed-production acceptance, or mainnet readiness. Public repository remains the authoritative source of benchmark/evaluator/evidence; private repository consumes only immutable identifiers and sanitized public metrics.
 
-**D-5000 current update (2026-10-10):** Attempts 7 and 8 have newer public launch/repair lineage (PRs #950–#954); no accepted D-5000 final result is verified. Earlier Attempt 3 status is historical. Do not treat the dated preparation passage below as current status or any offline pass as final D-5000 acceptance.
+**D-5000 current acceptance (2026-10-11):** **ACCEPTED / CLOSED / DOUBLE-CHECK VERIFIED**. Attempt 12 measured 15/15 stages PASS and passed immutable replay [38129035985](https://github.com/inn-media/truyn/actions/runs/38129035985), while its historical GitHub workflow failure remains unchanged. Independent Attempt 13 [38130631096](https://github.com/inn-media/truyn/actions/runs/38130631096) is official GREEN: 20 hosts, 5,000 real processes, 100/100 retained acknowledged writes, zero loss and full cleanup. [Canonical evidence](docs/benchmarks/CLASS_D_5000_2026-10-11.md). Historical Attempt 1 preparation below remains preserved, not a current blocker. H-Series is separately 4/4 PASS/CLOSED. Neither is 28-day Production SLO proof.
 
 ## Historical D-5000 Attempt 1 preparation snapshot (2026-10-08; superseded)
 

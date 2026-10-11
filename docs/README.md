@@ -47,7 +47,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - D-Series execution architecture — **Swarm diagnostics/repair → full B01–B16 exact-SHA admission → live/collision gates → exactly one real scale run**; durable lock tracked in issue #737.
 - Semantic Scale S-Series — **S-10 + S-20 + S-50 + S-100 ACCEPTED / PASS; S-200+ OPEN**. S-50 Attempt 3 run `37782488279` is the canonical 50-node eight-scenario acceptance; historical failed S-50 attempts remain immutable audit evidence.
 - A-Series — **public foundation merged; real 1h SOAK Attempt 1 NOT LAUNCHED**; see [Assurance contract](assurance/README.md).
-- D-5000 — **not accepted**; PRs #950–#954 document more recent Attempt 7–8 repair/launch lineage, but no accepted terminal measured result is established.
+- D-5000 — **ACCEPTED / CLOSED / DOUBLE-CHECK VERIFIED**: Attempt 12 measured 15/15 stages PASS and passed immutable requalification (historical workflow failure retained); Attempt 13 official GREEN, 20 hosts / 5,000 distinct processes, 100/100 retained writes, 0 loss. [Canonical evidence](benchmarks/CLASS_D_5000_2026-10-11.md).
 - Efficiency E-Series — **ACTIVE QUALIFICATION / NO FINAL E PASS**; qualification/isolation/provider-smoke work does not substitute for final DECOMPOSE/PER-RESULT/KNEE/DEGRADE evidence.
 - Hidden-value H-Series — **4/4 PASS/CLOSED**; see [H-Series status](benchmarks/H_SERIES_STATUS.md), [H/CHAOS-FUZZ final evidence](benchmarks/H_CHAOS_FUZZ_2026-10-10.md), and [H/CACHE-COMPOUND final evidence](benchmarks/H_CACHE_COMPOUND_2026-10-10.md).
 - N-Series emergent network behavior — **N/SOVEREIGNTY-10 qualification GREEN**, using deterministic control-plane fixtures rather than live 50/100-node measurements. Final measured N-series acceptance remains open.
@@ -74,7 +74,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - governance — **G1 / bootstrap Founding Stewardship**.
 - stable mainnet — **not yet**.
 
-Accepted D-200 evidence: [`benchmarks/CLASS_D_200_2026-09-20.md`](benchmarks/CLASS_D_200_2026-09-20.md). Accepted D-500 evidence: [`benchmarks/CLASS_D_500_2026-10-07.md`](benchmarks/CLASS_D_500_2026-10-07.md). Accepted D-1000 evidence: [`benchmarks/CLASS_D_1000_2026-10-08.md`](benchmarks/CLASS_D_1000_2026-10-08.md). Operational scale status: [`operations/NETWORK_SCALE_STATUS.md`](operations/NETWORK_SCALE_STATUS.md).
+Accepted D-200 evidence: [`benchmarks/CLASS_D_200_2026-09-20.md`](benchmarks/CLASS_D_200_2026-09-20.md). Accepted D-500 evidence: [`benchmarks/CLASS_D_500_2026-10-07.md`](benchmarks/CLASS_D_500_2026-10-07.md). Accepted D-1000 evidence: [`benchmarks/CLASS_D_1000_2026-10-08.md`](benchmarks/CLASS_D_1000_2026-10-08.md). Accepted D-5000 evidence: [`benchmarks/CLASS_D_5000_2026-10-11.md`](benchmarks/CLASS_D_5000_2026-10-11.md). Operational scale status: [`operations/NETWORK_SCALE_STATUS.md`](operations/NETWORK_SCALE_STATUS.md).
 
 ## Status vocabulary
 
