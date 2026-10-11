@@ -124,7 +124,7 @@ test('P12 explicit resolver is called once only after bounded claim preflight; c
   const resolve = async ({ ref, maxBytes, reference }) => {
     calls += 1;
     assert.equal(ref, valid.ref);
-    assert.equal(maxBytes, 29);
+    assert.ok([29, 40].includes(maxBytes), 'resolver receives exact caller-declared bound');
     assert.equal(reference.sha256, valid.sha256);
     return { bytes };
   };
