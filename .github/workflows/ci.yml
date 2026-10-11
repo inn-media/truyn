@@ -145,7 +145,8 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          package="$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-0.1.0-alpha.4.tgz"
+          version="$(node -p "require('./sdk/typescript/package.json').version")"
+          package="$GITHUB_WORKSPACE/sdk/release/dist/typescript/truyn-sdk-${version}.tgz"
           test -f "$package"
           cleanroom="$(mktemp -d)"
           cd "$cleanroom"
