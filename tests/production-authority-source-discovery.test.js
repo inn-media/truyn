@@ -108,3 +108,15 @@ test('P13 source discovery test changes require full CI qualification', async ()
   assert.ok(affected.includes('production-authority-source-discovery.test.js'));
   assert.match(affected,/full=true/);
 });
+
+test('Resource Graph unavailable state stays explicit and sanitized', () => {
+  for (const marker of [
+    'graph_queries_attempted=0','graph_queries_succeeded=0',
+    "graph_probe_status='UNAVAILABLE'","graph_probe_status='COMPLETE'",
+    "graph_probe_status='PARTIAL_OR_FAILED'",
+    'graphQueriesAttempted:$graphQueriesAttempted',
+    'graphQueriesSucceeded:$graphQueriesSucceeded',
+    'graphProbeStatus:$graphProbeStatus'
+  ]) assert.ok(workflow.includes(marker), 'missing private-safe probe marker '+marker);
+  assert.doesNotMatch(workflow,/echo "\\$graph"/);
+});
