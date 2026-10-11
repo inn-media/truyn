@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { evaluateAzureClassD5000Evidence } from './class-d-5000-evidence.js';
 
-const mandatoryStages = ['topology','readiness-barrier','convergence','pre-baseline-peer-freshness','baseline','healed-routing','resources','evidence'];
+const mandatoryStages = ['topology','readiness-barrier','convergence','pre-baseline-peer-freshness','baseline-routing','healed-routing','resources','evidence'];
 const fixture = (count, perHost) => ({
   class: 'D-5000',
   scope: '5000-real-process-scale+safety-contract-v2',
@@ -105,3 +105,8 @@ try {
   rmSync(tempDir, {recursive:true, force:true});
 }
 console.log('TRUYN_D5000_EVALUATOR_REGRESSION=PASS accepted_5000=true rejected_1000=true safety=true readiness=true full_stage_evidence=true source_contract=true source_identity=true');
+
+// The production stage producer emits baseline-routing, never plain baseline.
+const incorrectBaselineLabel = fixture(5000, 250);
+incorrectBaselineLabel.stageResults.stages.find((stage) => stage.stage === 'baseline-routing').stage = 'baseline';
+assert.equal(evaluateAzureClassD5000Evidence(incorrectBaselineLabel).checks.allMandatoryStagesPass, false);
