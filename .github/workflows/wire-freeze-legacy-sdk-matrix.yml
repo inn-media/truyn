@@ -28,6 +28,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Install immutable published npm alpha in separate clean-room
         run: |
@@ -56,6 +60,18 @@ jobs:
             go build -o "/tmp/truyn-wire-$version-go" main.go
             cd "$GITHUB_WORKSPACE"
           done
+      - name: Build Java mixed-version roles against immutable Maven Central artifact
+        run: |
+          set -Eeuo pipefail
+          mvn -q dependency:get -Dartifact=org.truyn:truyn-sdk:0.1.0-alpha.1 -Dtransitive=false
+          mvn -q -f sdk/java/pom.xml -DskipTests package
+          legacyJar="$HOME/.m2/repository/org/truyn/truyn-sdk/0.1.0-alpha.1/truyn-sdk-0.1.0-alpha.1.jar"
+          test -f "$legacyJar"
+          mkdir -p /tmp/truyn-wire-legacy-java /tmp/truyn-wire-candidate-java
+          javac -cp "$legacyJar" -d /tmp/truyn-wire-legacy-java sdk/conformance/legacy-peer/LegacyPeerRole.java
+          javac -cp sdk/java/target/classes -d /tmp/truyn-wire-candidate-java sdk/conformance/legacy-peer/LegacyPeerRole.java
+          echo "TRUYN_LEGACY_JAVA_CP=/tmp/truyn-wire-legacy-java:$legacyJar" >> "$GITHUB_ENV"
+          echo "TRUYN_CANDIDATE_JAVA_CP=/tmp/truyn-wire-candidate-java:$GITHUB_WORKSPACE/sdk/java/target/classes" >> "$GITHUB_ENV"
       - name: Four-way relay peers using actual published SDK packages
         env:
           TRUYN_LEGACY_NPM_ROOT: /tmp/truyn-wire-legacy-npm
