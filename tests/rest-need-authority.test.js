@@ -75,7 +75,7 @@ test('REST NEED fails closed before canonical node execution when registration i
   });
 
   assert.equal(response.status, 403);
-  assertNormalizedError(await response.json(), 'authorization_denied', 'request is not authorized');
+  assertNormalizedError(await response.json(), 'permission_denied', 'request is not authorized');
   assert.equal(needCalls, 0, 'denied registration must prevent NEED execution');
 });
 
@@ -100,6 +100,6 @@ test('REST NEED rejects missing capability before canonical node execution', asy
   });
 
   assert.equal(response.status, 400);
-  assertNormalizedError(await response.json(), 'invalid_request', 'capability is required');
+  assertNormalizedError(await response.json(), 'invalid_argument', 'capability is required');
   assert.equal(needCalls, 0);
 });

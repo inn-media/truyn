@@ -15,13 +15,32 @@ export interface ErrorNormalizationInput {
 }
 
 const relayMappings: Record<string, { code: NormalizedErrorCode; retryable: boolean }> = {
+  unauthenticated: { code: 'unauthenticated', retryable: false },
+  permission_denied: { code: 'permission_denied', retryable: false },
+  invalid_argument: { code: 'invalid_argument', retryable: false },
+  unimplemented: { code: 'unimplemented', retryable: false },
+  not_found: { code: 'not_found', retryable: false },
+  conflict: { code: 'conflict', retryable: false },
+  resource_exhausted: { code: 'resource_exhausted', retryable: false },
+  deadline_exceeded: { code: 'deadline_exceeded', retryable: false },
+  cancelled: { code: 'cancelled', retryable: false },
+  transport_error: { code: 'transport_error', retryable: false },
+  invalid_response: { code: 'invalid_response', retryable: false },
   unauthorized: { code: 'unauthenticated', retryable: false },
+  invalid_request: { code: 'invalid_argument', retryable: false },
+  authorization_denied: { code: 'permission_denied', retryable: false },
+  payload_too_large: { code: 'resource_exhausted', retryable: false },
+  validation_error: { code: 'invalid_argument', retryable: false },
+  version_mismatch: { code: 'version_mismatch', retryable: false },
   provider_access_denied: { code: 'permission_denied', retryable: false },
   no_matching_provider: { code: 'not_found', retryable: false },
   duplicate_request: { code: 'conflict', retryable: false },
   offer_capacity_reached: { code: 'resource_exhausted', retryable: true },
+  node_capacity_reached: { code: 'resource_exhausted', retryable: true },
+  cancellation_backpressure: { code: 'resource_exhausted', retryable: true },
+  partial_backpressure: { code: 'resource_exhausted', retryable: true },
   result_wait_timeout: { code: 'deadline_exceeded', retryable: true },
-  invalid_capability: { code: 'validation_error', retryable: false },
+  invalid_capability: { code: 'invalid_argument', retryable: false },
   internal_error: { code: 'internal_error', retryable: true }
 };
 
@@ -32,8 +51,9 @@ function fallbackHttpMapping(status?: number): { code: NormalizedErrorCode; retr
   if (status === 408 || status === 504) return { code: 'deadline_exceeded', retryable: true };
   if (status === 409) return { code: 'conflict', retryable: false };
   if (status === 429) return { code: 'resource_exhausted', retryable: true };
+  if (status === 413) return { code: 'resource_exhausted', retryable: false };
   if (status !== undefined && status >= 500) return { code: 'internal_error', retryable: true };
-  if (status !== undefined && status >= 400) return { code: 'validation_error', retryable: false };
+  if (status !== undefined && status >= 400) return { code: 'invalid_argument', retryable: false };
   return { code: 'invalid_response', retryable: false };
 }
 
@@ -48,7 +68,7 @@ function sourceDetails(input: ErrorNormalizationInput): NormalizedErrorSource | 
 export function normalizeError(input: ErrorNormalizationInput): NormalizedError {
   let mapping: { code: NormalizedErrorCode; retryable: boolean };
 
-  if (input.protocolReason === 'unsupported_protocol') {
+  if (['unsupported_protocol', 'no_protocol_overlap', 'required_semantic_unavailable'].includes(input.protocolReason || '')) {
     mapping = { code: 'version_mismatch', retryable: false };
   } else if (input.clientKind === 'transport') {
     mapping = { code: 'transport_error', retryable: true };

@@ -40,7 +40,7 @@ test('S44 normalizes v1 validation errors and preserves a safe caller correlatio
       body: '{}'
     });
     assert.equal(response.status, 400);
-    assertNormalized(await response.json(), 'invalid_request', 'capability is required', 's44-validation');
+    assertNormalized(await response.json(), 'invalid_argument', 'capability is required', 's44-validation');
   });
 });
 
@@ -52,7 +52,7 @@ test('S44 rejects malformed JSON without reflecting parser details', async () =>
       body: '{broken'
     });
     assert.equal(response.status, 400);
-    assertNormalized(await response.json(), 'invalid_request', 'request body is not valid JSON', 's44-json');
+    assertNormalized(await response.json(), 'invalid_argument', 'request body is not valid JSON', 's44-json');
   });
 });
 
@@ -64,7 +64,7 @@ test('S44 maps authorization failures to a stable public code without leaking in
     assert.equal(response.status, 403);
     const text = await response.text();
     assert.equal(text.includes(secret), false);
-    assertNormalized(JSON.parse(text), 'authorization_denied', 'request is not authorized', 's44-auth');
+    assertNormalized(JSON.parse(text), 'permission_denied', 'request is not authorized', 's44-auth');
   });
 });
 
@@ -91,4 +91,36 @@ test('S44 normalizes unknown v1 routes while preserving legacy non-v1 compatibil
     assert.equal(legacy.status, 404);
     assert.deepEqual(await legacy.json(), { ok: false, error: 'not_found' });
   });
+});
+
+test('REST capacity errors use canonical resource_exhausted rather than generic internal_error', async () => {
+  const capacity = Object.assign(new Error('offer_capacity_reached'), { status: 503 });
+  await withServer(nodeFixture({ async offer() { throw capacity; } }), async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/v1/offer`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"capability":"test"}' });
+    assert.equal(res.status, 503);
+    assert.equal((await res.json()).error.code, 'resource_exhausted');
+  });
+  const backpressure = Object.assign(new Error('cancellation_backpressure'), { status: 429 });
+  await withServer(nodeFixture({ async revoke() { throw backpressure; } }), async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/v1/needs/request-1`, { method: 'DELETE' });
+    assert.equal(res.status, 429);
+    assert.equal((await res.json()).error.code, 'resource_exhausted');
+  });
+});
+
+test('REST maps registration generation mismatch before generic HTTP 409 conflict', async () => {
+  let called = 0;
+  const rejected = Object.assign(new Error('version_mismatch'), { status: 409 });
+  await withServer(nodeFixture({
+    async register() { throw rejected; },
+    async offer() { called += 1; return { ok: true }; }
+  }), async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/offer`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: '{"capability":"test"}'
+    });
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).error.code, 'version_mismatch');
+  });
+  assert.equal(called, 0);
 });

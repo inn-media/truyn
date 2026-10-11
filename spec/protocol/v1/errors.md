@@ -17,8 +17,12 @@ This registry defines the stable public error classes used by first-party SDKs a
 | `cancelled` | The requester-owned operation reached the accepted cancellation state. | no unless a new logical operation is created |
 | `transport_error` | The protocol operation could not be completed because the transport/session failed before an authoritative application result was accepted. | yes when exactly-once/idempotency rules permit |
 | `invalid_response` | A peer/provider response violates the accepted protocol/profile contract, signature/integrity rules, or required response shape. | no by default |
+| `not_found` | The addressed public resource or authorized target does not exist. | no |
+| `conflict` | The request conflicts with accepted lifecycle or idempotency state. | no; reconcile authoritative state first |
+| `resource_exhausted` | A bounded capacity, quota or request-size limit is exceeded. | only when the controlling limit permits |
+| `internal_error` | A bounded internal failure; diagnostics must not reveal implementation or private topology. | no by default |
 
-These wire values are lowercase ASCII tokens and MUST NOT be repurposed to mean a different failure class within TRUYN/1.
+These public error identifiers are lowercase ASCII tokens and MUST NOT be repurposed to mean a different failure class within TRUYN/1. The four additional compatibility-profile codes document values already emitted by existing HTTP/SDK implementations; this change does not admit new signed envelope types, wire fields or protocol generations. Legacy `invalid_request`, `payload_too_large`, `authorization_denied` and SDK-local `validation_error` are input/source aliases only: new public responses MUST use `invalid_argument`, `resource_exhausted`, `permission_denied` and `invalid_argument`, respectively. Native A2A/MCP JSON-RPC numeric error codes remain unchanged; their TRUYN classification is preserved as separately namespaced metadata.
 
 ## Normalization rules
 

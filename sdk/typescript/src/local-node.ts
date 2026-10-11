@@ -111,7 +111,7 @@ export class TruynLocalNodeClient {
   constructor(runtime: any) {
     if (!runtime || typeof runtime.need !== 'function' || typeof runtime.poll !== 'function') {
       throw new TruynError({
-        code: 'validation_error',
+        code: 'invalid_argument',
         message: 'A compatible local TruynNode runtime is required',
         retryable: false
       });
@@ -122,7 +122,7 @@ export class TruynLocalNodeClient {
   static async connect(options: LocalNodeConnectOptions): Promise<TruynLocalNodeClient> {
     if (!options || !nonEmptyString(options.relayUrl)) {
       throw new TruynError({
-        code: 'validation_error',
+        code: 'invalid_argument',
         message: 'relayUrl is required',
         retryable: false
       });
@@ -152,7 +152,7 @@ export class TruynLocalNodeClient {
 
   async offer(capabilityId: string, metadata: Record<string, unknown> = {}): Promise<unknown> {
     if (!nonEmptyString(capabilityId)) {
-      throw new TruynError({ code: 'validation_error', message: 'capabilityId is required', retryable: false });
+      throw new TruynError({ code: 'invalid_argument', message: 'capabilityId is required', retryable: false });
     }
     try {
       return await this.runtime.offer(capabilityId, metadata);
@@ -167,7 +167,7 @@ export class TruynLocalNodeClient {
     policy: Record<string, unknown> = {}
   ): Promise<LocalNeedReceipt> {
     if (!nonEmptyString(capabilityId)) {
-      throw new TruynError({ code: 'validation_error', message: 'capabilityId is required', retryable: false });
+      throw new TruynError({ code: 'invalid_argument', message: 'capabilityId is required', retryable: false });
     }
     try {
       const receipt = await this.runtime.need(capabilityId, input, policy);
@@ -189,7 +189,7 @@ export class TruynLocalNodeClient {
     metadata: Record<string, unknown> = {}
   ): Promise<unknown> {
     if (!nonEmptyString(requestId)) {
-      throw new TruynError({ code: 'validation_error', message: 'requestId is required', retryable: false });
+      throw new TruynError({ code: 'invalid_argument', message: 'requestId is required', retryable: false });
     }
     try {
       return await this.runtime.result(requestId, output, metadata);
@@ -350,7 +350,7 @@ export class TruynLocalNodeClient {
 
   async waitForResult(needId: string, options: LocalNodeWaitOptions = {}): Promise<LocalResultEvent> {
     if (!nonEmptyString(needId)) {
-      throw new TruynError({ code: 'validation_error', message: 'needId is required', retryable: false });
+      throw new TruynError({ code: 'invalid_argument', message: 'needId is required', retryable: false });
     }
     const event = await this.waitForEvent(
       (candidate) => candidate?.kind === 'RESULT' && candidate?.envelope?.payload?.requestId === needId,

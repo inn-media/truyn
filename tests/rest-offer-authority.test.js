@@ -76,7 +76,7 @@ test('REST OFFER fails closed before node.offer when canonical registration is d
       body: JSON.stringify({ capability: 'private-capability', owner: 'spoofed-owner' })
     });
     assert.equal(response.status, 403);
-    assertNormalizedError(await response.json(), 'authorization_denied', 'request is not authorized');
+    assertNormalizedError(await response.json(), 'permission_denied', 'request is not authorized');
   });
 
   assert.equal(offerCalls, 0);

@@ -127,7 +127,7 @@
       "expect": {
         "accepted": false,
         "reason": "descriptor_expired",
-        "error": { "code": "validation_error", "retryable": false }
+        "error": { "code": "invalid_argument", "retryable": false }
       }
     },
     {
@@ -187,7 +187,7 @@
       "expect": {
         "accepted": false,
         "reason": "invalid_descriptor_json",
-        "error": { "code": "validation_error", "retryable": false }
+        "error": { "code": "invalid_argument", "retryable": false }
       }
     }
   ]

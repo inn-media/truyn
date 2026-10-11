@@ -127,7 +127,7 @@ test('invalid signature encoding is rejected before cryptographic verification',
   const actual = parseAgentDescriptor(descriptor, { now: entry.now });
   assert.equal(actual.ok, false);
   assert.equal(actual.reason, 'invalid_descriptor_signature_encoding');
-  assert.equal(actual.error.code, 'validation_error');
+  assert.equal(actual.error.code, 'invalid_argument');
 });
 
 test('descriptor verification never trusts a key embedded by descriptor content', () => {

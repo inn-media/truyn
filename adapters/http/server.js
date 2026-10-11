@@ -47,15 +47,20 @@ function normalizedError(status, code, message, requestCorrelationId) {
 }
 
 function errorCodeFor(status, message) {
-  if (message === 'invalid_json') return ['invalid_request', 'request body is not valid JSON'];
-  if (message === 'request_too_large') return ['payload_too_large', 'request body exceeds the allowed size'];
-  if (message === 'capability_required') return ['invalid_request', 'capability is required'];
-  if (message === 'requestId_required') return ['invalid_request', 'requestId is required'];
-  if (status === 401 || status === 403) return ['authorization_denied', 'request is not authorized'];
+  if (message === 'invalid_json') return ['invalid_argument', 'request body is not valid JSON'];
+  if (message === 'request_too_large') return ['resource_exhausted', 'request body exceeds the allowed size'];
+  if (message === 'capability_required') return ['invalid_argument', 'capability is required'];
+  if (message === 'requestId_required') return ['invalid_argument', 'requestId is required'];
+  if (message === 'version_mismatch') return ['version_mismatch', 'TRUYN protocol version is incompatible'];
+  if (status === 429 || ['offer_capacity_reached', 'node_capacity_reached', 'cancellation_backpressure', 'partial_backpressure'].includes(message)) {
+    return ['resource_exhausted', 'TRUYN capacity limit reached'];
+  }
+  if (status === 401) return ['unauthenticated', 'request is not authenticated'];
+  if (status === 403) return ['permission_denied', 'request is not authorized'];
   if (status === 404) return ['not_found', 'requested resource was not found'];
   if (status === 409) return ['conflict', 'request conflicts with current TRUYN state'];
-  if (status === 413) return ['payload_too_large', 'request body exceeds the allowed size'];
-  if (status >= 400 && status < 500) return ['invalid_request', 'request could not be accepted'];
+  if (status === 413) return ['resource_exhausted', 'request body exceeds the allowed size'];
+  if (status >= 400 && status < 500) return ['invalid_argument', 'request could not be accepted'];
   return ['internal_error', 'TRUYN could not complete the request'];
 }
 

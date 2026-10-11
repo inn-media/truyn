@@ -178,6 +178,25 @@ test('relay and transport failures surface as shared TruynError taxonomy', async
   );
 });
 
+test('TypeScript SDK accepts the canonical REST error object and classifies bounded 413 without retry', async () => {
+  const denied = new TruynClient({
+    relayUrl: 'https://relay.example', sessionToken: 'test',
+    fetch: async () => jsonResponse({ ok: false, error: { code: 'permission_denied', message: 'not authorized' }, correlationId: 'test-1' }, 403)
+  });
+  await assert.rejects(
+    () => denied.discover('private.capability'),
+    (error: unknown) => error instanceof TruynError && error.code === 'permission_denied' && error.retryable === false
+  );
+  const full = new TruynClient({
+    relayUrl: 'https://relay.example', sessionToken: 'test',
+    fetch: async () => jsonResponse({ ok: false, error: { code: 'resource_exhausted', message: 'request too large' } }, 413)
+  });
+  await assert.rejects(
+    () => full.discover('private.capability'),
+    (error: unknown) => error instanceof TruynError && error.code === 'resource_exhausted' && error.retryable === false
+  );
+});
+
 test('managed auth/device contract is versioned and limited to four released client platforms', () => {
   assert.equal(TRUYN_MANAGED_AUTH_DEVICE_CONTRACT_VERSION, 'truyn.managed-auth-device/v1');
   assert.deepEqual(TRUYN_MANAGED_CLIENT_PLATFORMS, ['windows', 'macos', 'linux', 'android']);

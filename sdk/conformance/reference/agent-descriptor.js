@@ -39,11 +39,11 @@ function parseInput(input) {
       const value = JSON.parse(text);
       return { ok: true, value };
     } catch {
-      return failure('validation_error', 'invalid_descriptor_json', 'Agent Descriptor is not valid JSON');
+      return failure('invalid_argument', 'invalid_descriptor_json', 'Agent Descriptor is not valid JSON');
     }
   }
   if (isPlainObject(input)) return { ok: true, value: input };
-  return failure('validation_error', 'invalid_descriptor_type', 'Agent Descriptor must be a JSON object or JSON document');
+  return failure('invalid_argument', 'invalid_descriptor_type', 'Agent Descriptor must be a JSON object or JSON document');
 }
 
 function validateInterface(value) {
@@ -102,11 +102,11 @@ export function parseAgentDescriptor(input, {
   const descriptor = parsed.value;
 
   if (!isPlainObject(descriptor)) {
-    return failure('validation_error', 'invalid_descriptor_type', 'Agent Descriptor must be a JSON object');
+    return failure('invalid_argument', 'invalid_descriptor_type', 'Agent Descriptor must be a JSON object');
   }
 
   if (!isNonEmptyString(descriptor.descriptorVersion)) {
-    return failure('validation_error', 'missing_descriptor_version', 'Agent Descriptor descriptorVersion is required');
+    return failure('invalid_argument', 'missing_descriptor_version', 'Agent Descriptor descriptorVersion is required');
   }
   if (!supportedDescriptorVersions.includes(descriptor.descriptorVersion)) {
     return failure(
@@ -125,37 +125,37 @@ export function parseAgentDescriptor(input, {
     );
   }
   if (!isNonEmptyString(descriptor.identity) || !descriptor.identity.startsWith('truyn:node:')) {
-    return failure('validation_error', 'invalid_descriptor_identity', 'Agent Descriptor identity must be a TRUYN node identity');
+    return failure('invalid_argument', 'invalid_descriptor_identity', 'Agent Descriptor identity must be a TRUYN node identity');
   }
   if (!isStringArray(descriptor.protocols, { minItems: 1 })) {
-    return failure('validation_error', 'invalid_descriptor_protocols', 'Agent Descriptor protocols must be a non-empty unique string array');
+    return failure('invalid_argument', 'invalid_descriptor_protocols', 'Agent Descriptor protocols must be a non-empty unique string array');
   }
   if (!Array.isArray(descriptor.interfaces) || descriptor.interfaces.length === 0 || !descriptor.interfaces.every(validateInterface)) {
-    return failure('validation_error', 'invalid_descriptor_interfaces', 'Agent Descriptor interfaces are invalid');
+    return failure('invalid_argument', 'invalid_descriptor_interfaces', 'Agent Descriptor interfaces are invalid');
   }
   if (!Array.isArray(descriptor.capabilities) || !descriptor.capabilities.every(validateCapability)) {
-    return failure('validation_error', 'invalid_descriptor_capabilities', 'Agent Descriptor capabilities are invalid');
+    return failure('invalid_argument', 'invalid_descriptor_capabilities', 'Agent Descriptor capabilities are invalid');
   }
   if (!isNonEmptyString(descriptor.issuedAt) || !Number.isFinite(Date.parse(descriptor.issuedAt))) {
-    return failure('validation_error', 'invalid_descriptor_issued_at', 'Agent Descriptor issuedAt must be a valid date-time');
+    return failure('invalid_argument', 'invalid_descriptor_issued_at', 'Agent Descriptor issuedAt must be a valid date-time');
   }
   if (!isNonEmptyString(descriptor.expiresAt) || !Number.isFinite(Date.parse(descriptor.expiresAt))) {
-    return failure('validation_error', 'invalid_descriptor_expires_at', 'Agent Descriptor expiresAt must be a valid date-time');
+    return failure('invalid_argument', 'invalid_descriptor_expires_at', 'Agent Descriptor expiresAt must be a valid date-time');
   }
 
   const issuedAtMs = Date.parse(descriptor.issuedAt);
   const expiresAtMs = Date.parse(descriptor.expiresAt);
   if (expiresAtMs <= issuedAtMs) {
-    return failure('validation_error', 'invalid_descriptor_time_window', 'Agent Descriptor expiresAt must be after issuedAt');
+    return failure('invalid_argument', 'invalid_descriptor_time_window', 'Agent Descriptor expiresAt must be after issuedAt');
   }
 
   const nowMs = normalizeNow(now);
   if (!Number.isFinite(nowMs)) {
-    return failure('validation_error', 'invalid_validation_time', 'Descriptor validation time is invalid');
+    return failure('invalid_argument', 'invalid_validation_time', 'Descriptor validation time is invalid');
   }
   if (!allowExpired && expiresAtMs <= nowMs) {
     return failure(
-      'validation_error',
+      'invalid_argument',
       'descriptor_expired',
       'Agent Descriptor has expired',
       { expiresAt: descriptor.expiresAt }
@@ -164,7 +164,7 @@ export function parseAgentDescriptor(input, {
 
   const signatures = descriptorSignatures(descriptor);
   if (signatures.length === 0 || signatures.some((signature) => strictBase64Signature(signature) === null)) {
-    return failure('validation_error', 'invalid_descriptor_signature_encoding', 'Agent Descriptor requires a base64 Ed25519 signature');
+    return failure('invalid_argument', 'invalid_descriptor_signature_encoding', 'Agent Descriptor requires a base64 Ed25519 signature');
   }
 
   return { ok: true, descriptor };

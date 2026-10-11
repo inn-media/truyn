@@ -191,6 +191,8 @@
           "enum": [
             "transport_error",
             "invalid_response",
+            "invalid_argument",
+            "unimplemented",
             "validation_error",
             "version_mismatch",
             "unauthenticated",

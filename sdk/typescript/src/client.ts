@@ -57,14 +57,14 @@ function requireRelayUrl(value: string): string {
     url = new URL(value);
   } catch {
     throw new TruynError({
-      code: 'validation_error',
+      code: 'invalid_argument',
       message: 'relayUrl must be an absolute HTTP(S) URL',
       retryable: false
     });
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new TruynError({
-      code: 'validation_error',
+      code: 'invalid_argument',
       message: 'relayUrl must use http or https',
       retryable: false
     });
@@ -101,7 +101,7 @@ export class TruynClient {
   constructor(options: TruynClientOptions) {
     if (!options || !nonEmptyString(options.relayUrl)) {
       throw new TruynError({
-        code: 'validation_error',
+        code: 'invalid_argument',
         message: 'relayUrl is required',
         retryable: false
       });
@@ -121,7 +121,7 @@ export class TruynClient {
   setSessionToken(sessionToken: string | null): void {
     if (sessionToken !== null && !nonEmptyString(sessionToken)) {
       throw new TruynError({
-        code: 'validation_error',
+        code: 'invalid_argument',
         message: 'sessionToken must be a non-empty string or null',
         retryable: false
       });
@@ -174,11 +174,12 @@ export class TruynClient {
       }));
     }
     if (!response.ok) {
-      const relayCode = nonEmptyString(body.error) ? body.error : undefined;
+      const relayCode = nonEmptyString(body.error) ? body.error :
+        plainObject(body.error) && nonEmptyString(body.error.code) ? body.error.code : undefined;
       throw new TruynError(normalizeError({
         httpStatus: response.status,
         relayCode,
-        message: relayCode || `HTTP ${response.status}`
+        message: plainObject(body.error) && nonEmptyString(body.error.message) ? body.error.message.slice(0, 256) : relayCode || `HTTP ${response.status}`
       }));
     }
     return body;
@@ -187,7 +188,7 @@ export class TruynClient {
   async getIdentity(nodeId: string, options: RequestOptions = {}): Promise<Identity> {
     if (!nonEmptyString(nodeId) || !nodeId.startsWith('truyn:node:')) {
       throw new TruynError({
-        code: 'validation_error',
+        code: 'invalid_argument',
         message: 'nodeId must be a TRUYN node identity',
         retryable: false
       });
@@ -199,7 +200,7 @@ export class TruynClient {
   async discover(capabilityId: string, options: RequestOptions = {}): Promise<Offer[]> {
     if (!nonEmptyString(capabilityId)) {
       throw new TruynError({
-        code: 'validation_error',
+        code: 'invalid_argument',
         message: 'capabilityId is required',
         retryable: false
       });
@@ -230,7 +231,10 @@ export class TruynClient {
       let relayCode: string | undefined;
       try {
         const body = JSON.parse(text);
-        if (plainObject(body) && nonEmptyString(body.error)) relayCode = body.error;
+        if (plainObject(body)) {
+          if (nonEmptyString(body.error)) relayCode = body.error;
+          else if (plainObject(body.error) && nonEmptyString(body.error.code)) relayCode = body.error.code;
+        }
       } catch {}
       throw new TruynError(normalizeError({
         httpStatus: response.status,
@@ -247,14 +251,14 @@ export class TruynClient {
       descriptorUrl = new URL(url);
     } catch {
       throw new TruynError({
-        code: 'validation_error',
+        code: 'invalid_argument',
         message: 'Agent Descriptor URL must be absolute',
         retryable: false
       });
     }
     if (descriptorUrl.protocol !== 'http:' && descriptorUrl.protocol !== 'https:') {
       throw new TruynError({
-        code: 'validation_error',
+        code: 'invalid_argument',
         message: 'Agent Descriptor URL must use http or https',
         retryable: false
       });

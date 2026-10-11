@@ -24,7 +24,10 @@ const TOOLS = Object.freeze([
 ]);
 
 function rpcResult(id, result) { return { jsonrpc: '2.0', id, result }; }
-function rpcError(id, code, message, data = undefined) { return { jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data === undefined ? {} : { data }) } }; }
+function rpcError(id, code, message, data = undefined, overrideCode = undefined) {
+  const truynCode = overrideCode || (code === -32022 ? 'version_mismatch' : code === -32601 ? 'unimplemented' : code === -32603 ? 'internal_error' : 'invalid_argument');
+  return { jsonrpc: '2.0', id: id ?? null, error: { code, message, data: { ...(data || {}), truynCode } } };
+}
 function isObject(value) { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 
 export function createMcpModernMeta({ clientName = 'truyn-client', clientVersion = '0.1.0', clientCapabilities = {} } = {}) {
@@ -74,10 +77,20 @@ function toolResult(value, modern) {
   };
 }
 
-function toolErrorResult(modern) {
+function toolErrorResult(modern, error) {
+  const sourceCode = error?.body?.error || error?.code || '';
+  const invalidArgs = ['capability is required', 'capability and input are required', 'requestId and output are required'];
+  const code = sourceCode === 'version_mismatch' ? 'version_mismatch' :
+    invalidArgs.includes(error?.message) ? 'invalid_argument' :
+    ['offer_capacity_reached', 'node_capacity_reached', 'cancellation_backpressure', 'partial_backpressure'].includes(sourceCode) ? 'resource_exhausted' :
+    error?.status === 401 ? 'unauthenticated' : error?.status === 403 ? 'permission_denied' :
+    error?.status === 404 ? 'not_found' : error?.status === 409 ? 'conflict' :
+    error?.status === 429 || error?.status === 413 ? 'resource_exhausted' : error?.status === 504 ? 'deadline_exceeded' :
+    error?.code === 'invalid_argument' ? 'invalid_argument' : 'internal_error';
   return {
     ...(modern ? { resultType: 'complete' } : {}),
     isError: true,
+    _meta: { 'truyn/errorCode': code },
     content: [{ type: 'text', text: 'TRUYN tool request failed' }]
   };
 }
@@ -225,7 +238,7 @@ export function createMcpHandler({ node, serverName = 'truyn-mvp', serverVersion
       }
       return rpcError(id, -32601, 'Method not found');
     } catch (error) {
-      if (method === 'tools/call' && error.code !== -32602) return result(id, toolErrorResult(modern), modern);
+      if (method === 'tools/call' && error.code !== -32602) return result(id, toolErrorResult(modern, error), modern);
       return rpcError(id, error.code || -32603, error.code === -32602 ? error.message : 'Request failed');
     }
   };
@@ -286,7 +299,7 @@ export function createMcpHttpServer({ node, maxBodyBytes = 256 * 1024 }) {
       if (req.url !== '/mcp') return sendJson(res, 404, rpcError(null, -32601, 'Not found'));
       if (req.method === 'GET' || req.method === 'DELETE') { res.writeHead(405, { allow: 'POST' }); return res.end(); }
       if (req.method !== 'POST') { res.writeHead(405, { allow: 'POST' }); return res.end(); }
-      if (!originIsLoopback(req.headers.origin)) return sendJson(res, 403, rpcError(null, -32000, 'Origin not allowed'));
+      if (!originIsLoopback(req.headers.origin)) return sendJson(res, 403, rpcError(null, -32000, 'Origin not allowed', undefined, 'permission_denied'));
       if (!isJsonContentType(req.headers['content-type'])) return sendJson(res, 415, rpcError(null, -32600, 'Content-Type must be application/json'));
 
       const message = await readJson(req, maxBodyBytes);
@@ -298,7 +311,10 @@ export function createMcpHttpServer({ node, maxBodyBytes = 256 * 1024 }) {
       return sendJson(res, 200, response);
     } catch (error) {
       const status = Number.isInteger(error.status) ? error.status : 500;
-      return sendJson(res, status, rpcError(null, -32603, status < 500 ? error.message : 'Request failed'));
+      const canonical = status === 413 || status === 429 ? 'resource_exhausted' :
+        status === 401 ? 'unauthenticated' : status === 403 ? 'permission_denied' :
+        status >= 500 ? 'internal_error' : 'invalid_argument';
+      return sendJson(res, status, rpcError(null, -32603, status < 500 ? error.message : 'Request failed', undefined, canonical));
     }
   });
   return {

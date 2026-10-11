@@ -2,7 +2,8 @@ import http from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { WebSocket, WebSocketServer } from 'ws';
-import { compactStageRequestId, verifyCompactFrame, verifyEnvelope } from '../../core/protocol/index.js';
+import { compactStageRequestId, verifyCompactFrame, verifyEnvelope, PROTOCOL } from '../../core/protocol/index.js';
+import { negotiateProtocol } from '../../core/protocol/negotiation.js';
 import { trustabilityLite } from '../../core/trust/index.js';
 import { applyContextDelta, buildContextDocument, retrieveContextBlocks } from '../../core/context/index.js';
 import { providerPolicyAllowsRequester, providerPolicyFromOffer } from '../../core/security/relay-provider-policy.js';
@@ -725,6 +726,23 @@ export function createRelay({
         const { envelope } = await readJson(req, maxBodyBytes);
         const verification = verifyEnvelope(envelope, { allowedTypes: ['IDENTITY'] });
         if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
+        // Signed IDENTITY registration is the relay/WebSocket compatibility handshake.
+        // Non-TRUYN adapter bindings (A2A/MCP) are not native protocol generations.
+        const advert = envelope.payload && typeof envelope.payload === 'object' ? envelope.payload : {};
+        const declared = Object.hasOwn(advert, 'protocols') ? advert.protocols : [PROTOCOL];
+        const semantics = Object.hasOwn(advert, 'semantics') ? advert.semantics : [];
+        const requiredSemantics = Object.hasOwn(advert, 'requiredSemantics') ? advert.requiredSemantics : [];
+        if (![declared, semantics, requiredSemantics].every((list) => Array.isArray(list) && list.every((v) => typeof v === 'string' && v.trim()))) {
+          return json(res, 409, { ok: false, error: 'version_mismatch', reason: 'invalid_advertisement' });
+        }
+        const negotiated = negotiateProtocol({
+          localProtocols: [PROTOCOL],
+          remoteProtocols: declared.filter((v) => /^TRUYN\/\d+$/.test(v)),
+          localSemantics: [],
+          remoteSemantics: semantics,
+          requiredSemantics
+        });
+        if (!negotiated.ok) return json(res, 409, { ok: false, error: negotiated.code, reason: negotiated.reason, ...(negotiated.missingSemantics ? { missingSemantics: negotiated.missingSemantics } : {}) });
         if (!nodeCanRegister(envelope.from)) return json(res, 403, { ok: false, error: 'registration_denied' });
         const now = Date.now();
         cleanupRegistrationReplayCache(now);
@@ -746,7 +764,7 @@ export function createRelay({
         fastEvents.set(envelope.from, fastEvents.get(envelope.from) || []);
         fastTerminalEvents.set(envelope.from, fastTerminalEvents.get(envelope.from) || []);
         stats.set(envelope.from, stats.get(envelope.from) || { successfulTasks: 0, failedTasks: 0 });
-        return json(res, 200, { ok: true, nodeId: envelope.from, sessionToken, expiresInMs: sessionTtlMs });
+        return json(res, 200, { ok: true, nodeId: envelope.from, sessionToken, expiresInMs: sessionTtlMs, negotiatedProtocol: negotiated.protocol, negotiatedSemantics: negotiated.semantics });
       }
 
       if (req.method === 'GET' && url.pathname.startsWith('/v1/nodes/')) {

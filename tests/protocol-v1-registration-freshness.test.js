@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createIdentity } from '../core/identity/index.js';
 import { createEnvelope } from '../core/protocol/index.js';
 import { createRelay } from '../network/relay/server.js';
+import { TruynNode } from '../node/client.js';
 
 function registrationEnvelope(identity, createdAt = new Date().toISOString()) {
   return createEnvelope({
@@ -59,4 +60,58 @@ test('TRUYN/1 registration message ID is replay-protected', async (t) => {
   const replay = await register(relayUrl, envelope);
   assert.equal(replay.status, 409);
   assert.equal(replay.body.error, 'registration_replay');
+});
+
+test('TRUYN relay registration refuses incompatible generations and mandatory extensions before minting a session', async (t) => {
+  const identity = createIdentity();
+  const relay = createRelay({ localDevelopmentMode: false, allowedNodeIds: [identity.nodeId] });
+  const url = await relay.listen({ port: 0 });
+  t.after(() => relay.close());
+
+  function signedRegistration(protocols, requiredSemantics = []) {
+    return createEnvelope({
+      type: 'IDENTITY', from: identity.nodeId,
+      privateKeyPem: identity.privateKeyPem, publicKeyPem: identity.publicKeyPem,
+      payload: { nodeId: identity.nodeId, algorithm: identity.algorithm, protocols, requiredSemantics, name: null }
+    });
+  }
+  const incompatible = await register(url, signedRegistration(['TRUYN/2']));
+  assert.equal(incompatible.status, 409);
+  assert.equal(incompatible.body.error, 'version_mismatch');
+  assert.equal(incompatible.body.reason, 'no_protocol_overlap');
+  assert.equal(relay.state.sessions.size, 0);
+
+  const missing = await register(url, signedRegistration(['TRUYN/1'], ['critical-extension']));
+  assert.equal(missing.status, 409);
+  assert.equal(missing.body.error, 'version_mismatch');
+  assert.equal(missing.body.reason, 'required_semantic_unavailable');
+  assert.deepEqual(missing.body.missingSemantics, ['critical-extension']);
+  assert.equal(relay.state.nodes.size, 0);
+  assert.equal(relay.state.sessions.size, 0);
+
+  for (const malformed of [
+    { protocols: null },
+    { protocols: ['TRUYN/1'], semantics: null },
+    { protocols: ['TRUYN/1'], requiredSemantics: null }
+  ]) {
+    const envelope = createEnvelope({
+      type: 'IDENTITY', from: identity.nodeId,
+      privateKeyPem: identity.privateKeyPem, publicKeyPem: identity.publicKeyPem,
+      payload: { nodeId: identity.nodeId, algorithm: identity.algorithm, ...malformed }
+    });
+    const result = await register(url, envelope);
+    assert.equal(result.body.error, 'version_mismatch');
+    assert.equal(result.body.reason, 'invalid_advertisement');
+    assert.equal(relay.state.sessions.size, 0);
+  }
+  const client = new TruynNode({ relayUrl: url, identity });
+  await assert.rejects(client.register({ protocols: ['TRUYN/2'] }),
+    (error) => error.code === 'version_mismatch' && error.reason === 'no_protocol_overlap');
+  assert.equal(relay.state.sessions.size, 0);
+
+  const baseline = await register(url, signedRegistration(['TRUYN/1', 'A2A/1.0']));
+  assert.equal(baseline.status, 200);
+  assert.equal(baseline.body.negotiatedProtocol, 'TRUYN/1');
+  assert.deepEqual(baseline.body.negotiatedSemantics, []);
+  assert.equal(relay.state.sessions.size, 1);
 });

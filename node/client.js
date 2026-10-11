@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { compactFrameBytes, createCompactFrame, createEnvelope, verifyCompactFrame, verifyEnvelope } from '../core/protocol/index.js';
 import { createIdentity } from '../core/identity/index.js';
+import { negotiateProtocol } from '../core/protocol/negotiation.js';
 import { contextQueryHash, renderContextSelection, verifyContextManifest, verifyContextSelection } from '../core/context/index.js';
 
 async function requestJson(url, options = {}) {
@@ -16,6 +17,10 @@ async function requestJson(url, options = {}) {
     const error = new Error(body.error || `HTTP ${response.status}`);
     error.status = response.status;
     error.body = body;
+    if (body?.error === 'version_mismatch') {
+      error.code = 'version_mismatch';
+      error.reason = body.reason || 'no_protocol_overlap';
+    }
     throw error;
   }
   return body;
@@ -80,18 +85,47 @@ export class TruynNode {
     return result.publicKey;
   }
 
-  async register({ name = null, protocols = ['TRUYN/1'] } = {}) {
+  async register({ name = null, protocols = ['TRUYN/1'], semantics = [], requiredSemantics = [] } = {}) {
     this.closeFastSocket();
     const envelope = this.envelope('IDENTITY', {
       nodeId: this.identity.nodeId,
       algorithm: this.identity.algorithm,
       protocols,
+      semantics,
+      requiredSemantics,
       name
     });
     const result = await requestJson(`${this.relayUrl}/v1/register`, {
       method: 'POST',
       body: JSON.stringify({ envelope })
     });
+    const hasGeneration = Object.hasOwn(result, 'negotiatedProtocol');
+    const hasSemantics = Object.hasOwn(result, 'negotiatedSemantics');
+    const invalidAdvertisement =
+      (hasGeneration && (typeof result.negotiatedProtocol !== 'string' || !/^TRUYN[/][0-9]+$/.test(result.negotiatedProtocol))) ||
+      (hasSemantics && (!Array.isArray(result.negotiatedSemantics) ||
+        result.negotiatedSemantics.some((value) => typeof value !== 'string' || !value.trim())));
+    if (invalidAdvertisement) {
+      const error = new Error('version_mismatch');
+      error.code = 'version_mismatch';
+      error.reason = 'invalid_advertisement';
+      throw error;
+    }
+    const agreement = negotiateProtocol({
+      localProtocols: protocols.filter((value) => /^TRUYN\/\d+$/.test(value)),
+      remoteProtocols: result.negotiatedProtocol ? [result.negotiatedProtocol] : ['TRUYN/1'],
+      localSemantics: semantics,
+      remoteSemantics: result.negotiatedSemantics ?? [],
+      requiredSemantics
+    });
+    // Missing explicit confirmation is accepted for the historical TRUYN/1 baseline only.
+    if (!agreement.ok || (!hasGeneration && (requiredSemantics.length > 0 ||
+      (Array.isArray(result.negotiatedSemantics) ? result.negotiatedSemantics.length > 0 : result.negotiatedSemantics != null)))) {
+      const error = new Error('version_mismatch');
+      error.code = 'version_mismatch';
+      error.reason = agreement.reason || 'missing_negotiation';
+      throw error;
+    }
     this.sessionToken = result.sessionToken;
     return result;
   }

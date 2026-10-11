@@ -68,7 +68,9 @@ export type ArtifactRef = string;
 export type NormalizedErrorCode =
   | 'transport_error'
   | 'invalid_response'
-  | 'validation_error'
+  | 'invalid_argument'
+  | 'unimplemented'
+  | 'validation_error' // legacy SDK-local alias
   | 'version_mismatch'
   | 'unauthenticated'
   | 'permission_denied'

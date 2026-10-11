@@ -199,12 +199,37 @@ export function a2aError(code, message, reason, metadata = {}) {
   return error;
 }
 
+const A2A_TRUYN_ERROR_CODES = Object.freeze({
+  AUTHENTICATION_REQUIRED: 'unauthenticated',
+  AUTHORIZATION_DENIED: 'permission_denied',
+  INVALID_REQUEST: 'invalid_argument',
+  INVALID_PARAMS: 'invalid_argument',
+  PARSE_ERROR: 'invalid_argument',
+  VERSION_NOT_SUPPORTED: 'version_mismatch',
+  TASK_NOT_FOUND: 'not_found',
+  TASK_NOT_CANCELABLE: 'conflict',
+  CONTENT_TYPE_NOT_SUPPORTED: 'unimplemented',
+  METHOD_NOT_FOUND: 'unimplemented',
+  UNSUPPORTED_OPERATION: 'unimplemented',
+  PUSH_NOTIFICATION_NOT_SUPPORTED: 'unimplemented'
+});
+
 export function a2aErrorData(error) {
-  if (!error?.a2aReason) return undefined;
+  const reason = error?.a2aReason || 'INTERNAL_ERROR';
+  const source = error?.body?.error || error?.code || '';
+  const truynCode = A2A_TRUYN_ERROR_CODES[reason] ||
+    (source === 'version_mismatch' ? 'version_mismatch' :
+     ['offer_capacity_reached', 'node_capacity_reached', 'cancellation_backpressure', 'partial_backpressure'].includes(source) ? 'resource_exhausted' :
+     error?.status === 401 ? 'unauthenticated' : error?.status === 403 ? 'permission_denied' :
+     error?.status === 404 ? 'not_found' : error?.status === 429 || error?.status === 413 ? 'resource_exhausted' :
+     error?.status === 504 ? 'deadline_exceeded' : 'internal_error');
   return [{
     '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
-    reason: error.a2aReason,
+    reason,
     domain: 'a2a-protocol.org',
-    metadata: Object.fromEntries(Object.entries(error.a2aMetadata || {}).map(([key, value]) => [key, String(value)]))
+    metadata: {
+      ...Object.fromEntries(Object.entries(error?.a2aMetadata || {}).map(([key, value]) => [key, String(value)])),
+      truynCode
+    }
   }];
 }
