@@ -27,8 +27,8 @@ mvn -q -f "$ROOT/sdk/java/pom.xml" package
 # Attach the required distribution license notices to the Javadoc archive,
 # then manifest and publish precisely these CI-qualified archive bytes.
 jar uf "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-javadoc.jar" \
-  -C "$ROOT/sdk/java" LICENSE \
-  -C "$ROOT/sdk/java" NOTICE
+  -C "$ROOT/sdk" LICENSE \
+  -C "$ROOT/sdk" NOTICE
 cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}.jar" "$DIST/java/"
 cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-sources.jar" "$DIST/java/"
 cp "$ROOT/sdk/java/target/truyn-sdk-${VERSION}-javadoc.jar" "$DIST/java/"
