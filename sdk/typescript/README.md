@@ -2,7 +2,7 @@
 
 First-party JavaScript/TypeScript SDK for TRUYN.
 
-**Status:** implemented Developer Release client. The latest accepted immutable public npm prerelease remains `@truyn/sdk@0.1.0-alpha.2`; the current source prepares `0.1.0-alpha.4` as a release candidate for exact-main qualification and immutable publication of the managed auth/device v1 client contract. Do not treat alpha.4 as released until the trusted-publishing workflow completes successfully and independent registry verification confirms the published package.
+**Status:** implemented Developer Release client. The accepted Wire Freeze public npm prerelease is **`@truyn/sdk@0.1.0-alpha.5`** (Trusted Publishing OIDC, exact frozen bytes, provenance, signatures and clean-room import **PASS**; publication run `38168871589`). Previous `alpha.1`/`alpha.2` releases remain immutable history. This is not stable v1; the canonical five-SDK release evidence is in [Wire Freeze SDK registry closure](../../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). Install the exact version, or use the `alpha` dist-tag; do not assume `latest` was moved.
 
 ```js
 import { TruynLocalNodeClient } from '@truyn/sdk';

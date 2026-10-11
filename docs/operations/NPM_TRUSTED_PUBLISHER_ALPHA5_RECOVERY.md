@@ -1,12 +1,16 @@
 # npm Trusted Publishing recovery: immutable @truyn/sdk alpha.5
 
+**CLOSED / ACCEPTED 2026-10-11:** npm run `38168871589` SUCCESS, release evidence artifact `11713985002`. Registry bytes, provenance attestation, signature audit and clean-room import passed. Independent five-registry proof passed; see [durable closure ledger](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). The instructions below are retained as **historical incident procedure**; do not dispatch another alpha.5 publish.
+
 ## Authority and scope
 
 This procedure repairs only the public npm coordinate `@truyn/sdk@0.1.0-alpha.5`. The package already exists at older versions. Frozen source: `57971b134a41c3e3ea4b42f68e86a7d117036006`. Accepted CI release artifact: run `38154701595`. Hosted CodeQL: `38154701311`. Failed publication attempt: `38164044619` (GitHub OIDC token issued, npm exchange returned HTTP 404; the npm publish step never ran).
 
 Do not rebuild the package, edit any release tags, swap to a legacy npm token, or unblock private digest pin/canary or WAN admission based on CI alone.
 
-## One account-owner action on npmjs.com
+## Historical account-owner procedure (completed)
+
+### Trusted Publisher account binding
 
 Log into the `truyn` npm account with package settings permissions; visit https://www.npmjs.com/package/@truyn/sdk, click **Settings**, locate **Trusted Publishing**, and inspect or add the GitHub Actions trusted publisher:
 
@@ -24,7 +28,7 @@ The published versions alpha.1/alpha.2 prove package ownership only, not the cur
 
 Alternatively, using the npm CLI authenticated as a package owner, verify with `npm trust list @truyn/sdk --json`; npm 11+ supports `npm trust github @truyn/sdk --repo inn-media/truyn --file publish-npm.yml --env sdk-release --allow-publish` and may require npm 2FA. The UI is preferable for a single package.
 
-## Controlled publication after npm configuration is verified
+## Historical publication procedure (completed — do not repeat)
 
 1. Merge the exact-qualified workflow change containing `retry_existing_frozen` after CI and hosted CodeQL are GREEN. This change only adds a safe manual retry; it does not publish by merging.
 2. At https://github.com/inn-media/truyn/actions/workflows/publish-npm.yml choose **Run workflow**, branch **main**.
@@ -33,7 +37,7 @@ Alternatively, using the npm CLI authenticated as a package owner, verify with `
 5. Require verified public registry artifact bytes, dist-tag `alpha`, public attestation, signature audit and clean-room import. If any step fails, keep `npm=RED`; preserve the run and perform exact-root-cause repair instead of dispatching again.
 6. Run the independent five-registry audit in private repo `inn-media/truyn-platform` PR #462. Only after all accepted registry proof gates PASS can its digest pin/shadow staging be considered. WAN admission is a separate real-world gate.
 
-`@truyn/sdk@0.1.0-alpha.5` is **NOT** declared published merely because this document or workflow lands on main.
+`@truyn/sdk@0.1.0-alpha.5` is **accepted as published** only because run `38168871589` completed full registry byte-identity, provenance, signature and clean-room verification. The earlier statement about unproved publication remains true for historical PR merges alone.
 
 ## Failure codes
 
