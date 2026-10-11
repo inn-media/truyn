@@ -1,0 +1,142 @@
+{
+  "schema": "truyn.p13.production-cutover-plan/v1",
+  "status": "BLOCKED_PRE_STABLE",
+  "networkProtocol": {
+    "current": "TRUYN/1",
+    "maturity": "pre-stable",
+    "nextGeneration": "NOT_IMPLEMENTED",
+    "compatibility": "spec/compatibility/matrix.md"
+  },
+  "rules": {
+    "noSyntheticSource": true,
+    "noAutomaticProductionCutover": true,
+    "noLiveMutationByReadinessGate": true,
+    "requireIndependentAttestation": true,
+    "requireQuiescedWriters": true,
+    "requirePrivateCheckpoint": true
+  },
+  "domains": [
+    {
+      "id": "identity-keys",
+      "reference": "core/identity/storage.js",
+      "liveSnapshot": "UNVERIFIED",
+      "backup": "UNVERIFIED",
+      "rollback": "UNVERIFIED",
+      "compatibility": "UNVERIFIED"
+    },
+    {
+      "id": "authority-filesystem",
+      "reference": "core/security/durable-json-store.js",
+      "liveSnapshot": "UNVERIFIED",
+      "backup": "UNVERIFIED",
+      "rollback": "UNVERIFIED",
+      "compatibility": "UNVERIFIED"
+    },
+    {
+      "id": "managed-cosmos-checkpoint",
+      "reference": "docs/operations/MANAGED_AUTHORITY_RUNTIME.md",
+      "liveSnapshot": "UNVERIFIED",
+      "backup": "UNVERIFIED",
+      "rollback": "UNVERIFIED",
+      "compatibility": "UNVERIFIED"
+    },
+    {
+      "id": "network-peer-state",
+      "reference": "network/state/persistent-state.js",
+      "liveSnapshot": "UNVERIFIED",
+      "backup": "UNVERIFIED",
+      "rollback": "UNVERIFIED",
+      "compatibility": "UNVERIFIED"
+    },
+    {
+      "id": "accepted-work-inbox",
+      "reference": "network/admission/durable-inbox.js",
+      "liveSnapshot": "UNVERIFIED",
+      "backup": "UNVERIFIED",
+      "rollback": "UNVERIFIED",
+      "compatibility": "UNVERIFIED"
+    },
+    {
+      "id": "trust-and-revocations",
+      "reference": "core/security/durable-json-store.js",
+      "liveSnapshot": "UNVERIFIED",
+      "backup": "UNVERIFIED",
+      "rollback": "UNVERIFIED",
+      "compatibility": "UNVERIFIED"
+    },
+    {
+      "id": "semantic-index",
+      "reference": "core/context/semantic-index-store.js",
+      "liveSnapshot": "UNVERIFIED",
+      "backup": "UNVERIFIED",
+      "rollback": "UNVERIFIED",
+      "compatibility": "UNVERIFIED"
+    },
+    {
+      "id": "content-artifacts",
+      "reference": "spec/protocol/v1/object.md",
+      "liveSnapshot": "UNVERIFIED",
+      "backup": "UNVERIFIED",
+      "rollback": "UNVERIFIED",
+      "compatibility": "UNVERIFIED"
+    },
+    {
+      "id": "byok-provider-config",
+      "reference": "migrations/p13-byok-file.js",
+      "liveSnapshot": "UNVERIFIED",
+      "backup": "UNVERIFIED",
+      "rollback": "UNVERIFIED",
+      "compatibility": "UNVERIFIED"
+    },
+    {
+      "id": "entitlements-accounting",
+      "reference": "docs/operations/MANAGED_AUTHORITY_RUNTIME.md",
+      "liveSnapshot": "UNVERIFIED",
+      "backup": "UNVERIFIED",
+      "rollback": "UNVERIFIED",
+      "compatibility": "UNVERIFIED"
+    }
+  ],
+  "phases": [
+    {
+      "id": "authoritative-source-discovery",
+      "status": "NOT_PROVEN"
+    },
+    {
+      "id": "source-snapshot-digest-and-revision",
+      "status": "NOT_PROVEN"
+    },
+    {
+      "id": "immutable-backup-readback",
+      "status": "NOT_PROVEN"
+    },
+    {
+      "id": "isolated-pitr-restore",
+      "status": "NOT_PROVEN"
+    },
+    {
+      "id": "signed-identity-continuity",
+      "status": "NOT_PROVEN"
+    },
+    {
+      "id": "cross-version-runtime-negative-tests",
+      "status": "NOT_PROVEN"
+    },
+    {
+      "id": "private-relay-canary",
+      "status": "NOT_PROVEN"
+    },
+    {
+      "id": "entitlements-and-revocations",
+      "status": "NOT_PROVEN"
+    },
+    {
+      "id": "quiesced-rollback-drill",
+      "status": "NOT_PROVEN"
+    },
+    {
+      "id": "independent-reconciliation",
+      "status": "NOT_PROVEN"
+    }
+  ]
+}
