@@ -220,63 +220,24 @@ export class TruynAdapterHost {
 
   async runOnce() {
     await this.publishCapabilities();
-    let polled;
-    if (this.fastPath && this.socketPath) polled = { events: [await this.node.nextCompactSocketEvent()] };
-    else if (this.fastPath) polled = await this.node.pollCompact({ waitMs: this.longPollMs });
-    else polled = await this.node.poll();
+    const polled = this.fastPath && this.socketPath
+      ? { events: [await this.node.nextCompactSocketEvent()] }
+      : this.fastPath
+        ? await this.node.pollCompact({ waitMs: this.longPollMs })
+        : await this.node.poll();
     let handled = 0;
     for (const event of polled.events) {
       const need = this.normalizeEvent(event);
       if (!need) continue;
-      const compact = Boolean(need.compact);
       const capability = need.payload?.capability?.name || need.payload?.capability;
       if (!this.adapter.capabilities.some((item) => item.name === capability)) continue;
-      const access = this.accessPolicy.authorize(need);
-      if (!access?.ok) {
-        const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: 0, error: 'PROVIDER_ACCESS_DENIED', errorClass: 'authorization', accessDenied: true, accessMode: this.accessPolicy.mode, failed: true };
-        if (need.chain) metadata.chainStage = need.stageIndex;
-        if (compact) await this.node.compactResult(need.id, null, metadata); else await this.node.result(need.id, null, metadata);
-        handled += 1;
-        continue;
-      }
-      let billing = null;
-      if (this.billingPolicy) {
-        billing = await this.billingPolicy.authorize(need, { accessPolicy: this.accessPolicy, estimatedTokens: billingEstimate(need) });
-        if (!billing?.ok) {
-          const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: 0, error: 'PROVIDER_BILLING_DENIED', errorClass: 'billing', billingDenied: true, billingMode: this.billingPolicy.mode, billingReason: billing?.reason || 'billing_not_authorized', failed: true };
-          if (need.chain) metadata.chainStage = need.stageIndex;
-          if (compact) await this.node.compactResult(need.id, null, metadata); else await this.node.result(need.id, null, metadata);
-          handled += 1;
-          continue;
-        }
-      }
-      const startedAt = Date.now();
-      let billingSettled = false;
-      try {
-        let input = need.payload?.input;
-        let contextResolution = null;
-        if (typeof this.node.materializeContextRefs === 'function') {
-          const resolved = await this.node.materializeContextRefs(input);
-          input = resolved.value;
-          if ((resolved.stats?.contextRefs || 0) > 0) contextResolution = resolved.stats;
-        }
-        const execution = await this.adapter.execute({ capability, input, policy: need.payload?.policy || {}, need, node: this.node });
-        if (this.effectLedger && !need.chain) this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'completed' });
-      const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
-        const settlement = await settleBilling(billing, { outcome: 'completed', actualTokens: reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0) });
-        billingSettled = typeof billing?.finalize === 'function';
-        const metadata = attachBillingMetadata({ adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, ...(normalized.metadata || {}) }, billing, settlement);
-        if (contextResolution) metadata.contextResolution = contextResolution;
-        if (need.chain) metadata.chainStage = need.stageIndex;
-        const output = accountingFailure(metadata, settlement) ? null : normalized.output;
-        if (compact) await this.node.compactResult(need.id, output, metadata); else await this.node.result(need.id, output, metadata);
-      } catch (error) {
-        const settlement = billingSettled ? null : await settleBilling(billing, { outcome: 'failed', actualTokens: 0, reason: error.message });
-        if (typeof billing?.finalize === 'function') billingSettled = true;
-        const metadata = attachBillingMetadata({ adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, error: error.message, failed: true }, billing, settlement);
-        if (need.chain) metadata.chainStage = need.stageIndex;
-        if (compact) await this.node.compactResult(need.id, null, metadata); else await this.node.result(need.id, null, metadata);
-      }
+      // One-shot and long-running workers MUST use the same effect intent fence,
+      // billing, abort and terminal semantics. No second unguarded execute path.
+      await this.executeNeed(need, {
+        controller: new AbortController(),
+        need,
+        nextSequence: 0
+      });
       handled += 1;
     }
     return { handled, events: polled.events.length };
@@ -316,7 +277,7 @@ export class TruynAdapterHost {
     // silently execute the same paid work twice on this shared ledger.
     // An ambiguous started intent must be reconciled externally, never retried.
     if (this.effectLedger && !need.chain) {
-      const acquired = this.effectLedger.beginEffect({
+      const acquired = await this.effectLedger.beginEffect({
         id: need.id, provider: this.node.identity.nodeId, requester: need.from,
         fingerprint: createHash('sha256').update(JSON.stringify([need.id, need.from, need.payload])).digest('hex')
       });
@@ -326,7 +287,7 @@ export class TruynAdapterHost {
     if (this.billingPolicy) {
       billing = await this.billingPolicy.authorize(need, { accessPolicy: this.accessPolicy, estimatedTokens: billingEstimate(need) });
       if (!billing?.ok) {
-        if (this.effectLedger && !need.chain) this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'failed' });
+        if (this.effectLedger && !need.chain) await this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'failed' });
         if (signal.aborted) return;
         const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: 0, error: 'PROVIDER_BILLING_DENIED', errorClass: 'billing', billingDenied: true, billingMode: this.billingPolicy.mode, billingReason: billing?.reason || 'billing_not_authorized', failed: true };
         if (need.chain) metadata.chainStage = need.stageIndex;
@@ -335,7 +296,7 @@ export class TruynAdapterHost {
       }
     }
     if (signal.aborted) {
-      if (this.effectLedger && !need.chain) this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'unknown' });
+      if (this.effectLedger && !need.chain) await this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'unknown' });
       await settleBilling(billing, { outcome: 'cancelled', actualTokens: 0, reason: signal.reason?.message || 'request_cancelled' });
       return;
     }
@@ -357,7 +318,7 @@ export class TruynAdapterHost {
       // The adapter invocation has returned. Persist its successful effect intent
       // BEFORE any downstream billing/RESULT transport can fail. This is not
       // proof that the external provider supports transactional exactly-once.
-      if (this.effectLedger && !need.chain) this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'completed' });
+      if (this.effectLedger && !need.chain) await this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'completed' });
       const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
       const actualTokens = reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0);
       if (signal.aborted) {
@@ -374,9 +335,18 @@ export class TruynAdapterHost {
       const output = accountingFailure(metadata, settlement) ? null : normalized.output;
       await this.sendTerminal(need, output, metadata);
     } catch (error) {
-      // Remote adapter might have completed its side effect before throwing.
-      // Mark it UNKNOWN, not safely retryable.
-      if (this.effectLedger && !need.chain) this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'unknown' });
+      // A remote provider could have committed a charge or other side effect
+      // before its transport failed. Do NOT claim a failed terminal or refund
+      // from an ambiguous provider response; reconcile the external receipt.
+      if (this.effectLedger && !need.chain) {
+        try {
+          await this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'unknown' });
+        } catch (ledgerError) {
+          this.lastExecutionError = ledgerError;
+        }
+        this.lastExecutionError ||= error;
+        return;
+      }
       const outcome = signal.aborted ? 'cancelled' : 'failed';
       const settlement = billingSettled ? null : await settleBilling(billing, { outcome, actualTokens: 0, reason: error.message || outcome });
       if (typeof billing?.finalize === 'function') billingSettled = true;
