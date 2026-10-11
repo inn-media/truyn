@@ -5,8 +5,8 @@ on:
     paths:
       - '.github/wire-freeze/release-request.json'
 permissions:
-  contents: read
-  actions: read
+  contents: write
+  actions: write
   checks: read
 concurrency:
   group: wire-freeze-immutable-five-sdk-release
@@ -68,10 +68,10 @@ jobs:
           done
           test "$admitted" = true || { echo 'RELEASE_ABORT_NO_EXACT_MAIN_CI_CODEQL'; exit 73; }
           echo "TRUYN_IMMUTABLE_SDK_RELEASE_ADMITTED=$GITHUB_SHA"
-      - name: Create immutable SDK release tags using scoped PAT
+      - name: Create immutable SDK release tags and dispatch publishers
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GENERAL_AUTOPILOT_TOKEN_GITHUB }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           test -n "$GH_TOKEN"
@@ -96,4 +96,10 @@ jobs:
             gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$GITHUB_SHA" >/dev/null
             echo "RELEASE_IMMUTABLE_TAG_CREATED=$tag sha=$GITHUB_SHA"
           done
-          echo "RELEASE_DISPATCHED_FIVE_PUBLISHERS=YES"
+          # GITHUB_TOKEN-created tag pushes do not recursively trigger Actions.
+          # Explicit workflow_dispatch is the supported exception.
+          gh workflow run publish-npm.yml --ref sdk/npm/v0.1.0-alpha.5 -f release_tag=sdk/npm/v0.1.0-alpha.5
+          gh workflow run publish-sdk-alpha.yml --ref sdk/python/v0.1.0a2
+          gh workflow run publish-maven.yml --ref sdk/maven/v0.1.0-alpha.2
+          gh workflow run publish-nuget.yml --ref sdk/nuget/v0.1.0-alpha.2
+          echo "RELEASE_DISPATCHED_FOUR_REGISTRIES_AND_GO_TAG=YES"
