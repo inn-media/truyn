@@ -14,6 +14,8 @@ on:
   push:
     tags:
       - 'sdk/maven/v*'
+    branches: [main]
+    paths: ['.github/wire-freeze/recovery-request.json']
   workflow_dispatch:
 
 permissions:
@@ -31,6 +33,7 @@ jobs:
     environment: sdk-release
     timeout-minutes: 150
     env:
+      TRUYN_RELEASE_TAG: ${{ github.ref == 'refs/heads/main' && 'sdk/maven/v0.1.0-alpha.2' || github.ref_name }}
       GH_TOKEN: ${{ github.token }}
       MAVEN_GROUP_PATH: org/truyn
       MAVEN_ARTIFACT: truyn-sdk
@@ -46,7 +49,14 @@ jobs:
 
       - name: Validate immutable tag, exact current main, CI and CodeQL gates
         id: gates
-        run: bash sdk/release/resolve-release-gates.sh sdk/maven/v maven
+        run: |
+          if [[ "$GITHUB_REF" == 'refs/heads/main' ]]; then
+            bash sdk/release/resolve-frozen-recovery.sh sdk/maven/v maven
+            git checkout --detach 57971b134a41c3e3ea4b42f68e86a7d117036006
+            test "$(git rev-parse HEAD)" = '57971b134a41c3e3ea4b42f68e86a7d117036006'
+          else
+            bash sdk/release/resolve-release-gates.sh sdk/maven/v maven
+          fi
 
       - name: Set up Java (clean-room verification only; nothing is rebuilt)
         uses: actions/setup-java@v4
@@ -197,7 +207,7 @@ jobs:
         run: |
           set -euo pipefail
           jq -n --arg coordinate "org.truyn:$MAVEN_ARTIFACT:$VERSION" --arg version "$VERSION" --arg sourceSha "$SOURCE_SHA" \
-            --arg releaseTag "${GITHUB_REF#refs/tags/}" --arg ciRunId "$CI_RUN_ID" --arg codeqlRunId "$CODEQL_RUN_ID" \
+            --arg releaseTag "$TRUYN_RELEASE_TAG" --arg ciRunId "$CI_RUN_ID" --arg codeqlRunId "$CODEQL_RUN_ID" \
             --arg publicationRunId "$GITHUB_RUN_ID" --arg sha256 "$SHA256" --arg signingKey "$FPR" \
             --arg deploymentId "$DEPLOYMENT_ID" --arg alreadyPublished "$ALREADY_PUBLISHED" \
             '{registry:"Maven Central",coordinate:$coordinate,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,ciRunId:$ciRunId,codeqlRunId:$codeqlRunId,publicationRunId:$publicationRunId,publicationAuthentication:"Central Portal user token (sdk-release environment secret)",centralDeploymentId:$deploymentId,alreadyPublished:($alreadyPublished=="true"),jarSha256:$sha256,openPgpFingerprint:$signingKey,byteIdentity:"PASS",signatureVerification:"PASS",cleanRoomResolution:"PASS"}' \

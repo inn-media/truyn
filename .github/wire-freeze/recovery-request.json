@@ -1,0 +1,20 @@
+{
+  "schema": "truyn.wire-freeze-registry-recovery/v1",
+  "task": "truyn1-immutable-successor-publication-20261011",
+  "mode": "one-shot-protected-main-push",
+  "attempt": 1,
+  "frozenSourceSha": "57971b134a41c3e3ea4b42f68e86a7d117036006",
+  "ciRunId": 38154701595,
+  "codeqlRunId": 38154701311,
+  "controllerRunId": 38154701575,
+  "tags": {
+    "npm": "sdk/npm/v0.1.0-alpha.5",
+    "pypi": "sdk/python/v0.1.0a2",
+    "go": "sdk/go/v0.1.0-alpha.2",
+    "maven": "sdk/maven/v0.1.0-alpha.2",
+    "nuget": "sdk/nuget/v0.1.0-alpha.2"
+  },
+  "cloudMutationAllowed": false,
+  "managedCanaryAllowed": false,
+  "mainnetAdmissionAllowed": false
+}

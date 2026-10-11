@@ -12,6 +12,8 @@ on:
   push:
     tags:
       - 'sdk/nuget/v*'
+    branches: [main]
+    paths: ['.github/wire-freeze/recovery-request.json']
   workflow_dispatch:
 
 permissions:
@@ -33,6 +35,7 @@ jobs:
       actions: read
       id-token: write
     env:
+      TRUYN_RELEASE_TAG: ${{ github.ref == 'refs/heads/main' && 'sdk/nuget/v0.1.0-alpha.2' || github.ref_name }}
       GH_TOKEN: ${{ github.token }}
       NUGET_ID: Truyn.Sdk
       NUGET_SOURCE: https://api.nuget.org/v3/index.json
@@ -47,7 +50,14 @@ jobs:
 
       - name: Validate immutable tag, exact current main, CI and CodeQL gates
         id: gates
-        run: bash sdk/release/resolve-release-gates.sh sdk/nuget/v nuget
+        run: |
+          if [[ "$GITHUB_REF" == 'refs/heads/main' ]]; then
+            bash sdk/release/resolve-frozen-recovery.sh sdk/nuget/v nuget
+            git checkout --detach 57971b134a41c3e3ea4b42f68e86a7d117036006
+            test "$(git rev-parse HEAD)" = '57971b134a41c3e3ea4b42f68e86a7d117036006'
+          else
+            bash sdk/release/resolve-release-gates.sh sdk/nuget/v nuget
+          fi
 
       - name: Set up .NET (push + clean-room verification only; nothing is rebuilt)
         uses: actions/setup-dotnet@v4
@@ -160,7 +170,7 @@ jobs:
         run: |
           set -euo pipefail
           jq -n --arg coordinate "$NUGET_ID@$VERSION" --arg version "$VERSION" --arg sourceSha "$SOURCE_SHA" \
-            --arg releaseTag "${GITHUB_REF#refs/tags/}" --arg ciRunId "$CI_RUN_ID" --arg codeqlRunId "$CODEQL_RUN_ID" \
+            --arg releaseTag "$TRUYN_RELEASE_TAG" --arg ciRunId "$CI_RUN_ID" --arg codeqlRunId "$CODEQL_RUN_ID" \
             --arg publicationRunId "$GITHUB_RUN_ID" --arg sha256 "$SHA256" --arg alreadyPublished "$ALREADY_PUBLISHED" \
             '{registry:"NuGet.org",coordinate:$coordinate,version:$version,sourceSha:$sourceSha,releaseTag:$releaseTag,ciRunId:$ciRunId,codeqlRunId:$codeqlRunId,publicationRunId:$publicationRunId,publicationAuthentication:"NuGet Trusted Publishing (GitHub Actions OIDC)",alreadyPublished:($alreadyPublished=="true"),ciPackageSha256:$sha256,contentIdentityExcludingRepositorySignature:"PASS",repositorySignatureVerification:"PASS",cleanRoomRestore:"PASS"}' \
             > "$RELEASE_ROOT/nuget-trusted-publishing-evidence.json"
