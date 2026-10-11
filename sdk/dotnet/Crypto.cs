@@ -126,7 +126,17 @@ internal static class CanonicalJson
                 writer.WriteEndArray();
                 break;
             default:
-                element.WriteTo(writer);
+                if (element.ValueKind == JsonValueKind.Number)
+                {
+                    // Emit a JavaScript-compatible JSON number, including -0 -> 0.
+                    // Exponent/fixed-format edge vectors must be independently qualified
+                    // before asserting full TCJ1 conformance.
+                    if (element.TryGetDouble(out var number) && number == 0d)
+                        writer.WriteNumberValue(0);
+                    else
+                        element.WriteTo(writer);
+                }
+                else element.WriteTo(writer);
                 break;
         }
     }
