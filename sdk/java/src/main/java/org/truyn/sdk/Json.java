@@ -21,7 +21,8 @@ final class Json {
   private static void write(Object value, StringBuilder out) {
     if (value == null) { out.append("null"); return; }
     if (value instanceof String s) { writeString(s, out); return; }
-    if (value instanceof Boolean || value instanceof Number) { out.append(value); return; }
+    if (value instanceof Boolean) { out.append(value); return; }
+    if (value instanceof Number n) { writeNumber(n, out); return; }
     if (value instanceof Map<?, ?> map) {
       TreeMap<String,Object> sorted = new TreeMap<>();
       for (var entry : map.entrySet()) sorted.put(String.valueOf(entry.getKey()), entry.getValue());
@@ -52,6 +53,29 @@ final class Json {
     throw new IllegalArgumentException("unsupported JSON value: " + value.getClass().getName());
   }
 
+  private static void writeNumber(Number number, StringBuilder out) {
+    if (number instanceof Float || number instanceof Double) {
+      double d = number.doubleValue();
+      if (!Double.isFinite(d)) throw new IllegalArgumentException("TCJ1 nonfinite number");
+      if (d == 0.0d) { out.append('0'); return; }
+      var v = java.math.BigDecimal.valueOf(d).stripTrailingZeros();
+      int exponent = v.precision() - v.scale() - 1;
+      if (exponent >= -6 && exponent < 21) {
+        out.append(v.toPlainString());
+      } else {
+        String digits = v.unscaledValue().abs().toString();
+        if (v.signum() < 0) out.append('-');
+        out.append(digits.charAt(0));
+        if (digits.length() > 1) out.append('.').append(digits.substring(1));
+        out.append('e');
+        if (exponent >= 0) out.append('+');
+        out.append(exponent);
+      }
+      return;
+    }
+    out.append(number);
+  }
+
   private static void writeString(String value, StringBuilder out) {
     out.append('"');
     for (int i=0;i<value.length();i++) {
@@ -76,7 +100,7 @@ final class Json {
     private List<Object> array() { index++; ArrayList<Object> list=new ArrayList<>(); skip(); if(take(']')) return list; while(true){ list.add(value()); skip(); if(take(']')) return list; require(','); } }
     private String string() { require('"'); StringBuilder out=new StringBuilder(); while(index<text.length()){ char ch=text.charAt(index++); if(ch=='"') return out.toString(); if(ch!='\\'){out.append(ch);continue;} if(index>=text.length()) fail("bad escape"); char esc=text.charAt(index++); switch(esc){case '"','\\','/' -> out.append(esc); case 'b'->out.append('\b'); case 'f'->out.append('\f'); case 'n'->out.append('\n'); case 'r'->out.append('\r'); case 't'->out.append('\t'); case 'u'->{if(index+4>text.length())fail("bad unicode");out.append((char)Integer.parseInt(text.substring(index,index+4),16));index+=4;} default->fail("bad escape");}} fail("unterminated string"); return null; }
     private Object literal(String token,Object value){if(!text.startsWith(token,index))fail("invalid literal");index+=token.length();return value;}
-    private Number number(){int start=index;if(take('-')){}while(index<text.length()&&Character.isDigit(text.charAt(index)))index++;boolean decimal=false;if(take('.')){decimal=true;while(index<text.length()&&Character.isDigit(text.charAt(index)))index++;}if(index<text.length()&&(text.charAt(index)=='e'||text.charAt(index)=='E')){decimal=true;index++;if(index<text.length()&&(text.charAt(index)=='+'||text.charAt(index)=='-'))index++;while(index<text.length()&&Character.isDigit(text.charAt(index)))index++;}String raw=text.substring(start,index);try{return decimal?Double.valueOf(raw):Long.valueOf(raw);}catch(NumberFormatException e){fail("invalid number");return 0;}}
+    private Number number(){int start=index;if(take('-')){}while(index<text.length()&&Character.isDigit(text.charAt(index)))index++;boolean decimal=false;if(take('.')){decimal=true;while(index<text.length()&&Character.isDigit(text.charAt(index)))index++;}if(index<text.length()&&(text.charAt(index)=='e'||text.charAt(index)=='E')){decimal=true;index++;if(index<text.length()&&(text.charAt(index)=='+'||text.charAt(index)=='-'))index++;while(index<text.length()&&Character.isDigit(text.charAt(index)))index++;}String raw=text.substring(start,index);try{if (decimal) return Double.valueOf(raw); return Long.valueOf(raw);}catch(NumberFormatException e){fail("invalid number");return 0;}}
     private void skip(){while(index<text.length()&&Character.isWhitespace(text.charAt(index)))index++;} private boolean take(char expected){if(index<text.length()&&text.charAt(index)==expected){index++;return true;}return false;} private void require(char expected){if(!take(expected))fail("expected "+expected);} private void fail(String message){throw new IllegalArgumentException("invalid JSON at "+index+": "+message);}
   }
 }

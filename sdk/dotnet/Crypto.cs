@@ -98,36 +98,105 @@ internal static class CanonicalJson
     public static byte[] Serialize(object? value)
     {
         var element = JsonSerializer.SerializeToElement(value, WireOptions);
-        using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
-        {
-            Indented = false,
-            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-        })) Write(element, writer);
-        return stream.ToArray();
+        var builder = new StringBuilder();
+        Write(element, builder);
+        return Encoding.UTF8.GetBytes(builder.ToString());
     }
 
-    private static void Write(JsonElement element, Utf8JsonWriter writer)
+    private static string EcmaNumber(double number)
+    {
+        if (number == 0d) return "0";
+        var text = number.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+        var negative = text.StartsWith("-", StringComparison.Ordinal);
+        var unsigned = negative ? text[1..] : text;
+        var parts = unsigned.Split('E', 'e');
+        var mantissa = parts[0];
+        var exp = parts.Length == 2 ? int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
+        var before = mantissa.IndexOf('.');
+        if (before < 0) before = mantissa.Length;
+        var digits = mantissa.Replace(".", "").TrimStart('0');
+        if (digits.Length == 0) return "0";
+        var leadingZeros = mantissa.Replace(".", "").Length - mantissa.Replace(".", "").TrimStart('0').Length;
+        var effectiveExponent = before + exp - leadingZeros - 1;
+        var sign = negative ? "-" : "";
+        if (effectiveExponent >= -6 && effectiveExponent < 21)
+        {
+            var offset = effectiveExponent + 1;
+            if (offset <= 0) return sign + "0." + new string('0', -offset) + digits.TrimEnd('0');
+            if (offset >= digits.Length) return sign + digits + new string('0', offset - digits.Length);
+            return sign + digits[..offset] + "." + digits[offset..].TrimEnd('0');
+        }
+        var trimmed = digits.TrimEnd('0');
+        return sign + trimmed[0] + (trimmed.Length > 1 ? "." + trimmed[1..] : "") + "e" + (effectiveExponent >= 0 ? "+" : "") + effectiveExponent.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static void WriteString(string value, StringBuilder output)
+    {
+        output.Append('"');
+        for (int i = 0; i < value.Length;)
+        {
+            if (!Rune.TryGetRuneAt(value, i, out var rune))
+                throw new JsonException("TCJ1 prohibits lone UTF-16 surrogate");
+            int ch = rune.Value;
+            switch (ch)
+            {
+                case 34: output.Append("\\\""); break;
+                case 92: output.Append("\\\\"); break;
+                case 8: output.Append("\\b"); break;
+                case 12: output.Append("\\f"); break;
+                case 10: output.Append("\\n"); break;
+                case 13: output.Append("\\r"); break;
+                case 9: output.Append("\\t"); break;
+                default:
+                    if (ch < 32) output.Append("\\u").Append(ch.ToString("x4", System.Globalization.CultureInfo.InvariantCulture));
+                    else output.Append(value, i, rune.Utf16SequenceLength);
+                    break;
+            }
+            i += rune.Utf16SequenceLength;
+        }
+        output.Append('"');
+    }
+
+    private static void Write(JsonElement element, StringBuilder output)
     {
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
-                writer.WriteStartObject();
-                foreach (var property in element.EnumerateObject().OrderBy(property => property.Name, StringComparer.Ordinal))
+                output.Append('{');
+                var first = true;
+                foreach (var property in element.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal))
                 {
-                    writer.WritePropertyName(property.Name);
-                    Write(property.Value, writer);
+                    if (!first) output.Append(',');
+                    first = false;
+                    WriteString(property.Name, output);
+                    output.Append(':');
+                    Write(property.Value, output);
                 }
-                writer.WriteEndObject();
+                output.Append('}');
                 break;
             case JsonValueKind.Array:
-                writer.WriteStartArray();
-                foreach (var item in element.EnumerateArray()) Write(item, writer);
-                writer.WriteEndArray();
+                output.Append('[');
+                var firstItem = true;
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (!firstItem) output.Append(',');
+                    firstItem = false;
+                    Write(item, output);
+                }
+                output.Append(']');
                 break;
-            default:
-                element.WriteTo(writer);
+            case JsonValueKind.String:
+                WriteString(element.GetString()!, output);
                 break;
+            case JsonValueKind.Number:
+                if (!element.TryGetDouble(out var number) || !double.IsFinite(number))
+                    throw new JsonException("TCJ1 requires a finite ECMAScript number");
+                output.Append(EcmaNumber(number));
+                break;
+            case JsonValueKind.True: output.Append("true"); break;
+            case JsonValueKind.False: output.Append("false"); break;
+            case JsonValueKind.Null: output.Append("null"); break;
+            default: throw new JsonException("Unsupported TCJ1 value kind");
         }
     }
 }

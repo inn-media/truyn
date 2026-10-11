@@ -1,0 +1,167 @@
+{
+  "schema": "truyn.tcj1.cross-language-golden/1",
+  "status": "candidate_requires_all_five_SDK_exact_bytes",
+  "reference": "TRUYN_ENVELOPE_EXT.md Appendix A",
+  "cases": [
+    {
+      "id": "ascii",
+      "input": {
+        "a": "b",
+        "c": 1
+      },
+      "canonicalUnsigned": "{\"a\":\"b\",\"c\":1}"
+    },
+    {
+      "id": "html_chars",
+      "input": {
+        "q": "R&D <b>"
+      },
+      "canonicalUnsigned": "{\"q\":\"R&D <b>\"}"
+    },
+    {
+      "id": "cyrillic_az",
+      "input": {
+        "q": "Bakı ə привет"
+      },
+      "canonicalUnsigned": "{\"q\":\"Bakı ə привет\"}"
+    },
+    {
+      "id": "emoji_non_bmp",
+      "input": {
+        "q": "🚀"
+      },
+      "canonicalUnsigned": "{\"q\":\"🚀\"}"
+    },
+    {
+      "id": "line_separators",
+      "input": {
+        "q": "a b c"
+      },
+      "canonicalUnsigned": "{\"q\":\"a b c\"}"
+    },
+    {
+      "id": "key_order_utf16",
+      "input": {
+        "￿": 1,
+        "😀": 2
+      },
+      "canonicalUnsigned": "{\"😀\":2,\"￿\":1}"
+    },
+    {
+      "id": "key_order_ascii",
+      "input": {
+        "b": 1,
+        "B": 2,
+        "a": 3,
+        "_": 4,
+        "aa": 5
+      },
+      "canonicalUnsigned": "{\"B\":2,\"_\":4,\"a\":3,\"aa\":5,\"b\":1}"
+    },
+    {
+      "id": "integer",
+      "input": {
+        "n": 100
+      },
+      "canonicalUnsigned": "{\"n\":100}"
+    },
+    {
+      "id": "float_integral",
+      "input": {
+        "n": 1
+      },
+      "canonicalUnsigned": "{\"n\":1}"
+    },
+    {
+      "id": "float_small_exp",
+      "input": {
+        "n": 1e-7
+      },
+      "canonicalUnsigned": "{\"n\":1e-7}"
+    },
+    {
+      "id": "float_fixed",
+      "input": {
+        "n": 0.000025
+      },
+      "canonicalUnsigned": "{\"n\":0.000025}"
+    },
+    {
+      "id": "float_large_exp",
+      "input": {
+        "n": 1e+21
+      },
+      "canonicalUnsigned": "{\"n\":1e+21}"
+    },
+    {
+      "id": "negative_zero",
+      "input": {
+        "n": 0
+      },
+      "canonicalUnsigned": "{\"n\":0}"
+    },
+    {
+      "id": "structure",
+      "input": {
+        "a": {},
+        "b": [],
+        "c": null,
+        "d": true,
+        "e": false
+      },
+      "canonicalUnsigned": "{\"a\":{},\"b\":[],\"c\":null,\"d\":true,\"e\":false}"
+    },
+    {
+      "id": "control_del",
+      "input": {
+        "q": "a\u0001b\u001fcd"
+      },
+      "canonicalUnsigned": "{\"q\":\"a\\u0001b\\u001fcd\"}"
+    },
+    {
+      "id": "float_1_5",
+      "input": {
+        "n": 1.5
+      },
+      "canonicalUnsigned": "{\"n\":1.5}"
+    },
+    {
+      "id": "float_0_1",
+      "input": {
+        "n": 0.1
+      },
+      "canonicalUnsigned": "{\"n\":0.1}"
+    },
+    {
+      "id": "quotes_slash",
+      "input": {
+        "q": "\"\\/"
+      },
+      "canonicalUnsigned": "{\"q\":\"\\\"\\\\/\"}"
+    },
+    {
+      "id": "tab_newline",
+      "input": {
+        "q": "tab\tnl\n"
+      },
+      "canonicalUnsigned": "{\"q\":\"tab\\tnl\\n\"}"
+    }
+  ],
+  "negativeCases": [
+    {
+      "id": "unpaired_surrogate",
+      "inputDescription": "unpaired UTF-16 surrogate in signed value",
+      "expected": "reject_in_new_strict_profile"
+    },
+    {
+      "id": "nonfinite",
+      "inputDescription": "NaN or Infinity",
+      "expected": "reject"
+    },
+    {
+      "id": "unsafe_integer",
+      "inputDescription": "unrepresentable exact integer outside +/- (2^53-1)",
+      "expected": "reject_in_new_strict_profile"
+    }
+  ]
+}

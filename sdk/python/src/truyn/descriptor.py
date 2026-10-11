@@ -63,13 +63,56 @@ def _signature_bytes(value):
     except Exception: return None
     return raw if len(raw) == 64 and base64.b64encode(raw).decode() == value else None
 
-def _normalize(value):
-    if isinstance(value, list): return [_normalize(item) for item in value]
-    if isinstance(value, dict): return {key: _normalize(value[key]) for key in sorted(value)}
-    return value
+def _tcj1_float(value):
+    import math
+    if not math.isfinite(value):
+        raise ValueError('TCJ1 forbids non-finite numbers')
+    if value == 0: return '0'
+    # Python repr has shortest-roundtrip digits, but ECMAScript switches
+    # to fixed notation at 1e-6 and scientific notation at 1e21.
+    raw = repr(value).lower()
+    mantissa, _, exponent = raw.partition('e')
+    if '.' in mantissa:
+        mantissa = mantissa.rstrip('0').rstrip('.')
+    if not exponent: return mantissa
+    e = int(exponent)
+    negative = mantissa.startswith('-')
+    digits = mantissa.lstrip('-').replace('.', '')
+    before_dot = mantissa.lstrip('-').find('.')
+    if before_dot < 0: before_dot = len(digits)
+    offset = before_dot + e
+    sign = '-' if negative else ''
+    if -6 <= e + before_dot - 1 < 21:
+        if offset <= 0: return sign + '0.' + '0' * (-offset) + digits
+        if offset >= len(digits): return sign + digits + '0' * (offset - len(digits))
+        return sign + digits[:offset] + '.' + digits[offset:]
+    significant = digits.rstrip('0')
+    coefficient = significant[:1] + ('.' + significant[1:] if len(significant) > 1 else '')
+    power = e + before_dot - 1
+    return sign + coefficient + 'e' + ('+' if power >= 0 else '') + str(power)
 
 def canonicalize(value):
-    return json.dumps(_normalize(value), ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+    # Render directly rather than relying on Python JSON float or Unicode
+    # key sorting (which differ from JavaScript's TCJ1 profile).
+    def encode(item):
+        if item is None: return 'null'
+        if item is True: return 'true'
+        if item is False: return 'false'
+        if isinstance(item, str):
+            return json.dumps(item, ensure_ascii=False, separators=(',', ':'))
+        if isinstance(item, int):
+            if abs(item) > 9007199254740991:
+                raise ValueError('TCJ1 signed integer out of interoperable range')
+            return str(item)
+        if isinstance(item, float): return _tcj1_float(item)
+        if isinstance(item, (tuple, list)): return '[' + ','.join(encode(v) for v in item) + ']'
+        if isinstance(item, dict):
+            if not all(isinstance(k, str) for k in item):
+                raise TypeError('TCJ1 object keys must be strings')
+            keys = sorted(item, key=lambda k: k.encode('utf-16-be', 'surrogatepass'))
+            return '{' + ','.join(encode(k) + ':' + encode(item[k]) for k in keys) + '}'
+        raise TypeError('unsupported TCJ1 value')
+    return encode(value)
 
 def unsigned_agent_descriptor(descriptor):
     return {key: value for key, value in descriptor.items() if key not in ('signature', 'signatures')}

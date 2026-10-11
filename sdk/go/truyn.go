@@ -106,7 +106,7 @@ func nodeIDFromPublicKeyPEM(publicKeyPEM string) (string, error) {
 	return "truyn:node:" + hex.EncodeToString(sum[:]), nil
 }
 
-func canonicalJSON(value any) ([]byte, error) { return json.Marshal(value) }
+func canonicalJSON(value any) ([]byte, error) { return canonicalTCJ1(value) }
 
 func (i *LocalIdentity) envelope(kind string, payload map[string]any, to *string) (map[string]any, error) {
 	switch kind {
