@@ -5,7 +5,7 @@ import { createRelay } from '../../../network/relay/server.js';
 
 const relay = createRelay({localDevelopmentMode:true});
 const relayUrl = await relay.listen({port:0});
-const languages = ['typescript','python','go','java'];
+const languages = ['typescript','python','go','java','dotnet'];
 const combinations = [
   ['legacy','legacy'],['legacy','candidate'],
   ['candidate','legacy'],['candidate','candidate']
@@ -16,6 +16,11 @@ function executable(lang, mode, role, capability) {
     command:process.execPath,
     args:['--experimental-strip-types','sdk/conformance/legacy-peer/role.ts',mode,role,relayUrl,capability]
   };
+  if(lang === 'dotnet') {
+    const assembly=mode==='legacy' ? process.env.TRUYN_LEGACY_DOTNET_DLL : process.env.TRUYN_CANDIDATE_DOTNET_DLL;
+    if(!assembly) throw new Error('Published and candidate NuGet assemblies required');
+    return {command:'dotnet',args:[assembly,mode,role,relayUrl,capability]};
+  }
   if(lang === 'java') {
     const classpath=mode==='legacy' ? process.env.TRUYN_LEGACY_JAVA_CP : process.env.TRUYN_CANDIDATE_JAVA_CP;
     if(!classpath) throw new Error('Published and candidate Java classpaths required');
