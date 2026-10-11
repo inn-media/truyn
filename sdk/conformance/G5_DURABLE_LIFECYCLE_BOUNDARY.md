@@ -11,3 +11,11 @@ The exact-SHA `sdk-release`, `full-qualification`, legacy wire freeze and `test:
 ## Exact-SHA outbox transport compatibility qualification
 
 PR #1000 adds a local, explicit signed `NEED/RESULT/REVOKE` durable recovery lane with authenticated recipient ACK and no changes to any of the five SDK wire encodings. The legacy/compact auto-poll transports remain unchanged; opt-in outbox recovery clients must ACK only after consumption. This source change **requires** exact-head five-language executable E2E, published wire vectors, SDK release clean-room and all regression suites even though none of the SDK wire source files changed. This document participates in the SDK release qualification gate to ensure those checks execute. The new local outbox remains incomplete for cross-host and paid effect G5 acceptance.
+
+## One-shot provider-host invariant
+
+The provider-side `TruynAdapterHost.runOnce()` must route **all** supported direct NEED execution through the exact same `executeNeed` path as the long-running worker, including durable `beginEffect` before billing/external side effects and terminal `finishEffect` after the external call. Separate one-shot and continuous worker implementations are forbidden if their authority, effect or billing semantics diverge. `tests/g5-runonce-effect-fence.test.js` exercises exact duplicate replay and fail-closed capacity; all five SDK execution/release suites must pass the same exact SHA.
+
+## Ambiguous provider outcome must remain unsettled
+
+An effect-fenced direct worker receiving a remote transport error after the external execution may have started MUST persist or retain an ambiguous `unknown` effect intent and MUST NOT automatically mark the signed NEED terminal with a false failed RESULT, retry the provider, or finalize/refund billing as if the external effect were known to have failed. Manual/provider-supported reconciliation is required. `tests/g5-runonce-effect-fence.test.js` covers the no-double-call, no-incorrect-terminal and no-premature-billing-finalization invariant. This remains at-most-one *attempt*, not a guaranteed exactly-one externally acknowledged effect.
