@@ -122,7 +122,11 @@ test('live retention probe proves both tenants, both override values and runtime
   assert.match(probe, /'normal':[\s\S]*'retention': '720h'/);
   assert.match(probe, /'incident':[\s\S]*'retention': '2160h'/);
   assert.match(probe, /'X-Scope-OrgID': tenant/);
-  assert.match(probe, /\/status\/overrides\/\{tenant\}/);
+  assert.match(probe, /\/status\/overrides\/\{tenant\}/);\n  // Tempo 3 serializes default false using omitempty, but explicit true is invalid.
+  assert.match(probe, /compaction_fields = re\\.findall/);
+  assert.ok(probe.includes("compaction_fields == ['false']"));
+  assert.match(probe, /source == tenant/);
+  assert.match(probe, /re\\.escape\\(expected\\)/);
   assert.match(probe, /TRUYN_TRACE_RETENTION_PASS normal_days=30 incident_days=90 normal_readback=1 incident_readback=1/);
   assert.match(probe, /retention_class=normal/);
 });
