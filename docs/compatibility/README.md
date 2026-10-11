@@ -2,7 +2,7 @@
 
 **Snapshot:** 2026-09-05  
 **Synchronized source:** `main@95b98ce6890bf13755062d4e71af48d7a572bff1`  
-**Protocol generation:** `TRUYN/1` draft  
+**Protocol generation:** `TRUYN/1` draft; A–I semantic registry does not add physical signed Envelope kinds  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`
 
 Compatibility is tracked separately for protocol/node behavior, adapters/external protocols and SDK packages.
