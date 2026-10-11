@@ -60,3 +60,7 @@ Decision value is not a payment. It is the requester's declared value/risk conte
 ## Stable-v1 acceptance
 
 Stable qualification requires an executable positive signed NEED vector plus tests proving correlation/requester ownership, replay/idempotency and authorization boundaries without duplicate provider execution.
+
+## Shared state-machine reference
+
+The cross-message terminal transitions, correlation and replay boundary are defined together in [`lifecycle.md`](lifecycle.md). Runtime implementation and negative tests do not by themselves establish durable cross-restart or cross-replica exactly-once.

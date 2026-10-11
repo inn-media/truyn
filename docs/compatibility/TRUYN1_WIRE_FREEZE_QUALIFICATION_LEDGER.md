@@ -51,3 +51,7 @@ The full 80-row A–I machine-readable registry is `spec/registry/truyn-core-v1.
 2. Repair canonical byte mismatches with language-local minimal changes, especially float formatting in Go/Java/.NET, without JS fallback or alternative signature checks.
 3. Re-run scoped SDK tests, whole repository CI and security on **one** final SHA. After every change previous SHA qualifications expire.
 4. Reconcile all normative docs and private consumer release matrix, then immutable public release and independent private staging; only after accepted authorization and network safety, independently consider Mainnet admission.
+
+## 2026-10-11 direct lifecycle negative candidate
+
+The bounded direct lifecycle candidate provides a unified state machine and adds a source-level check for duplicate `NEED` IDs after settlement, across HTTP/compact routes and after client re-registration. It also fails closed when the in-memory replay ledger fills. This is **not an immutable evidence run**, not cross-process durable deduplication, not five-language exact-SHA conformance, and not a G5 PASS. Full CI, security, SDK conformance and acceptance reconciliation must be recorded against the exact final PR head and then independently against merged `main`.

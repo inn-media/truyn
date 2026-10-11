@@ -47,3 +47,7 @@ Authorization and Trustability are distinct: authorization answers whether the p
 ## Stable-v1 acceptance
 
 Stable qualification requires executable correlation, provider-ownership, replay/duplicate-terminal, cancellation/late-result and signature/integrity regressions for the bounded RESULT path.
+
+## Shared state-machine reference
+
+The cross-message terminal transitions, correlation and replay boundary are defined together in [`lifecycle.md`](lifecycle.md). Runtime implementation and negative tests do not by themselves establish durable cross-restart or cross-replica exactly-once.
