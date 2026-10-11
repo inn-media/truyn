@@ -25,6 +25,20 @@ AssertCanonical(new Dictionary<string, object> {["n"] = 1e-7}, "{\"n\":1e-7}");
 AssertCanonical(new Dictionary<string, object> {["n"] = 0.000025}, "{\"n\":0.000025}");
 AssertCanonical(new Dictionary<string, object> {["q"] = "R&D <b>"}, "{\"q\":\"R&D <b>\"}");
 
+var sharedCorpusPath = "sdk/conformance/v1/tcj1-wire-freeze-vectors.json";
+using (var golden = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(sharedCorpusPath)))
+{
+    var cases = golden.RootElement.GetProperty("cases");
+    if (cases.GetArrayLength() < 14) throw new InvalidOperationException("shared TCJ1 corpus incomplete");
+    foreach (var item in cases.EnumerateArray())
+    {
+        var actual = (byte[])canonicalMethod.Invoke(null, new object?[] {item.GetProperty("input")})!;
+        var expected = System.Text.Encoding.UTF8.GetBytes(item.GetProperty("canonicalUnsigned").GetString()!);
+        if (!actual.AsSpan().SequenceEqual(expected))
+            throw new InvalidOperationException("dotnet TCJ1 shared vector " + item.GetProperty("id").GetString() + " byte mismatch: " + System.Text.Encoding.UTF8.GetString(actual));
+    }
+}
+
 await using var provider = await TruynClient.ConnectAsync(new TruynClientOptions(relay), "dotnet-provider");
 await using var requester = await TruynClient.ConnectAsync(new TruynClientOptions(relay), "dotnet-requester");
 var capability = "sdk.release.dotnet." + Guid.NewGuid().ToString("N");
