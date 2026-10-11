@@ -44,6 +44,10 @@ public final class ConformanceMain {
     provider.sendResult(need.needId(), Map.of("ok", true, "language", "java"), Map.of()).join();
     TruynClient.ResultEvent result = requester.waitForResult(receipt.needId(), Duration.ofSeconds(5)).join();
     if (!provider.nodeId().equals(result.provider())) throw new AssertionError("invalid RESULT provider");
+    var durable = requester.recoverDurable(32).join();
+    if(durable.stream().noneMatch(x -> ("result:"+receipt.needId()).equals(x.get("eventId"))))throw new AssertionError("missing durable result");
+    requester.acknowledgeDurable("result:"+receipt.needId()).join();
+    if(requester.recoverDurable(32).join().stream().anyMatch(x -> ("result:"+receipt.needId()).equals(x.get("eventId"))))throw new AssertionError("ACKed result replayed");
     TruynClient.NeedReceipt cancelReceipt = requester.need(capability, Map.of("cancel", true), Map.of()).join();
     requester.cancelNeed(cancelReceipt.needId(), "sdk_conformance_cancel").join();
     System.out.println("PASS java developer-release conformance");

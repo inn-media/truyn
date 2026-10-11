@@ -34,6 +34,13 @@ provider.result(need['needId'], {'ok': True, 'language': 'python'})
 result = requester.wait_for_result(receipt['needId'], timeout_ms=5000)
 assert result['provider'] == provider.node_id
 assert result['verification']['ok'] is True
+# A second read before explicit ACK still exposes the same signed event.
+requester_token = requester._auth_headers()['authorization'].removeprefix('Bearer ')
+durable = TruynClient(relay_url, session_token=requester_token)
+assert any(e['eventId'] == 'result:' + receipt['needId'] for e in durable.recover_durable())
+assert any(e['eventId'] == 'result:' + receipt['needId'] for e in durable.recover_durable())
+assert durable.acknowledge_durable('result:' + receipt['needId'])['acknowledged'] is True
+assert not any(e['eventId'] == 'result:' + receipt['needId'] for e in durable.recover_durable())
 cancel_receipt = requester.need(capability, {'cancel': True})
 revoke = create_envelope(
     type='REVOKE',

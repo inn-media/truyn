@@ -127,6 +127,24 @@ public sealed class TruynClient : IAsyncDisposable
         return await RequestAsync(HttpMethod.Post, "v1/results", new { envelope }, true, cancellationToken).ConfigureAwait(false);
     }
 
+    // Signed durable recovery lane is explicit; the application must verify
+    // signature and store the event before calling AcknowledgeDurableAsync.
+    public async Task<IReadOnlyList<JsonElement>> RecoverDurableAsync(int limit = 32, CancellationToken cancellationToken = default)
+    {
+        if (limit < 1 || limit > 100) throw new ArgumentOutOfRangeException(nameof(limit));
+        var response = await RequestAsync(HttpMethod.Get, "v1/lifecycle/deliveries?limit=" + limit, null, true, cancellationToken).ConfigureAwait(false);
+        if (!response.TryGetProperty("deliveries", out var values) || values.ValueKind != JsonValueKind.Array) throw Invalid("Missing durable deliveries");
+        var output = new List<JsonElement>();
+        foreach (var item in values.EnumerateArray()) output.Add(item.Clone());
+        return output;
+    }
+
+    public Task<JsonElement> AcknowledgeDurableAsync(string eventId, CancellationToken cancellationToken = default)
+    {
+        Require(eventId, "eventId required");
+        return RequestAsync(HttpMethod.Post, "v1/lifecycle/deliveries/ack", new { eventId }, true, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<RelayEvent>> PollAsync(CancellationToken cancellationToken = default)
     {
         var body = await RequestAsync(HttpMethod.Get, "v1/events?nodeId=" + Uri.EscapeDataString(_identity.NodeId), null, true, cancellationToken).ConfigureAwait(false);

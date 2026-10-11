@@ -34,6 +34,22 @@ public final class TruynClient {
   public static Builder builder(){return new Builder();} public Config config(){return config;} public String nodeId(){return nodeId;}
   public static TruynClient connect(URI baseUrl,String name){TruynClient client=builder().baseUrl(baseUrl).build();client.register(name);return client;}
   public CompletableFuture<TruynModels.Identity> identity(){return CompletableFuture.completedFuture(new TruynModels.Identity(nodeId,publicKeyPem));}
+  // Opt-in recovery. Caller must verify compact/legacy signature and persist
+  // before ACK; retrieval never executes, settles or auto-acknowledges work.
+  public CompletableFuture<List<Map<String,Object>>> recoverDurable(int limit){return future(()->{
+    if(limit<1||limit>100)throw invalid("limit must be 1..100");
+    Map<String,Object> response=request("GET","/v1/lifecycle/deliveries?limit="+limit,null,true);
+    Object entries=response.get("deliveries");
+    if(!(entries instanceof List<?> list))throw invalid("Missing durable deliveries");
+    List<Map<String,Object>> result=new ArrayList<>();
+    for(Object entry:list)result.add(Json.object(entry));
+    return List.copyOf(result);
+  });}
+  public CompletableFuture<Map<String,Object>> acknowledgeDurable(String eventId){return future(()->{
+    require(eventId,"eventId required");
+    return request("POST","/v1/lifecycle/deliveries/ack",map("eventId",eventId),true);
+  });}
+
   public void register(String name){Map<String,Object> payload=map("nodeId",nodeId,"algorithm","Ed25519","protocols",config.supportedProtocols(),"name",name);Map<String,Object> response=request("POST","/v1/register",map("envelope",envelope("IDENTITY",payload)),false);Object token=response.get("sessionToken");if(!(token instanceof String text)||text.isBlank())throw new TruynException(TruynException.Code.INVALID_RESPONSE,"relay returned an invalid registration response",false);sessionToken=text;}
   public CompletableFuture<List<TruynModels.Offer>> discover(String capability){return future(()->{require(capability,"capability is required");Map<String,Object> response=request("GET","/v1/offers?capability="+URLEncoder.encode(capability,StandardCharsets.UTF_8),null,true);Object raw=response.get("offers");if(!(raw instanceof List<?> list))throw invalid("relay returned an invalid authorized discovery response");List<TruynModels.Offer> offers=new ArrayList<>();for(Object item:list)offers.add(offer(Json.object(item)));return List.copyOf(offers);});}
   public CompletableFuture<Map<String,Object>> offer(String capability,Map<String,Object> metadata){return future(()->{require(capability,"capability is required");return request("POST","/v1/offers",map("envelope",envelope("OFFER",map("capability",map("name",capability),"metadata",metadata==null?Map.of():metadata))),true);});}
