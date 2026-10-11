@@ -102,3 +102,9 @@ test('P13 adoption discovery is metadata-only and cannot authorize production cu
   // This push-triggered audit can identify a source candidate; no data has
   // been read, no snapshot has been attested and no traffic switch is allowed.
 });
+
+test('P13 source discovery test changes require full CI qualification', async () => {
+  const affected=await readFile(new URL('../scripts/affected-tests.mjs',import.meta.url),'utf8');
+  assert.match(affected,/production-authority-source-discovery\\.test\\.js/);
+  assert.match(affected,/full=true/);
+});
