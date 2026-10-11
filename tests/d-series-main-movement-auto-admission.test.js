@@ -50,3 +50,22 @@ test('automatic main-movement Admission is fail-closed and ignores arbitrary qua
   assert.match(workflow, /pull-requests: read/);
   assert.ok(!workflow.includes('ambiguous_active_qualifications'));
 });
+
+
+test('upstream successful but candidate-not-ready qualification does not create false red admission', () => {
+  assert.match(workflow, /upstream_candidate_pair_not_ready/);
+  assert.match(workflow, /qualification_manifest_missing_after_attempt/);
+  assert.match(workflow, /\.name=="freeze-candidate-evidence"/);
+  assert.match(workflow, /"Build automatic D qualification manifest" and \.conclusion=="skipped"/);
+  assert.match(workflow, /"Upload immutable candidate qualification manifest" and \.conclusion=="skipped"/);
+  assert.match(workflow, /"Resolve candidate and exact successful evidence" and \.conclusion=="success"/);
+  assert.match(workflow, /upstream_artifacts/);
+  assert.match(workflow, /\.size_in_bytes\/\/0\)>0/);
+  assert.match(workflow, /exit 25/);
+  assert.match(workflow, /if \[\[ "\$GITHUB_EVENT_NAME" == workflow_run \]\]/);
+  // Strict manual/push admission still requires the uniquely valid manifest and
+  // actual candidate qualification; never grant an unqualified candidate PASS.
+  assert.match(workflow, /if \[\[ "\$eligible" == true \]\]; then/);
+  assert.match(workflow, /length==1/);
+  assert.match(workflow, /controller_candidate_missing_qualification/);
+});

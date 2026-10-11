@@ -119,6 +119,37 @@ jobs:
             fi
           fi
 
+          # A successful upstream qualification can intentionally contain no manifest:
+          # its candidate-bound Swarm/Blockwise pair was not yet ready. Prove the
+          # exact upstream steps were skipped before treating it as a benign SKIP.
+          # A missing manifest after an attempted build/upload remains FAIL (closed).
+          if [[ "$GITHUB_EVENT_NAME" == workflow_run ]]; then
+            [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
+            upstream="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+            jq -e '.name=="D-Series Frozen Candidate Qualification" and .status=="completed" and .conclusion=="success" and .run_attempt==1' <<<"$upstream" >/dev/null
+            expected_manifest="d-series-qualification-manifest-${run_id}"
+            upstream_artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")"
+            if ! jq -e --arg n "$expected_manifest" '[.artifacts[] | select(.name==$n and .expired==false and (.size_in_bytes//0)>0)] | length==1' <<<"$upstream_artifacts" >/dev/null; then
+              upstream_jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")"
+              if jq -e '
+                [.jobs[] | select(
+                  .name=="freeze-candidate-evidence"
+                  and .status=="completed"
+                  and .conclusion=="success"
+                  and any(.steps[]; .name=="Resolve candidate and exact successful evidence" and .conclusion=="success")
+                  and any(.steps[]; .name=="Build automatic D qualification manifest" and .conclusion=="skipped")
+                  and any(.steps[]; .name=="Upload immutable candidate qualification manifest" and .conclusion=="skipped")
+                )] | length==1
+              ' <<<"$upstream_jobs" >/dev/null; then
+                eligible=false
+                echo "TRUYN_D_SERIES_ADMISSION=SKIP reason=upstream_candidate_pair_not_ready qualification_run=$run_id"
+              else
+                echo "TRUYN_D_SERIES_ADMISSION=FAIL reason=qualification_manifest_missing_after_attempt qualification_run=$run_id" >&2
+                exit 25
+              fi
+            fi
+          fi
+
           if [[ "$eligible" == true ]]; then
             [[ "$run_id" =~ ^[1-9][0-9]+$ ]]
             run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
