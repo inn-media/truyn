@@ -82,7 +82,7 @@ for (const artifact of packageArtifacts) {
   if (format) readFormats.add(format);
 
   const normalized = entries.map((entry) => entry.replace(/^\.\//, ''));
-  const isMavenCompanion = new RegExp('^java/truyn-sdk-' + escaped(manifest.release) + '-(sources|javadoc)\\.jar
+  const isMavenCompanion = new RegExp('^java/truyn-sdk-' + escaped(manifest.release) + '-(sources|javadoc)[.]jar$').test(artifact.path);
   if (!isMavenCompanion) {
     if (!normalized.some((entry) => /(^|\/)LICENSE$/i.test(entry))) throw new Error(`LICENSE missing from ${artifact.path}`);
     if (!normalized.some((entry) => /(^|\/)NOTICE$/i.test(entry))) throw new Error(`NOTICE missing from ${artifact.path}`);
