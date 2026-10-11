@@ -162,7 +162,14 @@ CREATE TABLE IF NOT EXISTS provider_effects (
       if (![id, provider, requester, fingerprint].every(x => typeof x === 'string' && x.length > 0)) throw fault(400, 'invalid_effect_intent');
       return transaction(() => {
         const existing = oneEffect.get(id);
-        if (existing) return { acquired: false, existing };
+        if (existing) {
+          // Replays are only idempotent if they attest the same original
+          // requester, selected provider and signed logical work fingerprint.
+          // A forged/colliding ID may not impersonate or suppress this intent.
+          if (existing.provider !== provider || existing.requester !== requester || existing.fingerprint !== fingerprint)
+            throw fault(409, 'effect_identity_conflict');
+          return { acquired: false, existing };
+        }
         if (countEffects.get().count >= maxRecords) throw fault(503, 'effect_idempotency_capacity_reached');
         insertEffect.run(id, provider, requester, fingerprint, new Date().toISOString());
         return { acquired: true, existing: null };
