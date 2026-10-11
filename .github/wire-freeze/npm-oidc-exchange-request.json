@@ -1,0 +1,21 @@
+{
+  "schema": "truyn.wire-freeze-npm-protected-oidc-one-shot/v1",
+  "task": "truyn1-immutable-successor-publication-20261011",
+  "attempt": 1,
+  "frozenSourceSha": "57971b134a41c3e3ea4b42f68e86a7d117036006",
+  "frozenCiRunId": 38154701595,
+  "frozenCodeqlRunId": 38154701311,
+  "npmPackage": "@truyn/sdk",
+  "immutableVersion": "0.1.0-alpha.5",
+  "previousFailedRuns": [
+    38157824903,
+    38161066015
+  ],
+  "acceptedRepairPr": 1006,
+  "mode": "protected-main-push-original-npm-publisher-only",
+  "noStaticRegistryCredentials": true,
+  "noRetagging": true,
+  "noOverwrite": true,
+  "privateCanaryAdmission": false,
+  "wanAdmission": false
+}
