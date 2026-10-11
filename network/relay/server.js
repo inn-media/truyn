@@ -112,6 +112,7 @@ export function createRelay({
   commandHeadersTimeoutMs = 65_000,
   maxRequests = 8192,
   maxSeenNeedIds = 262144,
+  lifecycleLedger = null,
   requestTtlMs = 15 * 60 * 1000,
   maxChains = 1024,
   allowedNodeIds = [],
@@ -184,6 +185,7 @@ export function createRelay({
     return [...offers.values()]
       .filter((offer) =>
         !offer.revoked &&
+        !lifecycleLedger?.getOffer(offer.envelope.id)?.revoked &&
         (!capability || offer.capability === capability) &&
         (!requesterNodeId || offer.envelope.from !== requesterNodeId) &&
         isNodeFresh(offer.envelope.from, now) &&
@@ -267,6 +269,10 @@ export function createRelay({
     if (!request || request.mode !== 'fast' || request.status !== 'matched') return false;
     const activityAt = Date.parse(request.lastPartialAt || request.createdAt || '');
     if (!Number.isFinite(activityAt) || now - activityAt < requestTtlMs) return false;
+    if (lifecycleLedger) {
+      try { lifecycleLedger.transitionNeed({ id: request.needId, provider: request.provider, to: 'failed' }); }
+      catch { return false; } // Fail closed; never replace an already committed terminal state.
+    }
     request.status = 'failed';
     request.failedAt = new Date(now).toISOString();
     request.failureReason = 'request_expired';
@@ -480,9 +486,12 @@ export function createRelay({
     return null;
   }
 
-  function admitDirectNeedId(id) {
-    if (requests.has(id) || seenNeedIds.has(id)) throw httpError(409, 'duplicate_request');
+  function admitDirectNeedId({ id, requester, provider, fingerprint, capability, mode }) {
+    if (requests.has(id) || seenNeedIds.has(id) || lifecycleLedger?.getNeed(id)) throw httpError(409, 'duplicate_request');
     if (seenNeedIds.size >= maxSeenNeedIds) throw httpError(503, 'need_idempotency_capacity_reached');
+    // SQLite reserveNeed is a cross-process atomic INSERT under BEGIN IMMEDIATE.
+    // No provider event may be delivered before this succeeds.
+    lifecycleLedger?.reserveNeed({ id, requester, provider, fingerprint, capability, mode });
     seenNeedIds.add(id);
   }
 
@@ -496,6 +505,8 @@ export function createRelay({
   }
 
   function completeRequest(request, providerNodeId) {
+    // Commit the authoritative terminal state BEFORE in-memory accounting or delivery.
+    lifecycleLedger?.transitionNeed({ id: request.needId, provider: providerNodeId, to: 'completed' });
     request.status = 'completed';
     request.completedAt = new Date().toISOString();
     const providerStats = stats.get(providerNodeId) || { successfulTasks: 0, failedTasks: 0 };
@@ -596,7 +607,12 @@ export function createRelay({
     const verification = verifyCompactFrame(frame, payload, provider.publicKey, { allowedTypes: ['PARTIAL'] });
     if (!verification.ok) return { status: 400, body: { ok: false, error: verification.reason } };
     const request = requests.get(frame.i);
-    if (!request) return { status: 404, body: { ok: false, error: 'request_not_found' } };
+    if (!request) {
+      const durable = lifecycleLedger?.getNeed(frame.i);
+      if (durable && durable.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
+      if (durable && durable.status !== 'matched') return { status: 409, body: { ok: false, error: durable.status === 'cancelled' ? 'request_cancelled' : durable.status === 'failed' ? 'request_failed' : 'request_already_completed' } };
+      return { status: durable ? 503 : 404, body: { ok: false, error: durable ? 'request_recovery_required' : 'request_not_found' } };
+    }
     if (request.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
     expireFastRequest(request);
     const terminalError = terminalRequestError(request);
@@ -607,14 +623,22 @@ export function createRelay({
     const digest = partialDigest(frame, payload);
     if (payload.sequence === expected - 1 && request.lastPartialSequence === payload.sequence) {
       if (request.lastPartialDigest === digest) {
+        // Do not acknowledge a stale in-memory retry if a peer process has
+        // already committed cancellation/completion in the shared ledger.
+        lifecycleLedger?.acceptPartial({ id: frame.i, provider: providerNodeId, sequence: payload.sequence, digest });
         return { status: 200, body: { ok: true, requestId: frame.i, sequence: payload.sequence, transport: request.lastPartialTransport, idempotent: true } };
       }
       return { status: 409, body: { ok: false, error: 'partial_sequence_mismatch', expected, received: payload.sequence } };
     }
     if (payload.sequence !== expected) return { status: 409, body: { ok: false, error: 'partial_sequence_mismatch', expected, received: payload.sequence } };
+    const durablePartial = lifecycleLedger?.acceptPartial({ id: frame.i, provider: providerNodeId, sequence: payload.sequence, digest });
+    if (durablePartial?.idempotent) return { status: 200, body: { ok: true, requestId: frame.i, sequence: payload.sequence, idempotent: true } };
     const event = { kind: 'PARTIAL', frame, payload, from: providerNodeId, requestId: frame.i, sequence: payload.sequence };
     const transport = queueFast(request.requester, event, { requireCapacity: true });
-    if (transport === 'full') return { status: 429, body: { ok: false, error: 'partial_backpressure', requestId: frame.i, sequence: payload.sequence, expected } };
+    if (transport === 'full') {
+      lifecycleLedger?.rollbackPartial({ id: frame.i, sequence: payload.sequence, digest, previousDigest: durablePartial?.previousDigest });
+      return { status: 429, body: { ok: false, error: 'partial_backpressure', requestId: frame.i, sequence: payload.sequence, expected } };
+    }
     if ((request.partialCount || 0) === 0) {
       finishResultWaiter(frame.i, 200, {
         ok: true,
@@ -640,7 +664,12 @@ export function createRelay({
     const verification = verifyCompactFrame(frame, payload, provider.publicKey, { allowedTypes: ['RESULT'] });
     if (!verification.ok) return { status: 400, body: { ok: false, error: verification.reason } };
     const request = requests.get(frame.i);
-    if (!request) return { status: 404, body: { ok: false, error: 'request_not_found' } };
+    if (!request) {
+      const durable = lifecycleLedger?.getNeed(frame.i);
+      if (durable && durable.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
+      if (durable && durable.status !== 'matched') return { status: 409, body: { ok: false, error: durable.status === 'cancelled' ? 'request_cancelled' : durable.status === 'failed' ? 'request_failed' : 'request_already_completed' } };
+      return { status: durable ? 503 : 404, body: { ok: false, error: durable ? 'request_recovery_required' : 'request_not_found' } };
+    }
     if (request.provider !== providerNodeId) return { status: 403, body: { ok: false, error: 'provider_mismatch' } };
     expireFastRequest(request);
     const terminalError = terminalRequestError(request);
@@ -783,9 +812,10 @@ export function createRelay({
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         const capability = envelope.payload?.capability?.name || envelope.payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
-        if (offers.has(envelope.id)) return json(res, 409, { ok: false, error: 'duplicate_offer' });
+        if (offers.has(envelope.id) || lifecycleLedger?.getOffer(envelope.id)) return json(res, 409, { ok: false, error: 'duplicate_offer' });
         if (offers.size >= maxOffers) return json(res, 503, { ok: false, error: 'offer_capacity_reached' });
         const policy = providerPolicyFromOffer(envelope);
+        lifecycleLedger?.reserveOffer({ id: envelope.id, owner: envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex') });
         offers.set(envelope.id, { envelope, capability, policy, revoked: false });
         touch(envelope.from);
         return json(res, 200, { ok: true, offerId: envelope.id });
@@ -796,7 +826,7 @@ export function createRelay({
         if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
         const capability = url.searchParams.get('capability');
         if (!requesterCanDispatch(requesterNodeId)) {
-          const own = [...offers.values()].filter((offer) => !offer.revoked && offer.envelope.from === requesterNodeId && (!capability || offer.capability === capability)).map((offer) => offer.envelope);
+          const own = [...offers.values()].filter((offer) => !offer.revoked && !lifecycleLedger?.getOffer(offer.envelope.id)?.revoked && offer.envelope.from === requesterNodeId && (!capability || offer.capability === capability)).map((offer) => offer.envelope);
           return json(res, 200, { ok: true, offers: own });
         }
         const matches = matchingOffers({ capability, requesterNodeId }).map((offer) => ({ ...offer.envelope, trust: trustFor(offer.envelope.from) }));
@@ -891,7 +921,7 @@ export function createRelay({
         const { frame, payload } = await readJson(req, maxBodyBytes);
         const verification = verifyCompactFrame(frame, payload, requester.publicKey, { allowedTypes: ['NEED'] });
         if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
-        if (requests.has(frame.i) || seenNeedIds.has(frame.i)) return json(res, 409, { ok: false, error: 'duplicate_request' });
+        if (requests.has(frame.i) || seenNeedIds.has(frame.i) || lifecycleLedger?.getNeed(frame.i)) return json(res, 409, { ok: false, error: 'duplicate_request' });
         const capability = payload?.capability?.name || payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
         const match = matchingOffers({ capability, requesterNodeId })[0];
@@ -900,7 +930,7 @@ export function createRelay({
         if (!reserveFastTerminal(requesterNodeId)) return json(res, 429, { ok: false, error: 'terminal_backpressure' });
         try {
           pruneCompleted(requests, maxRequests);
-          admitDirectNeedId(frame.i);
+          admitDirectNeedId({ id: frame.i, requester: requesterNodeId, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify([frame, payload])).digest('hex'), capability, mode: 'fast' });
         } catch (error) {
           const rollback = { requester: requesterNodeId, terminalReserved: true };
           releaseFastTerminal(rollback);
@@ -938,8 +968,17 @@ export function createRelay({
         if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
         const requestId = decodeURIComponent(requestStatusRoute[1]);
         const request = requests.get(requestId);
+        if (!request && lifecycleLedger) {
+          const durable = lifecycleLedger.getNeed(requestId);
+          if (!durable) return json(res, 404, { ok: false, error: 'request_not_found' });
+          if (durable.requester !== requesterNodeId) return json(res, 403, { ok: false, error: 'not_request_owner' });
+          if (durable.mode !== 'fast') return json(res, 409, { ok: false, error: 'request_status_requires_fast_need' });
+          return json(res, 200, { ok: true, requestId, status: durable.status, provider: durable.provider, partialCount: durable.partial_sequence, error: durable.status === 'cancelled' ? 'request_cancelled' : null, reconciliationRequired: durable.status === 'matched', completedAt: durable.status === 'completed' ? durable.terminal_at : null, cancelledAt: durable.status === 'cancelled' ? durable.terminal_at : null, failedAt: durable.status === 'failed' ? durable.terminal_at : null });
+        }
         if (!request) return json(res, 404, { ok: false, error: 'request_not_found' });
         if (request.requester !== requesterNodeId) return json(res, 403, { ok: false, error: 'not_request_owner' });
+        const durable = lifecycleLedger?.getNeed(requestId);
+        if (durable?.status && durable.status !== 'matched') request.status = durable.status;
         if (request.mode !== 'fast') return json(res, 409, { ok: false, error: 'request_status_requires_fast_need' });
         expireFastRequest(request);
         touch(requesterNodeId);
@@ -991,17 +1030,39 @@ export function createRelay({
         if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         if (!requesterCanDispatch(envelope.from)) return json(res, 403, { ok: false, error: 'provider_access_denied' });
-        if (requests.has(envelope.id) || seenNeedIds.has(envelope.id)) return json(res, 409, { ok: false, error: 'duplicate_request' });
+        if (requests.has(envelope.id) || seenNeedIds.has(envelope.id) || lifecycleLedger?.getNeed(envelope.id)) return json(res, 409, { ok: false, error: 'duplicate_request' });
         const capability = envelope.payload?.capability?.name || envelope.payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
         const match = matchingOffers({ capability, requesterNodeId: envelope.from })[0];
         if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
         pruneCompleted(requests, maxRequests);
-        admitDirectNeedId(envelope.id);
+        admitDirectNeedId({ id: envelope.id, requester: envelope.from, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'), capability, mode: 'legacy' });
         requests.set(envelope.id, { needId: envelope.id, requester: envelope.from, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'legacy' });
         queue(match.envelope.from, { kind: 'NEED', envelope });
         touch(envelope.from);
         return json(res, 200, { ok: true, needId: envelope.id, provider: match.envelope.from, providerTrust: trustFor(match.envelope.from) });
+      }
+
+      const durableNeedStatus = url.pathname.match(/^\/v1\/lifecycle\/needs\/([^/]+)$/);
+      if (req.method === 'GET' && durableNeedStatus) {
+        const actor = authenticatedNodeId(req);
+        if (!actor) return json(res, 401, { ok: false, error: 'unauthorized' });
+        if (!lifecycleLedger) return json(res, 503, { ok: false, error: 'durable_lifecycle_unavailable' });
+        const id = decodeURIComponent(durableNeedStatus[1]);
+        const record = lifecycleLedger.getNeed(id);
+        if (!record || (record.requester !== actor && record.provider !== actor)) return json(res, 404, { ok: false, error: 'request_not_found' });
+        return json(res, 200, { ok: true, id, status: record.status, provider: record.provider, createdAt: record.created_at, terminalAt: record.terminal_at, partialCount: record.partial_sequence, reconciliationRequired: record.status === 'matched' && !requests.has(id) });
+      }
+
+      const durableEffectStatus = url.pathname.match(/^\/v1\/lifecycle\/effects\/([^/]+)$/);
+      if (req.method === 'GET' && durableEffectStatus) {
+        const actor = authenticatedNodeId(req);
+        if (!actor) return json(res, 401, { ok: false, error: 'unauthorized' });
+        if (!lifecycleLedger) return json(res, 503, { ok: false, error: 'durable_lifecycle_unavailable' });
+        const id = decodeURIComponent(durableEffectStatus[1]);
+        const effect = lifecycleLedger.getEffect(id);
+        if (!effect || effect.provider !== actor) return json(res, 404, { ok: false, error: 'effect_not_found' });
+        return json(res, 200, { ok: true, id, status: effect.status, createdAt: effect.created_at, finishedAt: effect.finished_at, reconciliationRequired: effect.status === 'unknown' || effect.status === 'started' });
       }
 
       const legacyRequestStatusRoute = url.pathname.match(/^\/v1\/requests\/([^/]+)$/);
@@ -1010,6 +1071,13 @@ export function createRelay({
         if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
         const requestId = decodeURIComponent(legacyRequestStatusRoute[1]);
         const request = requests.get(requestId);
+        if (!request && lifecycleLedger) {
+          const durable = lifecycleLedger.getNeed(requestId);
+          if (!durable) return json(res, 404, { ok: false, error: 'request_not_found' });
+          if (durable.requester !== requesterNodeId) return json(res, 403, { ok: false, error: 'not_request_owner' });
+          if (durable.mode !== 'legacy') return json(res, 409, { ok: false, error: 'request_status_requires_legacy_need' });
+          return json(res, 200, { ok: true, requestId, status: durable.status, provider: durable.provider, capability: durable.capability, createdAt: durable.created_at, completedAt: durable.status === 'completed' ? durable.terminal_at : null, cancelledAt: durable.status === 'cancelled' ? durable.terminal_at : null, result: null, reconciliationRequired: durable.status === 'matched' });
+        }
         if (!request || request.requester !== requesterNodeId) return json(res, 404, { ok: false, error: 'request_not_found' });
         if (request.mode !== 'legacy') return json(res, 409, { ok: false, error: 'request_status_requires_legacy_need' });
         touch(requesterNodeId);
@@ -1033,7 +1101,13 @@ export function createRelay({
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         const requestId = envelope.payload?.requestId;
         const request = requests.get(requestId);
-        if (!request) return json(res, 404, { ok: false, error: 'request_not_found' });
+        if (!request) {
+          const durable = lifecycleLedger?.getNeed(requestId);
+          if (durable && durable.provider !== envelope.from) return json(res, 403, { ok: false, error: 'provider_mismatch' });
+          if (durable && durable.status !== 'matched') return json(res, 409, { ok: false, error: durable.status === 'cancelled' ? 'request_cancelled' : durable.status === 'failed' ? 'request_failed' : 'request_already_completed' });
+          if (durable) return json(res, 503, { ok: false, error: 'request_recovery_required' });
+          return json(res, 404, { ok: false, error: 'request_not_found' });
+        }
         if (request.provider !== envelope.from) return json(res, 403, { ok: false, error: 'provider_mismatch' });
         const terminalError = terminalRequestError(request);
         if (terminalError) return json(res, 409, { ok: false, error: terminalError });
@@ -1060,11 +1134,17 @@ export function createRelay({
         const cancellationReason = rawReason || 'cancelled_by_requester';
         const request = requests.get(targetId);
         const offer = offers.get(targetId);
-        if (targetKind === 'auto' && (request || seenNeedIds.has(targetId)) && offer) return json(res, 409, { ok: false, error: 'ambiguous_revoke_target', targetId });
-        const targetsNeed = targetKind === 'need' || (targetKind === 'auto' && Boolean(request));
+        if (targetKind === 'auto' && (request || seenNeedIds.has(targetId) || lifecycleLedger?.getNeed(targetId)) && (offer || lifecycleLedger?.getOffer(targetId))) return json(res, 409, { ok: false, error: 'ambiguous_revoke_target', targetId });
+        const targetsNeed = targetKind === 'need' || (targetKind === 'auto' && Boolean(request || lifecycleLedger?.getNeed(targetId)));
 
         if (targetsNeed) {
-          if (!request) return json(res, 404, { ok: false, error: 'target_not_found' });
+          if (!request) {
+            const durable = lifecycleLedger?.getNeed(targetId);
+            if (!durable) return json(res, 404, { ok: false, error: 'target_not_found' });
+            if (durable.requester !== envelope.from) return json(res, 403, { ok: false, error: 'not_request_owner' });
+            const outcome = lifecycleLedger.transitionNeed({ id: targetId, requester: envelope.from, to: 'cancelled' });
+            return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: !outcome.changed, provider: durable.provider, deliveryPending: true });
+          }
           expireFastRequest(request);
           if (request.mode === 'chain-stage') return json(res, 409, { ok: false, error: 'chain_stage_cancellation_not_supported' });
           if (request.requester !== envelope.from) return json(res, 403, { ok: false, error: 'not_request_owner' });
@@ -1078,6 +1158,7 @@ export function createRelay({
             return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: true, redelivered: true, provider: request.provider, cancelledAt: request.cancelledAt });
           }
 
+          const persistedCancellation = lifecycleLedger?.transitionNeed({ id: targetId, requester: envelope.from, to: 'cancelled' });
           request.status = 'cancelled';
           request.cancelled = true;
           request.cancelledAt = new Date().toISOString();
@@ -1088,11 +1169,12 @@ export function createRelay({
           const delivered = queueCancellation(request, cancellationEvent);
           touch(envelope.from);
           if (!delivered) return json(res, 429, { ok: false, error: 'cancellation_backpressure', targetId, targetKind: 'need', cancelled: true, provider: request.provider, cancelledAt: request.cancelledAt });
-          return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, provider: request.provider, cancelledAt: request.cancelledAt });
+          return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: persistedCancellation?.changed === false, provider: request.provider, cancelledAt: request.cancelledAt });
         }
 
         if (!offer) return json(res, 404, { ok: false, error: 'target_not_found' });
         if (offer.envelope.from !== envelope.from) return json(res, 403, { ok: false, error: 'not_target_owner' });
+        lifecycleLedger?.revokeOffer({ id: targetId, owner: envelope.from });
         offer.revoked = true;
         touch(envelope.from);
         return json(res, 200, { ok: true, targetId, targetKind: 'offer' });
@@ -1255,7 +1337,7 @@ export function createRelay({
 
   return {
     server,
-    state: { nodes, sessions, offers, events, fastEvents, fastTerminalEvents, fastTerminalReservations, providerSockets, requests, chains, contexts, stats },
+    state: { nodes, sessions, offers, events, fastEvents, fastTerminalEvents, fastTerminalReservations, providerSockets, requests, chains, contexts, stats, lifecycleLedger },
     async listen({ port = 8787, host = '127.0.0.1' } = {}) {
       if (localDevelopmentMode && host !== '127.0.0.1' && host !== '::1' && host !== 'localhost') throw new Error('localDevelopmentMode may only bind to a loopback host');
       await new Promise((resolve) => server.listen(port, host, resolve));

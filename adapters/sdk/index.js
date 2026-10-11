@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { verifyEnvelope } from '../../core/protocol/index.js';
 import { createProviderAccessPolicy } from '../../core/security/provider-access.js';
 
@@ -138,7 +139,7 @@ export function createFunctionAdapter({ name = 'function-adapter', version = '0.
 }
 
 export class TruynAdapterHost {
-  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, executionDrainTimeoutMs = 5_000, accessPolicy, billingPolicy = null } = {}) {
+  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, executionDrainTimeoutMs = 5_000, accessPolicy, billingPolicy = null, effectLedger = null } = {}) {
     if (!node) throw new Error('node is required');
     this.node = node;
     this.adapter = validateAdapter(adapter);
@@ -153,6 +154,10 @@ export class TruynAdapterHost {
     this.executionDrainTimeoutMs = Number.isFinite(executionDrainTimeoutMs) ? Math.max(0, Math.min(60_000, Math.floor(executionDrainTimeoutMs))) : 5_000;
     this.accessPolicy = accessPolicy || createProviderAccessPolicy();
     this.billingPolicy = billingPolicy;
+    if (effectLedger && (typeof effectLedger.beginEffect !== 'function' || typeof effectLedger.finishEffect !== 'function')) {
+      throw new Error('effectLedger must implement beginEffect and finishEffect');
+    }
+    this.effectLedger = effectLedger;
     this.running = false;
     this.registered = false;
     this.offerIds = [];
@@ -256,7 +261,8 @@ export class TruynAdapterHost {
           if ((resolved.stats?.contextRefs || 0) > 0) contextResolution = resolved.stats;
         }
         const execution = await this.adapter.execute({ capability, input, policy: need.payload?.policy || {}, need, node: this.node });
-        const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
+        if (this.effectLedger && !need.chain) this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'completed' });
+      const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
         const settlement = await settleBilling(billing, { outcome: 'completed', actualTokens: reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0) });
         billingSettled = typeof billing?.finalize === 'function';
         const metadata = attachBillingMetadata({ adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: Date.now() - startedAt, ...(normalized.metadata || {}) }, billing, settlement);
@@ -305,10 +311,22 @@ export class TruynAdapterHost {
       await this.sendTerminal(need, null, metadata);
       return;
     }
+    // Provider-side durable intent is committed *before* billing authorization
+    // or any external adapter.execute side effect. Reconnect/redelivery cannot
+    // silently execute the same paid work twice on this shared ledger.
+    // An ambiguous started intent must be reconciled externally, never retried.
+    if (this.effectLedger && !need.chain) {
+      const acquired = this.effectLedger.beginEffect({
+        id: need.id, provider: this.node.identity.nodeId, requester: need.from,
+        fingerprint: createHash('sha256').update(JSON.stringify([need.id, need.from, need.payload])).digest('hex')
+      });
+      if (!acquired.acquired) return;
+    }
     let billing = null;
     if (this.billingPolicy) {
       billing = await this.billingPolicy.authorize(need, { accessPolicy: this.accessPolicy, estimatedTokens: billingEstimate(need) });
       if (!billing?.ok) {
+        if (this.effectLedger && !need.chain) this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'failed' });
         if (signal.aborted) return;
         const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: 0, error: 'PROVIDER_BILLING_DENIED', errorClass: 'billing', billingDenied: true, billingMode: this.billingPolicy.mode, billingReason: billing?.reason || 'billing_not_authorized', failed: true };
         if (need.chain) metadata.chainStage = need.stageIndex;
@@ -317,6 +335,7 @@ export class TruynAdapterHost {
       }
     }
     if (signal.aborted) {
+      if (this.effectLedger && !need.chain) this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'unknown' });
       await settleBilling(billing, { outcome: 'cancelled', actualTokens: 0, reason: signal.reason?.message || 'request_cancelled' });
       return;
     }
@@ -335,6 +354,10 @@ export class TruynAdapterHost {
         return;
       }
       const execution = await this.adapter.execute({ capability, input, policy: need.payload?.policy || {}, need, node: this.node, signal, emitPartial: (delta, partialMetadata = {}) => this.sendPartial(need, state, delta, partialMetadata) });
+      // The adapter invocation has returned. Persist its successful effect intent
+      // BEFORE any downstream billing/RESULT transport can fail. This is not
+      // proof that the external provider supports transactional exactly-once.
+      if (this.effectLedger && !need.chain) this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'completed' });
       const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
       const actualTokens = reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0);
       if (signal.aborted) {
@@ -351,6 +374,9 @@ export class TruynAdapterHost {
       const output = accountingFailure(metadata, settlement) ? null : normalized.output;
       await this.sendTerminal(need, output, metadata);
     } catch (error) {
+      // Remote adapter might have completed its side effect before throwing.
+      // Mark it UNKNOWN, not safely retryable.
+      if (this.effectLedger && !need.chain) this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'unknown' });
       const outcome = signal.aborted ? 'cancelled' : 'failed';
       const settlement = billingSettled ? null : await settleBilling(billing, { outcome, actualTokens: 0, reason: error.message || outcome });
       if (typeof billing?.finalize === 'function') billingSettled = true;

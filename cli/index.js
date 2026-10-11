@@ -6,6 +6,7 @@ import { createIdentity } from '../core/identity/index.js';
 import { createProviderAccessPolicy } from '../core/security/provider-access.js';
 import { createProviderBillingPolicy } from '../core/security/provider-billing.js';
 import { createRelay } from '../network/relay/server.js';
+import { createSqliteLifecycleLedger } from '../network/relay/durable-lifecycle-ledger.js';
 import { TruynNode } from '../node/client.js';
 import { createHttpAdapterServer } from '../adapters/http/server.js';
 import { createMcpHttpServer, runStdioMcpServer } from '../adapters/mcp/server.js';
@@ -138,7 +139,9 @@ async function main() {
   if (command === 'relay') {
     const port = Number(argValue('--port', process.env.PORT || 8787));
     const host = argValue('--host', '127.0.0.1');
-    const relay = createRelay({ localDevelopmentMode: true });
+    const lifecycleFile = argValue('--lifecycle-sqlite');
+    const ledger = lifecycleFile ? createSqliteLifecycleLedger({ filePath: lifecycleFile }) : null;
+    const relay = createRelay({ localDevelopmentMode: true, lifecycleLedger: ledger });
     const url = await relay.listen({ port, host });
     print(`TRUYN local-development relay listening on ${url}`);
     return;
@@ -189,11 +192,14 @@ async function main() {
       const adapter = createProviderAdapter(configured.adapterProvider, adapterOptions);
       const accessPolicy = createProviderAccessPolicy({ mode: 'owner-only', allowedRequesterIds: [identity.nodeId] });
       const billingPolicy = createProviderBillingPolicy({ mode: 'byok' });
+      const effectFile = argValue('--effect-sqlite');
+      const effectLedger = effectFile ? createSqliteLifecycleLedger({ filePath: effectFile }) : null;
       const adapterHost = new TruynAdapterHost({
         node: providerNode,
         adapter,
         accessPolicy,
         billingPolicy,
+        effectLedger,
         pollIntervalMs: Number(argValue('--poll-ms', 500)),
         fastPath: argFlag('--fast'),
         socketPath: argFlag('--socket')
@@ -210,7 +216,9 @@ async function main() {
     const capabilities = (argValue('--capability', 'research') || 'research').split(',').map((value) => value.trim()).filter(Boolean);
     if (!provider) throw new Error('Usage: truyn provider --provider <provider> --capability <name[,name]> [--relay URL]');
     const adapter = createProviderAdapter(provider, { capabilities });
-    const adapterHost = new TruynAdapterHost({ node, adapter, pollIntervalMs: Number(argValue('--poll-ms', 500)) });
+    const effectFile = argValue('--effect-sqlite');
+    const effectLedger = effectFile ? createSqliteLifecycleLedger({ filePath: effectFile }) : null;
+    const adapterHost = new TruynAdapterHost({ node, adapter, effectLedger, pollIntervalMs: Number(argValue('--poll-ms', 500)) });
     await adapterHost.start();
     print({ ok: true, provider, nodeId: identity.nodeId, capabilities, localDevelopment: true });
     return;
@@ -223,7 +231,7 @@ async function main() {
   if (command === 'result') { await requireNetworkByok(relayUrl, identity); await node.register(); await saveSession({ relayUrl, nodeId: identity.nodeId, sessionToken: node.sessionToken }); const requestId = process.argv[3]; const output = process.argv[4]; if (!requestId || output === undefined) throw new Error('Usage: truyn result <requestId> <output> [--relay URL]'); print(await node.result(requestId, output)); return; }
   if (command === 'poll') { const session = await loadSession(); const pollRelayUrl = session.relayUrl || relayUrl; await requireNetworkByok(pollRelayUrl, identity); const pollNode = new TruynNode({ relayUrl: pollRelayUrl, identity }); pollNode.sessionToken = session.sessionToken; print(await pollNode.poll()); return; }
 
-  print(`TRUYN MVP CLI\n\nCommands:\n  truyn init\n  truyn identity\n  truyn setup --provider <provider> [--model MODEL] [--base-url URL] [--endpoint URL] [--tool NAME] [--credential-env NAME] [--no-auth] [--test]\n    providers: openai, openai-compatible, local, anthropic, azure-openai, vertex-gemini, custom-http, custom-mcp\n  truyn setup-status\n  truyn relay [--host 127.0.0.1] [--port 8787]  # loopback only\n  truyn register [--relay URL]                   # remote requires verified BYOK\n  truyn offer <capability> [--relay URL]         # remote requires verified BYOK\n  truyn find <capability> [--relay URL]          # remote requires verified BYOK\n  truyn need <capability> <input> [--relay URL]  # remote requires verified BYOK\n  truyn result <requestId> <output> [--relay URL]# remote requires verified BYOK\n  truyn poll [--relay URL]                       # remote requires verified BYOK\n  truyn bridge [--port 8790] [--relay URL]       # remote requires verified BYOK\n  truyn mcp [--relay URL]                        # remote requires verified BYOK\n  truyn mcp-http [--port 8791] [--relay URL]     # remote requires verified BYOK\n  truyn provider [--relay URL]                   # verified BYOK provider\n  truyn provider --provider <provider> --capability <name[,name]>  # local development only`);
+  print(`TRUYN MVP CLI\n\nCommands:\n  truyn init\n  truyn identity\n  truyn setup --provider <provider> [--model MODEL] [--base-url URL] [--endpoint URL] [--tool NAME] [--credential-env NAME] [--no-auth] [--test]\n    providers: openai, openai-compatible, local, anthropic, azure-openai, vertex-gemini, custom-http, custom-mcp\n  truyn setup-status\n  truyn relay [--host 127.0.0.1] [--port 8787] [--lifecycle-sqlite LOCAL_FILE]  # loopback only\n  truyn register [--relay URL]                   # remote requires verified BYOK\n  truyn offer <capability> [--relay URL]         # remote requires verified BYOK\n  truyn find <capability> [--relay URL]          # remote requires verified BYOK\n  truyn need <capability> <input> [--relay URL]  # remote requires verified BYOK\n  truyn result <requestId> <output> [--relay URL]# remote requires verified BYOK\n  truyn poll [--relay URL]                       # remote requires verified BYOK\n  truyn bridge [--port 8790] [--relay URL]       # remote requires verified BYOK\n  truyn mcp [--relay URL]                        # remote requires verified BYOK\n  truyn mcp-http [--port 8791] [--relay URL]     # remote requires verified BYOK\n  truyn provider [--relay URL] [--effect-sqlite LOCAL_FILE]  # verified BYOK provider\n  truyn provider --provider <provider> --capability <name[,name]>  # local development only`);
 }
 
 main().catch((error) => {
