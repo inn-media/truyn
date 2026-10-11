@@ -79,6 +79,22 @@ test('Sprint 7 acceptance requires all four relay metric families in the backend
   }
   assert.match(collectorBicep, /truyn_runtime_ready\{role="relay"/);
   assert.match(collectorBicep, /TRUYN_METRICS_COLLECTOR_PASS http=1 dispatch=1 result=1 ready=1 loopback=1 remote_write=1/);
+
+  assert.ok(collectorBicep.includes("var collectorConfigTemplate = '''"));
+  assert.ok(collectorBicep.includes("var acceptanceScriptTemplate = '''"));
+  assert.ok(collectorBicep.includes("var collectorConfig = replace("));
+  assert.ok(collectorBicep.includes("var acceptanceScript = replace("));
+  assert.ok(!collectorBicep.includes("var collectorConfig = '''"));
+  assert.ok(!collectorBicep.includes("var acceptanceScript = '''"));
+  for (const marker of ['backendWriteUrl', 'backendQueryUrl', 'deploymentId', 'regionIdentity']) {
+    assert.ok(collectorBicep.includes(String.fromCharCode(36) + '{' + marker + '}'), marker);
+  }
+  for (const stage of [
+    'loopback_wait', 'loopback_ready', 'local_families_ready',
+    'remote_readback_wait', 'remote_readback_progress', 'remote_readback_missing'
+  ]) {
+    assert.ok(collectorBicep.includes('TRUYN_METRICS_PROBE_STAGE stage=' + stage), stage);
+  }
   assert.match(workflow, /status: "PASS"/);
 });
 
@@ -94,8 +110,8 @@ test('Sprint 8 collection layer adds bounded production identity labels and reje
   });
   assert.deepEqual(contract.forbiddenMetricLabels, ['requestId', 'providerId', 'nodeId']);
 
-  const configStart = collectorBicep.indexOf("var collectorConfig = '''");
-  const configEnd = collectorBicep.indexOf("var acceptanceScript = '''", configStart);
+  const configStart = collectorBicep.indexOf("var collectorConfigTemplate = '''");
+  const configEnd = collectorBicep.indexOf("var collectorConfig = replace(", configStart);
   assert.ok(configStart >= 0 && configEnd > configStart, 'collector config block is missing');
   const collectorConfig = collectorBicep.slice(configStart, configEnd);
 

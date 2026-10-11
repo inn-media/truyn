@@ -39,7 +39,7 @@ var regionIdentityByLocation = {
 }
 var regionIdentity = contains(regionIdentityByLocation, location) ? regionIdentityByLocation[location] : 'region-unmapped'
 
-var collectorConfig = '''
+var collectorConfigTemplate = '''
 receivers:
   prometheus:
     config:
@@ -70,7 +70,17 @@ service:
       exporters: [prometheusremotewrite]
 '''
 
-var acceptanceScript = '''
+// Compatibility-safe expansion of exact, private runtime endpoints and identity.
+// Bare Bicep multi-line strings are literal: they do not interpolate \${...}.
+var collectorConfig = replace(
+  replace(
+    replace(collectorConfigTemplate, '\${backendWriteUrl}', backendWriteUrl),
+    '\${deploymentId}', deploymentId
+  ),
+  '\${regionIdentity}', regionIdentity
+)
+
+var acceptanceScriptTemplate = '''
 set -eu
 python - <<'PY'
 import json
@@ -136,6 +146,7 @@ def query_visible(expression, require_one=False):
     return False
 
 
+print('TRUYN_METRICS_PROBE_STAGE stage=loopback_wait', flush=True)
 metrics_ready = False
 for _ in range(120):
     try:
@@ -148,7 +159,9 @@ for _ in range(120):
     time.sleep(2)
 
 if not metrics_ready:
+    print('TRUYN_METRICS_PROBE_STAGE stage=loopback_unready', flush=True)
     raise SystemExit('loopback /metrics never became ready')
+print('TRUYN_METRICS_PROBE_STAGE stage=loopback_ready', flush=True)
 
 # Generate bounded acceptance traffic through the real relay HTTP server.
 # Error responses still exercise the HTTP, dispatch and RESULT metric paths.
@@ -179,10 +192,13 @@ for _ in range(60):
     time.sleep(2)
 
 if not all(local_names.values()):
+    print('TRUYN_METRICS_PROBE_STAGE stage=local_families_missing', flush=True)
     raise SystemExit('required metrics are not present on loopback /metrics')
+print('TRUYN_METRICS_PROBE_STAGE stage=local_families_ready', flush=True)
 
 seen = [False] * len(REQUIRED)
-for _ in range(180):
+print('TRUYN_METRICS_PROBE_STAGE stage=remote_readback_wait', flush=True)
+for attempt in range(180):
     for index, (expression, require_one) in enumerate(REQUIRED):
         if seen[index]:
             continue
@@ -192,9 +208,14 @@ for _ in range(180):
             pass
     if all(seen):
         break
+    if attempt % 30 == 29:
+        progress = ''.join('1' if found else '0' for found in seen)
+        print('TRUYN_METRICS_PROBE_STAGE stage=remote_readback_progress observed=' + progress, flush=True)
     time.sleep(5)
 
 if not all(seen):
+    progress = ''.join('1' if found else '0' for found in seen)
+    print('TRUYN_METRICS_PROBE_STAGE stage=remote_readback_missing observed=' + progress, flush=True)
     missing = [REQUIRED[index][0] for index, value in enumerate(seen) if not value]
     raise SystemExit('backend did not expose required production relay metrics with safe identity labels: ' + ','.join(missing))
 
@@ -203,6 +224,14 @@ while True:
     time.sleep(3600)
 PY
 '''
+
+var acceptanceScript = replace(
+  replace(
+    replace(acceptanceScriptTemplate, '\${backendQueryUrl}', backendQueryUrl),
+    '\${deploymentId}', deploymentId
+  ),
+  '\${regionIdentity}', regionIdentity
+)
 
 resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
   name: registryName
