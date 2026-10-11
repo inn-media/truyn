@@ -18,3 +18,19 @@ test('P13 cloud metadata workflow uses OIDC only and never mutates or admits pro
   assert.doesNotMatch(workflow,/TRUYN_AUTHORITY_BOOTSTRAP_B64/);
   assert.doesNotMatch(workflow,/az cosmosdb sql (item|query)/);
 });
+
+
+test('P13 DR/trace incident forensics expose only whitelisted Azure metadata and never execute recovery',()=>{
+  assert.match(workflow,/az deployment group list/);
+  assert.match(workflow,/az deployment operation group list/);
+  assert.match(workflow,/az containerapp list/);
+  assert.match(workflow,/sourceDataRead:false/);
+  assert.match(workflow,/consoleLogsRead:false/);
+  assert.match(workflow,/retentionReadbackVerified:false/);
+  assert.match(workflow,/liveCutoverPermitted:false/);
+  assert.match(workflow,/productionMutationsPerformed:false/);
+  assert.match(workflow,/p13-dr-trace-readonly\.json/);
+  assert.match(workflow,/test\("\^\[A-Za-z\]\[A-Za-z0-9_\]\{0,63\}\$"\)/);
+  assert.doesNotMatch(workflow,/az containerapp logs show/);
+  assert.doesNotMatch(workflow,/\baz (deployment|cosmosdb|containerapp|resource) (create|update|delete|set)\b/);
+});

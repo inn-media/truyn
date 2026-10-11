@@ -60,6 +60,60 @@ jobs:
             --argjson privateCosmos "$(jq '[.[] | select((.publicNetworkAccess // ""|ascii_downcase)=="disabled" and (.disableLocalAuth==true))]|length' <<<"$accounts")" \
             --argjson containerApps "$(jq 'length' <<<"$applications")" \
             '{schema:"truyn.p13.azure-readonly-metadata/v1",sourceSha:$sourceSha,mode:"READ_ONLY",status:"OBSERVED_NOT_ADMITTED",cosmosCount:$cosmosCount,continuousBackupCount:$continuousBackup,privateIdentityCosmosCount:$privateCosmos,containerAppsCount:$containerApps,sourceDataRead:false,sourceSnapshotVerified:false,isolatedRestoreVerified:false,liveCutoverPermitted:false,productionMutationsPerformed:false}' > p13-azure-readonly.json
+      - name: Classify prior DR failure and trace probe deployment metadata (read-only)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # ARM failed operations are inspected only for error CODE, never status
+          # messages, deployment parameters, resource names, tenants or secrets.
+          dr_list_observed=false
+          dr_operations_observed=false
+          last_dr_state=UNKNOWN
+          dr_error_codes='[]'
+          if deployments="$(az deployment group list --resource-group "$RESOURCE_GROUP" --only-show-errors \
+             --query "[].{name:name,state:properties.provisioningState,time:properties.timestamp}" -o json 2>/dev/null)"; then
+            dr_list_observed=true
+            target="$(jq -r '[.[] | select((.name // "") | startswith("production-dr-01fb6431-"))] | sort_by(.time // "") | last | .name // empty' <<<"$deployments")"
+            if [[ -n "$target" ]]; then
+              last_dr_state="$(jq -r --arg n "$target" '[.[] | select(.name==$n)] | last | .state // "UNKNOWN"' <<<"$deployments")"
+              printf '::add-mask::%s\n' "$target"
+              if operations="$(az deployment operation group list --resource-group "$RESOURCE_GROUP" --name "$target" --only-show-errors -o json 2>/dev/null)"; then
+                dr_operations_observed=true
+                dr_error_codes="$(jq -c '
+                  [.[] | select(.properties.provisioningState=="Failed")
+                    | (.properties.statusMessage // {})
+                    | .. | objects | .code? | select(type=="string")
+                    | select(test("^[A-Za-z][A-Za-z0-9_]{0,63}$"))] | unique
+                ' <<<"$operations")"
+              fi
+            fi
+          fi
+          # Aggregate only container/revision HEALTH METADATA; do not read
+          # ContainerApp console logs or any data-plane/tenant state.
+          trace_apps_observed=false
+          trace_container_count=0
+          acceptance_probe_count=0
+          trace_revision_running_count=0
+          if apps="$(az containerapp list --resource-group "$RESOURCE_GROUP" --only-show-errors \
+              --query "[].{containers:properties.template.containers[].name,runningState:properties.latestRevisionRunningState}" -o json 2>/dev/null)"; then
+            trace_apps_observed=true
+            trace_container_count="$(jq '[.[] | select((.containers // []) | map(ascii_downcase) | any(. == "tempo"))] | length' <<<"$apps")"
+            acceptance_probe_count="$(jq '[.[] | select((.containers // []) | map(ascii_downcase) | any(. == "acceptance-probe"))] | length' <<<"$apps")"
+            trace_revision_running_count="$(jq '[.[] | select((.containers // []) | map(ascii_downcase) | any(. == "tempo")) | select((.runningState // "") | ascii_downcase == "running")] | length' <<<"$apps")"
+          fi
+          jq -n --arg sourceSha "$GITHUB_SHA" --arg drState "$last_dr_state" \
+            --argjson drListObserved "$dr_list_observed" \
+            --argjson drOperationsObserved "$dr_operations_observed" \
+            --argjson drErrorCodes "$dr_error_codes" \
+            --argjson traceAppsObserved "$trace_apps_observed" \
+            --argjson tempoApps "$trace_container_count" \
+            --argjson acceptanceProbes "$acceptance_probe_count" \
+            --argjson runningTraceRevisions "$trace_revision_running_count" \
+            '{schema:"truyn.p13.dr-trace-readonly-classification/v1",sourceSha:$sourceSha,
+              status:"FORENSIC_METADATA_ONLY",historicalFailedSourcePrefix:"01fb6431",
+              dr:{listObserved:$drListObserved,operationsObserved:$drOperationsObserved,provisioningState:$drState,errorCodes:$drErrorCodes},
+              trace:{appsObserved:$traceAppsObserved,tempoApps:$tempoApps,acceptanceProbeContainers:$acceptanceProbes,runningTraceRevisions:$runningTraceRevisions,retentionReadbackVerified:false},
+              sourceDataRead:false,consoleLogsRead:false,liveCutoverPermitted:false,productionMutationsPerformed:false}' > p13-dr-trace-readonly.json
       - name: Upload sanitized non-admitting audit
         if: always()
         uses: actions/upload-artifact@v4
@@ -68,5 +122,6 @@ jobs:
           path: |
             p13-readiness.json
             p13-azure-readonly.json
+            p13-dr-trace-readonly.json
           if-no-files-found: error
           retention-days: 30

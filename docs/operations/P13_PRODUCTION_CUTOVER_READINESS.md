@@ -34,4 +34,10 @@ The already existing `.github/workflows/production-authority-source-discovery.ym
 
 Follow `docs/operations/PRODUCTION_PERSISTENCE_DR.md` for Cosmos foundation, managed bootstrap and real cutover order. No private topology or credentials should be stored in GitHub documentation or public Actions artifacts.
 
+## Read-only incident RCA for earlier red runs
+
+The existing P13 workflow also classifies the failed Production DR Foundation run [#38160940813](https://github.com/inn-media/truyn/actions/runs/38160940813) (source SHA prefix `01fb6431`) using **Azure ARM deployment operations error codes only**, and inventories the presence/running state of Tempo and the acceptance-probe Container App. The output `p13-dr-trace-readonly.json` is an aggregate sanitized evidence artifact; missing permissions produce `UNKNOWN` instead of a false PASS.
+
+This identifies why DR provisioning failed and whether the trace probe container is present/running, but does **not** read actual traces, validate retention, rerun failed deployments or authorize production cutover. Trace backend run [#38160940676](https://github.com/inn-media/truyn/actions/runs/38160940676) remains FAIL until independent OTLP ingestion, 30/90-day retention policy read-back and actual trace query PASS.
+
 **P13 stable-v1 gate stays OPEN until independent live evidence passes.**
