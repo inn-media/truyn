@@ -1,3 +1,5 @@
+> **D-5000 CLOSED / DOUBLE-CHECK (2026-10-11):** [Final immutable evidence ledger](CLASS_D_5000_2026-10-11.md). Attempt 12: measured 15/15 PASS and immutable artifact requalification PASS (GitHub historical failure retained). Attempt 13: independently measured 15/15 PASS, official terminal PASS; 5,000 real nodes, 100/100 retained, zero acknowledged loss and complete cleanup. This current status supersedes older preparation/failure notes without deleting them.
+
 # TRUYN Benchmark Evidence
 
 `docs/benchmarks/` is the public, reviewable evidence ledger for TRUYN benchmark claims.
