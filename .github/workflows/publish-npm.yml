@@ -69,7 +69,7 @@ jobs:
             -f sha="$source_sha"
 
   publish:
-    if: github.repository == 'inn-media/truyn' && github.event_name == 'push'
+    if: github.repository == 'inn-media/truyn' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/sdk/npm/v')))
     runs-on: ubuntu-latest
     environment: sdk-release
     timeout-minutes: 30
