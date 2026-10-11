@@ -47,7 +47,7 @@ test('all production ACA writers share one fail-closed exclusive lock', async ()
   for (const file of ['production-dr-foundation.yml','production-logs-retention.yml',
     'production-trace-backend.yml','production-metrics-backend.yml','production-metrics-collector.yml']) {
     const source = await wf(file);
-    assert.match(source,/    concurrency:\n      group: truyn-production-aca-exclusive-writer\n      cancel-in-progress: false/);
+    assert.match(source,/    concurrency:\n      group: truyn-production-aca-exclusive-writer\n      queue: max\n      cancel-in-progress: false/);
     assert.match(source,/Verify live remote main before Azure production mutation/);
     assert.match(source,/git ls-remote --exit-code/);
     assert.match(source,/current_main.*GITHUB_SHA/);
