@@ -6,7 +6,7 @@
 
 This document defines the numerical service-level indicators (SLIs), service-level objectives (SLOs), measurement windows, exclusions and error-budget policy required before TRUYN may claim the relevant deployment class is **Productionized**.
 
-It is intentionally separate from benchmark and scale-acceptance gates. Class C and accepted D-100/D-200/D-500/D-1000 campaign evidence prove bounded network behavior under specified campaigns; they do **not** by themselves establish a continuously measured production SLO.
+It is intentionally separate from benchmark and scale-acceptance gates. Class C and accepted D-100/D-200/D-500/D-1000/D-5000 campaign evidence prove bounded network behavior under specified campaigns; they do **not** by themselves establish a continuously measured production SLO.
 
 Until production telemetry, alerting, on-call ownership and durable evidence satisfy this contract, every objective below is a **target**, not a statement that current production has already met it.
 
