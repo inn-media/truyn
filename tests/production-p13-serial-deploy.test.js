@@ -61,7 +61,7 @@ test('Metrics refuse a mixed DR source push before Azure login and writers have 
     const source = await wf(file);
     assert.match(source,/Fail closed on concurrent foundation material push/);
     assert.match(source,/git diff --name-only/);
-    assert.match(source,/infra\\/production-dr\\//);
+    assert.ok(source.includes('infra/production-dr/'));
     assert.ok(source.indexOf('Fail closed on concurrent foundation material push') <
       source.indexOf('- uses: azure/login@v2'));
   }
