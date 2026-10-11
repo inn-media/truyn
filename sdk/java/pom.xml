@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.truyn</groupId>
   <artifactId>truyn-sdk</artifactId>
-  <version>0.1.0-alpha.1</version>
+  <version>0.1.0-alpha.2</version>
   <name>TRUYN Java SDK</name>
   <description>First-party Java SDK for the TRUYN Intelligence Network.</description>
   <url>https://truyn.org</url>
