@@ -123,6 +123,11 @@ test('live retention probe proves both tenants, both override values and runtime
   assert.match(probe, /'incident':[\s\S]*'retention': '2160h'/);
   assert.match(probe, /'X-Scope-OrgID': tenant/);
   assert.match(probe, /\/status\/overrides\/\{tenant\}/);
+  // Default-false omission is valid, but explicit true/duplicates must fail closed.
+  assert.ok(probe.includes('compaction_fields = re.findall'));
+  assert.ok(probe.includes("compaction_fields == ['false']"));
+  assert.ok(probe.includes('source == tenant'));
+  assert.ok(probe.includes('re.escape(expected)'));
   assert.match(probe, /TRUYN_TRACE_RETENTION_PASS normal_days=30 incident_days=90 normal_readback=1 incident_readback=1/);
   assert.match(probe, /retention_class=normal/);
 });
