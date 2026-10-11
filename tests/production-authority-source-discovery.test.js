@@ -105,6 +105,6 @@ test('P13 adoption discovery is metadata-only and cannot authorize production cu
 
 test('P13 source discovery test changes require full CI qualification', async () => {
   const affected=await readFile(new URL('../scripts/affected-tests.mjs',import.meta.url),'utf8');
-  assert.match(affected,/production-authority-source-discovery\\.test\\.js/);
+  assert.ok(affected.includes('production-authority-source-discovery.test.js'));
   assert.match(affected,/full=true/);
 });
