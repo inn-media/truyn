@@ -15,7 +15,7 @@ on:
     tags:
       - 'sdk/maven/v*'
     branches: [main]
-    paths: ['.github/wire-freeze/recovery-request.json']
+    paths: ['.github/wire-freeze/recovery-request.json', '.github/wire-freeze/registry-verification-request.json']
   workflow_dispatch:
 
 permissions:
@@ -104,11 +104,21 @@ jobs:
           EXPECTED_FPR: ${{ vars.MAVEN_GPG_FINGERPRINT }}
         run: |
           set -euo pipefail
-          test -n "$MAVEN_GPG_PRIVATE_KEY"; test -n "$EXPECTED_FPR"
+          test -n "$MAVEN_GPG_PRIVATE_KEY"
           export GNUPGHOME="$RELEASE_ROOT/gnupg"; mkdir -p -m 700 "$GNUPGHOME"
           printf '%s\n' "$MAVEN_GPG_PRIVATE_KEY" | gpg --batch --quiet --import
           fpr="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
-          test "$fpr" = "$EXPECTED_FPR"
+          if [[ -n "$EXPECTED_FPR" ]]; then
+            test "$fpr" = "$EXPECTED_FPR"
+          else
+            # Historical accepted alpha.1 artifact is a second independent immutable key anchor.
+            # Without either an explicit fingerprint or matching accepted release signer, fail closed.
+            previous="$CENTRAL_REPO/$MAVEN_GROUP_PATH/$MAVEN_ARTIFACT/0.1.0-alpha.1/$MAVEN_ARTIFACT-0.1.0-alpha.1.jar"
+            curl -fsS --retry 3 -o "$RELEASE_ROOT/registry/previous.jar" "$previous"
+            curl -fsS --retry 3 -o "$RELEASE_ROOT/registry/previous.jar.asc" "$previous.asc"
+            gpg --batch --verify "$RELEASE_ROOT/registry/previous.jar.asc" "$RELEASE_ROOT/registry/previous.jar"
+            echo 'MAVEN_SIGNING_KEY_REUSE_PROVEN_BY_IMMUTABLE_ALPHA1=PASS'
+          fi
           # Central validates signatures against public keyservers; fail before upload if the key is not discoverable.
           test "$(curl -sS -o /dev/null -w '%{http_code}' "https://keys.openpgp.org/vks/v1/by-fingerprint/$fpr")" = '200'
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"

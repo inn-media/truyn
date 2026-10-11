@@ -1,0 +1,24 @@
+{
+  "schema": "truyn.sdk-registry-verification-repair/v1",
+  "task": "truyn1-immutable-successor-publication-20261011",
+  "attempt": 1,
+  "sourceSha": "57971b134a41c3e3ea4b42f68e86a7d117036006",
+  "initialControllerRunId": 38154701575,
+  "observedPreviousRuns": {
+    "pypi": 38157824854,
+    "maven": 38157824874
+  },
+  "scope": {
+    "pypi": "independent-published-hash-verification-only",
+    "maven": "publish-from-frozen-CI-bytes-if-legacy-signer-anchor-proves"
+  },
+  "registryMutation": {
+    "pypi": false,
+    "maven": true,
+    "npm": false,
+    "nuget": false
+  },
+  "managedCanaryAllowed": false,
+  "wanAdmissionAllowed": false,
+  "mainnetAdmissionAllowed": false
+}

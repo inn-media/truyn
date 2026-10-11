@@ -4,7 +4,7 @@ on:
     tags:
       - 'sdk/python/v*'
     branches: [main]
-    paths: ['.github/wire-freeze/recovery-request.json']
+    paths: ['.github/wire-freeze/recovery-request.json', '.github/wire-freeze/registry-verification-request.json']
   workflow_dispatch:
 permissions:
   contents: read
@@ -40,6 +40,7 @@ jobs:
             bash sdk/release/resolve-release-gates.sh sdk/python/v pypi
           fi
       - name: Obtain exact CI-produced immutable wheel and sdist
+        id: registry
         shell: bash
         env:
           CI_RUN_ID: ${{ steps.gates.outputs.ci_run_id }}
@@ -61,8 +62,23 @@ jobs:
             printf '%s  %s\n' "$expected" "$file" | sha256sum --check
           done
           http="$(curl -sS -o "$RUNNER_TEMP/pypi-existing.json" -w '%{http_code}' "https://pypi.org/pypi/truyn-sdk/$VERSION/json")"
-          test "$http" = '404' || { echo "PYPI_RELEASE_BLOCKED_EXISTING_VERSION http=$http"; exit 78; }
+          if [[ "$http" == '200' ]]; then
+            jq -e '.urls|length==2' "$RUNNER_TEMP/pypi-existing.json" >/dev/null
+            for file in dist/*.whl dist/*.tar.gz; do
+              name="$(basename "$file")"
+              expected="$(sha256sum "$file" | awk '{print $1}')"
+              remote="$(jq -r --arg n "$name" '.urls[]|select(.filename==$n)|.digests.sha256' "$RUNNER_TEMP/pypi-existing.json")"
+              test "$remote" = "$expected" || { echo "PYPI_EXISTING_BYTE_MISMATCH:$name"; exit 78; }
+            done
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+          elif [[ "$http" == '404' ]]; then
+            echo 'exists=false' >> "$GITHUB_OUTPUT"
+          else
+            echo "PYPI_UNEXPECTED_STATUS:$http"
+            exit 78
+          fi
       - name: Publish exact CI bytes using OIDC (no API tokens)
+        if: steps.registry.outputs.exists == 'false'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
@@ -79,7 +95,7 @@ jobs:
             sleep 10
           done
           jq -e '.urls|length>=2' "$RUNNER_TEMP/pypi-result.json" >/dev/null
-          for file in dist/*; do
+          for file in dist/*.whl dist/*.tar.gz; do
             name="$(basename "$file")"
             expected="$(sha256sum "$file" | awk '{print $1}')"
             remote="$(jq -r --arg n "$name" '.urls[]|select(.filename==$n)|.digests.sha256' "$RUNNER_TEMP/pypi-result.json")"
