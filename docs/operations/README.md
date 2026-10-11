@@ -20,6 +20,9 @@
 
 ## Accepted D-Series scale closure
 
+- **D-5000 ACCEPTED / CLOSED / DOUBLE-CHECK VERIFIED**. Attempt 12 measured 15/15 stages PASS with immutable replay (historical workflow FAIL retained); Attempt 13 official terminal PASS, 20 hosts / 5,000 processes, 100/100 retained, 0 acknowledged loss and complete cleanup. See [canonical D-5000 evidence](../benchmarks/CLASS_D_5000_2026-10-11.md). Bounded scale acceptance is not Production SLO.
+- **H-Series 4/4 ACCEPTED / PASS / CLOSED**: CACHE-COMPOUND, SECOND-OPINION, ARBITRAGE and CHAOS-FUZZ. See [canonical H status](../benchmarks/H_SERIES_STATUS.md). H/CHAOS-FUZZ is not F-Series physical infrastructure chaos.
+
 - `class-d/D_SERIES_FINAL_CLOSURE_2026-10-08.md` is the compact closure ledger for accepted D-200, repeatability-confirmed D-500 and accepted D-1000. D-1000 Attempt 1 run `37687469411`, successful `run_attempt=2`, closes the defined 20-host / 1,000-real-process Class-D scale gate. This is benchmark acceptance, not production SLO/mainnet acceptance.
 - `NETWORK_SCALE_STATUS.md` remains the current operational authority; `../benchmarks/CLASS_D_1000_2026-10-08.md` and JSON companion are the durable D-1000 evidence.
 
@@ -47,6 +50,8 @@ It does **not** prove:
 Those remain operational acceptance gates.
 
 ## Live production evidence still open
+
+- [Read-only live observability evidence audit (2026-10-11)](PRODUCTION_OBSERVABILITY_LIVE_AUDIT_2026-10-11.md): private 90-day metrics/probe-series backend canary PASS; collector/trace/log final proof and Microsoft.Monitor registration RED; real independent Azure/GCP HTTP/WebSocket probes and actual pager delivery not yet verified.
 
 - deployed metrics/log/trace backends with retention/access controls;
 - independent HTTP/WebSocket probes from multiple vantage points;

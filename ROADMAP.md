@@ -10,11 +10,11 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 
 | Track | Current state | Immediate next gate |
 |---|---|---|
-| Network | **Class C + D-100 + D-200 + D-500 + D-1000 accepted** | long-duration operational/mainnet closure |
+| Network | **Class C + D-100 + D-200 + D-500 + D-1000 + D-5000 accepted** | long-duration Production SLO/mainnet separate |
 | Physical Chaos F-Series | **FOUNDATION DEFINED / ATTEMPT 1 NOT LAUNCHED** | private fault-domain runner → physical episodes → independent reconciliation |
 | Semantic Scale (S-Series) | **S-10 + S-20 + S-50 + S-100 accepted; S-200+ OPEN** | decompose S-100 non-provider contention residual, then execute S-200 independently |
 | A-Series (Time × Reality) | **PUBLIC FOUNDATION MERGED / A-SOAK 1h NOT LAUNCHED** | immutable WAN runtime release + independent cloud/budget/teardown → A-SOAK → A-OPS → A-SLO → A-WIRE → A-NET → private A-MGMT |
-| D-5000 | **NOT ACCEPTED**; public PRs #950–#954 establish Attempt 7–8 repair/launch progression, not terminal benchmark PASS | preserve immutable attempts and require independent final acceptance |
+| D-5000 | **ACCEPTED / CLOSED / DOUBLE-CHECK VERIFIED**; Attempt 12 measured 15/15 PASS and immutable requalification, Attempt 13 official terminal PASS | preserve both immutable campaigns; 28-day SLO remains separate |
 | Efficiency Limits (E-Series) | **FOUNDATION DEFINED / no E result claim** | instrumentation + isolation qualification → E/DECOMPOSE → E/PER-RESULT → E/KNEE → E/DEGRADE |
 | Emergent Network (N-Series) | **N/SOVEREIGNTY-10 qualification GREEN (not a measured scale PASS); 50/100 measured gate remains open** | qualify real multi-cloud measured nodes/flows, then advance N lanes |
 | Production operations | **contracts implemented** | live evidence |
@@ -431,7 +431,7 @@ Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`,
 
 **Scope boundary:** this demonstrates repeatability of the specified 1,000-process Class-D scale acceptance. It does not establish long-duration production SLO compliance, private managed-production acceptance, or mainnet readiness. Public repository remains the authoritative source of benchmark/evaluator/evidence; private repository consumes only immutable identifiers and sanitized public metrics.
 
-**D-5000 current update (2026-10-10):** PRs #950–#954 document Attempt 7 repair, Attempt 7 launch, Attempt 8 dependency repair and Attempt 8 launch. These are not a final D-5000 PASS. Attempt 3 was an older snapshot. The passage below is preserved historical text.
+**D-5000 current acceptance (2026-10-11):** **ACCEPTED / CLOSED / DOUBLE-CHECK VERIFIED**. Attempt 12 historical run [38122820787](https://github.com/inn-media/truyn/actions/runs/38122820787) measured 15/15 stages PASS; its original GitHub failure remains unchanged while [immutable replay 38129035985](https://github.com/inn-media/truyn/actions/runs/38129035985) independently verified the same evidence. Attempt 13 [38130631096](https://github.com/inn-media/truyn/actions/runs/38130631096) is official terminal PASS, 20 hosts / 5,000 processes, zero acknowledged loss and complete cleanup. [Canonical ledger](docs/benchmarks/CLASS_D_5000_2026-10-11.md). The following Attempt 1 preparation is historical only.
 
 ## Historical D-5000 Attempt 1 preparation snapshot (2026-10-08; superseded)
 
