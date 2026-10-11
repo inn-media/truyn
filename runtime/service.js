@@ -5,6 +5,7 @@ import { TruynAdapterHost } from '../adapters/sdk/index.js';
 import { createProviderAdapter } from '../adapters/providers/index.js';
 import { createRuntimeProviderAccessPolicy } from './security-config.js';
 import { createRuntimeProviderBillingPolicy } from './billing-config.js';
+import { createRuntimeG5ProviderEffectLedger } from './g5-provider-effect-ledger.js';
 import { createRuntimeRelaySecurityConfig } from './relay-security-config.js';
 import { createOriginGuard, createRuntimeOriginGuardConfig } from './origin-guard.js';
 import { createRuntimeBackchannelConfig } from './backchannel-config.js';
@@ -170,6 +171,7 @@ async function runProvider() {
     .filter(Boolean);
   const accessPolicy = createRuntimeProviderAccessPolicy(process.env);
   const billingPolicy = createRuntimeProviderBillingPolicy(process.env);
+  const effectLedger = createRuntimeG5ProviderEffectLedger({ env: process.env });
   enforceOwnerProviderRuntimeLock(process.env, { accessPolicy, billingPolicy });
   const identity = loadRuntimeIdentity();
   const publicDescriptor = createPublicAgentDescriptor({ identity, capabilities, env: process.env });
@@ -193,6 +195,7 @@ async function runProvider() {
     adapter,
     accessPolicy,
     billingPolicy,
+    effectLedger,
     fastPath,
     socketPath,
     longPollMs,
