@@ -13,7 +13,11 @@ test('Sprint 16 reapplies log retention when production foundation changes', asy
   assert.ok(pushStart >= 0 && permissionsStart > pushStart);
   const pushBlock = workflow.slice(pushStart, permissionsStart);
   assert.match(pushBlock, /infra\/production-dr\/\*\*/);
-  assert.match(pushBlock, /\.github\/workflows\/production-dr-foundation\.yml/);
+  assert.doesNotMatch(pushBlock, /\.github\/workflows\/production-dr-foundation\.yml/);
+  // YAML-only edits remain PR-reviewed, never an implicit live re-provisioning.
+  const prStart = workflow.indexOf('  pull_request:');
+  const prBlock = workflow.slice(prStart, pushStart);
+  assert.match(prBlock, /\.github\/workflows\/production-dr-foundation\.yml/);
 });
 
 test('Sprint 16 scopes retention backends to the selected production foundation', async () => {
