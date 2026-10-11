@@ -183,3 +183,30 @@ test('ManagedEnvironmentOperationInProgress is bounded same-candidate retry, nev
   assert.doesNotMatch(workflow.slice(retry,capacity),/trying the next candidate/);
   assert.match(workflow,/non-regional-capacity reason; fallback is forbidden/);
 });
+
+test('production DR-dependent releases chain DR -> Logs -> Trace with exact source and immutable success evidence',async()=>{
+  const dr=await text(WORKFLOW);
+  const logs=await text(new URL('../.github/workflows/production-logs-retention.yml',import.meta.url));
+  const trace=await text(new URL('../.github/workflows/production-trace-backend.yml',import.meta.url));
+  const push=(s)=>s.split('  push:')[1].split('permissions:')[0];
+  const pull=(s)=>s.split('  pull_request:')[1].split('  push:')[0];
+  assert.match(push(dr),/infra\/production-dr\/\*\*/);
+  for(const s of [logs,trace]){
+    assert.doesNotMatch(push(s),/infra\/production-dr\/\*\*/);
+    assert.match(pull(s),/infra\/production-dr\/\*\*/);
+    assert.match(s,/workflow_run:/);
+    assert.match(s,/github\.event\.workflow_run\.conclusion == 'success'/);
+    assert.match(s,/github\.event\.workflow_run\.event == 'push'/);
+    assert.match(s,/github\.event\.workflow_run\.head_branch == 'main'/);
+    assert.match(s,/UPSTREAM_RUN_ID/);
+    assert.match(s,/UPSTREAM_SHA/);
+    assert.match(s,/GITHUB_SHA" == "\$UPSTREAM_SHA/);
+    assert.match(s,/\.size_in_bytes>0/);
+    assert.match(s,/TRUYN_PRODUCTION_CHAIN=PASS/);
+    assert.match(s,/actions: read/);
+  }
+  assert.match(logs,/workflows: \['Production DR Foundation'\]/);
+  assert.match(logs,/production-dr-foundation-evidence/);
+  assert.match(trace,/workflows: \['Production Logs Retention'\]/);
+  assert.match(trace,/production-logs-retention-evidence/);
+});
