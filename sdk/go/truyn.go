@@ -106,7 +106,18 @@ func nodeIDFromPublicKeyPEM(publicKeyPEM string) (string, error) {
 	return "truyn:node:" + hex.EncodeToString(sum[:]), nil
 }
 
-func canonicalJSON(value any) ([]byte, error) { return json.Marshal(value) }
+func canonicalJSON(value any) ([]byte, error) {
+    // encoding/json orders map keys stably, but applies HTML and U+2028/U+2029
+    // escaping that JavaScript TCJ1 does not apply to the signed bytes.
+    var out bytes.Buffer
+    encoder := json.NewEncoder(&out)
+    encoder.SetEscapeHTML(false)
+    if err := encoder.Encode(value); err != nil { return nil, err }
+    raw := bytes.TrimSuffix(out.Bytes(), []byte("\n"))
+    raw = bytes.ReplaceAll(raw, []byte(`\u2028`), []byte("\u2028"))
+    raw = bytes.ReplaceAll(raw, []byte(`\u2029`), []byte("\u2029"))
+    return raw, nil
+}
 
 func (i *LocalIdentity) envelope(kind string, payload map[string]any, to *string) (map[string]any, error) {
 	switch kind {
