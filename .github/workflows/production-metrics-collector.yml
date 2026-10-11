@@ -222,6 +222,31 @@ jobs:
           printf 'BACKEND_WRITE_URL=%s\n' "$backend_write_url" >> "$GITHUB_ENV"
           printf 'BACKEND_QUERY_URL=%s\n' "$backend_query_url" >> "$GITHUB_ENV"
 
+      - name: Recheck real ACA readiness immediately before relay provisioning
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ready=false
+          for attempt in $(seq 1 12); do
+            arm="$(az resource show --ids "$ACA_ENVIRONMENT_ID" --api-version 2025-07-01 --only-show-errors -o json 2>/dev/null || echo '{}')"
+            cli="$(az containerapp env show --ids "$ACA_ENVIRONMENT_ID" --only-show-errors -o json 2>/dev/null || echo '{}')"
+            if jq -e '
+              (.properties.provisioningState // "") == "Succeeded" and
+              (.properties.vnetConfiguration.internal // false) == true and
+              ((.properties.publicNetworkAccess // "") | ascii_downcase) == "disabled"
+            ' <<<"$arm" >/dev/null &&
+            jq -e '(.properties.provisioningState // "") == "Succeeded"' <<<"$cli" >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$ready" == true ]] || {
+            echo '::error::TRUYN_ACA_FRESH_READINESS=BLOCKED; do not issue a Container Apps deployment into an unprovisioned or unverified environment.'
+            exit 1
+          }
+          echo 'TRUYN_ACA_FRESH_READINESS=PASS api=arm_and_containerapps private=1 mutations=0'
+
       - name: Provision relay with node-local metrics collector
         shell: bash
         run: |
