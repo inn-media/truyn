@@ -1,5 +1,6 @@
 name: Publish Python SDK via PyPI Trusted Publishing
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'sdk/python/v*'
