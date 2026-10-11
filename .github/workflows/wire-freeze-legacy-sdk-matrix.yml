@@ -25,6 +25,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Install immutable published npm alpha in separate clean-room
         run: |
@@ -36,9 +39,28 @@ jobs:
           /tmp/truyn-wire-legacy-py/bin/pip install --disable-pip-version-check 'truyn-sdk==0.1.0a1'
           python -m venv /tmp/truyn-wire-candidate-py
           /tmp/truyn-wire-candidate-py/bin/pip install --disable-pip-version-check -e ./sdk/python
+      - name: Build immutable published and current Go SDK role binaries separately
+        run: |
+          set -Eeuo pipefail
+          for version in legacy candidate; do
+            mkdir -p "/tmp/truyn-wire-go-$version"
+            cp sdk/conformance/legacy-peer/go-role.go "/tmp/truyn-wire-go-$version/main.go"
+            cd "/tmp/truyn-wire-go-$version"
+            go mod init "example.com/truyn-wire-$version"
+            if [ "$version" = legacy ]; then
+              go get github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1
+            else
+              go mod edit -replace github.com/inn-media/truyn/sdk/go="$GITHUB_WORKSPACE/sdk/go"
+              go get github.com/inn-media/truyn/sdk/go
+            fi
+            go build -o "/tmp/truyn-wire-$version-go" main.go
+            cd "$GITHUB_WORKSPACE"
+          done
       - name: Four-way relay peers using actual published SDK packages
         env:
           TRUYN_LEGACY_NPM_ROOT: /tmp/truyn-wire-legacy-npm
           TRUYN_LEGACY_PYTHON: /tmp/truyn-wire-legacy-py/bin/python
           TRUYN_CANDIDATE_PYTHON: /tmp/truyn-wire-candidate-py/bin/python
+          TRUYN_LEGACY_GO_BINARY: /tmp/truyn-wire-legacy-go
+          TRUYN_CANDIDATE_GO_BINARY: /tmp/truyn-wire-candidate-go
         run: node sdk/conformance/legacy-peer/run-matrix.mjs
