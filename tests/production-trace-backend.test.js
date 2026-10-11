@@ -103,7 +103,11 @@ test('trace backend Bicep keeps storage private and consumes shared Blob private
   assert.match(bicep, /sharedBlobPrivateDnsRequired: true/);
   assert.match(bicep, /external: false/);
   assert.match(bicep, /targetPort: 4318/);
-  assert.match(bicep, /loadTextContent\('trace-retention-probe\.py'\)/);
+  // The embedded Python must be passed as argv, not re-serialized via a shell heredoc.
+  assert.match(bicep, /loadTextContent\\('trace-retention-probe\\.py'\\)/);
+  assert.match(bicep, /name: 'acceptance-probe'[\\s\\S]*command: \\[\\s*'python'\\s*'-c'\\s*\\][\\s\\S]*args: \\[\\s*probePython\\s*\\]/);
+  assert.doesNotMatch(bicep, /cat > \\/tmp\\/trace-retention-probe\\.py/);
+  assert.doesNotMatch(bicep, /probeScript/);
   assert.match(bicep, /name: 'TRUYN_TRACE_RETENTION_CLASS', value: 'normal'/);
   assert.match(bicep, /normalTraceRetentionDays: 30/);
   assert.match(bicep, /incidentTraceRetentionDays: 90/);
