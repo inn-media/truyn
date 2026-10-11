@@ -1,0 +1,44 @@
+name: Wire Freeze Immutable Legacy SDK Interop
+
+on:
+  pull_request:
+    paths:
+      - 'sdk/**'
+      - 'core/protocol/**'
+      - '.github/workflows/wire-freeze-legacy-sdk-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  published-legacy-vs-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Install immutable published npm alpha in separate clean-room
+        run: |
+          mkdir -p /tmp/truyn-wire-legacy-npm
+          npm install --prefix /tmp/truyn-wire-legacy-npm --ignore-scripts --no-audit --no-fund '@truyn/sdk@0.1.0-alpha.2'
+      - name: Install published PyPI and source SDK independently
+        run: |
+          python -m venv /tmp/truyn-wire-legacy-py
+          /tmp/truyn-wire-legacy-py/bin/pip install --disable-pip-version-check 'truyn-sdk==0.1.0a1'
+          python -m venv /tmp/truyn-wire-candidate-py
+          /tmp/truyn-wire-candidate-py/bin/pip install --disable-pip-version-check -e ./sdk/python
+      - name: Four-way relay peers using actual published SDK packages
+        env:
+          TRUYN_LEGACY_NPM_ROOT: /tmp/truyn-wire-legacy-npm
+          TRUYN_LEGACY_PYTHON: /tmp/truyn-wire-legacy-py/bin/python
+          TRUYN_CANDIDATE_PYTHON: /tmp/truyn-wire-candidate-py/bin/python
+        run: node sdk/conformance/legacy-peer/run-matrix.mjs
