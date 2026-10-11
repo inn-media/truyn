@@ -266,7 +266,13 @@ jobs:
               .definition.actions.baseBlob.delete.daysAfterModificationGreaterThan == $archive
             )
           ' <<<"$lifecycle_json" >/dev/null
-          jq -e '(.properties.appLogsConfiguration.destination | ascii_downcase) == "azure-monitor"' <<<"$environment_json" >/dev/null
+          if ! jq -e '
+            (.properties.appLogsConfiguration.destination |
+              if type == "string" then ascii_downcase else "" end) == "azure-monitor"
+          ' <<<"$environment_json" >/dev/null; then
+            echo '::error::Container Apps production logs destination is not a verified azure-monitor string; no retention PASS can be emitted.'
+            exit 1
+          fi
           jq -e --arg workspace "$LOG_WORKSPACE_ID" --arg archive "$LOG_ARCHIVE_ID" '
             .workspaceId == $workspace and
             .storageAccountId == $archive and
