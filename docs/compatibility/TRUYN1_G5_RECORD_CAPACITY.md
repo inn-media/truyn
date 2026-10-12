@@ -14,7 +14,7 @@ with single-region writes, matching endpoint/database/container configuration an
 limit. Mixed legacy writers or direct out-of-contract writes invalidate the bound.
 The isolated deployment must verify those preconditions before activation.
 
-Before creating a NEED, OFFER or effect record, the ledger first reserves that
+Before creating a NEED, OFFER, effect or OFFER-owner index record, the ledger first reserves that
 entity's kind-qualified hashed ID in one permanent allocation document using
 ETag/If-Match CAS. Different replicas cannot over-allocate the shared limit.
 Existing-ID retries reuse one ticket but remain subject to the ordinary entity
@@ -44,7 +44,7 @@ provider effect admission independently verifies it before reserving an effect.
 
 ## Capacity, retention and recovery
 
-At most `recordCapacity` managed NEED/OFFER/effect IDs plus one allocation document
+At most `recordCapacity` managed NEED/OFFER/effect/offer-owner IDs plus one allocation document
 can be created under the above preconditions. Existing document/outbox byte limits
 still apply. This bounds managed JSON cardinality; it is not a physical Cosmos
 index/storage billing estimate. Tickets and all replay tombstones retain `ttl=-1`.
@@ -71,3 +71,7 @@ Azure qualification remain separate obligations. No acceptance threshold changes
 
 Storage references: Microsoft Learn, Cosmos DB optimistic concurrency control,
 transactional-batch same-partition boundary, and TTL item `-1` semantics.
+
+Owner-directory coordination records use the same bound. Releasing an active
+OFFER slot does not release the permanent owner-index or OFFER ticket. This
+keeps repeated owner registration and withdrawal within the retained-ID budget.

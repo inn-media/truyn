@@ -208,7 +208,7 @@ export function createCosmosLifecycleLedger({
         doc.version < 1 || doc.version >= Number.MAX_SAFE_INTEGER ||
         !Array.isArray(doc.tickets) || doc.tickets.length > recordCapacity ||
         doc.reserved !== doc.tickets.length || new Set(doc.tickets).size !== doc.tickets.length ||
-        doc.tickets.some(key => typeof key !== 'string' || !/^(need|offer|effect)-[a-f0-9]{64}$/.test(key)))
+        doc.tickets.some(key => typeof key !== 'string' || !/^(need|offer|effect|offer-owner)-[a-f0-9]{64}$/.test(key)))
       throw fault(503, 'lifecycle_capacity_contract_invalid');
     return doc;
   }
