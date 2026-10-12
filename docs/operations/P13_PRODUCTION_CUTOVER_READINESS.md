@@ -48,4 +48,8 @@ The existing P13 workflow also classifies the failed Production DR Foundation ru
 
 This identifies why DR provisioning failed and whether the trace probe container is present/running, but does **not** read actual traces, validate retention, rerun failed deployments or authorize production cutover. Trace backend run [#38160940676](https://github.com/inn-media/truyn/actions/runs/38160940676) remains FAIL until independent OTLP ingestion, 30/90-day retention policy read-back and actual trace query PASS.
 
-**P13 stable-v1 gate stays OPEN until independent live evidence passes.**
+**P13-OPS production/service cutover gate stays BLOCKED until independent live evidence passes.** This does not block an independently qualified Stable TRUYN/1 **protocol-only** release. Neither a protocol release nor a successful read-only readiness workflow authorizes production traffic changes.
+
+## Greenfield versus upgrade applicability
+
+If the target is an existing deployment with authoritative durable state, actual source discovery, lossless migration where formats change, protected backup, isolated PITR restore and verified rollback are mandatory. If no prior authoritative state exists, a migration must be marked **NOT_APPLICABLE with independently verified absence of a legacy producer**, not invented as a PASS. Even greenfield requires trusted bootstrap, secured identity, backup/restore exercise, canary, security negatives, documented recovery and explicit production-admission authority. These are **service** requirements, not preconditions for publishing a standalone protocol specification. See the [release scopes](../../spec/compatibility/stable-release-scopes.json).

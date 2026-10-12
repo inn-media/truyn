@@ -401,9 +401,17 @@ H-series lanes may progress in parallel with D, S, T and E on disjoint state/res
 
 Foundation documents are not benchmark results.
 
-## Stable/mainnet gate
+## Independent stable release scopes
 
-Stable/mainnet remains gated by long-duration production security/reliability qualification, live production operations/authority evidence, stable protocol/ecosystem compatibility, complete stable SDK/Descriptor/site evidence and appropriate governance maturity. Accepted D-1000 network scale and NLWeb 0.5 bounded interoperability do not by themselves declare stable TRUYN or mainnet.
+There are **three separate declarations**, controlled by [the machine-readable release-scope contract](spec/compatibility/stable-release-scopes.json) and its [read-only validation](scripts/p13-release-scopes-readiness.mjs):
+
+- **Stable TRUYN/1 Protocol:** normative P1–P14 contract, compatibility/identity/signature/wire vectors, P13-FORMAT with the public **180 calendar days** deprecation policy, five exact first-party SDK release/version qualifications, negative security/interop and exact-SHA DCO/CI/security plus independent post-merge evidence. **P13-OPS, Azure/Cosmos production state migration, live PITR, canary and 28-day network SLO are not prerequisites for this protocol-only declaration.** A protocol release does not imply a live service or production-grade deployment.
+- **Stable TRUYN Service:** requires the independently accepted protocol target **and** production-specific controls, including P13-OPS where upgrading existing authoritative state is applicable; source authenticity, backup/restore, independent cutover/rollback evidence, deployed monitoring/security and verified service SLOs.
+- **TRUYN Mainnet:** requires an accepted Stable Service, live long-duration security/reliability evidence and separate governance/admission controls. Scale benchmarks alone are insufficient.
+
+A fresh deployment without legacy authoritative data does not perform a fictional `migration`, but **still** needs documented bootstrap authority, backup/restore verification, live canary and recovery evidence before a stable production-service claim. The P13-OPS preflight continues to fail closed pending real proof. Protocol Stable, Service Stable and Mainnet are **all currently NOT DECLARED**. This scope separation does not waive P1–P14 or weaken any production security/reliability acceptance criteria.
+
+Accepted D-1000 network scale and NLWeb 0.5 bounded interoperability do not by themselves declare Stable TRUYN/1, Stable Service or Mainnet.
 
 Operational network-scale status remains delegated to [docs/operations/NETWORK_SCALE_STATUS.md](docs/operations/NETWORK_SCALE_STATUS.md).
 
