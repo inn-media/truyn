@@ -78,3 +78,35 @@ test('G5 maintenance default off and bad backend cannot silently enable partial 
   assert.throws(()=>createRelay({localDevelopmentMode:true,lifecycleMaintenance:true}),/requires the shared Cosmos directory/);
   assert.throws(()=>createRelay({localDevelopmentMode:true,lifecycleMaintenance:'true'}),/must be boolean/);
 });
+
+test('G5 maintenance: maxOffers zero preserves registration and keeps publication disabled',async t=>{
+  const store=maintenanceStore(),r=await relay(t,store,{maxOffers:0});
+  const node=new TruynNode({relayUrl:r.url});
+  await node.register();
+  assert.ok(node.sessionToken);
+  await assert.rejects(()=>node.offer('g5.disabled'),e=>e.status===503);
+});
+
+test('G5 maintenance: concurrent owner registration blocks REVOKE until recovery finishes', {timeout:10000}, async t=>{
+  const store=maintenanceStore(),base=store.ledger();
+  let release,entered;
+  const blocked=new Promise(resolve=>{release=resolve;});
+  const started=new Promise(resolve=>{entered=resolve;});
+  const ledger={...base,async restoreOffers(args){entered();await blocked;return base.restoreOffers(args);}};
+  const instance=createRelay({localDevelopmentMode:true,lifecycleLedger:ledger,lifecycleMaintenance:true});
+  t.after(()=>instance.close());
+  const url=await instance.listen({port:0});
+  const owner=new TruynNode({relayUrl:url});await owner.register();
+  const published=await owner.offer('g5.revoke-race');
+  const retry=new TruynNode({relayUrl:url,identity:owner.identity});
+  const registering=retry.register();await started;
+  const revoke=await owner.revoke(published.offerId,'race',{targetKind:'offer'}).then(
+    value=>({ok:true,value}), error=>({ok:false,error})
+  );
+  assert.equal(revoke.ok,false);
+  assert.equal(revoke.error.status,409);
+  release();await registering;
+  const after=await retry.revoke(published.offerId,'retry',{targetKind:'offer'});
+  assert.equal(after.ok,true);
+  assert.equal((await store.ledger().getOffer(published.offerId)).revoked,1);
+});
