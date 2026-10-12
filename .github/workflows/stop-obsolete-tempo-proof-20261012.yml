@@ -1,0 +1,35 @@
+name: TRUYN Stop Obsolete Tempo Proof 20261012
+on:
+  push:
+    branches: [ops/tempo-dispatch-20261012-5754b708]
+    paths: ['.github/workflows/stop-obsolete-tempo-proof-20261012.yml']
+permissions:
+  contents: read
+  actions: write
+jobs:
+  stop-proof:
+    if: github.repository == 'inn-media/truyn' && github.actor == 'ilucomutcnas'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Cancel exact obsolete polling run only, leave Azure untouched
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_RUN_ATTEMPT" == 1 ]] || exit 20
+          repo='inn-media/truyn'
+          run='38229245552'
+          sha='f901794fe8e83cb8022f5b31a928a13e4f96dd01'
+          info="$(gh api "repos/$repo/actions/runs/$run")"
+          jq -e --arg sha "$sha" '.name=="Production Trace Backend" and .head_sha==$sha and .head_branch=="main" and .event=="push" and .run_attempt==1' <<<"$info" >/dev/null
+          if [[ "$(jq -r '.status' <<<"$info")" == completed ]]; then
+            echo 'TRUYN_OBSOLETE_PROOF_ALREADY_TERMINAL writes=0 azure_calls=0'
+            exit 0
+          fi
+          jobs="$(gh api "repos/$repo/actions/runs/$run/jobs")"
+          jq -e '.jobs | any(.name=="apply-and-prove" and .id==114744345806 and any(.steps[]; .name=="Provision private OTLP trace storage and runtime export canary" and .conclusion=="success") and any(.steps[]; .name=="Prove OTLP endpoint, retention classes and trace read-back" and .status=="in_progress") and all(.steps[] | select(.name|startswith("Emit sanitized")); .status=="pending"))' <<<"$jobs" >/dev/null
+          gh api -X POST "repos/$repo/actions/runs/$run/cancel"
+          echo 'TRUYN_OBSOLETE_PROOF_CANCEL_REQUESTED run=38229245552 reason=confirmed_zero_ingestion azure_calls=0 container_stops=0'
+          printf 'Cancelled only obsolete Actions polling after confirmed zero ingestion limits (central audit 38230318915). Azure containers remain untouched. Replacement repair PR 1066 preserves strict proof.\n' >> "$GITHUB_STEP_SUMMARY"
