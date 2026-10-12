@@ -174,6 +174,18 @@ test('production runtime canary queries Tempo in the normal retention tenant', a
   assert.match(canary, /server\.listen\(9466, '127\.0\.0\.1'/);
 });
 
+test('manual Tempo production retry is exact-main only, shares the exclusive ACA writer', async () => {
+  const workflow = await readFile(WORKFLOW, 'utf8');
+  assert.ok(workflow.includes('workflow_dispatch:'));
+  assert.ok(workflow.includes("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'"));
+  assert.ok(workflow.includes("group: truyn-production-aca-exclusive-writer"));
+  assert.ok(workflow.includes("cancel-in-progress: false"));
+  assert.ok(workflow.includes("Production apply refused: protected main changed since this run was queued."));
+  assert.ok(workflow.includes("'infra/production-tracing/**'"));
+  const pushPaths = workflow.split('  push:')[1]?.split('\npermissions:')[0] || '';
+  assert.ok(!pushPaths.includes("'.github/workflows/production-trace-backend.yml'"));
+});
+
 test('trace backend workflow validates and live-proves 30d normal plus 90d incident retention', async () => {
   const workflow = await readFile(WORKFLOW, 'utf8');
   assert.match(workflow, /REGION_PAIRS:.*germanywestcentral:francecentral northeurope:swedencentral/);
