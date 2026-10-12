@@ -47,6 +47,28 @@ export function createLifecycleCapacityDocument({endpoint, database, container, 
 function eventId(kind, id, event = null) {
   return kind === 'PARTIAL' ? `partial:${id}:${event?.sequence}` : `${kind.toLowerCase()}:${id}`;
 }
+// Preserve the exact JSON commitment used by the accepted OFFER ledger. The
+// signed JSON is stored as a string so Cosmos property ordering cannot change it.
+function signedOffer(envelope, { id, owner, fingerprint }) {
+  const json = JSON.stringify(envelope);
+  if (!json || Buffer.byteLength(json) > 128_000) throw fault(413, 'lifecycle_offer_too_large');
+  const verified = verifyEnvelope(envelope, { allowedTypes: ['OFFER'] });
+  const capability = envelope?.payload?.capability?.name || envelope?.payload?.capability;
+  if (!verified.ok || envelope.id !== id || envelope.from !== owner ||
+      hash(json) !== fingerprint || !nonempty(capability))
+    throw fault(409, 'lifecycle_offer_integrity_mismatch');
+  return { offerDirectoryVersion: 1, offerJson: json, offerCapability: capability };
+}
+function restoreSignedOffer(doc, owner) {
+  if (doc.owner !== owner || doc.offerDirectoryVersion !== 1 || typeof doc.offerJson !== 'string')
+    throw fault(503, 'lifecycle_offer_directory_invalid');
+  let envelope;
+  try { envelope = JSON.parse(doc.offerJson); }
+  catch { throw fault(503, 'lifecycle_offer_directory_invalid'); }
+  const checked = signedOffer(envelope, { id: doc.logicalId, owner, fingerprint: doc.fingerprint });
+  if (checked.offerCapability !== doc.offerCapability) throw fault(503, 'lifecycle_offer_directory_invalid');
+  return envelope;
+}
 function deliveryFor({kind, id, recipient, event}) {
   if (!kinds.has(kind) || !nonempty(recipient) || !event || event.kind !== kind) throw fault(400,'invalid_lifecycle_delivery');
   const serialized = JSON.stringify(event);
@@ -262,6 +284,42 @@ export function createCosmosLifecycleLedger({
     }
     throw fault(503,'lifecycle_cas_contention');
   }
+  // Recoverable snapshots share one bounded owner admission index across replicas.
+  // Claim before CREATE; ambiguity keeps the slot reserved. Revocation releases
+  // only the owner's active slot; global replay/capacity tombstones are retained.
+  function validateOfferOwner(doc, owner) {
+    if (doc.owner !== owner || doc.slotLimit !== 128 || !Array.isArray(doc.offerSlots) ||
+        doc.offerSlots.length > 128 || doc.offerSlots.some(slot => !nonempty(slot?.id) || !nonempty(slot?.fingerprint)) ||
+        new Set(doc.offerSlots.map(slot => slot.id)).size !== doc.offerSlots.length)
+      throw fault(503, 'lifecycle_offer_owner_index_invalid');
+  }
+  async function claimOfferSlot({id,owner,fingerprint}) {
+    if (!await get('offer-owner',owner)) {
+      try { await create('offer-owner',owner,{owner,slotLimit:128,offerSlots:[]}); }
+      catch(error) { if(error.httpStatus !== 409) throw error; }
+    }
+    await mutate('offer-owner',owner,doc=>{
+      validateOfferOwner(doc,owner);
+      const existing=doc.offerSlots.find(slot=>slot.id===id);
+      if(existing) {
+        if(existing.fingerprint!==fingerprint) throw fault(409,'lifecycle_offer_integrity_mismatch');
+        return null;
+      }
+      if(doc.offerSlots.length>=doc.slotLimit) throw fault(503,'lifecycle_offer_owner_capacity_reached');
+      doc.offerSlots.push({id,fingerprint}); return doc;
+    });
+  }
+  async function releaseRevokedOfferSlot(offer) {
+    if(offer.offerDirectoryVersion!==1) return;
+    await mutate('offer-owner',offer.owner,doc=>{
+      validateOfferOwner(doc,offer.owner);
+      const slot=doc.offerSlots.find(entry=>entry.id===offer.logicalId);
+      if(!slot) return null;
+      if(slot.fingerprint!==offer.fingerprint) throw fault(503,'lifecycle_offer_owner_index_invalid');
+      doc.offerSlots=doc.offerSlots.filter(entry=>entry.id!==offer.logicalId);
+      return doc;
+    });
+  }
   function authorize(doc,{requester,provider}) {
     if (requester && doc.requester!==requester) throw fault(403,'not_request_owner');
     if (provider && doc.provider!==provider) throw fault(403,'provider_mismatch');
@@ -310,17 +368,95 @@ export function createCosmosLifecycleLedger({
       // appendDelivery mutates the temporary data object because its deliveries array is shared.
       return create('need',id,data);
     },
-    async reserveOffer({id,owner,fingerprint}) {
+    async reserveOffer({id,owner,fingerprint,envelope=null}) {
       if(![id,owner,fingerprint].every(nonempty)) throw fault(400,'invalid_offer_reservation');
-      return create('offer',id,{owner,fingerprint,revoked:0});
+      const projection = envelope == null ? {} : signedOffer(envelope, { id, owner, fingerprint });
+      if(envelope!=null) {
+        if(await get('offer',id)) throw fault(409,'duplicate_offer');
+        await claimOfferSlot({id,owner,fingerprint});
+      }
+      return create('offer',id,{owner,fingerprint,revoked:0,...projection});
+    },
+    async restoreOffers({owner,limit=128}) {
+      if (!nonempty(owner) || !Number.isSafeInteger(limit) || limit < 1 || limit > 128)
+        throw fault(400, 'invalid_offer_directory_query');
+      const output = [], seen = new Set(), cursors = new Set();
+      let continuation = null;
+      for (let page = 0; page < 50; page++) {
+        const query = { query: 'SELECT VALUE c FROM c WHERE c.kind = "offer" AND c.owner = @owner AND c.revoked = 0 AND c.offerDirectoryVersion = 1',
+          parameters: [{ name: '@owner', value: owner }] };
+        const result = await api({method:'POST',query:true,body:query,continuation});
+        if (result.status !== 200 || !Array.isArray(result.doc?.Documents) || result.doc.Documents.length > 100)
+          throw fault(503, 'lifecycle_offer_directory_invalid');
+        for (const hint of result.doc.Documents) {
+          if (hint?.kind !== 'offer' || hint.owner !== owner || !nonempty(hint.logicalId))
+            throw fault(503, 'lifecycle_offer_directory_invalid');
+          if (seen.has(hint.logicalId)) continue;
+          if (seen.size >= 128) throw fault(503, 'lifecycle_offer_scan_capacity_reached');
+          seen.add(hint.logicalId);
+          const fenced = await mutate('offer', hint.logicalId, doc => {
+            if (doc.owner !== owner) throw fault(403, 'not_target_owner');
+            if (doc.revoked) return null;
+            restoreSignedOffer(doc, owner);
+            return doc;
+          });
+          if (fenced.row.revoked) continue;
+          if (output.length >= limit) throw fault(503, 'lifecycle_offer_scan_capacity_reached');
+          output.push(restoreSignedOffer(fenced.row, owner));
+        }
+        if (!result.continuation) return output;
+        if (typeof result.continuation !== 'string' || result.continuation.length > 8192 || cursors.has(result.continuation))
+          throw fault(503, 'lifecycle_offer_directory_cursor_invalid');
+        cursors.add(result.continuation);
+        continuation = result.continuation;
+      }
+      throw fault(503, 'lifecycle_offer_scan_capacity_reached');
+    },
+    // Compact only ACKed streaming PARTIAL payloads. The signed NEED, terminal
+    // RESULT and REVOKE are retained for recovery, accounting and cancellation
+    // reconciliation; tombstone IDs/fingerprints are never recycled.
+    async compactNeed({id,requester}) {
+      if (!validNeedId(id) || !nonempty(requester)) throw fault(400, 'invalid_lifecycle_compaction');
+      const result = await mutate('need', id, doc => {
+        authorize(doc, {requester});
+        if (!TERMINAL.has(doc.status)) throw fault(409, 'lifecycle_compaction_requires_terminal');
+        if (!Array.isArray(doc.deliveries)) throw fault(503, 'lifecycle_ledger_invalid_response');
+        let changed = false;
+        for (const event of doc.deliveries) {
+          if (event.kind !== 'PARTIAL' || event.acknowledgedAt == null || event.event === null) continue;
+          if (!Number.isFinite(Date.parse(event.acknowledgedAt)) || !event.event)
+            throw fault(503, 'lifecycle_ledger_invalid_response');
+          event.eventDigest = hash(JSON.stringify(event.event));
+          event.event = null;
+          event.payloadCompactedAt = new Date().toISOString();
+          changed = true;
+        }
+        return changed ? doc : null;
+      });
+      return {compacted:result.changed,terminal:result.row.status,tombstoneRetained:true};
+    },
+    async compactOffer({id,owner}) {
+      if (![id,owner].every(nonempty)) throw fault(400, 'invalid_lifecycle_compaction');
+      const result = await mutate('offer', id, doc => {
+        if (doc.owner !== owner) throw fault(403, 'not_target_owner');
+        if (!doc.revoked) throw fault(409, 'lifecycle_compaction_requires_revocation');
+        if (doc.offerJson == null) return null;
+        restoreSignedOffer(doc, owner);
+        delete doc.offerJson;
+        doc.payloadCompactedAt = new Date().toISOString();
+        return doc;
+      });
+      return {compacted:result.changed,revoked:true,tombstoneRetained:true};
     },
     async revokeOffer({id,owner}) {
-      return mutate('offer',id,doc=>{
+      const result=await mutate('offer',id,doc=>{
         if(doc.owner!==owner) throw fault(403,'not_target_owner');
         if(doc.revoked) return null;
         doc.revoked=1;
         return doc;
       });
+      await releaseRevokedOfferSlot(result.row);
+      return result;
     },
     async transitionNeed({id,requester,provider,to,delivery=null}) {
       if(!TERMINAL.has(to)) throw fault(400,'invalid_lifecycle_transition');
