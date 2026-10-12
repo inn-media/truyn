@@ -1,10 +1,10 @@
 # TRUYN Compatibility
 
-**Snapshot:** 2026-09-05  
-**Synchronized source:** `main@95b98ce6890bf13755062d4e71af48d7a572bff1`  
+**Documentation reconciliation:** 2026-10-12
+**Reviewed source snapshot:** `main@0d4a701a1365430db15f023eb2310cc21f0f9288` (not a frozen package source or moving current-main pointer)
 **Protocol generation:** `TRUYN/1` draft; A–I semantic registry does not add physical signed Envelope kinds  
 
-**Canonical Wire Freeze references:** [expanded CORE registry](../../spec/registry/README.md), [exact-SHA qualification ledger](TRUYN1_WIRE_FREEZE_QUALIFICATION_LEDGER.md), [SDK compatibility policy](SDK_COMPATIBILITY.md), [five-language conformance](../../sdk/README.md). Public PR #975 is merged; postmerge independent E2E PR #976 and private consumer PR #458 are distinct reviews. Public source merge ≠ immutable SDK release ≠ Mainnet admission.
+**Canonical Wire Freeze references:** [expanded CORE registry](../../spec/registry/README.md), [exact-SHA qualification ledger](TRUYN1_WIRE_FREEZE_QUALIFICATION_LEDGER.md), [SDK compatibility policy](SDK_COMPATIBILITY.md), [five-language conformance](../../sdk/README.md). Public PR #975 is merged; current immutable Wire Freeze publication has its own accepted registry ledger. Historical PR-specific qualification is retained in the exact-SHA ledger. Public source merge, immutable SDK publication, private consumer activation and Mainnet admission remain separate decisions.
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`
 
 Compatibility is tracked separately for protocol/node behavior, adapters/external protocols and SDK packages.
@@ -21,9 +21,9 @@ Compatibility is tracked separately for protocol/node behavior, adapters/externa
 - A2A/MCP C1–C8 and P2-E1/P2-E2/P2-E3 are accepted as a bounded pre-v1 profile.
 - **Stable A2A/MCP v1 is not declared.**
 - SDK API-v1 bounded primitives are implemented across five first-party clients.
-- PyPI, Go and npm alpha.2 have accepted immutable public evidence.
+- PyPI, Go and npm alpha.5 have accepted immutable public evidence.
 - npm alpha.1 remains immutable historical evidence whose required clean-room ESM import failed and is superseded without overwrite.
-- Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+- Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is an accepted immutable public prerelease.
 
 External evidence names concrete tested versions/source. Per-build provenance, immutable publication, clean-room usability and stable compatibility are separate concepts.
 
@@ -33,4 +33,4 @@ See `A2A_MCP_STABILITY.md`, `A2A_MCP_COMPATIBILITY.md`, `SDK_COMPATIBILITY.md`, 
 
 [Release-scope contract](../../spec/compatibility/stable-release-scopes.json): Stable TRUYN/1 **Protocol** is gated by public protocol/SDK/P13-FORMAT conformance and exact-SHA release certification, **not** Azure/Cosmos/P13-OPS production migration. Stable Service and Mainnet additionally require live P13-OPS recovery/cutover and reliability evidence. All three declarations remain NOT DECLARED. The read-only contract audit is `node scripts/p13-release-scopes-readiness.mjs`.
 
-**Current Wire Freeze five-language prerelease pins:** [machine manifest](../../spec/compatibility/truyn1-five-sdk-freeze.json), with [accepted frozen source/registry proof](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). The old `sdk/release/public-coordinates.json` lists a historical Developer Release family and must not be used as evidence of the latest frozen five-SDK generation. P13-FORMAT remains PRE-STABLE and P14 draft labels remain intact.
+**Current Wire Freeze five-language prerelease pins:** [machine manifest](../../spec/compatibility/truyn1-five-sdk-freeze.json), with [accepted frozen source/registry proof](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). The active `sdk/release/public-coordinates.json` now agrees with the frozen five-SDK manifest. Its older contents are preserved byte-exact in `sdk/release/evidence/public-coordinates-developer-release-2026-09-23.json`. P13-FORMAT remains PRE-STABLE and P14 draft labels remain intact.

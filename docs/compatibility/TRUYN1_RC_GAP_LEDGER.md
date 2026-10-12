@@ -3,7 +3,7 @@
 **Task:** `truyn-open-1-0-productization-7e4c91`  
 **Task anchor:** issue #615  
 **Classification:** OPEN  
-**Baseline:** `main@daca5db7ab1901f02b43495aad69cfd83512ad24`  
+**Historical baseline:** `main@daca5db7ab1901f02b43495aad69cfd83512ad24`
 **Purpose:** bounded inventory of protocol-v1 stabilization gaps before a truthful TRUYN/1 stable-v1 claim.
 
 This ledger is a checkpoint, not evidence that TRUYN/1 is stable. Items close only when the normative contract, wire/schema behavior, implementation and executable conformance agree on one exact qualified revision.
@@ -13,7 +13,12 @@ This ledger is a checkpoint, not evidence that TRUYN/1 is stable. Items close on
 The current `spec/protocol/v1/` surface referenced by the protocol index comprises:
 
 - `README.md` — protocol index/status and normative vocabulary;
-- `core.md` — envelope invariants, payload vocabulary and compatibility rule;
+- `core.md` — bounded message vocabulary and compatibility rule;
+- `envelope.md` — required fields, canonical signed bytes and validation;
+- `lifecycle.md` — shared OFFER/NEED/RESULT/PARTIAL/REVOKE state machine;
+- `partial.md` — signed compact partial-output ordering;
+- `errors.md` — normalized bounded RC errors;
+- `migration.md` — format compatibility and deprecation policy;
 - `identity.md` — cryptographic identity semantics;
 - `capability.md` — reusable capability descriptor semantics;
 - `offer.md` — provider advertisement semantics;
@@ -38,7 +43,9 @@ The current `spec/protocol/v1/` surface referenced by the protocol index compris
 
 The corresponding machine-readable wire surface is rooted at `proto/v1/envelope.proto`; `spec/` remains the normative semantic source.
 
-## Current bounded stabilization gaps
+## Current bounded stabilization gates
+
+**Status semantics:** `DEFINED` means the normative contract exists; `IMPLEMENTED / TESTED-SOURCE` means executable coverage exists, not that a new exact-head run was accepted. `BOUNDED RC PASS` / `CLOSED` applies only to the cited accepted scope. `QUALIFICATION_PENDING` and overall `OPEN` are release-admission gaps, **not missing-document or missing-test claims**. See the machine-checkable [`protocol-rc-documentation-inventory.json`](protocol-rc-documentation-inventory.json) for P1–P14 normative and executable paths. Historical checkpoints below do not override this current table.
 
 | ID | Gap | Current evidence | Required closure |
 |---|---|---|---|
@@ -47,19 +54,19 @@ The corresponding machine-readable wire surface is rooted at `proto/v1/envelope.
 | P3 | **BOUNDED RC PASS; Stable v1 OPEN** | `envelope.md` specifies Ed25519/TCJ1 exact signed bytes, 64-byte Base64 signature, signed optional fields; five SDKs and shared cross-language fixtures qualify the bounded contract | Preserve existing signed-byte domain and require explicit negotiation for future changes |
 | P4 | **BOUNDED RC PASS; Stable v1 OPEN** | `identity.md` defines `truyn:node:` + SHA256(Ed25519 SPKI DER); runtime and negatives reject wrong algorithms, invalid keys and sender/key mismatch; five SDKs qualified | Identity never implies entitlement, and future recovery/rotation remain separate gates |
 | P5 | **BOUNDED REGISTRATION RC PASS; broader durable lifecycle OPEN** | `security.md` and `tests/protocol-v1-registration-freshness.test.js` enforce 5-minute-old / 30-second-future registration bounds, replayed signed registration ID rejection and no session creation; combined five-SDK and full CI passed | This is **not** G5 durable multi-replica exactly-once, production recovery or full P6-P9 lifecycle certification |
-| P6 | OFFER owner/visibility/withdrawal freeze | Bounded RC `offer.md` and shared `lifecycle.md` define withdrawal and authority; targeted runtime negatives exist | OPEN: exact-head full conformance, policy/legacy negatives and post-merge proof |
-| P7 | NEED correlation and admission replay freeze | RC `need.md` and `lifecycle.md` define cross-transport logical ID; relay in-memory idempotency guard added as bounded candidate | OPEN: exact-head five-SDK and restart/replica/durable ledger negatives |
-| P8 | RESULT/PARTIAL terminal/ordering freeze | RC `result.md`, `partial.md` and shared `lifecycle.md` specify single-terminal and late-output rejection | OPEN: exact-head negatives, five-SDK and durable terminal qualification |
-| P9 | REVOKE issuer/target and late-output freeze | RC `revoke.md` and `lifecycle.md` define direct cancellation and OFFER withdrawal, with targeted regressions | OPEN: exact-head authority and terminal regression qualification |
+| P6 | **DEFINED / IMPLEMENTED; release QUALIFICATION_PENDING** | Bounded RC `offer.md` and shared `lifecycle.md` define withdrawal and authority; targeted runtime negatives exist | OPEN: exact-head full conformance, policy/legacy negatives and post-merge proof |
+| P7 | **DEFINED / IMPLEMENTED; release QUALIFICATION_PENDING** | RC `need.md` and `lifecycle.md` define cross-transport logical ID; relay in-memory idempotency guard added as bounded candidate | OPEN: exact-head five-SDK and restart/replica/durable ledger negatives |
+| P8 | **DEFINED / IMPLEMENTED; release QUALIFICATION_PENDING** | RC `result.md`, `partial.md` and shared `lifecycle.md` specify single-terminal and late-output rejection | OPEN: exact-head negatives, five-SDK and durable terminal qualification |
+| P9 | **DEFINED / IMPLEMENTED; release QUALIFICATION_PENDING** | RC `revoke.md` and `lifecycle.md` define direct cancellation and OFFER withdrawal, with targeted regressions | OPEN: exact-head authority and terminal regression qualification |
 | P10 | **CLOSED — bounded TRUYN/1 RC error parity** | [Accepted 2026-10-12](P10_ERROR_PARITY_ACCEPTANCE_2026-10-12.md): all 13 normalized codes, REST/MCP/A2A/NLWeb/WebSocket projections and shared 20-case five-SDK matrix; negative security/interop tests GREEN. | Exact PR [#1046](https://github.com/inn-media/truyn/pull/1046) and merged [main CI #38218804593](https://github.com/inn-media/truyn/actions/runs/38218804593) SUCCESS at `ffb86ec080455797dbdc1ce1c3ff962a1834fa78`. Native surface semantics are preserved. Does **not** certify Stable v1 or close other release gates. |
-| P11 | Required-semantic/version negotiation needs stable-v1 executable contract | Core requires a new generation or explicitly negotiated extension for breaking semantics | Freeze overlap/required-semantic negotiation and mismatch negatives |
+| P11 | **RC1 MATRIX FROZEN / IMPLEMENTED; final release QUALIFICATION_PENDING** | `spec/compatibility/P11_VERSION_NEGOTIATION_MATRIX.md`, `p11-negotiation-matrix.json`, `tests/protocol-v1-compatibility-matrix.test.js` and `tests/truyn1-p11-generation-security.test.js` define and exercise overlap, required semantics, fallback and fail-closed malformed-generation negatives | Preserve the frozen RC1 decisions. Qualify final protocol release and applicable five-SDK/exact-head/post-merge evidence; do not claim these documents/tests are absent or invent TRUYN/2 live interoperability |
 | P12 | **CLOSED for bounded strict verified object/artifact reference profile; overall Stable v1 NOT declared** | Normative `spec/protocol/v1/object.md`, Protobuf `ContentObject`/`Reference` encoding fields, five SDK reference projections, strict runtime verifier, machine vectors and positive/negative signed-RESULT conformance bind digest/size/reference/no-implicit-fetch. First full exact-head qualification: `035e4b815e4815bece1cf2cc5bb9ed387af466b3`, [CI #38153247377](https://github.com/inn-media/truyn/actions/runs/38153247377) PASS; acceptance record: `TRUYN1_P12_OBJECT_ARTIFACT_CERTIFICATION.md`. | Final closure requires this documentation-successor exact-head DCO/security/CI/five-SDK/full-qualification PASS and successful post-merge `main` CI. Do not generalize to distributed OBJECT transport or count CodeQL neutral as PASS. |
 | P13 | Migration/deprecation policy is published; **split: P13-FORMAT (public compatibility) / P13-OPS (production migration)** | **FORMAT:** 180-day stable deprecation policy and bounded BYOK local rollback/negotiation plus published-alpha SDK evidence exist; stable five-SDK/wire exact-head certification is not yet complete. **OPS:** ten-domain inventory and read-only fail-closed cutover preflight exist; live source/PITR/canary/rollback remain unverified. | **Documentation subgate: DEFINED.** Stable format qualification remains outstanding. Track two independent gates: [P13-FORMAT](P13_FORMAT_COMPATIBILITY.md) **PRE-STABLE**, [P13-OPS](../operations/P13_PRODUCTION_CUTOVER_READINESS.md) **BLOCKED**. Format closure does not require production execution, but the Stable TRUYN/1 **protocol-only** P13 release gate only after P13-FORMAT and all applicable protocol/SDK/security checks pass. Production operations are independently required for Stable Service/Mainnet. Operations requires its own live evidence and never inherits format PASS. |
-| P14 | Draft status is still propagated across protocol/SDK/docs | Protocol index, proto README and SDK documentation explicitly state TRUYN/1 is draft/pre-stable | Remove draft/stable claims only after P1–P13 and exact-head conformance are accepted |
+| P14 | **PRE-STABLE LABELS CONSISTENT; stable admission OPEN** | Protocol/SDK documentation and `spec/compatibility/stable-release-scopes.json` intentionally retain draft/pre-stable labels; `tests/p13-release-scope-regression.test.js` guards admission separation | Draft labels are correct, not sanitation defects. Change them only after all applicable protocol/SDK/security/P13-FORMAT and exact-head release admission; P13-OPS remains independently required for managed service/Mainnet |
 
 ## Joint P1–P5 bounded RC acceptance (12 October 2026)
 
-This is final **joint certification of the existing bounded RC profile**, not a new wire freeze and not Stable TRUYN/1. All five original normative contracts and executable suites were exercised together on the same PR head and independently on merged `main`. The canonical immutable evidence summary is [`TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md`](TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md). The historical wording in earlier checkpoints is superseded for the **bounded** P1–P5 RC scope only. Overall ledger classification stays `OPEN`; P6–P14, full G5 durable exactly-once, Stable v1 and Mainnet are not admitted.
+This is final **joint certification of the existing bounded RC profile**, not a new wire freeze and not Stable TRUYN/1. All five original normative contracts and executable suites were exercised together on the same PR head and independently on merged `main`. The canonical immutable evidence summary is [`TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md`](TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md). The historical wording in earlier checkpoints is superseded for the **bounded** P1–P5 RC scope only. Overall ledger classification stays `OPEN`. This P1–P5 certificate does not imply acceptance of other gates; separately accepted P10/P12 scopes are recorded in their own rows. Remaining protocol qualification, full G5 durable exactly-once, Stable v1 and Mainnet are not admitted.
 
 ## P13 production cutover readiness gate
 
@@ -110,7 +117,7 @@ The previous combined “Stable/mainnet” shorthand has been split into explici
 
 The added `tests/truyn1-p6-p9-lifecycle-release.test.js` binds P6 OFFER signature/owner/withdrawal, P7 logical-ID cross-transport duplicate refusal, P8 single-terminal and late PARTIAL refusal, and P9 signed issuer authorization plus cancellation in one runnable real-local-relay suite. Existing durable SQLite and mocked distributed Cosmos cross-process/SIGKILL suites continue to qualify only their stated bounded scopes; **live** recovery, third-party provider side effects and multi-region proof are not silently inferred.
 
-P11 receives fail-closed malformed-generation and generation-scoped semantic negatives in `tests/truyn1-p11-generation-security.test.js`, without changing the frozen rc1 outcomes. Current published immutable Wire Freeze alpha pins are recorded in `spec/compatibility/truyn1-five-sdk-freeze.json` (not the historical Developer Release manifest). `scripts/truyn1-protocol-candidate-audit.mjs` is intentionally **non-admitting**: even full green local conformance cannot self-declare P13-FORMAT PASS or turn P14 draft documentation into a Stable TRUYN/1 release. Final P6–P14 statuses and release claims require exact-head and post-merge CI/SDK/security evidence plus separate true stable-version/public-provenance admission.
+P11 receives fail-closed malformed-generation and generation-scoped semantic negatives in `tests/truyn1-p11-generation-security.test.js`, without changing the frozen rc1 outcomes. Current published immutable Wire Freeze alpha pins are recorded in `spec/compatibility/truyn1-five-sdk-freeze.json` (not the historical Developer Release manifest). `scripts/truyn1-protocol-candidate-audit.mjs` is intentionally **non-admitting**: even full green local conformance cannot self-declare P13-FORMAT PASS or turn P14 draft documentation into a Stable TRUYN/1 release. Remaining P6–P9/P11/P13/P14 release claims require exact-head and post-merge CI/SDK/security evidence plus separate true stable-version/public-provenance admission.
 
 ## P13-FORMAT actual five-frozen-prerelease matrix (2026-10-12)
 

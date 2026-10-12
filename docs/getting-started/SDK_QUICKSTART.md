@@ -1,6 +1,6 @@
 # TRUYN SDK Quickstart
 
-**Status:** Developer Release relay-client/package implementation is source/build complete across TypeScript/JavaScript, Python, Go, Java and C#/.NET. npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org status is reconciled independently. Agent Descriptor refresh/interface-validation parity still has explicit gaps described below, so repository-source onboarding remains the reproducible common path across all five SDKs.
+**Status:** Developer Release relay-client/package implementation is source/build complete across TypeScript/JavaScript, Python, Go, Java and C#/.NET. npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is independently accepted. Repository-source onboarding below is a reproducible development/conformance path; public registry onboarding is available in all five ecosystems. Bounded Descriptor refresh and interface-negative implementations are described below without claiming complete production lifecycle certification.
 
 **Protocol:** `TRUYN/1` draft  
 **Stable SDK API contract:** `1`  
@@ -41,7 +41,7 @@ For the two copy-paste examples above, Node.js `>=22` and Python `>=3.10` are su
 - Temurin JDK `17` with `java` and `mvn` available on `PATH`;
 - .NET SDK `8.0.x` with `dotnet` on `PATH`.
 
-`.github/workflows/ci.yml` is the canonical executable setup for this toolchain. npm/PyPI/Go consumers may use the accepted immutable public prerelease coordinates above; Java/Maven and .NET/NuGet remain repository-source/build paths until their publication gates are accepted.
+`.github/workflows/ci.yml` is the canonical executable setup for this toolchain. Consumers in all five ecosystems may use the accepted immutable Wire Freeze prereleases. Repository-source builds below are a development/conformance route, not a workaround for absent Java/.NET publication.
 
 ## Fastest path: TypeScript all-in-one
 
@@ -163,7 +163,7 @@ This is executable network behavior, not skeleton/DTO parity. The runner does **
 
 The bounded SDK/runtime surface also includes authenticated relay event streaming, signed generic ordered `PARTIAL` streaming, direct NEED cancellation through signed `REVOKE`, reference-oriented object/artifact payloads, default-off Agent Descriptor serving plus five-language fetch/signature/expiry handling, and built npm/PyPI/Go/Maven/NuGet verification artifacts with exact source SHA, byte size and SHA-256 provenance.
 
-Current Descriptor limitations are explicit: the runtime signs the public Descriptor once at provider startup and does not automatically refresh/re-sign it before `expiresAt`, and Go/Java/.NET do not yet all enforce a non-empty `interfaces[].endpoint` during negotiation (with Go/.NET typed endpoint mapping also not fully aligned to the schema). Therefore a long-running provider can serve an expired Descriptor until restart, and usable endpoint-negotiation parity is not yet complete.
+The runtime serving helper in `runtime/agent-descriptor.js` refreshes and re-signs an eligible Descriptor in its bounded TTL window, including the provider-startup descriptor path. `tests/agent-descriptor-refresh.test.js` exercises the refresher; the shared `sdk/conformance/v1/agent-descriptor-runtime-fixtures.json` and five language runners include missing/blank endpoint and interface-type negatives (S103 source PR #823). These are implemented bounded source/conformance facts, not a fresh guarantee for every historical binary or all production lifecycle scenarios. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
 
 `PARTIAL` is a generic ordered delta/chunk contract; it does not define a universal tokenizer/token-ID vocabulary. Chain-stage cancellation is not supported.
 
@@ -171,7 +171,7 @@ Current Descriptor limitations are explicit: the runtime signs the public Descri
 
 The TypeScript/Python copy-paste path proves a bounded local signed OFFER/NEED/RESULT transaction through a real local relay. The five-language E2E command proves that all five client implementations can execute the common happy-path relay flow and exercise the accepted Descriptor/cancellation calls described above; it is not a substitute for every negative/lifecycle regression.
 
-It does **not** prove stable `TRUYN/1` protocol compatibility, complete Agent Descriptor refresh/endpoint-negotiation parity, remote production relay onboarding, account/tenant control-plane behavior, QUIC/Kademlia/DHT behavior, D-1000 acceptance, or mainnet readiness. Public registry status is coordinate-specific: npm alpha.2, PyPI alpha and Go alpha are accepted immutable public releases; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org status is reconciled independently.
+It does **not** prove stable `TRUYN/1` protocol compatibility, all production Agent Descriptor lifecycle properties, remote production relay onboarding, account/tenant control-plane behavior, QUIC/Kademlia/DHT behavior, D-1000 acceptance, or mainnet readiness. Public registry status is coordinate-specific: npm alpha.5, PyPI alpha and Go alpha are accepted immutable public releases; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is independently accepted.
 
 ## Next developer paths
 

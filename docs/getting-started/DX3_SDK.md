@@ -5,7 +5,7 @@
 **Stable SDK API contract version:** `1`.  
 **Wire protocol:** `TRUYN/1` draft.
 
-DX-3 moved the first-party SDK/runtime path from request/response scaffolding into a usable developer surface for long-running agent work. The later Developer Release Layer completed bounded five-language relay-client parity, executable conformance and package build/provenance around that runtime core. Agent Descriptor serving/fetch/signature happy paths are implemented, while automatic Descriptor refresh and complete usable-interface validation/mapping parity remain open as described below.
+DX-3 moved the first-party SDK/runtime path from request/response scaffolding into a usable developer surface for long-running agent work. The later Developer Release Layer completed bounded five-language relay-client parity, executable conformance and package build/provenance around that runtime core. Bounded Descriptor serving, refresh/re-signing and shared interface-negative checks are implemented; broader release-specific lifecycle acceptance remains separate as described below.
 
 The stable SDK API is a compatibility contract for this developer surface. It does not create a second protocol, bypass TRUYN authorization or declare `TRUYN/1` stable.
 
@@ -48,7 +48,7 @@ The common proven client contract includes:
 
 These are no longer skeleton-only or payload-only parity targets. The Developer Release Layer implements real relay clients in all three languages, including identity/signing, relay registration/session use, discovery, OFFER/NEED/RESULT, direct NEED cancellation calls and Agent Descriptor retrieval/verification against the accepted valid fixture, and exercises them in the shared five-language executable gate.
 
-Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an accepted immutable public release. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` status is reconciled independently. Complete malformed-interface validation/mapping parity is also separate from the valid-fixture happy path.
+Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an accepted immutable public release. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is independently accepted. Malformed-interface validation is exercised by the shared negative fixture runners; complete production lifecycle acceptance remains separate from the valid-fixture happy path.
 
 ## Object payload
 
@@ -147,8 +147,7 @@ The bounded public Descriptor primitives and valid-fixture client path are imple
 
 Two lifecycle/parity gaps remain open and must not be hidden by the happy-path conformance claim:
 
-1. `runtime/service.js` creates the public Descriptor once at provider startup. It is not automatically re-signed/refreshed before `expiresAt`, so a long-running provider can keep serving an expired Descriptor until restart.
-2. Go/Java/.NET do not yet all reject an advertised interface that has a supported `type` but no usable non-empty `endpoint`; Go/.NET typed endpoint mapping is also not fully aligned with the schema. Therefore complete usable-interface negotiation parity is not yet accepted.
+The runtime serving helper in `runtime/agent-descriptor.js` refreshes and re-signs an eligible Descriptor in its bounded TTL window, including the provider-startup descriptor path. `tests/agent-descriptor-refresh.test.js` exercises the refresher; the shared `sdk/conformance/v1/agent-descriptor-runtime-fixtures.json` and five language runners include missing/blank endpoint and interface-type negatives (S103 source PR #823). These are implemented bounded source/conformance facts, not a fresh guarantee for every historical binary or all production lifecycle scenarios. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
 
 A Descriptor never grants provider authorization. Delegated Descriptor-signing keys are not supported in the current alpha profile.
 
@@ -166,7 +165,7 @@ The gate starts one real local relay and one valid signed Descriptor fixture, th
 
 Ordinary CI builds consumer **verification artifacts** for npm, PyPI, Go, Maven and NuGet. The manifest records the exact source SHA, coordinate/version, byte size and SHA-256 digest for each CI build.
 
-CI verification artifacts remain per-build evidence rather than consumer distribution channels. Accepted public coordinates are frozen independently: npm `0.1.0-alpha.2`, PyPI `0.1.0a1`, and Go `v0.1.0-alpha.1` are immutable accepted prereleases; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease. A materially different package source or byte set must use a distinct version/tag and can never overwrite an accepted coordinate.
+CI verification artifacts remain per-build evidence rather than consumer distribution channels. Accepted public coordinates are frozen independently: npm `0.1.0-alpha.5`, PyPI `0.1.0a2`, and Go `v0.1.0-alpha.2` are immutable accepted prereleases; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is an accepted immutable public prerelease. A materially different package source or byte set must use a distinct version/tag and can never overwrite an accepted coordinate.
 
 ## Runtime bounds and failure semantics
 
@@ -192,12 +191,12 @@ The SDK/runtime must never:
 
 ## Stability and release boundary
 
-`TRUYN_SDK_STABLE_API_VERSION` versions the bounded public SDK surface described here. It does not declare `TRUYN/1` stable. npm, PyPI, Go and Java/Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` have accepted immutable public prereleases; C#/.NET/NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+`TRUYN_SDK_STABLE_API_VERSION` versions the bounded public SDK surface described here. It does not declare `TRUYN/1` stable. npm, PyPI, Go and Java/Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` have accepted immutable public prereleases; C#/.NET/NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is an accepted immutable public prerelease.
 
 Remaining release/lifecycle gates include:
 
-- automatic Descriptor refresh/re-signing plus complete usable-interface validation/mapping parity;
-- Maven Central and NuGet.org immutable public publication with observed provenance;
+- broader Descriptor lifecycle and production-serving qualification beyond the implemented refresh/interface-negative profile;
+- stable-version SDK publication and explicit consumer rollout beyond accepted prereleases;
 - live public developer-site activation/liveness evidence.
 
 Optional later contracts include chain-stage cancellation, standardized cross-provider tokenizer semantics and delegated Descriptor-signing keys.

@@ -1,0 +1,209 @@
+{
+  "schema": "truyn.protocol-rc-documentation-inventory/v1",
+  "reconciledAt": "2026-10-12",
+  "reviewedSourceSha": "0d4a701a1365430db15f023eb2310cc21f0f9288",
+  "stableProtocolDeclared": false,
+  "mainnetAdmitted": false,
+  "statusRule": "Normative definition and executable test presence are separate from observed test execution and exact-SHA release acceptance. This inventory is non-admitting; preserve every cited certificate scope and caveat.",
+  "gates": [
+    {
+      "id": "P1",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/core.md"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/protocol-v1-rc.test.js",
+        "sdk/conformance/run-conformance.mjs"
+      ],
+      "acceptanceStatus": "BOUNDED_RC_ACCEPTED",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md"
+    },
+    {
+      "id": "P2",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/envelope.md"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/protocol-v1-rc.test.js",
+        "sdk/conformance/run-conformance.mjs"
+      ],
+      "acceptanceStatus": "BOUNDED_RC_ACCEPTED",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md"
+    },
+    {
+      "id": "P3",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/envelope.md"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/protocol-v1-rc.test.js",
+        "sdk/conformance/run-conformance.mjs"
+      ],
+      "acceptanceStatus": "BOUNDED_RC_ACCEPTED",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md"
+    },
+    {
+      "id": "P4",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/identity.md"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/protocol-v1-rc.test.js",
+        "sdk/conformance/run-conformance.mjs"
+      ],
+      "acceptanceStatus": "BOUNDED_RC_ACCEPTED",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md"
+    },
+    {
+      "id": "P5",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/security.md"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/protocol-v1-registration-freshness.test.js"
+      ],
+      "acceptanceStatus": "BOUNDED_REGISTRATION_RC_ACCEPTED",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md"
+    },
+    {
+      "id": "P6",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/offer.md",
+        "spec/protocol/v1/lifecycle.md"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/truyn1-p6-p9-lifecycle-release.test.js"
+      ],
+      "acceptanceStatus": "QUALIFICATION_PENDING",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_RC_GAP_LEDGER.md"
+    },
+    {
+      "id": "P7",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/need.md",
+        "spec/protocol/v1/lifecycle.md"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/truyn1-p6-p9-lifecycle-release.test.js",
+        "tests/lifecycle-freeze-g5-replay.test.js"
+      ],
+      "acceptanceStatus": "QUALIFICATION_PENDING",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_RC_GAP_LEDGER.md"
+    },
+    {
+      "id": "P8",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/result.md",
+        "spec/protocol/v1/partial.md",
+        "spec/protocol/v1/lifecycle.md"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/truyn1-p6-p9-lifecycle-release.test.js"
+      ],
+      "acceptanceStatus": "QUALIFICATION_PENDING",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_RC_GAP_LEDGER.md"
+    },
+    {
+      "id": "P9",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/revoke.md",
+        "spec/protocol/v1/lifecycle.md"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/truyn1-p6-p9-lifecycle-release.test.js"
+      ],
+      "acceptanceStatus": "QUALIFICATION_PENDING",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_RC_GAP_LEDGER.md"
+    },
+    {
+      "id": "P10",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/errors.md"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/p10-error-parity.test.js"
+      ],
+      "acceptanceStatus": "BOUNDED_ERROR_PARITY_ACCEPTED",
+      "acceptanceRecord": "docs/compatibility/P10_ERROR_PARITY_ACCEPTANCE_2026-10-12.md"
+    },
+    {
+      "id": "P11",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/compatibility/P11_VERSION_NEGOTIATION_MATRIX.md",
+        "spec/compatibility/p11-negotiation-matrix.json"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/protocol-v1-compatibility-matrix.test.js",
+        "tests/truyn1-p11-generation-security.test.js"
+      ],
+      "acceptanceStatus": "QUALIFICATION_PENDING",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_RC_GAP_LEDGER.md"
+    },
+    {
+      "id": "P12",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/object.md"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/truyn1-p12-reference-integrity.test.js"
+      ],
+      "acceptanceStatus": "BOUNDED_REFERENCE_PROFILE_RECORDED",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_P12_OBJECT_ARTIFACT_CERTIFICATION.md",
+      "qualificationBoundary": "Preserve the P12 certificate exact-head and post-merge conditions; this documentation inventory does not infer a newer successful qualification."
+    },
+    {
+      "id": "P13",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/migration.md",
+        "spec/compatibility/stable-release-scopes.json"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/p13-migration-rollback-interoperability.test.js",
+        "tests/p13-release-scope-regression.test.js"
+      ],
+      "acceptanceStatus": "FORMAT_PRE_STABLE_OPS_BLOCKED",
+      "acceptanceRecord": "docs/compatibility/P13_FORMAT_COMPATIBILITY.md",
+      "qualificationBoundary": "P13-FORMAT is a protocol release prerequisite; P13-OPS is independent and applies to service/Mainnet production admission."
+    },
+    {
+      "id": "P14",
+      "normativeStatus": "DEFINED",
+      "normativePaths": [
+        "spec/protocol/v1/README.md",
+        "spec/compatibility/stable-release-scopes.json"
+      ],
+      "executableStatus": "IMPLEMENTED",
+      "executablePaths": [
+        "tests/p13-release-scope-regression.test.js"
+      ],
+      "acceptanceStatus": "STABLE_ADMISSION_OPEN",
+      "acceptanceRecord": "docs/compatibility/TRUYN1_RC_GAP_LEDGER.md"
+    }
+  ]
+}

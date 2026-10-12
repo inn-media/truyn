@@ -68,9 +68,9 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - **Stable A2A/MCP v1 is not declared**; `TRUYN/1` remains draft.
 - NLWeb interoperability — **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN**.
 - five first-party SDK clients + shared conformance — **IMPLEMENTED**.
-- PyPI alpha + Go alpha + npm alpha.2 — **accepted immutable public releases**.
+- PyPI alpha + Go alpha + npm alpha.5 — **accepted immutable public releases**.
 - npm alpha.1 — immutable historical artifact with failed required clean-room ESM import.
-- Maven Central — **accepted immutable public release** (`org.truyn:truyn-sdk:0.1.0-alpha.1`); NuGet — **status reconciled independently**.
+- Maven Central — **accepted immutable public release** (`org.truyn:truyn-sdk:0.1.0-alpha.2`); NuGet — **accepted immutable Wire Freeze prerelease** (`Truyn.Sdk 0.1.0-alpha.2`).
 - Open 1.0 productization — **in progress**; the historical S103 snapshot is not authoritative current sprint state. Stable 1.0 requires independent final G1–G34 reconciliation.
 - Production Trust Authority — **OPEN** unless/until separately accepted by canonical evidence.
 - governance — **G1 / bootstrap Founding Stewardship**.
@@ -156,3 +156,5 @@ Both successful executions checked out the **identical source** `c1d3fa087716dbf
 Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`, `staging_cleanup=true`; evidence artifact **11557320070** and digest **sha256:3b84a2acf39ad34735a069e5a3e62f84be675f11636f68812eb0b78a64959a32**. Launcher-only changes were isolated from frozen benchmark source. Historical branch-OIDC failure [37784820939](https://github.com/inn-media/truyn/actions/runs/37784820939) happened before provisioning (`AADSTS700213`) and is **not** a D-1000 network regression. The prior primary run_attempt=1 quota failure also remains immutable pre-provision evidence. No tests, thresholds, network source, old reports, or negative evidence are weakened or deleted.
 
 **Scope boundary:** this demonstrates repeatability of the specified 1,000-process Class-D scale acceptance. It does not establish long-duration production SLO compliance, private managed-production acceptance, or mainnet readiness. Public repository remains the authoritative source of benchmark/evaluator/evidence; private repository consumes only immutable identifiers and sanitized public metrics.
+
+[Documentation sanitation and repeatable checks — 2026-10-12](operations/DOCUMENTATION_SANITATION_2026-10-12.md).

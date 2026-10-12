@@ -1,6 +1,6 @@
 # TRUYN SDK Compatibility and Migration Policy
 
-> **Current accepted Wire Freeze prerelease (2026-10-11):** npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, Go `sdk/go@v0.1.0-alpha.2`, Maven `org.truyn:truyn-sdk:0.1.0-alpha.2`, NuGet `Truyn.Sdk 0.1.0-alpha.2`. All five are bound to frozen public source `57971b134a41c3e3ea4b42f68e86a7d117036006` and the [independent registry acceptance record](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). The older alpha coordinates below are **historical Developer Release evidence**, not current Wire Freeze pins; `sdk/release/public-coordinates.json` is a historical, separately accepted Developer Release ledger. The exact current pins for P13-FORMAT are in [truyn1-five-sdk-freeze.json](../../spec/compatibility/truyn1-five-sdk-freeze.json). No prerelease is a Stable TRUYN/1 SDK declaration.
+> **Current accepted Wire Freeze prerelease (2026-10-11):** npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, Go `sdk/go@v0.1.0-alpha.2`, Maven `org.truyn:truyn-sdk:0.1.0-alpha.2`, NuGet `Truyn.Sdk 0.1.0-alpha.2`. All five are bound to frozen public source `57971b134a41c3e3ea4b42f68e86a7d117036006` and the [independent registry acceptance record](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). The active `sdk/release/public-coordinates.json` agrees with this current release. Its previous Developer Release contents are preserved byte-exact in `sdk/release/evidence/public-coordinates-developer-release-2026-09-23.json`. The exact current pins for P13-FORMAT are in [truyn1-five-sdk-freeze.json](../../spec/compatibility/truyn1-five-sdk-freeze.json). No prerelease is a Stable TRUYN/1 SDK declaration.
 
 **Status:** Developer Release policy implemented for the `0.1.0-alpha.x` family; npm, PyPI, Go, Maven Central and NuGet have accepted immutable public releases.  
 **Protocol:** `TRUYN/1` remains draft. PR #975 established five-SDK TCJ1 conformance and 20/20 legacy/new published-alpha peer combinations; neither implies stable-v1 or Mainnet.  
@@ -8,19 +8,17 @@
 
 TRUYN requires first-party SDKs for JavaScript/TypeScript, Python, Go, Java and C#/.NET. The SDKs expose equivalent TRUYN semantics without requiring identical language syntax.
 
-## Developer Release coordinates
+## Current Wire Freeze coordinates
 
-The bounded alpha family is:
+| Language | Accepted immutable public prerelease |
+|---|---|
+| JavaScript/TypeScript | `@truyn/sdk@0.1.0-alpha.5` |
+| Python | `truyn-sdk==0.1.0a2` (import `truyn`) |
+| Go | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` |
+| Java | `org.truyn:truyn-sdk:0.1.0-alpha.2` |
+| C#/.NET | `Truyn.Sdk 0.1.0-alpha.2` |
 
-- TypeScript / JavaScript: `@truyn/sdk@0.1.0-alpha.2`;
-- Python: `truyn-sdk==0.1.0a1` (import package `truyn`);
-- Go: `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`;
-- Java: `org.truyn:truyn-sdk:0.1.0-alpha.1`;
-- C#/.NET: `Truyn.Sdk 0.1.0-alpha.1`.
-
-The npm `0.1.0-alpha.1` artifact is immutable but superseded for installation because clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. That defect is repaired by the distinct `0.1.0-alpha.2` version; the immutable alpha.1 bytes are never overwritten. npm alpha.2 is now an accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import. The other ecosystem coordinates are unchanged because this repair is npm-packaging-specific.
-
-These coordinates describe the current source/package family. Registry state is verified independently; source/build conformance cannot substitute for public publication evidence. PyPI, Go and npm have accepted public alpha evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+All five have independent public registry acceptance at frozen source `57971b134a41c3e3ea4b42f68e86a7d117036006`. Historical npm alpha.1 was defective and its alpha.2 repair remains immutable; neither historical coordinate is the current Wire Freeze installation target. Source/build conformance never substitutes for registry publication or private consumer admission.
 
 ## Compatibility declaration required for every release
 
@@ -139,7 +137,7 @@ When upgrading an SDK package:
 6. keep artifact fetching explicit and authorization-aware;
 7. treat a new Descriptor capability as discoverability, not authorization.
 
-For npm users on this alpha family, migrate from `@truyn/sdk@0.1.0-alpha.1` to the accepted `@truyn/sdk@0.1.0-alpha.2`. Both the `alpha` and default `latest` npm tags resolve to alpha.2 in the accepted public release evidence.
+For current Wire Freeze npm onboarding, explicitly install `@truyn/sdk@0.1.0-alpha.5`. Do not infer the accepted frozen version from mutable `latest` or from a historical dist-tag observation. Application compatibility and rollout must be qualified before upgrading an existing consumer.
 
 ## Stable-v1 ecosystem gate
 

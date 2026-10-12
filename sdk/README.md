@@ -21,7 +21,7 @@ Native first-party client libraries for applications that integrate directly wit
 
 The five required first-party targets are **JavaScript/TypeScript, Python, Go, Java and C#/.NET**. Rust may be maintained as an additional SDK but does not replace any required language.
 
-The npm `0.1.0-alpha.1` artifact is immutable and superseded for installation because clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. The TypeScript/JavaScript repair therefore used the distinct immutable coordinate `0.1.0-alpha.2`. That alpha.2 coordinate is now an accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import. Python and Go are also accepted public alphas; Java/Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is accepted as an immutable public release. .NET/NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+Historical npm alpha.1 had a clean-room ESM packaging defect, repaired by the distinct alpha.2 release. Both remain immutable history. Current installation uses the five Wire Freeze coordinates above; no historical version, tag, digest or publication evidence is overwritten.
 
 Ordinary CI rebuilds verification packages on different source SHAs, and the manifest binds each verification build to its exact reported source. Those CI artifacts are therefore **per-commit verification artifacts**, not proof of one immutable published release. Publication accepts only an explicitly frozen/tagged source and the exact green CI artifact selected for that source.
 
@@ -120,12 +120,9 @@ GET /.well-known/truyn-agent.json
 
 Serving is disabled by default. The runtime signs the Descriptor with the current TRUYN identity key, applies bounded validity and advertises only the explicitly allowed public subset of actual capabilities.
 
-All five required SDK clients can retrieve the accepted valid Descriptor, validate its supported schema/version/expiry, verify identity-key binding/signature and select a mutually supported protocol/interface type. Two gaps remain:
+All five required SDK clients retrieve the Descriptor, validate schema/version/expiry, verify identity-key binding/signature and select a mutually supported protocol/interface. Shared missing/blank endpoint and interface-type negatives are now implemented across all five language conformance runners (`sdk/conformance/v1/agent-descriptor-runtime-fixtures.json`; S103 source PR #823). The runtime serving helper renews and re-signs an eligible Descriptor in the bounded refresh window; `tests/agent-descriptor-refresh.test.js` exercises the refresher.
 
-- `runtime/service.js` creates the Descriptor once at provider startup and does not refresh/re-sign it before `expiresAt`; a long-running provider can therefore serve an expired Descriptor until restart;
-- Go/Java/.NET do not yet all require a usable non-empty `interfaces[].endpoint` when selecting an interface, and Go/.NET typed endpoint mapping is not fully aligned with the schema.
-
-Accordingly, **complete Agent Descriptor lifecycle and usable-interface parity are not yet accepted**. The Descriptor remains bootstrap/self-description metadata and never grants provider authorization. Delegated Descriptor-signing keys also remain outside the current alpha contract.
+This is implemented bounded source/conformance, not a fresh certification of every historical SDK binary or complete production lifecycle. Delegated signing, operational liveness and final exact-SHA Open 1.0 acceptance remain separate. Descriptor metadata never grants provider authorization.
 
 ## Package build and release provenance
 
@@ -147,7 +144,7 @@ It does **not** unpack and scan every archived file byte using the source-tree c
 
 Native public registry publication is **not** implied by CI package build success. Public publication requires the separately accepted release-infrastructure path, external namespace ownership/trusted-publishing setup, an immutable version/source binding, package-content security review, and observed registry evidence.
 
-For npm alpha.2, that publication boundary is closed: the public registry artifact is accepted, registry bytes match the accepted artifact, provenance/signature evidence is recorded, and an independent clean-room Node 22 ESM install/import passed. Permanent npm closure evidence is in `release/evidence/npm-alpha2-2026-09-05.json`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an accepted immutable public release; NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease publication gates.
+The current five-SDK Wire Freeze publication boundary is closed for the exact coordinates above. Frozen source, registry bytes, signatures/provenance and independent consumer verification are recorded in [the release ledger](../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). Historical npm alpha.2 and NuGet alpha.1 evidence stays under `release/evidence/` and is not reused as evidence for newer bytes.
 
 Likewise, checked-in developer-site source is not proof that the public developer site is live.
 
@@ -165,8 +162,7 @@ The repository progressed through DX-0/DX-1/DX-2/DX-3 into the merged Developer 
 
 Current remaining Developer Release/lifecycle gates include:
 
-- automatic Descriptor refresh/re-signing and complete usable-interface validation/mapping parity;
-- Maven Central and NuGet immutable public native package publication;
+- broader Descriptor lifecycle/delegated-signing and production serving qualification beyond the implemented refresh and shared interface-negative profile;
 - archive-member byte-content leakage scanning;
 - live public developer-site activation/liveness evidence.
 

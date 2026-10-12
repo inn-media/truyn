@@ -51,15 +51,15 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | P2-E2 `a2a-mcp-pre-v1/g1` | **ACCEPTED / CLOSED** | stable-v1 not claimed |
 | P2-E3 canonical reconciliation | **ACCEPTED / MERGED** | — |
 | NLWeb interoperability | **BOUNDED NLWeb 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later upstream profiles require requalification |
-| Five first-party SDK clients | **Implemented / conformance-proven** | release ecosystem completion |
+| Five first-party SDK clients | **Implemented / conformance-proven; five Wire Freeze registries accepted** | stable-v1 and consumer rollout qualification |
 | Native GUI requester clients | **IMPLEMENTED / EXACT-HEAD FOUR-PLATFORM BUILD-QUALIFIED** | production signing/notarization and immutable public distribution remain separate gates |
 | PyPI alpha | **Accepted immutable public release** | — |
 | Go alpha | **Accepted immutable public release** | — |
 | npm alpha.1 | **Immutable historical artifact; clean-room Node 22 ESM failed** | superseded, never overwritten |
-| npm alpha.2 | **Accepted immutable public release** | — |
-| Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.1`** | — |
-| NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** | — |
-| Agent Descriptor | **Bounded valid-profile implemented** | endpoint/interface parity + refresh/re-sign + full serving parity |
+| npm alpha.5 | **Accepted immutable public release** | — |
+| Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.2`** | — |
+| NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.2`** | — |
+| Agent Descriptor | **Bounded valid-profile, refresh/re-sign and shared interface-negative source implemented** | full production lifecycle/delegated-signing and exact-SHA release qualification remain separate |
 | Open 1.0 productization | **IN PROGRESS; S103 was a historical checkpoint, not current authoritative sprint** | reconcile issue #615 / task capsule and exact main; final G1–G34 reconciliation before stable 1.0 |
 | Live developer site | **OPEN** | deployment/liveness evidence |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers/TSC/neutral stewardship |
@@ -160,7 +160,7 @@ N/SOVEREIGNTY-10 qualification/smoke executed with deterministic fixture values 
 
 Issue #615 is the durable Open 1.0 task anchor. An earlier documentation snapshot recorded S01–S102 complete and S103 active; that is not verified current sprint state. Reconcile issue #615, durable task capsule and exact current main before claiming sprint progress. Stable Open 1.0 remains forbidden until all applicable S01–S200 work and independent G1–G34 final reconciliation are complete.
 
-Five first-party clients and shared executable conformance already exist. Accepted immutable releases remain PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+Five first-party clients and shared executable conformance already exist. Accepted immutable releases remain PyPI `truyn-sdk==0.1.0a2`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2`, and npm `@truyn/sdk@0.1.0-alpha.5`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is an accepted immutable public prerelease.
 
 ## Native client boundary
 
