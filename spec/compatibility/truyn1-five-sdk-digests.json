@@ -1,0 +1,71 @@
+{
+  "schema": "truyn.five-sdk-digests/v1",
+  "sourceSha": "57971b134a41c3e3ea4b42f68e86a7d117036006",
+  "bundleRunId": 38154701595,
+  "bundleArtifactId": 11707393965,
+  "bundleZipSha256": "38d7afe7ad6611fc0635cc17cfa68ee2a23a62a0b75c70d3059483a143cda72e",
+  "manifestSha256": "8435a542084d1ea008ac703b6db7d781baca568f361da231b1b078884d0e8ce9",
+  "packages": {
+    "typescript": {
+      "coordinate": "@truyn/sdk@0.1.0-alpha.5",
+      "mode": "archive-sha256",
+      "frozenArtifact": "typescript/truyn-sdk-0.1.0-alpha.5.tgz",
+      "bytes": 23892,
+      "sha256": "8f8cb4213d3d81ce078506331edc3ede5a858362470a93e3e827362fd15c79c2"
+    },
+    "python": {
+      "coordinate": "truyn-sdk==0.1.0a2",
+      "mode": "archive-sha256",
+      "frozenArtifact": "python/truyn_sdk-0.1.0a2-py3-none-any.whl",
+      "bytes": 19755,
+      "sha256": "2fb5912d9a81e12424395cce608fbedf213b4ec6005a4ce7bdac80ad9f97a631"
+    },
+    "java": {
+      "coordinate": "org.truyn:truyn-sdk:0.1.0-alpha.2",
+      "mode": "archive-sha256",
+      "frozenArtifact": "java/truyn-sdk-0.1.0-alpha.2.jar",
+      "bytes": 61992,
+      "sha256": "bf8463a3b0d9b116249f1e1ca2e28a8a3b29ccfaebe8b1a66ed4ccb04a9a7946"
+    },
+    "go": {
+      "coordinate": "github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2",
+      "mode": "go-proxy-source-payload",
+      "frozenArtifact": "go/truyn-sdk-go-0.1.0-alpha.2.tar.gz",
+      "frozenArchiveSha256": "7d9c45ca07b41246e56548cb7e7cd6ad97886e8901c341805e1bc939a28e6040",
+      "zipPrefix": "github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2/",
+      "files": {
+        "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "NOTICE": "7993de8b2ebe729b5a18ece56f48496d455df340a97ba89086f5e5085c2d22a6",
+        "README.md": "e50b0808bc32748082d50b4873e8c8d2433a7555875c5163f139cb94e463e51d",
+        "canonical_tcj1.go": "0e2bc596fb5b0b9055c9322c25b7b9ad0260c7e5ae13c7469c768d8c44f64c55",
+        "descriptor.go": "5d9d8f5ed082c8a89b6d9caa4a79ff9870ab3e506cabc107e5e2145b261474a8",
+        "go.mod": "0609e2bc0867f99a7ecb4664e4047e99bd285f07098defd0a03a8b3185ebe76f",
+        "tcj1_shared_vectors_test.go": "a6a887e1edb64514f94ebb4c5ccd89c5dcb7029fad4ef9ee4dc185a7b79ba70a",
+        "truyn.go": "908331b8d3f84d795c1d5b5fb673d833ca58e411814ba269c3a937edc6a674b1",
+        "truyn_test.go": "c558e5c3ba285fc12e7f1b1ae29c78abb8a0c3d839f36d3231ab72d6571aa3e9",
+        "wire_freeze_canonical_test.go": "50bd88bdea9778a11ee1f6356d80f93fc0f88302e6557541613e3289ec897d66"
+      }
+    },
+    "dotnet": {
+      "coordinate": "Truyn.Sdk 0.1.0-alpha.2",
+      "mode": "nuget-signed-package-payload",
+      "frozenArtifact": "dotnet/Truyn.Sdk.0.1.0-alpha.2.nupkg",
+      "frozenArchiveSha256": "570715fc5d10b8829c573cf63f09ceebe934fdc0d0eea583853c98d8e6e18c06",
+      "files": {
+        "Truyn.Sdk.nuspec": "a20d12ebf4add00bb057b3815172e1981e0ad1ead33cf429b9bb1c306e57d79c",
+        "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "NOTICE": "7993de8b2ebe729b5a18ece56f48496d455df340a97ba89086f5e5085c2d22a6",
+        "README.md": "015a2972efe0a829a672d5a4927d726ca487234ce0538cc3fd855afba1dade42",
+        "lib/net8.0/Truyn.Sdk.dll": "179d34e6c63a593cfe2375ba68b1f0fee855042c70435d9174ff59ef5a07dcf4",
+        "lib/net8.0/Truyn.Sdk.xml": "240afaaf42729d18fd61dc497192c557b7862c867178a6c94284e46ba65370b5"
+      },
+      "allowedSigningEnvelopeMembers": [
+        "_rels/.rels",
+        "[Content_Types].xml",
+        "package/services/metadata/core-properties/nuget.psmdcp",
+        ".signature.p7s"
+      ]
+    }
+  },
+  "boundary": "Byte/source-payload identity with the frozen accepted prerelease; no stable protocol declaration. NuGet signing envelope is validated separately by dotnet nuget verify --all."
+}

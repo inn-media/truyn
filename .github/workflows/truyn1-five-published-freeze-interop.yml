@@ -1,0 +1,147 @@
+name: TRUYN1 Exact Five Published Freeze SDK Interop
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sdk/**'
+      - 'core/protocol/**'
+      - 'network/relay/**'
+      - '.github/workflows/truyn1-five-published-freeze-interop.yml'
+      - 'spec/compatibility/truyn1-five-sdk-*.json'
+      - 'scripts/verify-five-sdk-interop.py'
+      - 'tests/truyn1-five-*.test.js'
+      - 'tests/fixtures/five-sdk-evidence-unit.py'
+  pull_request:
+    paths:
+      - 'sdk/**'
+      - 'core/protocol/**'
+      - 'network/relay/**'
+      - '.github/workflows/truyn1-five-published-freeze-interop.yml'
+      - 'spec/compatibility/truyn1-five-sdk-*.json'
+      - 'scripts/verify-five-sdk-interop.py'
+      - 'tests/truyn1-five-*.test.js'
+      - 'tests/fixtures/five-sdk-evidence-unit.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TRUYN_EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  frozen-public-vs-source-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Assert exact source and initialize isolated evidence directories
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$TRUYN_EXPECTED_SOURCE_SHA"
+          mkdir -p "$RUNNER_TEMP/five-sdk-packages" "$RUNNER_TEMP/five-sdk-evidence"
+          echo "NUGET_PACKAGES=$RUNNER_TEMP/five-sdk-nuget-cache" >> "$GITHUB_ENV"
+          python3 tests/fixtures/five-sdk-evidence-unit.py -v
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify exact frozen SDK pins and non-admitting source contract
+        run: node scripts/truyn1-protocol-candidate-audit.mjs
+      - name: Download, verify frozen npm bytes and install the verified tarball
+        run: |
+          set -Eeuo pipefail
+          npm pack '@truyn/sdk@0.1.0-alpha.5' --ignore-scripts --pack-destination "$RUNNER_TEMP/five-sdk-packages" --json > "$RUNNER_TEMP/five-sdk-packages/npm-download.json"
+          archive="$RUNNER_TEMP/five-sdk-packages/truyn-sdk-0.1.0-alpha.5.tgz"
+          python3 scripts/verify-five-sdk-interop.py artifact typescript "$archive" --output "$RUNNER_TEMP/five-sdk-evidence/typescript.json"
+          mkdir -p /tmp/truyn-wire-legacy-npm
+          npm install --prefix /tmp/truyn-wire-legacy-npm --ignore-scripts --no-audit --no-fund "$archive"
+      - name: Download, verify frozen PyPI wheel and install independently from source
+        run: |
+          set -Eeuo pipefail
+          python -m venv /tmp/truyn-wire-legacy-py
+          /tmp/truyn-wire-legacy-py/bin/pip download --disable-pip-version-check --no-deps --only-binary=:all: --dest "$RUNNER_TEMP/five-sdk-packages" 'truyn-sdk==0.1.0a2'
+          archive="$RUNNER_TEMP/five-sdk-packages/truyn_sdk-0.1.0a2-py3-none-any.whl"
+          python3 scripts/verify-five-sdk-interop.py artifact python "$archive" --output "$RUNNER_TEMP/five-sdk-evidence/python.json"
+          /tmp/truyn-wire-legacy-py/bin/pip install --disable-pip-version-check "$archive"
+          python -m venv /tmp/truyn-wire-candidate-py
+          /tmp/truyn-wire-candidate-py/bin/pip install --disable-pip-version-check -e ./sdk/python
+      - name: Verify Go proxy source payload and compile independent role binaries
+        run: |
+          set -Eeuo pipefail
+          for version in legacy candidate; do
+            mkdir -p "/tmp/truyn-wire-go-$version"
+            cp sdk/conformance/legacy-peer/go-role.go "/tmp/truyn-wire-go-$version/main.go"
+            cd "/tmp/truyn-wire-go-$version"
+            go mod init "example.com/truyn-wire-$version"
+            if [ "$version" = legacy ]; then
+              go get github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2
+              go mod download -json github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2 > "$RUNNER_TEMP/five-sdk-packages/go-download.json"
+              archive="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["Zip"])' "$RUNNER_TEMP/five-sdk-packages/go-download.json")"
+              python3 "$GITHUB_WORKSPACE/scripts/verify-five-sdk-interop.py" artifact go "$archive" --output "$RUNNER_TEMP/five-sdk-evidence/go.json"
+            else
+              go mod edit -replace github.com/inn-media/truyn/sdk/go="$GITHUB_WORKSPACE/sdk/go"
+              go get github.com/inn-media/truyn/sdk/go
+            fi
+            go build -o "/tmp/truyn-wire-$version-go" main.go
+            cd "$GITHUB_WORKSPACE"
+          done
+      - name: Verify Maven Central JAR bytes before compiling mixed-version roles
+        run: |
+          set -Eeuo pipefail
+          mvn -q dependency:get -Dartifact=org.truyn:truyn-sdk:0.1.0-alpha.2 -Dtransitive=false
+          legacyJar="$HOME/.m2/repository/org/truyn/truyn-sdk/0.1.0-alpha.2/truyn-sdk-0.1.0-alpha.2.jar"
+          python3 scripts/verify-five-sdk-interop.py artifact java "$legacyJar" --output "$RUNNER_TEMP/five-sdk-evidence/java.json"
+          mvn -q -f sdk/java/pom.xml -DskipTests package
+          mkdir -p /tmp/truyn-wire-legacy-java /tmp/truyn-wire-candidate-java
+          javac -cp "$legacyJar" -d /tmp/truyn-wire-legacy-java sdk/conformance/legacy-peer/LegacyPeerRole.java
+          javac -cp sdk/java/target/classes -d /tmp/truyn-wire-candidate-java sdk/conformance/legacy-peer/LegacyPeerRole.java
+          echo "TRUYN_LEGACY_JAVA_CP=/tmp/truyn-wire-legacy-java:$legacyJar" >> "$GITHUB_ENV"
+          echo "TRUYN_CANDIDATE_JAVA_CP=/tmp/truyn-wire-candidate-java:$GITHUB_WORKSPACE/sdk/java/target/classes" >> "$GITHUB_ENV"
+      - name: Verify NuGet signature and frozen runtime payload before compilation
+        run: |
+          set -Eeuo pipefail
+          dotnet restore sdk/conformance/legacy-peer/dotnet/legacy/LegacyPeer.csproj -p:TruynInteropPackageVersion=0.1.0-alpha.2
+          archive="$NUGET_PACKAGES/truyn.sdk/0.1.0-alpha.2/truyn.sdk.0.1.0-alpha.2.nupkg"
+          dotnet nuget verify "$archive" --all
+          python3 scripts/verify-five-sdk-interop.py artifact dotnet "$archive" --output "$RUNNER_TEMP/five-sdk-evidence/dotnet.json"
+          dotnet build sdk/conformance/legacy-peer/dotnet/legacy/LegacyPeer.csproj --configuration Release --nologo --no-restore -p:TruynInteropPackageVersion=0.1.0-alpha.2
+          dotnet build sdk/conformance/legacy-peer/dotnet/candidate/CandidatePeer.csproj --configuration Release --nologo
+          echo "TRUYN_LEGACY_DOTNET_DLL=$GITHUB_WORKSPACE/sdk/conformance/legacy-peer/dotnet/legacy/bin/Release/net8.0/LegacyPeer.dll" >> "$GITHUB_ENV"
+          echo "TRUYN_CANDIDATE_DOTNET_DLL=$GITHUB_WORKSPACE/sdk/conformance/legacy-peer/dotnet/candidate/bin/Release/net8.0/CandidatePeer.dll" >> "$GITHUB_ENV"
+      - name: Twenty actual mixed-version peer cases and SHA-bound reconciliation
+        env:
+          TRUYN_LEGACY_NPM_ROOT: /tmp/truyn-wire-legacy-npm
+          TRUYN_LEGACY_PYTHON: /tmp/truyn-wire-legacy-py/bin/python
+          TRUYN_CANDIDATE_PYTHON: /tmp/truyn-wire-candidate-py/bin/python
+          TRUYN_LEGACY_GO_BINARY: /tmp/truyn-wire-legacy-go
+          TRUYN_CANDIDATE_GO_BINARY: /tmp/truyn-wire-candidate-go
+        run: |
+          set -Eeuo pipefail
+          node sdk/conformance/legacy-peer/run-matrix.mjs | tee "$RUNNER_TEMP/five-sdk-evidence/matrix.log"
+          python3 scripts/verify-five-sdk-interop.py report --log "$RUNNER_TEMP/five-sdk-evidence/matrix.log" --receipts "$RUNNER_TEMP/five-sdk-evidence" --output "$RUNNER_TEMP/five-sdk-evidence/report.json"
+      - name: Upload exact-source package receipts and all 20 outcomes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn1-five-frozen-sdk-interop-${{ env.TRUYN_EXPECTED_SOURCE_SHA }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/five-sdk-evidence/
+          if-no-files-found: error
