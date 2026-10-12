@@ -1,5 +1,7 @@
 # TRUYN SDKs
 
+> **Current release authority (2026-10-11):** [Five-SDK Wire Freeze prerelease registry closure](../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). Older alpha.1/alpha.2 paragraphs below are historical; the current recommended coordinates are in the table. No SDK 1.0.0 package has been released.
+
 Native first-party client libraries for applications that integrate directly with TRUYN without depending on an agent-specific provider adapter.
 
 **Current maturity:** Five required first-party SDKs are implemented, five-language conformance passed and the immutable **Wire Freeze pre-release set** has independent public-registry acceptance (**6/6 source + npm + PyPI + Go + Maven + NuGet proofs PASS**). This is pre-stable `TRUYN/1`, not stable v1. The previous alpha.1/alpha.2 Developer Release versions are preserved as historical artifacts, not overwritten. See [Wire Freeze SDK registry closure](../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md).

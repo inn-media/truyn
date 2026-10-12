@@ -2,7 +2,7 @@
 
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`.
 
-**Snapshot:** 2026-10-09 (A-Series docs reconciliation)  
+**Snapshot:** 2026-10-12 (active RC / SDK release reconciliation; previous dated campaign results remain historical)  
 **Protocol:** `TRUYN/1` draft (expanded CORE source merged; stable protocol and Mainnet remain gated)  
 **Stable A2A/MCP v1:** **not declared**
 
@@ -21,7 +21,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Provider authority | **repository/runtime semantics accepted** | live managed deployment evidence |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + ecosystem evidence |
 | NLWeb | **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later profiles require explicit requalification |
-| SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 + Maven Central + NuGet accepted** | Descriptor/site completeness and stable-v1 ecosystem gate |
+| SDK/DX | **Five public Wire Freeze SDK prereleases 6/6 accepted; stable SDK 1.0.0 remains gated** | Descriptor/site completeness and stable-v1 ecosystem gate |
 | Native clients | **Requester GUI implemented and exact-head `.exe/.dmg/.deb/.apk` build-qualified** | production signing/notarization → immutable public distribution |
 | Commercial proof / T-series | **T/BREAK-EVEN-REAL Attempt 6 audited PASS (diagnostic only); HEAD-TO-HEAD final economic gate RED; T/PREDICT not established as final accepted** | preserve distinct lane claims; remaining economic acceptance must be independently evidenced |
 | Hidden-value / H-series | **4/4 final lanes PASS/CLOSED** | preserve immutable H evidence; new work requires versioned successor campaigns |
@@ -255,7 +255,9 @@ The accepted claim is bounded to the pinned 0.5 profile. Stable NLWeb v1 and lat
 
 ## SDK / developer release
 
-Implemented: TypeScript/JavaScript, Python, Go, Java and C#/.NET clients with shared conformance. Accepted immutable releases include PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+**Current accepted (2026-10-11)**: npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2`, Maven `org.truyn:truyn-sdk:0.1.0-alpha.2` and NuGet `Truyn.Sdk 0.1.0-alpha.2`. Frozen source + five public registries 6/6 accepted; private consumers independently tested in shadow-only mode. See [immutable release ledger](docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). Earlier alpha.1/alpha.2 packages remain historical, not current.
+
+**Protocol RC**: P1–P5 joint bounded pass, P10 parity pass, P11 decision matrix frozen bounded RC, P12 strict object-reference accepted, P6–P9/G5 and P13-FORMAT/final stable exact-SHA still separately gated; P13-OPS/WAN/Mainnet are independent production network gates. Neither API contract revision `1` nor any prerelease is a published stable SDK `1.0.0`. [P1–P14 ledger](docs/compatibility/TRUYN1_RC_GAP_LEDGER.md).
 
 ## T-series commercial proof
 

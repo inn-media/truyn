@@ -1,3 +1,5 @@
+> **Release & protocol status (2026-10-12):** Five public SDK Wire Freeze prereleases independently accepted 6/6 ([registry ledger](releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md)); bounded joint P1–P5 and P10 RC acceptance recorded ([gap ledger](compatibility/TRUYN1_RC_GAP_LEDGER.md)). Stable SDK 1.0.0 and TRUYN/1 overall remain unannounced; WAN/Mainnet gates are independent. Older alpha coordinates below are *historical* evidence, not current recommendations.
+
 > D-5000 acceptance **CLOSED / verified double-check** (2026-10-11): [canonical 5,000-node benchmark ledger](benchmarks/CLASS_D_5000_2026-10-11.md). Attempt 12 measured PASS but historical workflow FAIL, corrected immutable replay PASS; Attempt 13 official full GREEN. Historical claims remain intact.
 
 # TRUYN Documentation
@@ -70,7 +72,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - five first-party SDK clients + shared conformance — **IMPLEMENTED**.
 - PyPI alpha + Go alpha + npm alpha.2 — **accepted immutable public releases**.
 - npm alpha.1 — immutable historical artifact with failed required clean-room ESM import.
-- Maven Central — **accepted immutable public release** (`org.truyn:truyn-sdk:0.1.0-alpha.1`); NuGet — **status reconciled independently**.
+- Five native SDK public prereleases — npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, Go `v0.1.0-alpha.2`, Maven `org.truyn:truyn-sdk:0.1.0-alpha.2`, NuGet `Truyn.Sdk 0.1.0-alpha.2` — **6/6 independent registry/source acceptance**; Stable SDK `1.0.0` not yet released.
 - Open 1.0 productization — **in progress**; the historical S103 snapshot is not authoritative current sprint state. Stable 1.0 requires independent final G1–G34 reconciliation.
 - Production Trust Authority — **OPEN** unless/until separately accepted by canonical evidence.
 - governance — **G1 / bootstrap Founding Stewardship**.

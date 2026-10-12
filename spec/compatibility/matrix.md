@@ -27,17 +27,17 @@ The old `0.1.0-dev` “architecture/protocol skeleton” row is obsolete for imp
 
 P3-M1 does not promote legacy MCP versions into outbound/import resource support or add arbitrary TRUYN -> MCP Resource publication. P3-M2 likewise does not promote legacy outbound/import Prompts, does not add prompt facade publication, automatic prompt execution, `completion/complete`, or Apps/extensions. See `../../docs/compatibility/MCP_GENERAL_RESOURCE_SEMANTICS.md` and `../../docs/compatibility/MCP_PROMPT_SEMANTICS.md`.
 
-## First-party SDK line
+## First-party SDK line — accepted Wire Freeze public prereleases
 
-| SDK line | Stable SDK API | TRUYN protocol | Agent Descriptor | Publication state |
-|---|---:|---|---|---|
-| npm `@truyn/sdk@0.1.0-alpha.2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| PyPI `truyn-sdk==0.1.0a1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| NuGet `Truyn.Sdk@0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| SDK release | Stable SDK API contract | Protocol | Descriptor | Registry publication |
+|---|---|---|---|---|
+| npm `@truyn/sdk@0.1.0-alpha.5` | `1` | `TRUYN/1` bounded RC, pre-stable | `truyn.agent-descriptor/v1` draft | **6/6 prerelease proof accepted** |
+| PyPI `truyn-sdk==0.1.0a2` | `1` | `TRUYN/1` bounded RC, pre-stable | `truyn.agent-descriptor/v1` draft | **accepted** |
+| Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` | `1` | `TRUYN/1` bounded RC, pre-stable | `truyn.agent-descriptor/v1` draft | **accepted** |
+| Maven `org.truyn:truyn-sdk:0.1.0-alpha.2` | `1` | `TRUYN/1` bounded RC, pre-stable | `truyn.agent-descriptor/v1` draft | **accepted** |
+| NuGet `Truyn.Sdk@0.1.0-alpha.2` | `1` | `TRUYN/1` bounded RC, pre-stable | `truyn.agent-descriptor/v1` draft | **accepted** |
 
-npm `@truyn/sdk@0.1.0-alpha.1` remains immutable historical failed evidence and is superseded without overwrite. SDK package version and stable SDK API version are independent from protocol-generation stability.
+All five coordinates are independently registry-verified in [the frozen evidence ledger](../../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). Previously accepted alpha.1/alpha.2 versions remain immutable **historical** releases. This table does not declare Stable SDK `1.0.0` or stable `TRUYN/1`; package version, API contract revision and protocol maturity are independent.
 
 ## Rules
 
@@ -49,6 +49,6 @@ npm `@truyn/sdk@0.1.0-alpha.1` remains immutable historical failed evidence and 
 - Breaking network semantic changes require a new protocol generation or explicit extension negotiation.
 - Storage/config migrations are local implementation concerns and MUST NOT silently change network identity.
 - Implemented/CI-proven/bounded interoperability evidence does not by itself create a stable compatibility promise.
-- Package build/provenance does not by itself prove public registry availability; accepted registry state below is backed by independent public evidence. npm alpha.2, PyPI alpha and Go alpha are separately accepted from observed immutable public evidence, while Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+- Registry acceptance is based on the immutable five-SDK release ledger; the previous alpha.1/alpha.2 verification examples are historical and do not supersede the current set.
 
 See `../../docs/compatibility/README.md`, `../../docs/compatibility/SDK_COMPATIBILITY.md` and `../../docs/architecture/IMPLEMENTATION_STATUS.md` for the current factual maturity boundary.

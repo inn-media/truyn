@@ -6,19 +6,17 @@
 
 A native SDK release is accepted only when its package bytes are bound to an exact merged `main` source with ordinary CI, hosted CodeQL/security, executable SDK conformance and package verification green. Registry coordinates are immutable; GitHub Actions artifacts are evidence, not consumer distribution channels.
 
-## Current public coordinates
+## Current public Wire Freeze prerelease coordinates (2026-10-11)
 
-| Ecosystem | Package/module | Coordinate | Publication state |
+| Registry | Package | Accepted immutable release | Source evidence |
 |---|---|---|---|
-| npm | `@truyn/sdk` | `0.1.0-alpha.2` | **Accepted immutable public prerelease** |
-| PyPI | `truyn-sdk` | `0.1.0a1` | **Accepted immutable public prerelease** |
-| Go modules | `github.com/inn-media/truyn/sdk/go` | `v0.1.0-alpha.1` | **Accepted immutable public prerelease** |
-| Maven Central | `org.truyn:truyn-sdk` | `0.1.0-alpha.1` | **Accepted immutable public prerelease** |
-| NuGet.org | `Truyn.Sdk` | `0.1.0-alpha.1` | **Accepted immutable public prerelease** |
+| npm | `@truyn/sdk` | `0.1.0-alpha.5` | OIDC Trusted Publishing run 38168871589 |
+| PyPI | `truyn-sdk` | `0.1.0a2` | frozen source + public registry proof |
+| Go proxy/sumDB | `github.com/inn-media/truyn/sdk/go` | `v0.1.0-alpha.2` | module/sumDB proof |
+| Maven Central | `org.truyn:truyn-sdk` | `0.1.0-alpha.2` | signed Central artifact |
+| NuGet.org | `Truyn.Sdk` | `0.1.0-alpha.2` | signed public package |
 
-The machine-readable authority for this coordinate-specific boundary is `sdk/release/public-coordinates.json`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` and NuGet.org `Truyn.Sdk@0.1.0-alpha.1` are accepted immutable public distributions backed by committed independent verification evidence.
-
-npm `0.1.0-alpha.1` remains public and immutable but is superseded: clean-room Node 22 ESM import proved it unusable because `ws` had been bundled through a CommonJS dynamic require. It is never overwritten. `0.1.0-alpha.2` externalizes `ws` and is the accepted npm alpha.
+Canonical evidence and exact SHA: [five-SDK Wire Freeze registry closure](../../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). The previous npm alpha.2, PyPI a1, Go/Maven/NuGet alpha.1 publications documented **below** are immutable historical release records; they are **not** current install coordinates. Do not overwrite or republish any coordinate. This is pre-stable and does not authorize production/Mainnet.
 
 ## npm alpha.2 closure
 

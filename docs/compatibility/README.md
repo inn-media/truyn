@@ -1,7 +1,7 @@
 # TRUYN Compatibility
 
-**Snapshot:** 2026-09-05  
-**Synchronized source:** `main@95b98ce6890bf13755062d4e71af48d7a572bff1`  
+**Snapshot:** 2026-10-12 (live release/RC reconciliation)  
+**Historical initial source:** `main@95b98ce6890bf13755062d4e71af48d7a572bff1` (not current HEAD)  
 **Protocol generation:** `TRUYN/1` draft; A–I semantic registry does not add physical signed Envelope kinds  
 
 **Canonical Wire Freeze references:** [expanded CORE registry](../../spec/registry/README.md), [exact-SHA qualification ledger](TRUYN1_WIRE_FREEZE_QUALIFICATION_LEDGER.md), [SDK compatibility policy](SDK_COMPATIBILITY.md), [five-language conformance](../../sdk/README.md). Public PR #975 is merged; postmerge independent E2E PR #976 and private consumer PR #458 are distinct reviews. Public source merge ≠ immutable SDK release ≠ Mainnet admission.
@@ -15,6 +15,12 @@ Compatibility is tracked separately for protocol/node behavior, adapters/externa
 
 **Joint P1–P5 bounded RC:** [final exact-SHA certification and five-SDK evidence](TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md). CORE, Envelope, TCJ1/Ed25519 signatures, Ed25519 SPKI Node IDs and signed-registration replay/freshness were jointly qualified on merged `main`. This is **not** a new freeze or full Stable `TRUYN/1` declaration.
 
+## Current RC and prerelease facts
+
+The canonical five-SDK Wire Freeze release is publicly verified **6/6** (npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, Go/Maven/NuGet `0.1.0-alpha.2`); see [immutable registry ledger](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md) and [machine coordinates](../../sdk/release/public-coordinates.json). Previous alpha.1/alpha.2 Developer Releases are immutable historical packages.
+
+Bounded RC acceptance: [P1–P5 joint conformance](TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md), [P10 five-SDK error parity](P10_ERROR_PARITY_ACCEPTANCE_2026-10-12.md), [P12 strict object references](TRUYN1_P12_OBJECT_ARTIFACT_CERTIFICATION.md). The [P11 version negotiation decision matrix](../../spec/compatibility/P11_VERSION_NEGOTIATION_MATRIX.md) is frozen as RC but not a stable-v1 signoff. P6–P9/G5, final release and Stable SDK 1.0.0 remain OPEN; WAN/Mainnet admission is independent.
+
 ## Current boundaries
 
 - `TRUYN/1` remains draft; stable mainnet/protocol compatibility is not claimed.
@@ -23,7 +29,6 @@ Compatibility is tracked separately for protocol/node behavior, adapters/externa
 - SDK API-v1 bounded primitives are implemented across five first-party clients.
 - PyPI, Go and npm alpha.2 have accepted immutable public evidence.
 - npm alpha.1 remains immutable historical evidence whose required clean-room ESM import failed and is superseded without overwrite.
-- Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 
 External evidence names concrete tested versions/source. Per-build provenance, immutable publication, clean-room usability and stable compatibility are separate concepts.
 

@@ -1,6 +1,6 @@
 # TRUYN SDK Packaging and Versioning Policy
 
-**Status:** Developer Release package/build verification is implemented. The release family is split after the npm packaging repair: TypeScript/JavaScript uses `0.1.0-alpha.2`, Python uses `0.1.0a1`, and Go/Java/.NET remain on `0.1.0-alpha.1`. npm, PyPI and Go have accepted immutable public release evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+**Status:** The 2026-10-11 Wire Freeze five-SDK prerelease set is independently accepted in npm, PyPI, Go, Maven Central and NuGet (6/6). Prior alpha.1 / alpha.2 packages below are immutable **historical** evidence, not the latest recommendations.
 **Protocol:** `TRUYN/1` draft.
 **Stable SDK API contract:** `1` (separate from protocol stability).
 
@@ -10,18 +10,17 @@ The npm `@truyn/sdk@0.1.0-alpha.1` artifact is immutable but superseded for inst
 
 This is a packaging policy, not a protocol change. It does not alter `TRUYN/1`, Agent Descriptor semantics, relay behavior, authorization, routing, QUIC/Kademlia behavior, D-1000 evaluator logic or runtime thresholds.
 
-## 1. Developer Release inventory
+## 1. Current accepted public prerelease inventory
 
-| Language | Repository path | Public distribution target | Developer Release coordinate | Current state |
-|---|---|---|---|---|
-| JavaScript / TypeScript | `sdk/typescript/` | npm | `@truyn/sdk@0.1.0-alpha.2` | implemented client; accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import |
-| Python | `sdk/python/` | PyPI | `truyn-sdk==0.1.0a1` / import `truyn` | implemented client; accepted immutable public artifact/provenance evidence |
-| Go | `sdk/go/` | Go module | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | implemented client; accepted immutable public tag/module evidence |
-| Java | `sdk/java/` | Maven Central target | `org.truyn:truyn-sdk:0.1.0-alpha.1` | implemented client; Maven verification build CI-proven; public registry publication remains evidence-gated |
-| C# / .NET | `sdk/dotnet/` | NuGet | `Truyn.Sdk 0.1.0-alpha.1` | implemented client; NuGet verification build CI-proven; public registry publication remains evidence-gated |
-| Rust | `sdk/rust/` | crates.io-compatible if maintained | optional | secondary track; does not replace any required first-party language |
+| Language | Path | Registry | Current immutable prerelease |
+|---|---|---|---|
+| JavaScript / TypeScript | `sdk/typescript/` | npm | `@truyn/sdk@0.1.0-alpha.5` |
+| Python | `sdk/python/` | PyPI | `truyn-sdk==0.1.0a2` (import `truyn`) |
+| Go | `sdk/go/` | Go proxy / sumDB | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` |
+| Java | `sdk/java/` | Maven Central | `org.truyn:truyn-sdk:0.1.0-alpha.2` |
+| .NET | `sdk/dotnet/` | NuGet.org | `Truyn.Sdk 0.1.0-alpha.2` |
 
-The five required first-party targets are JavaScript/TypeScript, Python, Go, Java and C#/.NET.
+All five are source/registry digest-verified 6/6 on frozen public source `57971b134a41c3e3ea4b42f68e86a7d117036006`; see [the canonical evidence ledger](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). This does not establish stable SDK `1.0.0`, stable protocol TRUYN/1 or Mainnet.
 
 ## 2. CI verification versus publication
 
@@ -43,7 +42,8 @@ Public publication is a separate operational event and requires observable regis
 
 ## 3. Current alpha family and immutability boundary
 
-The current Developer Release family is:
+The superseded *historical* Developer Release package family was:
+
 
 ```text
 typescript/npm: 0.1.0-alpha.2
@@ -53,7 +53,7 @@ java:           0.1.0-alpha.1
 dotnet:         0.1.0-alpha.1
 protocol:       TRUYN/1
 stable SDK API: 1
-channel:        pre-release
+channel:        historical pre-release
 ```
 
 `@truyn/sdk@0.1.0-alpha.1` remains immutable historical evidence and must never be overwritten. Its clean-room import failure is repaired only by the new alpha.2 version. The accepted alpha.2 public release is permanently bound to its published bytes/source/provenance evidence; both npm `alpha` and default `latest` resolve to alpha.2 as recorded in the npm closure evidence.
