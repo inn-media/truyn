@@ -1,10 +1,10 @@
 # TRUYN SDK Quickstart
 
-**Status:** Developer Release relay-client/package implementation is source/build complete across TypeScript/JavaScript, Python, Go, Java and C#/.NET. npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is independently accepted. Repository-source onboarding below is a reproducible development/conformance path; public registry onboarding is available in all five ecosystems. Bounded Descriptor refresh and interface-negative implementations are described below without claiming complete production lifecycle certification.
+**Status:** Developer Release relay-client/package implementation is source/build complete across TypeScript/JavaScript, Python, Go, Java and C#/.NET. npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is independently accepted. Repository-source onboarding below is a reproducible development/conformance path; public registry onboarding is available in all five ecosystems. Bounded Descriptor refresh is implemented; cross-language malformed-interface parity and complete production lifecycle certification remain separate unproven scopes.
 
 **Protocol:** `TRUYN/1` draft  
 **Stable SDK API contract:** `1`  
-**Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`
+**Historical Developer Release source freeze (not current Wire Freeze package source):** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`
 
 ## What you will run
 
@@ -163,7 +163,7 @@ This is executable network behavior, not skeleton/DTO parity. The runner does **
 
 The bounded SDK/runtime surface also includes authenticated relay event streaming, signed generic ordered `PARTIAL` streaming, direct NEED cancellation through signed `REVOKE`, reference-oriented object/artifact payloads, default-off Agent Descriptor serving plus five-language fetch/signature/expiry handling, and built npm/PyPI/Go/Maven/NuGet verification artifacts with exact source SHA, byte size and SHA-256 provenance.
 
-The runtime serving helper in `runtime/agent-descriptor.js` refreshes and re-signs an eligible Descriptor in its bounded TTL window, including the provider-startup descriptor path. `tests/agent-descriptor-refresh.test.js` exercises the refresher; the shared `sdk/conformance/v1/agent-descriptor-runtime-fixtures.json` and five language runners include missing/blank endpoint and interface-type negatives (S103 source PR #823). These are implemented bounded source/conformance facts, not a fresh guarantee for every historical binary or all production lifecycle scenarios. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
+Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established. Missing or empty interface types are rejected by the reference parser; identical rejection across all five SDKs still needs executable proof. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
 
 `PARTIAL` is a generic ordered delta/chunk contract; it does not define a universal tokenizer/token-ID vocabulary. Chain-stage cancellation is not supported.
 
@@ -182,3 +182,5 @@ It does **not** prove stable `TRUYN/1` protocol compatibility, all production Ag
 - SDK compatibility: `../compatibility/SDK_COMPATIBILITY.md`
 - SDK release/publication boundary: `../../sdk/release/PUBLISHING.md`
 - MVP CLI quickstart: `MVP_QUICKSTART.md`
+
+Current Descriptor contract and proof limits: [source-reconciled status](../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).

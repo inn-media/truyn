@@ -69,3 +69,9 @@ Inspection of exact merged source `af530daa8f1cd1dc7c467089aef2c6442e90138a` dis
 Current source status is recorded in [Agent Descriptor evidence](../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md). The sanitation successor corrects affected active guides and keeps this original audit correction explicit. No SDK implementation or immutable release bytes are changed.
 
 The successor guard additionally rejects duplicate/missing/unknown SDK identities, registry-key substitutions, empty/missing/mismatched evidence pointers, non-file/out-of-repository proof paths, and unqualified per-P1-P14 acceptance-status or certificate changes. Negative regression tests exercise every SDK and every P gate. This is a documentation safety repair, not Stable admission or a replacement for runtime conformance.
+
+## Final contract and onboarding reconciliation (2026-10-12)
+
+This correction supersedes the earlier wording that treated all omitted endpoints as invalid. The normative interface entry and existing reference parser permit an omitted endpoint; empty supplied endpoints and missing/empty interface types have distinct invalid cases. Current Go/Java reference-equivalent malformed-interface parity remains unproven, but absence of a mandatory-endpoint check is not itself a defect. No runtime/schema compatibility rule is changed.
+
+Both active onboarding guides, SDK_QUICKSTART.md and DX3_SDK.md, now share the canonical Descriptor evidence boundary and participate in the default documentation regression. The reference-parser regression distinguishes omitted-positive and empty-negative cases without claiming all-five coverage. The release guard now binds the active release evidence and all five coordinate evidence pointers to the frozen inventory registryEvidence, not merely to one another or an arbitrary existing file. A coordinated substitution with README.md is rejected.

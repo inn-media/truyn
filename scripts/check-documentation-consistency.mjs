@@ -37,6 +37,7 @@ export function validateReleaseInventory(current, freeze, versions) {
   if (!text(current?.frozenSourceSha) || current.frozenSourceSha !== freeze?.frozenSourceSha) errors.push('frozen release source mismatch');
   if (freeze?.stableProtocolDeclared !== false || current?.channel !== 'public-pre-release') errors.push('prerelease must not imply stable admission');
   if (!text(current?.releaseEvidence)) errors.push('missing current release evidence pointer');
+  if (!text(freeze?.registryEvidence) || current?.releaseEvidence !== freeze.registryEvidence) errors.push('release evidence does not match frozen registry ledger');
   for (const [id, key] of Object.entries(ids)) {
     const item = coordinates.find(item => item?.id === id), actual = published[key];
     if (!item || !actual || !text(actual.coordinate) || normalize(actual.coordinate) !== normalize(item.coordinate)) errors.push(`stale coordinate: ${id}`);
@@ -95,6 +96,7 @@ export function auditDocumentation(root) {
   const errors = [...validateReleaseInventory(current, freeze, json('sdk/release/version.json')), ...validateProtocolInventory(inventory)];
   const evidence = [
     { label: 'current release', path: current.releaseEvidence },
+    { label: 'frozen registry ledger', path: freeze.registryEvidence },
     { label: 'historical coordinates', path: current.historicalLedger },
     ...Object.values(ids).map(key => ({ label: key, path: current.coordinates?.[key]?.evidence }))
   ];

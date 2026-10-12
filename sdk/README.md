@@ -120,7 +120,7 @@ GET /.well-known/truyn-agent.json
 
 Serving is disabled by default. The runtime signs the Descriptor with the current TRUYN identity key, applies bounded validity and advertises only the explicitly allowed public subset of actual capabilities.
 
-All five required SDK clients retrieve the Descriptor, validate schema/version/expiry, verify identity-key binding/signature and select a mutually supported protocol/interface. Missing/blank endpoint and blank-type negative parity is **not verified on current source**: the shared `sdk/conformance/v1/agent-descriptor-runtime-fixtures.json` lacks those cases, and current Go/Java validation does not establish the claimed rejection. Historical S103 PR #823 being merged is not proof that its intended behavior survives on current main. The runtime serving helper renews and re-signs an eligible Descriptor in the bounded refresh window; `tests/agent-descriptor-refresh.test.js` exercises the refresher.
+All five required SDK clients retrieve the valid signed Descriptor, validate schema/version/expiry, verify identity-key binding/signature and select a mutually supported protocol/interface. Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established. Missing or empty interface types are rejected by the reference parser; identical rejection across all five SDKs still needs executable proof. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior.
 
 This is implemented bounded source/conformance, not a fresh certification of every historical SDK binary or complete production lifecycle. Delegated signing, operational liveness and final exact-SHA Open 1.0 acceptance remain separate. Descriptor metadata never grants provider authorization.
 
@@ -162,7 +162,7 @@ The repository progressed through DX-0/DX-1/DX-2/DX-3 into the merged Developer 
 
 Current remaining Developer Release/lifecycle gates include:
 
-- missing/blank endpoint and blank-type rejection across all five SDKs, plus broader Descriptor lifecycle/delegated-signing and production serving qualification beyond the implemented refresh;
+- consistent acceptance of omitted optional endpoints and rejection of invalid empty endpoints or interface types across all five SDKs, plus broader Descriptor lifecycle/delegated-signing and production serving qualification beyond implemented refresh;
 - archive-member byte-content leakage scanning;
 - live public developer-site activation/liveness evidence.
 

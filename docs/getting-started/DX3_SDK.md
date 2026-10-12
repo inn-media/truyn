@@ -1,11 +1,11 @@
 # DX-3 SDK Runtime Surface
 
 **Status:** DX-3 runtime/API core implemented and extended by the merged Developer Release Layer.  
-**Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`.  
+**Historical Developer Release source freeze (not current Wire Freeze package source):** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73`.
 **Stable SDK API contract version:** `1`.  
 **Wire protocol:** `TRUYN/1` draft.
 
-DX-3 moved the first-party SDK/runtime path from request/response scaffolding into a usable developer surface for long-running agent work. The later Developer Release Layer completed bounded five-language relay-client parity, executable conformance and package build/provenance around that runtime core. Bounded Descriptor serving, refresh/re-signing and shared interface-negative checks are implemented; broader release-specific lifecycle acceptance remains separate as described below.
+DX-3 moved the first-party SDK/runtime path from request/response scaffolding into a usable developer surface for long-running agent work. The later Developer Release Layer completed bounded five-language relay-client parity, executable conformance and package build/provenance around that runtime core. Bounded Descriptor serving and refresh/re-signing are implemented; cross-language malformed-interface parity and broader release-specific lifecycle acceptance remain separate as described below.
 
 The stable SDK API is a compatibility contract for this developer surface. It does not create a second protocol, bypass TRUYN authorization or declare `TRUYN/1` stable.
 
@@ -48,7 +48,7 @@ The common proven client contract includes:
 
 These are no longer skeleton-only or payload-only parity targets. The Developer Release Layer implements real relay clients in all three languages, including identity/signing, relay registration/session use, discovery, OFFER/NEED/RESULT, direct NEED cancellation calls and Agent Descriptor retrieval/verification against the accepted valid fixture, and exercises them in the shared five-language executable gate.
 
-Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an accepted immutable public release. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is independently accepted. Malformed-interface validation is exercised by the shared negative fixture runners; complete production lifecycle acceptance remains separate from the valid-fixture happy path.
+Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an accepted immutable public release. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is independently accepted. The valid-fixture happy path does not prove cross-language malformed-interface validation; complete production lifecycle acceptance remains separate.
 
 ## Object payload
 
@@ -145,9 +145,9 @@ The bounded public Descriptor primitives and valid-fixture client path are imple
 - the Descriptor is signed with the current TRUYN identity key and carries bounded `issuedAt`/`expiresAt` validity;
 - all five required SDK languages fetch the accepted signed fixture, check its supported schema/version/expiry and identity-key signature, and select a mutually supported protocol/interface type.
 
-Two lifecycle/parity gaps remain open and must not be hidden by the happy-path conformance claim:
+Refresh implementation, malformed-interface parity and production lifecycle acceptance must not be conflated:
 
-The runtime serving helper in `runtime/agent-descriptor.js` refreshes and re-signs an eligible Descriptor in its bounded TTL window, including the provider-startup descriptor path. `tests/agent-descriptor-refresh.test.js` exercises the refresher; the shared `sdk/conformance/v1/agent-descriptor-runtime-fixtures.json` and five language runners include missing/blank endpoint and interface-type negatives (S103 source PR #823). These are implemented bounded source/conformance facts, not a fresh guarantee for every historical binary or all production lifecycle scenarios. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
+Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established. Missing or empty interface types are rejected by the reference parser; identical rejection across all five SDKs still needs executable proof. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
 
 A Descriptor never grants provider authorization. Delegated Descriptor-signing keys are not supported in the current alpha profile.
 
@@ -195,8 +195,10 @@ The SDK/runtime must never:
 
 Remaining release/lifecycle gates include:
 
-- broader Descriptor lifecycle and production-serving qualification beyond the implemented refresh/interface-negative profile;
+- shared five-language optional-endpoint/invalid-interface conformance and broader Descriptor lifecycle and production-serving qualification beyond the implemented refresh;
 - stable-version SDK publication and explicit consumer rollout beyond accepted prereleases;
 - live public developer-site activation/liveness evidence.
 
 Optional later contracts include chain-stage cancellation, standardized cross-provider tokenizer semantics and delegated Descriptor-signing keys.
+
+Current Descriptor contract and proof limits: [source-reconciled status](../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).

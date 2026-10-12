@@ -59,7 +59,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | npm alpha.5 | **Accepted immutable public release** | — |
 | Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.2`** | — |
 | NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.2`** | — |
-| Agent Descriptor | **Bounded valid-profile and refresh/re-sign implemented** | missing/blank endpoint/type negative parity is unverified on current source; full production lifecycle/delegated-signing and exact-SHA release qualification remain separate |
+| Agent Descriptor | **Bounded valid-profile and refresh/re-sign implemented** | omitted optional endpoint acceptance and invalid empty endpoint/type rejection are not yet proven across all five SDKs; full production lifecycle/delegated-signing and exact-SHA release qualification remain separate |
 | Open 1.0 productization | **IN PROGRESS; S103 was a historical checkpoint, not current authoritative sprint** | reconcile issue #615 / task capsule and exact main; final G1–G34 reconciliation before stable 1.0 |
 | Live developer site | **OPEN** | deployment/liveness evidence |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers/TSC/neutral stewardship |
@@ -219,3 +219,5 @@ Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`,
 ROS 2 Bridge, MQTT Bridge, Device Adapter and heterogeneous physical robot network are **PLANNED / NOT IMPLEMENTED as qualified bridges**. Autonomous physical operation safety gates and hardware-in-the-loop/real robot evidence are **OPEN / NOT ACCEPTED**. Existing signed protocol, relay, SDK, HTTP/MCP/A2A facilities are reusable infrastructure, not verified robot execution. All robotics and Physical AI, including bridges, robot networking, safety and Edge Controller, are V2/post-first-mainnet only; V1 has no robot scope. See `PHYSICAL_AI_INTEROPERABILITY.md`. This track is unrelated to F-Series physical-infrastructure chaos.
 
 Current Descriptor evidence and remaining interface-negative parity: [source-reconciled status](../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
+
+An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established.

@@ -135,7 +135,7 @@ Provider authorization remains independent from artifact/reference visibility.
 
 ## TRUYN Agent Descriptor lifecycle
 
-The bounded Descriptor serving, refresh and valid-profile fetch/verification path is implemented. This is not complete malformed-interface parity across all five SDKs; current-source missing/blank endpoint and blank-type negatives remain unverified.
+The bounded Descriptor serving, refresh and valid-profile fetch/verification path is implemented. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established. Do not make optional endpoints mandatory through a documentation change.
 
 ### Serving
 
@@ -253,7 +253,7 @@ A source tree being Pages-ready is not the same as a live deployment. Public sit
 - [x] NuGet.org publication evidence (`Truyn.Sdk 0.1.0-alpha.2`; current five-SDK Wire Freeze registry ledger);
 - [ ] archive-member byte-content leakage scanning;
 - [x] bounded Descriptor refresh/re-signing implementation;
-- [ ] shared five-language missing/blank endpoint and blank-type rejection, with current-source executable negatives;
+- [ ] shared five-language acceptance of omitted optional endpoints and rejection of invalid empty endpoints or types, with current-source executable proof;
 - [ ] complete release-specific Descriptor lifecycle certification beyond those bounded source tests;
 - [ ] live public developer-site activation/liveness proof after merge/settings activation.
 

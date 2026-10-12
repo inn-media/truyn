@@ -98,9 +98,23 @@ test('current Descriptor documentation does not infer missing negative parity fr
   assert.match(canonical, /DESCRIPTOR_INTERFACE_NEGATIVE_PARITY=UNVERIFIED/);
   const fixture = json('sdk/conformance/v1/agent-descriptor-runtime-fixtures.json');
   for (const item of fixture.descriptorRuntimeCases) assert.ok(canonical.includes('`' + item.id + '`'), `undocumented current fixture case ${item.id}`);
-  for (const path of ['SECURITY.md', 'sdk/README.md', 'sdk/conformance/README.md', 'docs/architecture/IMPLEMENTATION_STATUS.md', 'docs/architecture/SDK_DEVELOPER_EXPERIENCE.md', 'docs/compatibility/SDK_COMPATIBILITY.md']) {
+  for (const path of ['SECURITY.md', 'sdk/README.md', 'sdk/conformance/README.md', 'docs/architecture/IMPLEMENTATION_STATUS.md', 'docs/architecture/SDK_DEVELOPER_EXPERIENCE.md', 'docs/compatibility/SDK_COMPATIBILITY.md', 'docs/getting-started/SDK_QUICKSTART.md', 'docs/getting-started/DX3_SDK.md']) {
     const contents = read(path);
     assert.ok(contents.includes('AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md'), path);
-    assert.doesNotMatch(contents, /shared (?:missing\/blank endpoint\/type negatives|interface-negative source implemented)|runners implement missing-endpoint, blank-endpoint and blank-type negatives|negatives are now implemented across all five/i, path);
+    assert.ok(contents.includes('An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser.'), path);
+    assert.doesNotMatch(contents, /shared (?:missing\/blank endpoint\/type negatives|interface-negative source implemented)|runners implement missing-endpoint, blank-endpoint and blank-type negatives|negatives are now implemented across all five|five language runners include missing\/blank endpoint|Malformed-interface validation is exercised by the shared negative fixture runners|refresh\/re-signing and shared interface-negative checks are implemented/i, path);
+  }
+});
+
+test('coordinated evidence substitution cannot replace the frozen registry ledger', () => {
+  const [current, freeze, versions] = release();
+  assert.deepEqual(validateReleaseInventory(current, freeze, versions), []);
+  const changed = structuredClone(current);
+  changed.releaseEvidence = 'README.md';
+  for (const item of Object.values(changed.coordinates)) item.evidence = 'README.md';
+  assert.deepEqual(validateEvidencePaths(root, [{ label: 'real but unrelated', path: 'README.md' }]), []);
+  assert.ok(validateReleaseInventory(changed, freeze, versions).includes('release evidence does not match frozen registry ledger'));
+  for (const value of [undefined, '', 'README.md']) {
+    assert.ok(validateReleaseInventory(current, { ...freeze, registryEvidence: value }, versions).includes('release evidence does not match frozen registry ledger'));
   }
 });
