@@ -48,7 +48,7 @@ The common proven client contract includes:
 
 These are no longer skeleton-only or payload-only parity targets. The Developer Release Layer implements real relay clients in all three languages, including identity/signing, relay registration/session use, discovery, OFFER/NEED/RESULT, direct NEED cancellation calls and Agent Descriptor retrieval/verification against the accepted valid fixture, and exercises them in the shared five-language executable gate.
 
-Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an accepted immutable public release. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` status is reconciled independently. Complete malformed-interface validation/mapping parity is also separate from the valid-fixture happy path.
+Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` are accepted immutable public prereleases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an accepted immutable public release. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` status is reconciled independently. Complete malformed-interface validation/mapping parity is also separate from the valid-fixture happy path. This current set is independently accepted 6/6; historical alpha.1/alpha.2 remain immutable.
 
 ## Object payload
 

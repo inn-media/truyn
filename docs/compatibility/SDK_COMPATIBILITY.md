@@ -1,6 +1,6 @@
 # TRUYN SDK Compatibility and Migration Policy
 
-**Status:** Developer Release policy implemented for the `0.1.0-alpha.x` family; npm, PyPI, Go, Maven Central and NuGet have accepted immutable public releases.  
+**Status:** five Wire Freeze SDK prereleases independently accepted from registries (6/6), not Stable 1.0.0.  
 **Protocol:** `TRUYN/1` remains draft. PR #975 established five-SDK TCJ1 conformance and 20/20 legacy/new published-alpha peer combinations; neither implies stable-v1 or Mainnet.  
 **Stable SDK API contract:** `1` is a separately versioned developer-facing contract and does not imply protocol stable-v1.
 
@@ -8,17 +8,17 @@ TRUYN requires first-party SDKs for JavaScript/TypeScript, Python, Go, Java and 
 
 ## Developer Release coordinates
 
-The bounded alpha family is:
+The current accepted Wire Freeze prerelease family (2026-10-11) is:
 
-- TypeScript / JavaScript: `@truyn/sdk@0.1.0-alpha.2`;
-- Python: `truyn-sdk==0.1.0a1` (import package `truyn`);
-- Go: `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`;
-- Java: `org.truyn:truyn-sdk:0.1.0-alpha.1`;
-- C#/.NET: `Truyn.Sdk 0.1.0-alpha.1`.
+- TypeScript / JavaScript: `@truyn/sdk@0.1.0-alpha.5`;
+- Python: `truyn-sdk==0.1.0a2` (import package `truyn`);
+- Go: `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2`;
+- Java: `org.truyn:truyn-sdk:0.1.0-alpha.2`;
+- C#/.NET: `Truyn.Sdk 0.1.0-alpha.2`.
 
-The npm `0.1.0-alpha.1` artifact is immutable but superseded for installation because clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. That defect is repaired by the distinct `0.1.0-alpha.2` version; the immutable alpha.1 bytes are never overwritten. npm alpha.2 is now an accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import. The other ecosystem coordinates are unchanged because this repair is npm-packaging-specific.
+**Historical alpha.1/alpha.2 publication details (not current distribution versions):** The npm `0.1.0-alpha.1` artifact is immutable but superseded for installation because clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. That defect is repaired by the distinct `0.1.0-alpha.2` version; the immutable alpha.1 bytes are never overwritten. npm alpha.2 is now an accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import. The other ecosystem coordinates are unchanged because this repair is npm-packaging-specific.
 
-These coordinates describe the current source/package family. Registry state is verified independently; source/build conformance cannot substitute for public publication evidence. PyPI, Go and npm have accepted public alpha evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+These coordinates describe the current source/package family. Registry state is verified independently; source/build conformance cannot substitute for public publication evidence. PyPI, Go and npm have accepted public alpha evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is an accepted immutable public prerelease.
 
 ## Compatibility declaration required for every release
 

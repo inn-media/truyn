@@ -43,6 +43,10 @@ They exercise real source-checkout SDK clients against the local relay contract 
 
 The broader Developer Release gate additionally covers all five required SDK languages, direct NEED cancellation, object/artifact reference shapes, Agent Descriptor retrieval/verification/negotiation and release package build/provenance.
 
+## Current package acceptance (2026-10-12)
+
+Five independently verified Wire Freeze prereleases are current: `@truyn/sdk@0.1.0-alpha.5`, `truyn-sdk==0.1.0a2`, `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2`, `org.truyn:truyn-sdk:0.1.0-alpha.2`, `Truyn.Sdk 0.1.0-alpha.2`. Earlier examples and alpha.1/alpha.2 entries are historical. [Canonical ledger](../../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md).
+
 ## Boundary
 
 These examples are not stable package-publication examples. Accepted immutable public prereleases currently exist for npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease. The examples intentionally continue to import repository source so they remain deterministic local onboarding proofs independent of registry availability.

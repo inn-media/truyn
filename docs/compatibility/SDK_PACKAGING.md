@@ -1,6 +1,6 @@
 # TRUYN SDK Packaging and Versioning Policy
 
-**Status:** Developer Release package/build verification is implemented. The release family is split after the npm packaging repair: TypeScript/JavaScript uses `0.1.0-alpha.2`, Python uses `0.1.0a1`, and Go/Java/.NET remain on `0.1.0-alpha.1`. npm, PyPI and Go have accepted immutable public release evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+**Status:** current five-SDK Wire Freeze public prereleases accepted 6/6; see [current release ledger](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). Earlier alpha family remains historical.
 **Protocol:** `TRUYN/1` draft.
 **Stable SDK API contract:** `1` (separate from protocol stability).
 
@@ -14,11 +14,11 @@ This is a packaging policy, not a protocol change. It does not alter `TRUYN/1`, 
 
 | Language | Repository path | Public distribution target | Developer Release coordinate | Current state |
 |---|---|---|---|---|
-| JavaScript / TypeScript | `sdk/typescript/` | npm | `@truyn/sdk@0.1.0-alpha.2` | implemented client; accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import |
-| Python | `sdk/python/` | PyPI | `truyn-sdk==0.1.0a1` / import `truyn` | implemented client; accepted immutable public artifact/provenance evidence |
-| Go | `sdk/go/` | Go module | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | implemented client; accepted immutable public tag/module evidence |
-| Java | `sdk/java/` | Maven Central target | `org.truyn:truyn-sdk:0.1.0-alpha.1` | implemented client; Maven verification build CI-proven; public registry publication remains evidence-gated |
-| C# / .NET | `sdk/dotnet/` | NuGet | `Truyn.Sdk 0.1.0-alpha.1` | implemented client; NuGet verification build CI-proven; public registry publication remains evidence-gated |
+| JavaScript / TypeScript | `sdk/typescript/` | npm | `@truyn/sdk@0.1.0-alpha.5` | implemented client; accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import |
+| Python | `sdk/python/` | PyPI | `truyn-sdk==0.1.0a2` / import `truyn` | implemented client; accepted immutable public artifact/provenance evidence |
+| Go | `sdk/go/` | Go module | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` | implemented client; accepted immutable public tag/module evidence |
+| Java | `sdk/java/` | Maven Central target | `org.truyn:truyn-sdk:0.1.0-alpha.2` | implemented client; Maven verification build CI-proven; public registry publication remains evidence-gated |
+| C# / .NET | `sdk/dotnet/` | NuGet | `Truyn.Sdk 0.1.0-alpha.2` | implemented client; NuGet verification build CI-proven; public registry publication remains evidence-gated |
 | Rust | `sdk/rust/` | crates.io-compatible if maintained | optional | secondary track; does not replace any required first-party language |
 
 The five required first-party targets are JavaScript/TypeScript, Python, Go, Java and C#/.NET.
@@ -41,7 +41,7 @@ Ordinary CI is still a verification system, not a registry publication path. A p
 
 Public publication is a separate operational event and requires observable registry/tag evidence tied to one immutable release source/version binding.
 
-## 3. Current alpha family and immutability boundary
+## 3. Historical alpha family and immutability boundary
 
 The current Developer Release family is:
 

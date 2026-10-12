@@ -7,6 +7,8 @@
 
 The old “SDK scaffolding only” and “portable payload slice only” descriptions are obsolete. TypeScript/JavaScript, Python, Go, Java and C#/.NET now have implemented first-party Developer Release clients and share one executable conformance path. Package artifacts and provenance are built in ordinary CI. npm, PyPI and Go have accepted immutable public release evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 
+**Current accepted five-SDK Wire Freeze prerelease (2026-10-11):** npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2`, Maven `org.truyn:truyn-sdk:0.1.0-alpha.2`, NuGet `Truyn.Sdk 0.1.0-alpha.2`. Independent source+registries 6/6 PASS. These are **pre-stable packages**, not Stable SemVer 1.0.0. Historical alpha.1/alpha.2 descriptions below refer to prior immutable release lineages; authoritative current coordinates: [release ledger](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md).
+
 ## Target developer experience
 
 ```text
@@ -29,8 +31,8 @@ consume references/events/provenance safely
 
 | Language | Repository target | Distribution coordinate | Developer Release state |
 |---|---|---|---|
-| TypeScript / JavaScript | `sdk/typescript/` | npm `@truyn/sdk@0.1.0-alpha.2` | **Implemented client + Descriptor verification + executable conformance; accepted immutable public release** |
-| Python | `sdk/python/` | PyPI `truyn-sdk==0.1.0a1` | **Implemented client + Descriptor verification + executable conformance; accepted immutable public release** |
+| TypeScript / JavaScript | `sdk/typescript/` | npm `@truyn/sdk@0.1.0-alpha.5` | **Implemented client + Descriptor verification + executable conformance; accepted immutable public release** |
+| Python | `sdk/python/` | PyPI `truyn-sdk==0.1.0a2` | **Implemented client + Descriptor verification + executable conformance; accepted immutable public release** |
 | Go | `sdk/go/` | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance; accepted immutable public release** |
 | Java | `sdk/java/` | Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance; Maven Central publication is accepted (`org.truyn:truyn-sdk:0.1.0-alpha.1`)** |
 | C# / .NET | `sdk/dotnet/` | NuGet `Truyn.Sdk 0.1.0-alpha.1` | **Implemented relay client + Descriptor verification + executable conformance; NuGet.org accepted immutable public release** |

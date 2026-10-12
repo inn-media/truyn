@@ -37,9 +37,9 @@ Website: https://truyn.org/
 | NLWeb interoperability | **Bounded pinned NLWeb 0.5 profile implemented / executable-evidence proven** |
 | Five first-party SDK clients | **Implemented / executable conformance** |
 | Native GUI clients (`.exe/.dmg/.deb/.apk`) | **Implemented / exact-head four-platform build-qualified** |
-| PyPI / Go / npm alpha.2 | **Accepted immutable public releases** |
-| Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.1`** |
-| NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.1`** |
+| Five public Wire Freeze SDKs (npm/PyPI/Go/Maven/NuGet) | **Accepted pre-releases, independent 6/6 audit** |
+| Maven Central | **Accepted prerelease `org.truyn:truyn-sdk:0.1.0-alpha.2`** |
+| NuGet.org | **Accepted prerelease `Truyn.Sdk 0.1.0-alpha.2`** |
 | Open 1.0 productization | **IN PROGRESS**; historical S103 checkpoint is not a live task-state authority; stable 1.0 requires independent G1–G34 final reconciliation |
 | Governance | **G1 / bootstrap Founding Stewardship** |
 | Stable mainnet | **Not yet** |
@@ -85,9 +85,9 @@ This is not a stable NLWeb-v1 claim and does not make NLWeb a TRUYN transport or
 
 ## SDK / developer experience
 
-TypeScript/JavaScript, Python, Go, Java and C#/.NET first-party clients participate in shared executable conformance. PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2` are accepted immutable public releases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+TypeScript/JavaScript, Python, Go, Java and C#/.NET first-party clients participate in shared executable conformance. PyPI `truyn-sdk==0.1.0a2`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2`, and npm `@truyn/sdk@0.1.0-alpha.5` are accepted immutable public releases. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is an accepted immutable public prerelease.
 
-Open 1.0 productization is still in progress. Historical documentation recorded S01–S102 complete and S103 active. That checkpoint is not proof of the current sprint; issue #615 and task-scoped durable state must be reconciled with latest main. Stable Open 1.0 is not declared without independent G1–G34 final reconciliation.
+Open 1.0 productization is still in progress. Historical issue #615 recorded S103 active, but S103 endpoint-parity PR #823 has since MERGED; this is not a verified S104–S200 final state. That checkpoint is not proof of the current sprint; issue #615 and task-scoped durable state must be reconciled with latest main. Stable Open 1.0 is not declared without independent G1–G34 final reconciliation.
 
 ## Quick local verification
 

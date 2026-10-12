@@ -10,17 +10,17 @@ A native SDK release is accepted only when its package bytes are bound to an exa
 
 | Ecosystem | Package/module | Coordinate | Publication state |
 |---|---|---|---|
-| npm | `@truyn/sdk` | `0.1.0-alpha.2` | **Accepted immutable public prerelease** |
-| PyPI | `truyn-sdk` | `0.1.0a1` | **Accepted immutable public prerelease** |
-| Go modules | `github.com/inn-media/truyn/sdk/go` | `v0.1.0-alpha.1` | **Accepted immutable public prerelease** |
-| Maven Central | `org.truyn:truyn-sdk` | `0.1.0-alpha.1` | **Accepted immutable public prerelease** |
-| NuGet.org | `Truyn.Sdk` | `0.1.0-alpha.1` | **Accepted immutable public prerelease** |
+| npm | `@truyn/sdk` | `0.1.0-alpha.5` | **Accepted immutable public prerelease** |
+| PyPI | `truyn-sdk` | `0.1.0a2` | **Accepted immutable public prerelease** |
+| Go modules | `github.com/inn-media/truyn/sdk/go` | `v0.1.0-alpha.2` | **Accepted immutable public prerelease** |
+| Maven Central | `org.truyn:truyn-sdk` | `0.1.0-alpha.2` | **Accepted immutable public prerelease** |
+| NuGet.org | `Truyn.Sdk` | `0.1.0-alpha.2` | **Accepted immutable public prerelease** |
 
-The machine-readable authority for this coordinate-specific boundary is `sdk/release/public-coordinates.json`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` and NuGet.org `Truyn.Sdk@0.1.0-alpha.1` are accepted immutable public distributions backed by committed independent verification evidence.
+The current machine-readable coordinates are `sdk/release/public-coordinates.json`; independently accepted 6/6 proof is [Wire Freeze five-SDK registry closure](../../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md), frozen source `57971b134a41c3e3ea4b42f68e86a7d117036006`. The next section and all earlier alpha.1/alpha.2 descriptions are retained as **historical evidence**, not current version declarations.
 
 npm `0.1.0-alpha.1` remains public and immutable but is superseded: clean-room Node 22 ESM import proved it unusable because `ws` had been bundled through a CommonJS dynamic require. It is never overwritten. `0.1.0-alpha.2` externalizes `ws` and is the accepted npm alpha.
 
-## npm alpha.2 closure
+## Historical npm alpha.2 closure
 
 The accepted package source is `67ad856327947bb6fa1728e8fee3ba8553b37e24`. Its ordinary CI run `33965228235` and hosted CodeQL run `33965227398` both completed successfully before publication. The immutable successful release ref is `sdk/npm/v0.1.0-alpha.2-release.4`.
 

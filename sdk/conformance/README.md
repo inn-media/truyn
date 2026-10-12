@@ -1,5 +1,7 @@
 # TRUYN shared SDK conformance contract
 
+**Current five-SDK distribution:** accepted Wire Freeze packages [npm alpha.5, PyPI 0.1.0a2, Go/Maven/NuGet alpha.2](../../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md); source + registries 6/6 PASS. Old prerelease examples in historical fixture descriptions are not current coordinates. No stable packages 1.0.0 are published.
+
 This directory is the language-neutral source of truth for shared first-party SDK contract data and the executable Developer Release conformance gates.
 
 ## Scope

@@ -1,5 +1,7 @@
 # Compatibility Matrix
 
+**Distribution source:** [accepted five-SDK Wire Freeze release](../../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md), 6/6 independent public proofs; all package coordinates below are prereleases, not Stable 1.0.0. P11's separate frozen RC machine matrix remains intact.
+
 This file records current compatibility expectations without collapsing software, protocol, storage and SDK release versions into one number.
 
 ## P11 frozen protocol negotiation decisions
@@ -31,11 +33,11 @@ P3-M1 does not promote legacy MCP versions into outbound/import resource support
 
 | SDK line | Stable SDK API | TRUYN protocol | Agent Descriptor | Publication state |
 |---|---:|---|---|---|
-| npm `@truyn/sdk@0.1.0-alpha.2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| PyPI `truyn-sdk==0.1.0a1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| NuGet `Truyn.Sdk@0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| npm `@truyn/sdk@0.1.0-alpha.5` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| PyPI `truyn-sdk==0.1.0a2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| Maven `org.truyn:truyn-sdk:0.1.0-alpha.2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| NuGet `Truyn.Sdk@0.1.0-alpha.2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
 
 npm `@truyn/sdk@0.1.0-alpha.1` remains immutable historical failed evidence and is superseded without overwrite. SDK package version and stable SDK API version are independent from protocol-generation stability.
 
@@ -49,6 +51,6 @@ npm `@truyn/sdk@0.1.0-alpha.1` remains immutable historical failed evidence and 
 - Breaking network semantic changes require a new protocol generation or explicit extension negotiation.
 - Storage/config migrations are local implementation concerns and MUST NOT silently change network identity.
 - Implemented/CI-proven/bounded interoperability evidence does not by itself create a stable compatibility promise.
-- Package build/provenance does not by itself prove public registry availability; accepted registry state below is backed by independent public evidence. npm alpha.2, PyPI alpha and Go alpha are separately accepted from observed immutable public evidence, while Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+- Package build/provenance alone does not prove public distribution; all five current prerelease coordinates above have independent registry/source acceptance 6/6. Previous npm/PyPI/Go/Maven/NuGet alpha.1/alpha.2 artifacts are immutable historical records.
 
 See `../../docs/compatibility/README.md`, `../../docs/compatibility/SDK_COMPATIBILITY.md` and `../../docs/architecture/IMPLEMENTATION_STATUS.md` for the current factual maturity boundary.

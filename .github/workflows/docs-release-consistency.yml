@@ -1,0 +1,48 @@
+name: Docs Stable RC and Five-SDK Registry Consistency
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/docs-release-consistency.yml'
+      - 'scripts/docs-release-status-gate.mjs'
+      - 'docs/**'
+      - 'sdk/**'
+      - 'spec/compatibility/**'
+      - 'README.md'
+      - 'ROADMAP.md'
+      - 'examples/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/docs-release-consistency.yml'
+      - 'scripts/docs-release-status-gate.mjs'
+      - 'docs/**'
+      - 'sdk/**'
+      - 'spec/compatibility/**'
+      - 'README.md'
+      - 'ROADMAP.md'
+permissions:
+  contents: read
+concurrency:
+  group: truyn-docs-release-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate five-SDK coordinates and scan all Markdown
+        run: node scripts/docs-release-status-gate.mjs
+      - name: Preserve whole-repository document inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-sanitization-${{ github.run_id }}
+          path: .docs-audit/public-release-status.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -2,7 +2,7 @@
 
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`.
 
-**Snapshot:** 2026-10-09 (A-Series docs reconciliation)  
+**Release-doc reconciliation:** 2026-10-12 (other benchmark/A-Series snapshots keep their exact historical dates)  
 **Protocol:** `TRUYN/1` draft (expanded CORE source merged; stable protocol and Mainnet remain gated)  
 **Stable A2A/MCP v1:** **not declared**
 
@@ -21,7 +21,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 | Provider authority | **repository/runtime semantics accepted** | live managed deployment evidence |
 | A2A/MCP | **C1–C8 + P2-E1/E2/E3 accepted** | stable-v1 only after stable TRUYN + ecosystem evidence |
 | NLWeb | **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN** | later profiles require explicit requalification |
-| SDK/DX | **Five clients/conformance implemented; PyPI + Go + npm alpha.2 + Maven Central + NuGet accepted** | Descriptor/site completeness and stable-v1 ecosystem gate |
+| SDK/DX | **Five Wire Freeze SDK prereleases independently published/verified 6/6; conformance implemented** | Complete RC matrix and Stable 1.0.0 packages not yet accepted |
 | Native clients | **Requester GUI implemented and exact-head `.exe/.dmg/.deb/.apk` build-qualified** | production signing/notarization → immutable public distribution |
 | Commercial proof / T-series | **T/BREAK-EVEN-REAL Attempt 6 audited PASS (diagnostic only); HEAD-TO-HEAD final economic gate RED; T/PREDICT not established as final accepted** | preserve distinct lane claims; remaining economic acceptance must be independently evidenced |
 | Hidden-value / H-series | **4/4 final lanes PASS/CLOSED** | preserve immutable H evidence; new work requires versioned successor campaigns |
@@ -35,7 +35,7 @@ Public [A-Series contract](docs/assurance/README.md) was admitted as foundation 
 - [ ] **A-SOAK:** 2 Azure + 2 GCP real VMs, 8 signed processes per VM (32), RF3, 3600s, NEED/RESULT, genuine partition/heal/churn and hour-zero write retention, independent signed evidence, verified hard cost cap and provider-native teardown; Attempt 1 UNUSED.
 - [ ] **A-OPS:** ≥24h real maintenance/rolling change/rollback with uninterrupted safety/recovery evidence.
 - [ ] **A-SLO:** full independently observed rolling 28-day period under the existing fixed SLO thresholds.
-- [ ] **A-WIRE:** 13 canonical protocol objects and separate Agent Descriptor, open interoperability and negative conformance; TRUYN/1 remains draft.
+- [ ] **A-WIRE:** bounded 80-row A–I semantic registry and five physical Envelope kinds **FROZEN** (public PR #975, CI + 20/20 legacy/new SDK evidence); full stable RC negative/lifecycle G5 matrix and release decision still OPEN. No 13 new signed kinds or Mainnet requirement.
 - [ ] **A-NET:** external operators and independent network-path/sovereignty evidence.
 - [ ] **A-MGMT (PRIVATE):** private cloud leases, hard budget, tenant authority, meter/ledger/origin-lock and audited managed admission; public never consumes private secrets or implementation.
 
@@ -255,7 +255,7 @@ The accepted claim is bounded to the pinned 0.5 profile. Stable NLWeb v1 and lat
 
 ## SDK / developer release
 
-Implemented: TypeScript/JavaScript, Python, Go, Java and C#/.NET clients with shared conformance. Accepted immutable releases include PyPI `truyn-sdk==0.1.0a1`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1`, and npm `@truyn/sdk@0.1.0-alpha.2`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+Implemented: TypeScript/JavaScript, Python, Go, Java and C#/.NET clients with shared conformance. Accepted immutable releases include PyPI `truyn-sdk==0.1.0a2`, Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2`, and npm `@truyn/sdk@0.1.0-alpha.5`. Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is an accepted immutable public prerelease.
 
 ## T-series commercial proof
 

@@ -11,6 +11,8 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 **Protocol:** `TRUYN/1` draft; expanded CORE source merged via PR #975; immutable stable-v1/Mainnet not admitted  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
 
+**Current SDK release authority:** [Five prereleases independently verified 2026-10-11](releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). Stable TRUYN/1 and 1.0.0 packages are not released; historical benchmark and previous alpha ledgers are not changed by documentation sanitation.
+
 ## Start here
 
 - [Implementation Status](architecture/IMPLEMENTATION_STATUS.md) — canonical repository-wide factual maturity/status.
@@ -68,10 +70,10 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - **Stable A2A/MCP v1 is not declared**; `TRUYN/1` remains draft.
 - NLWeb interoperability — **BOUNDED PINNED 0.5 PROFILE IMPLEMENTED / EXECUTABLE-EVIDENCE PROVEN**.
 - five first-party SDK clients + shared conformance — **IMPLEMENTED**.
-- PyPI alpha + Go alpha + npm alpha.2 — **accepted immutable public releases**.
+- Five Wire Freeze SDK prereleases (npm alpha.5; PyPI 0.1.0a2; Go/Maven/NuGet alpha.2) — **accepted independent 6/6 source/registry evidence**, not Stable 1.0.0.
 - npm alpha.1 — immutable historical artifact with failed required clean-room ESM import.
-- Maven Central — **accepted immutable public release** (`org.truyn:truyn-sdk:0.1.0-alpha.1`); NuGet — **status reconciled independently**.
-- Open 1.0 productization — **in progress**; the historical S103 snapshot is not authoritative current sprint state. Stable 1.0 requires independent final G1–G34 reconciliation.
+- Maven Central — **accepted** (`org.truyn:truyn-sdk:0.1.0-alpha.2`); NuGet — **accepted** (`Truyn.Sdk 0.1.0-alpha.2`).
+- Open 1.0 productization — **in progress**; S103 endpoint PR #823 merged, older task-state snapshot is stale; S104–S200 and final G1–G34 require independent reconciliation. Stable 1.0 requires independent final G1–G34 reconciliation.
 - Production Trust Authority — **OPEN** unless/until separately accepted by canonical evidence.
 - governance — **G1 / bootstrap Founding Stewardship**.
 - stable mainnet — **not yet**.

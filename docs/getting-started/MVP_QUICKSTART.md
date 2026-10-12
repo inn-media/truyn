@@ -1,5 +1,8 @@
 # TRUYN MVP Quickstart
 
+
+**SDK current-release note (2026-10-12):** five [Wire Freeze prereleases](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md) are independently accepted (npm alpha.5; PyPI 0.1.0a2; Go/Maven/NuGet alpha.2). Any alpha.1/alpha.2 sample in historical paragraphs does not supersede the current release ledger. Stable 1.0.0 remains unpublished.
+
 This document describes the **smallest local executable TRUYN vertical slice**, not the full current repository maturity. The minimal path uses a dependency-free Node.js HTTP relay to make identity → capability → signed request/result behavior easy to inspect locally.
 
 Since that original MVP slice, the repository has added real QUIC/Kademlia networking, authorization-aware provider discovery/dispatch, provider-host security, BYOK, semantic retrieval, Trustability, multi-cloud provider adapters, bidirectional A2A/MCP interoperability and a five-language Developer Release SDK layer. See `../architecture/IMPLEMENTATION_STATUS.md` for canonical current status.

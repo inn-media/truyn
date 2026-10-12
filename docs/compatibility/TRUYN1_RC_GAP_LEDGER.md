@@ -2,7 +2,7 @@
 
 **Task:** `truyn-open-1-0-productization-7e4c91`  
 **Task anchor:** issue #615  
-**Classification:** OPEN  
+**Classification:** normatives reconciled; final RC + G5 still OPEN  
 **Baseline:** `main@daca5db7ab1901f02b43495aad69cfd83512ad24`  
 **Purpose:** bounded inventory of protocol-v1 stabilization gaps before a truthful TRUYN/1 stable-v1 claim.
 
@@ -42,20 +42,30 @@ The corresponding machine-readable wire surface is rooted at `proto/v1/envelope.
 
 | ID | Gap | Current evidence | Required closure |
 |---|---|---|---|
-| P1 | Stable message vocabulary is not frozen as v1 | `core.md` still says `draft normative skeleton`; the index says the protocol remains draft | Freeze the bounded top-level vocabulary and prove spec/schema/runtime agreement |
-| P2 | Envelope required-field validation is not yet a stable-v1 contract | Core lists required concepts; wire schema exists, but stable required/invalid behavior is not declared | Define required/optional field validity and executable malformed-envelope negatives |
-| P3 | Canonical signed representation/domain is not fully normative at protocol level | Core requires a signature over a canonical representation; executable canonical signing exists elsewhere, but the stable protocol contract does not yet bind exact bytes/domain | Specify exact canonical bytes/domain and cross-runtime vectors |
-| P4 | Node-ID derivation needs stable normative binding | Identity is cryptographic, but stable cross-runtime derivation must be explicitly frozen | Bind accepted public-key form to one deterministic Node ID derivation and vectors |
-| P5 | Replay/expiry/nonce acceptance needs one stable deterministic contract | Security requires replay/expiry checks; current protocol remains draft | Freeze acceptance/rejection rules and add positive/negative vectors |
+| P1 | Bounded Wire Freeze vocabulary | **FROZEN / normative**: `spec/protocol/v1/core.md` and `core/protocol/index.js` retain 5 physical signed Envelope kinds; A–I 80-row/13-object registry stays semantic (PR #975) | Full exact-SHA spec ↔ Protobuf ↔ five-SDK release certification, not new design |
+| P2 | Required Envelope fields | **NORMATIVE DEFINED**: `spec/protocol/v1/envelope.md` requires protocol/type/id/from/createdAt/publicKey/payload/signature; malformed-envelope negatives exist | Final exact-SHA five-SDK and machine schema mapping certification |
+| P3 | TCJ1 Ed25519 signed byte domain | **FROZEN / bounded five-SDK golden vectors PASS** on PR #975 and CI #38144117793; 20/20 published-alpha old/new #38144117794 | Full cross-surface negative RC matrix on a single release SHA; no re-freeze |
+| P4 | Deterministic Node ID | **NORMATIVE DEFINED**: Ed25519 SPKI DER SHA-256 lowercase `truyn:node:` in `spec/protocol/v1/identity.md` | Exact-SHA all-five-SDK identity and forgery negatives |
+| P5 | Timestamp/replay/expiry | **NORMATIVE + NEGATIVE TESTS EXIST**: envelope/security registration freshness and `tests/protocol-v1-registration-freshness.test.js` | Combined lifecycle/restart/replica G5 acceptance, five-SDK RC coverage |
 | P6 | OFFER owner/visibility/withdrawal freeze | Bounded RC `offer.md` and shared `lifecycle.md` define withdrawal and authority; targeted runtime negatives exist | OPEN: exact-head full conformance, policy/legacy negatives and post-merge proof |
 | P7 | NEED correlation and admission replay freeze | RC `need.md` and `lifecycle.md` define cross-transport logical ID; relay in-memory idempotency guard added as bounded candidate | OPEN: exact-head five-SDK and restart/replica/durable ledger negatives |
 | P8 | RESULT/PARTIAL terminal/ordering freeze | RC `result.md`, `partial.md` and shared `lifecycle.md` specify single-terminal and late-output rejection | OPEN: exact-head negatives, five-SDK and durable terminal qualification |
 | P9 | REVOKE issuer/target and late-output freeze | RC `revoke.md` and `lifecycle.md` define direct cancellation and OFFER withdrawal, with targeted regressions | OPEN: exact-head authority and terminal regression qualification |
-| P10 | Stable normalized protocol error registry is not declared | Existing adapters/runtime have failure behavior, but no single stable-v1 public error registry is accepted | Define deterministic public error codes and mappings for required failures |
+| P10 | Normalized errors | **NORMATIVE REGISTRY PRESENT**: `spec/protocol/v1/errors.md`, SDK error mappers, `tests/errors-versioning-interop.test.js` negative A2A/MCP/SDK cases | Full cross-transport all-five-SDK exact RC matrix |
 | P11 | **RC compatibility matrix defined; stable-v1 release gate OPEN** | Normative `core.md`, executable `core/protocol/negotiation.js`, negative fixtures, registration/signed-session/client rejection tests, and frozen [P11 decision matrix](../../spec/compatibility/P11_VERSION_NEGOTIATION_MATRIX.md) with machine-tested exact outcomes | Qualify matrix on exact PR head and post-merge main; independently prove real version-scoped semantics and mixed-generation/five-SDK interoperability before a stable-v1 claim |
 | P12 | **CLOSED for bounded strict verified object/artifact reference profile; overall Stable v1 NOT declared** | Normative `spec/protocol/v1/object.md`, Protobuf `ContentObject`/`Reference` encoding fields, five SDK reference projections, strict runtime verifier, machine vectors and positive/negative signed-RESULT conformance bind digest/size/reference/no-implicit-fetch. First full exact-head qualification: `035e4b815e4815bece1cf2cc5bb9ed387af466b3`, [CI #38153247377](https://github.com/inn-media/truyn/actions/runs/38153247377) PASS; acceptance record: `TRUYN1_P12_OBJECT_ARTIFACT_CERTIFICATION.md`. | Final closure requires this documentation-successor exact-head DCO/security/CI/five-SDK/full-qualification PASS and successful post-merge `main` CI. Do not generalize to distributed OBJECT transport or count CodeQL neutral as PASS. |
 | P13 | Migration/deprecation policy is published; bounded local migration evidence implemented; full stable-v1 qualification remains outstanding | Canonical 180-day stable policy plus executable persisted BYOK schema1→schema2, byte-exact rollback, actual version/required-semantic negotiation and fail-closed corruption/identity tests (`migrations/p13-byok-file.js`, `tests/p13-migration-rollback-interoperability.test.js`). Existing published-alpha five-SDK peer matrix is separately accepted in PR #975. | **Documentation subgate: DEFINED.** Bounded offline migration proof requires exact-SHA DCO/CI/CodeQL + post-merge acceptance; close the full P13 release gate only after cross-domain production migration, real stable wire-generation interop/cutover and rollback are independently qualified; stable-v1 is NOT declared |
 | P14 | Draft status is still propagated across protocol/SDK/docs | Protocol index, proto README and SDK documentation explicitly state TRUYN/1 is draft/pre-stable | Remove draft/stable claims only after P1–P13 and exact-head conformance are accepted |
+
+## 2026-10-12 normative and immutable release reconciliation
+
+Original table rows P1–P5/P10 incorrectly described existing normative definitions as missing; corrected above. **P11 already has a separately merged fixed RC decision matrix** in `spec/compatibility/P11_VERSION_NEGOTIATION_MATRIX.md` and machine vectors. Its exact-head/post-merge acceptance and real mixed-SDK generation negatives remain separate. PR #975/#976 preserved complete A–I registry as **semantic**, while exactly five physical Envelope kinds and Ed25519/TCJ1 remain frozen. 20/20 released-alpha mixed-peer conformance is accepted within the stated bounded scope.
+
+Immutable Wire Freeze five-SDK public registry release [2026-10-11 ledger](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md): source `57971b134a41c3e3ea4b42f68e86a7d117036006`, npm alpha.5, PyPI 0.1.0a2, Go/Maven/NuGet alpha.2, independently verified 6/6. Private digest-pinned shadow-only audit passed, but **stable 1.0.0 not published**. P12 strict verified object profile remains accepted. P13 release policy and offline rollback profile are implemented; do not invent migration of TRUYN from nonexistent running production. Production cutover is a separate program.
+
+Remaining: P6–P9/G5 distributed durable lifecycle, cross-replica/ambiguous external side-effect safety (issue #990), exact-SHA five-SDK RC certification (including Protobuf and negative matrices), CI/security/CodeQL and accepted stable public releases, followed by P14 Draft removal. Stable protocol release does NOT require Mainnet or WAN production admission.
+
+Historical issue #615 S103 state is stale after merged PR #823. This does not certify subsequent S104–S200 or G1–G34; preserve durable task-source records until independent final reconciliation.
 
 ## P13 production cutover readiness gate
 
@@ -67,7 +77,7 @@ A ten-domain inventory, exact order of production migration/isolated restore/rol
 
 ## P13 reconciliation checkpoint
 
-The previously stated P13 *missing policy document* gap is resolved: the normative release-candidate policy is published in `spec/protocol/v1/migration.md`, with a uniform **180 calendar days** minimum for stable deprecations and matching SDK guidance. **P13 overall remains release-qualification pending**, not `PASS`: documentation consistency tests prove only the policy text, not real persisted-state migration, rollback, version interoperation or stable-v1 admission. `TRUYN/1` remains draft, and the other P1–P12/P14 gates are unchanged. Historical baseline in this ledger is retained for traceability.
+The previously stated P13 *missing policy document* gap is resolved: the normative release-candidate policy is published in `spec/protocol/v1/migration.md`, with a uniform **180 calendar days** minimum for stable deprecations and matching SDK guidance. **P13 overall remains release-qualification pending**, not `PASS`: documentation consistency tests prove only the policy text, not real persisted-state migration, rollback, version interoperation or stable-v1 admission. `TRUYN/1` remains pre-stable; P1–P5/P10/P11 have newer reconciling evidence above and P14 stays OPEN. Historical baseline in this ledger is retained for traceability.
 
 ## Explicit non-gaps for this gate
 
