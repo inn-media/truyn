@@ -1,0 +1,97 @@
+name: S200 A16 immutable corrected relay release
+on:
+  push:
+    branches: [release/s200-a16-relay-9b8d087]
+    paths: [.github/workflows/s200-a16-relay-release.yml]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: s200-a16-relay-release-9b8d087
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SOURCE: 9b8d0870106e9aa58c1003181e7c196f10e270fe
+      TAG: s-series-relay-9b8d0870106e9aa58c1003181e7c196f10e270fe
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9b8d0870106e9aa58c1003181e7c196f10e270fe
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify accepted exact public source and upstream qualification
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE"
+          gh api repos/inn-media/truyn/pulls/1058 | jq -e --arg sha "$SOURCE" '.merged == true and .merge_commit_sha == $sha and .head.sha == "0fa129b3dcfcea4936b498aa313d4609052e66be"'
+          gh api repos/inn-media/truyn/actions/runs/38222863195 | jq -e '.conclusion == "success" and .head_sha == "0fa129b3dcfcea4936b498aa313d4609052e66be"'
+          gh api 'repos/inn-media/truyn/commits/0fa129b3dcfcea4936b498aa313d4609052e66be/check-runs?per_page=100' > "$RUNNER_TEMP/checks.json"
+          jq -e '[.check_runs[] | select(.name|startswith("Analyze ("))] | length >= 7 and all(.[]; .status=="completed" and .conclusion=="success")' "$RUNNER_TEMP/checks.json"
+          if gh release view "$TAG" >/dev/null 2>&1; then echo 'Refusing to replace an existing release'; exit 2; fi
+      - name: Qualify exact runtime
+        run: |
+          set -Eeuo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --test tests/relay-load-cost-routing.test.js tests/g5-offer-durable-integrity.test.js
+          git diff --exit-code
+      - name: Deterministic bundle and immutable manifest
+        run: |
+          set -Eeuo pipefail
+          out="$RUNNER_TEMP/a16-release"; root="$out/root"
+          mkdir -p "$root/network"
+          cp -a core "$root/core"
+          cp -a network/relay "$root/network/relay"
+          cp -a node "$root/node"
+          cp package.json package-lock.json LICENSE NOTICE "$root/"
+          tar --sort=name --mtime='UTC 2026-10-12' --owner=0 --group=0 --numeric-owner -C "$root" -czf "$out/truyn-s-series-relay.tgz" .
+          digest=$(sha256sum "$out/truyn-s-series-relay.tgz" | cut -d' ' -f1)
+          printf '%s  truyn-s-series-relay.tgz\n' "$digest" > "$out/truyn-s-series-relay.tgz.sha256"
+          jq -n --arg sha "$SOURCE" --arg digest "$digest" --arg run "$GITHUB_RUN_ID" '{schema:"truyn.public.s-series-relay-artifact/v1",sourceSha:$sha,relayBaseSha:$sha,acceptedSdk:"@truyn/sdk@0.1.0-alpha.2",sha256:$digest,loopbackOnly:true,productionRelayMutation:false,buildRunId:$run,features:["capacity-cost-routing","durable-offer-integrity","bounded-ledger-reads","expiry-sweep-throttle"]}' > "$out/manifest.json"
+      - name: Clean-room signed NEED RESULT and semantic smoke
+        run: |
+          set -Eeuo pipefail
+          out="$RUNNER_TEMP/a16-release"; clean="$RUNNER_TEMP/a16-cleanroom"; mkdir -p "$clean"
+          tar -xzf "$out/truyn-s-series-relay.tgz" -C "$clean"
+          cd "$clean"
+          npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { createRelay } from './network/relay/server.js';
+          import { TruynNode } from './node/client.js';
+          const relay=createRelay({localDevelopmentMode:true});
+          const relayUrl=await relay.listen({port:0});
+          const requester=new TruynNode({relayUrl}),provider=new TruynNode({relayUrl});
+          try {
+            await requester.register(); await provider.register();
+            await provider.offer('release.echo',{accessMode:'owner-only',allowedRequesterIds:[requester.identity.nodeId],capacity:{maxInFlight:1},pricing:{inputUsdPerMTok:1,outputUsdPerMTok:1}});
+            const receipt=await requester.compactNeed('release.echo',{test:1},{routing:{maxUnitCostUsdPerMTok:2}},{waitMs:0});
+            const events=await provider.pollCompact({waitMs:0});
+            assert.equal(events.events.length,1); assert.equal(events.events[0].verification.ok,true);
+            await provider.compactResult(receipt.needId,{ok:true});
+            const result=await requester.pollCompact({waitMs:0}); assert.equal(result.events[0].verification.ok,true); assert.equal(result.events[0].payload.output.ok,true);
+            const put=await requester.putContext([{id:'a',text:'Aster Observatory objective is ANSWER=RELEASE.'},{id:'b',text:'Unrelated material.'}],{readers:[requester.identity.nodeId]});
+            const retrieval=await requester.retrieveContext(put.cid,'What is the Aster Observatory objective?',{topK:1}); assert.equal(retrieval.provenanceVerified,true); assert.equal(retrieval.blocks.length,1);
+            console.log('A16_RELAY_CLEANROOM=PASS');
+          } finally {requester.closeFastSocket(); provider.closeFastSocket(); await relay.close();}
+          NODE
+      - name: Publish versioned public artifact, never replace
+        run: |
+          set -Eeuo pipefail
+          out="$RUNNER_TEMP/a16-release"
+          gh release create "$TAG" "$out/truyn-s-series-relay.tgz" "$out/truyn-s-series-relay.tgz.sha256" "$out/manifest.json" --target "$SOURCE" --title "Corrected S-Series relay 9b8d087" --notes 'Exact accepted public runtime from PR #1058. New isolated S-200 successor artifact; no deployment or live benchmark result. Runtime tests and clean-room signed/provenance smoke passed. Consume only with the manifest SHA-256.' --prerelease
+          cat "$out/manifest.json" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s200-a16-public-relay-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/a16-release/*.json
+            ${{ runner.temp }}/a16-release/*.tgz
+            ${{ runner.temp }}/a16-release/*.sha256
+          if-no-files-found: error
