@@ -1,6 +1,8 @@
 name: Production Trace Backend
 
 on:
+  # Operator may retry against the current protected main without another no-op commit.
+  workflow_dispatch:
   pull_request:
     paths:
       - 'infra/production-tracing/**'
@@ -21,6 +23,7 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/production-trace-backend.yml'
       - 'infra/production-tracing/**'
       - 'observability/bootstrap.js'
       - 'runtime/trace-export-canary.js'
@@ -124,7 +127,7 @@ jobs:
           ' operations/production-trace-export.json >/dev/null
 
   apply-and-prove:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_run') && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
+    if: ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_run') && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success')
     concurrency:
       group: truyn-production-aca-exclusive-writer
       queue: max
