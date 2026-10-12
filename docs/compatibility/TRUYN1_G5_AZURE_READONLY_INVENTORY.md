@@ -21,3 +21,9 @@ This inventory does **not** create, modify, deploy, delete or activate anything 
 5. Only after all evidence is independently admitted, update issue #990 to COMPLETE. This readiness inventory provides no authorization to deploy paid inference or Mainnet.
 
 **No new wire freeze**. The five signed kinds, TCJ1/Ed25519 bytes and SDK historical artifacts are unchanged.
+
+## Step 2 — topology before isolated live tests (no production mutations)
+
+The same inventory additionally checks, using *only* Azure Resource Manager list metadata, the count of Container Apps managed environments, VNet-attached/internal environments, ACR registries, private endpoints, Cosmos writer regions and multi-writer/Session consistency configuration. Results are aggregated in `g5-host-topology-readonly.json` with no names, resource IDs, credentials, private DNS or endpoint topology.
+
+These are **eligibility hints**, not proof of two isolated hosts or shared Cosmos private connectivity. Do not attach a test to a running production app/revision, alter production ingress/traffic, use a production lifecycle container, rotate identity/RBAC, change account failover or perform PITR against existing production data. Next acceptance must use an explicitly isolated disposable host pair and dedicated idempotency namespace (separate database/container), with resource ownership/tags, cost cap and cleanup guards proved before provisioning. If isolation cannot be established, record BLOCKED and do not inject failures.
