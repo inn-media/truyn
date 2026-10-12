@@ -28,7 +28,7 @@ test('S-200 2026-10-12 composite scope and cryptographic identities cannot be si
  assert.ok(evidence.economics.truynP95Ms>evidence.economics.directP95Ms);
  assert.match(report,/DeepSeek was excluded/);
  assert.match(report,/loopback relay/);
- assert.match(report,/not a single-run/);
+ assert.match(report,/nor a single-run/);
 });
 test('S-200 canonical status, roadmap, indexes and seven-vendor contract remain in sync',()=>{
  for(const path of ['README.md','ROADMAP.md','docs/README.md','docs/architecture/IMPLEMENTATION_STATUS.md',
