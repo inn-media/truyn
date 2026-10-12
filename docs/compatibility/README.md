@@ -11,6 +11,8 @@ Compatibility is tracked separately for protocol/node behavior, adapters/externa
 
 **Canonical migration/deprecation contract:** [`spec/protocol/v1/migration.md`](../../spec/protocol/v1/migration.md). Stable deprecated features have a uniform minimum **180 calendar days** of dated public notice; stricter major/generation constraints still apply. The P13 documentation policy is defined, but executable stable-v1 migration qualification remains outstanding in [`TRUYN1_RC_GAP_LEDGER.md`](TRUYN1_RC_GAP_LEDGER.md).
 
+**P11 version negotiation:** [frozen RC decision matrix](../../spec/compatibility/P11_VERSION_NEGOTIATION_MATRIX.md) + [executable JSON vectors](../../spec/compatibility/p11-negotiation-matrix.json). This is a release-candidate matrix revision, not a Stable TRUYN/1 claim.
+
 ## Current boundaries
 
 - `TRUYN/1` remains draft; stable mainnet/protocol compatibility is not claimed.

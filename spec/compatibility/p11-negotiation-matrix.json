@@ -1,0 +1,330 @@
+{
+  "schemaVersion": 1,
+  "matrixId": "truyn-p11-required-semantic-negotiation/rc1",
+  "status": "frozen-release-candidate-contract",
+  "stableProtocolDeclared": false,
+  "scope": "Deterministic protocol-generation/semantic negotiation decision outcomes; not a TRUYN/2 runtime or stable-v1 release claim",
+  "normative": "spec/protocol/v1/core.md#compatibility-and-negotiation",
+  "implementation": "core/protocol/negotiation.js",
+  "cases": [
+    {
+      "id": "negotiation.exact-generation-required-present",
+      "disposition": "compatible",
+      "input": {
+        "localProtocols": [
+          "TRUYN/1"
+        ],
+        "remoteProtocols": [
+          "TRUYN/1"
+        ],
+        "localSemantics": [
+          "core-envelope",
+          "revoke-need"
+        ],
+        "remoteSemantics": [
+          "core-envelope",
+          "revoke-need"
+        ],
+        "requiredSemantics": [
+          "core-envelope"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "protocol": "TRUYN/1",
+        "semantics": [
+          "core-envelope",
+          "revoke-need"
+        ]
+      }
+    },
+    {
+      "id": "negotiation.highest-shared-generation-synthetic",
+      "disposition": "compatible",
+      "input": {
+        "localProtocols": [
+          "TRUYN/1",
+          "TRUYN/2"
+        ],
+        "remoteProtocols": [
+          "TRUYN/2",
+          "TRUYN/1"
+        ],
+        "localSemantics": [
+          "core-envelope",
+          "revoke-need"
+        ],
+        "remoteSemantics": [
+          "revoke-need",
+          "core-envelope"
+        ],
+        "requiredSemantics": [
+          "core-envelope"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "protocol": "TRUYN/2",
+        "semantics": [
+          "core-envelope",
+          "revoke-need"
+        ]
+      }
+    },
+    {
+      "id": "negotiation.lower-common-generation-fallback",
+      "disposition": "fallback",
+      "input": {
+        "localProtocols": [
+          "TRUYN/2",
+          "TRUYN/1"
+        ],
+        "remoteProtocols": [
+          "TRUYN/1"
+        ],
+        "localSemantics": [
+          "core-envelope"
+        ],
+        "remoteSemantics": [
+          "core-envelope"
+        ],
+        "requiredSemantics": [
+          "core-envelope"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "protocol": "TRUYN/1",
+        "semantics": [
+          "core-envelope"
+        ]
+      }
+    },
+    {
+      "id": "negotiation.optional-semantic-intersection",
+      "disposition": "compatible",
+      "input": {
+        "localProtocols": [
+          "TRUYN/1"
+        ],
+        "remoteProtocols": [
+          "TRUYN/1"
+        ],
+        "localSemantics": [
+          "core-envelope",
+          "stream-partial"
+        ],
+        "remoteSemantics": [
+          "core-envelope"
+        ],
+        "requiredSemantics": [
+          "core-envelope"
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "protocol": "TRUYN/1",
+        "semantics": [
+          "core-envelope"
+        ]
+      }
+    },
+    {
+      "id": "negotiation.empty-optional-overlap",
+      "disposition": "compatible",
+      "input": {
+        "localProtocols": [
+          "TRUYN/1"
+        ],
+        "remoteProtocols": [
+          "TRUYN/1"
+        ],
+        "localSemantics": [
+          "stream-partial"
+        ],
+        "remoteSemantics": [
+          "core-envelope"
+        ],
+        "requiredSemantics": []
+      },
+      "expected": {
+        "ok": true,
+        "protocol": "TRUYN/1",
+        "semantics": []
+      }
+    },
+    {
+      "id": "negotiation.no-protocol-overlap",
+      "disposition": "reject",
+      "input": {
+        "localProtocols": [
+          "TRUYN/1"
+        ],
+        "remoteProtocols": [
+          "TRUYN/2"
+        ],
+        "localSemantics": [
+          "core-envelope"
+        ],
+        "remoteSemantics": [
+          "core-envelope"
+        ],
+        "requiredSemantics": [
+          "core-envelope"
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch",
+        "reason": "no_protocol_overlap"
+      }
+    },
+    {
+      "id": "negotiation.empty-remote-protocols",
+      "disposition": "reject",
+      "input": {
+        "localProtocols": [
+          "TRUYN/1"
+        ],
+        "remoteProtocols": [],
+        "localSemantics": [],
+        "remoteSemantics": [],
+        "requiredSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch",
+        "reason": "no_protocol_overlap"
+      }
+    },
+    {
+      "id": "negotiation.required-semantic-unavailable",
+      "disposition": "reject",
+      "input": {
+        "localProtocols": [
+          "TRUYN/1"
+        ],
+        "remoteProtocols": [
+          "TRUYN/1"
+        ],
+        "localSemantics": [
+          "core-envelope",
+          "revoke-need"
+        ],
+        "remoteSemantics": [
+          "core-envelope"
+        ],
+        "requiredSemantics": [
+          "core-envelope",
+          "revoke-need"
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch",
+        "reason": "required_semantic_unavailable",
+        "protocol": "TRUYN/1",
+        "missingSemantics": [
+          "revoke-need"
+        ]
+      }
+    },
+    {
+      "id": "negotiation.required-semantic-missing-locally",
+      "disposition": "reject",
+      "input": {
+        "localProtocols": [
+          "TRUYN/1"
+        ],
+        "remoteProtocols": [
+          "TRUYN/1"
+        ],
+        "localSemantics": [
+          "core-envelope"
+        ],
+        "remoteSemantics": [
+          "core-envelope",
+          "revoke-need"
+        ],
+        "requiredSemantics": [
+          "revoke-need"
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch",
+        "reason": "required_semantic_unavailable",
+        "protocol": "TRUYN/1",
+        "missingSemantics": [
+          "revoke-need"
+        ]
+      }
+    },
+    {
+      "id": "negotiation.multiple-required-semantics-missing-sorted",
+      "disposition": "reject",
+      "input": {
+        "localProtocols": [
+          "TRUYN/1"
+        ],
+        "remoteProtocols": [
+          "TRUYN/1"
+        ],
+        "localSemantics": [
+          "core-envelope"
+        ],
+        "remoteSemantics": [
+          "core-envelope"
+        ],
+        "requiredSemantics": [
+          "z-extension",
+          "core-envelope",
+          "a-extension"
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch",
+        "reason": "required_semantic_unavailable",
+        "protocol": "TRUYN/1",
+        "missingSemantics": [
+          "a-extension",
+          "z-extension"
+        ]
+      }
+    }
+  ],
+  "boundaryEvidence": [
+    {
+      "id": "relay-registration-no-overlap-and-required",
+      "path": "tests/protocol-v1-registration-freshness.test.js",
+      "contract": "HTTP 409 version_mismatch before node/session creation; invalid advertisements denied"
+    },
+    {
+      "id": "signed-peer-hello-and-accept",
+      "path": "tests/errors-versioning-interop.test.js",
+      "contract": "Signed HELLO/ACCEPT mismatch, malformed ad, missing confirmation and baseline-only legacy ACCEPT"
+    },
+    {
+      "id": "signed-peer-implementation",
+      "path": "network/sessions/authenticated-session.js",
+      "contract": "Signature/identity/nonce/time and negotiated selection verification are separate from compatibility decision"
+    },
+    {
+      "id": "relay-client-registration",
+      "path": "node/client.js",
+      "contract": "Client rejects missing/invalid explicit selection; no accepted session token"
+    },
+    {
+      "id": "shared-negative-fixtures",
+      "path": "sdk/conformance/v1/protocol-negotiation-negative-fixtures.json",
+      "contract": "Two version_mismatch vectors remain byte-equivalent in input/expected outcome"
+    }
+  ],
+  "limitations": [
+    "TRUYN/2 in selection examples is synthetic input exercising the selection algorithm; it does not advertise a deployed TRUYN/2 implementation.",
+    "The current helper accepts flat semantic lists, not per-generation semantic maps. Multi-generation capability claims must not be inferred from these cases; that extension needs separate representation and conformance.",
+    "The pure negotiation helper normalizes string arrays, while authenticated registration and peer-session boundaries explicitly validate advertisement shape before issuing authority.",
+    "Compatibility selection is not authorization, descriptor trust, provider visibility, billing entitlement, signature validation, or stable release qualification."
+  ]
+}
