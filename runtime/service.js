@@ -6,6 +6,7 @@ import { createProviderAdapter } from '../adapters/providers/index.js';
 import { createRuntimeProviderAccessPolicy } from './security-config.js';
 import { createRuntimeProviderBillingPolicy } from './billing-config.js';
 import { createRuntimeG5ProviderEffectLedger } from './g5-provider-effect-ledger.js';
+import { createRuntimeG5RelayLifecycleLedger, verifyRuntimeG5RelayLedger } from './g5-relay-lifecycle-ledger.js';
 import { createRuntimeRelaySecurityConfig } from './relay-security-config.js';
 import { createOriginGuard, createRuntimeOriginGuardConfig } from './origin-guard.js';
 import { createRuntimeBackchannelConfig } from './backchannel-config.js';
@@ -69,11 +70,14 @@ function runtimeLog(level, event, fields = {}) {
 }
 
 async function runRelay() {
+  const lifecycleLedger = createRuntimeG5RelayLifecycleLedger({ env: process.env });
+  await verifyRuntimeG5RelayLedger(lifecycleLedger);
   const relaySecurity = createRuntimeRelaySecurityConfig(process.env);
   const originGuardConfig = createRuntimeOriginGuardConfig(process.env);
   const backchannelConfig = createRuntimeBackchannelConfig(process.env);
   const backchannelEnabled = backchannelConfig.protectedProviderNodeIds.length > 0;
   const relay = createRelay({
+    lifecycleLedger,
     allowedNodeIds: csvSet(process.env.TRUYN_ALLOWED_NODE_IDS),
     trustedRequesterNodeIds: csvSet(process.env.TRUYN_TRUSTED_REQUESTER_NODE_IDS),
     allowPublicRegistration: relaySecurity.allowPublicRegistration,
