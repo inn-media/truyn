@@ -1,0 +1,181 @@
+name: Apply bounded Descriptor final review repair
+on:
+  push:
+    branches: [fix/descriptor-five-sdk-parity-20261012]
+    paths: [.github/workflows/descriptor-final-repair-apply.yml]
+permissions:
+  contents: write
+concurrency:
+  group: descriptor-final-repair-20261012
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: github.repository == 'inn-media/truyn' && github.ref == 'refs/heads/fix/descriptor-five-sdk-parity-20261012'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Preserve accepted concurrent main without rewriting history
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD^)" = bb7ca83b1f2e3ea1e5e3636b4ad2fe91544f4a36
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = 60f0bb96cb2fb6b9efc345c7370f95458d8c2537
+          git merge --no-edit --no-ff -s ort --signoff 60f0bb96cb2fb6b9efc345c7370f95458d8c2537
+      - name: Apply exact bounded SDK and qualification repairs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          def replace(path, old, new):
+              p=Path(path); text=p.read_text()
+              if text.count(old)!=1: raise RuntimeError(f'{path}: expected one exact replacement, got {text.count(old)}')
+              p.write_text(text.replace(old,new))
+          def new(path, content):
+              p=Path(path)
+              if p.exists(): raise RuntimeError(f'{path}: already exists')
+              p.write_text(content)
+          new('sdk/conformance/descriptor-qualification-policy.mjs', '''/** Repository-source qualification, not arbitrary toolchain/dependency hermeticity. */
+          export function conformanceEnvironment(input = process.env) {
+            const env = { ...input };
+            for (const key of Object.keys(env)) {
+              if (/^GOFLAGS$/i.test(key) && String(env[key] ?? '').trim() !== '') {
+                throw new Error('Descriptor qualification requires empty GOFLAGS; source overlays and injected build flags are not permitted');
+              }
+              if (/^(?:GOFLAGS|GOENV|GOWORK)$/i.test(key)) delete env[key];
+            }
+            // Disable persisted go env flags and ancestor/external workspace replacement.
+            // Explicit command arguments only; no environment source overlays.
+            return { ...env, GOFLAGS: '', GOENV: 'off', GOWORK: 'off' };
+          }
+          export function assertExactDescriptorQualification(report) {
+            if (report?.passed !== true || report?.workingTreeClean !== true || report?.exactSourceQualified !== true ||
+                report?.sourceBefore?.clean !== true || report?.sourceAfter?.clean !== true ||
+                !/^[a-f0-9]{40}$/.test(report?.sourceSha ?? '') ||
+                report.sourceSha !== report.sourceShaAfter || report.sourceSha !== report.sourceBefore.sourceSha ||
+                report.sourceSha !== report.sourceAfter.sourceSha) {
+              throw new Error('five-SDK Descriptor exact-source qualification failed (functional PASS alone is not acceptance)');
+            }
+            return report;
+          }
+          ''')
+          replace('sdk/conformance/run-descriptor-interface-parity.mjs', "import { stageDescriptorNativeSource } from './descriptor-native-source.mjs';", "import { stageDescriptorNativeSource } from './descriptor-native-source.mjs';\nimport { conformanceEnvironment, assertExactDescriptorQualification } from './descriptor-qualification-policy.mjs';")
+          replace('sdk/conformance/run-descriptor-interface-parity.mjs', 'env: { ...process.env, ...env }', 'env: conformanceEnvironment({ ...process.env, ...env })')
+          replace('sdk/conformance/run-descriptor-interface-parity.mjs', '  const sourceBefore = inspectSourceState();', "  conformanceEnvironment(); // Reject injected build flags before any SDK runs.\n  const sourceBefore = inspectSourceState();\n  if (!sourceBefore.clean) throw new Error('Descriptor exact-source qualification requires a clean starting checkout');")
+          replace('sdk/conformance/run-descriptor-interface-parity.mjs', "    if (!passed) throw new Error('five-SDK Descriptor interface parity failed');", '    assertExactDescriptorQualification(report);')
+          replace('sdk/conformance/run-descriptor-interface-parity.mjs', '      nativeBuildSources: { sourceSha:', "      goBuildEnvironment: { GOFLAGS: '', GOENV: 'off', GOWORK: 'off' },\n      nativeBuildSources: { sourceSha:")
+          replace('sdk/conformance/run-descriptor-interface-parity.mjs', "        assert.deepEqual(row.interface, item.interfaces[0], `${language}/${item.id}: selection must preserve optional fields`);", "        assert.deepEqual(row.interface, item.interfaces[0], `${language}/${item.id}: selection must preserve optional fields`);\n        if (language === 'go') {\n          const expected = { type: item.interfaces[0].type };\n          if (Object.hasOwn(item.interfaces[0], 'endpoint')) expected.endpoint = item.interfaces[0].endpoint;\n          assert.deepEqual(row.typedInterface, expected, `${language}/${item.id}: public typed projection`);\n        }")
+          replace('sdk/conformance/run-five-language-e2e.mjs', "import { createRelay } from '../../network/relay/server.js';", "import { createRelay } from '../../network/relay/server.js';\nimport { conformanceEnvironment } from './descriptor-qualification-policy.mjs';\nconformanceEnvironment(); // Fail before relay creation or native commands on injected flags.")
+          replace('sdk/conformance/run-five-language-e2e.mjs', 'env: { ...process.env, ...(options.env ?? {}) },', 'env: conformanceEnvironment({ ...process.env, ...(options.env ?? {}) }),')
+          replace('sdk/go/truyn.go', 'type Interface struct { Type string `json:"type"`; URL string `json:"url"` }', '// URL retains the Go API name; the optional signed wire field is endpoint.\ntype Interface struct { Type string `json:"type"`; URL string `json:"endpoint,omitempty"` }')
+          replace('sdk/go/descriptor_interface_test.go', '\t\t\trows = append(rows, map[string]any{"id": item.ID, "ok": true, "identity": value.Descriptor.Identity, "protocol": value.Selection.Protocol, "interface": value.Selection.Interface, "keyBinding": value.Signer["keyBinding"]})', '''\t\t\tif len(value.Descriptor.Interfaces) == 0 { t.Fatalf("%s: missing typed interfaces", item.ID) }
+          \t\t\ttyped := value.Descriptor.Interfaces[0]
+          \t\t\tif typed.Type != value.Selection.Interface["type"] { t.Fatalf("%s: typed type lost", item.ID) }
+          \t\t\texpectedEndpoint, supplied := value.Selection.Interface["endpoint"]
+          \t\t\tif supplied && typed.URL != expectedEndpoint { t.Fatalf("%s: typed endpoint lost", item.ID) }
+          \t\t\tif !supplied && typed.URL != "" { t.Fatalf("%s: omitted endpoint synthesized", item.ID) }
+          \t\t\tprojectionBytes, marshalErr := json.Marshal(typed)
+          \t\t\tif marshalErr != nil { t.Fatal(marshalErr) }
+          \t\t\tvar projection map[string]any
+          \t\t\tif err := json.Unmarshal(projectionBytes, &projection); err != nil { t.Fatal(err) }
+          \t\t\tif _, legacy := projection["url"]; legacy { t.Fatalf("%s: legacy url field emitted", item.ID) }
+          \t\t\t_, emitted := projection["endpoint"]
+          \t\t\tif emitted != supplied { t.Fatalf("%s: endpoint omission changed", item.ID) }
+          \t\t\trows = append(rows, map[string]any{"id": item.ID, "ok": true, "identity": value.Descriptor.Identity, "protocol": value.Selection.Protocol, "interface": value.Selection.Interface, "typedInterface": projection, "keyBinding": value.Signer["keyBinding"]})''')
+          new('sdk/go/descriptor_interface_model_test.go', '''package truyn
+          import (
+            "encoding/json"
+            "reflect"
+            "testing"
+          )
+          func TestDescriptorInterfaceJSONProjection(t *testing.T) {
+            field, ok := reflect.TypeOf(Interface{}).FieldByName("URL")
+            if !ok || field.Tag.Get("json") != "endpoint,omitempty" { t.Fatal("public URL field must map to optional endpoint") }
+            for _, input := range []string{`{"type":"https"}`, `{"type":"https","endpoint":"https://example.invalid/agent"}`, `{"type":" ","endpoint":" "}`} {
+              var value Interface
+              if err := json.Unmarshal([]byte(input), &value); err != nil { t.Fatal(err) }
+              output, err := json.Marshal(value); if err != nil { t.Fatal(err) }
+              var before, after map[string]any
+              if err := json.Unmarshal([]byte(input), &before); err != nil { t.Fatal(err) }
+              if err := json.Unmarshal(output, &after); err != nil { t.Fatal(err) }
+              if !reflect.DeepEqual(before, after) { t.Fatalf("wire projection mismatch: %s => %s", input, output) }
+            }
+          }
+          ''')
+          new('tests/descriptor-qualification-command.test.js', '''import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { spawnSync } from 'node:child_process';
+          import { fileURLToPath } from 'node:url';
+          import { conformanceEnvironment, assertExactDescriptorQualification } from '../sdk/conformance/descriptor-qualification-policy.mjs';
+          const root = fileURLToPath(new URL('../', import.meta.url));
+          const policy = new URL('../sdk/conformance/descriptor-qualification-policy.mjs', import.meta.url).href;
+          const sha = 'a'.repeat(40);
+          const accepted = () => ({ passed: true, workingTreeClean: true, exactSourceQualified: true,
+            sourceSha: sha, sourceShaAfter: sha, sourceBefore: { clean: true, sourceSha: sha }, sourceAfter: { clean: true, sourceSha: sha } });
+          test('Go conformance refuses injected flags and disables persisted flags/workspaces', () => {
+            for (const flags of ['-overlay=/tmp/overlay.json', '-overlay /tmp/overlay.json', '-modfile=/tmp/other.mod', '-toolexec=/tmp/wrapper', '-tags=foreign']) {
+              assert.throws(() => conformanceEnvironment({ GOFLAGS: flags }), /empty GOFLAGS/);
+              assert.throws(() => conformanceEnvironment({ goflags: flags }), /empty GOFLAGS/);
+            }
+            const input = { PATH: '/toolchain', GOENV: '/tmp/foreign-go-env', GOWORK: '/tmp/foreign.work', GOFLAGS: '  ', TRUYN_DESCRIPTOR_CASES_FILE: '/tmp/fixture' };
+            const env = conformanceEnvironment(input);
+            assert.equal(env.GOENV, 'off'); assert.equal(env.GOWORK, 'off'); assert.equal(env.GOFLAGS, '');
+            assert.equal(env.PATH, input.PATH); assert.equal(env.TRUYN_DESCRIPTOR_CASES_FILE, input.TRUYN_DESCRIPTOR_CASES_FILE);
+            assert.equal(input.GOENV, '/tmp/foreign-go-env');
+          });
+          test('diagnostic-only source states fail the actual command exit, even with functional PASS', () => {
+            assert.doesNotThrow(() => assertExactDescriptorQualification(accepted()));
+            const variants = [
+              { ...accepted(), passed: false },
+              { ...accepted(), workingTreeClean: false, exactSourceQualified: false },
+              { ...accepted(), sourceBefore: { clean: false, sourceSha: sha } },
+              { ...accepted(), sourceAfter: { clean: false, sourceSha: sha } },
+              { ...accepted(), sourceShaAfter: 'b'.repeat(40) },
+              { ...accepted(), sourceBefore: { clean: true, sourceSha: 'b'.repeat(40) } },
+              { ...accepted(), exactSourceQualified: false }
+            ];
+            for (const report of variants) {
+              const child = spawnSync(process.execPath, ['--input-type=module', '-e',
+                `import { assertExactDescriptorQualification as check } from ${JSON.stringify(policy)}; check(${JSON.stringify(report)}); console.log('PASS');`], { encoding: 'utf8' });
+              assert.notEqual(child.status, 0); assert.match(child.stderr, /exact-source qualification failed/);
+              assert.doesNotMatch(child.stdout, /PASS/);
+            }
+          });
+          test('both real qualification entry points reject overlay before any SDK execution', () => {
+            for (const entry of ['sdk/conformance/run-descriptor-interface-parity.mjs', 'sdk/conformance/run-five-language-e2e.mjs']) {
+              const child = spawnSync(process.execPath, [entry], { cwd: root, encoding: 'utf8', timeout: 10000,
+                env: { ...process.env, GOFLAGS: '-overlay=/tmp/descriptor-untrusted-overlay.json' } });
+              assert.notEqual(child.status, 0, entry); assert.match(child.stderr, /empty GOFLAGS/, entry);
+              assert.doesNotMatch(child.stdout, /PASS|DESCRIPTOR_INTERFACE_PARITY_REPORT=/, entry);
+            }
+          });
+          ''')
+          PY
+          gofmt -w sdk/go/descriptor_interface_test.go sdk/go/descriptor_interface_model_test.go
+          npm install --ignore-scripts --no-audit --no-fund
+          node --test tests/descriptor-qualification-command.test.js
+          (cd sdk/go && GOFLAGS= GOENV=off GOWORK=off go test ./... -run '^TestDescriptorInterfaceJSONProjection$' -count=1)
+          git diff --check
+      - name: Commit only reviewed paths to the existing task branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git add sdk/conformance/descriptor-qualification-policy.mjs sdk/conformance/run-descriptor-interface-parity.mjs sdk/conformance/run-five-language-e2e.mjs sdk/go/truyn.go sdk/go/descriptor_interface_test.go sdk/go/descriptor_interface_model_test.go tests/descriptor-qualification-command.test.js
+          test "$(git diff --cached --name-only | wc -l)" = 7
+          git commit -s -m 'fix(sdk): preserve Go endpoint projection and fail closed on inexact qualification'
+          test "$(git ls-remote origin refs/heads/fix/descriptor-five-sdk-parity-20261012 | cut -f1)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/fix/descriptor-five-sdk-parity-20261012
+          git rev-parse HEAD
