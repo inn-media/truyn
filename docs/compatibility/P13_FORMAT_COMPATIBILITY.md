@@ -34,3 +34,7 @@ The two lanes must not inherit one another's PASS: **FORMAT PASS ≠ OPS PASS; O
 ## Independent protocol publication
 
 A **Stable TRUYN/1 Protocol** declaration must pass this format gate and all other applicable P1–P14 plus five-SDK/security/exact-head release gates, but **does not require** a live Azure/Cosmos production backup, PITR restore, canary or rollback. Those remain mandatory for an applicable **Stable TRUYN Service** production cutover and for Mainnet admission. [Machine-readable release scopes](../../spec/compatibility/stable-release-scopes.json). No declaration is made by this document.
+
+## Exact prerelease pins for the five SDKs (not a stable assertion)
+
+The accepted Wire Freeze public prerelease source SHA is `57971b134a41c3e3ea4b42f68e86a7d117036006`. The machine-readable immutable-version inventory is [truyn1-five-sdk-freeze.json](../../spec/compatibility/truyn1-five-sdk-freeze.json), and the read-only cross-check is `node scripts/truyn1-protocol-candidate-audit.mjs`. This separates the current Wire Freeze family from the **older historical** Developer Release coordinates in `sdk/release/public-coordinates.json`. Five accepted *pre-releases* qualify a bounded compatibility candidate, **not** stable first-party SDK release versions, cross-version full-lifecycle parity, or future protocol-stable admission. P13-FORMAT is still **PRE-STABLE**.

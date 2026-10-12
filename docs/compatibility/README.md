@@ -32,3 +32,5 @@ See `A2A_MCP_STABILITY.md`, `A2A_MCP_COMPATIBILITY.md`, `SDK_COMPATIBILITY.md`, 
 ## Stable release targets
 
 [Release-scope contract](../../spec/compatibility/stable-release-scopes.json): Stable TRUYN/1 **Protocol** is gated by public protocol/SDK/P13-FORMAT conformance and exact-SHA release certification, **not** Azure/Cosmos/P13-OPS production migration. Stable Service and Mainnet additionally require live P13-OPS recovery/cutover and reliability evidence. All three declarations remain NOT DECLARED. The read-only contract audit is `node scripts/p13-release-scopes-readiness.mjs`.
+
+**Current Wire Freeze five-language prerelease pins:** [machine manifest](../../spec/compatibility/truyn1-five-sdk-freeze.json), with [accepted frozen source/registry proof](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). The old `sdk/release/public-coordinates.json` lists a historical Developer Release family and must not be used as evidence of the latest frozen five-SDK generation. P13-FORMAT remains PRE-STABLE and P14 draft labels remain intact.

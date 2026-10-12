@@ -1,0 +1,38 @@
+{
+  "schema": "truyn.protocol1.five-sdk-freeze/v1",
+  "releaseChannel": "PUBLIC_PRERELEASE_ONLY",
+  "stableProtocolDeclared": false,
+  "frozenSourceSha": "57971b134a41c3e3ea4b42f68e86a7d117036006",
+  "bundleRunId": 38154701595,
+  "hostedCodeQLRunId": 38154701311,
+  "registryEvidence": "docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md",
+  "publicRegistryEvidenceCount": 5,
+  "coordinates": [
+    {
+      "id": "typescript",
+      "ecosystem": "npm",
+      "coordinate": "@truyn/sdk@0.1.0-alpha.5"
+    },
+    {
+      "id": "python",
+      "ecosystem": "PyPI",
+      "coordinate": "truyn-sdk==0.1.0a2"
+    },
+    {
+      "id": "go",
+      "ecosystem": "Go proxy / sumDB",
+      "coordinate": "github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2"
+    },
+    {
+      "id": "java",
+      "ecosystem": "Maven Central",
+      "coordinate": "org.truyn:truyn-sdk:0.1.0-alpha.2"
+    },
+    {
+      "id": "dotnet",
+      "ecosystem": "NuGet.org",
+      "coordinate": "Truyn.Sdk 0.1.0-alpha.2"
+    }
+  ],
+  "outstanding": "P13-FORMAT stable five-version lifecycle/interop qualification on release exact SHA, stable release publication and P14 post-merge protocol admission not certified by these accepted prereleases."
+}
