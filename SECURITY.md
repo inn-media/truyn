@@ -105,7 +105,7 @@ authenticated scoped descriptor view
 
 A Descriptor must not contain upstream provider credentials, private keys, private origins/backchannels, privileged allowlists, hidden private provider IDs/capabilities, long-lived secret-bearing URLs or other private operational state.
 
-The current Developer Release serving path is intentionally public only: disabled by default, explicit opt-in, explicit public capability allowlist, runtime identity signature, and no authorization grant from metadata. The runtime serving helper in `runtime/agent-descriptor.js` refreshes and re-signs an eligible Descriptor in its bounded TTL window, including the provider-startup descriptor path. `tests/agent-descriptor-refresh.test.js` exercises the refresher; the shared `sdk/conformance/v1/agent-descriptor-runtime-fixtures.json` and five language runners include missing/blank endpoint and interface-type negatives (S103 source PR #823). These are implemented bounded source/conformance facts, not a fresh guarantee for every historical binary or all production lifecycle scenarios. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
+The current Developer Release serving path is intentionally public only: disabled by default, explicit opt-in, explicit public capability allowlist, runtime identity signature, and no authorization grant from metadata. Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established. Missing or empty interface types are rejected by the reference parser; identical rejection across all five SDKs still needs executable proof. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
 
 ### SDKs are not a policy boundary
 
@@ -263,3 +263,5 @@ This does **not** claim that every possible private-provider adversarial case ha
 - `docs/benchmarks/AZURE_ORIGIN_LOCK_2026-08-23.md`
 - `spec/protocol/v1/provider-policy.md`
 - `spec/protocol/v1/agent-descriptor.md`
+
+Current Descriptor evidence and remaining interface-negative parity: [source-reconciled status](docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).

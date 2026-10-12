@@ -41,6 +41,10 @@ export function withCosmosEffectReceipts(ledger, { endpoint, database, container
       ![database, container].every(v => typeof v === 'string' && /^[a-zA-Z0-9._-]{1,100}$/.test(v)))
     throw fault(503, 'effect_receipt_cosmos_configuration_required');
   const base = endpoint.replace(/\/$/, '') + `/dbs/${encodeURIComponent(database)}/colls/${encodeURIComponent(container)}/docs/`;
+  const session = ledger.receiptSession;
+  if (session?.scope !== base.slice(0, -1) || typeof session.requestHeaders !== 'function' ||
+      typeof session.observeResponse !== 'function')
+    throw fault(503, 'effect_receipt_shared_session_required');
   async function mutate(binding, update) {
     if (![binding?.id, binding?.provider, binding?.requester, binding?.fingerprint].every(text))
       throw fault(400, 'invalid_effect_receipt_binding');
@@ -72,10 +76,14 @@ export function withCosmosEffectReceipts(ledger, { endpoint, database, container
           headers: { authorization: encodeURIComponent(`type=aad&ver=1.0&sig=${token}`),
             'x-ms-date': new Date().toUTCString(), 'x-ms-version': '2018-12-31',
             'x-ms-consistency-level': 'Session',
+            ...session.requestHeaders(),
             'x-ms-documentdb-partitionkey': JSON.stringify([expectedId]),
             'if-match': current._etag, 'content-type': 'application/json', accept: 'application/json' },
           body: JSON.stringify(next)
         }));
+        // Observe headers even when body validation is ambiguous: subsequent
+        // host reads and finishEffect must honor the same write watermark.
+        session.observeResponse(response);
         if (response.status === 412) continue;
         if (response.status !== 200) throw fault(503, 'effect_receipt_store_unavailable');
         // Read through the normal ledger again on subsequent calls. Never trust
@@ -154,7 +162,8 @@ export function wrapRuntimeG5ReceiptAdapter({ adapter, ledger, env = process.env
       // Only the winner of this persisted CAS can issue the paid POST. Unknown
       // claim/write/create outcomes remain quarantined; no automatic retries.
       const result = await adapter.execute(input);
-      if (result?.metadata?.provider !== 'azure-openai' || result.metadata.providerStoredResponse !== true || typeof result.output !== 'string')
+      if (result?.metadata?.provider !== 'azure-openai' || result.metadata.providerStoredResponse !== true ||
+          result.metadata.providerResponseStatus !== 'completed' || typeof result.output !== 'string')
         throw fault(409, 'effect_receipt_unverified');
       const value = receipt({ provider: 'azure-openai', responseId: result.metadata.providerRequestId,
         model: result.metadata.model, usage: result.metadata.usage, scopeDigest, outputDigest: sha256(result.output) });

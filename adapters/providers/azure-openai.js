@@ -111,6 +111,7 @@ export function createAzureOpenAIProvider({
           model: body.model || model,
           providerRequestId: body.id || null,
           providerStoredResponse: persistResponses,
+          providerResponseStatus: typeof body.status === 'string' ? body.status : null,
           providerLatencyMs: Date.now() - startedAt,
           providerRequestBodyBytes,
           providerResponseBodyBytes,

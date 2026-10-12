@@ -131,7 +131,12 @@ async function responseJson(response) {
 export function validateAdapter(adapter) {
   if (!adapter || typeof adapter.execute !== 'function') throw new Error('Adapter execute(request) is required');
   const capabilities = normalizeCapabilities(adapter.capabilities);
-  return { name: adapter.name || 'truyn-adapter', version: adapter.version || '0.1.0', capabilities, execute: adapter.execute.bind(adapter) };
+  if (adapter.recoverStoredEffect != null && typeof adapter.recoverStoredEffect !== 'function')
+    throw new Error('Adapter recoverStoredEffect must be a function');
+  return { name: adapter.name || 'truyn-adapter', version: adapter.version || '0.1.0', capabilities,
+    execute: adapter.execute.bind(adapter),
+    ...(typeof adapter.recoverStoredEffect === 'function'
+      ? { recoverStoredEffect: adapter.recoverStoredEffect.bind(adapter) } : {}) };
 }
 
 export function createFunctionAdapter({ name = 'function-adapter', version = '0.1.0', capabilities, execute }) {
@@ -170,6 +175,22 @@ export class TruynAdapterHost {
     this.lastLoopError = null;
     this.lastExecutionError = null;
     this.executionDrainTimedOut = false;
+  }
+
+  // Explicit internal recovery, never a new public dispatch or billing path.
+  // Bind the provider identity to this host, not caller-supplied node metadata.
+  async recoverStoredEffect({ need, signal } = {}) {
+    const reject = (status, code) => Object.assign(new Error(code), { httpStatus: status, publicCode: code });
+    if (!this.effectLedger || typeof this.adapter.recoverStoredEffect !== 'function')
+      throw reject(503, 'provider_recovery_not_supported');
+    const capability = need?.payload?.capability?.name || need?.payload?.capability;
+    if (need?.chain || !need?.id || !need?.from ||
+        !this.adapter.capabilities.some(item => item.name === capability))
+      throw reject(400, 'direct_effect_receipt_identity_required');
+    const access = await this.accessPolicy.authorize(need);
+    if (!access?.ok) throw reject(403, 'provider_access_denied');
+    if (signal?.aborted) throw reject(409, 'effect_execution_cancelled');
+    return this.adapter.recoverStoredEffect({ need, node: this.node, signal });
   }
 
   async ensureRegistered() {

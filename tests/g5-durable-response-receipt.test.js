@@ -20,7 +20,10 @@ function fixture() {
   let row = { ...binding, id, partitionKey: id, logicalId: need.id, kind: 'effect', schemaVersion: 1, ttl: -1,
     status: 'started', version: 1, _etag: 'v1', terminalAt: null };
   let writes = 0, reads = 0, unavailable = false, loseWriteReply = false, beforePut = null;
-  const base = { kind: 'cosmos-multi-host-v1', async getEffect(key) {
+  const base = { kind: 'cosmos-multi-host-v1', receiptSession: {
+    scope: 'https://fixture.documents.azure.com/dbs/test/colls/test/docs',
+    requestHeaders: () => ({}), observeResponse() {}
+  }, async getEffect(key) {
     reads++; assert.equal(key, need.id); return row ? structuredClone(row) : null;
   } };
   const fetchImpl = async (url, options) => {
@@ -43,7 +46,7 @@ function fixture() {
     async execute() {
       posts++; if (onExecute) onExecute(); if (thrown) throw Error('external-effect-response-lost');
       return { output: 'private output', metadata: { provider: 'azure-openai', model: 'test-model-version',
-        providerRequestId: 'resp_known', providerStoredResponse: true, usage: { ...usage } } };
+        providerRequestId: 'resp_known', providerStoredResponse: true, providerResponseStatus: 'completed', usage: { ...usage } } };
     },
     async retrieveResponseReceipt({ responseId }) {
       gets++; assert.equal(responseId, 'resp_known');
@@ -190,7 +193,7 @@ test('G5 receipt: token, headers and response-body stalls respect a bounded stor
   for (const phase of ['token', 'headers', 'body']) {
     const f = fixture();
     const never = () => new Promise(() => {});
-    const ledger = withCosmosEffectReceipts({ kind: 'cosmos-multi-host-v1', getEffect: async () => structuredClone(f.row) }, {
+    const ledger = withCosmosEffectReceipts({ kind: 'cosmos-multi-host-v1', receiptSession: f.ledger().receiptSession, getEffect: async () => structuredClone(f.row) }, {
       endpoint: 'https://fixture.documents.azure.com', database: 'test', container: 'test', requestTimeoutMs: 10,
       getAccessToken: phase === 'token' ? never : async () => 'fixture-token',
       fetchImpl: phase === 'headers' ? never : async () => ({ status: 200, json: never })

@@ -135,7 +135,7 @@ Provider authorization remains independent from artifact/reference visibility.
 
 ## TRUYN Agent Descriptor lifecycle
 
-The bounded Descriptor lifecycle is now implemented end to end for the Developer Release profile.
+The bounded Descriptor serving, refresh and valid-profile fetch/verification path is implemented. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established. Do not make optional endpoints mandatory through a documentation change.
 
 ### Serving
 
@@ -252,7 +252,8 @@ A source tree being Pages-ready is not the same as a live deployment. Public sit
 - [x] Maven Central publication evidence (`org.truyn:truyn-sdk:0.1.0-alpha.2`; accepted immutable public release);
 - [x] NuGet.org publication evidence (`Truyn.Sdk 0.1.0-alpha.2`; current five-SDK Wire Freeze registry ledger);
 - [ ] archive-member byte-content leakage scanning;
-- [x] bounded Descriptor refresh/re-signing implementation and shared missing/blank endpoint/type negatives;
+- [x] bounded Descriptor refresh/re-signing implementation;
+- [ ] shared five-language acceptance of omitted optional endpoints and rejection of invalid empty endpoints or types, with current-source executable proof;
 - [ ] complete release-specific Descriptor lifecycle certification beyond those bounded source tests;
 - [ ] live public developer-site activation/liveness proof after merge/settings activation.
 
@@ -265,3 +266,5 @@ A source tree being Pages-ready is not the same as a live deployment. Public sit
 Therefore: **DX-3 runtime/API core is closed; npm/PyPI/Go/Maven Central/NuGet public alphas are accepted. Remaining Developer Release gates concern Descriptor/product completeness, any not-yet-accepted archive security requirements, stable API maturity and live-site activation, not already-published Maven/NuGet packages.**
 
 See `IMPLEMENTATION_STATUS.md`, `../../ROADMAP.md`, `../compatibility/SDK_COMPATIBILITY.md` and `../../sdk/release/PUBLISHING.md`.
+
+Current Descriptor evidence and remaining interface-negative parity: [source-reconciled status](../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
