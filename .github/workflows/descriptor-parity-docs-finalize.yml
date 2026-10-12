@@ -1,0 +1,49 @@
+name: Finalize Descriptor parity documentation
+on:
+  push:
+    branches: [fix/descriptor-five-sdk-parity-20261012]
+    paths: [.github/workflows/descriptor-parity-docs-finalize.yml]
+permissions:
+  contents: write
+jobs:
+  finalize:
+    if: github.repository == 'inn-media/truyn' && github.ref == 'refs/heads/fix/descriptor-five-sdk-parity-20261012'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Replace only obsolete remaining-source-parity bullets
+        run: |
+          set -Eeuo pipefail
+          git merge-base --is-ancestor 098f05c37612fbb7517d76390ebee0dc0fe4b719 HEAD
+          python3 - <<'PY'
+          from pathlib import Path
+          replacements={
+          'sdk/README.md':('- consistent acceptance of omitted optional endpoints and rejection of invalid empty endpoints or interface types across all five SDKs, plus broader Descriptor lifecycle/delegated-signing and production serving qualification beyond implemented refresh;','- versioned publication/consumer qualification of the bounded five-SDK interface repair, plus broader Descriptor lifecycle/delegated-signing and production serving qualification beyond implemented refresh;'),
+          'docs/getting-started/DX3_SDK.md':('- shared five-language optional-endpoint/invalid-interface conformance and broader Descriptor lifecycle and production-serving qualification beyond the implemented refresh;','- versioned publication/consumer qualification of the bounded five-SDK interface repair, plus broader Descriptor lifecycle and production-serving qualification beyond the implemented refresh;')}
+          for path,(old,new) in replacements.items():
+              p=Path(path);text=p.read_text();assert text.count(old)==1,path;p.write_text(text.replace(old,new))
+          p=Path('tests/documentation-release-regression.test.js');text=p.read_text()
+          old="assert.ok(canonical.includes('sdk/conformance/run-descriptor-interface-parity.mjs'));"
+          assert text.count(old)==1
+          text=text.replace(old,old+"\n  for (const path of ['sdk/README.md', 'docs/getting-started/DX3_SDK.md']) {\n    assert.ok(read(path).includes('versioned publication/consumer qualification of the bounded five-SDK interface repair'), path);\n    assert.doesNotMatch(read(path), /Cross-language malformed-interface parity is not yet established|identical rejection across all five SDKs still needs executable proof/, path);\n  }")
+          p.write_text(text)
+          PY
+          git rm .github/workflows/descriptor-parity-docs-finalize.yml
+          node --test tests/documentation-release-regression.test.js tests/documentation-descriptor-contract.test.js tests/documentation-descriptor-inventory.test.js
+          node scripts/check-documentation-consistency.mjs
+          git diff --check
+          git add sdk/README.md docs/getting-started/DX3_SDK.md tests/documentation-release-regression.test.js
+          test "$(git diff --cached --name-only | wc -l)" = 4
+          test "$(git ls-remote origin refs/heads/fix/descriptor-five-sdk-parity-20261012 | cut -f1)" = "$GITHUB_SHA"
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git commit -s -m 'docs: distinguish implemented Descriptor parity from published-binary rollout'
+          git push origin HEAD:refs/heads/fix/descriptor-five-sdk-parity-20261012
+          git rev-parse HEAD
