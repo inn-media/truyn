@@ -47,7 +47,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 - Class D-500 — **ACCEPTED / PASS / REPEATABILITY CONFIRMED** by Attempt 22 run `37666768998` and exact-frozen Double-Check run `37676472133`; both used the same tested source/tree, 20 hosts / 500 real processes, zero acknowledged-write loss, strict terminal PASS and complete cleanup.
 - Class D-1000 — **ACCEPTED / PASS** on Attempt 1 workflow run `37687469411`, `run_attempt=2`: 20 hosts / 1,000 real processes, baseline 100%, post-restart 99%, healed 100%, zero acknowledged-write loss, strict terminal PASS and complete cleanup.
 - D-Series execution architecture — **Swarm diagnostics/repair → full B01–B16 exact-SHA admission → live/collision gates → exactly one real scale run**; durable lock tracked in issue #737.
-- Semantic Scale S-Series — **S-10 + S-20 + S-50 + S-100 ACCEPTED / PASS; S-200+ OPEN**. S-50 Attempt 3 run `37782488279` is the canonical 50-node eight-scenario acceptance; historical failed S-50 attempts remain immutable audit evidence.
+- Semantic Scale S-Series — **S-10/20/50/100 accepted; S-200 six-provider A14+A15 composite CLOSED / 8-of-8 PASS in measured scope**. Original seven-provider DeepSeek parity, physical WAN, homogeneous full-run proof and S-500 remain OPEN. [S-200 report](benchmarks/S_SERIES_S200_2026-10-12.md); historical failed attempts retain their original verdicts.
 - A-Series — **public foundation merged; real 1h SOAK Attempt 1 NOT LAUNCHED**; see [Assurance contract](assurance/README.md).
 - D-5000 — **ACCEPTED / CLOSED / DOUBLE-CHECK VERIFIED**: Attempt 12 measured 15/15 stages PASS and passed immutable requalification (historical workflow failure retained); Attempt 13 official GREEN, 20 hosts / 5,000 distinct processes, 100/100 retained writes, 0 loss. [Canonical evidence](benchmarks/CLASS_D_5000_2026-10-11.md).
 - Efficiency E-Series — **ACTIVE QUALIFICATION / NO FINAL E PASS**; qualification/isolation/provider-smoke work does not substitute for final DECOMPOSE/PER-RESULT/KNEE/DEGRADE evidence.
@@ -93,7 +93,7 @@ Do not infer PASS from a workflow, launcher, task branch, diagnostic run or merg
 
 S-Series is the **live semantic-node** benchmark family. It reuses the accepted TRUYN network, provider and semantic retrieval paths and adds no second network architecture. The earlier `SEMANTIC_SCALE_GATE_V3` remains corpus/index-scale evidence and does not by itself prove S-50/100/200/500 with real heterogeneous inference.
 
-S-Series has accepted S-10, S-20, S-50 and S-100 checkpoints. S-200 and S-500 remain open and require their own immutable acceptance evidence.
+S-Series has accepted S-10/20/50/100 at their frozen scopes, plus a **six-provider S-200 A14+A15 composite benchmark (8/8 PASS)** with cryptographically frozen prior stage evidence. The original **seven-provider** gate, production WAN and S-500 remain OPEN and need new immutable qualified evidence.
 
 S-Series and D-Series have separate workflow/concurrency/resource/evidence namespaces. A S run may execute beside a D run only when capacity/quota and resource isolation prevent either benchmark from altering the other's result.
 
@@ -107,7 +107,7 @@ Current qualification/provider-smoke activity must not be described as a final E
 
 E can execute concurrently with D/S/T/H only through the common benchmark isolation contract. Read-only immutable dependencies are R0; shared services may be R1 only with distinct attribution and active interference detection; capacity/cache/index/fault mutation is R2-exclusive.
 
-Cross-repository evidence-qualified status: [global reconciliation 2026-10-10](operations/GLOBAL_STATUS_RECONCILIATION_2026-10-10.md).
+Current S-Series truth is the [2026-10-12 S-200 sanitation report](operations/S_SERIES_SANITATION_2026-10-12.md); [global reconciliation 2026-10-10](operations/GLOBAL_STATUS_RECONCILIATION_2026-10-10.md) is preserved as a dated historical matrix with a supersession note.
 
 ## N-Series scope reminder
 
