@@ -77,6 +77,14 @@ const descriptorEnv = {
   TRUYN_CONFORMANCE_DESCRIPTOR_IDENTITY: fixture.identity
 };
 try {
+  // One RC qualification invocation must cover the bounded P1-P5 runtime
+  // and shared vectors before testing all five independent SDK consumers.
+  await run(process.execPath, ['--test',
+    'tests/protocol-v1-rc.test.js',
+    'tests/protocol-v1-registration-freshness.test.js',
+    'tests/wire-freeze-crosslanguage-fixtures.test.js',
+    'tests/wire-freeze-tcj1-negative.test.js'
+  ]);
   await run(process.execPath, ['--experimental-strip-types', 'sdk/typescript/test/release-conformance.ts', relayUrl], { env: descriptorEnv });
   await run('python', ['sdk/python/tests/release_conformance.py', relayUrl], { env: descriptorEnv });
   await run('python', ['-m', 'unittest', 'discover', '-s', 'sdk/python/tests', '-p', 'test_tcj1_wire_freeze.py']);

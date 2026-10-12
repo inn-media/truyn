@@ -8,6 +8,8 @@ const DEFAULT_MAX_SKEW_MS = 30_000;
 
 const digest = (value) => createHash('sha256').update(canonicalize(value)).digest('hex');
 const nonce = () => randomBytes(24).toString('base64url');
+// Remove a signed member before canonicalization; undefined is not a JSON value.
+const unsignedHello = ({ signature, ...unsigned }) => unsigned;
 
 function assertIdentity(identity) {
   if (!identity?.nodeId || !identity?.publicKeyPem || !identity?.privateKeyPem) throw new Error('peer identity is required');
@@ -60,7 +62,7 @@ export function sessionHandshakeBinding(hello) {
   if (!hello || hello.protocol !== PEER_SESSION_PROTOCOL || hello.kind !== 'HELLO' || !hello.nodeId || !hello.nonce) {
     throw new Error('session hello is required for handshake binding');
   }
-  return `quic:hello:${digest({ ...hello, signature: undefined })}`;
+  return `quic:hello:${digest(unsignedHello(hello))}`;
 }
 
 export function verifySessionHello(hello, { now = Date.now(), maxSkewMs = DEFAULT_MAX_SKEW_MS, replayCache = null, localProtocols = [PROTOCOL], localSemantics = [], localRequiredSemantics = [] } = {}) {
@@ -92,7 +94,7 @@ export function createSessionAccept({ identity, hello, transportBinding, localPr
     kind: 'ACCEPT',
     nodeId: identity.nodeId,
     peerNodeId: hello.nodeId,
-    helloDigest: digest({ ...hello, signature: undefined }),
+    helloDigest: digest(unsignedHello(hello)),
     helloNonce: hello.nonce,
     nonce: value,
     transport: hello.transport,
@@ -112,7 +114,7 @@ export function verifySessionAccept(accept, hello, { now = Date.now(), maxSkewMs
     if (!accept.nodeId || !accept.peerNodeId || !accept.publicKey || !accept.signature) return { ok: false, reason: 'session_accept_missing' };
     if (nodeIdFromPublicKey(accept.publicKey) !== accept.nodeId) return { ok: false, reason: 'session_accept_key_mismatch' };
     if (accept.peerNodeId !== hello.nodeId || accept.helloNonce !== hello.nonce) return { ok: false, reason: 'session_accept_hello_mismatch' };
-    if (accept.helloDigest !== digest({ ...hello, signature: undefined })) return { ok: false, reason: 'session_accept_digest_mismatch' };
+    if (accept.helloDigest !== digest(unsignedHello(hello))) return { ok: false, reason: 'session_accept_digest_mismatch' };
     if (expectedTransportBinding && accept.transportBinding !== expectedTransportBinding) return { ok: false, reason: 'session_accept_transport_binding' };
     if (!validateTimestamp(accept.issuedAt, now, maxSkewMs)) return { ok: false, reason: 'session_accept_stale' };
     const { publicKey, signature, ...body } = accept;
