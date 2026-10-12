@@ -1,0 +1,183 @@
+name: Apply bounded Descriptor review repair
+on:
+  push:
+    branches: [fix/descriptor-five-sdk-parity-20261012]
+    paths: [.github/workflows/descriptor-review-repair-once.yml]
+permissions:
+  contents: write
+concurrency:
+  group: descriptor-review-repair-20261012
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: github.repository == 'inn-media/truyn' && github.ref == 'refs/heads/fix/descriptor-five-sdk-parity-20261012'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Reconcile exact source and retain accepted main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD^)" = 4212c74e7ac78f9a93587ff534a76fecf2bd12a1
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = f79549a9a2914faafe6ac612a5913e3f44fb227f
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git merge --no-ff --no-edit -m $'Merge accepted main into bounded Descriptor review candidate\n\nSigned-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>' f79549a9a2914faafe6ac612a5913e3f44fb227f
+      - name: Apply exact SDK, fixture and report repairs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import ast,json,subprocess
+          changed=[]
+          def put(path,content):
+              Path(path).write_text(content)
+              if path not in changed: changed.append(path)
+          def replace(path,old,new):
+              text=Path(path).read_text()
+              assert text.count(old)==1, (path,old,text.count(old))
+              put(path,text.replace(old,new))
+          replace('sdk/dotnet/Models.cs','using System.Text.RegularExpressions;','using System.Text.RegularExpressions;\nusing System.Text.Json.Serialization;')
+          replace('sdk/dotnet/Models.cs','public sealed record AgentInterface(string Type, string Url);','''/// <summary>Url is the optional wire endpoint; keep its existing CLR name for source compatibility.</summary>
+          public sealed record AgentInterface(
+              string Type,
+              [property: JsonPropertyName("endpoint")]
+              [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Url = null);''')
+          replace('sdk/dotnet/AgentDescriptors.cs','accepted.Contains(String(item, "type") ?? "")','accepted.Contains(item.GetProperty("type").GetString()!)')
+          replace('sdk/java/src/main/java/org/truyn/sdk/AgentDescriptors.java','supported.contains(text(candidate.get("type")))','supported.contains((String) candidate.get("type"))')
+          replace('sdk/java/src/main/java/org/truyn/sdk/AgentDescriptors.java','new TruynModels.Interface(text(item.get("type")), text(item.get("endpoint")))','new TruynModels.Interface((String) item.get("type"), (String) item.get("endpoint"))')
+          fixture='sdk/conformance/v1/agent-descriptor-interface-fixtures.json'
+          data=json.loads(Path(fixture).read_text()); assert len(data['cases'])==18
+          data['cases'].append({'id':'type-whitespace-reference-profile','interfaces':[{'type':' '}],'ok':True})
+          put(fixture,json.dumps(data,indent=2)+'\n')
+          replace('sdk/conformance/run-descriptor-interface-parity.mjs',"import { createIdentity, signValue } from '../../core/identity/index.js';","import { createIdentity, signValue } from '../../core/identity/index.js';\nimport { writeDescriptorParityReport } from './descriptor-report-output.mjs';")
+          replace('sdk/conformance/run-descriptor-interface-parity.mjs','JSON.stringify({ baseUrl, publicKeyPem: identity.publicKeyPem,','JSON.stringify({ baseUrl, publicKeyPem: identity.publicKeyPem, supportedInterfaces: [\'https\', \'websocket\', \'truyn-quic\', \'mcp\', \' \'],')
+          replace('sdk/conformance/run-descriptor-interface-parity.mjs',"writeFileSync(process.env.TRUYN_DESCRIPTOR_PARITY_REPORT, JSON.stringify(report, null, 2) + '\\n');","writeDescriptorParityReport(root, process.env.TRUYN_DESCRIPTOR_PARITY_REPORT, report);")
+          put('sdk/conformance/descriptor-report-output.mjs',r'''import { realpathSync, writeFileSync } from 'node:fs';
+          import { resolve, relative, isAbsolute, dirname, basename, join } from 'node:path';
+
+          function contained(root, path) {
+            const rel = relative(root, path);
+            return rel === '' || (!isAbsolute(rel) && rel !== '..' && !/^\.\.[\\/]/.test(rel));
+          }
+
+          /** Report output is evidence, never a repository/source write. No overwrites. */
+          export function writeDescriptorParityReport(repositoryRoot, destination, report) {
+            if (typeof destination !== 'string' || destination.length === 0) throw new Error('Descriptor report path required');
+            const lexicalRoot = resolve(repositoryRoot), realRoot = realpathSync(lexicalRoot);
+            const lexicalPath = resolve(destination);
+            const actualPath = join(realpathSync(dirname(lexicalPath)), basename(lexicalPath));
+            if (contained(lexicalRoot, lexicalPath) || contained(realRoot, actualPath)) {
+              throw new Error('Descriptor report must be outside the repository');
+            }
+            // Exclusive creation refuses existing files, symlinks and hard-link aliases,
+            // so an external path cannot overwrite tracked source through indirection.
+            writeFileSync(actualPath, JSON.stringify(report, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+            return actualPath;
+          }
+          ''')
+          put('tests/agent-descriptor-report-output.test.js',r'''import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, linkSync, existsSync, rmSync } from 'node:fs';
+          import { tmpdir } from 'node:os';
+          import { join } from 'node:path';
+          import { writeDescriptorParityReport } from '../sdk/conformance/descriptor-report-output.mjs';
+
+          test('Descriptor report cannot mutate the checkout or an existing external alias', () => {
+            const work = mkdtempSync(join(tmpdir(), 'descriptor-report-'));
+            const root = join(work, 'repo'), outside = join(work, 'reports');
+            mkdirSync(root); mkdirSync(outside);
+            const source = join(root, 'model.cs'), content = 'original source\n';
+            writeFileSync(source, content);
+            try {
+              for (const target of [source, join(root, 'new.go'), join(outside, '..', 'repo', 'new.java')]) {
+                assert.throws(() => writeDescriptorParityReport(root, target, {}), /outside the repository/);
+              }
+              symlinkSync(root, join(outside, 'repo-link'), 'dir');
+              assert.throws(() => writeDescriptorParityReport(root, join(outside, 'repo-link', 'new.ts'), {}), /outside the repository/);
+              symlinkSync(source, join(outside, 'source-link'), 'file');
+              linkSync(source, join(outside, 'source-hardlink'));
+              for (const file of ['source-link', 'source-hardlink']) {
+                assert.throws(() => writeDescriptorParityReport(root, join(outside, file), {}), { code: 'EEXIST' });
+              }
+              symlinkSync(root, join(work, 'checkout-alias'), 'dir');
+              assert.throws(() => writeDescriptorParityReport(join(work, 'checkout-alias'), source, {}), /outside the repository/);
+              const report = { passed: true, sourceSha: 'test' }, target = join(outside, 'report.json');
+              assert.equal(writeDescriptorParityReport(root, target, report), target);
+              assert.deepEqual(JSON.parse(readFileSync(target, 'utf8')), report);
+              assert.throws(() => writeDescriptorParityReport(root, target, {}), { code: 'EEXIST' });
+              assert.equal(readFileSync(source, 'utf8'), content);
+              assert.equal(existsSync(join(root, 'new.go')), false);
+              assert.equal(existsSync(join(root, 'new.ts')), false);
+            } finally { rmSync(work, { recursive: true, force: true }); }
+          });
+          ''')
+          replace('sdk/typescript/test/descriptor-interface-conformance.ts','{ publicKeyPem: suite.publicKeyPem }','{ publicKeyPem: suite.publicKeyPem, supportedInterfaces: suite.supportedInterfaces }')
+          replace('sdk/python/tests/descriptor_interface_conformance.py',"public_key_pem=suite['publicKeyPem'])","public_key_pem=suite['publicKeyPem'], supported_interfaces=suite['supportedInterfaces'])")
+          ast.parse(Path('sdk/python/tests/descriptor_interface_conformance.py').read_text())
+          replace('sdk/go/descriptor_interface_test.go','BaseURL      string `json:"baseUrl"`','BaseURL      string `json:"baseUrl"`\n\t\tSupportedInterfaces []string `json:"supportedInterfaces"`')
+          replace('sdk/go/descriptor_interface_test.go','suite.PublicKeyPEM, nil)','suite.PublicKeyPEM, suite.SupportedInterfaces)')
+          replace('sdk/java/src/test/java/org/truyn/sdk/DescriptorInterfaceConformance.java','(String)suite.get("publicKeyPem"));','(String)suite.get("publicKeyPem"), List.of("TRUYN/1"), ((List<?>)suite.get("supportedInterfaces")).stream().map(String.class::cast).toList());\n        var selected = value.selection().interfaceValue();\n        var model = value.descriptor().interfaces().get(0);\n        if (!java.util.Objects.equals(model.type(), selected.get("type")) || !java.util.Objects.equals(model.url(), selected.get("endpoint")))\n          throw new IllegalStateException("typed Descriptor interface projection lost a validated field");')
+          replace('sdk/dotnet/conformance/DescriptorInterfaceConformance.cs','using System.Text.Json;','using System.Text.Json;\nusing System.Reflection;')
+          replace('sdk/dotnet/conformance/DescriptorInterfaceConformance.cs','var rows = new List<Dictionary<string, object?>>();','''var rows = new List<Dictionary<string, object?>>();
+                  var nullable = new NullabilityInfoContext().Create(typeof(AgentInterface).GetProperty(nameof(AgentInterface.Url))!);
+                  if (nullable.ReadState != NullabilityState.Nullable) throw new InvalidOperationException("optional endpoint must be nullable");''')
+          replace('sdk/dotnet/conformance/DescriptorInterfaceConformance.cs','suite.GetProperty("publicKeyPem").GetString()!,httpClient:http);','''suite.GetProperty("publicKeyPem").GetString()!,supportedInterfaces:suite.GetProperty("supportedInterfaces").EnumerateArray().Select(x => x.GetString()!).ToArray(),httpClient:http);
+                          var selected = value.Selection.Interface;
+                          var model = value.Descriptor.Interfaces[0];
+                          var expectedEndpoint = selected.TryGetProperty("endpoint", out var endpoint) ? endpoint.GetString() : null;
+                          if (model.Type != selected.GetProperty("type").GetString() || model.Url != expectedEndpoint)
+                              throw new InvalidOperationException("typed Descriptor interface projection lost a validated field");
+                          var roundtrip = JsonSerializer.SerializeToElement(model, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                          if (roundtrip.TryGetProperty("url", out _) || (expectedEndpoint is null
+                              ? roundtrip.TryGetProperty("endpoint", out _)
+                              : !roundtrip.TryGetProperty("endpoint", out var decoded) || decoded.GetString() != expectedEndpoint))
+                              throw new InvalidOperationException("optional endpoint wire mapping must preserve omission and values");''')
+          replace('tests/agent-descriptor-interface-parity.test.js','assert.equal(cases.length,18);','assert.equal(cases.length,19);')
+          replace('tests/agent-descriptor-interface-parity.test.js','assert.equal(new Set(cases.map(c=>c.id)).size,18);','assert.equal(new Set(cases.map(c=>c.id)).size,19);')
+          replace('tests/agent-descriptor-interface-parity.test.js',"'type-empty':false};","'type-empty':false,'type-whitespace-reference-profile':true};")
+          docs=['SECURITY.md','sdk/README.md','sdk/conformance/README.md','docs/architecture/IMPLEMENTATION_STATUS.md','docs/architecture/SDK_DEVELOPER_EXPERIENCE.md','docs/compatibility/SDK_COMPATIBILITY.md','docs/getting-started/SDK_QUICKSTART.md','docs/getting-started/DX3_SDK.md','docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md']
+          for path in docs:
+              text=Path(path).read_text()
+              text=text.replace('18-case','19-case').replace('**18 cases per SDK / 90 observed','**19 cases per SDK / 95 observed')
+              if text!=Path(path).read_text(): put(path,text)
+          path='docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md'
+          replace(path,'`TRUYN_DESCRIPTOR_PARITY_REPORT` optionally stores the same JSON as an artifact.','`TRUYN_DESCRIPTOR_PARITY_REPORT` optionally stores the same JSON in a new file outside the checkout. Repository-contained destinations, symlink-parent escapes and existing files (including hard-link aliases) are rejected; the writer cannot mutate source after the cleanliness snapshot.')
+          put(path,Path(path).read_text().rstrip()+'\n\n## Review corrections and typed projections\n\nThe nineteenth shared case explicitly selects a whitespace-only extension type when the caller advertises that exact supported type. This preserves the existing nonempty-string/no-trim profile; Java and .NET selection and Java DTO mapping now use the validated raw values. The actual Java/.NET drivers additionally verify their returned typed interface fields. In .NET the existing CLR `Url` property is nullable and explicitly mapped to optional wire `endpoint`; supplied values round-trip, omission stays omitted, and existing CLR constructor/property names remain available. These checks do not redefine valid endpoint URLs or broaden release admission.\n')
+          protected=['runtime/agent-descriptor.js','tests/agent-descriptor-refresh.test.js','sdk/conformance/v1/agent-descriptor-runtime-fixtures.json','spec/protocol/v1/agent-descriptor.md','sdk/release/public-coordinates.json','sdk/release/version.json']
+          assert not set(changed)&set(protected)
+          subprocess.run(['git','add','--',*changed],check=True)
+          actual=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          assert set(actual)==set(changed),actual
+          Path('/tmp/descriptor-repair-paths.json').write_text(json.dumps(changed))
+          print(json.dumps({'changed':changed,'protectedPathsUnchanged':protected},indent=2))
+          PY
+      - name: Validate bounded repairs without inference
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gofmt -w sdk/go/descriptor_interface_test.go
+          git add sdk/go/descriptor_interface_test.go
+          node --check sdk/conformance/run-descriptor-interface-parity.mjs
+          node --check sdk/conformance/descriptor-report-output.mjs
+          node --test tests/agent-descriptor-report-output.test.js tests/agent-descriptor-interface-parity.test.js tests/agent-descriptor-source-identity.test.js tests/documentation-release-regression.test.js tests/documentation-descriptor-contract.test.js tests/documentation-descriptor-inventory.test.js tests/documentation-evidence-paths.test.js
+          node scripts/check-documentation-consistency.mjs
+          git diff --check
+          git diff --cached --check
+      - name: Commit only source repair to the existing isolated PR
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git ls-remote origin refs/heads/fix/descriptor-five-sdk-parity-20261012 | cut -f1)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = f79549a9a2914faafe6ac612a5913e3f44fb227f
+          git commit -s -m 'fix(sdk): preserve optional DTO endpoints and exact raw interface selection'
+          git push origin HEAD:refs/heads/fix/descriptor-five-sdk-parity-20261012
+          git rev-parse HEAD
