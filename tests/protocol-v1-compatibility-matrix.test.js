@@ -58,35 +58,3 @@ test('P11 matrix explicitly links authenticated boundary negatives and forbids s
   assert.ok(matrix.limitations.some((item) => item.includes('synthetic')));
   assert.ok(matrix.limitations.some((item) => item.includes('flat semantic lists')));
 });
-).test(row.expected.protocol), row.id);
-      assert.deepEqual(row.expected.semantics, [...row.expected.semantics].sort(), row.id);
-    }
-  }
-  assert.deepEqual([...dispositions].sort(), ['compatible', 'fallback', 'reject']);
-});
-
-test('P11 existing shared negative vectors are preserved exactly by the frozen matrix', () => {
-  assert.equal(negative.schemaVersion, 1);
-  assert.equal(negative.cases.length, 2);
-  for (const fixture of negative.cases) {
-    const row = matrix.cases.find((item) => item.id === fixture.id);
-    assert.ok(row, fixture.id);
-    assert.equal(row.disposition, 'reject');
-    assert.deepEqual(row.input, fixture.input, fixture.id);
-    assert.deepEqual(row.expected, fixture.expected, fixture.id);
-  }
-});
-
-test('P11 matrix explicitly links authenticated boundary negatives and forbids stable release promotion', () => {
-  assert.equal(matrix.stableProtocolDeclared, false);
-  const evidenceIds = new Set(matrix.boundaryEvidence.map((item) => item.id));
-  for (const expectedId of ['relay-registration-no-overlap-and-required', 'signed-peer-hello-and-accept', 'relay-client-registration', 'shared-negative-fixtures']) {
-    assert.ok(evidenceIds.has(expectedId), expectedId);
-  }
-  for (const item of matrix.boundaryEvidence) {
-    assert.ok(existsSync(new URL('../' + item.path, import.meta.url)), item.path);
-    assert.ok(item.contract.length > 20, item.id);
-  }
-  assert.ok(matrix.limitations.some((item) => item.includes('synthetic')));
-  assert.ok(matrix.limitations.some((item) => item.includes('flat semantic lists')));
-});
