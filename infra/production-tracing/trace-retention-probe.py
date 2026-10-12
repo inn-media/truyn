@@ -132,6 +132,7 @@ def override_observed(tenant):
     source = str(payload.get('using_default_or_wildcard_runtime_overrides') or '')
     # Tempo 3.0.2 uses Prometheus model.Duration.MarshalYAML; 720h -> 30d,
     # 2160h -> 90d. Compare exact effective duration in the runtime response.
+    # Live proof must read the effective tenant override, not the input YAML literal.
     expected = TENANTS[tenant]['runtime_retention']
     # Tempo 3.0.2 omits default-false compaction_disabled (omitempty).
     # An absent field is equivalent to false, but explicit true or any
