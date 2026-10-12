@@ -8,6 +8,8 @@ const plan=JSON.parse(readFileSync(new URL('../operations/p13-production-cutover
 test('P13 inventory enumerates ten durable domains and ten live cutover gates',()=>{
   const report=evaluateP13ProductionReadiness(plan);
   assert.equal(report.status,'BLOCKED');
+  assert.equal(report.lane,'PRODUCTION_OPERATIONS');
+  assert.equal(report.formatCompatibilityCertifiedByThisReport,false);
   assert.equal(report.cutoverAuthorized,false);
   assert.equal(report.productionMutationsPerformed,false);
   assert.equal(report.domainCount,10);
@@ -32,4 +34,8 @@ test('missing a domain or evidence becomes hard failure rather than silent omiss
   const r=evaluateP13ProductionReadiness(plan,{source:{authoritative:true,digest:'broken',revision:0}});
   assert.ok(r.blockers.includes('real_source_snapshot_digest_revision_unverified'));
   assert.ok(r.blockers.includes('missing_live_phase:isolated-pitr-restore'));
+});
+
+test('P13-OPS cannot claim FORMAT ownership even if its other proof flags are set',()=>{
+  assert.throws(()=>evaluateP13ProductionReadiness({...plan,lane:'FORMAT'}),/p13_invalid_cutover_contract/);
 });

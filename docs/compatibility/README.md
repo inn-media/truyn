@@ -9,7 +9,7 @@
 
 Compatibility is tracked separately for protocol/node behavior, adapters/external protocols and SDK packages.
 
-**Canonical migration/deprecation contract:** [`spec/protocol/v1/migration.md`](../../spec/protocol/v1/migration.md). Stable deprecated features have a uniform minimum **180 calendar days** of dated public notice; stricter major/generation constraints still apply. The P13 documentation policy is defined, but executable stable-v1 migration qualification remains outstanding in [`TRUYN1_RC_GAP_LEDGER.md`](TRUYN1_RC_GAP_LEDGER.md).
+**Canonical migration/deprecation contract:** [`spec/protocol/v1/migration.md`](../../spec/protocol/v1/migration.md). Stable deprecated features have a uniform minimum **180 calendar days** of dated public notice; stricter major/generation constraints still apply. P13 is now tracked as two independent gates: [P13-FORMAT](P13_FORMAT_COMPATIBILITY.md) owns public stable format/SDK compatibility (currently pre-stable), while [P13-OPS](../operations/P13_PRODUCTION_CUTOVER_READINESS.md) owns production migration and cutover (currently BLOCKED). Neither lane inherits PASS from the other; see the [RC gate ledger](TRUYN1_RC_GAP_LEDGER.md).
 
 **P11 version negotiation:** [frozen RC decision matrix](../../spec/compatibility/P11_VERSION_NEGOTIATION_MATRIX.md) + [executable JSON vectors](../../spec/compatibility/p11-negotiation-matrix.json). This is a release-candidate matrix revision, not a Stable TRUYN/1 claim.
 

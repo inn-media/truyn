@@ -126,7 +126,7 @@ See `security.md` for protocol security assumptions and `provider-policy.md` for
 
 ## Migration and deprecation
 
-The bounded pre-v1 → Open 1.0 migration, stable breaking-change policy and minimum **180 calendar days** public deprecation notice are specified in [`migration.md`](migration.md). This is a release-candidate contract, not a stable `TRUYN/1` declaration. Stable required semantics cannot be silently removed within the same generation, regardless of elapsed notice time.
+The bounded pre-v1 → Open 1.0 migration, stable breaking-change policy and minimum **180 calendar days** public deprecation notice are specified in [`migration.md`](migration.md). This is a release-candidate contract, not a stable `TRUYN/1` declaration. Stable required semantics cannot be silently removed within the same generation, regardless of elapsed notice time. P13-FORMAT compatibility is qualified independently from P13-OPS production migration; see [the format gate](../../../docs/compatibility/P13_FORMAT_COMPATIBILITY.md) and [production readiness](../../../docs/operations/P13_PRODUCTION_CUTOVER_READINESS.md).
 
 ## Normative language
 

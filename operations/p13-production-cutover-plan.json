@@ -138,5 +138,7 @@
       "id": "independent-reconciliation",
       "status": "NOT_PROVEN"
     }
-  ]
+  ],
+  "lane": "PRODUCTION_OPERATIONS",
+  "formatCompatibilityGate": "INDEPENDENT_REQUIRED_FOR_ACTUAL_TARGET"
 }
