@@ -60,7 +60,7 @@ exporters:
     endpoint: "${backendWriteUrl}"
     retry_on_failure:
       enabled: true
-    sending_queue:
+    remote_write_queue:
       enabled: true
 
 service:
