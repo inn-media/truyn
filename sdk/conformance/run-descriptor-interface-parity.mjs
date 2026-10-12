@@ -11,6 +11,17 @@ import { createIdentity, signValue } from '../../core/identity/index.js';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const languages = Object.freeze(['typescript', 'python', 'go', 'java', 'dotnet']);
 export const fixturePath = 'sdk/conformance/v1/agent-descriptor-interface-fixtures.json';
+export function inspectSourceState(cwd = root) {
+  // Toolchains compile untracked source too. Ignore only actual .gitignore
+  // outputs, not all untracked paths, and observe both sides of execution.
+  return {
+    sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim(),
+    clean: execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd, encoding: 'utf8' }).trim() === ''
+  };
+}
+export function sourceStateQualified(before, after) {
+  return before.clean === true && after.clean === true && before.sourceSha === after.sourceSha;
+}
 export function loadCases() { return JSON.parse(readFileSync(resolve(root, fixturePath), 'utf8')).cases; }
 export function signedCase(item, identity, now = Date.now()) {
   const unsigned = { schema: 'truyn.agent-descriptor/v1', descriptorVersion: '1', identity: identity.nodeId,
@@ -52,6 +63,7 @@ function run(command, args, env, cwd = root) {
   });
 }
 export async function runDescriptorInterfaceParity() {
+  const sourceBefore = inspectSourceState();
   const cases = loadCases(), identity = createIdentity(), directory = mkdtempSync(join(tmpdir(), 'truyn-descriptor-parity-'));
   const documents = new Map(cases.map(c => [c.id, signedCase(c, identity)]));
   const requests = {}, reports = {}, errors = [];
@@ -87,10 +99,12 @@ export async function runDescriptorInterfaceParity() {
     await Promise.all(jobs);
     let passed = errors.length === 0;
     try { validateResults(cases, reports, requests, identity.nodeId); } catch (error) { passed = false; errors.push(error.message); }
+    const sourceAfter = inspectSourceState();
+    const workingTreeClean = sourceStateQualified(sourceBefore, sourceAfter);
     const digest = value => createHash('sha256').update(value).digest('hex');
     const report = { schema: 'truyn.descriptor-interface-parity/v1', scope: 'bounded-source-sdk-interface-parity',
-      sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
-      workingTreeClean: execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim() === '',
+      sourceSha: sourceBefore.sourceSha, sourceShaAfter: sourceAfter.sourceSha,
+      sourceBefore, sourceAfter, workingTreeClean, exactSourceQualified: passed && workingTreeClean,
       fixtureSha256: digest(readFileSync(resolve(root, fixturePath))),
       caseIds: cases.map(c => c.id), signedDocumentSha256: Object.fromEntries([...documents].map(([id, doc]) => [id, digest(JSON.stringify(doc))])),
       requests, results: reports, errors, passed, stableAdmission: false, publishedPackageUpgrade: false, paidProviderCalls: 0 };
