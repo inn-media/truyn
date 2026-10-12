@@ -7,6 +7,7 @@ import { createRuntimeProviderAccessPolicy } from './security-config.js';
 import { createRuntimeProviderBillingPolicy } from './billing-config.js';
 import { createRuntimeG5ProviderEffectLedger } from './g5-provider-effect-ledger.js';
 import { wrapRuntimeG5ReceiptAdapter } from './g5-durable-response-receipt.js';
+import { createRuntimeG5RecoveredResultFinalizer } from './g5-recovered-result-finality.js';
 import { createRuntimeG5RelayLifecycleLedger, verifyRuntimeG5RelayLedger } from './g5-relay-lifecycle-ledger.js';
 import { createRuntimeRelaySecurityConfig } from './relay-security-config.js';
 import { createOriginGuard, createRuntimeOriginGuardConfig } from './origin-guard.js';
@@ -205,6 +206,7 @@ async function runProvider() {
     accessPolicy,
     billingPolicy,
     effectLedger,
+    recoveredResultFinalizer: createRuntimeG5RecoveredResultFinalizer({ env: process.env, ledger: effectLedger }),
     fastPath,
     socketPath,
     longPollMs,
