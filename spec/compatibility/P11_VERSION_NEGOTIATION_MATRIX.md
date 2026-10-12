@@ -3,7 +3,7 @@
 **Matrix revision:** `truyn-p11-required-semantic-negotiation/rc1` (frozen decision table)  
 **Status:** release-candidate decision contract, **not** a declaration that `TRUYN/1` or `TRUYN/2` is stable.  
 **Machine-readable source:** [p11-negotiation-matrix.json](p11-negotiation-matrix.json)  
-**Normative rule:** [`spec/protocol/v1/core.md`](../protocol/v1/core.md) is referenced below through the canonical path `spec/protocol/v1/core.md`; the actual protocol source is [`core.md`](../protocol/v1/core.md).  
+**Normative rule:** [`spec/protocol/v1/core.md`](../protocol/v1/core.md), section “Compatibility and negotiation”.  
 **Reference implementation:** [`core/protocol/negotiation.js`](../../core/protocol/negotiation.js).
 
 This table binds normative semantics, executable decisions and negative test evidence. **Stable** here means the matrix has a fixed revision and a regression gate; it does **not** establish stable network interoperability, stable SDK packages or Mainnet admission.
