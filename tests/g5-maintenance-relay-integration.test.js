@@ -92,7 +92,12 @@ test('G5 maintenance: concurrent owner registration blocks REVOKE until recovery
   let release,entered;
   const blocked=new Promise(resolve=>{release=resolve;});
   const started=new Promise(resolve=>{entered=resolve;});
-  const ledger={...base,async restoreOffers(args){entered();await blocked;return base.restoreOffers(args);}};
+  let restoreCalls=0;
+  const ledger={...base,async restoreOffers(args){
+    restoreCalls++;
+    if(restoreCalls===1) return base.restoreOffers(args);
+    entered();await blocked;return base.restoreOffers(args);
+  }};
   const instance=createRelay({localDevelopmentMode:true,lifecycleLedger:ledger,lifecycleMaintenance:true});
   t.after(()=>instance.close());
   const url=await instance.listen({port:0});
