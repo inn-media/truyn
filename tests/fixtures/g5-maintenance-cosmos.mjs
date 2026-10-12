@@ -43,7 +43,7 @@ export function maintenanceStore() {
     if(loseReply){loseReply=false;throw Error('committed-but-reply-lost');}
     return reply(200,row,row._etag);
   }
-  return {docs,ledger:()=>createCosmosLifecycleLedger({endpoint:'https://maintenance.documents.azure.com',database:'fixture',container:'ledger',getAccessToken:async()=> 'test-token',fetchImpl}),
+  return {docs,ledger:(options={})=>createCosmosLifecycleLedger({endpoint:'https://maintenance.documents.azure.com',database:'fixture',container:'ledger',getAccessToken:async()=> 'test-token',fetchImpl,...options}),
     get writes(){return writes;},set online(v){online=v;},set queryPages(v){queryPages=v;},
     set beforePut(v){beforePut=v;},set loseReply(v){loseReply=v;}};
 }
