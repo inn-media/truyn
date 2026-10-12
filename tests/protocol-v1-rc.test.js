@@ -81,7 +81,7 @@ test('joint P1–P5 RC: malformed signed timestamps fail before acceptance', () 
 });
 
 test('joint P1–P5 RC: TCJ1 rejects non-JSON and invalid Unicode without normalizing signed data', () => {
-  for (const value of [{ n: NaN }, { n: Infinity }, { n: -Infinity }, { extra: undefined }, { s: '\\uD800' }]) {
+  for (const value of [{ n: NaN }, { n: Infinity }, { n: -Infinity }, { extra: undefined }, { s: String.fromCharCode(0xd800) }]) {
     assert.throws(() => canonicalize(value), /TCJ1/);
   }
   const original = validNeedEnvelope();
