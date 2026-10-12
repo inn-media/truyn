@@ -13,6 +13,8 @@ Compatibility is tracked separately for protocol/node behavior, adapters/externa
 
 **P11 version negotiation:** [frozen RC decision matrix](../../spec/compatibility/P11_VERSION_NEGOTIATION_MATRIX.md) + [executable JSON vectors](../../spec/compatibility/p11-negotiation-matrix.json). This is a release-candidate matrix revision, not a Stable TRUYN/1 claim.
 
+**Joint P1–P5 bounded RC:** [final exact-SHA certification and five-SDK evidence](TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md). CORE, Envelope, TCJ1/Ed25519 signatures, Ed25519 SPKI Node IDs and signed-registration replay/freshness were jointly qualified on merged `main`. This is **not** a new freeze or full Stable `TRUYN/1` declaration.
+
 ## Current boundaries
 
 - `TRUYN/1` remains draft; stable mainnet/protocol compatibility is not claimed.
