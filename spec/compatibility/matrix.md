@@ -2,6 +2,10 @@
 
 This file records current compatibility expectations without collapsing software, protocol, storage and SDK release versions into one number.
 
+## P11 frozen protocol negotiation decisions
+
+The release-candidate **version/required-semantic compatibility decision table** is frozen as [P11 matrix](P11_VERSION_NEGOTIATION_MATRIX.md), with the [machine-readable RC1 vectors](p11-negotiation-matrix.json) exercised by `tests/protocol-v1-compatibility-matrix.test.js`. It covers shared generation selection, safe protocol fallback, optional overlap and fail-closed mismatch/required semantics. This is a **stable matrix revision, not a Stable TRUYN/1 declaration**; real TRUYN/2 interoperability and cross-generation per-semantic evidence are not claimed.
+
 ## Current repository line
 
 | Software | TRUYN/1 | TRUYN/2 | Storage schema | Notes |
