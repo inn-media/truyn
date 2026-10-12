@@ -95,7 +95,13 @@ test('historical Developer Release ledger is preserved byte-exact, not rewritten
 test('current Descriptor documentation does not infer missing negative parity from historical PR state', () => {
   const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
   const canonical = read('docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md');
-  assert.match(canonical, /DESCRIPTOR_INTERFACE_NEGATIVE_PARITY=UNVERIFIED/);
+  assert.match(canonical, /DESCRIPTOR_INTERFACE_PARITY=IMPLEMENTED/);
+  assert.ok(canonical.includes('sdk/conformance/v1/agent-descriptor-interface-fixtures.json'));
+  assert.ok(canonical.includes('sdk/conformance/run-descriptor-interface-parity.mjs'));
+  for (const path of ['sdk/README.md', 'docs/getting-started/DX3_SDK.md']) {
+    assert.ok(read(path).includes('versioned publication/consumer qualification of the bounded five-SDK interface repair'), path);
+    assert.doesNotMatch(read(path), /Cross-language malformed-interface parity is not yet established|identical rejection across all five SDKs still needs executable proof/, path);
+  }
   const fixture = json('sdk/conformance/v1/agent-descriptor-runtime-fixtures.json');
   for (const item of fixture.descriptorRuntimeCases) assert.ok(canonical.includes('`' + item.id + '`'), `undocumented current fixture case ${item.id}`);
   for (const path of ['SECURITY.md', 'sdk/README.md', 'sdk/conformance/README.md', 'docs/architecture/IMPLEMENTATION_STATUS.md', 'docs/architecture/SDK_DEVELOPER_EXPERIENCE.md', 'docs/compatibility/SDK_COMPATIBILITY.md', 'docs/getting-started/SDK_QUICKSTART.md', 'docs/getting-started/DX3_SDK.md']) {

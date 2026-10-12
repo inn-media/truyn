@@ -652,7 +652,8 @@ func (c *Client) AgentDescriptor(context.Context, string) (*AgentDescriptor, err
 
 type Identity struct { NodeID string `json:"nodeId"`; PublicKey string `json:"publicKey"` }
 type AgentDescriptor struct { Schema string `json:"schema"`; DescriptorVersion string `json:"descriptorVersion"`; Identity string `json:"identity"`; Protocols []string `json:"protocols"`; Interfaces []Interface `json:"interfaces"`; Capabilities []Capability `json:"capabilities"`; IssuedAt string `json:"issuedAt"`; ExpiresAt string `json:"expiresAt"`; Signature string `json:"signature,omitempty"`; Signatures []Signature `json:"signatures,omitempty"` }
-type Interface struct { Type string `json:"type"`; URL string `json:"url"` }
+// URL retains the Go API name; the optional signed wire field is endpoint.
+type Interface struct { Type string `json:"type"`; URL string `json:"endpoint,omitempty"` }
 type Signature struct { Alg string `json:"alg"`; Value string `json:"value"`; CreatedAt string `json:"createdAt,omitempty"` }
 type Capability struct { ID string `json:"id,omitempty"`; Name string `json:"name,omitempty"` }
 type SignedEnvelope[T any] struct { Protocol string `json:"protocol"`; Type string `json:"type"`; ID string `json:"id"`; From string `json:"from"`; To string `json:"to,omitempty"`; CreatedAt string `json:"createdAt"`; PublicKey string `json:"publicKey"`; Payload T `json:"payload"`; Signature string `json:"signature"` }

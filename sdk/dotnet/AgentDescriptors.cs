@@ -74,8 +74,14 @@ public static class AgentDescriptors
         if (!raw.TryGetProperty("protocols", out var protocols) || protocols.ValueKind != JsonValueKind.Array || protocols.GetArrayLength() == 0) throw Invalid("Agent Descriptor protocols are required");
         if (!raw.TryGetProperty("interfaces", out var interfaces) || interfaces.ValueKind != JsonValueKind.Array || interfaces.GetArrayLength() == 0) throw Invalid("Agent Descriptor interfaces are required");
         foreach (var item in interfaces.EnumerateArray())
-            if (item.ValueKind != JsonValueKind.Object || String(item, "type") is null || String(item, "endpoint") is null)
-                throw Invalid("Agent Descriptor interfaces require non-empty type and endpoint");
+        {
+            // Endpoint is optional; supplied values and interface types must
+            // be nonempty strings, with the reference profile's no-trim rule.
+            if (item.ValueKind != JsonValueKind.Object
+                || !item.TryGetProperty("type", out var kind) || kind.ValueKind != JsonValueKind.String || kind.GetString()!.Length == 0
+                || (item.TryGetProperty("endpoint", out var endpoint) && (endpoint.ValueKind != JsonValueKind.String || endpoint.GetString()!.Length == 0)))
+                throw Invalid("Agent Descriptor interfaces are invalid");
+        }
         if (!raw.TryGetProperty("capabilities", out var capabilities) || capabilities.ValueKind != JsonValueKind.Array) throw Invalid("Agent Descriptor capabilities are invalid");
         if (!DateTimeOffset.TryParse(String(raw, "issuedAt"), out var issuedAt) || !DateTimeOffset.TryParse(String(raw, "expiresAt"), out var expiresAt) || expiresAt <= issuedAt) throw Invalid("invalid Agent Descriptor expiry window");
         if (expiresAt <= DateTimeOffset.UtcNow) throw Invalid("Agent Descriptor has expired");
@@ -110,7 +116,7 @@ public static class AgentDescriptors
     {
         var accepted = supported.ToHashSet(StringComparer.Ordinal);
         foreach (var item in raw.GetProperty("interfaces").EnumerateArray())
-            if (item.ValueKind == JsonValueKind.Object && accepted.Contains(String(item, "type") ?? "")) return item.Clone();
+            if (item.ValueKind == JsonValueKind.Object && accepted.Contains(item.GetProperty("type").GetString()!)) return item.Clone();
         throw new TruynException(TruynErrorCode.VersionMismatch, "no mutually supported Agent Descriptor interface", false);
     }
 

@@ -81,7 +81,7 @@ The lower-level shared source/fixture contract remains available through:
 node sdk/conformance/run-conformance.mjs --json
 ```
 
-The five-language E2E proves executable happy-path network behavior. It does **not** by itself prove every negative property in every language: for example, it does not attempt a non-owner cancellation and its valid Descriptor fixture does not detect every missing/malformed endpoint case.
+The five-language E2E proves executable network behavior and now invokes the separate 19-case signed Descriptor interface matrix through every actual SDK. It does **not** prove every security/lifecycle property: non-owner cancellation, delegated signing and full production lifecycle require their own evidence.
 
 ## Direct NEED cancellation
 
@@ -120,7 +120,7 @@ GET /.well-known/truyn-agent.json
 
 Serving is disabled by default. The runtime signs the Descriptor with the current TRUYN identity key, applies bounded validity and advertises only the explicitly allowed public subset of actual capabilities.
 
-All five required SDK clients retrieve the valid signed Descriptor, validate schema/version/expiry, verify identity-key binding/signature and select a mutually supported protocol/interface. Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established. Missing or empty interface types are rejected by the reference parser; identical rejection across all five SDKs still needs executable proof. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior.
+All five required SDK clients retrieve the valid signed Descriptor, validate schema/version/expiry, verify identity-key binding/signature and select a mutually supported protocol/interface. Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. The bounded 19-case interface-parity suite is implemented through the actual HTTP fetch, validation, signature and selection path of all five source SDKs; exact-source acceptance is established by the corresponding successful five-language CI report. Each source SDK rejects missing or empty interface types and supplied empty/non-string endpoints, including invalid entries that negotiation would otherwise skip. The separate shared interface fixture and required five-language runner exercise this bounded contract. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior.
 
 This is implemented bounded source/conformance, not a fresh certification of every historical SDK binary or complete production lifecycle. Delegated signing, operational liveness and final exact-SHA Open 1.0 acceptance remain separate. Descriptor metadata never grants provider authorization.
 
@@ -162,7 +162,7 @@ The repository progressed through DX-0/DX-1/DX-2/DX-3 into the merged Developer 
 
 Current remaining Developer Release/lifecycle gates include:
 
-- consistent acceptance of omitted optional endpoints and rejection of invalid empty endpoints or interface types across all five SDKs, plus broader Descriptor lifecycle/delegated-signing and production serving qualification beyond implemented refresh;
+- versioned publication/consumer qualification of the bounded five-SDK interface repair, plus broader Descriptor lifecycle/delegated-signing and production serving qualification beyond implemented refresh;
 - archive-member byte-content leakage scanning;
 - live public developer-site activation/liveness evidence.
 
@@ -172,4 +172,4 @@ Optional later contracts include standardized cross-provider tokenizer semantics
 
 All TRUYN SDKs in this directory are licensed under the **Apache License 2.0 (`Apache-2.0`)**. SDK distributions must include [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 
-Current Descriptor evidence and remaining interface-negative parity: [source-reconciled status](../docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
+Current Descriptor contract and bounded five-SDK interface evidence: [source-reconciled status](../docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
