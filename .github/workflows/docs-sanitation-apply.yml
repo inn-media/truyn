@@ -1,0 +1,68 @@
+name: Apply reviewed documentation sanitation
+on:
+  push:
+    branches: ['docs/release-ledger-sanitation-20261012']
+    paths: ['.github/workflows/docs-sanitation-apply.yml']
+permissions:
+  contents: write
+concurrency:
+  group: docs-sanitation-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  apply:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify and apply exact reviewed UTF-8 edits
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = docs/release-ledger-sanitation-20261012
+          git merge-base --is-ancestor dc4f2747195bb78e878efcb523d19ea4b7f01bdd HEAD
+          blobs=(66551ae751f4f66d0235b205743292eb6b2975a3 5a5f0604bfff866769a03d6c975fefe8bb11c037 0094e30845ffb2596431355a026abfa3d6dce218 ed34a51125ed383e50710dee033dd39f39115fee)
+          for i in 0 1 2 3; do gh api "repos/inn-media/truyn/git/blobs/${blobs[$i]}" --jq .content > "/tmp/doc-part-$i.base64"; done
+          python3 - <<'PY'
+          import base64,hashlib,json,lzma,pathlib,subprocess
+          payload=lzma.decompress(b''.join(base64.b64decode(pathlib.Path(f'/tmp/doc-part-{i}.base64').read_text()) for i in range(4)))
+          assert hashlib.sha256(payload).hexdigest()=='f97af7e66aa2ffc9a86c5bc85000f05b973548eb333ba87629829b76800afebf'
+          edits=json.loads(payload)
+          assert len(edits)==34 and len({e['path'] for e in edits})==34
+          special={'sdk/release/public-coordinates.json','sdk/release/evidence/public-coordinates-developer-release-2026-09-23.json','docs/compatibility/protocol-rc-documentation-inventory.json','scripts/check-documentation-consistency.mjs','tests/documentation-release-regression.test.js','tests/maven-nuget-publication-workflow.test.js'}
+          roots={'README.md','ROADMAP.md','SECURITY.md','STRUCTURE.md'}
+          outputs=[]
+          for e in edits:
+              p=pathlib.Path(e['path'])
+              assert not p.is_absolute() and '..' not in p.parts
+              assert not e['path'].startswith(('docs/benchmarks/','docs/releases/'))
+              assert (p.suffix=='.md' and (e['path'] in roots or e['path'].startswith(('docs/','sdk/','spec/compatibility/','examples/')))) or e['path'] in special
+              original=p.read_bytes() if p.exists() else None
+              assert (hashlib.sha256(original).hexdigest() if original is not None else None)==e['before'],e['path']
+              lines=original.decode().splitlines(keepends=True) if original is not None else []
+              for start,end,text in reversed(e['ops']): lines[start:end]=[text]
+              final=''.join(lines).encode() if e['after'] is not None else None
+              assert (hashlib.sha256(final).hexdigest() if final is not None else None)==e['after'],e['path']
+              outputs.append((p,final))
+          for p,data in outputs:
+              assert data is not None,'This sanitation does not delete source or evidence'
+              p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
+          subprocess.run(['git','add','--']+[e['path'] for e in edits],check=True)
+          assert hashlib.sha256(pathlib.Path('sdk/release/evidence/public-coordinates-developer-release-2026-09-23.json').read_bytes()).hexdigest()=='0f88bbf993163defe53e5c07eb57f17d64decfda8e8db2f7d006a1c750a3b0f0'
+          PY
+          git diff --cached --check
+          node --test tests/documentation-release-regression.test.js tests/documentation-status.test.js tests/maven-nuget-publication-workflow.test.js tests/agent-descriptor-refresh.test.js tests/protocol-v1-rc.test.js
+          node sdk/conformance/run-conformance.mjs --json
+      - name: Commit only reviewed documentation and guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git diff --cached --quiet && exit 1
+          git commit -s -m 'docs: reconcile current five-SDK releases and protocol RC inventory'
+          git push origin "HEAD:$GITHUB_REF_NAME"
+          echo "QUALIFY_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
