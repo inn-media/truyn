@@ -6,5 +6,6 @@ COPY core/protocol/index.js ./core/protocol/index.js
 COPY network/relay/cosmos-lifecycle-ledger.js ./network/relay/cosmos-lifecycle-ledger.js
 COPY adapters/providers/common/azure-auth.js ./adapters/providers/common/azure-auth.js
 COPY tests/fixtures/g5-azure-isolated-twohost-worker.mjs ./tests/fixtures/g5-azure-isolated-twohost-worker.mjs
+COPY tests/fixtures/g5-readonly-cosmos-link.mjs ./tests/fixtures/g5-readonly-cosmos-link.mjs
 USER node
 CMD ["node", "tests/fixtures/g5-azure-isolated-twohost-worker.mjs"]

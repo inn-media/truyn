@@ -25,13 +25,15 @@ test('G5 source guard preserves signatures, exact source and no blind effect rea
   assert.ok(source.includes("assert.equal(env.G5_TEST_DATABASE, 'g5-live-' + runId)"));
   assert.ok(source.includes("assert.equal(env.G5_TEST_CONTAINER, 'ledger')"));
   assert.ok(source.includes("assert.equal(signal,'SIGKILL')"));
-  assert.ok(source.includes("target.origin!==endpoint.origin"));
+  assert.ok(source.includes('createG5ReadOnlyCosmosLink'));
+  assert.doesNotMatch(source,/new URL\(req\.url|https\.request\(target/);
   assert.doesNotMatch(source,/process\.kill\(|execSync\(|spawn\(['"](?:az|bash|sh|sudo|iptables)/);
 });
 
 test('G5 fixture image uses explicit base and unprivileged worker; no launcher is installed',()=>{
   assert.match(docker,/ARG BASE_IMAGE\nFROM \$\{BASE_IMAGE\}/);
   assert.match(docker,/USER node/);
+  assert.match(docker,/COPY tests\/fixtures\/g5-readonly-cosmos-link.mjs/);
   assert.doesNotMatch(docker,/npm install|apt-get|apk add|curl/);
   assert.equal(existsSync('.github/workflows/g5-isolated-twohost.yml'),false);
 });

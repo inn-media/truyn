@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import http from 'node:http';
-import https from 'node:https';
+import { createG5ReadOnlyCosmosLink } from './g5-readonly-cosmos-link.mjs';
 import { fork } from 'node:child_process';
 import { once } from 'node:events';
 import { createHash } from 'node:crypto';
@@ -81,23 +80,17 @@ async function hostA(){
   }finally{clearTimeout(timer);if(child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');}
 }
 async function socketCutCheck(){
-  let server,port;const sockets=new Set();
-  async function open(){
-    server=http.createServer((req,res)=>{
-      const target=new URL(req.url,endpoint.origin);
-      if(target.origin!==endpoint.origin){res.writeHead(400).end();return;}
-      const upstream=https.request(target,{method:req.method,headers:{...req.headers,host:endpoint.host},timeout:8000},incoming=>{res.writeHead(incoming.statusCode,incoming.headers);incoming.pipe(res);});
-      upstream.on('timeout',()=>upstream.destroy());upstream.on('error',()=>res.destroy());
-      req.on('aborted',()=>upstream.destroy());res.on('close',()=>upstream.destroy());req.pipe(upstream);
-    });
-    server.on('connection',socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket));});
-    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));port=server.address().port;
-  }
-  async function cut(){const closed=once(server,'close');server.close();for(const s of sockets)s.destroy();await closed;}
-  await open();
-  const remote=createCosmosLifecycleLedger({...options,fetchImpl:(uri,opts)=>{const u=new URL(uri);assert.equal(u.origin,endpoint.origin);return fetch('http://127.0.0.1:'+port+u.pathname+u.search,opts);}});
-  try{assert.equal((await remote.getNeed(id)).status,'matched');await cut();await assert.rejects(()=>remote.getNeed(id),e=>e.publicCode==='lifecycle_ledger_unavailable');await open();assert.equal((await remote.getNeed(id)).status,'matched');}
-  finally{if(server.listening)await cut();}
+  const link=createG5ReadOnlyCosmosLink({endpoint:endpoint.origin,
+    database:options.database,container:options.container,logicalId:id});
+  const remote=createCosmosLifecycleLedger({...options,fetchImpl:link.fetchImpl});
+  await link.open();
+  try{
+    assert.equal((await remote.getNeed(id)).status,'matched');
+    await link.cut();
+    await assert.rejects(()=>remote.getNeed(id),e=>e.publicCode==='lifecycle_ledger_unavailable');
+    await link.open();
+    assert.equal((await remote.getNeed(id)).status,'matched');
+  }finally{await link.close();}
 }
 async function hostB(){
   await waitMarker('A-killed');const admitted=await ledger.getNeed(id);
