@@ -10,12 +10,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createIdentity, signValue } from '../../core/identity/index.js';
 import { writeDescriptorParityReport } from './descriptor-report-output.mjs';
 import { inspectSourceState as inspectRepositorySourceState, sourceStateQualified } from './descriptor-source-state.mjs';
+import { validateDescriptorInterfaceFixture, validateDescriptorInterfaceCases } from './descriptor-interface-policy.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const languages = Object.freeze(['typescript', 'python', 'go', 'java', 'dotnet']);
 export const fixturePath = 'sdk/conformance/v1/agent-descriptor-interface-fixtures.json';
 export function inspectSourceState(cwd = root) { return inspectRepositorySourceState(cwd); }
 export { sourceStateQualified };
-export function loadCases() { return JSON.parse(readFileSync(resolve(root, fixturePath), 'utf8')).cases; }
+export function loadCases() { return validateDescriptorInterfaceFixture(JSON.parse(readFileSync(resolve(root, fixturePath), 'utf8'))); }
 export function signedCase(item, identity, now = Date.now()) {
   const unsigned = { schema: 'truyn.agent-descriptor/v1', descriptorVersion: '1', identity: identity.nodeId,
     protocols: ['TRUYN/1'], interfaces: structuredClone(item.interfaces), capabilities: [],
@@ -25,6 +26,7 @@ export function signedCase(item, identity, now = Date.now()) {
   return { ...unsigned, signature };
 }
 export function validateResults(cases, reports, requests, identity) {
+  validateDescriptorInterfaceCases(cases);
   assert.deepEqual(Object.keys(reports).sort(), [...languages].sort(), 'all five independent SDK results required');
   const ids = cases.map(c => c.id);
   assert.equal(new Set(ids).size, ids.length, 'duplicate fixture IDs');
