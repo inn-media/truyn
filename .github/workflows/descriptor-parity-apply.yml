@@ -1,0 +1,427 @@
+name: Apply bounded Descriptor parity repair
+on:
+  push:
+    branches: [fix/descriptor-five-sdk-parity-20261012]
+    paths: [.github/workflows/descriptor-parity-apply.yml]
+permissions:
+  contents: write
+concurrency:
+  group: descriptor-five-sdk-parity-20261012
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: github.repository == 'inn-media/truyn' && github.ref == 'refs/heads/fix/descriptor-five-sdk-parity-20261012'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Apply narrowly scoped source and conformance changes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git merge-base --is-ancestor 8cd23898314fd3d96a4796b485935f812a59f2a1 HEAD
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          changed=[]
+          def write(path, content):
+              p=Path(path); p.parent.mkdir(parents=True,exist_ok=True)
+              p.write_text(content.rstrip()+'\n')
+              if path not in changed: changed.append(path)
+          def replace(path, old, new):
+              text=Path(path).read_text()
+              assert text.count(old)==1, (path,text.count(old))
+              write(path,text.replace(old,new))
+          replace('sdk/go/descriptor.go', '\tif _, ok := raw["capabilities"].([]any); !ok', '''
+          	// An omitted endpoint is valid. Validate every advertised interface,
+          	// including entries that negotiation would otherwise skip.
+          	for _, value := range interfaces {
+          		item, ok := value.(map[string]any)
+          		if !ok { return NewError(InvalidArgument, "Agent Descriptor interfaces are invalid", false) }
+          		kind, ok := item["type"].(string)
+          		if !ok || len(kind) == 0 { return NewError(InvalidArgument, "Agent Descriptor interfaces are invalid", false) }
+          		if endpoint, present := item["endpoint"]; present {
+          			text, ok := endpoint.(string)
+          			if !ok || len(text) == 0 { return NewError(InvalidArgument, "Agent Descriptor interfaces are invalid", false) }
+          		}
+          	}
+          	if _, ok := raw["capabilities"].([]any); !ok'''.lstrip('\n'))
+          replace('sdk/java/src/main/java/org/truyn/sdk/AgentDescriptors.java', '    Instant issued = instant(raw.get("issuedAt"));', '''    // Match the existing nonempty-string reference profile without trimming
+              // or requiring an intentionally undisclosed endpoint.
+              for (Object value : interfaces) {
+                if (!(value instanceof Map<?,?> item)
+                    || !(item.get("type") instanceof String kind) || kind.isEmpty()
+                    || (item.containsKey("endpoint") && (!(item.get("endpoint") instanceof String endpoint) || endpoint.isEmpty())))
+                  throw new TruynException(TruynException.Code.INVALID_ARGUMENT, "Agent Descriptor interfaces are invalid", false);
+              }
+              Instant issued = instant(raw.get("issuedAt"));''')
+          replace('sdk/dotnet/AgentDescriptors.cs', '''        foreach (var item in interfaces.EnumerateArray())
+                      if (item.ValueKind != JsonValueKind.Object || String(item, "type") is null || String(item, "endpoint") is null)
+                          throw Invalid("Agent Descriptor interfaces require non-empty type and endpoint");'''.replace('                      if','            if').replace('                          throw','                throw'), '''        foreach (var item in interfaces.EnumerateArray())
+                  {
+                      // Endpoint is optional; supplied values and interface types must
+                      // be nonempty strings, with the reference profile's no-trim rule.
+                      if (item.ValueKind != JsonValueKind.Object
+                          || !item.TryGetProperty("type", out var kind) || kind.ValueKind != JsonValueKind.String || kind.GetString()!.Length == 0
+                          || (item.TryGetProperty("endpoint", out var endpoint) && (endpoint.ValueKind != JsonValueKind.String || endpoint.GetString()!.Length == 0)))
+                          throw Invalid("Agent Descriptor interfaces are invalid");
+                  }'''.replace('                  {','        {').replace('                  }','        }'))
+          valid={'type':'https','endpoint':'https://example.test/truyn'}
+          cases=[]
+          def case(id,interfaces,ok,tamper=False):
+              item={'id':id,'interfaces':interfaces,'ok':ok}
+              if tamper: item['tamperSignature']=True
+              cases.append(item)
+          case('endpoint-omitted',[{'type':'https'}],True)
+          case('endpoint-present',[valid],True)
+          case('endpoint-empty',[{'type':'https','endpoint':''}],False)
+          case('type-omitted',[{'endpoint':valid['endpoint']}],False)
+          case('type-empty',[{'type':'','endpoint':valid['endpoint']}],False)
+          case('endpoint-null',[{'type':'https','endpoint':None}],False)
+          case('endpoint-number',[{'type':'https','endpoint':7}],False)
+          case('type-null',[{'type':None}],False)
+          case('type-number',[{'type':7}],False)
+          case('entry-null',[None],False)
+          case('entry-string',['https'],False)
+          case('valid-then-empty-endpoint',[{'type':'https'},{'type':'mcp','endpoint':''}],False)
+          case('valid-then-missing-type',[{'type':'https'},{}],False)
+          case('empty-endpoint-then-valid',[{'type':'mcp','endpoint':''},{'type':'https'}],False)
+          case('optional-endpoint-with-metadata',[{'type':'https','version':'1','contentTypes':['application/json']}],True)
+          case('endpoint-whitespace-reference-profile',[{'type':'https','endpoint':' '}],True)
+          case('omitted-endpoint-tampered-signature',[{'type':'https'}],False,True)
+          case('present-endpoint-tampered-signature',[valid],False,True)
+          write('sdk/conformance/v1/agent-descriptor-interface-fixtures.json',json.dumps({'schema':'truyn.descriptor-interface-fixtures/v1','scope':'optional endpoint and required nonempty interface type; not full Descriptor lifecycle or release admission','cases':cases},indent=2))
+          write('sdk/conformance/run-descriptor-interface-parity.mjs',r'''#!/usr/bin/env node
+          import assert from 'node:assert/strict';
+          import http from 'node:http';
+          import { spawn, execFileSync } from 'node:child_process';
+          import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          import { tmpdir } from 'node:os';
+          import { dirname, resolve, join, delimiter } from 'node:path';
+          import { fileURLToPath, pathToFileURL } from 'node:url';
+          import { createIdentity, signValue } from '../../core/identity/index.js';
+          const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+          export const languages = Object.freeze(['typescript', 'python', 'go', 'java', 'dotnet']);
+          export const fixturePath = 'sdk/conformance/v1/agent-descriptor-interface-fixtures.json';
+          export function loadCases() { return JSON.parse(readFileSync(resolve(root, fixturePath), 'utf8')).cases; }
+          export function signedCase(item, identity, now = Date.now()) {
+            const unsigned = { schema: 'truyn.agent-descriptor/v1', descriptorVersion: '1', identity: identity.nodeId,
+              protocols: ['TRUYN/1'], interfaces: structuredClone(item.interfaces), capabilities: [],
+              issuedAt: new Date(now - 1000).toISOString(), expiresAt: new Date(now + 1800000).toISOString() };
+            let signature = signValue(unsigned, identity.privateKeyPem);
+            if (item.tamperSignature) { const bytes = Buffer.from(signature, 'base64'); bytes[0] ^= 1; signature = bytes.toString('base64'); }
+            return { ...unsigned, signature };
+          }
+          export function validateResults(cases, reports, requests, identity) {
+            assert.deepEqual(Object.keys(reports).sort(), [...languages].sort(), 'all five independent SDK results required');
+            const ids = cases.map(c => c.id);
+            assert.equal(new Set(ids).size, ids.length, 'duplicate fixture IDs');
+            for (const language of languages) {
+              const rows = reports[language];
+              assert.ok(Array.isArray(rows), `${language}: missing native result array`);
+              assert.deepEqual(rows.map(r => r.id).sort(), [...ids].sort(), `${language}: exact case set`);
+              for (const item of cases) {
+                const row = rows.find(r => r.id === item.id);
+                assert.equal(requests[`${language}/${item.id}`], 1, `${language}/${item.id}: one real HTTP fetch required`);
+                assert.equal(row.ok, item.ok, `${language}/${item.id}: ${row.message ?? 'unexpected acceptance'}`);
+                if (item.ok) {
+                  assert.equal(row.identity, identity, `${language}/${item.id}: identity`);
+                  assert.equal(row.protocol, 'TRUYN/1'); assert.equal(row.keyBinding, 'identity');
+                  assert.deepEqual(row.interface, item.interfaces[0], `${language}/${item.id}: selection must preserve optional fields`);
+                } else {
+                  assert.match(row.message ?? '', item.tamperSignature ? /signature/i : /interfaces/i,
+                    `${language}/${item.id}: must fail for intended validation, not network, expiry or unrelated error`);
+                }
+              }
+            }
+          }
+          function run(command, args, env, cwd = root) {
+            return new Promise((resolveRun, reject) => {
+              const child = spawn(command, args, { cwd, env: { ...process.env, ...env }, stdio: 'inherit', shell: false });
+              const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error(`${command}: conformance timeout`)); }, 180000);
+              child.once('error', error => { clearTimeout(timer); reject(error); });
+              child.once('exit', (code, signal) => { clearTimeout(timer); code === 0 ? resolveRun() : reject(new Error(`${command}: ${signal ?? code}`)); });
+            });
+          }
+          export async function runDescriptorInterfaceParity() {
+            const cases = loadCases(), identity = createIdentity(), directory = mkdtempSync(join(tmpdir(), 'truyn-descriptor-parity-'));
+            const documents = new Map(cases.map(c => [c.id, signedCase(c, identity)]));
+            const requests = {}, reports = {}, errors = [];
+            const server = http.createServer((req, res) => {
+              const parts = (req.url ?? '').split('/');
+              const language = parts[1], id = parts[2];
+              if (req.method !== 'GET' || parts.length !== 3 || !languages.includes(language) || !documents.has(id)) { res.writeHead(404).end(); return; }
+              const key = `${language}/${id}`; requests[key] = (requests[key] ?? 0) + 1;
+              const body = JSON.stringify(documents.get(id));
+              res.writeHead(200, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }); res.end(body);
+            });
+            try {
+              await new Promise((ok, fail) => { server.once('error', fail); server.listen(0, '127.0.0.1', ok); });
+              const baseUrl = `http://127.0.0.1:${server.address().port}`;
+              const jobs = languages.map(async language => {
+                const input = join(directory, `${language}-input.json`), output = join(directory, `${language}-result.json`);
+                writeFileSync(input, JSON.stringify({ baseUrl, publicKeyPem: identity.publicKeyPem,
+                  cases: cases.map(c => ({ id: c.id, url: `${baseUrl}/${language}/${c.id}` })) }));
+                const env = { TRUYN_DESCRIPTOR_CASES_FILE: input, TRUYN_DESCRIPTOR_RESULT_FILE: output,
+                  PYTHONPATH: resolve(root, 'sdk/python/src') + (process.env.PYTHONPATH ? delimiter + process.env.PYTHONPATH : '') };
+                try {
+                  if (language === 'typescript') await run(process.execPath, ['--experimental-strip-types', 'sdk/typescript/test/descriptor-interface-conformance.ts'], env);
+                  if (language === 'python') await run('python', ['sdk/python/tests/descriptor_interface_conformance.py'], env);
+                  if (language === 'go') await run('go', ['test', './...', '-run', '^TestDescriptorInterfaceParity$', '-count=1', '-v'], env, resolve(root, 'sdk/go'));
+                  if (language === 'java') {
+                    await run('mvn', ['-q', '-f', 'sdk/java/pom.xml', 'test-compile'], env);
+                    await run('java', ['-cp', `sdk/java/target/classes${delimiter}sdk/java/target/test-classes`, 'org.truyn.sdk.DescriptorInterfaceConformance'], env);
+                  }
+                  if (language === 'dotnet') await run('dotnet', ['run', '--configuration', 'Release', '--project', 'sdk/dotnet/conformance/Truyn.Sdk.Conformance.csproj', '--', '--descriptor-interfaces'], env);
+                  reports[language] = JSON.parse(readFileSync(output, 'utf8'));
+                } catch (error) { errors.push(`${language}: ${error.message}`); }
+              });
+              await Promise.all(jobs);
+              let passed = errors.length === 0;
+              try { validateResults(cases, reports, requests, identity.nodeId); } catch (error) { passed = false; errors.push(error.message); }
+              const digest = value => createHash('sha256').update(value).digest('hex');
+              const report = { schema: 'truyn.descriptor-interface-parity/v1', scope: 'bounded-source-sdk-interface-parity',
+                sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
+                workingTreeClean: execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim() === '',
+                fixtureSha256: digest(readFileSync(resolve(root, fixturePath))),
+                caseIds: cases.map(c => c.id), signedDocumentSha256: Object.fromEntries([...documents].map(([id, doc]) => [id, digest(JSON.stringify(doc))])),
+                requests, results: reports, errors, passed, stableAdmission: false, publishedPackageUpgrade: false, paidProviderCalls: 0 };
+              if (process.env.TRUYN_DESCRIPTOR_PARITY_REPORT) writeFileSync(process.env.TRUYN_DESCRIPTOR_PARITY_REPORT, JSON.stringify(report, null, 2) + '\n');
+              console.log('DESCRIPTOR_INTERFACE_PARITY_REPORT=' + JSON.stringify(report));
+              if (!passed) throw new Error('five-SDK Descriptor interface parity failed');
+              console.log(`PASS Agent Descriptor interface parity: ${languages.length} SDKs x ${cases.length} shared cases`);
+              return report;
+            } finally {
+              server.closeAllConnections(); await new Promise(ok => server.close(ok));
+              rmSync(directory, { recursive: true, force: true });
+            }
+          }
+          if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+            await runDescriptorInterfaceParity();
+          }
+          ''')
+          write('sdk/typescript/test/descriptor-interface-conformance.ts',r'''import { readFileSync, writeFileSync } from 'node:fs';
+          import { TruynClient } from '../src/client.ts';
+          const input = process.env.TRUYN_DESCRIPTOR_CASES_FILE;
+          const output = process.env.TRUYN_DESCRIPTOR_RESULT_FILE;
+          if (!input || !output) throw new Error('Descriptor parity input/output required');
+          const suite = JSON.parse(readFileSync(input, 'utf8'));
+          const client = new TruynClient({ relayUrl: suite.baseUrl });
+          const rows: Record<string, unknown>[] = [];
+          for (const item of suite.cases) {
+            try {
+              const value = await client.fetchAgentDescriptor(item.url, { publicKeyPem: suite.publicKeyPem });
+              rows.push({ id: item.id, ok: true, identity: value.descriptor.identity, protocol: value.selection.protocol,
+                interface: value.selection.interface, keyBinding: value.signer.keyBinding });
+            } catch (error) { rows.push({ id: item.id, ok: false, message: error instanceof Error ? error.message : String(error) }); }
+          }
+          writeFileSync(output, JSON.stringify(rows));
+          ''')
+          write('sdk/python/tests/descriptor_interface_conformance.py',r'''import json
+          import os
+          from pathlib import Path
+          from truyn.client import TruynClient
+          suite = json.loads(Path(os.environ['TRUYN_DESCRIPTOR_CASES_FILE']).read_text())
+          client = TruynClient(suite['baseUrl'])
+          rows = []
+          for item in suite['cases']:
+              try:
+                  value = client.fetch_agent_descriptor(item['url'], public_key_pem=suite['publicKeyPem'])
+                  rows.append(dict(id=item['id'], ok=True, identity=value['descriptor']['identity'],
+                      protocol=value['selection']['protocol'], interface=value['selection']['interface'], keyBinding=value['signer']['keyBinding']))
+              except Exception as error:
+                  rows.append(dict(id=item['id'], ok=False, message=str(error)))
+          Path(os.environ['TRUYN_DESCRIPTOR_RESULT_FILE']).write_text(json.dumps(rows))
+          ''')
+          write('sdk/go/descriptor_interface_test.go',r'''package truyn
+          import (
+            "context"
+            "encoding/json"
+            "os"
+            "testing"
+            "time"
+          )
+          func TestDescriptorInterfaceParity(t *testing.T) {
+            input := os.Getenv("TRUYN_DESCRIPTOR_CASES_FILE")
+            if input == "" { t.Skip("requires shared Descriptor HTTP fixture") }
+            var suite struct {
+              BaseURL string `json:"baseUrl"`
+              PublicKeyPEM string `json:"publicKeyPem"`
+              Cases []struct { ID string `json:"id"`; URL string `json:"url"` } `json:"cases"`
+            }
+            data, err := os.ReadFile(input); if err != nil { t.Fatal(err) }
+            if err := json.Unmarshal(data, &suite); err != nil { t.Fatal(err) }
+            client, err := NewClient(ClientConfig{BaseURL:suite.BaseURL}); if err != nil { t.Fatal(err) }
+            rows := []map[string]any{}
+            for _, item := range suite.Cases {
+              ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+              value, err := client.FetchAgentDescriptor(ctx, item.URL, suite.PublicKeyPEM, nil)
+              cancel()
+              if err != nil { rows=append(rows,map[string]any{"id":item.ID,"ok":false,"message":err.Error()})
+              } else { rows=append(rows,map[string]any{"id":item.ID,"ok":true,"identity":value.Descriptor.Identity,"protocol":value.Selection.Protocol,"interface":value.Selection.Interface,"keyBinding":value.Signer["keyBinding"]}) }
+            }
+            encoded, err := json.Marshal(rows); if err != nil { t.Fatal(err) }
+            if err := os.WriteFile(os.Getenv("TRUYN_DESCRIPTOR_RESULT_FILE"),encoded,0600); err != nil { t.Fatal(err) }
+          }
+          ''')
+          write('sdk/java/src/test/java/org/truyn/sdk/DescriptorInterfaceConformance.java',r'''package org.truyn.sdk;
+          import java.net.URI;
+          import java.nio.file.Files;
+          import java.nio.file.Path;
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.Map;
+          public final class DescriptorInterfaceConformance {
+            public static void main(String[] args) throws Exception {
+              var suite = Json.object(Json.parse(Files.readString(Path.of(System.getenv("TRUYN_DESCRIPTOR_CASES_FILE")))));
+              var rows = new ArrayList<Map<String,Object>>();
+              for (Object entry : (List<?>)suite.get("cases")) {
+                var item = Json.object(entry);
+                try {
+                  var value = AgentDescriptors.fetch(URI.create((String)item.get("url")), (String)suite.get("publicKeyPem"));
+                  rows.add(Map.of("id",item.get("id"),"ok",true,"identity",value.descriptor().identity(),"protocol",value.selection().protocol(),"interface",value.selection().interfaceValue(),"keyBinding",value.signer().keyBinding()));
+                } catch (TruynException error) { rows.add(Map.of("id",item.get("id"),"ok",false,"message",error.getMessage())); }
+              }
+              Files.writeString(Path.of(System.getenv("TRUYN_DESCRIPTOR_RESULT_FILE")),Json.stringify(rows));
+            }
+          }
+          ''')
+          write('sdk/dotnet/conformance/DescriptorInterfaceConformance.cs',r'''using System.Text.Json;
+          using Truyn.Sdk;
+          internal static class DescriptorInterfaceConformance
+          {
+              public static async Task RunAsync()
+              {
+                  using var input = JsonDocument.Parse(File.ReadAllText(Environment.GetEnvironmentVariable("TRUYN_DESCRIPTOR_CASES_FILE") ?? throw new InvalidOperationException("Descriptor fixture required")));
+                  var suite = input.RootElement;
+                  var rows = new List<Dictionary<string, object?>>();
+                  using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                  foreach (var item in suite.GetProperty("cases").EnumerateArray())
+                  {
+                      try
+                      {
+                          var value = await AgentDescriptors.FetchAsync(new Uri(item.GetProperty("url").GetString()!),suite.GetProperty("publicKeyPem").GetString()!,httpClient:http);
+                          rows.Add(new() { ["id"]=item.GetProperty("id").GetString(),["ok"]=true,["identity"]=value.Descriptor.Identity,["protocol"]=value.Selection.Protocol,["interface"]=value.Selection.Interface,["keyBinding"]=value.Signer.KeyBinding });
+                      }
+                      catch (TruynException error) { rows.Add(new() { ["id"]=item.GetProperty("id").GetString(),["ok"]=false,["message"]=error.Message }); }
+                  }
+                  File.WriteAllText(Environment.GetEnvironmentVariable("TRUYN_DESCRIPTOR_RESULT_FILE") ?? throw new InvalidOperationException("Descriptor result path required"),JsonSerializer.Serialize(rows));
+              }
+          }
+          ''')
+          replace('sdk/dotnet/conformance/Program.cs','if (args.Length != 1) throw new ArgumentException("relay URL is required");','if (args.Length == 1 && args[0] == "--descriptor-interfaces") { await DescriptorInterfaceConformance.RunAsync(); return; }\n\nif (args.Length != 1) throw new ArgumentException("relay URL is required");')
+          replace('sdk/conformance/run-five-language-e2e.mjs',"  process.stdout.write('PASS five-language executable conformance including signed Agent Descriptor lifecycle\\n');", "  await run(process.execPath, ['sdk/conformance/run-descriptor-interface-parity.mjs']);\n  process.stdout.write('PASS five-language executable conformance including signed Agent Descriptor lifecycle\\n');")
+          write('tests/agent-descriptor-interface-parity.test.js',r'''import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { verify } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+          import { createIdentity } from '../core/identity/index.js';
+          import { agentDescriptorSigningPayload, verifyAgentDescriptorSignature } from '../sdk/conformance/reference/agent-descriptor.js';
+          import { loadCases, signedCase, validateResults, languages } from '../sdk/conformance/run-descriptor-interface-parity.mjs';
+          const cases = loadCases();
+          test('shared interface matrix preserves optional endpoint and signs every malformed case correctly', () => {
+            assert.equal(cases.length,18);
+            assert.equal(new Set(cases.map(c=>c.id)).size,18);
+            const required={'endpoint-omitted':true,'endpoint-present':true,'endpoint-empty':false,'type-omitted':false,'type-empty':false};
+            for (const [id,ok] of Object.entries(required)) assert.equal(cases.find(c=>c.id===id)?.ok,ok,id);
+            const identity=createIdentity(), now=Date.now();
+            for (const item of cases) {
+              const descriptor=signedCase(item,identity,now);
+              assert.equal(verify(null,Buffer.from(agentDescriptorSigningPayload(descriptor)),identity.publicKeyPem,Buffer.from(descriptor.signature,'base64')),!item.tamperSignature,item.id+' signature precondition');
+              const result=verifyAgentDescriptorSignature(descriptor,{publicKeyPem:identity.publicKeyPem,now});
+              assert.equal(result.ok,item.ok,item.id);
+              if (!item.ok) assert.equal(result.reason,item.tamperSignature?'invalid_descriptor_signature':'invalid_descriptor_interfaces',item.id);
+            }
+          });
+          test('parity evidence requires exact five SDKs, every observed fetch and every expected outcome', () => {
+            const reports={}, requests={};
+            for(const language of languages) reports[language]=cases.map(item=>{
+              requests[`${language}/${item.id}`]=1;
+              return item.ok?{id:item.id,ok:true,identity:'test',protocol:'TRUYN/1',keyBinding:'identity',interface:structuredClone(item.interfaces[0])}:{id:item.id,ok:false,message:item.tamperSignature?'invalid signature':'invalid interfaces'};
+            });
+            assert.doesNotThrow(()=>validateResults(cases,reports,requests,'test'));
+            for(const language of languages){
+              const missing=structuredClone(reports);delete missing[language];assert.throws(()=>validateResults(cases,missing,requests,'test'));
+              for(let i=0;i<cases.length;i++){
+                const omitted=structuredClone(reports);omitted[language].splice(i,1);assert.throws(()=>validateResults(cases,omitted,requests,'test'));
+                const flipped=structuredClone(reports);flipped[language][i].ok=!flipped[language][i].ok;assert.throws(()=>validateResults(cases,flipped,requests,'test'));
+                const absent={...requests,[`${language}/${cases[i].id}`]:0};assert.throws(()=>validateResults(cases,reports,absent,'test'));
+              }
+            }
+          });
+          test('required five-language release gate invokes actual interface-parity runner', () => {
+            const driver=readFileSync(new URL('../sdk/conformance/run-five-language-e2e.mjs',import.meta.url),'utf8');
+            assert.ok(driver.includes("await run(process.execPath, ['sdk/conformance/run-descriptor-interface-parity.mjs'])"));
+          });
+          ''')
+          Path('/tmp/descriptor-parity-changed.json').write_text(json.dumps(changed))
+          print(json.dumps({'changed':changed,'publishedVersionsChanged':False,'refreshChanged':False},indent=2))
+          PY
+      - name: Install local-test dependencies and remove temporary workflow
+        run: |
+          set -Eeuo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          python -m pip install --disable-pip-version-check -e ./sdk/python
+          git rm .github/workflows/descriptor-parity-apply.yml
+      - name: Exercise shared crypto fixtures, actual five SDKs and existing release conformance
+        env:
+          TRUYN_DESCRIPTOR_PARITY_REPORT: ${{ runner.temp }}/descriptor-interface-parity.json
+        run: |
+          set -Eeuo pipefail
+          node --test tests/agent-descriptor-interface-parity.test.js tests/documentation-descriptor-contract.test.js tests/documentation-descriptor-inventory.test.js tests/documentation-release-regression.test.js tests/agent-descriptor-refresh.test.js
+          node sdk/conformance/run-five-language-e2e.mjs
+          git diff --check
+      - name: Inspect active documentation for source-evidence reconciliation
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          paths=['SECURITY.md','sdk/README.md','sdk/conformance/README.md','docs/architecture/IMPLEMENTATION_STATUS.md','docs/architecture/SDK_DEVELOPER_EXPERIENCE.md','docs/compatibility/SDK_COMPATIBILITY.md','docs/getting-started/SDK_QUICKSTART.md','docs/getting-started/DX3_SDK.md']
+          for path in paths:
+              print('\nDOC_RECONCILE '+path)
+              for i,line in enumerate(Path(path).read_text().splitlines(),1):
+                  if any(x in line.lower() for x in ['parity','negative','omitted endpoint']): print(f'{i}: {line}')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: descriptor-parity-application-${{ github.run_id }}
+          path: ${{ runner.temp }}/descriptor-interface-parity.json
+          if-no-files-found: warn
+      - name: Commit source-only candidate to its isolated branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import json,subprocess
+          paths=json.load(open('/tmp/descriptor-parity-changed.json'))
+          subprocess.run(['git','add','--',*paths],check=True)
+          actual=set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines())
+          assert actual==set(paths+['.github/workflows/descriptor-parity-apply.yml']),actual
+          PY
+          test "$(git ls-remote origin refs/heads/fix/descriptor-five-sdk-parity-20261012 | cut -f1)" = "$GITHUB_SHA"
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git commit -s -m 'fix(sdk): preserve optional Descriptor endpoints and qualify all five implementations'
+          git push origin HEAD:refs/heads/fix/descriptor-five-sdk-parity-20261012
+          git rev-parse HEAD
