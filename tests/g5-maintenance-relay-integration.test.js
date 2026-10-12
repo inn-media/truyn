@@ -31,9 +31,14 @@ test('G5 actual HTTP relays: provider identity restores signed OFFER on peer, se
   const recovered=await requester.recoverDurable();
   const event=recovered.deliveries.find(x=>x.kind==='RESULT'&&x.requestId===id);assert.ok(event);
   await requester.acknowledgeDurable(event.eventId);
-  assert.equal((await post(requester,'/v1/lifecycle/needs/'+id+'/compact')).body.compacted,true);
+  const compacted=await post(requester,'/v1/lifecycle/needs/'+id+'/compact');
+  assert.equal(compacted.body.compacted,false,'terminal RESULT is retained; no ACKed PARTIAL exists to compact');
+  assert.equal(compacted.body.tombstoneRetained,true);
   assert.equal((await post(requester,'/v1/needs',{envelope})).status,409);
-  assert.equal((await store.ledger().getNeed(id)).status,'completed');
+  const durable=await store.ledger().getNeed(id);
+  assert.equal(durable.status,'completed');
+  assert.equal(durable.deliveries.filter(x=>x.kind==='RESULT').length,1);
+  assert.notEqual(durable.deliveries.find(x=>x.kind==='RESULT').event,null);
 });
 
 test('G5 actual HTTP: owner-only restore and compaction authorization never widen discovery',async t=>{
