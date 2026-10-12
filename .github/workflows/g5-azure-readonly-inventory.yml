@@ -1,0 +1,96 @@
+name: G5 Azure Distributed Authority Inventory (read-only)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/g5-azure-readonly-inventory.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: g5-azure-readonly-inventory
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      AZURE_CLIENT_VALUE: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_VALUE: ${{ vars[format('AZURE_{0}', 'TENANT_ID')] || secrets[format('AZURE_{0}', 'TENANT_ID')] }}
+      AZURE_SUBSCRIPTION_VALUE: ${{ vars[format('AZURE_{0}', 'SUBSCRIPTION_ID')] || secrets[format('AZURE_{0}', 'SUBSCRIPTION_ID')] }}
+      RESOURCE_GROUP: ${{ vars.TRUYN_AZURE_RESOURCE_GROUP || 'truyn' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Prove source, scope and no-mutation contract before Azure authentication
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_REPOSITORY" = "inn-media/truyn"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          node --test tests/g5-azure-inventory-workflow.test.js
+          test -n "$AZURE_CLIENT_VALUE" && test -n "$AZURE_TENANT_VALUE" && test -n "$AZURE_SUBSCRIPTION_VALUE"
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_VALUE }}
+          tenant-id: ${{ env.AZURE_TENANT_VALUE }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_VALUE }}
+      - name: Read resource metadata without provisioning or invoking providers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          printf '::add-mask::%s\n' "$RESOURCE_GROUP"
+          az group show -n "$RESOURCE_GROUP" --only-show-errors -o none
+          accounts="$(az cosmosdb list -g "$RESOURCE_GROUP" --only-show-errors -o json)"
+          apps="$(az containerapp list -g "$RESOURCE_GROUP" --only-show-errors -o json)"
+          account_count="$(jq 'length' <<<"$accounts")"
+          test "$account_count" -le 10 || { echo G5_ACCOUNT_SCAN_CAPACITY; exit 61; }
+          container_count=0
+          partition_count=0
+          while IFS= read -r account; do
+            [[ -n "$account" ]] || continue
+            printf '::add-mask::%s\n' "$account"
+            databases="$(az cosmosdb sql database list -g "$RESOURCE_GROUP" -a "$account" --only-show-errors -o json)"
+            test "$(jq 'length' <<<"$databases")" -le 20 || exit 62
+            while IFS= read -r database; do
+              [[ -n "$database" ]] || continue
+              printf '::add-mask::%s\n' "$database"
+              tables="$(az cosmosdb sql container list -g "$RESOURCE_GROUP" -a "$account" -d "$database" --only-show-errors -o json)"
+              count="$(jq 'length' <<<"$tables")"
+              container_count=$((container_count+count))
+              test "$container_count" -le 100 || exit 63
+              compatible="$(jq '[.[] | select((.resource.partitionKey.paths // .partitionKey.paths // []) == ["/partitionKey"])] | length' <<<"$tables")"
+              partition_count=$((partition_count+compatible))
+            done < <(jq -r '.[] | .name // .id // empty' <<<"$databases")
+          done < <(jq -r '.[].name' <<<"$accounts")
+          jq -n --arg sha "$GITHUB_SHA" \
+            --argjson cosmos "$account_count" --argjson containers "$container_count" \
+            --argjson compatible "$partition_count" \
+            --argjson continuous "$(jq '[.[]|select((.backupPolicy.type//"")=="Continuous")]|length' <<<"$accounts")" \
+            --argjson keyless "$(jq '[.[]|select(.disableLocalAuth==true)]|length' <<<"$accounts")" \
+            --argjson private "$(jq '[.[]|select((.publicNetworkAccess//""|ascii_downcase)=="disabled")]|length' <<<"$accounts")" \
+            --argjson apps "$(jq 'length' <<<"$apps")" \
+            --argjson withIdentity "$(jq '[.[]|select((.identity.type//"None")!="None")]|length' <<<"$apps")" \
+            '{schema:"truyn.g5.azure-readonly/v1",sourceSha:$sha,status:"BLOCKED_NOT_LIVE_QUALIFIED",
+              mode:"READ_ONLY",cosmosAccounts:$cosmos,sqlContainers:$containers,
+              partitionKeyCompatibleContainers:$compatible,continuousBackupAccounts:$continuous,
+              keylessAuthAccounts:$keyless,privateNetworkAccounts:$private,
+              containerApps:$apps,managedIdentityApps:$withIdentity,
+              realTwoHostCasVerified:false,realSigkillAndPartitionVerified:false,
+              pitrVerified:false,externalPaidEffectReceiptsVerified:false,
+              accountingReconciled:false,productionMutationsPerformed:false,
+              upstreamCalls:0,mainnetAdmissionPermitted:false}' > g5-readonly-evidence.json
+          jq -e '.upstreamCalls==0 and .productionMutationsPerformed==false and .status=="BLOCKED_NOT_LIVE_QUALIFIED"' g5-readonly-evidence.json >/dev/null
+      - name: Preserve immutable labelled metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g5-azure-readonly-${{ github.sha }}-${{ github.run_id }}
+          path: g5-readonly-evidence.json
+          if-no-files-found: warn
+          retention-days: 30
