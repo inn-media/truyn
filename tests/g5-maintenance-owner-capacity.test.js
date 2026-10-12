@@ -68,9 +68,13 @@ test('G5 owner quota: corrupt owner/limit/duplicate slots cannot widen capacity'
 
 test('G5 owner quota: oversized OFFER is rejected before owner slot allocation',async()=>{
   const f=maintenanceStore(),a=f.ledger({maxDocumentBytes:4096});
-  const huge=offer('too-large');
-  huge.envelope={...huge.envelope,payload:{...huge.envelope.payload,metadata:{padding:'x'.repeat(6000)}}};
-  huge.fingerprint=createHash('sha256').update(JSON.stringify(huge.envelope)).digest('hex');
+  const envelope=createEnvelope({
+    type:'OFFER',id:'too-large',from:identity.nodeId,publicKeyPem:identity.publicKeyPem,
+    privateKeyPem:identity.privateKeyPem,
+    payload:{capability:{name:'owner.capacity'},metadata:{padding:'x'.repeat(6000)}}
+  });
+  const huge={id:'too-large',owner:identity.nodeId,envelope,
+    fingerprint:createHash('sha256').update(JSON.stringify(envelope)).digest('hex')};
   await fails(()=>a.reserveOffer(huge),'lifecycle_document_capacity_reached');
   assert.equal(index(f),undefined);
   assert.equal(await a.getOffer('too-large'),null);
