@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Read-only documentation/release reconciliation. No network, publishing or admission. */
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, realpathSync } from 'node:fs';
 import { resolve, dirname, relative, isAbsolute } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 const ids = Object.freeze({ typescript: 'npm', python: 'pypi', go: 'go', java: 'maven', dotnet: 'nuget' });
 const normalize = value => String(value).replace(/^Truyn\.Sdk /, 'Truyn.Sdk@');
 const text = value => typeof value === 'string' && value.trim().length > 0;
+const outside = rel => rel === '..' || /^\.\.[\\/]/.test(rel) || isAbsolute(rel);
 const exactSet = (actual, expected) => Array.isArray(actual) && actual.length === expected.length && new Set(actual).size === expected.length && expected.every(id => actual.includes(id));
 const certificate = 'docs/compatibility/TRUYN1_P1_P5_JOINT_RC_CERTIFICATION.md';
 const pendingRecord = 'docs/compatibility/TRUYN1_RC_GAP_LEDGER.md';
@@ -64,16 +65,22 @@ export function validateProtocolInventory(inventory) {
 }
 
 export function validateEvidencePaths(root, entries) {
-  const errors = [];
+  const errors = [], realRoot = realpathSync(root);
   for (const { label, path } of entries) {
     if (!text(path) || isAbsolute(path) || /^[a-z][a-z0-9+.-]*:/i.test(path)) {
       errors.push(`${label}: missing or non-local evidence path`); continue;
     }
     const full = resolve(root, path), rel = relative(resolve(root), full);
-    if (rel === '..' || rel.startsWith('../') || isAbsolute(rel)) {
+    if (outside(rel)) {
       errors.push(`${label}: evidence path escapes repository`); continue;
     }
-    try { if (!statSync(full).isFile()) errors.push(`${label}: evidence path is not a file ${path}`); }
+    try {
+      const realFile = realpathSync(full);
+      if (outside(relative(realRoot, realFile))) {
+        errors.push(`${label}: evidence resolves outside repository ${path}`); continue;
+      }
+      if (!statSync(realFile).isFile()) errors.push(`${label}: evidence path is not a file ${path}`);
+    }
     catch { errors.push(`${label}: missing evidence file ${path}`); }
   }
   return errors;
@@ -128,7 +135,7 @@ export function auditDocumentation(root) {
         localLinks++;
         const full = resolve(href.startsWith('/') ? root : dirname(resolve(root, path)), target.replace(/^\//, ''));
         const rel = relative(root, full);
-        if (rel === '..' || rel.startsWith('../') || isAbsolute(rel) || !existsSync(full)) errors.push(`${path}:${index + 1}: broken local link ${href}`);
+        if (outside(rel) || !existsSync(full)) errors.push(`${path}:${index + 1}: broken local link ${href}`);
       }
     }
   }
