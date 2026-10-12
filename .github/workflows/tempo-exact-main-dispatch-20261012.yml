@@ -1,72 +1,33 @@
-name: TRUYN Tempo Exact Main Dispatch 20261012
+name: TRUYN Tempo Startup Diagnostic 20261012
 on:
   push:
     branches: [ops/tempo-dispatch-20261012-5754b708]
     paths: ['.github/workflows/tempo-exact-main-dispatch-20261012.yml']
 permissions:
   contents: read
-  actions: write
+  actions: read
   checks: read
-concurrency:
-  group: truyn-tempo-exact-main-dispatch
-  cancel-in-progress: false
 jobs:
-  dispatch:
-    if: github.repository == 'inn-media/truyn' && github.actor == 'ilucomutcnas' && github.ref == 'refs/heads/ops/tempo-dispatch-20261012-5754b708'
+  inspect:
+    if: github.repository == 'inn-media/truyn' && github.actor == 'ilucomutcnas'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     env:
       GH_TOKEN: ${{ github.token }}
-      EXPECTED_MAIN: 5754b70820aa52d52a94f03c91d36c6badf084da
-      QUALIFIED_PR_HEAD: f589436662d3d49fe384463a2d0275bf22020b80
     steps:
-      - name: Dispatch existing protected-main trace workflow once
+      - name: Read native startup annotation without dispatch or Azure calls
         shell: bash
         run: |
           set -Eeuo pipefail
-          trap 'echo "::error::Dispatcher gate failed at line $LINENO; do not retry blindly"' ERR
-          [[ "$GITHUB_RUN_ATTEMPT" == 1 ]] || { echo '::error::Never rerun a single-shot dispatch; reconcile its receipt.'; exit 20; }
           repo='inn-media/truyn'
-          workflow='production-trace-backend.yml'
-          [[ "$(gh api "repos/$repo/branches/main" --jq '.commit.sha')" == "$EXPECTED_MAIN" ]] || { echo '::error::MAIN_MOVED; no dispatch'; exit 21; }
-          ci="$(gh api "repos/$repo/actions/workflows/ci.yml/runs?head_sha=$EXPECTED_MAIN&event=push&per_page=1")"
-          jq -e --arg sha "$EXPECTED_MAIN" '.workflow_runs | length==1 and .[0].head_sha==$sha and .[0].status=="completed" and .[0].conclusion=="success"' <<<"$ci" >/dev/null
-          checks="$(gh api --paginate --slurp "repos/$repo/commits/$EXPECTED_MAIN/check-runs?per_page=100")"
-          jq -e '[.[].check_runs[] | select(.app.slug=="github-actions")] | any(.name=="test" and .conclusion=="success") and any(.name=="mandatory-security-safety" and .conclusion=="success") and any(.name=="full-qualification" and .conclusion=="success")' <<<"$checks" >/dev/null
-          echo 'TRUYN_TEMPO_MAIN_CI=PASS full=1 safety=1 aggregate=1'
-          parent="$(gh api "repos/$repo/commits/$EXPECTED_MAIN")"
-          jq -e --arg head "$QUALIFIED_PR_HEAD" 'any(.parents[]; .sha==$head)' <<<"$parent" >/dev/null
-          security="$(gh api --paginate --slurp "repos/$repo/commits/$QUALIFIED_PR_HEAD/check-runs?per_page=100")"
-          jq -e '[.[].check_runs[]] | any(.name=="CodeQL" and .conclusion=="success" and .app.slug=="github-advanced-security") and any(.name=="DCO" and .conclusion=="success" and .app.slug=="github-actions")' <<<"$security" >/dev/null
-          echo 'TRUYN_TEMPO_MERGED_PARENT=PASS codeql=1 dco=1 exact_parent=1'
-          runs="$(gh api "repos/$repo/actions/workflows/$workflow/runs?exclude_pull_requests=true&per_page=100")"
-          active="$(jq '[.workflow_runs[] | select(.head_branch=="main" and .event!="pull_request" and .status!="completed")] | length' <<<"$runs")"
-          [[ "$active" == 0 ]] || { echo '::error::Existing trace execution must finish; no duplicate dispatch'; exit 22; }
-          prior="$(jq -r --arg sha "$EXPECTED_MAIN" '[.workflow_runs[] | select(.head_sha==$sha and .head_branch=="main" and .event!="pull_request" and .conclusion=="success")][0].id // empty' <<<"$runs")"
-          if [[ -n "$prior" ]]; then
-            echo "TRUYN_TEMPO_ALREADY_SUCCESS run_id=$prior source_sha=$EXPECTED_MAIN"
-            jq -n --arg sha "$EXPECTED_MAIN" --arg run "$prior" '{status:"existing_success_requires_evidence_readback",sourceSha:$sha,runId:$run}' > trace-dispatch-receipt.json
-            exit 0
-          fi
-          [[ "$(gh api "repos/$repo/branches/main" --jq '.commit.sha')" == "$EXPECTED_MAIN" ]] || { echo '::error::MAIN_MOVED; no dispatch'; exit 23; }
-          stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          gh api -X POST "repos/$repo/actions/workflows/$workflow/dispatches" -f ref=main
-          found=''
-          for poll in $(seq 1 12); do
-            fresh="$(gh api "repos/$repo/actions/workflows/$workflow/runs?event=workflow_dispatch&head_sha=$EXPECTED_MAIN&per_page=10")"
-            found="$(jq -r --arg sha "$EXPECTED_MAIN" --arg stamp "$stamp" '[.workflow_runs[] | select(.head_sha==$sha and .head_branch=="main" and .created_at >= $stamp)][0].id // empty' <<<"$fresh")"
-            [[ -z "$found" ]] || break
-            sleep 5
+          run='38226596295'
+          suite='103566645052'
+          gh api "repos/$repo/actions/runs/$run" --jq '{id,status,conclusion,head_sha,event,actor:.actor.login}'
+          gh api "repos/$repo/check-suites/$suite" --jq '{id,status,conclusion,latest_check_runs_count,app:.app.slug}'
+          gh api "repos/$repo/check-suites/$suite/check-runs?filter=all&per_page=100" > suite.json
+          jq '{total_count,check_runs:[.check_runs[]|{id,name,status,conclusion,output}]}' suite.json
+          jq -r '.check_runs[].id' suite.json | while read -r check; do
+            gh api "repos/$repo/check-runs/$check/annotations?per_page=100" --jq '[.[]|{path,start_line,annotation_level,title,message}]'
           done
-          [[ "$found" =~ ^[1-9][0-9]+$ ]] || { echo '::error::Dispatch accepted but receipt unresolved: reconcile, never retry blindly'; exit 24; }
-          jq -n --arg sha "$EXPECTED_MAIN" --arg run "$found" --arg utc "$stamp" '{status:"dispatched_not_proven",sourceSha:$sha,runId:$run,requestedUtc:$utc}' > trace-dispatch-receipt.json
-          echo "TRUYN_TEMPO_DISPATCHED run_id=$found source_sha=$EXPECTED_MAIN attempts=1"
-          printf 'Existing production workflow dispatched once. Run: %s. Source: %s. Runtime evidence is not yet proven.\n' "$found" "$EXPECTED_MAIN" >> "$GITHUB_STEP_SUMMARY"
-      - name: Retain dispatch receipt
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: trace-dispatch-receipt
-          path: trace-dispatch-receipt.json
-          if-no-files-found: warn
-          retention-days: 7
+          gh api "repos/$repo/commits/5754b70820aa52d52a94f03c91d36c6badf084da/check-runs?filter=all&per_page=100" --jq '[.check_runs[]|select(.check_suite.id==103566645052)|{id,name,status,conclusion,output}]'
+          echo 'TRUYN_TEMPO_STARTUP_INSPECTED writes=0 dispatches=0 azure_calls=0'
