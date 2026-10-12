@@ -320,6 +320,18 @@ export function createCosmosLifecycleLedger({
       return doc;
     });
   }
+  async function releaseOfferClaim({id,owner,fingerprint}) {
+    const index=await get('offer-owner',owner);
+    if(!index) return;
+    await mutate('offer-owner',owner,doc=>{
+      validateOfferOwner(doc,owner);
+      const slot=doc.offerSlots.find(entry=>entry.id===id);
+      if(!slot) return null;
+      if(slot.fingerprint!==fingerprint) throw fault(503,'lifecycle_offer_owner_index_invalid');
+      doc.offerSlots=doc.offerSlots.filter(entry=>entry.id!==id);
+      return doc;
+    });
+  }
   function authorize(doc,{requester,provider}) {
     if (requester && doc.requester!==requester) throw fault(403,'not_request_owner');
     if (provider && doc.provider!==provider) throw fault(403,'provider_mismatch');
@@ -380,7 +392,16 @@ export function createCosmosLifecycleLedger({
         if(await get('offer',id)) throw fault(409,'duplicate_offer');
         await claimOfferSlot({id,owner,fingerprint});
       }
-      return create('offer',id,{owner,fingerprint,revoked:0,...projection});
+      try {
+        return await create('offer',id,{owner,fingerprint,revoked:0,...projection});
+      } catch(error) {
+        if(envelope!=null && error.httpStatus===409 && error.publicCode==='duplicate_offer') {
+          const existing=await get('offer',id);
+          if(existing && (existing.owner!==owner || existing.fingerprint!==fingerprint))
+            await releaseOfferClaim({id,owner,fingerprint});
+        }
+        throw error;
+      }
     },
     async restoreOffers({owner,limit=128}) {
       if (!nonempty(owner) || !Number.isSafeInteger(limit) || limit < 1 || limit > 128)
