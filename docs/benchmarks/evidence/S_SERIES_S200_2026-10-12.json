@@ -1,0 +1,199 @@
+{
+  "schema": "truyn.public.benchmark.s-series.s200.composite/v1",
+  "asOf": "2026-10-12",
+  "status": "PASS_CLOSED_SIX_PROVIDER_COMPOSITE",
+  "contractSevenProviderStatus": "OPEN_DEEPSEEK_NOT_MEASURED",
+  "independentWANStatus": "NOT_PROVEN",
+  "homogeneousSingleRunStatus": "NOT_PROVEN",
+  "nodeTarget": 200,
+  "topology": "200 independent semantic worker processes per profile; run-isolated loopback relay; cloud AI/provider calls",
+  "scenarioStatus": {
+    "ECON": "PASS",
+    "MIX": "PASS",
+    "XBORDER": "PASS",
+    "CHAIN": "PASS",
+    "CHURN": "PASS",
+    "COST-ROUTING": "PASS",
+    "CONTENTION": "PASS",
+    "LANG": "PASS"
+  },
+  "evidence": {
+    "attempt14": {
+      "runId": 38156585322,
+      "workflowConclusion": "failure",
+      "candidateSha": "1a7a2d8509872defd4ad7df396375e69707283fd",
+      "artifactId": 11713182278,
+      "sha256": "726ab96c28377565d2d4e1b03eacc0e8314b5c6bdef0a813ecf097c21b0edf3c",
+      "frozenPassScenarios": [
+        "ECON",
+        "XBORDER",
+        "CHAIN",
+        "CHURN",
+        "COST-ROUTING",
+        "CONTENTION",
+        "LANG"
+      ],
+      "frozenMixProfiles": [
+        "balanced",
+        "seeded-random"
+      ]
+    },
+    "attempt15": {
+      "runId": 38171454872,
+      "workflowConclusion": "success",
+      "runAttempt": 1,
+      "candidateSha": "112c66e0904a6dfc172bcf6d6e60ef31e891e239",
+      "artifactId": 11716792652,
+      "sha256": "cd19392f0c04f8f60f41bc3ec7ae1e7c7007d26f365238c9007833ce2a49a1a2",
+      "paidOnly": [
+        "MIX/skewed-60pct-gpt"
+      ],
+      "composite": true,
+      "oneRunProof": false,
+      "allOriginalGatesPassing": true
+    }
+  },
+  "relay": {
+    "tag": "s-series-relay-be6867674dc6b8df2fd7227e23c61a10ab3cb0d3",
+    "sha256": "193085cc8a2eade66d63b4191d85001236402247f6e0af5e3587b1c787c04ebf",
+    "sdk": "@truyn/sdk@0.1.0-alpha.2"
+  },
+  "providerFamilies": [
+    "GPT",
+    "Gemini",
+    "Grok",
+    "Llama",
+    "Mistral",
+    "Kimi"
+  ],
+  "omittedContractFamily": "DeepSeek",
+  "mix": {
+    "profiles": [
+      {
+        "name": "balanced",
+        "processes": 200,
+        "sourceAttempt": 14
+      },
+      {
+        "name": "skewed-60pct-gpt",
+        "processes": 200,
+        "sourceAttempt": 15
+      },
+      {
+        "name": "seeded-random",
+        "processes": 200,
+        "sourceAttempt": 14
+      }
+    ],
+    "observations": 600,
+    "correct": 600,
+    "perVendor": {
+      "GPT": {
+        "samples": 188,
+        "accuracy": 1,
+        "inputTokenReductionPct": 99.47697479201614
+      },
+      "Gemini": {
+        "samples": 84,
+        "accuracy": 1,
+        "inputTokenReductionPct": 99.49506884431747
+      },
+      "Grok": {
+        "samples": 82,
+        "accuracy": 1,
+        "inputTokenReductionPct": 99.33040487740999
+      },
+      "Llama": {
+        "samples": 82,
+        "accuracy": 1,
+        "inputTokenReductionPct": 99.40566820529183
+      },
+      "Mistral": {
+        "samples": 82,
+        "accuracy": 1,
+        "inputTokenReductionPct": 99.45261982209603
+      },
+      "Kimi": {
+        "samples": 82,
+        "accuracy": 1,
+        "inputTokenReductionPct": 99.4430467251095
+      }
+    }
+  },
+  "economics": {
+    "inputTokenReductionPct": 99.44967559279938,
+    "comparableInferenceCostReductionPct": 99.35028075167753,
+    "baselineCostUsd": 1.4041233999999982,
+    "truynCostUsd": 0.009122860000000003,
+    "pricingDate": "2026-08-15",
+    "providerCostScope": [
+      "GPT",
+      "Gemini"
+    ],
+    "directP50Ms": 2671,
+    "directP95Ms": 9758,
+    "truynP50Ms": 1239,
+    "truynP95Ms": 61950
+  },
+  "xborder": {
+    "requests": 200,
+    "success": 200,
+    "clouds": 2,
+    "regions": 3,
+    "geographies": 2,
+    "crossBorderShare": 0.085,
+    "p95Ms": 2567
+  },
+  "chain": {
+    "chains": 64,
+    "completed": 64,
+    "hops": 192,
+    "provenanceLineageRatio": 1,
+    "unauthorizedSubstitutions": 0
+  },
+  "churn": {
+    "events": 86,
+    "nodeLossEvents": 20,
+    "providerLossEvents": 34,
+    "partitionHealEvents": 32,
+    "recoveryP95Ms": 64516,
+    "limitP95Ms": 120000
+  },
+  "costRouting": {
+    "requests": 200,
+    "correct": 200,
+    "policyViolations": 0,
+    "comparativeSavingsPct": -2.226777887741922
+  },
+  "contention": {
+    "offered": 200,
+    "completed": 200,
+    "maxInFlight": 200,
+    "completionPerSecond": 8.249463784853985,
+    "e2eP95Ms": 19106,
+    "nonProviderP95Ms": 17897,
+    "rateLimitResponses": 0,
+    "providerRetries": 0,
+    "cascadingFailureCount": 0
+  },
+  "language": {
+    "languages": [
+      "EN",
+      "ZH",
+      "RU",
+      "ES",
+      "UK"
+    ],
+    "samplesPerLanguage": 40,
+    "totalSamples": 200,
+    "correctAnswers": 200
+  },
+  "limitations": [
+    "six of seven contracted providers",
+    "composite multi-run evidence",
+    "loopback relay; no 200-machine WAN proof",
+    "pricing snapshot not total system cost",
+    "provider retries count toward outcomes",
+    "tail latency regression and negative cost-routing savings"
+  ]
+}
