@@ -195,6 +195,18 @@ export function createRelay({
     return seenAt > 0 && now - seenAt <= nodeFreshnessMs;
   }
 
+  // A local OFFER is only an availability hint. Shared identity/owner and
+  // signed-contents commitment remain authoritative across relay replicas.
+  async function durableOfferEligible(offer) {
+    if (!lifecycleLedger) return true;
+    const durable = await lifecycleLedger.getOffer(offer.envelope.id);
+    if (!durable) return lifecycleLedger.kind !== 'cosmos-multi-host-v1';
+    const fingerprint = createHash('sha256').update(JSON.stringify(offer.envelope)).digest('hex');
+    if (durable.owner !== offer.envelope.from || durable.fingerprint !== fingerprint)
+      throw httpError(503, 'lifecycle_offer_integrity_mismatch');
+    return !durable.revoked;
+  }
+
   async function matchingOffers({ capability = null, requesterNodeId = null } = {}) {
     const now = Date.now();
     const candidates=[...offers.values()].filter((offer) =>
@@ -213,8 +225,7 @@ export function createRelay({
       throw httpError(503,'lifecycle_offer_scan_capacity_reached');
     const eligible=[];
     for(const offer of candidates) {
-      const durable=await lifecycleLedger?.getOffer(offer.envelope.id);
-      if(durable?.revoked || (lifecycleLedger?.kind==='cosmos-multi-host-v1' && !durable)) continue;
+      if (!(await durableOfferEligible(offer))) continue;
       eligible.push(offer);
     }
     return eligible.sort((a,b)=>nodeSeenAtMs(b.envelope.from)-nodeSeenAtMs(a.envelope.from));
@@ -890,8 +901,7 @@ export function createRelay({
           const own=[];
           for(const offer of offers.values()) {
             if(offer.revoked || offer.envelope.from!==requesterNodeId || (capability && offer.capability!==capability)) continue;
-            const durable=await lifecycleLedger?.getOffer(offer.envelope.id);
-            if(durable?.revoked || (lifecycleLedger?.kind==='cosmos-multi-host-v1' && !durable)) continue;
+            if (!(await durableOfferEligible(offer))) continue;
             own.push(offer.envelope);
           }
           return json(res, 200, { ok: true, offers: own });
