@@ -133,7 +133,11 @@ export function createRelay({
   allowPublicDispatch = false,
   localDevelopmentMode = false,
   productionMode = false,
-  exposeDiagnostics = false
+  exposeDiagnostics = false,
+  defaultProviderMaxInFlight = 8,
+  selectionReservationMs = 60_000,
+  expirySweepIntervalMs = 250,
+  maxConcurrentOfferLedgerReads = 8
 } = {}) {
   if (localDevelopmentMode && (productionMode || allowPublicRegistration || allowPublicDispatch)) {
     throw new Error('localDevelopmentMode cannot be combined with production or public relay access');
@@ -141,6 +145,10 @@ export function createRelay({
   if (lifecycleLedger?.kind === 'sqlite-single-host-v1' && (productionMode || allowPublicRegistration || allowPublicDispatch)) {
     throw new Error('G5 production/public dispatch requires a cross-host durable ledger; local SQLite is forbidden');
   }
+  if (!Number.isSafeInteger(defaultProviderMaxInFlight) || defaultProviderMaxInFlight < 1) throw new Error('defaultProviderMaxInFlight must be a positive integer');
+  if (!Number.isSafeInteger(selectionReservationMs) || selectionReservationMs < 1) throw new Error('selectionReservationMs must be a positive integer');
+  if (!Number.isSafeInteger(expirySweepIntervalMs) || expirySweepIntervalMs < 1) throw new Error('expirySweepIntervalMs must be a positive integer');
+  if (!Number.isInteger(maxConcurrentOfferLedgerReads) || maxConcurrentOfferLedgerReads < 1 || maxConcurrentOfferLedgerReads > 32) throw new Error('maxConcurrentOfferLedgerReads must be 1..32');
   if (!Number.isInteger(maxQueuedEventsPerNode) || maxQueuedEventsPerNode < 1) throw new Error('maxQueuedEventsPerNode must be a positive integer');
   if (!Number.isFinite(maxSocketBufferedBytes) || maxSocketBufferedBytes < 1) throw new Error('maxSocketBufferedBytes must be positive');
   if (!Number.isFinite(commandKeepAliveTimeoutMs) || commandKeepAliveTimeoutMs < 1) throw new Error('commandKeepAliveTimeoutMs must be positive');
@@ -195,20 +203,96 @@ export function createRelay({
     return seenAt > 0 && now - seenAt <= nodeFreshnessMs;
   }
 
-  // A local OFFER is only an availability hint. Shared identity/owner and
-  // signed-contents commitment remain authoritative across relay replicas.
-  async function durableOfferEligible(offer) {
+  // G5 authoritative cross-replica owner + signed OFFER fingerprint check.
+  // A local OFFER is only a discovery hint, never an independent authority.
+  function durableOfferMatches(offer, durable) {
     if (!lifecycleLedger) return true;
-    const durable = await lifecycleLedger.getOffer(offer.envelope.id);
     if (!durable) return lifecycleLedger.kind !== 'cosmos-multi-host-v1';
     const fingerprint = createHash('sha256').update(JSON.stringify(offer.envelope)).digest('hex');
     if (durable.owner !== offer.envelope.from || durable.fingerprint !== fingerprint)
       throw httpError(503, 'lifecycle_offer_integrity_mismatch');
     return !durable.revoked;
   }
+  async function durableOfferEligible(offer) {
+    if (!lifecycleLedger) return true;
+    return durableOfferMatches(offer, await lifecycleLedger.getOffer(offer.envelope.id));
+  }
 
-  async function matchingOffers({ capability = null, requesterNodeId = null } = {}) {
+  // Exact in-flight counts (including work still queued at the provider), plus
+  // temporary admission reservations to prevent concurrent NEED herding.
+  const inFlightByProvider = new Map();
+  const selectionReservations = new Map();
+  const isTerminal = (status) => status === 'completed' || status === 'cancelled' || status === 'failed';
+  function markMatchedRequest(request) {
+    if (requests.has(request.needId)) throw httpError(409, 'duplicate_request');
+    requests.set(request.needId, request);
+    inFlightByProvider.set(request.provider, (inFlightByProvider.get(request.provider) || 0) + 1);
+    selectionReservations.delete(request.needId);
+  }
+  function markRequestStatus(request, status) {
+    if (request.status === 'matched' && isTerminal(status)) {
+      const count = inFlightByProvider.get(request.provider) || 0;
+      if (count <= 1) inFlightByProvider.delete(request.provider);
+      else inFlightByProvider.set(request.provider, count - 1);
+    }
+    request.status = status;
+  }
+  const nonnegativeFiniteNumber = (value) =>
+    typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+  function routingSettings(routing) {
+    if (routing == null) return { mode: 'cost', ratio: 0.25, ceiling: null };
+    if (typeof routing !== 'object' || Array.isArray(routing)) throw httpError(400, 'invalid_routing_policy');
+    const mode = routing.mode ?? routing.strategy ?? 'cost';
+    if (mode !== 'latency' && mode !== 'cost') throw httpError(400, 'invalid_routing_mode');
+    const ratio = routing.expectedOutputRatio == null ? 0.25 : nonnegativeFiniteNumber(routing.expectedOutputRatio);
+    if (ratio == null || ratio > 100) throw httpError(400, 'invalid_expected_output_ratio');
+    const ceiling = routing.maxUnitCostUsdPerMTok == null ? null : nonnegativeFiniteNumber(routing.maxUnitCostUsdPerMTok);
+    if (routing.maxUnitCostUsdPerMTok != null && ceiling == null) throw httpError(400, 'invalid_max_unit_cost');
+    return { mode, ratio, ceiling };
+  }
+  function offerUnitCost(offer, ratio) {
+    const metadata = offer.envelope.payload?.metadata || {};
+    const pricing = metadata.pricing ?? offer.envelope.payload?.pricing;
+    const input = nonnegativeFiniteNumber(pricing?.inputUsdPerMTok);
+    const output = nonnegativeFiniteNumber(pricing?.outputUsdPerMTok);
+    // Missing either price is UNKNOWN, never falsely a free provider.
+    return input == null || output == null ? Infinity : input + output * ratio;
+  }
+  function offerCapacity(offer) {
+    const metadata = offer.envelope.payload?.metadata || {};
+    const cap = metadata.capacity?.maxInFlight ?? offer.envelope.payload?.capacity?.maxInFlight;
+    return Number.isSafeInteger(cap) && cap > 0 ? cap : defaultProviderMaxInFlight;
+  }
+  function rankOffers(eligible, routing, now) {
+    const { mode, ratio, ceiling } = routingSettings(routing);
+    const loads = new Map(inFlightByProvider);
+    for (const [needId, reservation] of selectionReservations) {
+      if (reservation.expiresAt <= now || requests.has(needId)) {
+        selectionReservations.delete(needId);
+        continue;
+      }
+      loads.set(reservation.provider, (loads.get(reservation.provider) || 0) + 1);
+    }
+    const ranked = [];
+    for (const offer of eligible) {
+      const cost = offerUnitCost(offer, ratio);
+      // Requester ceiling is a hard eligibility constraint, including unknown prices.
+      if (ceiling != null && !(cost <= ceiling)) continue;
+      const capacity = offerCapacity(offer);
+      const utilization = (loads.get(offer.envelope.from) || 0) / capacity;
+      ranked.push({ offer, cost, utilization, saturated: utilization >= 1, tie: Math.random() });
+    }
+    ranked.sort((a, b) => {
+      if (a.saturated !== b.saturated) return a.saturated ? 1 : -1;
+      if (a.saturated || mode === 'latency')
+        return (a.utilization - b.utilization) || (a.cost - b.cost) || (a.tie - b.tie);
+      return (a.cost - b.cost) || (a.utilization - b.utilization) || (a.tie - b.tie);
+    });
+    return ranked.map((item) => item.offer);
+  }
+  async function matchingOffers({ capability = null, requesterNodeId = null, routing = null, reserveFor = null } = {}) {
     const now = Date.now();
+    // Preserve owner-only ACL and freshness BEFORE routing.
     const candidates=[...offers.values()].filter((offer) =>
       !offer.revoked &&
       (!capability || offer.capability === capability) &&
@@ -218,17 +302,25 @@ export function createRelay({
         trustedRequesterNodeIds: [...trustedRequesters]
       }))
     );
-    // A shared ledger check per locally visible OFFER is needed until the
-    // signed distributed OFFER directory is available. Never perform an
-    // unbounded remote scan inside one public request.
     if(lifecycleLedger?.kind==='cosmos-multi-host-v1' && candidates.length>128)
       throw httpError(503,'lifecycle_offer_scan_capacity_reached');
-    const eligible=[];
-    for(const offer of candidates) {
-      if (!(await durableOfferEligible(offer))) continue;
-      eligible.push(offer);
+    const eligible = [];
+    // Bounded parallel ledger reads; never positive-cache durable OFFER state.
+    // Invalidation of a remote REVOKE must be observed on the next dispatch.
+    for (let offset = 0; offset < candidates.length; offset += maxConcurrentOfferLedgerReads) {
+      const batch = candidates.slice(offset, offset + maxConcurrentOfferLedgerReads);
+      const saved = await Promise.all(batch.map((offer) => lifecycleLedger?.getOffer(offer.envelope.id)));
+      for (let i = 0; i < batch.length; i++) {
+        if (!durableOfferMatches(batch[i], saved[i])) continue;
+        eligible.push(batch[i]);
+      }
     }
-    return eligible.sort((a,b)=>nodeSeenAtMs(b.envelope.from)-nodeSeenAtMs(a.envelope.from));
+    const ranked = rankOffers(eligible, routing, Date.now());
+    if (reserveFor && ranked[0]) {
+      if (selectionReservations.size >= maxRequests) throw httpError(503, 'selection_reservation_capacity_reached');
+      selectionReservations.set(reserveFor, { provider: ranked[0].envelope.from, expiresAt: Date.now() + selectionReservationMs });
+    }
+    return ranked;
   }
 
   function requesterCanDispatch(nodeId) {
@@ -308,7 +400,7 @@ export function createRelay({
       try { await lifecycleLedger.transitionNeed({ id: request.needId, provider: request.provider, to: 'failed' }); }
       catch { return false; } // Fail closed; never replace an already committed terminal state.
     }
-    request.status = 'failed';
+    markRequestStatus(request, 'failed');
     request.failedAt = new Date(now).toISOString();
     request.failureReason = 'request_expired';
     releaseFastTerminal(request);
@@ -316,7 +408,10 @@ export function createRelay({
     return true;
   }
 
-  async function expireAbandonedFastRequests(now = Date.now()) {
+  let lastExpirySweepAt = 0;
+  async function expireAbandonedFastRequests(now = Date.now(), { force = false } = {}) {
+    if (!force && now - lastExpirySweepAt < expirySweepIntervalMs) return;
+    lastExpirySweepAt = now;
     for (const request of requests.values()) await expireFastRequest(request, now);
   }
 
@@ -542,7 +637,7 @@ export function createRelay({
   async function completeRequest(request, providerNodeId, delivery = null) {
     // Commit the authoritative terminal state AND signed result outbox atomically, before live delivery.
     if (request.mode !== 'chain-stage') await lifecycleLedger?.transitionNeed({ id: request.needId, provider: providerNodeId, to: 'completed', delivery });
-    request.status = 'completed';
+    markRequestStatus(request, 'completed');
     request.completedAt = new Date().toISOString();
     const providerStats = stats.get(providerNodeId) || { successfulTasks: 0, failedTasks: 0 };
     providerStats.successfulTasks += 1;
@@ -554,6 +649,10 @@ export function createRelay({
   function closeChain(chain, status, body) {
     if (chain.timer) clearTimeout(chain.timer);
     chain.status = status === 200 ? 'completed' : 'failed';
+    if (chain.currentStage >= 0) {
+      const pending = requests.get(compactStageRequestId(chain.chainId, chain.currentStage));
+      if (pending?.status === 'matched') markRequestStatus(pending, 'failed');
+    }
     chain.completedAt = new Date().toISOString();
     if (chain.socket?.readyState === WebSocket.OPEN) {
       chain.socket.send(JSON.stringify({ kind: 'CHAIN_RESULT', status, ...body }), (error) => {
@@ -618,15 +717,15 @@ export function createRelay({
       closeChain(chain, 400, { ok: false, error: 'invalid_chain_capability', stageIndex });
       return false;
     }
-    const match = (await matchingOffers({ capability, requesterNodeId: chain.requester }))[0];
+    const requestId = compactStageRequestId(chain.frame.i, stageIndex);
+    const match = (await matchingOffers({ capability, requesterNodeId: chain.requester, routing: chain.payload?.policy?.routing, reserveFor: requestId }))[0];
     if (!match) {
       closeChain(chain, 404, { ok: false, error: 'no_matching_provider', capability, stageIndex });
       return false;
     }
     pruneCompleted(requests, maxRequests);
-    const requestId = compactStageRequestId(chain.frame.i, stageIndex);
     const request = { needId: requestId, requester: chain.requester, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'chain-stage', chainId: chain.frame.i, stageIndex };
-    requests.set(requestId, request);
+    markMatchedRequest(request);
     chain.providers[stageIndex] = match.envelope.from;
     chain.providerTrust[stageIndex] = trustFor(match.envelope.from);
     chain.currentStage = stageIndex;
@@ -807,7 +906,7 @@ export function createRelay({
       const url = new URL(req.url, 'http://relay.local');
 
       if (req.method === 'GET' && url.pathname === '/health') {
-        await expireAbandonedFastRequests();
+        await expireAbandonedFastRequests(Date.now(), { force: true });
         if (!exposeDiagnostics) return json(res, 200, { ok: true, protocol: 'TRUYN/1' });
         const terminal = new Set(['completed', 'cancelled', 'failed']);
         return json(res, 200, {
@@ -1001,20 +1100,21 @@ export function createRelay({
         if (requests.has(frame.i) || seenNeedIds.has(frame.i) || await lifecycleLedger?.getNeed(frame.i)) return json(res, 409, { ok: false, error: 'duplicate_request' });
         const capability = payload?.capability?.name || payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
-        const match = (await matchingOffers({ capability, requesterNodeId }))[0];
+        const match = (await matchingOffers({ capability, requesterNodeId, routing: payload?.policy?.routing, reserveFor: frame.i }))[0];
         if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
         await expireAbandonedFastRequests();
-        if (!reserveFastTerminal(requesterNodeId)) return json(res, 429, { ok: false, error: 'terminal_backpressure' });
+        if (!reserveFastTerminal(requesterNodeId)) { selectionReservations.delete(frame.i); return json(res, 429, { ok: false, error: 'terminal_backpressure' }); }
         try {
           pruneCompleted(requests, maxRequests);
           await admitDirectNeedId({ id: frame.i, requester: requesterNodeId, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify([frame, payload])).digest('hex'), capability, mode: 'fast', policyDigest:createHash('sha256').update(JSON.stringify([match.policy,payload?.policy])).digest('hex'), delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', frame, payload, from: requesterNodeId } } });
         } catch (error) {
           const rollback = { requester: requesterNodeId, terminalReserved: true };
           releaseFastTerminal(rollback);
+          selectionReservations.delete(frame.i);
           throw error;
         }
         const request = { needId: frame.i, requester: requesterNodeId, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'fast', nextPartialSequence: 0, partialCount: 0, terminalReserved: true };
-        requests.set(frame.i, request);
+        markMatchedRequest(request);
         touch(requesterNodeId);
         const waitMs = boundedWaitMs(url, 120_000);
         if (waitMs > 0) registerResultWaiter(req, res, frame.i, waitMs);
@@ -1055,7 +1155,7 @@ export function createRelay({
         if (!request) return json(res, 404, { ok: false, error: 'request_not_found' });
         if (request.requester !== requesterNodeId) return json(res, 403, { ok: false, error: 'not_request_owner' });
         const durable = await lifecycleLedger?.getNeed(requestId);
-        if (durable?.status && durable.status !== 'matched') request.status = durable.status;
+        if (durable?.status && durable.status !== 'matched') markRequestStatus(request, durable.status);
         if (request.mode !== 'fast') return json(res, 409, { ok: false, error: 'request_status_requires_fast_need' });
         await expireFastRequest(request);
         touch(requesterNodeId);
@@ -1110,11 +1210,16 @@ export function createRelay({
         if (requests.has(envelope.id) || seenNeedIds.has(envelope.id) || await lifecycleLedger?.getNeed(envelope.id)) return json(res, 409, { ok: false, error: 'duplicate_request' });
         const capability = envelope.payload?.capability?.name || envelope.payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
-        const match = (await matchingOffers({ capability, requesterNodeId: envelope.from }))[0];
+        const match = (await matchingOffers({ capability, requesterNodeId: envelope.from, routing: envelope.payload?.policy?.routing, reserveFor: envelope.id }))[0];
         if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
         pruneCompleted(requests, maxRequests);
-        await admitDirectNeedId({ id: envelope.id, requester: envelope.from, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'), capability, mode: 'legacy', policyDigest:createHash('sha256').update(JSON.stringify([match.policy,envelope.payload?.policy])).digest('hex'), delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', envelope } } });
-        requests.set(envelope.id, { needId: envelope.id, requester: envelope.from, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'legacy' });
+        try {
+          await admitDirectNeedId({ id: envelope.id, requester: envelope.from, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'), capability, mode: 'legacy', policyDigest:createHash('sha256').update(JSON.stringify([match.policy,envelope.payload?.policy])).digest('hex'), delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', envelope } } });
+        } catch (error) {
+          selectionReservations.delete(envelope.id);
+          throw error;
+        }
+        markMatchedRequest({ needId: envelope.id, requester: envelope.from, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'legacy' });
         queue(match.envelope.from, { kind: 'NEED', envelope });
         touch(envelope.from);
         return json(res, 200, { ok: true, needId: envelope.id, provider: match.envelope.from, providerTrust: trustFor(match.envelope.from) });
@@ -1272,7 +1377,7 @@ export function createRelay({
           }
 
           const persistedCancellation = await lifecycleLedger?.transitionNeed({ id: targetId, requester: envelope.from, to: 'cancelled', delivery: { recipient: request.provider, kind: 'REVOKE', event: cancellationEvent } });
-          request.status = 'cancelled';
+          markRequestStatus(request, 'cancelled');
           request.cancelled = true;
           request.cancelledAt = new Date().toISOString();
           request.cancelReason = cancellationReason;
@@ -1440,7 +1545,7 @@ export function createRelay({
   });
 
   const heartbeat = setInterval(() => {
-    void expireAbandonedFastRequests().catch(() => {});
+    void expireAbandonedFastRequests(Date.now(), { force: true }).catch(() => {});
     for (const [nodeId, socket] of providerSockets) {
       if (socket.readyState !== WebSocket.OPEN || !nodeSessionActive(nodeId)) {
         providerSockets.delete(nodeId);
