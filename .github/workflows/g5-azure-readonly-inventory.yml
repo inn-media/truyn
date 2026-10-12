@@ -86,11 +86,48 @@ jobs:
               accountingReconciled:false,productionMutationsPerformed:false,
               upstreamCalls:0,mainnetAdmissionPermitted:false}' > g5-readonly-evidence.json
           jq -e '.upstreamCalls==0 and .productionMutationsPerformed==false and .status=="BLOCKED_NOT_LIVE_QUALIFIED"' g5-readonly-evidence.json >/dev/null
+      - name: Qualify isolated-host topology from ARM metadata only
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          environments="$(az containerapp env list -g "$RESOURCE_GROUP" --only-show-errors -o json)"
+          registries="$(az acr list -g "$RESOURCE_GROUP" --only-show-errors -o json)"
+          private_endpoints="$(az network private-endpoint list -g "$RESOURCE_GROUP" --only-show-errors -o json)"
+          accounts="$(az cosmosdb list -g "$RESOURCE_GROUP" --only-show-errors -o json)"
+          test "$(jq 'length' <<<"$environments")" -le 30 || exit 64
+          test "$(jq 'length' <<<"$private_endpoints")" -le 100 || exit 65
+          test "$(jq 'length' <<<"$registries")" -le 30 || exit 66
+          jq -n --arg sha "$GITHUB_SHA" \
+            --argjson envs "$(jq 'length' <<<"$environments")" \
+            --argjson vnet "$(jq '[.[] | select((.properties.vnetConfiguration.infrastructureSubnetId // "") != "")] | length' <<<"$environments")" \
+            --argjson internal "$(jq '[.[] | select(.properties.vnetConfiguration.internal == true)] | length' <<<"$environments")" \
+            --argjson registries "$(jq 'length' <<<"$registries")" \
+            --argjson privateEndpoints "$(jq 'length' <<<"$private_endpoints")" \
+            --argjson writableRegions "$(jq '[.[] | (.writeLocations // []) | length] | add // 0' <<<"$accounts")" \
+            --argjson multiWriter "$(jq '[.[] | select(.enableMultipleWriteLocations == true)] | length' <<<"$accounts")" \
+            --argjson sessionConsistency "$(jq '[.[] | select((.consistencyPolicy.defaultConsistencyLevel // "") == "Session")] | length' <<<"$accounts")" \
+            '{schema:"truyn.g5.isolated-host-topology/v1",sourceSha:$sha,
+              status:"READ_ONLY_TOPOLOGY_ONLY",isolatedReplicaDeploymentAuthorized:false,
+              containerAppEnvironments:$envs,vnetAttachedEnvironments:$vnet,
+              internalEnvironments:$internal,containerRegistries:$registries,
+              privateEndpoints:$privateEndpoints,cosmosWriteRegionCount:$writableRegions,
+              cosmosMultiWriterAccounts:$multiWriter,cosmosSessionAccounts:$sessionConsistency,
+              dedicatedIsolatedEnvironmentProven:false,
+              effectiveHostToCosmosConnectivityProven:false,
+              scopedDataPlaneRbacProven:false,spareHostCapacityProven:false,
+              downstreamPaidIdempotencyProven:false,
+              productionRevisionsModified:0,cosmosDocumentsWritten:0,
+              productionMutationsPerformed:false,paidProviderRequests:0}' \
+              > g5-host-topology-readonly.json
+          jq -e '.productionRevisionsModified==0 and .cosmosDocumentsWritten==0 and .paidProviderRequests==0' g5-host-topology-readonly.json >/dev/null
       - name: Preserve immutable labelled metadata
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: g5-azure-readonly-${{ github.sha }}-${{ github.run_id }}
-          path: g5-readonly-evidence.json
+          path: |
+            g5-readonly-evidence.json
+            g5-host-topology-readonly.json
           if-no-files-found: warn
           retention-days: 30
