@@ -1,0 +1,33 @@
+{
+  "schema": "truyn.production-trace-activation-request/v1",
+  "requestId": "tempo-canonical-retention-20261012-d02bd194",
+  "status": "REQUESTED_NOT_PROVEN",
+  "baseSha": "d02bd1944606efa00ea807b900e604a26cdcc903",
+  "reason": "Activate already merged direct-Python and canonical 30d/90d retention fixes through the existing protected-main push workflow.",
+  "sourceBlobs": {
+    "traceBackendBicep": "6e0ce535a2cf565d718da19c0d60ee29a1b11d3e",
+    "traceRetentionProbe": "147d20bbb1b0fb6f5bb24377ccc2682d11594186"
+  },
+  "previousAttempts": {
+    "staleMainBeforeDeploymentRun": 38224271311,
+    "botDispatchStartupFailureRun": 38226596295
+  },
+  "execution": {
+    "workflow": "production-trace-backend.yml",
+    "trigger": "protected-main-material-push",
+    "expectedAttempts": 1,
+    "freshHeadQualificationRequired": true,
+    "liveMainShaFencingRequired": true,
+    "exclusiveProductionWriterRequired": true,
+    "oldRunRerunAllowed": false
+  },
+  "acceptanceUnchanged": {
+    "normalRetentionDays": 30,
+    "incidentRetentionDays": 90,
+    "otlpAndExactTraceReadbackRequired": true,
+    "productionProviderSpanRequired": true,
+    "independentReadbackRequired": true,
+    "publicIngressAllowed": false
+  },
+  "evidencePolicy": "Keep this request immutable. Record the actual resulting run, source SHA, artifacts and independent readback separately; never infer PASS from this request or PR CI."
+}
