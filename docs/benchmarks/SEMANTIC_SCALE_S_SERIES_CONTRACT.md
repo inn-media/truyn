@@ -1,6 +1,6 @@
 # TRUYN Semantic Scale S-Series Benchmark Contract
 
-Status: **METHODOLOGY / S-10 + S-20 + S-50 + S-100 ACCEPTED CHECKPOINTS**  
+Status: **METHODOLOGY / S-10/20/50/100 ACCEPTED; S-200 six-provider composite CLOSED in narrower measured scope; original seven-provider gate OPEN**  
 Applies to: **S-10 bounded baseline; S-20 five-scenario gate; S-50, S-100, S-200, S-500 scale gates**
 
 This document defines the fixed benchmark method and acceptance boundary for the live semantic-node scale family described in `../architecture/SEMANTIC_SCALE_S_SERIES.md`.
@@ -276,7 +276,7 @@ S-100 is accepted on Attempt 1 for the full declared matrix at 100 live semantic
 
 ### S-200
 
-Repeat the same comparable core scenarios to produce scale curves and detect degradation. A prior smaller PASS is baseline evidence, not a substitute for the larger gate.
+**Six-family A14+A15 composite: ACCEPTED / PASS in that explicitly narrower measured scope** for the eight scenario gates and 200 distinct semantic process identities per MIX profile. See [S-200 sanitized evidence](S_SERIES_S200_2026-10-12.md). Only GPT, Gemini, Grok, Llama, Mistral and Kimi participated: DeepSeek was excluded. The previously declared *seven-provider* gate in sections 2–4 is **not closed**; it requires an independently qualified seven-family run. The composite mixes immutable A14/A15 scenario evidence and is not an exact-one-SHA, all-at-once run or physical WAN acceptance. The underlying thresholds were not weakened. A prior smaller PASS is baseline evidence, not a substitute for the larger gate.
 
 ### S-500
 
@@ -321,4 +321,4 @@ A failed or invalid run is never silently replaced. Subsequent attempts get new 
 
 ## 16. Current state
 
-The S-Series architecture and methodology are defined. **S-10, S-20, S-50 and S-100 are accepted / PASS at their respective immutable checkpoints.** S-200 and S-500 remain OPEN and require independent immutable evidence. No larger-scale acceptance claim may be inferred from S-100.
+The S-Series architecture and methodology are defined. **S-10, S-20, S-50 and S-100 are accepted at their frozen scopes. S-200's six-provider eight-scenario composite is ACCEPTED / CLOSED only in its exact measured scope.** The **original seven-provider S-200 contract (DeepSeek participation) remains OPEN**, as does S-500, WAN homogeneity and long-duration SLO. No larger-scale or unmeasured family claim follows from A14/A15. Source: [S-200 2026-10-12](S_SERIES_S200_2026-10-12.md).

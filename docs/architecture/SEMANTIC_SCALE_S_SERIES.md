@@ -1,6 +1,6 @@
 # TRUYN Semantic Scale S-Series Architecture
 
-Status: **S-10 + S-20 + S-50 + S-100 ACCEPTED / S-200+ OPEN**  
+Status: **S-10/20/50/100 ACCEPTED; S-200 SIX-PROVIDER COMPOSITE PASS / CLOSED; full seven-provider parity + S-500 OPEN**  
 Track: **S-Series (Semantic Scale)**  
 Target ladder: **S-10 → S-20 → S-50 → S-100 → S-200 → S-500**
 
@@ -85,7 +85,7 @@ Provider transport implementation may be shared where TRUYN already shares it; v
 | **S-20** | 20 | accepted five-scenario gate: ECON, MIX, COST-ROUTING, CONTENTION, LANG |
 | **S-50** | 50 | **accepted full eight-scenario scale gate on Attempt 3** |
 | **S-100** | 100 | **accepted full eight-scenario scale gate on Attempt 1** |
-| **S-200** | 200 | semantic counterpart at the already-proven D-200 network scale |
+| **S-200** | 200 | **A14+A15 composite 8/8 PASS for 6 measured providers and local relay; 7-provider/physical WAN remains OPEN** |
 | **S-500** | 500 | large live semantic-network benchmark for economics, cross-border operation, contention and policy routing |
 
 Passing S-10 does not imply S-20; passing S-20 does not imply S-50; passing S-50 does not imply S-100; and passing S-100 does not imply S-200/S-500. Each gate requires its own immutable run identity and evidence.
@@ -209,12 +209,13 @@ Private raw telemetry and managed operational detail remain in `inn-media/truyn-
 
 ## Current execution status
 
-S-Series has four accepted checkpoints:
+S-Series has four earlier accepted checkpoints and one bounded S-200 composite closure:
 
 - **S-10 Attempt 6** — accepted bounded ECON/MIX integration baseline.
 - **S-20 Attempt 3** — accepted five-scenario 20-node gate covering `ECON`, `MIX`, `COST-ROUTING`, `CONTENTION` and `LANG`.
 - **S-50 Attempt 3** — accepted full eight-scenario 50-node gate covering `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION` and `LANG`.
 - **S-100 Attempt 1** — accepted full eight-scenario 100-node gate covering the same declared matrix, with Azure bearer fan-out repaired before execution.
+- **S-200 Attempts 14 + 15** — measured six-provider composite PASS for all eight scenarios, 200 real process identities per MIX profile; original seven-family parity, single-execution proof and 200-host WAN are not proven. [Report](../benchmarks/S_SERIES_S200_2026-10-12.md).
 
 Accepted public evidence:
 
@@ -229,9 +230,9 @@ Therefore:
 - S-20 — **ACCEPTED / PASS** for the five declared scenarios;
 - S-50 — **ACCEPTED / PASS**;
 - S-100 — **ACCEPTED / PASS**;
-- S-200 — **OPEN / not accepted**;
+- S-200 — **SIX-PROVIDER COMPOSITE PASS / CLOSED in measured scope**; original 7-provider DeepSeek parity OPEN;
 - S-500 — **OPEN / not accepted**.
 
 S-20 does not accept `XBORDER`, `CHAIN` or `CHURN`; those were independently exercised and accepted at S-50. S-50 Attempt 3 passed all eight scenarios with 50 live nodes. S-100 Attempt 1 independently passed the same full matrix with 100 live nodes: CHURN recovery p95 54,002 ms, 100/100 contention completion, 100/100 multilingual cases, and auth p95 3 ms after removal of worker-local Azure CLI token acquisition. The remaining contention non-provider residual p95 was 5,874 ms and is the next diagnostic target.
 
-No S-200/S-500 claim may be inferred from S-100.
+S-200's evidence is independent from S-100 and composite across two exact SHAs. **No seven-provider S-200 or S-500 claim may be inferred from this narrower S-200 proof.**

@@ -12,7 +12,7 @@ Website: https://truyn.org/
 
 ## Current factual status
 
-**Snapshot:** 2026-10-11 (D-5000 accepted; H-Series 4/4 closed; Production SLO not proven)  
+**Snapshot:** 2026-10-12 (S-200 six-provider composite 8/8 closed; D-5000 accepted; H-Series 4/4 closed; Production SLO not proven)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft (expanded A–I CORE registry on `main`, stable wire release/Mainnet not declared)  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`  
@@ -25,7 +25,7 @@ Website: https://truyn.org/
 | Class D-200 | **Accepted / PASS; repeatability confirmed** |
 | Class D-500 | **Accepted / PASS; repeatability-confirmed by two consecutive exact-frozen runs** |
 | Class D-1000 | **Accepted / PASS; 20 hosts / 1,000 real processes** |
-| Semantic Scale S-Series | **S-10 + S-20 + S-50 + S-100 accepted / PASS; S-200+ remain OPEN** |
+| Semantic Scale S-Series | **S-10/20/50/100 accepted; S-200 6-provider composite 8/8 PASS / CLOSED (A14+A15)**; original 7-provider parity and S-500 remain OPEN |
 | A-Series Assurance | **Public foundation merged / real A-SOAK Attempt 1 not launched** |
 | D-5000 | **ACCEPTED / CLOSED / DOUBLE-CHECK VERIFIED**; 20 hosts / 5,000 real processes, Attempt 12 immutable requalification, Attempt 13 official terminal PASS, 100/100 retention, 0 loss |
 | Efficiency E-Series | **Active qualification; no final E PASS claimed** |
@@ -63,7 +63,7 @@ A-Series public foundation [PR #922](https://github.com/inn-media/truyn/pull/922
 
 D-200 is accepted and repeatability-confirmed. **D-500 is accepted and repeatability-confirmed**. **D-1000 is accepted** on Attempt 1 workflow run `37687469411`, GitHub `run_attempt=2`, with strict `TRUYN_D1000_TERMINAL result=PASS` on frozen source `c1d3fa087716dbf24d0b3b65bceae303e907160a` / tree `266c83c8520d486cc6f1d44f63c8bd9b6e185c38`: 20 hosts / 1,000 real processes, baseline 100%, post-restart 99%, healed 100%, convergence 100%, zero acknowledged-write loss and complete cleanup. The successful D-1000 scale floor is canonical in `main` at `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`. See `docs/benchmarks/CLASS_D_1000_2026-10-08.md`.
 
-S-Series now has four accepted checkpoints: the bounded **S-10 ECON/MIX integration baseline**, the **S-20 five-scenario gate**, the full **S-50 eight-scenario 50-node scale gate**, and the full **S-100 eight-scenario 100-node scale gate**. S-100 Attempt 1 passed `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION` and `LANG` at 100 simultaneously live semantic nodes. Headline evidence includes 98.903% input-token reduction, 98.682% comparable GPT/Gemini provider-cost reduction, CHURN recovery p95 54.002 s, 100/100 contention completion with maxInFlight 100, and 100/100 multilingual cases across EN/TR/ZH/RU/AZ. S-200+ remain independent OPEN gates. See `docs/benchmarks/S_SERIES_S10_2026-10-07.md`, `docs/benchmarks/S_SERIES_S20_2026-10-07.md` and `docs/benchmarks/S_SERIES_S50_2026-10-08.md`.
+S-Series now has four accepted checkpoints: the bounded **S-10 ECON/MIX integration baseline**, the **S-20 five-scenario gate**, the full **S-50 eight-scenario 50-node scale gate**, and the full **S-100 eight-scenario 100-node scale gate**. S-100 Attempt 1 passed `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION` and `LANG` at 100 simultaneously live semantic nodes. Headline evidence includes 98.903% input-token reduction, 98.682% comparable GPT/Gemini provider-cost reduction, CHURN recovery p95 54.002 s, 100/100 contention completion with maxInFlight 100, and 100/100 multilingual cases across EN/TR/ZH/RU/AZ. S-200 completed a **six-provider, eight-scenario composite** on Attempt 14 + 15 (200 distinct process identities per MIX cohort; MIX 600/600 correct, input-token reduction 99.4497%, CHURN recovery p95 64.516 s). The original seven-provider requirement (DeepSeek) and distributed physical WAN proof remain **OPEN**; S-500 is unaccepted. See `docs/benchmarks/S_SERIES_S200_2026-10-12.md` for run IDs, SHA-256 and limitations; previous S-10/20/50/100 checkpoints remain accepted independently.
 
 E-Series has active qualification/isolation/provider-smoke work. No final E/DECOMPOSE, E/PER-RESULT, E/KNEE or E/DEGRADE result is claimed.
 
@@ -105,7 +105,7 @@ npm test
 5. `docs/operations/NETWORK_SCALE_STATUS.md` — current D-Series operational acceptance;
 6. `docs/architecture/IMPLEMENTATION_STATUS.md` — repository-wide factual maturity;
 7. `docs/operations/DOCUMENTATION_SANITATION_2026-10-09_A_SERIES.md` — latest A-Series documentation reconciliation; `docs/operations/DOCUMENTATION_SANITATION_2026-10-08.md` retains D-1000 acceptance sanitation;
-8. `docs/operations/S_SERIES_SANITATION_S100_2026-10-08.md` — current S-Series reconciliation;
+8. `docs/operations/S_SERIES_SANITATION_2026-10-12.md` — latest six-provider S-200 composite closure/sanitation (S-100 historical snapshot retained);
 9. `docs/benchmarks/` — immutable accepted/failed measured evidence;
 10. `ROADMAP.md` — next gates.
 

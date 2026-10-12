@@ -10,7 +10,7 @@ Scope: public `main` at `35c937adf8e71119681c6f9243e8b00bcfd0c48e`, private `mai
 | F-Series | Public PR #952 and private PR #444 merged; foundation only; no physical Attempt 1 |
 | D-100/200/500/1000 | Accepted bounded network-scale gates; D-500/1000 have repeatability |
 | D-5000 | No accepted final PASS established; PRs #950–#954 include Attempt 7–8 repairs and launches; do not describe Attempt 3 as current |
-| S-Series | S-10/20/50/100 accepted; S-200+ open |
+| S-Series | **2026-10-10 snapshot:** S-10/20/50/100 accepted; S-200+ open. **Superseded 2026-10-12:** [S-200 six-provider composite 8/8 scoped PASS / CLOSED](../benchmarks/S_SERIES_S200_2026-10-12.md); seven-family parity/physical WAN remain OPEN |
 | T/BREAK-EVEN-REAL | Attempt 6 audited real diagnostic PASS, 57/57 correct; does not prove commercial break-even |
 | T/HEAD-TO-HEAD | Negative economic result preserved; commercial superiority gate RED |
 | E-Series | Qualification and real pilot work exist, no accepted final E lane established |

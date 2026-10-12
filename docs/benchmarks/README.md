@@ -25,6 +25,8 @@ The repository regression suite treats the evidence files below as protected and
 
 ## Current evidence ledger
 
+- [**S-Series S-200 six-provider composite — 2026-10-12**](S_SERIES_S200_2026-10-12.md) — **CLOSED / PASS (bounded):** A14 seven passing scenario artifacts and two passing MIX profiles reused after SHA-256 validation; A15 paid only the failed skewed 200-process MIX profile; 8/8 scenarios, 600/600 final MIX answers, 99.4497% input-token reduction, CHURN p95 64,516 ms. Immutable A14/A15 source SHAs, run IDs and artifact digests preserved. **Original seven-family DeepSeek gate and real 200-host WAN remain OPEN; not single-run evidence.** Machine-readable [summary](evidence/S_SERIES_S200_2026-10-12.json).
+
 ### New prospective methodologies
 
 - [`T_HEAD_TO_HEAD_CONTEXT_PRESSURE_METHODOLOGY.md`](T_HEAD_TO_HEAD_CONTEXT_PRESSURE_METHODOLOGY.md) — prospectively frozen distributed-context scaling benchmark. Separates native protocol-surface measurement from end-to-end economic context-pressure measurement across 2/10/25/50 hops, multiple agents/nodes, cold/warm reuse and WAN execution. No result claim yet.
