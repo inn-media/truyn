@@ -177,7 +177,7 @@ test('production runtime canary queries Tempo in the normal retention tenant', a
 test('manual Tempo production retry is exact-main only, shares the exclusive ACA writer', async () => {
   const workflow = await readFile(WORKFLOW, 'utf8');
   assert.ok(workflow.includes('workflow_dispatch:'));
-  assert.ok(workflow.includes("github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'"));
+  assert.ok(workflow.includes("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'"));
   assert.ok(workflow.includes("group: truyn-production-aca-exclusive-writer"));
   assert.ok(workflow.includes("cancel-in-progress: false"));
   assert.ok(workflow.includes("Production apply refused: protected main changed since this run was queued."));
