@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -9,20 +9,12 @@ import { dirname, resolve, join, delimiter } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createIdentity, signValue } from '../../core/identity/index.js';
 import { writeDescriptorParityReport } from './descriptor-report-output.mjs';
+import { inspectSourceState as inspectRepositorySourceState, sourceStateQualified } from './descriptor-source-state.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const languages = Object.freeze(['typescript', 'python', 'go', 'java', 'dotnet']);
 export const fixturePath = 'sdk/conformance/v1/agent-descriptor-interface-fixtures.json';
-export function inspectSourceState(cwd = root) {
-  // Toolchains compile untracked source too. Ignore only actual .gitignore
-  // outputs, not all untracked paths, and observe both sides of execution.
-  return {
-    sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim(),
-    clean: execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd, encoding: 'utf8' }).trim() === ''
-  };
-}
-export function sourceStateQualified(before, after) {
-  return before.clean === true && after.clean === true && before.sourceSha === after.sourceSha;
-}
+export function inspectSourceState(cwd = root) { return inspectRepositorySourceState(cwd); }
+export { sourceStateQualified };
 export function loadCases() { return JSON.parse(readFileSync(resolve(root, fixturePath), 'utf8')).cases; }
 export function signedCase(item, identity, now = Date.now()) {
   const unsigned = { schema: 'truyn.agent-descriptor/v1', descriptorVersion: '1', identity: identity.nodeId,
