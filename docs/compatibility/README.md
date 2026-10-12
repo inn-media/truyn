@@ -23,7 +23,7 @@ Compatibility is tracked separately for protocol/node behavior, adapters/externa
 - SDK API-v1 bounded primitives are implemented across five first-party clients.
 - All five CURRENT Wire Freeze prereleases have accepted immutable 6/6 public evidence; the previous npm alpha.2 is historical.
 - npm alpha.1 remains immutable historical evidence whose required clean-room ESM import failed and is superseded without overwrite.
-- Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+- Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is an accepted immutable public prerelease.
 
 External evidence names concrete tested versions/source. Per-build provenance, immutable publication, clean-room usability and stable compatibility are separate concepts.
 

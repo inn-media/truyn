@@ -11,7 +11,7 @@ Human-facing documentation for TRUYN architecture, implementation status, govern
 **Protocol:** `TRUYN/1` draft; expanded CORE source merged via PR #975; immutable stable-v1/Mainnet not admitted  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
 
-**Current SDK release authority:** [Five prereleases independently verified 2026-10-11](releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). Stable TRUYN/1 and 1.0.0 packages are not released; historical benchmark and previous alpha ledgers are not changed by documentation sanitation.
+**Current SDK release authority:** npm `@truyn/sdk@0.1.0-alpha.5` (PyPI `truyn-sdk==0.1.0a2`, Go/Maven/NuGet alpha.2). [Five prereleases independently verified 2026-10-11](releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). Stable TRUYN/1 and 1.0.0 packages are not released; historical benchmark and previous alpha ledgers are not changed by documentation sanitation.
 
 ## Start here
 

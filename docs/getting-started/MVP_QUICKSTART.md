@@ -146,7 +146,7 @@ The first-party Developer Release layer is implemented for:
 - Java;
 - C# / .NET.
 
-These are no longer architecture/scaffolding-only targets. All five have implemented bounded relay clients and participate in the shared executable conformance gate. Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.2`, PyPI `truyn-sdk==0.1.0a1`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` are accepted immutable public prereleases; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an accepted immutable public release. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` status is reconciled independently.
+These are no longer architecture/scaffolding-only targets. All five have implemented bounded relay clients and participate in the shared executable conformance gate. Public distribution is coordinate-specific: npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, and Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` are accepted immutable public prereleases; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an accepted immutable public release. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` prerelease is independently accepted in the 6/6 registry audit.
 
 The bounded onboarding flow is now implemented:
 
