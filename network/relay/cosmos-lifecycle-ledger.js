@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 
 // Cosmos DB for NoSQL DATA PLANE, using Microsoft Entra only. Never accept
 // account keys, connection strings or cross-host SQLite WAL as distributed CAS.
@@ -36,6 +37,7 @@ export function createCosmosLifecycleLedger({
   if (![database,container].every(x=>typeof x==='string' && /^[a-zA-Z0-9._-]{1,100}$/.test(x)))
     throw new Error('Cosmos database/container identifiers required');
   if (typeof getAccessToken !== 'function') throw new Error('Microsoft Entra getAccessToken() required');
+  if (!Number.isSafeInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 2_147_483_647) throw new Error('invalid requestTimeoutMs');
   if (!Number.isSafeInteger(maxDocumentBytes) || maxDocumentBytes < 2048 || maxDocumentBytes > 1_800_000) throw new Error('invalid maxDocumentBytes');
   if (!Number.isSafeInteger(maxDeliveriesPerNeed) || maxDeliveriesPerNeed < 1 || maxDeliveriesPerNeed > 2048) throw new Error('invalid maxDeliveriesPerNeed');
   if (!Number.isSafeInteger(maxCasAttempts) || maxCasAttempts < 1 || maxCasAttempts > 20) throw new Error('invalid maxCasAttempts');
@@ -64,31 +66,60 @@ export function createCosmosLifecycleLedger({
 
   async function api({method,path = '',partitionKey,body,etag,query = false,continuation = null}) {
     if (!query && !nonempty(partitionKey)) throw fault(400,'invalid_partition_key');
-    let token;
-    try { token = await getAccessToken(); }
-    catch { throw fault(503,'lifecycle_ledger_auth_unavailable'); }
-    if (typeof token!=='string' || token.length===0 || Buffer.byteLength(token)>16384) throw fault(503,'lifecycle_ledger_auth_unavailable');
     const payload = body == null ? undefined : JSON.stringify(body);
     if (payload && Buffer.byteLength(payload) > maxDocumentBytes) throw fault(503,'lifecycle_document_capacity_reached');
-    const headers = {
-      authorization: encodeURIComponent(`type=aad&ver=1.0&sig=${token}`),
-      'x-ms-date': new Date().toUTCString(),
-      'x-ms-version': '2018-12-31',
-      ...(partitionKey ? {'x-ms-documentdb-partitionkey':JSON.stringify([partitionKey])}:{}),
-      // CAS is supplied by the partition ETag; strong reads cannot be
-      // requested on accounts provisioned for session consistency.
-      'x-ms-consistency-level': 'Session',
-      ...(compoundQuerySession() ? {'x-ms-session-token':compoundQuerySession()} : {}),
-      ...(query ? {'x-ms-documentdb-isquery':'True','x-ms-documentdb-query-enablecrosspartition':'True','x-ms-max-item-count':'100'}:{}),
-      ...(continuation ? {'x-ms-continuation':continuation}:{}),
-      accept: 'application/json'
-    };
-    if (payload) headers['content-type'] = query ? 'application/query+json' : 'application/json';
-    if (etag) headers['if-match'] = etag;
+    // One budget includes Entra acquisition, headers and body. Aborting fetch
+    // alone cannot bound a token callback or a transport/body that ignores it.
     const controller = new AbortController();
-    const timeout = setTimeout(()=>controller.abort(),requestTimeoutMs);
+    const expiresAt = performance.now() + requestTimeoutMs;
+    let expired = false, timeout;
+    const deadline = new Promise((_,reject) => {
+      timeout = setTimeout(() => {
+        expired = true;
+        controller.abort();
+        reject(fault(503,'lifecycle_ledger_unavailable'));
+      },requestTimeoutMs);
+    });
+    const active = () => {
+      if (expired || performance.now() >= expiresAt) {
+        expired = true;
+        controller.abort();
+        throw fault(503,'lifecycle_ledger_unavailable');
+      }
+    };
+    const bounded = async work => {
+      active();
+      // The factory is guarded before invocation: a late token must never
+      // cause a POST after the original caller already observed a timeout.
+      const value = await Promise.race([
+        Promise.resolve().then(() => { active(); return work(); }), deadline
+      ]);
+      active();
+      return value;
+    };
     try {
-      const response = await fetchImpl(base + path, { method, headers, body:payload, signal:controller.signal });
+      let token;
+      try { token = await bounded(() => getAccessToken()); }
+      catch { throw fault(503,'lifecycle_ledger_auth_unavailable'); }
+      if (typeof token!=='string' || token.length===0 || Buffer.byteLength(token)>16384) throw fault(503,'lifecycle_ledger_auth_unavailable');
+      const headers = {
+        authorization: encodeURIComponent(`type=aad&ver=1.0&sig=${token}`),
+        'x-ms-date': new Date().toUTCString(),
+        'x-ms-version': '2018-12-31',
+        ...(partitionKey ? {'x-ms-documentdb-partitionkey':JSON.stringify([partitionKey])}:{}),
+        // CAS is supplied by the partition ETag; strong reads cannot be
+        // requested on accounts provisioned for session consistency.
+        'x-ms-consistency-level': 'Session',
+        ...(compoundQuerySession() ? {'x-ms-session-token':compoundQuerySession()} : {}),
+        ...(query ? {'x-ms-documentdb-isquery':'True','x-ms-documentdb-query-enablecrosspartition':'True','x-ms-max-item-count':'100'}:{}),
+        ...(continuation ? {'x-ms-continuation':continuation}:{}),
+        accept: 'application/json'
+      };
+      if (payload) headers['content-type'] = query ? 'application/query+json' : 'application/json';
+      if (etag) headers['if-match'] = etag;
+      const response = await bounded(() => fetchImpl(base + path, {
+        method, headers, body:payload, signal:controller.signal, redirect:'error'
+      }));
       if ([401,403].includes(response.status)) throw fault(503,'lifecycle_ledger_auth_denied');
       if ([408,429,449,500,502,503,504].includes(response.status)) throw fault(503,'lifecycle_ledger_unavailable');
       if (![200,201,204,404,409,412].includes(response.status)) throw fault(503,'lifecycle_ledger_protocol_error');
@@ -101,15 +132,19 @@ export function createCosmosLifecycleLedger({
       const responseEtag = response.headers.get('etag');
       let doc=null;
       if (response.status !== 204) {
-        try { doc=await response.json(); }
-        catch { if (response.status<400) throw fault(503,'lifecycle_ledger_invalid_response'); }
+        try { doc=await bounded(() => response.json()); }
+        catch {
+          // A timeout, including an error-body timeout, is not a confirmed
+          // failed write and must not enter mutate()'s CAS retry path.
+          if (expired) throw fault(503,'lifecycle_ledger_unavailable');
+          if (response.status<400) throw fault(503,'lifecycle_ledger_invalid_response');
+        }
       }
       return {status:response.status,doc,etag:responseEtag || doc?._etag || null,continuation:response.headers.get('x-ms-continuation')};
     } catch (error) {
       if (Number.isInteger(error?.httpStatus)) throw error;
       throw fault(503,'lifecycle_ledger_unavailable');
     } finally {
-      // The deadline includes reading the response body, not just headers.
       clearTimeout(timeout);
     }
   }
