@@ -63,6 +63,14 @@ public final class AgentDescriptors {
     List<?> interfaces = list(raw.get("interfaces"));
     if (protocols.isEmpty() || interfaces.isEmpty() || !(raw.get("capabilities") instanceof List<?>))
       throw new TruynException(TruynException.Code.INVALID_ARGUMENT, "invalid Agent Descriptor discovery fields", false);
+    // Match the existing nonempty-string reference profile without trimming
+    // or requiring an intentionally undisclosed endpoint.
+    for (Object value : interfaces) {
+      if (!(value instanceof Map<?,?> item)
+          || !(item.get("type") instanceof String kind) || kind.isEmpty()
+          || (item.containsKey("endpoint") && (!(item.get("endpoint") instanceof String endpoint) || endpoint.isEmpty())))
+        throw new TruynException(TruynException.Code.INVALID_ARGUMENT, "Agent Descriptor interfaces are invalid", false);
+    }
     Instant issued = instant(raw.get("issuedAt"));
     Instant expires = instant(raw.get("expiresAt"));
     if (issued == null || expires == null || !expires.isAfter(issued))
@@ -104,7 +112,7 @@ public final class AgentDescriptors {
   private static Map<String,Object> selectInterface(Map<String,Object> raw, List<String> supported) {
     for (Object value : list(raw.get("interfaces"))) {
       Map<String,Object> candidate = Json.object(value);
-      if (supported.contains(text(candidate.get("type")))) return candidate;
+      if (supported.contains((String) candidate.get("type"))) return candidate;
     }
     throw new TruynException(TruynException.Code.VERSION_MISMATCH, "no mutually supported Agent Descriptor interface", false);
   }
@@ -112,7 +120,7 @@ public final class AgentDescriptors {
   private static TruynModels.AgentDescriptor model(Map<String,Object> raw) {
     List<String> protocols = new ArrayList<>(); for (Object value : list(raw.get("protocols"))) protocols.add(String.valueOf(value));
     List<TruynModels.Interface> interfaces = new ArrayList<>();
-    for (Object value : list(raw.get("interfaces"))) { Map<String,Object> item=Json.object(value); interfaces.add(new TruynModels.Interface(text(item.get("type")), text(item.get("endpoint")))); }
+    for (Object value : list(raw.get("interfaces"))) { Map<String,Object> item=Json.object(value); interfaces.add(new TruynModels.Interface((String) item.get("type"), (String) item.get("endpoint"))); }
     List<TruynModels.Capability> capabilities = new ArrayList<>();
     for (Object value : list(raw.get("capabilities"))) { Map<String,Object> item=Json.object(value); capabilities.add(new TruynModels.Capability(text(item.get("id")), text(item.get("name")))); }
     return new TruynModels.AgentDescriptor((String)raw.get("schema"),(String)raw.get("descriptorVersion"),(String)raw.get("identity"),List.copyOf(protocols),List.copyOf(interfaces),List.copyOf(capabilities),(String)raw.get("issuedAt"),(String)raw.get("expiresAt"),text(raw.get("signature")),List.of());

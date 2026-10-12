@@ -5,7 +5,7 @@
 **Stable SDK API contract version:** `1`.  
 **Wire protocol:** `TRUYN/1` draft.
 
-DX-3 moved the first-party SDK/runtime path from request/response scaffolding into a usable developer surface for long-running agent work. The later Developer Release Layer completed bounded five-language relay-client parity, executable conformance and package build/provenance around that runtime core. Bounded Descriptor serving and refresh/re-signing are implemented; cross-language malformed-interface parity and broader release-specific lifecycle acceptance remain separate as described below.
+DX-3 moved the first-party SDK/runtime path from request/response scaffolding into a usable developer surface for long-running agent work. The later Developer Release Layer completed bounded five-language relay-client parity, executable conformance and package build/provenance around that runtime core. Bounded Descriptor serving and refresh/re-signing are implemented; bounded source interface-parity checks now exercise all five SDKs; broader release-specific lifecycle acceptance remains separate as described below.
 
 The stable SDK API is a compatibility contract for this developer surface. It does not create a second protocol, bypass TRUYN authorization or declare `TRUYN/1` stable.
 
@@ -147,7 +147,7 @@ The bounded public Descriptor primitives and valid-fixture client path are imple
 
 Refresh implementation, malformed-interface parity and production lifecycle acceptance must not be conflated:
 
-Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established. Missing or empty interface types are rejected by the reference parser; identical rejection across all five SDKs still needs executable proof. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
+Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. The bounded 19-case interface-parity suite is implemented through the actual HTTP fetch, validation, signature and selection path of all five source SDKs; exact-source acceptance is established by the corresponding successful five-language CI report. Each source SDK rejects missing or empty interface types and supplied empty/non-string endpoints, including invalid entries that negotiation would otherwise skip. The separate shared interface fixture and required five-language runner exercise this bounded contract. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
 
 A Descriptor never grants provider authorization. Delegated Descriptor-signing keys are not supported in the current alpha profile.
 
@@ -195,7 +195,7 @@ The SDK/runtime must never:
 
 Remaining release/lifecycle gates include:
 
-- shared five-language optional-endpoint/invalid-interface conformance and broader Descriptor lifecycle and production-serving qualification beyond the implemented refresh;
+- versioned publication/consumer qualification of the bounded five-SDK interface repair, plus broader Descriptor lifecycle and production-serving qualification beyond the implemented refresh;
 - stable-version SDK publication and explicit consumer rollout beyond accepted prereleases;
 - live public developer-site activation/liveness evidence.
 

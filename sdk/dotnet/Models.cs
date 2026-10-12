@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Text.Json.Serialization;
 
 namespace Truyn.Sdk;
 
@@ -23,7 +24,11 @@ public sealed record AgentDescriptor(
     string? Signature = null,
     IReadOnlyList<DescriptorSignature>? Signatures = null);
 
-public sealed record AgentInterface(string Type, string Url);
+/// <summary>Url is the optional wire endpoint; keep its existing CLR name for source compatibility.</summary>
+public sealed record AgentInterface(
+    string Type,
+    [property: JsonPropertyName("endpoint")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Url = null);
 
 public sealed record DescriptorSignature(string Alg, string Value, string? CreatedAt = null);
 

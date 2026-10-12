@@ -1,5 +1,7 @@
 using Truyn.Sdk;
 
+if (args.Length == 1 && args[0] == "--descriptor-interfaces") { await DescriptorInterfaceConformance.RunAsync(); return; }
+
 if (args.Length != 1) throw new ArgumentException("relay URL is required");
 var relay = new Uri(args[0]);
 var descriptorUrl = Environment.GetEnvironmentVariable("TRUYN_CONFORMANCE_DESCRIPTOR_URL");
