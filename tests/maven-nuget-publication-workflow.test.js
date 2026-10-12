@@ -61,8 +61,16 @@ test('Maven and NuGet coordinates require accepted public evidence', async () =>
   const csproj = await read('sdk/dotnet/Truyn.Sdk.csproj');
   assert.match(pom, new RegExp(`<version>${release.release.replaceAll('.', '\.')}</version>`));
   assert.match(csproj, new RegExp(`<Version>${release.release.replaceAll('.', '\.')}</Version>`));
-  assert.equal(coords.maven.version, '0.1.0-alpha.1');
-  assert.equal(coords.nuget.version, '0.1.0-alpha.1');
+  assert.equal(coords.maven.version, '0.1.0-alpha.2');
+  assert.equal(coords.nuget.version, '0.1.0-alpha.2');
+  assert.equal(coords.maven.coordinate, 'org.truyn:truyn-sdk:0.1.0-alpha.2');
+  assert.equal(coords.nuget.coordinate, 'Truyn.Sdk@0.1.0-alpha.2');
+  // Historical NuGet alpha.1 evidence remains independently verifiable; no byte overwrite.
+  assert.equal(coords.nuget.historicalAlpha1.evidence, 'sdk/release/evidence/nuget-alpha1-2026-09-23.json');
+  const frozenLedger = await read('docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md');
+  assert.match(frozenLedger, /org\.truyn:truyn-sdk:0\.1\.0-alpha\.2/);
+  assert.match(frozenLedger, /Truyn\.Sdk 0\.1\.0-alpha\.2/);
+  assert.equal(JSON.parse(await read('sdk/release/public-coordinates.json')).frozenReleaseSourceSha, '57971b134a41c3e3ea4b42f68e86a7d117036006');
   assert.equal(coords.maven.publicationState, 'accepted');
   assert.equal(coords.nuget.publicationState, 'accepted');
   const evidence = JSON.parse(await read('sdk/release/evidence/nuget-alpha1-2026-09-23.json'));
