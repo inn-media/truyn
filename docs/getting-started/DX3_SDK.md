@@ -195,7 +195,7 @@ The SDK/runtime must never:
 
 Remaining release/lifecycle gates include:
 
-- shared five-language optional-endpoint/invalid-interface conformance and broader Descriptor lifecycle and production-serving qualification beyond the implemented refresh;
+- versioned publication/consumer qualification of the bounded five-SDK interface repair, plus broader Descriptor lifecycle and production-serving qualification beyond the implemented refresh;
 - stable-version SDK publication and explicit consumer rollout beyond accepted prereleases;
 - live public developer-site activation/liveness evidence.
 

@@ -162,7 +162,7 @@ The repository progressed through DX-0/DX-1/DX-2/DX-3 into the merged Developer 
 
 Current remaining Developer Release/lifecycle gates include:
 
-- consistent acceptance of omitted optional endpoints and rejection of invalid empty endpoints or interface types across all five SDKs, plus broader Descriptor lifecycle/delegated-signing and production serving qualification beyond implemented refresh;
+- versioned publication/consumer qualification of the bounded five-SDK interface repair, plus broader Descriptor lifecycle/delegated-signing and production serving qualification beyond implemented refresh;
 - archive-member byte-content leakage scanning;
 - live public developer-site activation/liveness evidence.
 
