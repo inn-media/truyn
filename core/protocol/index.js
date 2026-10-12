@@ -27,7 +27,61 @@ function isPayloadObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+// Only JSON scalar values are signable. Native JSON.stringify would silently turn
+// NaN/Infinity into null and discard undefined members, changing the signed data.
+function assertCanonicalJsonValue(value, visited = new Set()) {
+  if (value === null || typeof value === 'boolean') return;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new TypeError('TCJ1 non-finite number');
+    return;
+  }
+  const checkUnicode = (text) => {
+    for (let index = 0; index < text.length; index++) {
+      const code = text.charCodeAt(index);
+      if (code >= 0xd800 && code <= 0xdbff) {
+        const next = text.charCodeAt(++index);
+        if (!(next >= 0xdc00 && next <= 0xdfff)) throw new TypeError('TCJ1 unpaired surrogate');
+      } else if (code >= 0xdc00 && code <= 0xdfff) {
+        throw new TypeError('TCJ1 unpaired surrogate');
+      }
+    }
+  };
+  if (typeof value === 'string') { checkUnicode(value); return; }
+  if (typeof value !== 'object') throw new TypeError('TCJ1 requires JSON value');
+  if (visited.has(value)) throw new TypeError('TCJ1 cyclic value');
+  visited.add(value);
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index++) {
+      if (!(index in value)) throw new TypeError('TCJ1 sparse array');
+      assertCanonicalJsonValue(value[index], visited);
+    }
+  } else {
+    for (const key of Object.keys(value)) {
+      checkUnicode(key);
+      assertCanonicalJsonValue(value[key], visited);
+    }
+  }
+  visited.delete(value);
+}
+
+function isRfc3339Timestamp(value) {
+  if (!isNonEmptyString(value)) return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!match) return false;
+  const utcTime = Date.parse(value);
+  if (!Number.isFinite(utcTime)) return false;
+  const zone = match[7];
+  const hours = zone === 'Z' ? 0 : Number(zone.slice(1, 3));
+  const minutes = zone === 'Z' ? 0 : Number(zone.slice(4, 6));
+  if (hours > 23 || minutes > 59) return false;
+  const offsetMinutes = zone === 'Z' ? 0 : (zone[0] === '+' ? 1 : -1) * (hours * 60 + minutes);
+  // Reject normalized impossible calendar dates (e.g. February 30).
+  const local = new Date(utcTime + offsetMinutes * 60000);
+  return local.toISOString().slice(0, 19) === value.slice(0, 19);
+}
+
 export function canonicalize(value) {
+  assertCanonicalJsonValue(value);
   return JSON.stringify(normalize(value));
 }
 
@@ -43,7 +97,9 @@ export function publicKeyFingerprint(publicKeyPem) {
     const cached = fingerprintCache.get(cacheKey);
     if (cached !== undefined) return cached;
   }
-  const der = createPublicKey(publicKeyPem).export({ type: 'spki', format: 'der' });
+  const key = createPublicKey(publicKeyPem);
+  if (key.asymmetricKeyType !== 'ed25519') throw new TypeError('TRUYN/1 requires Ed25519 public keys');
+  const der = key.export({ type: 'spki', format: 'der' });
   const fingerprint = createHash('sha256').update(der).digest('hex');
   if (cacheKey !== null) {
     if (fingerprintCache.size >= FINGERPRINT_CACHE_LIMIT) fingerprintCache.delete(fingerprintCache.keys().next().value);
@@ -71,6 +127,7 @@ export function createEnvelope({ type, from, payload, privateKeyPem, publicKeyPe
   if (!isNonEmptyString(id) || !isNonEmptyString(createdAt)) {
     throw new Error('id and createdAt are required');
   }
+  if (!isRfc3339Timestamp(createdAt)) throw new Error('createdAt must be a valid RFC 3339 timestamp');
   if (to !== null && !isNonEmptyString(to)) {
     throw new Error('to must be null or a non-empty node ID');
   }
@@ -115,19 +172,33 @@ export function verifyEnvelope(envelope, { allowedTypes = MVP_TYPES } = {}) {
   if (envelope.to !== undefined && envelope.to !== null && !isNonEmptyString(envelope.to)) {
     return { ok: false, reason: 'invalid_optional_field' };
   }
-  if (nodeIdFromPublicKey(envelope.publicKey) !== envelope.from) {
-    return { ok: false, reason: 'node_id_key_mismatch' };
+  if (!isRfc3339Timestamp(envelope.createdAt)) {
+    return { ok: false, reason: 'invalid_timestamp' };
   }
-
-  const unsigned = unsignedEnvelope(envelope);
-  const ok = cryptoVerify(
-    null,
-    Buffer.from(canonicalize(unsigned)),
-    envelope.publicKey,
-    Buffer.from(envelope.signature, 'base64')
-  );
-
-  return ok ? { ok: true } : { ok: false, reason: 'invalid_signature' };
+  // Buffer's Base64 decoder is permissive; the signed wire contract is not.
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(envelope.signature)) {
+    return { ok: false, reason: 'invalid_signature' };
+  }
+  const signature = Buffer.from(envelope.signature, 'base64');
+  if (signature.length !== 64 || signature.toString('base64') !== envelope.signature) {
+    return { ok: false, reason: 'invalid_signature' };
+  }
+  try {
+    if (nodeIdFromPublicKey(envelope.publicKey) !== envelope.from) {
+      return { ok: false, reason: 'node_id_key_mismatch' };
+    }
+    const unsigned = unsignedEnvelope(envelope);
+    const ok = cryptoVerify(
+      null,
+      Buffer.from(canonicalize(unsigned)),
+      envelope.publicKey,
+      signature
+    );
+    return ok ? { ok: true } : { ok: false, reason: 'invalid_signature' };
+  } catch {
+    // An invalid public key, non-JSON value or invalid signature cannot dispatch.
+    return { ok: false, reason: 'invalid_signature' };
+  }
 }
 
 export function compactRequestId() {
