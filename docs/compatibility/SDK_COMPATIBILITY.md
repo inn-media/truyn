@@ -1,5 +1,7 @@
 # TRUYN SDK Compatibility and Migration Policy
 
+> **Current accepted Wire Freeze prerelease (2026-10-11):** npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, Go `sdk/go@v0.1.0-alpha.2`, Maven `org.truyn:truyn-sdk:0.1.0-alpha.2`, NuGet `Truyn.Sdk 0.1.0-alpha.2`. All five are bound to frozen public source `57971b134a41c3e3ea4b42f68e86a7d117036006` and the [independent registry acceptance record](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). The older alpha coordinates below are **historical Developer Release evidence**, not current Wire Freeze pins; `sdk/release/public-coordinates.json` is a historical, separately accepted Developer Release ledger. The exact current pins for P13-FORMAT are in [truyn1-five-sdk-freeze.json](../../spec/compatibility/truyn1-five-sdk-freeze.json). No prerelease is a Stable TRUYN/1 SDK declaration.
+
 **Status:** Developer Release policy implemented for the `0.1.0-alpha.x` family; npm, PyPI, Go, Maven Central and NuGet have accepted immutable public releases.  
 **Protocol:** `TRUYN/1` remains draft. PR #975 established five-SDK TCJ1 conformance and 20/20 legacy/new published-alpha peer combinations; neither implies stable-v1 or Mainnet.  
 **Stable SDK API contract:** `1` is a separately versioned developer-facing contract and does not imply protocol stable-v1.

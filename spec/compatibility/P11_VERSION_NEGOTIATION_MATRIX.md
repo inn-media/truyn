@@ -53,3 +53,7 @@ The pure helper normalizes string lists. Authenticated registration and peer-ses
 - P11 is **matrix-defined / regression-linked** once the exact PR head and post-merge `main` checks pass. Stable TRUYN/1 remains gated on the other protocol RC gaps and independent exact-head security/CI/five-SDK/release qualification. Do not erase the draft/pre-stable warning to close a documentation subgate.
 
 Changes to a row's expected outcome require a new matrix revision, normative review, corresponding fixture/test update, and fresh exact-SHA CI evidence; never silently rewrite this revision into a stable-release claim.
+
+## Additional canonical-version and generation-scoped safety (2026-10-12)
+
+The frozen rc1 matrix remains immutable. The pure negotiator additionally rejects shared malformed generation tokens (`TRUYN/0`, `TRUYN/01`, unsafe large integers and arbitrary non-TRUYN tokens) rather than treating their string overlap as negotiated protocol rights. Its optional `localSemanticsByProtocol` / `remoteSemanticsByProtocol` inputs reject incomplete/asymmetric declarations and resolve **required** semantics for the selected generation alone. The historical flat-set rc1 path continues unchanged for the single-generation `TRUYN/1` reference profile and synthetic selection cases. This is a source-level hardening / conformance improvement, **not** proof that signed peer handshakes or released SDKs support real `TRUYN/2` or a stable mixed-generation transport. Real multi-generation signed advertisements remain a separate future admission gate.

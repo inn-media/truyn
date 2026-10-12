@@ -1,5 +1,7 @@
 # TRUYN SDK Packaging and Versioning Policy
 
+> **Current accepted Wire Freeze prerelease (2026-10-11):** npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, Go `sdk/go@v0.1.0-alpha.2`, Maven `org.truyn:truyn-sdk:0.1.0-alpha.2`, NuGet `Truyn.Sdk 0.1.0-alpha.2`. All five are bound to frozen public source `57971b134a41c3e3ea4b42f68e86a7d117036006` and the [independent registry acceptance record](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). The older alpha coordinates below are **historical Developer Release evidence**, not current Wire Freeze pins; `sdk/release/public-coordinates.json` is a historical, separately accepted Developer Release ledger. The exact current pins for P13-FORMAT are in [truyn1-five-sdk-freeze.json](../../spec/compatibility/truyn1-five-sdk-freeze.json). No prerelease is a Stable TRUYN/1 SDK declaration.
+
 **Status:** Developer Release package/build verification is implemented. The release family is split after the npm packaging repair: TypeScript/JavaScript uses `0.1.0-alpha.2`, Python uses `0.1.0a1`, and Go/Java/.NET remain on `0.1.0-alpha.1`. npm, PyPI and Go have accepted immutable public release evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
 **Protocol:** `TRUYN/1` draft.
 **Stable SDK API contract:** `1` (separate from protocol stability).
