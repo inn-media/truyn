@@ -8,6 +8,8 @@ import { delimiter, dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createIdentity, signValue } from '../../core/identity/index.js';
 import { createRelay } from '../../network/relay/server.js';
+import { conformanceEnvironment } from './descriptor-qualification-policy.mjs';
+conformanceEnvironment(); // Fail before relay creation or native commands on injected flags.
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../..');
@@ -16,7 +18,7 @@ function run(command, args, options = {}) {
   return new Promise((resolveRun, rejectRun) => {
     const child = spawn(command, args, {
       cwd: options.cwd ?? repoRoot,
-      env: { ...process.env, ...(options.env ?? {}) },
+      env: conformanceEnvironment({ ...process.env, ...(options.env ?? {}) }),
       stdio: 'inherit',
       shell: false
     });

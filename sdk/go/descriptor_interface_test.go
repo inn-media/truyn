@@ -41,7 +41,36 @@ func TestDescriptorInterfaceParity(t *testing.T) {
 		if err != nil {
 			rows = append(rows, map[string]any{"id": item.ID, "ok": false, "message": err.Error()})
 		} else {
-			rows = append(rows, map[string]any{"id": item.ID, "ok": true, "identity": value.Descriptor.Identity, "protocol": value.Selection.Protocol, "interface": value.Selection.Interface, "keyBinding": value.Signer["keyBinding"]})
+			if len(value.Descriptor.Interfaces) == 0 {
+				t.Fatalf("%s: missing typed interfaces", item.ID)
+			}
+			typed := value.Descriptor.Interfaces[0]
+			if typed.Type != value.Selection.Interface["type"] {
+				t.Fatalf("%s: typed type lost", item.ID)
+			}
+			expectedEndpoint, supplied := value.Selection.Interface["endpoint"]
+			if supplied && typed.URL != expectedEndpoint {
+				t.Fatalf("%s: typed endpoint lost", item.ID)
+			}
+			if !supplied && typed.URL != "" {
+				t.Fatalf("%s: omitted endpoint synthesized", item.ID)
+			}
+			projectionBytes, marshalErr := json.Marshal(typed)
+			if marshalErr != nil {
+				t.Fatal(marshalErr)
+			}
+			var projection map[string]any
+			if err := json.Unmarshal(projectionBytes, &projection); err != nil {
+				t.Fatal(err)
+			}
+			if _, legacy := projection["url"]; legacy {
+				t.Fatalf("%s: legacy url field emitted", item.ID)
+			}
+			_, emitted := projection["endpoint"]
+			if emitted != supplied {
+				t.Fatalf("%s: endpoint omission changed", item.ID)
+			}
+			rows = append(rows, map[string]any{"id": item.ID, "ok": true, "identity": value.Descriptor.Identity, "protocol": value.Selection.Protocol, "interface": value.Selection.Interface, "typedInterface": projection, "keyBinding": value.Signer["keyBinding"]})
 		}
 	}
 	encoded, err := json.Marshal(rows)

@@ -12,6 +12,7 @@ import { writeDescriptorParityReport } from './descriptor-report-output.mjs';
 import { inspectSourceState as inspectRepositorySourceState, sourceStateQualified } from './descriptor-source-state.mjs';
 import { validateDescriptorInterfaceFixture, validateDescriptorInterfaceCases } from './descriptor-interface-policy.mjs';
 import { stageDescriptorNativeSource } from './descriptor-native-source.mjs';
+import { conformanceEnvironment, assertExactDescriptorQualification } from './descriptor-qualification-policy.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const languages = Object.freeze(['typescript', 'python', 'go', 'java', 'dotnet']);
 export const fixturePath = 'sdk/conformance/v1/agent-descriptor-interface-fixtures.json';
@@ -43,6 +44,11 @@ export function validateResults(cases, reports, requests, identity) {
         assert.equal(row.identity, identity, `${language}/${item.id}: identity`);
         assert.equal(row.protocol, 'TRUYN/1'); assert.equal(row.keyBinding, 'identity');
         assert.deepEqual(row.interface, item.interfaces[0], `${language}/${item.id}: selection must preserve optional fields`);
+        if (language === 'go') {
+          const expected = { type: item.interfaces[0].type };
+          if (Object.hasOwn(item.interfaces[0], 'endpoint')) expected.endpoint = item.interfaces[0].endpoint;
+          assert.deepEqual(row.typedInterface, expected, `${language}/${item.id}: public typed projection`);
+        }
       } else {
         assert.match(row.message ?? '', item.tamperSignature ? /signature/i : /interfaces/i,
           `${language}/${item.id}: must fail for intended validation, not network, expiry or unrelated error`);
@@ -52,14 +58,16 @@ export function validateResults(cases, reports, requests, identity) {
 }
 function run(command, args, env, cwd = root) {
   return new Promise((resolveRun, reject) => {
-    const child = spawn(command, args, { cwd, env: { ...process.env, ...env }, stdio: 'inherit', shell: false });
+    const child = spawn(command, args, { cwd, env: conformanceEnvironment({ ...process.env, ...env }), stdio: 'inherit', shell: false });
     const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error(`${command}: conformance timeout`)); }, 180000);
     child.once('error', error => { clearTimeout(timer); reject(error); });
     child.once('exit', (code, signal) => { clearTimeout(timer); code === 0 ? resolveRun() : reject(new Error(`${command}: ${signal ?? code}`)); });
   });
 }
 export async function runDescriptorInterfaceParity() {
+  conformanceEnvironment(); // Reject injected build flags before any SDK runs.
   const sourceBefore = inspectSourceState();
+  if (!sourceBefore.clean) throw new Error('Descriptor exact-source qualification requires a clean starting checkout');
   const cases = loadCases(), identity = createIdentity(), directory = mkdtempSync(join(tmpdir(), 'truyn-descriptor-parity-'));
   const documents = new Map(cases.map(c => [c.id, signedCase(c, identity)]));
   const requests = {}, reports = {}, errors = [];
@@ -103,13 +111,14 @@ export async function runDescriptorInterfaceParity() {
     const report = { schema: 'truyn.descriptor-interface-parity/v1', scope: 'bounded-source-sdk-interface-parity',
       sourceSha: sourceBefore.sourceSha, sourceShaAfter: sourceAfter.sourceSha,
       sourceBefore, sourceAfter, workingTreeClean, exactSourceQualified: passed && workingTreeClean,
+      goBuildEnvironment: { GOFLAGS: '', GOENV: 'off', GOWORK: 'off' },
       nativeBuildSources: { sourceSha: nativeSource.sourceSha, freshBuildDirectory: true, sourceBlobs: nativeSource.sourceBlobs },
       fixtureSha256: digest(readFileSync(resolve(root, fixturePath))),
       caseIds: cases.map(c => c.id), signedDocumentSha256: Object.fromEntries([...documents].map(([id, doc]) => [id, digest(JSON.stringify(doc))])),
       requests, results: reports, errors, passed, stableAdmission: false, publishedPackageUpgrade: false, paidProviderCalls: 0 };
     if (process.env.TRUYN_DESCRIPTOR_PARITY_REPORT) writeDescriptorParityReport(root, process.env.TRUYN_DESCRIPTOR_PARITY_REPORT, report);
     console.log('DESCRIPTOR_INTERFACE_PARITY_REPORT=' + JSON.stringify(report));
-    if (!passed) throw new Error('five-SDK Descriptor interface parity failed');
+    assertExactDescriptorQualification(report);
     console.log(`PASS Agent Descriptor interface parity: ${languages.length} SDKs x ${cases.length} shared cases`);
     return report;
   } finally {
