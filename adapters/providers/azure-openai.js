@@ -39,15 +39,45 @@ export function createAzureOpenAIProvider({
   apiKey = process.env.AZURE_OPENAI_API_KEY,
   capabilities = ['research'],
   accessTokenProvider = containerAppsManagedIdentityToken,
-  fetchImpl = fetch
+  fetchImpl = fetch,
+  persistResponses = process.env.TRUYN_G5_AZURE_STORE_RESPONSES === '1'
 } = {}) {
   if (!endpoint) throw new Error('AZURE_OPENAI_ENDPOINT is required');
   if (!model) throw new Error('AZURE_OPENAI_MODEL or AZURE_OPENAI_DEPLOYMENT is required');
+  if (typeof persistResponses !== 'boolean') throw new Error('persistResponses must be a boolean');
 
   return {
     name: 'azure-openai-responses',
     version: '1',
     capabilities,
+    // Authenticated read of a known response ID, never a repeat paid POST.
+    // Storage requires explicit consent. Usage is not a settled vendor invoice.
+    async retrieveResponseReceipt({ responseId, signal } = {}) {
+      if (!persistResponses) throw new Error('azure_response_receipt_requires_explicit_storage_opt_in');
+      if (typeof responseId !== 'string' || !/^resp_[a-zA-Z0-9_-]{1,200}$/.test(responseId))
+        throw new Error('invalid_azure_response_receipt_id');
+      const headers = { accept: 'application/json' };
+      if (apiKey) headers['api-key'] = apiKey;
+      else headers.authorization = 'Bearer ' + await accessTokenProvider({ fetchImpl, signal });
+      const response = await fetchImpl(
+        endpoint.replace(/\/$/, '') + '/openai/v1/responses/' + encodeURIComponent(responseId),
+        { method: 'GET', headers, signal }
+      );
+      if (!response.ok) throw new Error('azure_response_receipt_read_unavailable');
+      let body;
+      try { body = await response.json(); }
+      catch { throw new Error('azure_response_receipt_invalid_json'); }
+      if (body?.id !== responseId || body?.status !== 'completed' ||
+          typeof body.model !== 'string' || body.model.length === 0 ||
+          !Number.isSafeInteger(body?.usage?.total_tokens) || body.usage.total_tokens < 0)
+        throw new Error('azure_response_receipt_unverified');
+      return {
+        provider: 'azure-openai', providerResponseId: responseId,
+        providerModel: body.model, usage: body.usage, output: extractText(body),
+        responseRetrievedByGet: true, providerInvoiceVerified: false,
+        accountingSettled: false
+      };
+    },
     async execute({ capability, input, policy, signal }) {
       const startedAt = Date.now();
       const prompt = [
@@ -61,7 +91,7 @@ export function createAzureOpenAIProvider({
       if (apiKey) headers['api-key'] = apiKey;
       else headers.authorization = `Bearer ${await accessTokenProvider({ fetchImpl, signal })}`;
 
-      const requestBody = JSON.stringify({ model, input: prompt, store: false });
+      const requestBody = JSON.stringify({ model, input: prompt, store: persistResponses });
       const response = await fetchImpl(`${endpoint.replace(/\/$/, '')}/openai/v1/responses`, {
         method: 'POST',
         headers,
@@ -80,6 +110,7 @@ export function createAzureOpenAIProvider({
           provider: 'azure-openai',
           model: body.model || model,
           providerRequestId: body.id || null,
+          providerStoredResponse: persistResponses,
           providerLatencyMs: Date.now() - startedAt,
           providerRequestBodyBytes,
           providerResponseBodyBytes,
