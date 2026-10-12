@@ -6,6 +6,7 @@ on:
 permissions:
   contents: read
   actions: write
+  checks: read
 concurrency:
   group: truyn-tempo-exact-main-dispatch
   cancel-in-progress: false
@@ -17,11 +18,13 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       EXPECTED_MAIN: 5754b70820aa52d52a94f03c91d36c6badf084da
+      QUALIFIED_PR_HEAD: f589436662d3d49fe384463a2d0275bf22020b80
     steps:
       - name: Dispatch existing protected-main trace workflow once
         shell: bash
         run: |
           set -Eeuo pipefail
+          trap 'echo "::error::Dispatcher gate failed at line $LINENO; do not retry blindly"' ERR
           [[ "$GITHUB_RUN_ATTEMPT" == 1 ]] || { echo '::error::Never rerun a single-shot dispatch; reconcile its receipt.'; exit 20; }
           repo='inn-media/truyn'
           workflow='production-trace-backend.yml'
@@ -29,7 +32,13 @@ jobs:
           ci="$(gh api "repos/$repo/actions/workflows/ci.yml/runs?head_sha=$EXPECTED_MAIN&event=push&per_page=1")"
           jq -e --arg sha "$EXPECTED_MAIN" '.workflow_runs | length==1 and .[0].head_sha==$sha and .[0].status=="completed" and .[0].conclusion=="success"' <<<"$ci" >/dev/null
           checks="$(gh api --paginate --slurp "repos/$repo/commits/$EXPECTED_MAIN/check-runs?per_page=100")"
-          jq -e '[.[].check_runs[]] | all(.status=="completed" and (.conclusion=="success" or .conclusion=="skipped" or .conclusion=="neutral")) and any(.name=="CodeQL" and .conclusion=="success") and any(.name=="mandatory-security-safety" and .conclusion=="success") and any(.name=="full-qualification" and .conclusion=="success")' <<<"$checks" >/dev/null
+          jq -e '[.[].check_runs[] | select(.app.slug=="github-actions")] | any(.name=="test" and .conclusion=="success") and any(.name=="mandatory-security-safety" and .conclusion=="success") and any(.name=="full-qualification" and .conclusion=="success")' <<<"$checks" >/dev/null
+          echo 'TRUYN_TEMPO_MAIN_CI=PASS full=1 safety=1 aggregate=1'
+          parent="$(gh api "repos/$repo/commits/$EXPECTED_MAIN")"
+          jq -e --arg head "$QUALIFIED_PR_HEAD" 'any(.parents[]; .sha==$head)' <<<"$parent" >/dev/null
+          security="$(gh api --paginate --slurp "repos/$repo/commits/$QUALIFIED_PR_HEAD/check-runs?per_page=100")"
+          jq -e '[.[].check_runs[]] | any(.name=="CodeQL" and .conclusion=="success" and .app.slug=="github-advanced-security") and any(.name=="DCO" and .conclusion=="success" and .app.slug=="github-actions")' <<<"$security" >/dev/null
+          echo 'TRUYN_TEMPO_MERGED_PARENT=PASS codeql=1 dco=1 exact_parent=1'
           runs="$(gh api "repos/$repo/actions/workflows/$workflow/runs?exclude_pull_requests=true&per_page=100")"
           active="$(jq '[.workflow_runs[] | select(.head_branch=="main" and .event!="pull_request" and .status!="completed")] | length' <<<"$runs")"
           [[ "$active" == 0 ]] || { echo '::error::Existing trace execution must finish; no duplicate dispatch'; exit 22; }
