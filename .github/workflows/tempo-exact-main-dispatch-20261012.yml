@@ -1,0 +1,63 @@
+name: TRUYN Tempo Exact Main Dispatch 20261012
+on:
+  push:
+    branches: [ops/tempo-dispatch-20261012-5754b708]
+    paths: ['.github/workflows/tempo-exact-main-dispatch-20261012.yml']
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: truyn-tempo-exact-main-dispatch
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    if: github.repository == 'inn-media/truyn' && github.actor == 'ilucomutcnas' && github.ref == 'refs/heads/ops/tempo-dispatch-20261012-5754b708'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_MAIN: 5754b70820aa52d52a94f03c91d36c6badf084da
+    steps:
+      - name: Dispatch existing protected-main trace workflow once
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_RUN_ATTEMPT" == 1 ]] || { echo '::error::Never rerun a single-shot dispatch; reconcile its receipt.'; exit 20; }
+          repo='inn-media/truyn'
+          workflow='production-trace-backend.yml'
+          [[ "$(gh api "repos/$repo/branches/main" --jq '.commit.sha')" == "$EXPECTED_MAIN" ]] || { echo '::error::MAIN_MOVED; no dispatch'; exit 21; }
+          ci="$(gh api "repos/$repo/actions/workflows/ci.yml/runs?head_sha=$EXPECTED_MAIN&event=push&per_page=1")"
+          jq -e --arg sha "$EXPECTED_MAIN" '.workflow_runs | length==1 and .[0].head_sha==$sha and .[0].status=="completed" and .[0].conclusion=="success"' <<<"$ci" >/dev/null
+          checks="$(gh api --paginate --slurp "repos/$repo/commits/$EXPECTED_MAIN/check-runs?per_page=100")"
+          jq -e '[.[].check_runs[]] | all(.status=="completed" and (.conclusion=="success" or .conclusion=="skipped" or .conclusion=="neutral")) and any(.name=="CodeQL" and .conclusion=="success") and any(.name=="mandatory-security-safety" and .conclusion=="success") and any(.name=="full-qualification" and .conclusion=="success")' <<<"$checks" >/dev/null
+          runs="$(gh api "repos/$repo/actions/workflows/$workflow/runs?exclude_pull_requests=true&per_page=100")"
+          active="$(jq '[.workflow_runs[] | select(.head_branch=="main" and .event!="pull_request" and .status!="completed")] | length' <<<"$runs")"
+          [[ "$active" == 0 ]] || { echo '::error::Existing trace execution must finish; no duplicate dispatch'; exit 22; }
+          prior="$(jq -r --arg sha "$EXPECTED_MAIN" '[.workflow_runs[] | select(.head_sha==$sha and .head_branch=="main" and .event!="pull_request" and .conclusion=="success")][0].id // empty' <<<"$runs")"
+          if [[ -n "$prior" ]]; then
+            echo "TRUYN_TEMPO_ALREADY_SUCCESS run_id=$prior source_sha=$EXPECTED_MAIN"
+            jq -n --arg sha "$EXPECTED_MAIN" --arg run "$prior" '{status:"existing_success_requires_evidence_readback",sourceSha:$sha,runId:$run}' > trace-dispatch-receipt.json
+            exit 0
+          fi
+          [[ "$(gh api "repos/$repo/branches/main" --jq '.commit.sha')" == "$EXPECTED_MAIN" ]] || { echo '::error::MAIN_MOVED; no dispatch'; exit 23; }
+          stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh api -X POST "repos/$repo/actions/workflows/$workflow/dispatches" -f ref=main
+          found=''
+          for poll in $(seq 1 12); do
+            fresh="$(gh api "repos/$repo/actions/workflows/$workflow/runs?event=workflow_dispatch&head_sha=$EXPECTED_MAIN&per_page=10")"
+            found="$(jq -r --arg sha "$EXPECTED_MAIN" --arg stamp "$stamp" '[.workflow_runs[] | select(.head_sha==$sha and .head_branch=="main" and .created_at >= $stamp)][0].id // empty' <<<"$fresh")"
+            [[ -z "$found" ]] || break
+            sleep 5
+          done
+          [[ "$found" =~ ^[1-9][0-9]+$ ]] || { echo '::error::Dispatch accepted but receipt unresolved: reconcile, never retry blindly'; exit 24; }
+          jq -n --arg sha "$EXPECTED_MAIN" --arg run "$found" --arg utc "$stamp" '{status:"dispatched_not_proven",sourceSha:$sha,runId:$run,requestedUtc:$utc}' > trace-dispatch-receipt.json
+          echo "TRUYN_TEMPO_DISPATCHED run_id=$found source_sha=$EXPECTED_MAIN attempts=1"
+          printf 'Existing production workflow dispatched once. Run: %s. Source: %s. Runtime evidence is not yet proven.\n' "$found" "$EXPECTED_MAIN" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain dispatch receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trace-dispatch-receipt
+          path: trace-dispatch-receipt.json
+          if-no-files-found: warn
+          retention-days: 7
