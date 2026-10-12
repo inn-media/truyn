@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const BICEP = new URL('../infra/production-tracing/trace-backend.bicep', import.meta.url);
 const TEMPO_CONFIG = new URL('../infra/production-tracing/tempo/tempo.yaml', import.meta.url);
@@ -130,6 +132,37 @@ test('live retention probe proves both tenants, both override values and runtime
   assert.ok(probe.includes('re.escape(expected)'));
   assert.match(probe, /TRUYN_TRACE_RETENTION_PASS normal_days=30 incident_days=90 normal_readback=1 incident_readback=1/);
   assert.match(probe, /retention_class=normal/);
+});
+
+
+test('Tempo v3.0.2 canonical 30d/90d override read-back is strict and fail-closed', () => {
+  // Execute the exact production parser against real Tempo v3 JSON status
+  // shape (runtime_overrides is a YAML string, with model.Duration canonical).
+  const script = [
+    'import ast, json, re, sys',
+    'source = open(sys.argv[1], encoding="utf-8").read()',
+    'tree = ast.parse(source)',
+    'tenant = next(n for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "TENANTS" for t in n.targets))',
+    'checker = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "override_observed")',
+    'env = {"json": json, "re": re}',
+    'exec(compile(ast.Module(body=[tenant, checker], type_ignores=[]), "<probe>", "exec"), env)',
+    'def check(tenant_id, source_tenant, retention, compaction=""):',
+    '    payload = {"using_default_or_wildcard_runtime_overrides": source_tenant, "runtime_overrides": "compaction:\\n  block_retention: " + retention + "\\n" + compaction}',
+    '    env["fetch"] = lambda url, requested_tenant: (200, json.dumps(payload).encode())',
+    '    return env["override_observed"](tenant_id)',
+    'assert check("normal", "normal", "30d")',
+    'assert check("incident", "incident", "90d")',
+    'assert check("normal", "normal", "30d", "  compaction_disabled: false\\n")',
+    'assert not check("normal", "normal", "29d")',
+    'assert not check("incident", "incident", "30d")',
+    'assert not check("normal", "default overrides", "30d")',
+    'assert not check("normal", "incident", "30d")',
+    'assert not check("normal", "normal", "30d", "  compaction_disabled: true\\n")',
+    'assert not check("normal", "normal", "30d", "  compaction_disabled: false\\n  compaction_disabled: true\\n")',
+    'print("TEMPO_RETENTION_CANONICAL_READBACK_PASS")'
+  ].join('\n');
+  const stdout = execFileSync('python3', ['-c', script, fileURLToPath(RETENTION_PROBE)], { encoding: 'utf8' });
+  assert.match(stdout, /TEMPO_RETENTION_CANONICAL_READBACK_PASS/);
 });
 
 test('production runtime canary queries Tempo in the normal retention tenant', async () => {
