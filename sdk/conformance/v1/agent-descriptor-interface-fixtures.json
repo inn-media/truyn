@@ -181,6 +181,15 @@
       ],
       "ok": false,
       "tamperSignature": true
+    },
+    {
+      "id": "type-whitespace-reference-profile",
+      "interfaces": [
+        {
+          "type": " "
+        }
+      ],
+      "ok": true
     }
   ]
 }

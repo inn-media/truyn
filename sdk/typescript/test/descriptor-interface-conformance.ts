@@ -8,7 +8,7 @@ const client = new TruynClient({ relayUrl: suite.baseUrl });
 const rows: Record<string, unknown>[] = [];
 for (const item of suite.cases) {
   try {
-    const value = await client.fetchAgentDescriptor(item.url, { publicKeyPem: suite.publicKeyPem });
+    const value = await client.fetchAgentDescriptor(item.url, { publicKeyPem: suite.publicKeyPem, supportedInterfaces: suite.supportedInterfaces });
     rows.push({ id: item.id, ok: true, identity: value.descriptor.identity, protocol: value.selection.protocol,
       interface: value.selection.interface, keyBinding: value.signer.keyBinding });
   } catch (error) { rows.push({ id: item.id, ok: false, message: error instanceof Error ? error.message : String(error) }); }

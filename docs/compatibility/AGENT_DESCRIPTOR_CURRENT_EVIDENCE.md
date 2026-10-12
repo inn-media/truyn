@@ -25,7 +25,7 @@ The additional fixture is `sdk/conformance/v1/agent-descriptor-interface-fixture
 | Whitespace-only endpoint under the existing no-trim profile | Preserve existing acceptance; not a usable-URL certification |
 | Tampered signature with otherwise valid present or omitted endpoint | Reject at signature verification |
 
-There are **18 cases per SDK / 90 observed SDK fetch-and-validation outcomes** in a successful invocation. Negative interface documents are correctly signed; separate signature-negative cases alter the signature scalar, retaining its structurally valid curve-point encoding. Thus an unrelated signature/HTTP/expiry error cannot masquerade as malformed-interface rejection.
+There are **19 cases per SDK / 95 observed SDK fetch-and-validation outcomes** in a successful invocation. Negative interface documents are correctly signed; separate signature-negative cases alter the signature scalar, retaining its structurally valid curve-point encoding. Thus an unrelated signature/HTTP/expiry error cannot masquerade as malformed-interface rejection.
 
 Native drivers:
 - `sdk/typescript/test/descriptor-interface-conformance.ts`
@@ -50,12 +50,16 @@ The existing `sdk/conformance/v1/agent-descriptor-runtime-fixtures.json` is unch
 - `descriptor.interface-no-overlap`
 - `descriptor.invalid-json`
 
-The nine-case historical inventory and its bidirectional documentation regression remain distinct from the new 18-case interface fixture. The earlier sanitation test exercises the **reference parser only**; it is retained as a contract check, not substituted for the five actual SDK drivers.
+The nine-case historical inventory and its bidirectional documentation regression remain distinct from the new 19-case interface fixture. The earlier sanitation test exercises the **reference parser only**; it is retained as a contract check, not substituted for the five actual SDK drivers.
 
 ## Exact-source qualification and release boundary
 
-Run `node sdk/conformance/run-five-language-e2e.mjs` with all five toolchains installed. The mandatory child runner prints `DESCRIPTOR_INTERFACE_PARITY_REPORT=` JSON with actual source SHA, worktree cleanliness, fixture/document digests, per-language results and observed HTTP counts. Any absent SDK, skipped/missing case, unexpected outcome, unrelated negative error or wrong selection fails the command. `TRUYN_DESCRIPTOR_PARITY_REPORT` optionally stores the same JSON as an artifact.
+Run `node sdk/conformance/run-five-language-e2e.mjs` with all five toolchains installed. The mandatory child runner prints `DESCRIPTOR_INTERFACE_PARITY_REPORT=` JSON with actual source SHA, worktree cleanliness, fixture/document digests, per-language results and observed HTTP counts. Any absent SDK, skipped/missing case, unexpected outcome, unrelated negative error or wrong selection fails the command. `TRUYN_DESCRIPTOR_PARITY_REPORT` optionally stores the same JSON in a new file outside the checkout. Repository-contained destinations, symlink-parent escapes and existing files (including hard-link aliases) are rejected; the writer cannot mutate source after the cleanliness snapshot.
 
 A dirty-worktree application run is diagnostic evidence only. Acceptance requires clean final-head full CI, DCO/security/CodeQL and independent merged-main qualification. Use the actual pull request and run records; do not infer acceptance from a checkbox, historical S103 merge or an older SHA. The earlier Java diagnostic run rejected a deliberately malformed signature point with a JDK-specific message; the scalar-tamper fixture preserves cryptographic rejection and all strict interface checks while removing that test-path ambiguity.
 
 This closes only the bounded source interface matrix when qualified. It does not certify arbitrary Descriptor lifecycle, delegated signing, production/Mainnet or Stable TRUYN/1. Existing published Alpha bytes and private dependency pins are unchanged and require new versioned publication/consumer admission to obtain any source repair. Issue #615's broader S104-S200 and G1-G34 reconciliation remains independent.
+
+## Review corrections and typed projections
+
+The nineteenth shared case explicitly selects a whitespace-only extension type when the caller advertises that exact supported type. This preserves the existing nonempty-string/no-trim profile; Java and .NET selection and Java DTO mapping now use the validated raw values. The actual Java/.NET drivers additionally verify their returned typed interface fields. In .NET the existing CLR `Url` property is nullable and explicitly mapped to optional wire `endpoint`; supplied values round-trip, omission stays omitted, and existing CLR constructor/property names remain available. These checks do not redefine valid endpoint URLs or broaden release admission.

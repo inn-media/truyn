@@ -116,7 +116,7 @@ public static class AgentDescriptors
     {
         var accepted = supported.ToHashSet(StringComparer.Ordinal);
         foreach (var item in raw.GetProperty("interfaces").EnumerateArray())
-            if (item.ValueKind == JsonValueKind.Object && accepted.Contains(String(item, "type") ?? "")) return item.Clone();
+            if (item.ValueKind == JsonValueKind.Object && accepted.Contains(item.GetProperty("type").GetString()!)) return item.Clone();
         throw new TruynException(TruynErrorCode.VersionMismatch, "no mutually supported Agent Descriptor interface", false);
     }
 

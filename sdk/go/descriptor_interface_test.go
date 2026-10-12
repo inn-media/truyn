@@ -14,9 +14,10 @@ func TestDescriptorInterfaceParity(t *testing.T) {
 		t.Skip("requires shared Descriptor HTTP fixture")
 	}
 	var suite struct {
-		BaseURL      string `json:"baseUrl"`
-		PublicKeyPEM string `json:"publicKeyPem"`
-		Cases        []struct {
+		BaseURL             string   `json:"baseUrl"`
+		SupportedInterfaces []string `json:"supportedInterfaces"`
+		PublicKeyPEM        string   `json:"publicKeyPem"`
+		Cases               []struct {
 			ID  string `json:"id"`
 			URL string `json:"url"`
 		} `json:"cases"`
@@ -35,7 +36,7 @@ func TestDescriptorInterfaceParity(t *testing.T) {
 	rows := []map[string]any{}
 	for _, item := range suite.Cases {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		value, err := client.FetchAgentDescriptor(ctx, item.URL, suite.PublicKeyPEM, nil)
+		value, err := client.FetchAgentDescriptor(ctx, item.URL, suite.PublicKeyPEM, suite.SupportedInterfaces)
 		cancel()
 		if err != nil {
 			rows = append(rows, map[string]any{"id": item.ID, "ok": false, "message": err.Error()})

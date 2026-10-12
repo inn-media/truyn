@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve, join, delimiter } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createIdentity, signValue } from '../../core/identity/index.js';
+import { writeDescriptorParityReport } from './descriptor-report-output.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const languages = Object.freeze(['typescript', 'python', 'go', 'java', 'dotnet']);
 export const fixturePath = 'sdk/conformance/v1/agent-descriptor-interface-fixtures.json';
@@ -80,7 +81,7 @@ export async function runDescriptorInterfaceParity() {
     const baseUrl = `http://127.0.0.1:${server.address().port}`;
     const jobs = languages.map(async language => {
       const input = join(directory, `${language}-input.json`), output = join(directory, `${language}-result.json`);
-      writeFileSync(input, JSON.stringify({ baseUrl, publicKeyPem: identity.publicKeyPem,
+      writeFileSync(input, JSON.stringify({ baseUrl, publicKeyPem: identity.publicKeyPem, supportedInterfaces: ['https', 'websocket', 'truyn-quic', 'mcp', ' '],
         cases: cases.map(c => ({ id: c.id, url: `${baseUrl}/${language}/${c.id}` })) }));
       const env = { TRUYN_DESCRIPTOR_CASES_FILE: input, TRUYN_DESCRIPTOR_RESULT_FILE: output,
         PYTHONPATH: resolve(root, 'sdk/python/src') + (process.env.PYTHONPATH ? delimiter + process.env.PYTHONPATH : '') };
@@ -108,7 +109,7 @@ export async function runDescriptorInterfaceParity() {
       fixtureSha256: digest(readFileSync(resolve(root, fixturePath))),
       caseIds: cases.map(c => c.id), signedDocumentSha256: Object.fromEntries([...documents].map(([id, doc]) => [id, digest(JSON.stringify(doc))])),
       requests, results: reports, errors, passed, stableAdmission: false, publishedPackageUpgrade: false, paidProviderCalls: 0 };
-    if (process.env.TRUYN_DESCRIPTOR_PARITY_REPORT) writeFileSync(process.env.TRUYN_DESCRIPTOR_PARITY_REPORT, JSON.stringify(report, null, 2) + '\n');
+    if (process.env.TRUYN_DESCRIPTOR_PARITY_REPORT) writeDescriptorParityReport(root, process.env.TRUYN_DESCRIPTOR_PARITY_REPORT, report);
     console.log('DESCRIPTOR_INTERFACE_PARITY_REPORT=' + JSON.stringify(report));
     if (!passed) throw new Error('five-SDK Descriptor interface parity failed');
     console.log(`PASS Agent Descriptor interface parity: ${languages.length} SDKs x ${cases.length} shared cases`);

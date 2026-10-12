@@ -7,9 +7,9 @@ import { agentDescriptorSigningPayload, verifyAgentDescriptorSignature } from '.
 import { loadCases, signedCase, validateResults, languages } from '../sdk/conformance/run-descriptor-interface-parity.mjs';
 const cases = loadCases();
 test('shared interface matrix preserves optional endpoint and signs every malformed case correctly', () => {
-  assert.equal(cases.length,18);
-  assert.equal(new Set(cases.map(c=>c.id)).size,18);
-  const required={'endpoint-omitted':true,'endpoint-present':true,'endpoint-empty':false,'type-omitted':false,'type-empty':false};
+  assert.equal(cases.length,19);
+  assert.equal(new Set(cases.map(c=>c.id)).size,19);
+  const required={'endpoint-omitted':true,'endpoint-present':true,'endpoint-empty':false,'type-omitted':false,'type-empty':false,'type-whitespace-reference-profile':true};
   for (const [id,ok] of Object.entries(required)) assert.equal(cases.find(c=>c.id===id)?.ok,ok,id);
   const identity=createIdentity(), now=Date.now();
   for (const item of cases) {

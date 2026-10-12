@@ -162,4 +162,4 @@ See also:
 
 Current Descriptor contract and bounded five-SDK interface evidence: [source-reconciled status](AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
 
-An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. The bounded 18-case interface-parity suite is implemented through the actual HTTP fetch, validation, signature and selection path of all five source SDKs; exact-source acceptance is established by the corresponding successful five-language CI report.
+An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. The bounded 19-case interface-parity suite is implemented through the actual HTTP fetch, validation, signature and selection path of all five source SDKs; exact-source acceptance is established by the corresponding successful five-language CI report.

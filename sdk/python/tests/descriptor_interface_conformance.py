@@ -7,7 +7,7 @@ client = TruynClient(suite['baseUrl'])
 rows = []
 for item in suite['cases']:
     try:
-        value = client.fetch_agent_descriptor(item['url'], public_key_pem=suite['publicKeyPem'])
+        value = client.fetch_agent_descriptor(item['url'], public_key_pem=suite['publicKeyPem'], supported_interfaces=suite['supportedInterfaces'])
         rows.append(dict(id=item['id'], ok=True, identity=value['descriptor']['identity'],
             protocol=value['selection']['protocol'], interface=value['selection']['interface'], keyBinding=value['signer']['keyBinding']))
     except Exception as error:
