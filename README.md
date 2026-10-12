@@ -37,7 +37,7 @@ Website: https://truyn.org/
 | NLWeb interoperability | **Bounded pinned NLWeb 0.5 profile implemented / executable-evidence proven** |
 | Five first-party SDK clients | **Implemented / executable conformance** |
 | Native GUI clients (`.exe/.dmg/.deb/.apk`) | **Implemented / exact-head four-platform build-qualified** |
-| PyPI / Go / npm alpha.5 | **Accepted immutable public releases** |
+| PyPI a2 / Go alpha.2 / npm alpha.5 | **Accepted immutable public releases** |
 | Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.2`** |
 | NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.2`** |
 | Open 1.0 productization | **IN PROGRESS**; historical S103 checkpoint is not a live task-state authority; stable 1.0 requires independent G1–G34 final reconciliation |

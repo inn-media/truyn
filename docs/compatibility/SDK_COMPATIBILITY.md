@@ -159,3 +159,7 @@ See also:
 - `docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`
 - `spec/protocol/v1/agent-descriptor.md`
 - `sdk/release/PUBLISHING.md`
+
+Current Descriptor evidence and remaining interface-negative parity: [source-reconciled status](AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
+
+An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established.

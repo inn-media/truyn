@@ -2,7 +2,7 @@
 
 Native first-party client libraries for applications that integrate directly with TRUYN without depending on an agent-specific provider adapter.
 
-**Current maturity:** Five required first-party SDKs are implemented, five-language conformance passed and the immutable **Wire Freeze pre-release set** has independent public-registry acceptance (**6/6 source + npm + PyPI + Go + Maven + NuGet proofs PASS**). This is pre-stable `TRUYN/1`, not stable v1. The previous alpha.1/alpha.2 Developer Release versions are preserved as historical artifacts, not overwritten. See [Wire Freeze SDK registry closure](../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md).
+**Current maturity:** Five required first-party SDKs are implemented, five-language conformance passed and the immutable **Wire Freeze pre-release set** has independent public-registry acceptance (**6/6 source + npm + PyPI + Go + Maven + NuGet proofs PASS**). This is pre-stable `TRUYN/1`, not stable v1. The superseded npm alpha.2 and first-alpha PyPI/Go/Maven/NuGet coordinates are preserved as historical artifacts, not overwritten; the Go/Maven/NuGet alpha.2 coordinates below remain current. See [Wire Freeze SDK registry closure](../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md).
 
 **Historical Developer Release source freeze:** `main@23252d01f443ec4d0145ba7fc4856d11fdcf8d73` (not the current source HEAD or new SDK publication). **Expanded Wire Freeze source merge:** `main@10fac0de290a303b7e39205fb895adfaa01dc30e`.  
 **Protocol:** `TRUYN/1` draft; five-language TCJ1 and published-alpha legacy/new matrix verified for the accepted PR-head scope, not stable-v1  
@@ -120,7 +120,7 @@ GET /.well-known/truyn-agent.json
 
 Serving is disabled by default. The runtime signs the Descriptor with the current TRUYN identity key, applies bounded validity and advertises only the explicitly allowed public subset of actual capabilities.
 
-All five required SDK clients retrieve the Descriptor, validate schema/version/expiry, verify identity-key binding/signature and select a mutually supported protocol/interface. Shared missing/blank endpoint and interface-type negatives are now implemented across all five language conformance runners (`sdk/conformance/v1/agent-descriptor-runtime-fixtures.json`; S103 source PR #823). The runtime serving helper renews and re-signs an eligible Descriptor in the bounded refresh window; `tests/agent-descriptor-refresh.test.js` exercises the refresher.
+All five required SDK clients retrieve the valid signed Descriptor, validate schema/version/expiry, verify identity-key binding/signature and select a mutually supported protocol/interface. Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established. Missing or empty interface types are rejected by the reference parser; identical rejection across all five SDKs still needs executable proof. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior.
 
 This is implemented bounded source/conformance, not a fresh certification of every historical SDK binary or complete production lifecycle. Delegated signing, operational liveness and final exact-SHA Open 1.0 acceptance remain separate. Descriptor metadata never grants provider authorization.
 
@@ -162,7 +162,7 @@ The repository progressed through DX-0/DX-1/DX-2/DX-3 into the merged Developer 
 
 Current remaining Developer Release/lifecycle gates include:
 
-- broader Descriptor lifecycle/delegated-signing and production serving qualification beyond the implemented refresh and shared interface-negative profile;
+- consistent acceptance of omitted optional endpoints and rejection of invalid empty endpoints or interface types across all five SDKs, plus broader Descriptor lifecycle/delegated-signing and production serving qualification beyond implemented refresh;
 - archive-member byte-content leakage scanning;
 - live public developer-site activation/liveness evidence.
 
@@ -171,3 +171,5 @@ Optional later contracts include standardized cross-provider tokenizer semantics
 ## License
 
 All TRUYN SDKs in this directory are licensed under the **Apache License 2.0 (`Apache-2.0`)**. SDK distributions must include [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+Current Descriptor evidence and remaining interface-negative parity: [source-reconciled status](../docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
