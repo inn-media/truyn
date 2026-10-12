@@ -1,9 +1,10 @@
 import { createCosmosLifecycleLedger } from '../network/relay/cosmos-lifecycle-ledger.js';
 import { containerAppsManagedIdentityToken } from '../adapters/providers/common/azure-auth.js';
+import { withCosmosEffectReceipts } from './g5-durable-response-receipt.js';
 
-// Only the effect intent fence can use the asynchronous Cosmos adapter today.
-// The relay's direct lifecycle dispatch remains synchronous and must not
-// silently accept a Promise for its shared state reservation. G5 remains OPEN.
+// The provider and relay use asynchronous shared Cosmos adapters. Receipt
+// operations extend the same effect record; they never enable paid execution
+// or production admission merely because the factory was configured.
 export function createRuntimeG5ProviderEffectLedger({
   env = process.env, tokenProvider = null, fetchImpl = fetch
 } = {}) {
@@ -35,5 +36,6 @@ export function createRuntimeG5ProviderEffectLedger({
   const getAccessToken = tokenProvider || (() => containerAppsManagedIdentityToken({
     fetchImpl, resource: 'https://cosmos.azure.com/'
   }));
-  return createCosmosLifecycleLedger({endpoint,database,container,getAccessToken,fetchImpl});
+  const options = { endpoint, database, container, getAccessToken, fetchImpl };
+  return withCosmosEffectReceipts(createCosmosLifecycleLedger(options), options);
 }

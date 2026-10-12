@@ -6,6 +6,7 @@ import { createProviderAdapter } from '../adapters/providers/index.js';
 import { createRuntimeProviderAccessPolicy } from './security-config.js';
 import { createRuntimeProviderBillingPolicy } from './billing-config.js';
 import { createRuntimeG5ProviderEffectLedger } from './g5-provider-effect-ledger.js';
+import { wrapRuntimeG5ReceiptAdapter } from './g5-durable-response-receipt.js';
 import { createRuntimeG5RelayLifecycleLedger, verifyRuntimeG5RelayLedger } from './g5-relay-lifecycle-ledger.js';
 import { createRuntimeRelaySecurityConfig } from './relay-security-config.js';
 import { createOriginGuard, createRuntimeOriginGuardConfig } from './origin-guard.js';
@@ -188,7 +189,11 @@ async function runProvider() {
   observability.instrumentAccessPolicy(accessPolicy, { providerId: identity.nodeId });
   observability.instrumentBillingPolicy(billingPolicy, { providerId: identity.nodeId });
   const adapter = observability.wrapProviderAdapter(
-    createProviderAdapter(providerName, { capabilities }),
+    wrapRuntimeG5ReceiptAdapter({
+      adapter: createProviderAdapter(providerName, { capabilities }),
+      ledger: effectLedger,
+      env: process.env
+    }),
     { providerId: identity.nodeId }
   );
   const fastPath = process.env.TRUYN_FAST_PATH !== '0';

@@ -178,6 +178,19 @@ export function createCosmosLifecycleLedger({
   }
   return Object.freeze({
     kind:'cosmos-multi-host-v1',
+    // Internal same-container receipt writes share this ledger's session cache.
+    // This is not an HTTP/SDK endpoint and conveys no authorization capability.
+    receiptSession: Object.freeze({
+      scope: base,
+      requestHeaders() {
+        const token = compoundQuerySession();
+        return token ? { 'x-ms-session-token': token } : {};
+      },
+      observeResponse(response) {
+        const token = response.headers?.get?.('x-ms-session-token');
+        if (token) rememberSessionTokens(token);
+      }
+    }),
     async getNeed(id){const doc=await get('need',id);if(!doc)return null;return {
       ...doc,status:doc.status,created_at:doc.createdAt,terminal_at:doc.terminalAt,
       partial_sequence:doc.partialSequence,partial_digest:doc.partialDigest
