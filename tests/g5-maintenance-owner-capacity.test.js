@@ -5,11 +5,12 @@ import { createIdentity } from '../core/identity/index.js';
 import { createEnvelope } from '../core/protocol/index.js';
 import { maintenanceStore } from './fixtures/g5-maintenance-cosmos.mjs';
 const identity=createIdentity();
-function offer(id) {
-  const envelope=createEnvelope({type:'OFFER',id,from:identity.nodeId,publicKeyPem:identity.publicKeyPem,
-    privateKeyPem:identity.privateKeyPem,payload:{capability:{name:'owner.capacity'}}});
-  return {id,owner:identity.nodeId,envelope,fingerprint:createHash('sha256').update(JSON.stringify(envelope)).digest('hex')};
+function offerFor(subject,id) {
+  const envelope=createEnvelope({type:'OFFER',id,from:subject.nodeId,publicKeyPem:subject.publicKeyPem,
+    privateKeyPem:subject.privateKeyPem,payload:{capability:{name:'owner.capacity'}}});
+  return {id,owner:subject.nodeId,envelope,fingerprint:createHash('sha256').update(JSON.stringify(envelope)).digest('hex')};
 }
+function offer(id) { return offerFor(identity,id); }
 const index=f=>[...f.docs.values()].find(row=>row.kind==='offer-owner');
 const fails=(fn,code)=>assert.rejects(fn,e=>e.publicCode===code);
 async function fill(f,count) {const a=f.ledger();for(let i=0;i<count;i++)await a.reserveOffer(offer('slot-'+i));return a;}
@@ -79,4 +80,20 @@ test('G5 owner quota: oversized OFFER is rejected before owner slot allocation',
   assert.equal(index(f),undefined);
   assert.equal(await a.getOffer('too-large'),null);
   assert.equal(f.writes,0);
+});
+
+test('G5 owner quota: same OFFER ID race does not strand the losing owner slot',async()=>{
+  const f=maintenanceStore(),a=f.ledger(),b=f.ledger(),other=createIdentity();
+  const [left,right]=await Promise.allSettled([
+    a.reserveOffer(offerFor(identity,'shared-race-id')),
+    b.reserveOffer(offerFor(other,'shared-race-id'))
+  ]);
+  assert.equal([left,right].filter(x=>x.status==='fulfilled').length,1);
+  const rejected=[left,right].find(x=>x.status==='rejected');
+  assert.equal(rejected.reason.publicCode,'duplicate_offer');
+  const winner=await a.getOffer('shared-race-id');
+  const loser=winner.owner===identity.nodeId?other:identity;
+  const ownerIndex=[...f.docs.values()].find(row=>row.kind==='offer-owner'&&row.owner===loser.nodeId);
+  assert.ok(ownerIndex,'losing owner index remains an auditable bounded tombstone');
+  assert.equal(ownerIndex.offerSlots.length,0,'proven foreign CREATE conflict releases the unused slot');
 });
