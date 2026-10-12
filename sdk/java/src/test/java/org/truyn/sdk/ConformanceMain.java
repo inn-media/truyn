@@ -34,6 +34,21 @@ public final class ConformanceMain {
       }
     } catch (java.io.IOException error) { throw new RuntimeException("could not read TCJ1 corpus", error); }
 
+    try {
+      var corpus = Json.object(Json.parse(java.nio.file.Files.readString(java.nio.file.Path.of("sdk/conformance/v1/p10-error-mapping.json"))));
+      @SuppressWarnings("unchecked") var cases = (java.util.List<Object>) corpus.get("cases");
+      for (Object item : cases) {
+        Map<String,Object> v = Json.object(item);
+        Map<String,Object> input = Json.object(v.get("source"));
+        Map<String,Object> expected = Json.object(v.get("expect"));
+        String sourceCode = input.get("relayCode") instanceof String s ? s : null;
+        int status = ((Number) input.get("httpStatus")).intValue();
+        var mapped = TruynException.fromHttp(status, sourceCode, "bounded diagnostic");
+        if (!mapped.code().wireValue().equals(expected.get("code")) || mapped.retryable() != Boolean.TRUE.equals(expected.get("retryable")))
+          throw new AssertionError("P10 Java error mismatch for " + v.get("id"));
+      }
+    } catch (java.io.IOException error) { throw new RuntimeException("P10 corpus missing", error); }
+
     TruynClient provider = TruynClient.connect(relay, "java-provider");
     TruynClient requester = TruynClient.connect(relay, "java-requester");
     String capability = "sdk.release.java." + UUID.randomUUID();

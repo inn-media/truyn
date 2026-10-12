@@ -79,7 +79,7 @@ func (c *Client) FetchAgentDescriptor(ctx context.Context, descriptorURL string,
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil); if err != nil { return nil, err }; req.Header.Set("accept", "application/json")
 	resp, err := c.httpClient.Do(req); if err != nil { if errors.Is(err, context.Canceled) { return nil, NewError(Cancelled, err.Error(), false) }; return nil, NewError(Transport, err.Error(), true) }
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 { return nil, normalizeHTTPError(resp.StatusCode, "descriptor_http_error") }
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 { return nil, normalizeHTTPError(resp.StatusCode, "", "Agent Descriptor HTTP request failed") }
 	var raw map[string]any; if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil { return nil, NewError(InvalidResponse, "Agent Descriptor response is invalid JSON", false) }
 	if err := validateDescriptor(raw, time.Now()); err != nil { return nil, err }
 	identity := raw["identity"].(string)

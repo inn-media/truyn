@@ -371,10 +371,13 @@ func (c *Client) requestJSON(ctx context.Context, method, path string, payload a
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		code, _ := probe["error"].(string)
-		if code == "" {
-			code = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		message := code
+		if body, ok := probe["error"].(map[string]any); ok {
+			code, _ = body["code"].(string)
+			message, _ = body["message"].(string)
 		}
-		return normalizeHTTPError(resp.StatusCode, code)
+		if message == "" { message = fmt.Sprintf("HTTP %d", resp.StatusCode) }
+		return normalizeHTTPError(resp.StatusCode, code, message)
 	}
 	if out != nil {
 		if err := json.Unmarshal(raw, out); err != nil {
@@ -689,10 +692,49 @@ const (
 	Cancelled ErrorCode = "cancelled"
 	Transport ErrorCode = "transport_error"
 	InvalidResponse ErrorCode = "invalid_response"
+	NotFound ErrorCode = "not_found"
+	Conflict ErrorCode = "conflict"
+	ResourceExhausted ErrorCode = "resource_exhausted"
+	InternalError ErrorCode = "internal_error"
 )
 type NormalizedError struct { Code ErrorCode `json:"code"`; Message string `json:"message"`; Retryable bool `json:"retryable"`; Source any `json:"source,omitempty"` }
 func (e NormalizedError) Error() string { if e.Message == "" { return string(e.Code) }; return string(e.Code) + ": " + e.Message }
 func (e NormalizedError) Is(target error) bool { return target == ErrUnimplemented && e.Code == Unimplemented }
 var ErrUnimplemented = errors.New("truyn sdk operation is not implemented")
 func NewError(code ErrorCode, message string, retryable bool) NormalizedError { return NormalizedError{Code: code, Message: message, Retryable: retryable} }
-func normalizeHTTPError(status int, message string) error { switch status { case 401: return NewError(Unauthenticated, message, false); case 403: return NewError(PermissionDenied, message, false); case 408, 429, 500, 502, 503, 504: return NewError(Transport, message, true); default: return NewError(InvalidResponse, message, false) } }
+// normalizeHTTPError preserves canonical TRUYN/1 classes on both legacy string
+// and modern structured REST responses; unknown server failures fail closed.
+func normalizeHTTPError(status int, sourceCode, message string) error {
+	var code ErrorCode
+	retry := false
+	switch sourceCode {
+	case "version_mismatch", "unsupported_protocol", "no_protocol_overlap", "required_semantic_unavailable": code = VersionMismatch
+	case "unauthenticated", "unauthorized": code = Unauthenticated
+	case "permission_denied", "authorization_denied", "provider_access_denied": code = PermissionDenied
+	case "invalid_argument", "invalid_request", "validation_error", "invalid_capability": code = InvalidArgument
+	case "unimplemented": code = Unimplemented
+	case "cancelled": code = Cancelled
+	case "transport_error": code = Transport; retry = true
+	case "invalid_response": code = InvalidResponse
+	case "not_found", "no_matching_provider": code = NotFound
+	case "conflict", "duplicate_request": code = Conflict
+	case "resource_exhausted", "payload_too_large", "request_too_large": code = ResourceExhausted
+	case "offer_capacity_reached", "node_capacity_reached", "cancellation_backpressure", "partial_backpressure": code = ResourceExhausted; retry = true
+	case "deadline_exceeded": code = DeadlineExceeded
+	case "result_wait_timeout": code = DeadlineExceeded; retry = true
+	case "internal_error": code = InternalError
+	default:
+		switch status {
+		case 401: code = Unauthenticated
+		case 403: code = PermissionDenied
+		case 404: code = NotFound
+		case 408, 504: code = DeadlineExceeded; retry = true
+		case 409: code = Conflict
+		case 413, 429: code = ResourceExhausted
+		case 501: code = Unimplemented
+		default:
+			if status >= 400 && status < 500 { code = InvalidArgument } else { code = InternalError }
+		}
+	}
+	return NewError(code, message, retry)
+}

@@ -3,6 +3,7 @@ import {
   normalizeOutboundA2aArtifactBundle,
   normalizeOutboundA2aPart
 } from './artifact-integrity.js';
+import { classifyTruynException } from '../../core/protocol/normalized-errors.js';
 
 export const A2A_PROTOCOL_VERSION = '1.0';
 
@@ -216,13 +217,7 @@ const A2A_TRUYN_ERROR_CODES = Object.freeze({
 
 export function a2aErrorData(error) {
   const reason = error?.a2aReason || 'INTERNAL_ERROR';
-  const source = error?.body?.error || error?.code || '';
-  const truynCode = A2A_TRUYN_ERROR_CODES[reason] ||
-    (source === 'version_mismatch' ? 'version_mismatch' :
-     ['offer_capacity_reached', 'node_capacity_reached', 'cancellation_backpressure', 'partial_backpressure'].includes(source) ? 'resource_exhausted' :
-     error?.status === 401 ? 'unauthenticated' : error?.status === 403 ? 'permission_denied' :
-     error?.status === 404 ? 'not_found' : error?.status === 429 || error?.status === 413 ? 'resource_exhausted' :
-     error?.status === 504 ? 'deadline_exceeded' : 'internal_error');
+  const truynCode = A2A_TRUYN_ERROR_CODES[reason] || classifyTruynException(error).code;
   return [{
     '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
     reason,

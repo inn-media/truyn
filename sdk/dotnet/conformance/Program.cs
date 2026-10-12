@@ -39,6 +39,37 @@ using (var golden = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllTe
     }
 }
 
+using (var p10 = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText("sdk/conformance/v1/p10-error-mapping.json")))
+{
+    foreach (var item in p10.RootElement.GetProperty("cases").EnumerateArray())
+    {
+        var source = item.GetProperty("source");
+        var code = source.TryGetProperty("relayCode", out var raw) ? raw.GetString() : null;
+        var mapped = TruynException.FromHttp(source.GetProperty("httpStatus").GetInt32(), code, "bounded diagnostic");
+        var expect = item.GetProperty("expect");
+        var expected = expect.GetProperty("code").GetString();
+        var normal = mapped.Code switch
+        {
+            TruynErrorCode.VersionMismatch => "version_mismatch",
+            TruynErrorCode.Unauthenticated => "unauthenticated",
+            TruynErrorCode.PermissionDenied => "permission_denied",
+            TruynErrorCode.DeadlineExceeded => "deadline_exceeded",
+            TruynErrorCode.InvalidArgument => "invalid_argument",
+            TruynErrorCode.Unimplemented => "unimplemented",
+            TruynErrorCode.Cancelled => "cancelled",
+            TruynErrorCode.Transport => "transport_error",
+            TruynErrorCode.InvalidResponse => "invalid_response",
+            TruynErrorCode.NotFound => "not_found",
+            TruynErrorCode.Conflict => "conflict",
+            TruynErrorCode.ResourceExhausted => "resource_exhausted",
+            TruynErrorCode.InternalError => "internal_error",
+            _ => throw new InvalidOperationException("unknown P10 class")
+        };
+        if (normal != expected || mapped.Retryable != expect.GetProperty("retryable").GetBoolean())
+            throw new InvalidOperationException("P10 .NET error mismatch: " + item.GetProperty("id").GetString());
+    }
+}
+
 await using var provider = await TruynClient.ConnectAsync(new TruynClientOptions(relay), "dotnet-provider");
 await using var requester = await TruynClient.ConnectAsync(new TruynClientOptions(relay), "dotnet-requester");
 var capability = "sdk.release.dotnet." + Guid.NewGuid().ToString("N");

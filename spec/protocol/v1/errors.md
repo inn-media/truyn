@@ -39,3 +39,36 @@ These public error identifiers are lowercase ASCII tokens and MUST NOT be repurp
 HTTP, WebSocket, A2A, MCP, NLWeb and SDK adapters MAY map native status/error forms to these normalized classes. Those mappings are compatibility layers, not alternate authority models. A surface MUST preserve the same identity, authorization, cancellation, provenance and provider-execution boundary as the native TRUYN path.
 
 The exact per-interface mapping belongs to that interface's conformance profile. New normalized public classes require an explicit compatible protocol/profile change; implementation-specific string errors MUST NOT be promoted into the stable registry accidentally.
+
+## P10 deterministic interface projection (release-candidate)
+
+The canonical error *class* is independent of interface. The original native
+format remains the transport's contract: no new signed envelope field, message
+type or protocol generation is introduced.
+
+| Interface | Machine-readable normalized classification | Native form preserved |
+|---|---|---|
+| REST v1 | `error.code` in `{ok:false,error:{code,message},correlationId}` | HTTP status and bounded correlation ID |
+| MCP tool | `result._meta['truyn/errorCode']` on failed tools | MCP JSON-RPC method/result semantics |
+| MCP JSON-RPC | `error.data.truynCode` | Native numeric JSON-RPC error code |
+| A2A | `google.rpc.ErrorInfo.metadata.truynCode` | JSON-RPC numeric code and A2A reason |
+| NLWeb (pinned profile) | `NlwebCompatibilityError.truynCode` alongside its existing `code` | NLWeb source profile reason and shape |
+| WebSocket relay | `truynCode` on negative `ERROR` and negative `ACK` frames | Existing `kind`, `status`, `error` and correlation fields |
+| JS/TS, Python, Go, Java, .NET SDK | Normalized SDK `code` and conservative `retryable` | Original HTTP status/legacy machine code when available |
+
+Deterministic precedence: stable machine class → enumerated source alias →
+HTTP status family → bounded `internal_error`. Arbitrary prose never changes
+authorization, replay policy or public error class. A raw HTTP 429 is
+`resource_exhausted` but not automatically retryable; explicitly recognized
+bounded backpressure may advise retry. Unknown server-side HTTP 5xx is
+`internal_error` rather than a transport failure. Only a transport failure
+before an authoritative application response is `transport_error`.
+
+An SDK `retryable` hint cannot authorize replay: idempotency, terminal
+cancellation, provider ownership and exactly-once controls remain authoritative.
+No public response may leak provider diagnostics or private topology.
+
+Executable corpus: `sdk/conformance/v1/p10-error-mapping.json`. All five
+first-party SDKs consume the common matrix. The REST/MCP/A2A and WebSocket
+negative-surface contract is verified in `tests/p10-error-parity.test.js`.
+This is a bounded RC profile, **not** a TRUYN/1 stable-v1 declaration.

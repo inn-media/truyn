@@ -55,6 +55,17 @@ test('TypeScript SDK consumes the same shared fixture set and error mappings', (
   }
 });
 
+const p10ErrorsUrl = new URL('../../conformance/v1/p10-error-mapping.json', import.meta.url);
+const p10Errors = JSON.parse(await readFile(p10ErrorsUrl, 'utf8'));
+
+test('P10 TypeScript SDK exactly matches the shared stable error and retry matrix', () => {
+  for (const item of p10Errors.cases) {
+    const actual = normalizeError(item.source);
+    assert.equal(actual.code, item.expect.code, item.id);
+    assert.equal(actual.retryable, item.expect.retryable, item.id);
+  }
+});
+
 test('TypeScript Agent Descriptor surface delegates to the PR2 canonical/signature contract', () => {
   const entry = runtimeCase('descriptor.signature-valid');
   const descriptor = descriptorFor(entry);
