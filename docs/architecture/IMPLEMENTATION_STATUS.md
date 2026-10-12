@@ -1,7 +1,7 @@
 # TRUYN Implementation Status
 
 **Status:** canonical factual status index.  
-**Snapshot:** 2026-10-11 (D-5000 acceptance reconciliation; other program statuses remain at their documented snapshots)  
+**Snapshot:** 2026-10-12 (S-200 composite acceptance reconciliation; other program statuses retain documented scopes)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft  
 **A2A/MCP generation:** `a2a-mcp-pre-v1/g1`  
@@ -28,7 +28,7 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | Class D-500 | **ACCEPTED / PASS / REPEATABILITY CONFIRMED** | preserve both immutable PASS runs; D-1000 is independently accepted |
 | Class D-1000 | **ACCEPTED / PASS** | preserve immutable Attempt 1 / run_attempt=2 evidence |
 | D-Series execution architecture | **Swarm-Blockwise lock retained as accepted baseline** | preserve for future repeatability/new explicit D-scale gates |
-| Semantic Scale S-Series | **S-10 + S-20 + S-50 + S-100 accepted / PASS; S-200+ OPEN** | preserve accepted S-100 evidence; decompose contention residual; execute S-200 independently |
+| Semantic Scale S-Series | **S-10/20/50/100 accepted; S-200 6-provider 8/8 COMPOSITE PASS / CLOSED in measured scope** | Original 7-provider DeepSeek coverage + physical WAN + S-500 remain OPEN; optimize tail p95 |
 | A-Series Assurance | **PUBLIC FOUNDATION MERGED, no measured A-SOAK PASS** | exact runtime release + full independent four-VM assurance |
 | D-5000 | **ACCEPTED / CLOSED / DOUBLE-CHECK VERIFIED** | Attempt 12: 15/15 measured PASS, unchanged immutable evidence requalification PASS (historical GitHub FAIL retained); independent Attempt 13: official terminal PASS, 5,000 real nodes, 100/100 retention, zero acknowledged loss and complete cleanup. [Canonical evidence](../benchmarks/CLASS_D_5000_2026-10-11.md). |
 | Efficiency E-Series | **ACTIVE QUALIFICATION / NO FINAL E PASS CLAIMED** | preserve isolation/duplicate guards and complete bounded campaign evidence |
@@ -106,7 +106,7 @@ Permanent rules:
 
 The latest old Blockwise Admission run `36114076355` had B01–B22 individually GREEN; its terminal aggregate failure was in public-source materialization/control-plane handling, not a B01–B22 product regression. That mutable public-source dependency is superseded by the immutable public-contract consumption model.
 
-****S-10 is accepted** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3 is accepted** for the five-scenario 20-node gate. **S-50 Attempt 3 is accepted** for the full eight-scenario 50-node scale gate: `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION` and `LANG`. Sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md`, `../benchmarks/S_SERIES_S20_2026-10-07.md` and `../benchmarks/S_SERIES_S50_2026-10-08.md`. S-100 Attempt 1 is accepted for the full eight-scenario 100-node gate; sanitized evidence: `../benchmarks/S_SERIES_S100_2026-10-08.md`. S-200 and S-500 remain unaccepted and must be executed separately.
+**S-10 is accepted** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3 is accepted** for the five-scenario 20-node gate. **S-50 Attempt 3 is accepted** for the full eight-scenario 50-node scale gate: `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION` and `LANG`. Sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md`, `../benchmarks/S_SERIES_S20_2026-10-07.md` and `../benchmarks/S_SERIES_S50_2026-10-08.md`. S-100 Attempt 1 is accepted for the full eight-scenario 100-node gate; sanitized evidence: `../benchmarks/S_SERIES_S100_2026-10-08.md`. **S-200 six-provider Attempt 14+15 composite: 8/8 accepted within its recorded scope**, source [S-200 evidence](../benchmarks/S_SERIES_S200_2026-10-12.md); original seven-provider parity (DeepSeek) remains OPEN, as does S-500. It does not prove 200 physical WAN hosts, simultaneous eight-scenario replay, or production SLO.
 
 Canonical S documents:
 
