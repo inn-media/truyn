@@ -13,6 +13,8 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/autonomous-repair.yml',
   '.github/workflows/ci.yml',
   '.github/workflows/wire-freeze-legacy-sdk-matrix.yml',
+  // Audited public-only, read-only registry interop workflow; normal scanners remain enabled.
+  '.github/workflows/truyn1-five-published-freeze-interop.yml',
   '.github/workflows/publish-sdk-alpha.yml',
   '.github/workflows/wire-freeze-release-request.yml',
   '.github/workflows/a-series-foundation.yml',

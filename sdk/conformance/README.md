@@ -96,3 +96,7 @@ Package build/digest provenance is not the same as exact release-source binding 
 - `reference/agent-descriptor.js` — reference Descriptor parser/validator/verification semantics.
 
 The historical DX-1/DX-2 skeleton descriptions are retained only in Git history/changelog. They are not current maturity claims.
+
+## Protocol/1 precise frozen-prerelease five-SDK run
+
+The real published frozen five-language family is in `../../spec/compatibility/truyn1-five-sdk-freeze.json`; run `../../.github/workflows/truyn1-five-published-freeze-interop.yml` for five independent registry package installs and 20 real provider/requester cross-version cases against the candidate exact source SHA. The historical `wire-freeze-legacy-sdk-matrix.yml` uses earlier prereleases and is retained separately. A success must be bound to the workflow's exact commit, artifacts and prior frozen-source public-registry provenance; no stable-v1 claim or production authority follows from this matrix.
