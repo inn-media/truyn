@@ -13,12 +13,14 @@ TENANTS = {
         'trace_id': '6e6f726d616c2d747275796e2d70726f',
         'span_id': '6e6f726d616c3031',
         'retention': '720h',
+        'runtime_retention': '30d',  # Prometheus model.Duration.MarshalYAML canonical form
         'retention_hours': 720,
     },
     'incident': {
         'trace_id': '696e636964656e742d747275796e2d31',
         'span_id': '696e636964656e74',
         'retention': '2160h',
+        'runtime_retention': '90d',  # 2160h is serialized as 90d in Tempo 3
         'retention_hours': 2160,
     },
 }
@@ -128,7 +130,9 @@ def override_observed(tenant):
         return False
     runtime_overrides = str(payload.get('runtime_overrides') or '')
     source = str(payload.get('using_default_or_wildcard_runtime_overrides') or '')
-    expected = TENANTS[tenant]['retention']
+    # Tempo 3.0.2 uses Prometheus model.Duration.MarshalYAML; 720h -> 30d,
+    # 2160h -> 90d. Compare exact effective duration in the runtime response.
+    expected = TENANTS[tenant]['runtime_retention']
     # Tempo 3.0.2 omits default-false compaction_disabled (omitempty).
     # An absent field is equivalent to false, but explicit true or any
     # unexpected/duplicate field must fail closed.
