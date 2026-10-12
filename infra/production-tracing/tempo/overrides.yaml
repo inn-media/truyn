@@ -1,10 +1,22 @@
 overrides:
   normal:
+    ingestion:
+      rate_limit_bytes: 1048576
+      burst_size_bytes: 2097152
+      max_traces_per_user: 10000
+    global:
+      max_bytes_per_trace: 5000000
     compaction:
       block_retention: 720h
       compaction_window: 1h
       compaction_disabled: false
   incident:
+    ingestion:
+      rate_limit_bytes: 1048576
+      burst_size_bytes: 2097152
+      max_traces_per_user: 10000
+    global:
+      max_bytes_per_trace: 5000000
     compaction:
       block_retention: 2160h
       compaction_window: 1h
