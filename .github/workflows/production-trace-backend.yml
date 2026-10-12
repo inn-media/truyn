@@ -23,7 +23,6 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/production-trace-backend.yml'
       - 'infra/production-tracing/**'
       - 'observability/bootstrap.js'
       - 'runtime/trace-export-canary.js'
