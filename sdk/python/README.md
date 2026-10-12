@@ -1,6 +1,6 @@
 # truyn-sdk
 
-**Status:** implemented Developer Release Python client; source/build complete, pre-stable, and accepted as immutable public PyPI prerelease `truyn-sdk==0.1.0a1` with accepted public artifact/provenance evidence.
+**Status:** implemented Developer Release Python client; source/build complete, pre-stable, and accepted as immutable public PyPI prerelease `truyn-sdk==0.1.0a2` with accepted public artifact/provenance evidence.
 
 The Python SDK is one of the five required first-party clients. Its bounded Developer Release contract includes:
 
@@ -17,7 +17,7 @@ The Python SDK is one of the five required first-party clients. Its bounded Deve
 Developer Release coordinate:
 
 ```text
-truyn-sdk==0.1.0a1
+truyn-sdk==0.1.0a2
 import package: truyn
 ```
 
@@ -43,7 +43,7 @@ Run the real five-language Developer Release network gate:
 node sdk/conformance/run-five-language-e2e.mjs
 ```
 
-Ordinary CI builds and verifies the Python wheel/sdist as part of the common release bundle and records exact source SHA, byte size and SHA-256 provenance. Public PyPI availability for `truyn-sdk==0.1.0a1` is already accepted; stable release status remains separate.
+Ordinary CI builds and verifies the Python wheel/sdist as part of the common release bundle and records exact source SHA, byte size and SHA-256 provenance. Public PyPI availability for `truyn-sdk==0.1.0a2` is already accepted; stable release status remains separate.
 
 This is a pre-stable `0.x` SDK. The bounded SDK API-v1 surface follows the accepted TRUYN/1, first-class REST/API, and interoperability contracts, while protocol/profile stability and final Open 1.0 release status remain governed by their own exact-head qualification gates. Provider authorization, visibility and billing remain server/runtime policy, never client-supplied authority.
 

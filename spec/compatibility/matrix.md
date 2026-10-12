@@ -31,13 +31,19 @@ P3-M1 does not promote legacy MCP versions into outbound/import resource support
 
 | SDK line | Stable SDK API | TRUYN protocol | Agent Descriptor | Publication state |
 |---|---:|---|---|---|
-| npm `@truyn/sdk@0.1.0-alpha.2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| PyPI `truyn-sdk==0.1.0a1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| Maven `org.truyn:truyn-sdk:0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
-| NuGet `Truyn.Sdk@0.1.0-alpha.1` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| npm `@truyn/sdk@0.1.0-alpha.5` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| PyPI `truyn-sdk==0.1.0a2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| Go `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| Maven `org.truyn:truyn-sdk:0.1.0-alpha.2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
+| NuGet `Truyn.Sdk@0.1.0-alpha.2` | `1` | `TRUYN/1` draft | `truyn.agent-descriptor/v1` draft | **accepted immutable public release** |
 
 npm `@truyn/sdk@0.1.0-alpha.1` remains immutable historical failed evidence and is superseded without overwrite. SDK package version and stable SDK API version are independent from protocol-generation stability.
+
+## Frozen bounded RC profile (not Stable TRUYN/1)
+
+The supported reference profile preserves five signed JSON message kinds (`IDENTITY`, `OFFER`, `NEED`, `RESULT`, `REVOKE`), Ed25519 over TCJ1 bytes with no extra prefix, identity/key binding and the separately specified compact `PARTIAL` lifecycle. The A–I semantic registry does not add mandatory top-level JSON types. P11 overlap/required-semantic outcomes are frozen in `p11-negotiation-matrix.json` and `P11_VERSION_NEGOTIATION_MATRIX.md`.
+
+Current five-language prereleases are bound to frozen source `57971b134a41c3e3ea4b42f68e86a7d117036006` and the [registry acceptance record](../../docs/releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). [P1–P14 reconciliation](../../docs/compatibility/TRUYN1_RC_GAP_LEDGER.md) separates existing normative/runtime/tests from independent release acceptance. P1–P5, P10 and the bounded P12 reference profile have their cited scope-specific acceptance; P6–P9/P11 final release qualification, P13-FORMAT and P14 admission remain separate. P13-OPS applies to managed service/Mainnet, not the protocol-only format gate.
 
 ## Rules
 
@@ -49,6 +55,6 @@ npm `@truyn/sdk@0.1.0-alpha.1` remains immutable historical failed evidence and 
 - Breaking network semantic changes require a new protocol generation or explicit extension negotiation.
 - Storage/config migrations are local implementation concerns and MUST NOT silently change network identity.
 - Implemented/CI-proven/bounded interoperability evidence does not by itself create a stable compatibility promise.
-- Package build/provenance does not by itself prove public registry availability; accepted registry state below is backed by independent public evidence. npm alpha.2, PyPI alpha and Go alpha are separately accepted from observed immutable public evidence, while Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+- Package build/provenance does not by itself prove public registry availability; accepted registry state below is backed by independent public evidence. npm alpha.5, PyPI alpha and Go alpha are separately accepted from observed immutable public evidence, while Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.2` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.2` is an accepted immutable public prerelease.
 
 See `../../docs/compatibility/README.md`, `../../docs/compatibility/SDK_COMPATIBILITY.md` and `../../docs/architecture/IMPLEMENTATION_STATUS.md` for the current factual maturity boundary.

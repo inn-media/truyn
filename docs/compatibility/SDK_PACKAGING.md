@@ -1,14 +1,14 @@
 # TRUYN SDK Packaging and Versioning Policy
 
-> **Current accepted Wire Freeze prerelease (2026-10-11):** npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, Go `sdk/go@v0.1.0-alpha.2`, Maven `org.truyn:truyn-sdk:0.1.0-alpha.2`, NuGet `Truyn.Sdk 0.1.0-alpha.2`. All five are bound to frozen public source `57971b134a41c3e3ea4b42f68e86a7d117036006` and the [independent registry acceptance record](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). The older alpha coordinates below are **historical Developer Release evidence**, not current Wire Freeze pins; `sdk/release/public-coordinates.json` is a historical, separately accepted Developer Release ledger. The exact current pins for P13-FORMAT are in [truyn1-five-sdk-freeze.json](../../spec/compatibility/truyn1-five-sdk-freeze.json). No prerelease is a Stable TRUYN/1 SDK declaration.
+> **Current accepted Wire Freeze prerelease (2026-10-11):** npm `@truyn/sdk@0.1.0-alpha.5`, PyPI `truyn-sdk==0.1.0a2`, Go `sdk/go@v0.1.0-alpha.2`, Maven `org.truyn:truyn-sdk:0.1.0-alpha.2`, NuGet `Truyn.Sdk 0.1.0-alpha.2`. All five are bound to frozen public source `57971b134a41c3e3ea4b42f68e86a7d117036006` and the [independent registry acceptance record](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). The active `sdk/release/public-coordinates.json` agrees with this current release. Its previous Developer Release contents are preserved byte-exact in `sdk/release/evidence/public-coordinates-developer-release-2026-09-23.json`. The exact current pins for P13-FORMAT are in [truyn1-five-sdk-freeze.json](../../spec/compatibility/truyn1-five-sdk-freeze.json). No prerelease is a Stable TRUYN/1 SDK declaration.
 
-**Status:** Developer Release package/build verification is implemented. The release family is split after the npm packaging repair: TypeScript/JavaScript uses `0.1.0-alpha.2`, Python uses `0.1.0a1`, and Go/Java/.NET remain on `0.1.0-alpha.1`. npm, PyPI and Go have accepted immutable public release evidence; Maven Central `org.truyn:truyn-sdk:0.1.0-alpha.1` is an **accepted immutable public release**. NuGet.org `Truyn.Sdk 0.1.0-alpha.1` is an accepted immutable public prerelease.
+**Status:** five required first-party SDKs have implemented package/build verification and accepted immutable Wire Freeze public prereleases in npm, PyPI, Go, Maven Central and NuGet.org. Distribution is pre-stable; it does not admit Stable TRUYN/1 or managed production.
 **Protocol:** `TRUYN/1` draft.
 **Stable SDK API contract:** `1` (separate from protocol stability).
 
 This document defines the packaging and publication boundary for the five required first-party SDKs. The old DX-1/DX-2 scaffold-only description is obsolete: all five required clients are implemented and ordinary CI builds/verifies package artifacts.
 
-The npm `@truyn/sdk@0.1.0-alpha.1` artifact is immutable but superseded for installation because a required clean-room Node 22 ESM import exposed a bundled CommonJS `ws` failure. The repair therefore uses the distinct immutable coordinate `@truyn/sdk@0.1.0-alpha.2`; that repair is now an accepted public release. The other ecosystem coordinates are not bumped merely because npm packaging changed.
+The historical npm alpha.1 ESM defect was fixed in alpha.2 without overwriting either version. The current Wire Freeze family below is a later, independently accepted frozen release.
 
 This is a packaging policy, not a protocol change. It does not alter `TRUYN/1`, Agent Descriptor semantics, relay behavior, authorization, routing, QUIC/Kademlia behavior, D-1000 evaluator logic or runtime thresholds.
 
@@ -16,11 +16,11 @@ This is a packaging policy, not a protocol change. It does not alter `TRUYN/1`, 
 
 | Language | Repository path | Public distribution target | Developer Release coordinate | Current state |
 |---|---|---|---|---|
-| JavaScript / TypeScript | `sdk/typescript/` | npm | `@truyn/sdk@0.1.0-alpha.2` | implemented client; accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import |
-| Python | `sdk/python/` | PyPI | `truyn-sdk==0.1.0a1` / import `truyn` | implemented client; accepted immutable public artifact/provenance evidence |
-| Go | `sdk/go/` | Go module | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.1` | implemented client; accepted immutable public tag/module evidence |
-| Java | `sdk/java/` | Maven Central target | `org.truyn:truyn-sdk:0.1.0-alpha.1` | implemented client; Maven verification build CI-proven; public registry publication remains evidence-gated |
-| C# / .NET | `sdk/dotnet/` | NuGet | `Truyn.Sdk 0.1.0-alpha.1` | implemented client; NuGet verification build CI-proven; public registry publication remains evidence-gated |
+| JavaScript / TypeScript | `sdk/typescript/` | npm | `@truyn/sdk@0.1.0-alpha.5` | implemented client; accepted immutable public release with verified registry byte identity, provenance/signature evidence and independent clean-room Node 22 ESM import |
+| Python | `sdk/python/` | PyPI | `truyn-sdk==0.1.0a2` / import `truyn` | implemented client; accepted immutable public artifact/provenance evidence |
+| Go | `sdk/go/` | Go module | `github.com/inn-media/truyn/sdk/go@v0.1.0-alpha.2` | implemented client; accepted immutable public tag/module evidence |
+| Java | `sdk/java/` | Maven Central target | `org.truyn:truyn-sdk:0.1.0-alpha.2` | implemented client; accepted immutable Maven Central Wire Freeze prerelease |
+| C# / .NET | `sdk/dotnet/` | NuGet | `Truyn.Sdk 0.1.0-alpha.2` | implemented client; accepted immutable NuGet.org Wire Freeze prerelease |
 | Rust | `sdk/rust/` | crates.io-compatible if maintained | optional | secondary track; does not replace any required first-party language |
 
 The five required first-party targets are JavaScript/TypeScript, Python, Go, Java and C#/.NET.
@@ -37,7 +37,7 @@ The repository-side Developer Release gate includes:
 - packed-tarball clean-room installation/import for the TypeScript SDK;
 - pre-stable semantic-versioning, compatibility, migration and deprecation policy.
 
-Ordinary CI is still a verification system, not a registry publication path. A public release must select one exact accepted source and one exact CI artifact for that source. npm alpha.2 has completed that separate publication/verification path; Maven Central and NuGet have not.
+Ordinary CI is still a verification system, not a registry publication path. A public release must select one exact accepted source and one exact CI artifact for that source. All five current Wire Freeze coordinates have completed that separate publication/verification path; future versions require new evidence.
 
 `verify-release.mjs` verifies expected artifacts/digests and inspects archive **entry names** for forbidden paths/names. It does not recursively scan all archived bytes with the source-tree credential/private-topology patterns. Full generated-package byte-content leakage review therefore remains a publication/release-security requirement.
 
@@ -48,17 +48,17 @@ Public publication is a separate operational event and requires observable regis
 The current Developer Release family is:
 
 ```text
-typescript/npm: 0.1.0-alpha.2
-python:         0.1.0a1
-go tag:         sdk/go/v0.1.0-alpha.1
-java:           0.1.0-alpha.1
-dotnet:         0.1.0-alpha.1
+typescript/npm: 0.1.0-alpha.5
+python:         0.1.0a2
+go tag:         sdk/go/v0.1.0-alpha.2
+java:           0.1.0-alpha.2
+dotnet:         0.1.0-alpha.2
 protocol:       TRUYN/1
 stable SDK API: 1
 channel:        pre-release
 ```
 
-`@truyn/sdk@0.1.0-alpha.1` remains immutable historical evidence and must never be overwritten. Its clean-room import failure is repaired only by the new alpha.2 version. The accepted alpha.2 public release is permanently bound to its published bytes/source/provenance evidence; both npm `alpha` and default `latest` resolve to alpha.2 as recorded in the npm closure evidence.
+Historical package bytes, tags and their original provenance remain immutable. The current Wire Freeze npm coordinate is explicitly `@truyn/sdk@0.1.0-alpha.5`; a historical `latest`/`alpha` observation is not a current installation instruction.
 
 For an accepted/public release, rebuilding the same published package version from different source is forbidden. The release path must either:
 
@@ -85,7 +85,7 @@ Before a native public registry/tag publication is claimed, the release operatio
 
 A source workflow describing how publication should happen is not itself registry publication evidence.
 
-npm alpha.2 satisfies the public publication evidence boundary. Maven Central and NuGet still must satisfy the same class of immutable source, registry byte identity, provenance/signature and clean-room requirements before acceptance.
+All five current Wire Freeze coordinates satisfy the accepted prerelease-publication boundary recorded in the canonical registry ledger. Every future version must independently satisfy the same immutable-source, byte-identity, signature/provenance and clean-room requirements.
 
 ## 5. Versioning policy
 
@@ -134,7 +134,7 @@ implemented source
   -> stable public package
 ```
 
-npm alpha.2, PyPI alpha and Go alpha are accepted at the fourth stage. Java/Maven Central and .NET/NuGet remain below that publication stage. Acceptance in one ecosystem does not imply another ecosystem's publication.
+All five current Wire Freeze SDKs are independently accepted at the fourth stage. None is thereby a stable public package, and publication in any ecosystem never automatically activates a private consumer.
 
 ## 7. Non-goals
 

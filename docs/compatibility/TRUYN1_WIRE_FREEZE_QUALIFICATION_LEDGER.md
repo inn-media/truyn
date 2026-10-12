@@ -1,6 +1,8 @@
 # TRUYN/1 Wire Freeze: Exact-HEAD Qualification Ledger
 
-**Status: bounded public source + SDK interoperability ACCEPTED on PR-head; stable-v1, immutable successor release, private managed admission and Mainnet NOT accepted.**  
+**Current release status:** the five immutable Wire Freeze prereleases are accepted; see [current registry ledger](../releases/WIRE_FREEZE_FIVE_SDK_REGISTRY_2026-10-11.md). Stable TRUYN/1, private production activation and Mainnet remain unadmitted.
+
+**Historical checkpoint below:** source/PR #975 qualification as recorded on 2026-10-11. Its old release/private OPEN rows are not current release or shadow-staging state. Preserve those observations as history; consult the current registry ledger and RC gap ledger for current scope-specific decisions.
 **Source:** approved `TRUYN_WIRE_FREEZE_CORE_FINAL(1).md`, `TRUYN_WIRE_FREEZE_EXTENSIONS_FINAL(1).md`.  
 **PR:** #975 (successor to cancelled-unmerged #962 and #974).
 
@@ -8,7 +10,7 @@
 
 The full 80-row A–I machine-readable registry is `spec/registry/truyn-core-v1.json`; this is the semantic registry, not a new physical envelope codec. Existing five top-level signed JSON kinds, TCJ1 byte domain, QUIC/DHT method names, six compact letters, session `kind:"ACCEPT"`, optional `to`, identity derivation and existing released packages stay unchanged by default. Public and private versions must be digest-pinned only **after** public release.
 
-## Current verified changes, not yet global qualification
+## Historical verified source changes, not global qualification
 
 - DCO-compliant public successor branch; new contributions carry the author's signed-off-by trailer. Never bypass DCO.
 - JS reference freeze: `tests/wire-freeze-registry.test.js`, `tests/wire-freeze-tcj1-negative.test.js`, `tests/wire-freeze-crosslanguage-fixtures.test.js`.
@@ -18,7 +20,7 @@ The full 80-row A–I machine-readable registry is `spec/registry/truyn-core-v1.
 - Go candidate applies TCJ1 Unicode/UTF-16 and ECMAScript numeric serialization. Shared fixtures and five-language conformance PASSED on qualified PR head; exhaustive all-value numerical conformance is not claimed.
 - .NET uses an explicit TCJ1 writer with literal non-BMP UTF-8, UTF-16 key order and ECMAScript numeric formatting; shared golden corpus and five-language conformance PASSED on qualified PR head.
 
-## Strict open gates
+## Historical source-qualification gate snapshot (superseded for publication status)
 
 | Gate | Qualification required | Status |
 | --- | --- | --- |
@@ -45,7 +47,7 @@ The full 80-row A–I machine-readable registry is `spec/registry/truyn-core-v1.
 - New postmerge verification [PR #976](https://github.com/inn-media/truyn/pull/976) is a separate Node/HTTP Relay/compact security suite rooted in merged main; it does not itself establish independent live QUIC/DHT/replay/side-effect or postmerge exact-main CI evidence.
 - No new stable SDK package coordinate, digest-pinned public runtime release, private release pin, A-Series operational acceptance or Mainnet activation follows automatically from these records.
 
-## Controlled next actions
+## Historical controlled next actions (not an execution queue)
 
 1. Preserve the completed shared TCJ1 and published-alpha 20/20 compatibility matrix; extend negative per-language and historical scenarios only with new exact-SHA evidence.
 2. Repair canonical byte mismatches with language-local minimal changes, especially float formatting in Go/Java/.NET, without JS fallback or alternative signature checks.

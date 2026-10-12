@@ -59,10 +59,13 @@ test('Maven and NuGet coordinates require accepted public evidence', async () =>
   const release = JSON.parse(await read('sdk/release/version.json'));
   const pom = await read('sdk/java/pom.xml');
   const csproj = await read('sdk/dotnet/Truyn.Sdk.csproj');
-  assert.match(pom, new RegExp(`<version>${release.release.replaceAll('.', '\.')}</version>`));
-  assert.match(csproj, new RegExp(`<Version>${release.release.replaceAll('.', '\.')}</Version>`));
-  assert.equal(coords.maven.version, '0.1.0-alpha.1');
-  assert.equal(coords.nuget.version, '0.1.0-alpha.1');
+  assert.match(pom, new RegExp(`<version>${release.release.replaceAll('.', '\\.')}</version>`));
+  assert.match(csproj, new RegExp(`<Version>${release.release.replaceAll('.', '\\.')}</Version>`));
+  assert.equal(coords.maven.version, release.release);
+  const history = JSON.parse(await read('sdk/release/evidence/public-coordinates-developer-release-2026-09-23.json')).coordinates;
+  assert.equal(history.maven.version, '0.1.0-alpha.1');
+  assert.equal(coords.nuget.version, release.release);
+  assert.equal(history.nuget.version, '0.1.0-alpha.1');
   assert.equal(coords.maven.publicationState, 'accepted');
   assert.equal(coords.nuget.publicationState, 'accepted');
   const evidence = JSON.parse(await read('sdk/release/evidence/nuget-alpha1-2026-09-23.json'));

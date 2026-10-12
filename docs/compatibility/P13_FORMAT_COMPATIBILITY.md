@@ -37,7 +37,7 @@ A **Stable TRUYN/1 Protocol** declaration must pass this format gate and all oth
 
 ## Exact prerelease pins for the five SDKs (not a stable assertion)
 
-The accepted Wire Freeze public prerelease source SHA is `57971b134a41c3e3ea4b42f68e86a7d117036006`. The machine-readable immutable-version inventory is [truyn1-five-sdk-freeze.json](../../spec/compatibility/truyn1-five-sdk-freeze.json), and the read-only cross-check is `node scripts/truyn1-protocol-candidate-audit.mjs`. This separates the current Wire Freeze family from the **older historical** Developer Release coordinates in `sdk/release/public-coordinates.json`. Five accepted *pre-releases* qualify a bounded compatibility candidate, **not** stable first-party SDK release versions, cross-version full-lifecycle parity, or future protocol-stable admission. P13-FORMAT is still **PRE-STABLE**.
+The accepted Wire Freeze public prerelease source SHA is `57971b134a41c3e3ea4b42f68e86a7d117036006`. The machine-readable immutable-version inventory is [truyn1-five-sdk-freeze.json](../../spec/compatibility/truyn1-five-sdk-freeze.json), and the read-only cross-check is `node scripts/truyn1-protocol-candidate-audit.mjs`. This separates the current Wire Freeze family from the **older historical** Developer Release coordinates in `sdk/release/evidence/public-coordinates-developer-release-2026-09-23.json`. Five accepted *pre-releases* qualify a bounded compatibility candidate, **not** stable first-party SDK release versions, cross-version full-lifecycle parity, or future protocol-stable admission. P13-FORMAT is still **PRE-STABLE**.
 
 ## Five real frozen published SDKs versus current source (non-admitting)
 
