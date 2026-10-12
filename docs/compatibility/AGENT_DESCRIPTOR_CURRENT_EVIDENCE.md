@@ -1,6 +1,6 @@
 # Agent Descriptor: current contract and five-SDK source evidence
 
-**Implementation baseline:** `8cd23898314fd3d96a4796b485935f812a59f2a1` (2026-10-12). The prior sanitation identified a genuine bounded interface-parity gap. The current source adds the implementation and an executable shared suite; qualification must refer to the actual final SHA and successful CI, not this baseline.
+**Implementation baseline:** `8cd23898314fd3d96a4796b485935f812a59f2a1` (2026-10-12). The prior sanitation identified a genuine bounded interface-parity gap. The current source adds the implementation and an executable shared suite; qualification must refer to the actual final SHA and successful CI, not this baseline. Exact accepted head and independent merged-main results are reconciled in [PR #1074](https://github.com/inn-media/truyn/pull/1074).
 
 **DESCRIPTOR_INTERFACE_PARITY=IMPLEMENTED**
 
@@ -17,7 +17,7 @@ The additional fixture is `sdk/conformance/v1/agent-descriptor-interface-fixture
 | Bounded property | Expected outcome |
 |---|---|
 | Omitted optional endpoint acceptance | Accept and preserve omission |
-| Normal supplied endpoint and optional metadata | Accept; preserve fields |
+| Normal supplied endpoint and optional metadata | Accept; preserve selected-interface fields |
 | Explicit empty, null or numeric endpoint | Reject as invalid interfaces |
 | Missing, empty, null or numeric type | Reject as invalid interfaces |
 | Non-object interface entry | Reject as invalid interfaces |
@@ -25,7 +25,7 @@ The additional fixture is `sdk/conformance/v1/agent-descriptor-interface-fixture
 | Whitespace-only endpoint under the existing no-trim profile | Preserve existing acceptance; not a usable-URL certification |
 | Tampered signature with otherwise valid present or omitted endpoint | Reject at signature verification |
 
-There are **19 cases per SDK / 95 observed SDK fetch-and-validation outcomes** in a successful invocation. Negative interface documents are correctly signed; separate signature-negative cases alter the signature scalar, retaining its structurally valid curve-point encoding. Thus an unrelated signature/HTTP/expiry error cannot masquerade as malformed-interface rejection.
+There are **19 cases per SDK / 95 observed SDK fetch-and-validation outcomes** in a successful invocation. The runner itself verifies the reviewed inventory and expected input shapes; an empty, reduced, duplicated or weakened fixture cannot produce acceptance. Negative interface documents are correctly signed; separate signature-negative cases alter the signature scalar, retaining its structurally valid curve-point encoding. Thus an unrelated signature/HTTP/expiry error cannot masquerade as malformed-interface rejection.
 
 Native drivers:
 - `sdk/typescript/test/descriptor-interface-conformance.ts`
@@ -54,12 +54,16 @@ The nine-case historical inventory and its bidirectional documentation regressio
 
 ## Exact-source qualification and release boundary
 
-Run `node sdk/conformance/run-five-language-e2e.mjs` with all five toolchains installed. The mandatory child runner prints `DESCRIPTOR_INTERFACE_PARITY_REPORT=` JSON with actual source SHA, worktree cleanliness, fixture/document digests, per-language results and observed HTTP counts. Any absent SDK, skipped/missing case, unexpected outcome, unrelated negative error or wrong selection fails the command. `TRUYN_DESCRIPTOR_PARITY_REPORT` optionally stores the same JSON in a new file outside the checkout. Repository-contained destinations, symlink-parent escapes and existing files (including hard-link aliases) are rejected; the writer cannot mutate source after the cleanliness snapshot.
+Run `node sdk/conformance/run-five-language-e2e.mjs` with all five toolchains installed. The mandatory child runner prints `DESCRIPTOR_INTERFACE_PARITY_REPORT=` JSON with actual source SHA, before/after worktree state, fixture/document digests, per-language results and observed HTTP counts. Any absent SDK, skipped/missing case, unexpected outcome, unrelated negative error or wrong selection fails the command. `TRUYN_DESCRIPTOR_PARITY_REPORT` optionally stores the same JSON in a new file outside the checkout. Repository-contained destinations, symlink-parent escapes and existing files (including hard-link aliases) are rejected; the writer cannot mutate source after the cleanliness snapshot.
 
-A dirty-worktree application run is diagnostic evidence only. Acceptance requires clean final-head full CI, DCO/security/CodeQL and independent merged-main qualification. Use the actual pull request and run records; do not infer acceptance from a checkbox, historical S103 merge or an older SHA. The earlier Java diagnostic run rejected a deliberately malformed signature point with a JDK-specific message; the scalar-tamper fixture preserves cryptographic rejection and all strict interface checks while removing that test-path ambiguity.
+The starting checkout must be clean, including unexpected ignored compilable inputs. Java/.NET build from regular Git blobs at the tested commit in a fresh temporary tree, never from cached checkout binaries; the report lists those source blobs. Python uses a fresh bytecode cache. Both native entry points reject nonempty `GOFLAGS`, including overlays; child Go commands disable persisted Go environment settings and external/ancestor workspaces with `GOENV=off` and `GOWORK=off`. This is bounded repository-source identity, not a claim of arbitrary external toolchain/dependency hermeticity.
+
+Functional `passed=true` alone is insufficient. The command exits unsuccessfully unless `exactSourceQualified`, clean before/after states and unchanged source SHA all agree. A later dirty/changed checkout may produce diagnostic output but never a successful qualification exit. Acceptance requires clean final-head full CI, DCO/security/CodeQL and independent merged-main qualification. Use the actual pull request and run records; do not infer acceptance from a checkbox, historical S103 merge or an older SHA. The earlier Java diagnostic run rejected a deliberately malformed signature point with a JDK-specific message; the scalar-tamper fixture preserves cryptographic rejection and all strict interface checks while removing that test-path ambiguity.
 
 This closes only the bounded source interface matrix when qualified. It does not certify arbitrary Descriptor lifecycle, delegated signing, production/Mainnet or Stable TRUYN/1. Existing published Alpha bytes and private dependency pins are unchanged and require new versioned publication/consumer admission to obtain any source repair. Issue #615's broader S104-S200 and G1-G34 reconciliation remains independent.
 
 ## Review corrections and typed projections
 
-The nineteenth shared case explicitly selects a whitespace-only extension type when the caller advertises that exact supported type. This preserves the existing nonempty-string/no-trim profile; Java and .NET selection and Java DTO mapping now use the validated raw values. The actual Java/.NET drivers additionally verify their returned typed interface fields. In .NET the existing CLR `Url` property is nullable and explicitly mapped to optional wire `endpoint`; supplied values round-trip, omission stays omitted, and existing CLR constructor/property names remain available. These checks do not redefine valid endpoint URLs or broaden release admission.
+The nineteenth shared case explicitly selects a whitespace-only extension type when the caller advertises that exact supported type. This preserves the existing nonempty-string/no-trim profile; Java and .NET selection and Java DTO mapping use the validated raw values. The actual Java/.NET drivers verify their returned typed interface fields. In .NET the existing CLR `Url` property is nullable and explicitly mapped to optional wire `endpoint`; supplied values round-trip, omission stays omitted, and existing CLR constructor/property names remain available.
+
+Go retains the public string field `Interface.URL` but correctly maps it to `json:"endpoint,omitempty"`, not `url`. The zero value represents the permitted omitted endpoint; it is not a replacement for validating a supplied empty endpoint, which is rejected before typed deserialization. Its real HTTP driver now compares typed Type/URL, optional-field serialization and the selected signed interface. The parent runner independently verifies the typed projection in every accepted Go result. A separate Go unit test covers omission, a supplied endpoint and no-trim whitespace values. Typed models project their documented fields; arbitrary extension metadata remains in the verified raw selection. These checks do not redefine valid endpoint URLs or broaden release admission.

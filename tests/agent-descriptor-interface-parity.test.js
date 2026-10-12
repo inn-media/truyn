@@ -20,12 +20,22 @@ test('shared interface matrix preserves optional endpoint and signs every malfor
     if (!item.ok) assert.equal(result.reason,item.tamperSignature?'invalid_descriptor_signature':'invalid_descriptor_interfaces',item.id);
   }
 });
-test('parity evidence requires exact five SDKs, every observed fetch and every expected outcome', () => {
+function acceptedModel() {
   const reports={}, requests={};
   for(const language of languages) reports[language]=cases.map(item=>{
     requests[`${language}/${item.id}`]=1;
-    return item.ok?{id:item.id,ok:true,identity:'test',protocol:'TRUYN/1',keyBinding:'identity',interface:structuredClone(item.interfaces[0])}:{id:item.id,ok:false,message:item.tamperSignature?'invalid signature':'invalid interfaces'};
+    if (!item.ok) return {id:item.id,ok:false,message:item.tamperSignature?'invalid signature':'invalid interfaces'};
+    const row={id:item.id,ok:true,identity:'test',protocol:'TRUYN/1',keyBinding:'identity',interface:structuredClone(item.interfaces[0])};
+    if (language==='go') {
+      row.typedInterface={type:item.interfaces[0].type};
+      if (Object.hasOwn(item.interfaces[0],'endpoint')) row.typedInterface.endpoint=item.interfaces[0].endpoint;
+    }
+    return row;
   });
+  return {reports,requests};
+}
+test('parity evidence requires exact five SDKs, every observed fetch and every expected outcome', () => {
+  const {reports,requests}=acceptedModel();
   assert.doesNotThrow(()=>validateResults(cases,reports,requests,'test'));
   for(const language of languages){
     const missing=structuredClone(reports);delete missing[language];assert.throws(()=>validateResults(cases,missing,requests,'test'));
@@ -33,6 +43,16 @@ test('parity evidence requires exact five SDKs, every observed fetch and every e
       const omitted=structuredClone(reports);omitted[language].splice(i,1);assert.throws(()=>validateResults(cases,omitted,requests,'test'));
       const flipped=structuredClone(reports);flipped[language][i].ok=!flipped[language][i].ok;assert.throws(()=>validateResults(cases,flipped,requests,'test'));
       const absent={...requests,[`${language}/${cases[i].id}`]:0};assert.throws(()=>validateResults(cases,reports,absent,'test'));
+    }
+  }
+});
+test('raw Go selection cannot hide missing or corrupted public typed endpoint projection', () => {
+  const {reports,requests}=acceptedModel();
+  for (const item of cases.filter(c=>c.ok)) {
+    for (const projection of [undefined, {}, {type:item.interfaces[0].type,endpoint:'incorrect'}, {type:'incorrect'}]) {
+      const changed=structuredClone(reports);
+      changed.go.find(r=>r.id===item.id).typedInterface=projection;
+      assert.throws(()=>validateResults(cases,changed,requests,'test'), /public typed projection/);
     }
   }
 });
