@@ -8,6 +8,8 @@ const plan = () => JSON.parse(readFileSync(file('operations/p13-production-cutov
 
 export function evaluateP13ProductionReadiness(inventory, evidence = {}) {
   if (inventory?.schema !== 'truyn.p13.production-cutover-plan/v1'
+    || inventory?.lane !== 'PRODUCTION_OPERATIONS'
+    || inventory?.formatCompatibilityGate !== 'INDEPENDENT_REQUIRED_FOR_ACTUAL_TARGET'
     || inventory?.rules?.noLiveMutationByReadinessGate !== true
     || inventory?.rules?.noSyntheticSource !== true
     || inventory?.rules?.requireIndependentAttestation !== true) {
@@ -49,6 +51,8 @@ export function evaluateP13ProductionReadiness(inventory, evidence = {}) {
   // must never be treated as an independently verified cutover authorization.
   return {
     schema:'truyn.p13.production-readiness-report/v1',
+    lane:'PRODUCTION_OPERATIONS',
+    formatCompatibilityCertifiedByThisReport:false,
     status:'BLOCKED',
     cutoverAuthorized:false,
     productionMutationsPerformed:false,

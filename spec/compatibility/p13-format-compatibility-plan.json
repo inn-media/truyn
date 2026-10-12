@@ -1,0 +1,62 @@
+{
+  "schema": "truyn.p13.format-compatibility-plan/v1",
+  "lane": "FORMAT",
+  "maturity": "pre-stable",
+  "productionCutover": "OUT_OF_SCOPE",
+  "deprecation": {
+    "minStableNoticeCalendarDays": 180,
+    "policy": "spec/protocol/v1/migration.md"
+  },
+  "boundedEvidence": [
+    {
+      "id": "public-deprecation-policy",
+      "reference": "spec/protocol/v1/migration.md",
+      "level": "DEFINED"
+    },
+    {
+      "id": "local-byok-schema1-to-schema2-and-byte-exact-rollback",
+      "reference": "tests/p13-migration-rollback-interoperability.test.js",
+      "level": "BOUNDED_LOCAL_TEST"
+    },
+    {
+      "id": "required-semantics-and-protocol-negotiation",
+      "reference": "core/protocol/negotiation.js",
+      "level": "BOUNDED_LOCAL_TEST"
+    },
+    {
+      "id": "five-sdk-published-alpha-interoperability",
+      "reference": "docs/compatibility/TRUYN1_WIRE_FREEZE_QUALIFICATION_LEDGER.md",
+      "level": "PUBLISHED_ALPHA_ONLY"
+    }
+  ],
+  "stableQualification": [
+    {
+      "id": "normative-wire-schema-and-canonical-signature-freeze",
+      "status": "NOT_CERTIFIED"
+    },
+    {
+      "id": "cross-version-positive-negative-golden-vectors",
+      "status": "NOT_CERTIFIED"
+    },
+    {
+      "id": "five-sdk-exact-version-compatibility-conformance",
+      "status": "NOT_CERTIFIED"
+    },
+    {
+      "id": "required-semantics-fail-closed-and-no-downgrade",
+      "status": "NOT_CERTIFIED"
+    },
+    {
+      "id": "identity-and-local-persisted-format-continuity",
+      "status": "NOT_CERTIFIED"
+    },
+    {
+      "id": "exact-head-dco-security-ci-and-signed-evidence",
+      "status": "NOT_CERTIFIED"
+    },
+    {
+      "id": "post-merge-main-independent-reconciliation",
+      "status": "NOT_CERTIFIED"
+    }
+  ]
+}

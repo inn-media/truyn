@@ -2,6 +2,14 @@
 
 **Status: BLOCKED.** This document is not permission to deploy or declare Stable TRUYN/1. Actual `TRUYN/1` remains pre-stable in `spec/compatibility/matrix.md`, and `TRUYN/2` is not implemented.
 
+## Ownership: P13-OPS only
+
+This is the **production-operations** gate. It is intentionally independent of [P13-FORMAT](../compatibility/P13_FORMAT_COMPATIBILITY.md), which owns stable public wire/schema/SDK compatibility and the 180-calendar-day deprecation policy. The two lanes have separate machine-readable inventories: `spec/compatibility/p13-format-compatibility-plan.json` versus `operations/p13-production-cutover-plan.json`.
+
+A qualified format release can exist while this gate is **BLOCKED**. Conversely, a working production migration does not certify format stability. Actual production cutover requires a target format/version that has passed its own compatibility gate **plus** independently verified deployed state, rollback and approval. The local BYOK checkpoint is only a bounded local proof, not a full recovery procedure.
+
+The current read-only operational report is not a production authorization token, even if synthetic evidence claims all gates passed. No production mutations, migrations or live cutover are performed by this P13 documentation/control change.
+
 ## Ten-domain evidence inventory
 
 `operations/p13-production-cutover-plan.json` enumerates **all currently identified** durable state surfaces: identity keys, reference filesystem authority, managed Cosmos checkpoint, network state, durable inbox, trust/revocations, semantic indexes, content/artifacts, BYOK config and entitlements/accounting. Actual deployed applicability and every additional private storage backend MUST be independently reconciled. Shared implementation files do not imply that domains may be skipped.
