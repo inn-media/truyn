@@ -1,4 +1,4 @@
-import { createCosmosLifecycleLedger } from '../network/relay/cosmos-lifecycle-ledger.js';
+import { createCosmosLifecycleLedger, lifecycleRecordCapacityFromEnv } from '../network/relay/cosmos-lifecycle-ledger.js';
 import { containerAppsManagedIdentityToken } from '../adapters/providers/common/azure-auth.js';
 import { withCosmosEffectReceipts } from './g5-durable-response-receipt.js';
 
@@ -8,9 +8,11 @@ import { withCosmosEffectReceipts } from './g5-durable-response-receipt.js';
 export function createRuntimeG5ProviderEffectLedger({
   env = process.env, tokenProvider = null, fetchImpl = fetch
 } = {}) {
+  const recordCapacity = lifecycleRecordCapacityFromEnv(env);
   const mode = env.TRUYN_G5_PROVIDER_EFFECT_LEDGER || 'off';
   if (!['off','cosmos'].includes(mode)) throw new Error('Unsupported G5 provider effect ledger mode');
   if (mode === 'off') {
+    if (recordCapacity !== null) throw new Error('G5 record capacity requires configured Cosmos ledger');
     if (env.TRUYN_G5_REQUIRE_PROVIDER_EFFECT_FENCE === '1') {
       throw new Error('G5 provider effect fence is required but not configured');
     }
@@ -36,6 +38,6 @@ export function createRuntimeG5ProviderEffectLedger({
   const getAccessToken = tokenProvider || (() => containerAppsManagedIdentityToken({
     fetchImpl, resource: 'https://cosmos.azure.com/'
   }));
-  const options = { endpoint, database, container, getAccessToken, fetchImpl };
+  const options = { endpoint, database, container, getAccessToken, fetchImpl, recordCapacity };
   return withCosmosEffectReceipts(createCosmosLifecycleLedger(options), options);
 }

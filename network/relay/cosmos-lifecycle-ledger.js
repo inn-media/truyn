@@ -18,6 +18,32 @@ const kinds = new Set(['NEED','RESULT','REVOKE','PARTIAL']);
 const TERMINAL = new Set(['completed','cancelled','failed']);
 const clean = value => structuredClone(value);
 function partitionId(kind, id) { return `${kind}-${hash(id)}`; }
+// A permanently retained allocation register bounds total managed entity IDs.
+// Bootstrap is deliberately offline/explicit: never create/reset it on absence.
+const CAPACITY_ID = 'g5-container-admission-v1';
+const capacityKey = () => partitionId('capacity', CAPACITY_ID);
+function validRecordCapacity(value) {
+  return Number.isSafeInteger(value) && value >= 1 && value <= 4096;
+}
+export function lifecycleRecordCapacityFromEnv(env = process.env) {
+  const raw = env.TRUYN_G5_LIFECYCLE_RECORD_CAPACITY;
+  if (raw === undefined) return null;
+  if (typeof raw !== 'string' || !/^[1-9][0-9]{0,3}$/.test(raw) || !validRecordCapacity(Number(raw)))
+    throw new Error('invalid TRUYN_G5_LIFECYCLE_RECORD_CAPACITY');
+  return Number(raw);
+}
+// Generates a seed document, NOT an assertion of empty-container safety or a
+// write operation. Install only in a dedicated empty/quiesced verified scope.
+export function createLifecycleCapacityDocument({endpoint, database, container, recordCapacity} = {}) {
+  if (typeof endpoint !== 'string' || !/^https:\/\/[a-z0-9.-]+\.documents\.azure\.com(?::443)?\/?$/i.test(endpoint) ||
+      ![database, container].every(x => typeof x === 'string' && /^[a-zA-Z0-9._-]{1,100}$/.test(x)) ||
+      !validRecordCapacity(recordCapacity)) throw new Error('invalid lifecycle capacity configuration');
+  const scope = endpoint.replace(/\/$/, '') + `/dbs/${encodeURIComponent(database)}/colls/${encodeURIComponent(container)}/docs`;
+  const key = capacityKey();
+  return {id:key, partitionKey:key, schemaVersion:1, kind:'capacity', logicalId:CAPACITY_ID,
+    version:1, ttl:-1, capacityVersion:1, scopeDigest:hash(scope), recordCapacity,
+    tickets:[], reserved:0, createdAt:new Date().toISOString()};
+}
 function eventId(kind, id, event = null) {
   return kind === 'PARTIAL' ? `partial:${id}:${event?.sequence}` : `${kind.toLowerCase()}:${id}`;
 }
@@ -31,7 +57,7 @@ function deliveryFor({kind, id, recipient, event}) {
 export function createCosmosLifecycleLedger({
   endpoint, database, container, getAccessToken, fetchImpl = fetch,
   maxDocumentBytes = 850_000, maxDeliveriesPerNeed = 256, maxCasAttempts = 5,
-  requestTimeoutMs = 10_000
+  requestTimeoutMs = 10_000, recordCapacity = null
 } = {}) {
   if (typeof endpoint !== 'string' || !/^https:\/\/[a-z0-9.-]+\.documents\.azure\.com(?::443)?\/?$/i.test(endpoint))
     throw new Error('Cosmos account HTTPS endpoint required (no emulator/keys)');
@@ -42,6 +68,7 @@ export function createCosmosLifecycleLedger({
   if (!Number.isSafeInteger(maxDocumentBytes) || maxDocumentBytes < 2048 || maxDocumentBytes > 1_800_000) throw new Error('invalid maxDocumentBytes');
   if (!Number.isSafeInteger(maxDeliveriesPerNeed) || maxDeliveriesPerNeed < 1 || maxDeliveriesPerNeed > 2048) throw new Error('invalid maxDeliveriesPerNeed');
   if (!Number.isSafeInteger(maxCasAttempts) || maxCasAttempts < 1 || maxCasAttempts > 20) throw new Error('invalid maxCasAttempts');
+  if (recordCapacity !== null && !validRecordCapacity(recordCapacity)) throw new Error('invalid recordCapacity');
   const base = endpoint.replace(/\/$/,'') + `/dbs/${encodeURIComponent(database)}/colls/${encodeURIComponent(container)}/docs`;
   // Remember one session watermark per physical partition range, never per logical ID.
   const physicalSessionTokens = new Map();
@@ -173,10 +200,45 @@ export function createCosmosLifecycleLedger({
     if(bytes+pending*24+128>maxDocumentBytes) throw fault(503,'lifecycle_document_capacity_reached');
     return doc;
   }
+  function validateCapacity(doc) {
+    if (!doc || doc.id !== capacityKey() || doc.partitionKey !== capacityKey() ||
+        doc.schemaVersion !== 1 || doc.kind !== 'capacity' || doc.logicalId !== CAPACITY_ID ||
+        doc.ttl !== -1 || doc.capacityVersion !== 1 || doc.scopeDigest !== hash(base) ||
+        doc.recordCapacity !== recordCapacity || !Number.isSafeInteger(doc.version) ||
+        doc.version < 1 || doc.version >= Number.MAX_SAFE_INTEGER ||
+        !Array.isArray(doc.tickets) || doc.tickets.length > recordCapacity ||
+        doc.reserved !== doc.tickets.length || new Set(doc.tickets).size !== doc.tickets.length ||
+        doc.tickets.some(key => typeof key !== 'string' || !/^(need|offer|effect)-[a-f0-9]{64}$/.test(key)))
+      throw fault(503, 'lifecycle_capacity_contract_invalid');
+    return doc;
+  }
+  async function reserveCreationCapacity(kind, id) {
+    if (recordCapacity === null) return;
+    const ticket = partitionId(kind, id);
+    let result;
+    try {
+      result = await mutate('capacity', CAPACITY_ID, doc => {
+        validateCapacity(doc);
+        if (doc.tickets.includes(ticket)) return null;
+        if (doc.reserved >= recordCapacity) throw fault(503, 'lifecycle_global_capacity_reached');
+        doc.tickets.push(ticket);
+        doc.reserved = doc.tickets.length;
+        return doc;
+      });
+    } catch (error) {
+      if (error.httpStatus === 404) throw fault(503, 'lifecycle_capacity_not_initialized');
+      throw error;
+    }
+    const saved = validateCapacity(result.row);
+    if (!saved.tickets.includes(ticket)) throw fault(503, 'lifecycle_capacity_commit_unverified');
+  }
   async function create(kind,id,data) {
     const p=locator(kind,id);
     const doc=packed({id:p.id,partitionKey:p.partitionKey,schemaVersion:1,kind,logicalId:id,version:1,
       createdAt:new Date().toISOString(),ttl:-1,...data});
+    // Allocation precedes entity creation. An ambiguous reply burns capacity
+    // safely; no entity POST follows it. Tickets are never freed by compaction.
+    await reserveCreationCapacity(kind, id);
     const r=await api({method:'POST',partitionKey:p.partitionKey,body:doc});
     if (r.status===409) throw fault(409,kind==='need'?'duplicate_request':kind==='offer'?'duplicate_offer':'duplicate_effect');
     if (r.status!==201 && r.status!==200) throw fault(503,'lifecycle_ledger_unavailable');
@@ -214,6 +276,13 @@ export function createCosmosLifecycleLedger({
   }
   return Object.freeze({
     kind:'cosmos-multi-host-v1',
+    async verifyCapacityContract() {
+      if (recordCapacity === null) return {enabled:false};
+      const row = await get('capacity', CAPACITY_ID);
+      if (!row) throw fault(503, 'lifecycle_capacity_not_initialized');
+      const saved = validateCapacity(row);
+      return {enabled:true,recordCapacity,reserved:saved.reserved,tombstonesRecyclable:false};
+    },
     // Internal same-container receipt writes share this ledger's session cache.
     // This is not an HTTP/SDK endpoint and conveys no authorization capability.
     receiptSession: Object.freeze({

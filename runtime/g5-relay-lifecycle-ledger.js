@@ -1,12 +1,14 @@
-import { createCosmosLifecycleLedger } from '../network/relay/cosmos-lifecycle-ledger.js';
+import { createCosmosLifecycleLedger, lifecycleRecordCapacityFromEnv } from '../network/relay/cosmos-lifecycle-ledger.js';
 import { containerAppsManagedIdentityToken } from '../adapters/providers/common/azure-auth.js';
 
 // Explicit opt-in only. Never replace an unconfigured production relay's
 // historical behavior or turn local SQLite into a distributed authority.
 export function createRuntimeG5RelayLifecycleLedger({ env = process.env, tokenProvider = null, fetchImpl = fetch } = {}) {
+  const recordCapacity = lifecycleRecordCapacityFromEnv(env);
   const mode = env.TRUYN_G5_RELAY_LIFECYCLE_LEDGER || 'off';
   if (!['off','cosmos'].includes(mode)) throw new Error('unsupported G5 relay ledger mode');
   if (mode === 'off') {
+    if (recordCapacity !== null) throw new Error('G5 record capacity requires configured Cosmos ledger');
     if (env.TRUYN_G5_REQUIRE_RELAY_LIFECYCLE_LEDGER === '1')
       throw new Error('G5 shared relay ledger is required but not configured');
     return null;
@@ -29,7 +31,7 @@ export function createRuntimeG5RelayLifecycleLedger({ env = process.env, tokenPr
   const getAccessToken=tokenProvider || (()=>containerAppsManagedIdentityToken({
     fetchImpl,resource:'https://cosmos.azure.com/'
   }));
-  const ledger=createCosmosLifecycleLedger({endpoint,database,container,fetchImpl,getAccessToken});
+  const ledger=createCosmosLifecycleLedger({endpoint,database,container,fetchImpl,getAccessToken,recordCapacity});
   // A missing database/container also returns 404 from a document GET.
   // Verify the actual resource metadata and its partition path first.
   const verifyContainer=async()=>{
@@ -79,6 +81,7 @@ export async function verifyRuntimeG5RelayLedger(ledger) {
   if (ledger.kind !== 'cosmos-multi-host-v1') throw new Error('G5 relay requires cross-host Cosmos authority');
   if(typeof ledger.verifyContainer!=='function') throw new Error('G5 Cosmos container metadata preflight required');
   await ledger.verifyContainer();
+  if (typeof ledger.verifyCapacityContract === 'function') await ledger.verifyCapacityContract();
   const record = await ledger.getNeed('g5-readonly-startup-canary::v1');
   // The identity is never reserved or altered by this probe.
   if (record && record.logicalId !== 'g5-readonly-startup-canary::v1')
