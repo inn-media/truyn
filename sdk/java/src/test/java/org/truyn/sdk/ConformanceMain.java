@@ -44,7 +44,7 @@ public final class ConformanceMain {
         String sourceCode = input.get("relayCode") instanceof String s ? s : null;
         int status = ((Number) input.get("httpStatus")).intValue();
         var mapped = TruynException.fromHttp(status, sourceCode, "bounded diagnostic");
-        if (!mapped.code().wireValue().equals(expected.get("code")) || mapped.retryable() != expected.get("retryable"))
+        if (!mapped.code().wireValue().equals(expected.get("code")) || mapped.retryable() != Boolean.TRUE.equals(expected.get("retryable")))
           throw new AssertionError("P10 Java error mismatch for " + v.get("id"));
       }
     } catch (java.io.IOException error) { throw new RuntimeException("P10 corpus missing", error); }
