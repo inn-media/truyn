@@ -182,7 +182,8 @@ test('manual Tempo production retry is exact-main only, shares the exclusive ACA
   assert.ok(workflow.includes("cancel-in-progress: false"));
   assert.ok(workflow.includes("Production apply refused: protected main changed since this run was queued."));
   assert.ok(workflow.includes("'infra/production-tracing/**'"));
-  assert.ok(workflow.includes("'.github/workflows/production-trace-backend.yml'"));
+  const pushPaths = workflow.split('  push:')[1]?.split('\npermissions:')[0] || '';
+  assert.ok(!pushPaths.includes("'.github/workflows/production-trace-backend.yml'"));
 });
 
 test('trace backend workflow validates and live-proves 30d normal plus 90d incident retention', async () => {
