@@ -144,7 +144,7 @@ export function createFunctionAdapter({ name = 'function-adapter', version = '0.
 }
 
 export class TruynAdapterHost {
-  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, executionDrainTimeoutMs = 5_000, accessPolicy, billingPolicy = null, effectLedger = null } = {}) {
+  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, executionDrainTimeoutMs = 5_000, accessPolicy, billingPolicy = null, effectLedger = null, recoveredResultFinalizer = null } = {}) {
     if (!node) throw new Error('node is required');
     this.node = node;
     this.adapter = validateAdapter(adapter);
@@ -163,6 +163,9 @@ export class TruynAdapterHost {
       throw new Error('effectLedger must implement beginEffect and finishEffect');
     }
     this.effectLedger = effectLedger;
+    if (recoveredResultFinalizer !== null && typeof recoveredResultFinalizer !== 'function')
+      throw new Error('recoveredResultFinalizer must be a function');
+    this.recoveredResultFinalizer = recoveredResultFinalizer;
     this.running = false;
     this.registered = false;
     this.offerIds = [];
@@ -191,6 +194,13 @@ export class TruynAdapterHost {
     if (!access?.ok) throw reject(403, 'provider_access_denied');
     if (signal?.aborted) throw reject(409, 'effect_execution_cancelled');
     return this.adapter.recoverStoredEffect({ need, node: this.node, signal });
+  }
+
+  async finalizeRecoveredResult({ need, signal } = {}) {
+    if (!this.recoveredResultFinalizer) throw Object.assign(new Error('provider_result_finality_not_enabled'), {
+      httpStatus: 503, publicCode: 'provider_result_finality_not_enabled'
+    });
+    return this.recoveredResultFinalizer({ host: this, need, signal });
   }
 
   async ensureRegistered() {
