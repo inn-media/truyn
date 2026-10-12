@@ -1,0 +1,169 @@
+name: Apply final documentation review corrections
+on:
+  push:
+    branches: [docs/sanitation-review-repair-20261012]
+    paths: [.github/workflows/doc-sanitation-final-review-apply.yml]
+permissions:
+  contents: write
+concurrency:
+  group: doc-sanitation-final-review-20261012
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: github.repository == 'inn-media/truyn' && github.ref == 'refs/heads/docs/sanitation-review-repair-20261012'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Reconcile exact reviewed documentation and read-only guards
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD^)" = 53b49b8113196b1538af3e6f335c4ebf6ada456d
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, subprocess, re
+          changed=[]
+          def put(path, content):
+              p=Path(path)
+              if p.exists() and p.read_text()==content: return
+              p.write_text(content)
+              if path not in changed: changed.append(path)
+          def replace(path, old, new):
+              content=Path(path).read_text()
+              assert content.count(old)==1, (path, old[:90], content.count(old))
+              put(path,content.replace(old,new))
+          def paragraph(path, marker, replacement):
+              parts=Path(path).read_text().split('\n\n')
+              hits=[i for i,part in enumerate(parts) if marker in part]
+              assert len(hits)==1, (path,marker,hits)
+              parts[hits[0]]=replacement
+              put(path,'\n\n'.join(parts))
+          optional='An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established.'
+          current='Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. '+optional+' Missing or empty interface types are rejected by the reference parser; identical rejection across all five SDKs still needs executable proof. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior.'
+          paths={
+              'SECURITY.md':'docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md',
+              'sdk/README.md':'../docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md',
+              'sdk/conformance/README.md':'../../docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md',
+              'docs/architecture/IMPLEMENTATION_STATUS.md':'../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md',
+              'docs/architecture/SDK_DEVELOPER_EXPERIENCE.md':'../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md',
+              'docs/compatibility/SDK_COMPATIBILITY.md':'AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md',
+              'docs/getting-started/SDK_QUICKSTART.md':'../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md',
+              'docs/getting-started/DX3_SDK.md':'../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md'
+          }
+          paragraph('SECURITY.md','The current Developer Release serving path is intentionally public only:', 'The current Developer Release serving path is intentionally public only: disabled by default, explicit opt-in, explicit public capability allowlist, runtime identity signature, and no authorization grant from metadata. '+current+' Delegated signing and final exact-SHA Open 1.0 admission remain separate.')
+          paragraph('sdk/README.md','All five required SDK clients retrieve the Descriptor,','All five required SDK clients retrieve the valid signed Descriptor, validate schema/version/expiry, verify identity-key binding/signature and select a mutually supported protocol/interface. '+current)
+          replace('sdk/README.md','- missing/blank endpoint and blank-type rejection across all five SDKs, plus broader Descriptor lifecycle/delegated-signing and production serving qualification beyond the implemented refresh;', '- consistent acceptance of omitted optional endpoints and rejection of invalid empty endpoints or interface types across all five SDKs, plus broader Descriptor lifecycle/delegated-signing and production serving qualification beyond implemented refresh;')
+          paragraph('sdk/conformance/README.md','Unsupported required Descriptor/protocol/interface versions fail explicitly.','Unsupported required Descriptor/protocol/interface versions fail explicitly. Clients do not guess or silently promote unknown semantics. Current valid-fixture selection is bounded by the advertised/client-supported sets. '+current+' Complete production lifecycle certification is not implied.')
+          replace('docs/architecture/IMPLEMENTATION_STATUS.md','missing/blank endpoint/type negative parity is unverified on current source;', 'omitted optional endpoint acceptance and invalid empty endpoint/type rejection are not yet proven across all five SDKs;')
+          paragraph('docs/architecture/SDK_DEVELOPER_EXPERIENCE.md','The bounded Descriptor serving, refresh and valid-profile fetch/verification path is implemented.','The bounded Descriptor serving, refresh and valid-profile fetch/verification path is implemented. '+optional+' Do not make optional endpoints mandatory through a documentation change.')
+          replace('docs/architecture/SDK_DEVELOPER_EXPERIENCE.md','- [ ] shared five-language missing/blank endpoint and blank-type rejection, with current-source executable negatives;', '- [ ] shared five-language acceptance of omitted optional endpoints and rejection of invalid empty endpoints or types, with current-source executable proof;')
+          paragraph('docs/getting-started/SDK_QUICKSTART.md','The runtime serving helper in `runtime/agent-descriptor.js` refreshes',current+' Delegated signing and final exact-SHA Open 1.0 admission remain separate.')
+          replace('docs/getting-started/SDK_QUICKSTART.md','Bounded Descriptor refresh and interface-negative implementations are described below without claiming complete production lifecycle certification.', 'Bounded Descriptor refresh is implemented; cross-language malformed-interface parity and complete production lifecycle certification remain separate unproven scopes.')
+          paragraph('docs/getting-started/DX3_SDK.md','The runtime serving helper in `runtime/agent-descriptor.js` refreshes',current+' Delegated signing and final exact-SHA Open 1.0 admission remain separate.')
+          replace('docs/getting-started/DX3_SDK.md','Bounded Descriptor serving, refresh/re-signing and shared interface-negative checks are implemented; broader release-specific lifecycle acceptance remains separate as described below.', 'Bounded Descriptor serving and refresh/re-signing are implemented; cross-language malformed-interface parity and broader release-specific lifecycle acceptance remain separate as described below.')
+          replace('docs/getting-started/DX3_SDK.md','Malformed-interface validation is exercised by the shared negative fixture runners; complete production lifecycle acceptance remains separate from the valid-fixture happy path.', 'The valid-fixture happy path does not prove cross-language malformed-interface validation; complete production lifecycle acceptance remains separate.')
+          replace('docs/getting-started/DX3_SDK.md','Two lifecycle/parity gaps remain open and must not be hidden by the happy-path conformance claim:', 'Refresh implementation, malformed-interface parity and production lifecycle acceptance must not be conflated:')
+          replace('docs/getting-started/DX3_SDK.md','- broader Descriptor lifecycle and production-serving qualification beyond the implemented refresh/interface-negative profile;', '- shared five-language optional-endpoint/invalid-interface conformance and broader Descriptor lifecycle and production-serving qualification beyond the implemented refresh;')
+          for path in ['docs/getting-started/SDK_QUICKSTART.md','docs/getting-started/DX3_SDK.md']:
+              replace(path,'**Developer Release source freeze:**','**Historical Developer Release source freeze (not current Wire Freeze package source):**')
+          for path,link in paths.items():
+              contents=Path(path).read_text()
+              if optional not in contents:
+                  contents=contents.rstrip()+'\n\n'+optional+'\n'
+              if 'AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md' not in contents:
+                  contents=contents.rstrip()+'\n\nCurrent Descriptor contract and proof limits: [source-reconciled status]('+link+').\n'
+              put(path,contents)
+          fixture=json.loads(Path('sdk/conformance/v1/agent-descriptor-runtime-fixtures.json').read_text())
+          caseids=[item['id'] for item in fixture['descriptorRuntimeCases']]
+          assert len(caseids)==9
+          put('docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md', '# Agent Descriptor: current contract and source evidence\n\n**Reviewed source:** `53b49b8113196b1538af3e6f335c4ebf6ada456d` (2026-10-12). This is source/documentation reconciliation, not protocol release admission.\n\n**DESCRIPTOR_INTERFACE_NEGATIVE_PARITY=UNVERIFIED**\n\n## Contract authority and optional endpoints\n\n'+optional+'\n\nThe [normative interface entry](../../spec/protocol/v1/agent-descriptor.md#5-interface-entry) describes an endpoint or endpoint reference when intentionally discoverable; it does not make every endpoint mandatory. The existing `sdk/conformance/reference/agent-descriptor.js` accepts an omitted `endpoint` and rejects a present empty-string endpoint. It requires a nonempty interface type. An endpoint-less Descriptor is not, by itself, malformed or a failed S103 case. This sanitation does not change schemas, SDK validators, signing or discovery semantics. Whitespace-only values must be reconciled with the exact contract rather than silently assigning new trimming rules.\n\n## Supported implementation and unproven parity\n\nThe serving helper in `runtime/agent-descriptor.js` implements bounded refresh/re-signing; `tests/agent-descriptor-refresh.test.js` covers that contract. The five-language E2E supplies a valid signed Descriptor. Neither fact proves exhaustive malformed-interface handling across every SDK.\n\nThe current shared `sdk/conformance/v1/agent-descriptor-runtime-fixtures.json` contains these observed cases:\n\n'+'\n'.join('- `'+case+'`' for case in caseids)+'\n\nIt does not contain explicit optional-endpoint-positive, empty-endpoint-negative or missing/empty-type-negative parity cases. Current Go/Java validators do not establish the full reference-equivalent invalid-interface rejection; the absence of a mandatory-endpoint check is not itself a bug. The new documentation regression exercises the unchanged **reference parser only**, not all five SDK implementations or cryptographic verification of mutated fixtures.\n\n## Historical versus current authority\n\nS103 PR #823 was merged historically. Its old control wording about missing-endpoint rejection is not a normative override or proof that intended fixtures survive later main changes. Issue #615 requires source/contract reconciliation; preserve accepted history but do not infer current parity or S104-S200 completion from that merge. The initial sanitation and first correction overstated missing-endpoint rejection. This record supersedes those assertions without discarding their audit history.\n\n## Remaining closure criteria\n\nA separate implementation/qualification change must prove **omitted optional endpoint acceptance**, **explicit empty endpoint rejection**, and **missing/empty interface type rejection** consistently across the five required SDKs under the existing profile. Add explicit positive and negative shared cases, invoke each actual language validator, and qualify one exact source plus merged main. Any proposal to require previously optional endpoint information must first revise/version the normative contract and compatibility policy; it is not part of sanitation.\n\nPublished immutable packages do not inherit a source repair without a new release. Refresh, valid-profile conformance, optional/invalid-interface parity and full production/delegated-signing lifecycle are separate scopes. This repair admits neither Stable v1 nor private rollout/Mainnet.\n')
+          script='scripts/check-documentation-consistency.mjs'
+          replace(script,"  if (!text(current?.releaseEvidence)) errors.push('missing current release evidence pointer');", "  if (!text(current?.releaseEvidence)) errors.push('missing current release evidence pointer');\n  if (!text(freeze?.registryEvidence) || current?.releaseEvidence !== freeze.registryEvidence) errors.push('release evidence does not match frozen registry ledger');")
+          replace(script,"    { label: 'current release', path: current.releaseEvidence },", "    { label: 'current release', path: current.releaseEvidence },\n    { label: 'frozen registry ledger', path: freeze.registryEvidence },")
+          testfile='tests/documentation-release-regression.test.js'
+          replace(testfile,"'docs/compatibility/SDK_COMPATIBILITY.md']) {", "'docs/compatibility/SDK_COMPATIBILITY.md', 'docs/getting-started/SDK_QUICKSTART.md', 'docs/getting-started/DX3_SDK.md']) {")
+          replace(testfile,"    assert.ok(contents.includes('AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md'), path);", "    assert.ok(contents.includes('AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md'), path);\n    assert.ok(contents.includes('An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser.'), path);")
+          replace(testfile,'negatives are now implemented across all five/i, path);','negatives are now implemented across all five|five language runners include missing\\/blank endpoint|Malformed-interface validation is exercised by the shared negative fixture runners|refresh\\/re-signing and shared interface-negative checks are implemented/i, path);')
+          put(testfile,Path(testfile).read_text().rstrip()+'''\n\ntest('coordinated evidence substitution cannot replace the frozen registry ledger', () => {
+            const [current, freeze, versions] = release();
+            assert.deepEqual(validateReleaseInventory(current, freeze, versions), []);
+            const changed = structuredClone(current);
+            changed.releaseEvidence = 'README.md';
+            for (const item of Object.values(changed.coordinates)) item.evidence = 'README.md';
+            assert.deepEqual(validateEvidencePaths(root, [{ label: 'real but unrelated', path: 'README.md' }]), []);
+            assert.ok(validateReleaseInventory(changed, freeze, versions).includes('release evidence does not match frozen registry ledger'));
+            for (const value of [undefined, '', 'README.md']) {
+              assert.ok(validateReleaseInventory(current, { ...freeze, registryEvidence: value }, versions).includes('release evidence does not match frozen registry ledger'));
+            }
+          });\n''')
+          put('tests/documentation-descriptor-contract.test.js', '''import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { parseAgentDescriptor } from '../sdk/conformance/reference/agent-descriptor.js';
+          const fixture = JSON.parse(readFileSync(new URL('../sdk/conformance/v1/agent-descriptor-runtime-fixtures.json', import.meta.url), 'utf8')).descriptorRuntimeCases.find(item => item.id === 'descriptor.signature-valid');
+          const evidence = readFileSync(new URL('../docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md', import.meta.url), 'utf8');
+          // Parser scope only: mutated fixtures are not claimed to retain valid signatures.
+          test('documentation preserves existing reference optional endpoint semantics', () => {
+            const absent = structuredClone(fixture.value);
+            delete absent.interfaces[0].endpoint;
+            assert.equal(parseAgentDescriptor(absent, { now: fixture.now }).ok, true);
+            assert.match(evidence, /omitted optional endpoint acceptance/i);
+            assert.match(evidence, /reference parser only/i);
+            for (const [field, value] of [['endpoint', ''], ['type', ''], ['type', undefined]]) {
+              const invalid = structuredClone(fixture.value);
+              if (value === undefined) delete invalid.interfaces[0][field];
+              else invalid.interfaces[0][field] = value;
+              const parsed = parseAgentDescriptor(invalid, { now: fixture.now });
+              assert.equal(parsed.ok, false, field);
+              assert.equal(parsed.reason, 'invalid_descriptor_interfaces', field);
+            }
+          });
+          ''')
+          report='docs/operations/DOCUMENTATION_SANITATION_2026-10-12.md'
+          put(report,Path(report).read_text().rstrip()+'\n\n## Final contract and onboarding reconciliation (2026-10-12)\n\nThis correction supersedes the earlier wording that treated all omitted endpoints as invalid. The normative interface entry and existing reference parser permit an omitted endpoint; empty supplied endpoints and missing/empty interface types have distinct invalid cases. Current Go/Java reference-equivalent malformed-interface parity remains unproven, but absence of a mandatory-endpoint check is not itself a defect. No runtime/schema compatibility rule is changed.\n\nBoth active onboarding guides, SDK_QUICKSTART.md and DX3_SDK.md, now share the canonical Descriptor evidence boundary and participate in the default documentation regression. The reference-parser regression distinguishes omitted-positive and empty-negative cases without claiming all-five coverage. The release guard now binds the active release evidence and all five coordinate evidence pointers to the frozen inventory registryEvidence, not merely to one another or an arbitrary existing file. A coordinated substitution with README.md is rejected.\n')
+          allowed=set(paths)|{script,testfile,'tests/documentation-descriptor-contract.test.js',report,'docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md'}
+          assert set(changed)<=allowed
+          assert not subprocess.check_output(['git','diff','--name-only','--','runtime','core','network','sdk/conformance/v1','spec','sdk/release/evidence','docs/benchmarks'],text=True).strip()
+          Path('/tmp/doc-sanitation-final-paths.json').write_text(json.dumps(changed))
+          print(json.dumps({'changed':changed,'runtimeChanged':False,'immutableEvidenceChanged':False},indent=2))
+          print('RECONCILED_DOCUMENT_SWEEP')
+          files=subprocess.check_output(['git','ls-files','-z'],text=True).split('\0')
+          hits=[]
+          for p in files:
+              if not p.endswith(('.md','.mdx','.html','.txt')) or not Path(p).is_file(): continue
+              for n,line in enumerate(Path(p).read_text().splitlines(),1):
+                  if re.search(r'missing.endpoints?|missing/blank|blank.endpoint|blank.type|interface.negative|malformed.interface',line,re.I):
+                      hits.append({'path':p,'line':n,'text':line[:1200]})
+          print(json.dumps(hits,indent=2))
+          PY
+      - name: Execute documentation and unchanged reference-contract regressions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node --check scripts/check-documentation-consistency.mjs
+          node --test tests/documentation-release-regression.test.js tests/documentation-evidence-paths.test.js tests/documentation-descriptor-contract.test.js
+          node scripts/check-documentation-consistency.mjs
+          git diff --check
+          python3 - <<'PY'
+          import json,subprocess
+          paths=json.load(open('/tmp/doc-sanitation-final-paths.json'))
+          subprocess.run(['git','add','--',*paths],check=True)
+          assert set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines())==set(paths)
+          PY
+      - name: Commit only reviewed documentation and tests on isolated branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git ls-remote origin refs/heads/docs/sanitation-review-repair-20261012 | cut -f1)" = "$GITHUB_SHA"
+          git config user.name 'Iluco Mutcnas'
+          git config user.email '197368050+ilucomutcnas@users.noreply.github.com'
+          git commit -s -m 'docs: reconcile optional endpoints, onboarding and frozen release evidence'
+          git push origin HEAD:refs/heads/docs/sanitation-review-repair-20261012
+          git rev-parse HEAD
