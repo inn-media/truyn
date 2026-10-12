@@ -2,6 +2,7 @@ import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { createPublicAgentDescriptor } from '../../runtime/agent-descriptor.js';
+import { classifyTruynError, classifyTruynException } from '../../core/protocol/normalized-errors.js';
 
 const require = createRequire(import.meta.url);
 const { version: TRUYN_RUNTIME_VERSION } = require('../../package.json');
@@ -46,22 +47,33 @@ function normalizedError(status, code, message, requestCorrelationId) {
   };
 }
 
-function errorCodeFor(status, message) {
-  if (message === 'invalid_json') return ['invalid_argument', 'request body is not valid JSON'];
-  if (message === 'request_too_large') return ['resource_exhausted', 'request body exceeds the allowed size'];
-  if (message === 'capability_required') return ['invalid_argument', 'capability is required'];
-  if (message === 'requestId_required') return ['invalid_argument', 'requestId is required'];
-  if (message === 'version_mismatch') return ['version_mismatch', 'TRUYN protocol version is incompatible'];
-  if (status === 429 || ['offer_capacity_reached', 'node_capacity_reached', 'cancellation_backpressure', 'partial_backpressure'].includes(message)) {
-    return ['resource_exhausted', 'TRUYN capacity limit reached'];
-  }
-  if (status === 401) return ['unauthenticated', 'request is not authenticated'];
-  if (status === 403) return ['permission_denied', 'request is not authorized'];
-  if (status === 404) return ['not_found', 'requested resource was not found'];
-  if (status === 409) return ['conflict', 'request conflicts with current TRUYN state'];
-  if (status === 413) return ['resource_exhausted', 'request body exceeds the allowed size'];
-  if (status >= 400 && status < 500) return ['invalid_argument', 'request could not be accepted'];
-  return ['internal_error', 'TRUYN could not complete the request'];
+function errorCodeFor(status, source) {
+  const message = typeof source === 'string' ? source : source?.message;
+  const { code } = typeof source === 'string'
+    ? classifyTruynError({ status, sourceCode: message })
+    : classifyTruynException(source);
+  const messages = {
+    version_mismatch: 'TRUYN protocol version is incompatible',
+    unauthenticated: 'request is not authenticated',
+    permission_denied: 'request is not authorized',
+    invalid_argument: 'request could not be accepted',
+    unimplemented: 'operation is not supported',
+    cancelled: 'request was cancelled',
+    deadline_exceeded: 'TRUYN request deadline exceeded',
+    transport_error: 'TRUYN transport failed',
+    invalid_response: 'TRUYN received an invalid response',
+    not_found: 'requested resource was not found',
+    conflict: 'request conflicts with current TRUYN state',
+    resource_exhausted: 'TRUYN capacity limit reached',
+    internal_error: 'TRUYN could not complete the request'
+  };
+  const special = {
+    invalid_json: 'request body is not valid JSON',
+    request_too_large: 'request body exceeds the allowed size',
+    capability_required: 'capability is required',
+    requestId_required: 'requestId is required'
+  };
+  return [code, special[message] || (status === 413 ? 'request body exceeds the allowed size' : messages[code])];
 }
 
 function sendV1Error(res, status, message, requestCorrelationId) {
@@ -215,7 +227,7 @@ export function createHttpAdapterServer({ node, maxBodyBytes = 256 * 1024, descr
       return sendJson(res, 404, { ok: false, error: 'not_found' });
     } catch (error) {
       const status = Number.isInteger(error.status) ? error.status : 500;
-      if (isV1) return sendV1Error(res, status, error.message, requestCorrelationId);
+      if (isV1) return sendV1Error(res, status, error, requestCorrelationId);
       return sendJson(res, status, { ok: false, error: status < 500 ? error.message : 'adapter_error' });
     }
   });

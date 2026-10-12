@@ -19,7 +19,8 @@ export class NlwebCompatibilityError extends Error {
   constructor(code, message) {
     super(message);
     this.name = 'NlwebCompatibilityError';
-    this.code = code;
+    this.code = code; // Original NLWeb profile error, not a TRUYN protocol code.
+    this.truynCode = 'version_mismatch';
   }
 }
 

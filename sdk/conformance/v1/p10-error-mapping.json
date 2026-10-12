@@ -1,0 +1,222 @@
+{
+  "fixtureSet": "truyn.p10-normalized-errors/v1",
+  "notes": "Normative semantic code and conservative retry advisory. Legacy source aliases only; no new wire fields or signed types.",
+  "cases": [
+    {
+      "id": "auth_missing",
+      "source": {
+        "httpStatus": 401,
+        "relayCode": "unauthorized"
+      },
+      "expect": {
+        "code": "unauthenticated",
+        "retryable": false
+      }
+    },
+    {
+      "id": "auth_denied",
+      "source": {
+        "httpStatus": 403,
+        "relayCode": "provider_access_denied"
+      },
+      "expect": {
+        "code": "permission_denied",
+        "retryable": false
+      }
+    },
+    {
+      "id": "legacy_auth_denied",
+      "source": {
+        "httpStatus": 403,
+        "relayCode": "authorization_denied"
+      },
+      "expect": {
+        "code": "permission_denied",
+        "retryable": false
+      }
+    },
+    {
+      "id": "invalid_request",
+      "source": {
+        "httpStatus": 400,
+        "relayCode": "invalid_request"
+      },
+      "expect": {
+        "code": "invalid_argument",
+        "retryable": false
+      }
+    },
+    {
+      "id": "legacy_validation",
+      "source": {
+        "httpStatus": 400,
+        "relayCode": "validation_error"
+      },
+      "expect": {
+        "code": "invalid_argument",
+        "retryable": false
+      }
+    },
+    {
+      "id": "not_found",
+      "source": {
+        "httpStatus": 404,
+        "relayCode": "no_matching_provider"
+      },
+      "expect": {
+        "code": "not_found",
+        "retryable": false
+      }
+    },
+    {
+      "id": "duplicate",
+      "source": {
+        "httpStatus": 409,
+        "relayCode": "duplicate_request"
+      },
+      "expect": {
+        "code": "conflict",
+        "retryable": false
+      }
+    },
+    {
+      "id": "protocol_version",
+      "source": {
+        "httpStatus": 409,
+        "relayCode": "version_mismatch"
+      },
+      "expect": {
+        "code": "version_mismatch",
+        "retryable": false
+      }
+    },
+    {
+      "id": "oversized",
+      "source": {
+        "httpStatus": 413,
+        "relayCode": "payload_too_large"
+      },
+      "expect": {
+        "code": "resource_exhausted",
+        "retryable": false
+      }
+    },
+    {
+      "id": "capacity",
+      "source": {
+        "httpStatus": 503,
+        "relayCode": "offer_capacity_reached"
+      },
+      "expect": {
+        "code": "resource_exhausted",
+        "retryable": true
+      }
+    },
+    {
+      "id": "backpressure",
+      "source": {
+        "httpStatus": 429,
+        "relayCode": "cancellation_backpressure"
+      },
+      "expect": {
+        "code": "resource_exhausted",
+        "retryable": true
+      }
+    },
+    {
+      "id": "429_unspecified",
+      "source": {
+        "httpStatus": 429
+      },
+      "expect": {
+        "code": "resource_exhausted",
+        "retryable": false
+      }
+    },
+    {
+      "id": "deadline",
+      "source": {
+        "httpStatus": 504,
+        "relayCode": "result_wait_timeout"
+      },
+      "expect": {
+        "code": "deadline_exceeded",
+        "retryable": true
+      }
+    },
+    {
+      "id": "deadline_status",
+      "source": {
+        "httpStatus": 408
+      },
+      "expect": {
+        "code": "deadline_exceeded",
+        "retryable": true
+      }
+    },
+    {
+      "id": "unimplemented",
+      "source": {
+        "httpStatus": 501
+      },
+      "expect": {
+        "code": "unimplemented",
+        "retryable": false
+      }
+    },
+    {
+      "id": "server_unknown",
+      "source": {
+        "httpStatus": 500
+      },
+      "expect": {
+        "code": "internal_error",
+        "retryable": false
+      }
+    },
+    {
+      "id": "explicit_internal",
+      "source": {
+        "httpStatus": 500,
+        "relayCode": "internal_error"
+      },
+      "expect": {
+        "code": "internal_error",
+        "retryable": false
+      }
+    },
+    {
+      "id": "explicit_invalid_response",
+      "source": {
+        "httpStatus": 502,
+        "relayCode": "invalid_response"
+      },
+      "expect": {
+        "code": "invalid_response",
+        "retryable": false
+      }
+    },
+    {
+      "id": "explicit_transport",
+      "source": {
+        "httpStatus": 503,
+        "relayCode": "transport_error"
+      },
+      "expect": {
+        "code": "transport_error",
+        "retryable": true
+      }
+    },
+    {
+      "id": "explicit_cancelled",
+      "source": {
+        "httpStatus": 409,
+        "relayCode": "cancelled"
+      },
+      "expect": {
+        "code": "cancelled",
+        "retryable": false
+      }
+    }
+  ]
+}

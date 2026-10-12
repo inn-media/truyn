@@ -1,6 +1,7 @@
 import http from 'node:http';
 import readline from 'node:readline';
 import { decodeMcpHeaderValue } from './http-headers.js';
+import { classifyTruynException } from '../../core/protocol/normalized-errors.js';
 
 export const MCP_MODERN_VERSION = '2026-07-28';
 export const MCP_LEGACY_VERSIONS = Object.freeze(['2025-11-25', '2025-06-18']);
@@ -78,15 +79,8 @@ function toolResult(value, modern) {
 }
 
 function toolErrorResult(modern, error) {
-  const sourceCode = error?.body?.error || error?.code || '';
   const invalidArgs = ['capability is required', 'capability and input are required', 'requestId and output are required'];
-  const code = sourceCode === 'version_mismatch' ? 'version_mismatch' :
-    invalidArgs.includes(error?.message) ? 'invalid_argument' :
-    ['offer_capacity_reached', 'node_capacity_reached', 'cancellation_backpressure', 'partial_backpressure'].includes(sourceCode) ? 'resource_exhausted' :
-    error?.status === 401 ? 'unauthenticated' : error?.status === 403 ? 'permission_denied' :
-    error?.status === 404 ? 'not_found' : error?.status === 409 ? 'conflict' :
-    error?.status === 429 || error?.status === 413 ? 'resource_exhausted' : error?.status === 504 ? 'deadline_exceeded' :
-    error?.code === 'invalid_argument' ? 'invalid_argument' : 'internal_error';
+  const code = invalidArgs.includes(error?.message) ? 'invalid_argument' : classifyTruynException(error).code;
   return {
     ...(modern ? { resultType: 'complete' } : {}),
     isError: true,

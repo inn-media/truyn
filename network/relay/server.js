@@ -4,6 +4,7 @@ import { performance } from 'node:perf_hooks';
 import { WebSocket, WebSocketServer } from 'ws';
 import { compactStageRequestId, verifyCompactFrame, verifyEnvelope, PROTOCOL } from '../../core/protocol/index.js';
 import { negotiateProtocol } from '../../core/protocol/negotiation.js';
+import { classifyTruynError } from '../../core/protocol/normalized-errors.js';
 import { trustabilityLite } from '../../core/trust/index.js';
 import { applyContextDelta, buildContextDocument, retrieveContextBlocks } from '../../core/context/index.js';
 import { providerPolicyAllowsRequester, providerPolicyFromOffer } from '../../core/security/relay-provider-policy.js';
@@ -20,6 +21,17 @@ function json(res, status, body) {
     'x-content-type-options': 'nosniff'
   });
   res.end(data);
+}
+
+function socketErrorFrame(chainId, status, error) {
+  return {
+    kind: 'ERROR',
+    chainId,
+    ok: false,
+    ...(status ? { status } : {}),
+    error,
+    truynCode: classifyTruynError({ sourceCode: error, status }).code
+  };
 }
 
 function httpError(status, code) {
@@ -1386,26 +1398,29 @@ export function createRelay({
         message = JSON.parse(data.toString());
         if (message?.kind === 'CHAIN') {
           if (!requesterCanDispatch(nodeId)) {
-            socket.send(JSON.stringify({ kind: 'ERROR', chainId: message.frame?.i || null, ok: false, status: 403, error: 'provider_access_denied' }));
+            socket.send(JSON.stringify(socketErrorFrame(message.frame?.i || null, 403, 'provider_access_denied')));
             return;
           }
           const requester = nodes.get(nodeId);
           const verification = verifyCompactFrame(message.frame, message.payload, requester.publicKey, { allowedTypes: ['CHAIN'] });
           if (!verification.ok) {
-            socket.send(JSON.stringify({ kind: 'ERROR', chainId: message.frame?.i || null, ok: false, status: 400, error: verification.reason }));
+            socket.send(JSON.stringify(socketErrorFrame(message.frame?.i || null, 400, verification.reason)));
             return;
           }
           const rawWaitMs = Number(message.waitMs);
           const waitMs = Number.isFinite(rawWaitMs) ? Math.max(0, Math.min(120_000, Math.floor(rawWaitMs))) : 120_000;
           const started = await startChain({ requesterNodeId: nodeId, frame: message.frame, payload: message.payload, waitMs, socket, requestReceivedAtMs: receivedAtMs, requestReceivedWallTime: receivedWallTime, requesterTransport: 'websocket' });
-          if (started) socket.send(JSON.stringify({ kind: 'ERROR', chainId: message.frame?.i || null, ok: false, status: started.status, error: started.body.error }));
+          if (started) socket.send(JSON.stringify(socketErrorFrame(message.frame?.i || null, started.status, started.body.error)));
           return;
         }
         if (message?.kind !== 'RESULT') throw httpError(400, 'unsupported_socket_message');
         const processed = await processFastResult(nodeId, message.frame, message.payload, receivedAtMs);
-        if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ kind: 'ACK', ...processed.body, status: processed.status }));
+        if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({
+          kind: 'ACK', ...processed.body, status: processed.status,
+          ...(processed.status >= 400 ? { truynCode: classifyTruynError({ sourceCode: processed.body?.error, status: processed.status }).code } : {})
+        }));
       } catch (error) {
-        if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ kind: 'ERROR', chainId: message?.frame?.i || null, ok: false, error: error.publicCode || 'invalid_socket_message' }));
+        if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(socketErrorFrame(message?.frame?.i || null, error.httpStatus || 400, error.publicCode || 'invalid_socket_message')));
       }
     });
     socket.on('close', () => {

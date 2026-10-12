@@ -285,21 +285,23 @@ public sealed class TruynClient : IAsyncDisposable
             var root = document.RootElement.Clone();
             if (!response.IsSuccessStatusCode)
             {
-                var relay = root.ValueKind == JsonValueKind.Object ? String(root, "error") : null;
-                throw HttpError(response.StatusCode, relay ?? $"HTTP {(int)response.StatusCode}");
+                var code = (string?)null;
+                var message = $"HTTP {(int)response.StatusCode}";
+                if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("error", out var source))
+                {
+                    if (source.ValueKind == JsonValueKind.String) code = source.GetString();
+                    else if (source.ValueKind == JsonValueKind.Object)
+                    {
+                        code = String(source, "code");
+                        message = String(source, "message") ?? message;
+                    }
+                }
+                throw TruynException.FromHttp((int)response.StatusCode, code, message == $"HTTP {(int)response.StatusCode}" && code is not null ? code : message);
             }
             if (root.ValueKind != JsonValueKind.Object) throw Invalid("Relay response must be a JSON object");
             return root;
         }
     }
-
-    private static TruynException HttpError(HttpStatusCode status, string message) => status switch
-    {
-        HttpStatusCode.Unauthorized => new(TruynErrorCode.Unauthenticated, message, false),
-        HttpStatusCode.Forbidden => new(TruynErrorCode.PermissionDenied, message, false),
-        HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests or HttpStatusCode.InternalServerError or HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout => new(TruynErrorCode.Transport, message, true),
-        _ => new(TruynErrorCode.InvalidResponse, message, false)
-    };
 
     private static string? String(JsonElement element, string property) => element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString()) ? value.GetString() : null;
     private static void Require(string? value, string message) { if (string.IsNullOrWhiteSpace(value)) throw new TruynException(TruynErrorCode.InvalidArgument, message, false); }

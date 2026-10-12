@@ -24,7 +24,7 @@ const relayMappings: Record<string, { code: NormalizedErrorCode; retryable: bool
   resource_exhausted: { code: 'resource_exhausted', retryable: false },
   deadline_exceeded: { code: 'deadline_exceeded', retryable: false },
   cancelled: { code: 'cancelled', retryable: false },
-  transport_error: { code: 'transport_error', retryable: false },
+  transport_error: { code: 'transport_error', retryable: true },
   invalid_response: { code: 'invalid_response', retryable: false },
   unauthorized: { code: 'unauthenticated', retryable: false },
   invalid_request: { code: 'invalid_argument', retryable: false },
@@ -41,7 +41,7 @@ const relayMappings: Record<string, { code: NormalizedErrorCode; retryable: bool
   partial_backpressure: { code: 'resource_exhausted', retryable: true },
   result_wait_timeout: { code: 'deadline_exceeded', retryable: true },
   invalid_capability: { code: 'invalid_argument', retryable: false },
-  internal_error: { code: 'internal_error', retryable: true }
+  internal_error: { code: 'internal_error', retryable: false }
 };
 
 function fallbackHttpMapping(status?: number): { code: NormalizedErrorCode; retryable: boolean } {
@@ -50,9 +50,10 @@ function fallbackHttpMapping(status?: number): { code: NormalizedErrorCode; retr
   if (status === 404) return { code: 'not_found', retryable: false };
   if (status === 408 || status === 504) return { code: 'deadline_exceeded', retryable: true };
   if (status === 409) return { code: 'conflict', retryable: false };
-  if (status === 429) return { code: 'resource_exhausted', retryable: true };
+  if (status === 429) return { code: 'resource_exhausted', retryable: false };
   if (status === 413) return { code: 'resource_exhausted', retryable: false };
-  if (status !== undefined && status >= 500) return { code: 'internal_error', retryable: true };
+  if (status === 501) return { code: 'unimplemented', retryable: false };
+  if (status !== undefined && status >= 500) return { code: 'internal_error', retryable: false };
   if (status !== undefined && status >= 400) return { code: 'invalid_argument', retryable: false };
   return { code: 'invalid_response', retryable: false };
 }

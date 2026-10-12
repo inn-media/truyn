@@ -41,6 +41,14 @@ class PythonParityTests(unittest.TestCase):
                 self.assertEqual(actual['code'], case['expect']['code'])
                 self.assertEqual(actual['retryable'], case['expect']['retryable'])
 
+    def test_p10_error_matrix(self):
+        p10 = json.loads((ROOT / 'sdk' / 'conformance' / 'v1' / 'p10-error-mapping.json').read_text())
+        for case in p10['cases']:
+            with self.subTest(case=case['id']):
+                actual = normalize_error(case['source'])
+                self.assertEqual(actual['code'], case['expect']['code'])
+                self.assertEqual(actual['retryable'], case['expect']['retryable'])
+
     def test_agent_descriptor_runtime_vectors(self):
         valid = RUNTIME_BY_ID['descriptor.signature-valid']
         self.assertEqual(agent_descriptor_signing_payload(valid['value']), valid['canonicalSigningPayload'])
