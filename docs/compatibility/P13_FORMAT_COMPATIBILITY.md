@@ -30,3 +30,7 @@ A frozen normative contract and canonical vectors, actual positive/negative cros
 The local BYOK rollback does **not** prove rollback of production authority, keys, revocations, inboxes, artifacts or accounting state. No real live-state migration, authority cutover or traffic change can be approved by this lane. Production inventory, isolated restore, per-domain migrators, private canary, independent attestation and rollback belong exclusively to [P13-OPS](../operations/P13_PRODUCTION_CUTOVER_READINESS.md) and its separate [operations plan](../../operations/p13-production-cutover-plan.json).
 
 The two lanes must not inherit one another's PASS: **FORMAT PASS ≠ OPS PASS; OPS PASS ≠ FORMAT PASS**. Stable protocol publication and production deployment are separate decisions.
+
+## Independent protocol publication
+
+A **Stable TRUYN/1 Protocol** declaration must pass this format gate and all other applicable P1–P14 plus five-SDK/security/exact-head release gates, but **does not require** a live Azure/Cosmos production backup, PITR restore, canary or rollback. Those remain mandatory for an applicable **Stable TRUYN Service** production cutover and for Mainnet admission. [Machine-readable release scopes](../../spec/compatibility/stable-release-scopes.json). No declaration is made by this document.

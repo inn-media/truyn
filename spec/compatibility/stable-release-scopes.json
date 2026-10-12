@@ -1,0 +1,49 @@
+{
+  "schema": "truyn.stable-release-scopes/v1",
+  "sourceOfTruth": "spec/protocol/v1/migration.md",
+  "status": "RELEASE_CANDIDATE_ONLY",
+  "declarations": [
+    {
+      "id": "STABLE_TRUYN1_PROTOCOL",
+      "status": "NOT_DECLARED",
+      "dependsOn": [
+        "P1_P12_PROTOCOL_CONFORMANCE",
+        "P13_FORMAT",
+        "P14_RELEASE_DOCUMENTATION",
+        "FIVE_EXACT_RELEASED_SDKS",
+        "SECURITY_CRYPTO_NEGATIVE_CONFORMANCE",
+        "EXACT_SHA_DCO_CI_SECURITY",
+        "POSTMERGE_MAIN_INDEPENDENT_ACCEPTANCE"
+      ],
+      "doesNotRequire": [
+        "P13_OPS",
+        "PRODUCTION_STATE_MIGRATION",
+        "LIVE_PITR_CANARY_ROLLBACK",
+        "NETWORK_28_DAY_SLO"
+      ]
+    },
+    {
+      "id": "STABLE_TRUYN_SERVICE",
+      "status": "NOT_DECLARED",
+      "dependsOn": [
+        "STABLE_TRUYN1_PROTOCOL",
+        "P13_OPS",
+        "APPLICABLE_PRODUCTION_STATE_MIGRATION_OR_VERIFIED_GREENFIELD",
+        "LIVE_BACKUP_PITR_AND_RECOVERY",
+        "LIVE_CANARY_AND_ROLLBACK",
+        "DEPLOYED_SECURITY_MONITORING",
+        "NETWORK_28_DAY_SLO"
+      ]
+    },
+    {
+      "id": "TRUYN_MAINNET",
+      "status": "NOT_DECLARED",
+      "dependsOn": [
+        "STABLE_TRUYN_SERVICE",
+        "MAINNET_GOVERNANCE_ADMISSION",
+        "LONG_DURATION_LIVE_SECURITY_AND_RELIABILITY"
+      ]
+    }
+  ],
+  "operationalMigrationRule": "Required for an upgrade of existing authoritative state when storage representation or target authority changes; never fabricate legacy snapshots for greenfield. A separately verified greenfield path still requires backup/restore, security, canary and recovery."
+}

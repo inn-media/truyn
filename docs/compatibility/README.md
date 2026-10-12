@@ -28,3 +28,7 @@ Compatibility is tracked separately for protocol/node behavior, adapters/externa
 External evidence names concrete tested versions/source. Per-build provenance, immutable publication, clean-room usability and stable compatibility are separate concepts.
 
 See `A2A_MCP_STABILITY.md`, `A2A_MCP_COMPATIBILITY.md`, `SDK_COMPATIBILITY.md`, `SDK_PACKAGING.md` and `../architecture/IMPLEMENTATION_STATUS.md`.
+
+## Stable release targets
+
+[Release-scope contract](../../spec/compatibility/stable-release-scopes.json): Stable TRUYN/1 **Protocol** is gated by public protocol/SDK/P13-FORMAT conformance and exact-SHA release certification, **not** Azure/Cosmos/P13-OPS production migration. Stable Service and Mainnet additionally require live P13-OPS recovery/cutover and reliability evidence. All three declarations remain NOT DECLARED. The read-only contract audit is `node scripts/p13-release-scopes-readiness.mjs`.
