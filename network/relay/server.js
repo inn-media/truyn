@@ -972,7 +972,7 @@ export function createRelay({
             pendingNodeReservations.add(envelope.from);
           }
           try {
-            const recoveredOffers = lifecycleMaintenance
+            const recoveredOffers = lifecycleMaintenance && maxOffers > 0
               ? await lifecycleLedger.restoreOffers({owner:envelope.from,limit:Math.min(128,maxOffers)}) : [];
             const recovered = recoveredOffers.map(saved => {
               const verified = verifyEnvelope(saved, {allowedTypes:['OFFER']});
@@ -1450,19 +1450,25 @@ export function createRelay({
           return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: persistedCancellation?.changed === false, provider: request.provider, cancelledAt: request.cancelledAt });
         }
 
-        if (!offer) {
-          const saved = await lifecycleLedger?.getOffer(targetId);
-          if (!saved) return json(res, 404, { ok: false, error: 'target_not_found' });
-          if (saved.owner !== envelope.from) return json(res, 403, { ok: false, error: 'not_target_owner' });
-          const alreadyRevoked = Boolean(saved.revoked);
-          await lifecycleLedger.revokeOffer({ id: targetId, owner: envelope.from });
-          return json(res, 200, { ok: true, targetId, targetKind: 'offer', idempotent: alreadyRevoked });
-        }
-        if (offer.envelope.from !== envelope.from) return json(res, 403, { ok: false, error: 'not_target_owner' });
-        await lifecycleLedger?.revokeOffer({ id: targetId, owner: envelope.from });
-        offer.revoked = true;
-        touch(envelope.from);
-        return json(res, 200, { ok: true, targetId, targetKind: 'offer' });
+        return await withOwnerLifecycleMutation(envelope.from, async () => {
+          const currentOffer = offers.get(targetId);
+          if (!currentOffer) {
+            const saved = await lifecycleLedger?.getOffer(targetId);
+            if (!saved) return json(res, 404, { ok: false, error: 'target_not_found' });
+            if (saved.owner !== envelope.from) return json(res, 403, { ok: false, error: 'not_target_owner' });
+            const alreadyRevoked = Boolean(saved.revoked);
+            await lifecycleLedger.revokeOffer({ id: targetId, owner: envelope.from });
+            return json(res, 200, { ok: true, targetId, targetKind: 'offer', idempotent: alreadyRevoked });
+          }
+          if (currentOffer.envelope.from !== envelope.from) return json(res, 403, { ok: false, error: 'not_target_owner' });
+          await lifecycleLedger?.revokeOffer({ id: targetId, owner: envelope.from });
+          // Re-read the current map entry after durable commit; registration may
+          // have replaced object identity before this owner lock was acquired.
+          const live = offers.get(targetId);
+          if (live?.envelope.from === envelope.from) live.revoked = true;
+          touch(envelope.from);
+          return json(res, 200, { ok: true, targetId, targetKind: 'offer' });
+        });
       }
 
       if (req.method === 'GET' && url.pathname === '/v1/events') {
