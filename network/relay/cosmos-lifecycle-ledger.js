@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { canonicalize, verifyEnvelope } from '../../core/protocol/index.js';
 import { performance } from 'node:perf_hooks';
 
 // Cosmos DB for NoSQL DATA PLANE, using Microsoft Entra only. Never accept
@@ -64,7 +65,7 @@ export function createCosmosLifecycleLedger({
     }
   }
 
-  async function api({method,path = '',partitionKey,body,etag,query = false,continuation = null}) {
+  async function api({method,path = '',partitionKey,body,etag,query = false,continuation = null,signal = null}) {
     if (!query && !nonempty(partitionKey)) throw fault(400,'invalid_partition_key');
     const payload = body == null ? undefined : JSON.stringify(body);
     if (payload && Buffer.byteLength(payload) > maxDocumentBytes) throw fault(503,'lifecycle_document_capacity_reached');
@@ -81,7 +82,7 @@ export function createCosmosLifecycleLedger({
       },requestTimeoutMs);
     });
     const active = () => {
-      if (expired || performance.now() >= expiresAt) {
+      if (expired || signal?.aborted || performance.now() >= expiresAt) {
         expired = true;
         controller.abort();
         throw fault(503,'lifecycle_ledger_unavailable');
@@ -153,9 +154,9 @@ export function createCosmosLifecycleLedger({
     partitionKey:partitionId(kind,id),
     path:`/${encodeURIComponent(partitionId(kind,id))}`
   });
-  async function get(kind,id) {
+  async function get(kind,id,signal=null) {
     if (!(kind==='need' ? validNeedId(id) : nonempty(id))) throw fault(400,'invalid_lifecycle_id');
-    const p=locator(kind,id),response=await api({method:'GET',path:p.path,partitionKey:p.partitionKey});
+    const p=locator(kind,id),response=await api({method:'GET',path:p.path,partitionKey:p.partitionKey,signal});
     if (response.status===404) return null;
     if (response.status!==200 || !response.doc || response.doc.schemaVersion!==1 || response.doc.kind!==kind || response.doc.logicalId!==id || response.doc.ttl!==-1 || !response.etag)
       throw fault(503,'lifecycle_ledger_invalid_response');
@@ -181,9 +182,9 @@ export function createCosmosLifecycleLedger({
     if (r.status!==201 && r.status!==200) throw fault(503,'lifecycle_ledger_unavailable');
     return r.doc || doc;
   }
-  async function mutate(kind,id,callback) {
+  async function mutate(kind,id,callback,signal=null) {
     for(let attempt=0;attempt<maxCasAttempts;attempt++) {
-      const current=await get(kind,id);
+      const current=await get(kind,id,signal);
       if (!current) throw fault(404,'lifecycle_not_found');
       const next=callback(clean(current));
       if (next===null) return {changed:false,row:current};
@@ -192,7 +193,7 @@ export function createCosmosLifecycleLedger({
       delete next._etag;
       next.ttl=-1;
       packed(next);
-      const r=await api({method:'PUT',path:p.path,partitionKey:p.partitionKey,etag:current._etag,body:next});
+      const r=await api({method:'PUT',path:p.path,partitionKey:p.partitionKey,etag:current._etag,body:next,signal});
       if (r.status===412) continue;
       if (r.status!==200) throw fault(503,'lifecycle_ledger_unavailable');
       return {changed:true,row:r.doc || next};
@@ -267,6 +268,75 @@ export function createCosmosLifecycleLedger({
         doc.terminalAt=new Date().toISOString();
         return doc;
       });
+    },
+    // Explicit recovery only. One NEED-document CAS commits both operational
+    // token usage and the signed RESULT outbox item. This is NOT vendor billing.
+    async commitRecoveredResult({need,provider,delivery,receiptDigest,signal} = {}) {
+      if (!need || need.type!=='NEED' || need.compact || need.chain ||
+          !verifyEnvelope(need,{allowedTypes:['NEED']}).ok || !nonempty(provider) ||
+          !/^[a-f0-9]{64}$/.test(receiptDigest || '')) throw fault(400,'invalid_recovered_result');
+      // Detach caller-owned data before the first await.
+      need=clean(need); delivery=clean(delivery);
+      const signed=delivery?.event?.envelope;
+      if (delivery?.kind!=='RESULT' || delivery.recipient!==need.from ||
+          delivery.event.kind!=='RESULT' || signed?.type!=='RESULT' ||
+          !verifyEnvelope(signed,{allowedTypes:['RESULT']}).ok ||
+          signed.from!==provider || signed.to!==need.from || signed.payload?.requestId!==need.id ||
+          typeof signed.payload.output!=='string') throw fault(400,'invalid_recovered_result');
+      const effect=await get('effect',need.id,signal);
+      const effectFingerprint=hash(JSON.stringify([need.id,need.from,need.payload]));
+      if (!effect || effect.requester!==need.from || effect.provider!==provider ||
+          effect.fingerprint!==effectFingerprint || !['started','unknown','completed'].includes(effect.status))
+        throw fault(409,'effect_identity_conflict');
+      const receipt=effect.effectReceipt, u=receipt?.usage;
+      if (receipt?.version!==1 || receipt.provider!=='azure-openai' ||
+          !/^resp_[a-zA-Z0-9_-]{1,200}$/.test(receipt.responseId || '') ||
+          !nonempty(receipt.model) || receipt.model.length>256 ||
+          !/^[a-f0-9]{64}$/.test(receipt.scopeDigest || '') ||
+          receipt.outputDigest!==hash(signed.payload.output) ||
+          !u || !['input_tokens','output_tokens','total_tokens'].every(k=>Number.isSafeInteger(u[k])&&u[k]>=0) ||
+          !Number.isSafeInteger(u.input_tokens+u.output_tokens) || u.input_tokens+u.output_tokens!==u.total_tokens ||
+          hash(canonicalize(receipt))!==receiptDigest)
+        throw fault(409,'effect_receipt_unverified');
+      const expectedMetadata={provider:'azure-openai',usage:clean(u),receiptDigest,
+        recovered:true,usageAccounting:'operational-only',providerInvoiceVerified:false,accountingSettled:false};
+      if(signed.id!=='g5-recovered-'+hash(need.id) || signed.createdAt!==effect.receiptCapturedAt ||
+          canonicalize(signed.payload.metadata)!==canonicalize(expectedMetadata))
+        throw fault(409,'invalid_recovered_usage_metadata');
+      const usageRecord={schema:'truyn.g5.recovered-usage/v1',requestId:need.id,
+        requester:need.from,provider,effectFingerprint,receiptDigest,
+        inputTokens:u.input_tokens,outputTokens:u.output_tokens,totalTokens:u.total_tokens,
+        resultDigest:hash(canonicalize(delivery.event)),vendorChargeVerified:false};
+      const result=await mutate('need',need.id,doc=>{
+        if(signal?.aborted) throw fault(409,'recovered_result_aborted');
+        const original=doc.deliveries.find(d=>d.kind==='NEED')?.event?.envelope;
+        if(doc.mode!=='legacy' || doc.requester!==need.from || doc.provider!==provider ||
+            doc.scope!==need.from || !original ||
+            doc.fingerprint!==hash(JSON.stringify(original)) ||
+            canonicalize(original)!==canonicalize(need)) throw fault(409,'recovered_need_binding_mismatch');
+        if(doc.status==='completed' && doc.recoveredUsage){
+          const terminal=doc.deliveries.filter(d=>d.kind==='RESULT');
+          if(canonicalize(doc.recoveredUsage)!==canonicalize(usageRecord) || terminal.length!==1 ||
+              hash(canonicalize(terminal[0].event))!==usageRecord.resultDigest)
+            throw fault(409,'recovered_result_conflict');
+          return null; // Includes ACKed terminals: never recreate or un-ACK them.
+        }
+        if(doc.status!=='matched') throw fault(409,doc.status==='cancelled'?'request_cancelled':
+          doc.status==='failed'?'request_failed':'request_already_completed');
+        if(doc.recoveredUsage) throw fault(409,'recovered_result_conflict');
+        appendDelivery(doc,delivery,'RESULT',doc.requester);
+        doc.recoveredUsage=usageRecord;
+        doc.status='completed';doc.terminalAt=new Date().toISOString();
+        return doc;
+      },signal);
+      if(result.row.status!=='completed' || !result.row.recoveredUsage ||
+          canonicalize(result.row.recoveredUsage)!==canonicalize(usageRecord) ||
+          result.row.deliveries.filter(d=>d.kind==='RESULT').length!==1 ||
+          hash(canonicalize(result.row.deliveries.find(d=>d.kind==='RESULT').event))!==usageRecord.resultDigest)
+        throw fault(503,'recovered_result_commit_unverified');
+      return {recorded:true,idempotent:!result.changed,usageRecord:clean(result.row.recoveredUsage),
+        resultQueued:!result.row.deliveries.find(d=>d.kind==='RESULT').acknowledgedAt,
+        terminalDelivered:false,providerInvoiceVerified:false,accountingSettled:false};
     },
     async acceptPartial({id,provider,sequence,digest,delivery=null}) {
       if(!nonempty(provider)) throw fault(400,'invalid_partial_provider');
