@@ -1,3 +1,6 @@
+import { createDurableOfferDirectory } from '../network/relay/g5-offer-directory.js';
+import { createCosmosDirectoryStore } from '../network/relay/g5-cosmos-directory-store.js';
+import { verifyEnvelope, canonicalize } from '../core/protocol/index.js';
 import { createCosmosLifecycleLedger } from '../network/relay/cosmos-lifecycle-ledger.js';
 import { containerAppsManagedIdentityToken } from '../adapters/providers/common/azure-auth.js';
 
@@ -5,6 +8,9 @@ import { containerAppsManagedIdentityToken } from '../adapters/providers/common/
 // historical behavior or turn local SQLite into a distributed authority.
 export function createRuntimeG5RelayLifecycleLedger({ env = process.env, tokenProvider = null, fetchImpl = fetch } = {}) {
   const mode = env.TRUYN_G5_RELAY_LIFECYCLE_LEDGER || 'off';
+  const directoryMode = env.TRUYN_G5_OFFER_DIRECTORY || 'off';
+  if (!['off','cosmos-strong-v1'].includes(directoryMode) || (directoryMode !== 'off' && mode !== 'cosmos'))
+    throw new Error('G5 OFFER directory requires explicit Cosmos lifecycle configuration');
   if (!['off','cosmos'].includes(mode)) throw new Error('unsupported G5 relay ledger mode');
   if (mode === 'off') {
     if (env.TRUYN_G5_REQUIRE_RELAY_LIFECYCLE_LEDGER === '1')
@@ -68,7 +74,16 @@ export function createRuntimeG5RelayLifecycleLedger({ env = process.env, tokenPr
       throw new Error('G5 Cosmos partition key must be /partitionKey');
     return true;
   };
-  return Object.freeze({...ledger,verifyContainer});
+  let offerDirectory = null;
+  if (directoryMode !== 'off') {
+    const directoryContainer = env.TRUYN_G5_OFFER_DIRECTORY_CONTAINER;
+    if (!directoryContainer || directoryContainer === container || !env.TRUYN_G5_OFFER_DIRECTORY_AUTHORITY)
+      throw new Error('G5 OFFER directory requires a dedicated container and pinned authority');
+    const storage = createCosmosDirectoryStore({endpoint,database,container:directoryContainer,getAccessToken,fetchImpl});
+    offerDirectory = createDurableOfferDirectory({storage,verifyEnvelope,canonicalize,
+      authorityId:env.TRUYN_G5_OFFER_DIRECTORY_AUTHORITY});
+  }
+  return Object.freeze({...ledger,verifyContainer,...(offerDirectory ? {offerDirectory} : {})});
 }
 
 // Read-only fail-closed smoke before accepting any public relay traffic.
@@ -83,5 +98,6 @@ export async function verifyRuntimeG5RelayLedger(ledger) {
   // The identity is never reserved or altered by this probe.
   if (record && record.logicalId !== 'g5-readonly-startup-canary::v1')
     throw new Error('G5 relay canary returned another record identity');
+  if (ledger.offerDirectory) await ledger.offerDirectory.inspectCapacity();
   return { enabled:true, readable:true };
 }

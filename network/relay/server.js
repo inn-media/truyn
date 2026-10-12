@@ -156,6 +156,11 @@ export function createRelay({
   if (!Number.isFinite(requestTtlMs) || requestTtlMs < 1) throw new Error('requestTtlMs must be positive');
   if (!Number.isSafeInteger(maxSeenNeedIds) || maxSeenNeedIds < 1) throw new Error('maxSeenNeedIds must be a positive safe integer');
 
+  const offerDirectory = lifecycleLedger?.offerDirectory || null;
+  if (offerDirectory && (lifecycleLedger.kind !== 'cosmos-multi-host-v1' ||
+      offerDirectory.kind !== 'bounded-shared-offer-directory-v1'))
+    throw new Error('G5 shared OFFER directory requires the versioned Cosmos profile');
+
   const nodes = new Map();
   const sessions = new Map();
   const offers = new Map();
@@ -293,7 +298,14 @@ export function createRelay({
   async function matchingOffers({ capability = null, requesterNodeId = null, routing = null, reserveFor = null } = {}) {
     const now = Date.now();
     // Preserve owner-only ACL and freshness BEFORE routing.
-    const candidates=[...offers.values()].filter((offer) =>
+    const available = offerDirectory
+      ? (await offerDirectory.discover({ requester: requesterNodeId, capability,
+          authorize: ({ envelope }) => localDevelopmentMode || providerPolicyAllowsRequester(
+            providerPolicyFromOffer(envelope), requesterNodeId, { trustedRequesterNodeIds: [...trustedRequesters] })
+        })).map(envelope => ({ envelope, capability: envelope.payload?.capability?.name || envelope.payload?.capability,
+          policy: providerPolicyFromOffer(envelope), revoked: false }))
+      : [...offers.values()];
+    const candidates=available.filter((offer) =>
       !offer.revoked &&
       (!capability || offer.capability === capability) &&
       (!requesterNodeId || offer.envelope.from !== requesterNodeId) &&
@@ -302,12 +314,13 @@ export function createRelay({
         trustedRequesterNodeIds: [...trustedRequesters]
       }))
     );
+    // Directory rows have just been read and signature/policy verified together.
     if(lifecycleLedger?.kind==='cosmos-multi-host-v1' && candidates.length>128)
       throw httpError(503,'lifecycle_offer_scan_capacity_reached');
-    const eligible = [];
+    const eligible = offerDirectory ? [...candidates] : [];
     // Bounded parallel ledger reads; never positive-cache durable OFFER state.
     // Invalidation of a remote REVOKE must be observed on the next dispatch.
-    for (let offset = 0; offset < candidates.length; offset += maxConcurrentOfferLedgerReads) {
+    for (let offset = 0; !offerDirectory && offset < candidates.length; offset += maxConcurrentOfferLedgerReads) {
       const batch = candidates.slice(offset, offset + maxConcurrentOfferLedgerReads);
       const saved = await Promise.all(batch.map((offer) => lifecycleLedger?.getOffer(offer.envelope.id)));
       for (let i = 0; i < batch.length; i++) {
@@ -983,6 +996,14 @@ export function createRelay({
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         const capability = envelope.payload?.capability?.name || envelope.payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
+        if (offerDirectory) {
+          if (await offerDirectory.lookup(envelope.id) || await lifecycleLedger.getOffer(envelope.id))
+            return json(res, 409, { ok: false, error: 'duplicate_offer' });
+          const published = await offerDirectory.publish({ envelope, authenticatedOwner: envelope.from });
+          touch(envelope.from);
+          return json(res, published.idempotent ? 409 : 200, published.idempotent
+            ? { ok: false, error: 'duplicate_offer' } : { ok: true, offerId: envelope.id });
+        }
         if (offers.has(envelope.id) || await lifecycleLedger?.getOffer(envelope.id)) return json(res, 409, { ok: false, error: 'duplicate_offer' });
         if (offers.size >= maxOffers) return json(res, 503, { ok: false, error: 'offer_capacity_reached' });
         const policy = providerPolicyFromOffer(envelope);
@@ -997,6 +1018,9 @@ export function createRelay({
         if (!requesterNodeId) return json(res, 401, { ok: false, error: 'unauthorized' });
         const capability = url.searchParams.get('capability');
         if (!requesterCanDispatch(requesterNodeId)) {
+          if (offerDirectory) return json(res, 200, { ok: true, offers: await offerDirectory.discover({
+            requester: requesterNodeId, capability, authorize: ({ owner }) => owner === requesterNodeId
+          }) });
           const own=[];
           for(const offer of offers.values()) {
             if(offer.revoked || offer.envelope.from!==requesterNodeId || (capability && offer.capability!==capability)) continue;
@@ -1388,6 +1412,12 @@ export function createRelay({
           touch(envelope.from);
           if (!delivered) return json(res, 429, { ok: false, error: 'cancellation_backpressure', targetId, targetKind: 'need', cancelled: true, provider: request.provider, cancelledAt: request.cancelledAt });
           return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: persistedCancellation?.changed === false, provider: request.provider, cancelledAt: request.cancelledAt });
+        }
+
+        if (offerDirectory) {
+          const withdrawn = await offerDirectory.withdraw({ envelope, authenticatedOwner: envelope.from });
+          touch(envelope.from);
+          return json(res, 200, { ok: true, targetId, targetKind: 'offer', idempotent: withdrawn.idempotent });
         }
 
         if (!offer) {
