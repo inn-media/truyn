@@ -50,6 +50,7 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/production-authority-image.yml',
   '.github/workflows/production-authority-source-discovery.yml',
   '.github/workflows/p13-production-readiness.yml',
+  '.github/workflows/g5-azure-readonly-inventory.yml',
   '.github/workflows/production-dr-foundation.yml',
   '.github/workflows/production-logs-retention.yml',
   '.github/workflows/production-metrics-backend.yml',
