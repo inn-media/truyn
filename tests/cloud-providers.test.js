@@ -156,3 +156,70 @@ test('provider factory exposes cloud provider aliases', () => {
   assert.equal(azure.name, 'azure-openai-responses');
   assert.equal(gemini.name, 'vertex-gemini-generate-content');
 });
+
+test('G5 Azure receipt: historical store=false blocks GET recovery and does not issue paid POST', async () => {
+  let calls = 0;
+  const adapter = createAzureOpenAIProvider({
+    endpoint: 'https://example.openai.azure.com', model:'gpt-test', apiKey:'mock',
+    fetchImpl: async () => { calls++; throw Error('unexpected paid request'); }
+  });
+  await assert.rejects(() => adapter.retrieveResponseReceipt({responseId:'resp_known'}), /explicit_storage_opt_in/);
+  assert.equal(calls, 0);
+});
+
+test('G5 Azure stored opt-in: known response ID is independently read by GET, never replay POST', async () => {
+  const calls = [];
+  const adapter = createAzureOpenAIProvider({
+    endpoint:'https://example.openai.azure.com/', model:'gpt-test',
+    apiKey:null, accessTokenProvider:async()=> 'fixture-token', persistResponses:true,
+    fetchImpl:async (url, options) => {
+      calls.push({url,method:options.method,body:options.body,auth:options.headers.authorization});
+      if(options.method === 'POST') return {
+        ok:true,
+        async json(){return {id:'resp_known123',model:'gpt-test',output_text:'one',
+          usage:{input_tokens:3,output_tokens:4,total_tokens:7}};}
+      };
+      assert.equal(options.method,'GET');
+      return {ok:true,async json(){return {
+        id:'resp_known123', status:'completed',model:'gpt-test',
+        output_text:'one',usage:{input_tokens:3,output_tokens:4,total_tokens:7}
+      };}};
+    }
+  });
+  const original=await adapter.execute({capability:'research',input:'G5 isolated fixture',policy:{}});
+  assert.equal(original.metadata.providerStoredResponse,true);
+  assert.equal(original.metadata.providerRequestId,'resp_known123');
+  const verified=await adapter.retrieveResponseReceipt({responseId:'resp_known123'});
+  assert.deepEqual(calls.map(c=>c.method),['POST','GET']);
+  assert.equal(JSON.parse(calls[0].body).store,true);
+  assert.equal(calls[1].url,'https://example.openai.azure.com/openai/v1/responses/resp_known123');
+  assert.equal(calls[1].auth,'Bearer fixture-token');
+  assert.equal(verified.providerResponseId,'resp_known123');
+  assert.equal(verified.usage.total_tokens,7);
+  assert.equal(verified.output,'one');
+  assert.equal(verified.responseRetrievedByGet,true);
+  assert.equal(verified.providerInvoiceVerified,false);
+  assert.equal(verified.accountingSettled,false);
+});
+
+test('G5 Azure receipt: forged, unfinished, malformed or inaccessible result fails closed',async()=>{
+  let reads=0;
+  const replies=[
+    {ok:true,async json(){return {id:'resp_different',status:'completed',model:'gpt-test',usage:{total_tokens:8}};}},
+    {ok:true,async json(){return {id:'resp_known',status:'in_progress',model:'gpt-test',usage:{total_tokens:8}};}},
+    {ok:true,async json(){return {id:'resp_known',status:'completed',model:'gpt-test',usage:{total_tokens:-1}};}},
+    {ok:false,status:404},
+  ];
+  const adapter=createAzureOpenAIProvider({
+    endpoint:'https://example.openai.azure.com',model:'gpt-test',apiKey:'fixture',
+    persistResponses:true,
+    fetchImpl:async (_url,options)=>{assert.equal(options.method,'GET');return replies[reads++];}
+  });
+  await assert.rejects(()=>adapter.retrieveResponseReceipt({responseId:'../bad'}),/invalid_azure_response_receipt_id/);
+  assert.equal(reads,0);
+  for(let i=0;i<3;i++) await assert.rejects(
+    ()=>adapter.retrieveResponseReceipt({responseId:'resp_known'}),/azure_response_receipt_unverified/
+  );
+  await assert.rejects(()=>adapter.retrieveResponseReceipt({responseId:'resp_known'}),/azure_response_receipt_read_unavailable/);
+  assert.equal(reads,4);
+});
