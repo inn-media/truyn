@@ -26,7 +26,7 @@ test('P11 frozen compatibility decision matrix has a truthful pre-stable scope a
       assert.equal(row.expected.code, 'version_mismatch', row.id);
       assert.ok(['no_protocol_overlap', 'required_semantic_unavailable'].includes(row.expected.reason), row.id);
     } else {
-      assert.ok(new RegExp('^TRUYN/[0-9]+
+      assert.ok(/^TRUYN[/][0-9]+$/.test(row.expected.protocol), row.id);
       assert.deepEqual(row.expected.semantics, [...row.expected.semantics].sort(), row.id);
     }
   }
