@@ -12,7 +12,7 @@ Current SDK coordinates now agree across the machine ledger, five-SDK freeze inv
 
 P1–P14 now distinguish normative **DEFINED**, executable **IMPLEMENTED**, bounded acceptance and final release qualification. [The machine evidence inventory](../compatibility/protocol-rc-documentation-inventory.json) points to the actual normative/test/certificate files. P6–P9 and P11 are not missing specifications; their outstanding acceptance must not be replaced by an automatic PASS. P10/P12 retain separately recorded bounded scopes. P13-FORMAT and P13-OPS stay separate, and P14 draft labels remain intentional.
 
-Descriptor serving-time refresh and shared missing/blank endpoint/type negatives are recorded as implemented source behavior. Broader release-specific lifecycle acceptance, delegated signing and stable admission remain separate. No immutable historical SDK is assumed to inherit newer source behavior.
+**Initial audit statement, superseded by the post-merge correction below:** Descriptor serving-time refresh and shared missing/blank endpoint/type negatives were recorded as implemented source behavior. Broader release-specific lifecycle acceptance, delegated signing and stable admission remain separate. No immutable historical SDK is assumed to inherit newer source behavior.
 
 Issue #615 was re-read. Its body already records S103 PR #823 as merged and sets `RECONCILIATION_REQUIRED`; the old S103 implementation capsule is explicitly historical. This sanitation does not fabricate S104–S200 acceptance or mark the task COMPLETE.
 
@@ -61,3 +61,11 @@ Targeted local documentation/publication/Descriptor/RC tests: **18/18 PASS** on 
 ## Preservation and limits
 
 No runtime protocol, provider, authorization, deployment, active dependency or benchmark threshold is changed. Existing immutable release evidence is not deleted or replaced by a summary. This audit reconciles documentation against available source and scoped evidence; it is not a fresh live-cloud test or an independent final Stable-v1/Mainnet goal reconciliation. Historical operational observations remain historical and may require their own task-scoped current-state verification.
+
+## Post-merge review correction (2026-10-12)
+
+Inspection of exact merged source `af530daa8f1cd1dc7c467089aef2c6442e90138a` disproved the initial shared malformed-interface-negative claim. The current runtime fixture has nine signature/expiry/negotiation/invalid-JSON cases and no missing/blank endpoint or blank-type cases; the current Go/Java validators do not establish the claimed rejection. The historical S103 merge is preserved as history, not treated as proof that its intended behavior remains on main. Refresh/re-sign implementation and its own tests remain intact and are not reclassified as missing.
+
+Current source status is recorded in [Agent Descriptor evidence](../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md). The sanitation successor corrects affected active guides and keeps this original audit correction explicit. No SDK implementation or immutable release bytes are changed.
+
+The successor guard additionally rejects duplicate/missing/unknown SDK identities, registry-key substitutions, empty/missing/mismatched evidence pointers, non-file/out-of-repository proof paths, and unqualified per-P1-P14 acceptance-status or certificate changes. Negative regression tests exercise every SDK and every P gate. This is a documentation safety repair, not Stable admission or a replacement for runtime conformance.

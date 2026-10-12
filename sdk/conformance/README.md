@@ -73,7 +73,7 @@ Provider visibility is decided by TRUYN policy before SDK data is returned. A fi
 
 ## Version and interface negotiation
 
-Unsupported required Descriptor/protocol/interface versions fail explicitly. Clients do not guess or silently promote unknown semantics. Current v1 valid-fixture selection remains deterministic and bounded by the advertised/client-supported sets. Expired Descriptors fail by default unless an explicitly supported cache/offline policy says otherwise. The shared `v1/agent-descriptor-runtime-fixtures.json` and all five language conformance runners implement missing-endpoint, blank-endpoint and blank-type negatives (S103). These are executable source checks, not merely happy-path claims. Complete production lifecycle certification or behavior of every historical package is not implied.
+Unsupported required Descriptor/protocol/interface versions fail explicitly. Clients do not guess or silently promote unknown semantics. Current v1 valid-fixture selection remains deterministic and bounded by the advertised/client-supported sets. Expired Descriptors fail by default unless an explicitly supported cache/offline policy says otherwise. The current `v1/agent-descriptor-runtime-fixtures.json` has nine signature/expiry/negotiation/invalid-JSON cases, but no missing-endpoint, blank-endpoint or blank-type cases. Shared five-language rejection of those malformed interfaces remains **unverified on current source**; merged historical S103 work does not replace current-source and executable proof. Complete production lifecycle certification or behavior of every historical package is not implied.
 
 ## Package and release conformance
 
@@ -100,3 +100,5 @@ The historical DX-1/DX-2 skeleton descriptions are retained only in Git history/
 ## Protocol/1 precise frozen-prerelease five-SDK run
 
 The real published frozen five-language family is in `../../spec/compatibility/truyn1-five-sdk-freeze.json`; run `../../.github/workflows/truyn1-five-published-freeze-interop.yml` for five independent registry package installs and 20 real provider/requester cross-version cases against the candidate exact source SHA. The historical `wire-freeze-legacy-sdk-matrix.yml` uses earlier prereleases and is retained separately. A success must be bound to the workflow's exact commit, artifacts and prior frozen-source public-registry provenance; no stable-v1 claim or production authority follows from this matrix.
+
+Current Descriptor evidence and remaining interface-negative parity: [source-reconciled status](../../docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).

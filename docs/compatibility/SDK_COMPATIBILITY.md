@@ -159,3 +159,5 @@ See also:
 - `docs/architecture/SDK_DEVELOPER_EXPERIENCE.md`
 - `spec/protocol/v1/agent-descriptor.md`
 - `sdk/release/PUBLISHING.md`
+
+Current Descriptor evidence and remaining interface-negative parity: [source-reconciled status](AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
