@@ -11,6 +11,7 @@ import { createIdentity, signValue } from '../../core/identity/index.js';
 import { writeDescriptorParityReport } from './descriptor-report-output.mjs';
 import { inspectSourceState as inspectRepositorySourceState, sourceStateQualified } from './descriptor-source-state.mjs';
 import { validateDescriptorInterfaceFixture, validateDescriptorInterfaceCases } from './descriptor-interface-policy.mjs';
+import { stageDescriptorNativeSource } from './descriptor-native-source.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const languages = Object.freeze(['typescript', 'python', 'go', 'java', 'dotnet']);
 export const fixturePath = 'sdk/conformance/v1/agent-descriptor-interface-fixtures.json';
@@ -71,6 +72,7 @@ export async function runDescriptorInterfaceParity() {
     res.writeHead(200, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }); res.end(body);
   });
   try {
+    const nativeSource = stageDescriptorNativeSource(root, sourceBefore.sourceSha, directory);
     await new Promise((ok, fail) => { server.once('error', fail); server.listen(0, '127.0.0.1', ok); });
     const baseUrl = `http://127.0.0.1:${server.address().port}`;
     const jobs = languages.map(async language => {
@@ -78,16 +80,17 @@ export async function runDescriptorInterfaceParity() {
       writeFileSync(input, JSON.stringify({ baseUrl, publicKeyPem: identity.publicKeyPem, supportedInterfaces: ['https', 'websocket', 'truyn-quic', 'mcp', ' '],
         cases: cases.map(c => ({ id: c.id, url: `${baseUrl}/${language}/${c.id}` })) }));
       const env = { TRUYN_DESCRIPTOR_CASES_FILE: input, TRUYN_DESCRIPTOR_RESULT_FILE: output,
+        PYTHONPYCACHEPREFIX: join(directory, 'python-cache'),
         PYTHONPATH: resolve(root, 'sdk/python/src') + (process.env.PYTHONPATH ? delimiter + process.env.PYTHONPATH : '') };
       try {
         if (language === 'typescript') await run(process.execPath, ['--experimental-strip-types', 'sdk/typescript/test/descriptor-interface-conformance.ts'], env);
         if (language === 'python') await run('python', ['sdk/python/tests/descriptor_interface_conformance.py'], env);
         if (language === 'go') await run('go', ['test', './...', '-run', '^TestDescriptorInterfaceParity$', '-count=1', '-v'], env, resolve(root, 'sdk/go'));
         if (language === 'java') {
-          await run('mvn', ['-q', '-f', 'sdk/java/pom.xml', 'test-compile'], env);
-          await run('java', ['-cp', `sdk/java/target/classes${delimiter}sdk/java/target/test-classes`, 'org.truyn.sdk.DescriptorInterfaceConformance'], env);
+          await run('mvn', ['-q', '-f', 'sdk/java/pom.xml', 'test-compile'], env, nativeSource.directory);
+          await run('java', ['-cp', `sdk/java/target/classes${delimiter}sdk/java/target/test-classes`, 'org.truyn.sdk.DescriptorInterfaceConformance'], env, nativeSource.directory);
         }
-        if (language === 'dotnet') await run('dotnet', ['run', '--configuration', 'Release', '--project', 'sdk/dotnet/conformance/Truyn.Sdk.Conformance.csproj', '--', '--descriptor-interfaces'], env);
+        if (language === 'dotnet') await run('dotnet', ['run', '--configuration', 'Release', '--project', 'sdk/dotnet/conformance/Truyn.Sdk.Conformance.csproj', '--', '--descriptor-interfaces'], env, nativeSource.directory);
         reports[language] = JSON.parse(readFileSync(output, 'utf8'));
       } catch (error) { errors.push(`${language}: ${error.message}`); }
     });
@@ -100,6 +103,7 @@ export async function runDescriptorInterfaceParity() {
     const report = { schema: 'truyn.descriptor-interface-parity/v1', scope: 'bounded-source-sdk-interface-parity',
       sourceSha: sourceBefore.sourceSha, sourceShaAfter: sourceAfter.sourceSha,
       sourceBefore, sourceAfter, workingTreeClean, exactSourceQualified: passed && workingTreeClean,
+      nativeBuildSources: { sourceSha: nativeSource.sourceSha, freshBuildDirectory: true, sourceBlobs: nativeSource.sourceBlobs },
       fixtureSha256: digest(readFileSync(resolve(root, fixturePath))),
       caseIds: cases.map(c => c.id), signedDocumentSha256: Object.fromEntries([...documents].map(([id, doc]) => [id, digest(JSON.stringify(doc))])),
       requests, results: reports, errors, passed, stableAdmission: false, publishedPackageUpgrade: false, paidProviderCalls: 0 };
