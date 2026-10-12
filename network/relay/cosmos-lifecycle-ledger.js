@@ -372,6 +372,11 @@ export function createCosmosLifecycleLedger({
       if(![id,owner,fingerprint].every(nonempty)) throw fault(400,'invalid_offer_reservation');
       const projection = envelope == null ? {} : signedOffer(envelope, { id, owner, fingerprint });
       if(envelope!=null) {
+        // Prove the complete OFFER document fits before consuming an owner slot.
+        // A deterministic local size failure must not strand recoverable capacity.
+        const p=locator('offer',id);
+        packed({id:p.id,partitionKey:p.partitionKey,schemaVersion:1,kind:'offer',logicalId:id,version:1,
+          createdAt:new Date().toISOString(),ttl:-1,owner,fingerprint,revoked:0,...projection});
         if(await get('offer',id)) throw fault(409,'duplicate_offer');
         await claimOfferSlot({id,owner,fingerprint});
       }
