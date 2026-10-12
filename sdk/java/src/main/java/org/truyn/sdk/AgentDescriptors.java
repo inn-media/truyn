@@ -63,6 +63,14 @@ public final class AgentDescriptors {
     List<?> interfaces = list(raw.get("interfaces"));
     if (protocols.isEmpty() || interfaces.isEmpty() || !(raw.get("capabilities") instanceof List<?>))
       throw new TruynException(TruynException.Code.INVALID_ARGUMENT, "invalid Agent Descriptor discovery fields", false);
+    // Match the existing nonempty-string reference profile without trimming
+    // or requiring an intentionally undisclosed endpoint.
+    for (Object value : interfaces) {
+      if (!(value instanceof Map<?,?> item)
+          || !(item.get("type") instanceof String kind) || kind.isEmpty()
+          || (item.containsKey("endpoint") && (!(item.get("endpoint") instanceof String endpoint) || endpoint.isEmpty())))
+        throw new TruynException(TruynException.Code.INVALID_ARGUMENT, "Agent Descriptor interfaces are invalid", false);
+    }
     Instant issued = instant(raw.get("issuedAt"));
     Instant expires = instant(raw.get("expiresAt"));
     if (issued == null || expires == null || !expires.isAfter(issued))

@@ -218,6 +218,6 @@ Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`,
 
 ROS 2 Bridge, MQTT Bridge, Device Adapter and heterogeneous physical robot network are **PLANNED / NOT IMPLEMENTED as qualified bridges**. Autonomous physical operation safety gates and hardware-in-the-loop/real robot evidence are **OPEN / NOT ACCEPTED**. Existing signed protocol, relay, SDK, HTTP/MCP/A2A facilities are reusable infrastructure, not verified robot execution. All robotics and Physical AI, including bridges, robot networking, safety and Edge Controller, are V2/post-first-mainnet only; V1 has no robot scope. See `PHYSICAL_AI_INTEROPERABILITY.md`. This track is unrelated to F-Series physical-infrastructure chaos.
 
-Current Descriptor evidence and remaining interface-negative parity: [source-reconciled status](../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
+Current Descriptor contract and bounded five-SDK interface evidence: [source-reconciled status](../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
 
-An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established.
+An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. The bounded 18-case interface-parity suite is implemented through the actual HTTP fetch, validation, signature and selection path of all five source SDKs; exact-source acceptance is established by the corresponding successful five-language CI report.

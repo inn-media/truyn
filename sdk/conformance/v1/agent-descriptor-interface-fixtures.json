@@ -1,0 +1,186 @@
+{
+  "schema": "truyn.descriptor-interface-fixtures/v1",
+  "scope": "optional endpoint and required nonempty interface type; not full Descriptor lifecycle or release admission",
+  "cases": [
+    {
+      "id": "endpoint-omitted",
+      "interfaces": [
+        {
+          "type": "https"
+        }
+      ],
+      "ok": true
+    },
+    {
+      "id": "endpoint-present",
+      "interfaces": [
+        {
+          "type": "https",
+          "endpoint": "https://example.test/truyn"
+        }
+      ],
+      "ok": true
+    },
+    {
+      "id": "endpoint-empty",
+      "interfaces": [
+        {
+          "type": "https",
+          "endpoint": ""
+        }
+      ],
+      "ok": false
+    },
+    {
+      "id": "type-omitted",
+      "interfaces": [
+        {
+          "endpoint": "https://example.test/truyn"
+        }
+      ],
+      "ok": false
+    },
+    {
+      "id": "type-empty",
+      "interfaces": [
+        {
+          "type": "",
+          "endpoint": "https://example.test/truyn"
+        }
+      ],
+      "ok": false
+    },
+    {
+      "id": "endpoint-null",
+      "interfaces": [
+        {
+          "type": "https",
+          "endpoint": null
+        }
+      ],
+      "ok": false
+    },
+    {
+      "id": "endpoint-number",
+      "interfaces": [
+        {
+          "type": "https",
+          "endpoint": 7
+        }
+      ],
+      "ok": false
+    },
+    {
+      "id": "type-null",
+      "interfaces": [
+        {
+          "type": null
+        }
+      ],
+      "ok": false
+    },
+    {
+      "id": "type-number",
+      "interfaces": [
+        {
+          "type": 7
+        }
+      ],
+      "ok": false
+    },
+    {
+      "id": "entry-null",
+      "interfaces": [
+        null
+      ],
+      "ok": false
+    },
+    {
+      "id": "entry-string",
+      "interfaces": [
+        "https"
+      ],
+      "ok": false
+    },
+    {
+      "id": "valid-then-empty-endpoint",
+      "interfaces": [
+        {
+          "type": "https"
+        },
+        {
+          "type": "mcp",
+          "endpoint": ""
+        }
+      ],
+      "ok": false
+    },
+    {
+      "id": "valid-then-missing-type",
+      "interfaces": [
+        {
+          "type": "https"
+        },
+        {}
+      ],
+      "ok": false
+    },
+    {
+      "id": "empty-endpoint-then-valid",
+      "interfaces": [
+        {
+          "type": "mcp",
+          "endpoint": ""
+        },
+        {
+          "type": "https"
+        }
+      ],
+      "ok": false
+    },
+    {
+      "id": "optional-endpoint-with-metadata",
+      "interfaces": [
+        {
+          "type": "https",
+          "version": "1",
+          "contentTypes": [
+            "application/json"
+          ]
+        }
+      ],
+      "ok": true
+    },
+    {
+      "id": "endpoint-whitespace-reference-profile",
+      "interfaces": [
+        {
+          "type": "https",
+          "endpoint": " "
+        }
+      ],
+      "ok": true
+    },
+    {
+      "id": "omitted-endpoint-tampered-signature",
+      "interfaces": [
+        {
+          "type": "https"
+        }
+      ],
+      "ok": false,
+      "tamperSignature": true
+    },
+    {
+      "id": "present-endpoint-tampered-signature",
+      "interfaces": [
+        {
+          "type": "https",
+          "endpoint": "https://example.test/truyn"
+        }
+      ],
+      "ok": false,
+      "tamperSignature": true
+    }
+  ]
+}

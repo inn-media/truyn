@@ -135,7 +135,7 @@ Provider authorization remains independent from artifact/reference visibility.
 
 ## TRUYN Agent Descriptor lifecycle
 
-The bounded Descriptor serving, refresh and valid-profile fetch/verification path is implemented. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established. Do not make optional endpoints mandatory through a documentation change.
+The bounded Descriptor serving, refresh and valid-profile fetch/verification path is implemented. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. The bounded 18-case interface-parity suite is implemented through the actual HTTP fetch, validation, signature and selection path of all five source SDKs; exact-source acceptance is established by the corresponding successful five-language CI report. Do not make optional endpoints mandatory through a documentation change.
 
 ### Serving
 
@@ -253,7 +253,7 @@ A source tree being Pages-ready is not the same as a live deployment. Public sit
 - [x] NuGet.org publication evidence (`Truyn.Sdk 0.1.0-alpha.2`; current five-SDK Wire Freeze registry ledger);
 - [ ] archive-member byte-content leakage scanning;
 - [x] bounded Descriptor refresh/re-signing implementation;
-- [ ] shared five-language acceptance of omitted optional endpoints and rejection of invalid empty endpoints or types, with current-source executable proof;
+- [x] shared 18-case source suite for five-language optional-endpoint acceptance and invalid endpoint/type rejection; exact-SHA qualification is recorded by the actual CI report, not inferred for immutable published packages;
 - [ ] complete release-specific Descriptor lifecycle certification beyond those bounded source tests;
 - [ ] live public developer-site activation/liveness proof after merge/settings activation.
 
@@ -267,4 +267,4 @@ Therefore: **DX-3 runtime/API core is closed; npm/PyPI/Go/Maven Central/NuGet pu
 
 See `IMPLEMENTATION_STATUS.md`, `../../ROADMAP.md`, `../compatibility/SDK_COMPATIBILITY.md` and `../../sdk/release/PUBLISHING.md`.
 
-Current Descriptor evidence and remaining interface-negative parity: [source-reconciled status](../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
+Current Descriptor contract and bounded five-SDK interface evidence: [source-reconciled status](../compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).

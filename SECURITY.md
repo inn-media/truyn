@@ -105,7 +105,7 @@ authenticated scoped descriptor view
 
 A Descriptor must not contain upstream provider credentials, private keys, private origins/backchannels, privileged allowlists, hidden private provider IDs/capabilities, long-lived secret-bearing URLs or other private operational state.
 
-The current Developer Release serving path is intentionally public only: disabled by default, explicit opt-in, explicit public capability allowlist, runtime identity signature, and no authorization grant from metadata. Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. Cross-language malformed-interface parity is not yet established. Missing or empty interface types are rejected by the reference parser; identical rejection across all five SDKs still needs executable proof. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
+The current Developer Release serving path is intentionally public only: disabled by default, explicit opt-in, explicit public capability allowlist, runtime identity signature, and no authorization grant from metadata. Bounded Descriptor refresh/re-signing is implemented in `runtime/agent-descriptor.js` and exercised by `tests/agent-descriptor-refresh.test.js`. The current shared runtime fixture contains nine signature/expiry/negotiation/invalid-JSON cases, not an exhaustive malformed-interface matrix. An omitted interface endpoint is permitted; an explicitly empty endpoint is invalid in the current reference parser. The bounded 18-case interface-parity suite is implemented through the actual HTTP fetch, validation, signature and selection path of all five source SDKs; exact-source acceptance is established by the corresponding successful five-language CI report. Each source SDK rejects missing or empty interface types and supplied empty/non-string endpoints, including invalid entries that negotiation would otherwise skip. The separate shared interface fixture and required five-language runner exercise this bounded contract. A historical S103 merge does not prove current-source parity, and no existing immutable package inherits newer source behavior. Delegated signing and final exact-SHA Open 1.0 admission remain separate.
 
 ### SDKs are not a policy boundary
 
@@ -237,7 +237,7 @@ The old future-only SDK/Descriptor gate description is obsolete. Current main pr
 - per-commit generated package artifacts are checked for structure, licensing, digests and forbidden entry names and are bound to the exact source SHA that built them; ordinary CI does not make the fixed alpha coordinate an immutable published release;
 - SDK/Descriptor metadata does not become provider authorization, provider ownership or billing authority.
 
-Open bounded security/release follow-ups include runtime Descriptor refresh/re-signing before expiry, full malformed/missing-interface-endpoint parity across every first-party verifier, archive-member content scanning beyond entry-name checks, and the separate tagged/native-publication immutability gate.
+Open bounded security/release follow-ups include full production/delegated-signing Descriptor lifecycle beyond the implemented refresh and bounded 18-case interface-parity suite, archive-member content scanning beyond entry-name checks, and the separate tagged/native-publication immutability gate.
 
 This does **not** claim that every possible private-provider adversarial case has been independently repeated in every SDK language, nor that public registries or the developer site are already live. Broader cross-protocol adversarial acceptance remains C8; live registry/site release security remains an operational deployment gate; stable SDK/protocol compatibility remains separate.
 
@@ -264,4 +264,4 @@ This does **not** claim that every possible private-provider adversarial case ha
 - `spec/protocol/v1/provider-policy.md`
 - `spec/protocol/v1/agent-descriptor.md`
 
-Current Descriptor evidence and remaining interface-negative parity: [source-reconciled status](docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
+Current Descriptor contract and bounded five-SDK interface evidence: [source-reconciled status](docs/compatibility/AGENT_DESCRIPTOR_CURRENT_EVIDENCE.md).
