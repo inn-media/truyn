@@ -2,9 +2,11 @@
 
 # TRUYN Documentation
 
+**S-Series latest (2026-10-12):** [S-200 six-provider composite acceptance report](benchmarks/S_SERIES_S200_2026-10-12.md) — A14+A15, 8/8 PASS in measured scope, seven-provider DeepSeek parity and WAN remain OPEN. [Sanitation reconciliation](operations/S_SERIES_SANITATION_2026-10-12.md). Previous D-5000/A-Series snapshot lines below remain historical contextual status.
+
 Human-facing documentation for TRUYN architecture, implementation status, governance, operations, security, Trustability, compatibility, SDK/DX and benchmark evidence.
 
-**Snapshot:** 2026-10-09 (A-Series docs reconciliation)  
+**Snapshot:** 2026-10-12 (S-200 bounded composite documentation sync; A-Series historical snapshot retained in its dated ledger)  
 **Canonical D-1000 runtime main:** `1974926e392c6e208a8fa5c7b54cfb224a13b7fc`  
 **Protocol:** `TRUYN/1` draft; expanded CORE source merged via PR #975; immutable stable-v1/Mainnet not admitted  
 **A2A/MCP compatibility generation:** `a2a-mcp-pre-v1/g1`
