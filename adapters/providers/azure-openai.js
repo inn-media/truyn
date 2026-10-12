@@ -49,6 +49,7 @@ export function createAzureOpenAIProvider({
   return {
     name: 'azure-openai-responses',
     version: '1',
+    g5CorrelationVersion: 1,
     capabilities,
     // Authenticated read of a known response ID, never a repeat paid POST.
     // Storage requires explicit consent. Usage is not a settled vendor invoice.
@@ -61,7 +62,7 @@ export function createAzureOpenAIProvider({
       else headers.authorization = 'Bearer ' + await accessTokenProvider({ fetchImpl, signal });
       const response = await fetchImpl(
         endpoint.replace(/\/$/, '') + '/openai/v1/responses/' + encodeURIComponent(responseId),
-        { method: 'GET', headers, signal }
+        { method: 'GET', headers, signal, redirect: 'error' }
       );
       if (!response.ok) throw new Error('azure_response_receipt_read_unavailable');
       let body;
@@ -75,10 +76,13 @@ export function createAzureOpenAIProvider({
         provider: 'azure-openai', providerResponseId: responseId,
         providerModel: body.model, usage: body.usage, output: extractText(body),
         responseRetrievedByGet: true, providerInvoiceVerified: false,
-        accountingSettled: false
+        accountingSettled: false,
+        g5Correlation: readG5Correlation(body.metadata)
       };
     },
-    async execute({ capability, input, policy, signal }) {
+    async execute({ capability, input, policy, signal, g5Correlation = null }) {
+      if (g5Correlation && (!persistResponses || !validG5Correlation(g5Correlation)))
+        throw new Error('g5_correlation_requires_stored_response');
       const startedAt = Date.now();
       const prompt = [
         `You are a TRUYN provider for capability: ${capability}.`,
@@ -91,15 +95,21 @@ export function createAzureOpenAIProvider({
       if (apiKey) headers['api-key'] = apiKey;
       else headers.authorization = `Bearer ${await accessTokenProvider({ fetchImpl, signal })}`;
 
-      const requestBody = JSON.stringify({ model, input: prompt, store: persistResponses });
+      if (g5Correlation) headers['X-Client-Request-Id'] = g5Correlation.correlationId;
+      // Correlation is a lookup hint, NEVER a claim that Azure POST is idempotent.
+      const requestBody = JSON.stringify({ model, input: prompt, store: persistResponses,
+        ...(g5Correlation ? { metadata: { truyn_g5_version: '1',
+          truyn_g5_correlation: g5Correlation.correlationId, truyn_g5_scope: g5Correlation.scopeDigest } } : {}) });
       const response = await fetchImpl(`${endpoint.replace(/\/$/, '')}/openai/v1/responses`, {
         method: 'POST',
+        redirect: 'error',
         headers,
         body: requestBody,
         signal
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body?.error?.message || `Azure OpenAI HTTP ${response.status}`);
+      if (g5Correlation && body?.status !== 'completed') throw new Error('g5_provider_response_not_completed');
 
       const providerRequestBodyBytes = Buffer.byteLength(requestBody);
       const providerResponseBodyBytes = Buffer.byteLength(JSON.stringify(body));
@@ -112,6 +122,7 @@ export function createAzureOpenAIProvider({
           providerRequestId: body.id || null,
           providerStoredResponse: persistResponses,
           providerResponseStatus: typeof body.status === 'string' ? body.status : null,
+          ...(g5Correlation ? { g5Correlation: readG5Correlation(body.metadata) } : {}),
           providerLatencyMs: Date.now() - startedAt,
           providerRequestBodyBytes,
           providerResponseBodyBytes,
@@ -121,4 +132,14 @@ export function createAzureOpenAIProvider({
       };
     }
   };
+}
+
+function validG5Correlation(value) {
+  return value?.version === 1 && ['correlationId', 'scopeDigest'].every(k =>
+    typeof value[k] === 'string' && /^[a-f0-9]{64}$/.test(value[k]));
+}
+function readG5Correlation(metadata) {
+  const value = { version: metadata?.truyn_g5_version === '1' ? 1 : 0,
+    correlationId: metadata?.truyn_g5_correlation, scopeDigest: metadata?.truyn_g5_scope };
+  return validG5Correlation(value) ? value : null;
 }
