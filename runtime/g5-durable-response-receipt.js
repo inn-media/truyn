@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { executionCorrelation, recoverUnknownResponseFromWitness } from './g5-independent-response-witness.js';
 
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const text = value => typeof value === 'string' && value.length > 0 && value.length <= 4096;
@@ -93,6 +94,8 @@ export function withCosmosEffectReceipts(ledger, { endpoint, database, container
             committed?.provider !== next.provider || committed?.requester !== next.requester ||
             committed?.fingerprint !== next.fingerprint || committed?.status !== next.status ||
             committed?.receiptExecution?.token !== next.receiptExecution?.token ||
+            committed?.receiptExecution?.correlationId !== next.receiptExecution?.correlationId ||
+            committed?.receiptExecution?.scopeDigest !== next.receiptExecution?.scopeDigest ||
             (next.effectReceipt && !sameReceipt(committed?.effectReceipt, next.effectReceipt)))
           throw fault(503, 'effect_receipt_store_unverified');
         return { changed: true, row: next };
@@ -104,23 +107,28 @@ export function withCosmosEffectReceipts(ledger, { endpoint, database, container
     throw fault(503, 'effect_receipt_cas_contention');
   }
   return Object.freeze({ ...ledger,
-    async claimReceiptExecution(binding) {
+    async claimReceiptExecution(binding, { scopeDigest = null } = {}) {
+      if (scopeDigest !== null && !/^[a-f0-9]{64}$/.test(scopeDigest)) throw fault(400, 'g5_correlation_binding_invalid');
       const executionToken = randomUUID();
       const result = await mutate(binding, row => {
         if (row.status !== 'started' || row.receiptExecution || row.effectReceipt)
           throw fault(409, 'effect_execution_already_claimed');
         if (Buffer.byteLength(JSON.stringify(row)) + 4096 > 850_000)
           throw fault(503, 'lifecycle_document_capacity_reached');
-        row.receiptExecution = { token: executionToken, claimedAt: new Date().toISOString() };
+        row.receiptExecution = { token: executionToken, claimedAt: new Date().toISOString(),
+          ...(scopeDigest ? { scopeDigest, correlationId: executionCorrelation(binding, executionToken, scopeDigest) } : {}) };
         return row;
       });
-      return { executionToken: result.row.receiptExecution.token };
+      return { executionToken: result.row.receiptExecution.token,
+        ...(scopeDigest ? { correlationId: result.row.receiptExecution.correlationId } : {}) };
     },
     async captureEffectReceipt({ executionToken, value, ...binding }) {
       const normalized = receipt(value);
       if (!text(executionToken)) throw fault(400, 'effect_execution_token_required');
       return mutate(binding, row => {
         if (row.receiptExecution?.token !== executionToken) throw fault(409, 'effect_execution_token_mismatch');
+        if (row.receiptExecution.scopeDigest && row.receiptExecution.scopeDigest !== normalized.scopeDigest)
+          throw fault(409, 'effect_receipt_scope_mismatch');
         if (!['started', 'unknown', 'completed'].includes(row.status)) throw fault(409, 'effect_receipt_terminal_conflict');
         if (row.effectReceipt) {
           if (!sameReceipt(row.effectReceipt, normalized)) throw fault(409, 'effect_receipt_conflict');
@@ -141,7 +149,7 @@ function bindingFor(need, node) {
     fingerprint: sha256(JSON.stringify([need.id, need.from, need.payload])) };
 }
 
-export function wrapRuntimeG5ReceiptAdapter({ adapter, ledger, env = process.env } = {}) {
+export function wrapRuntimeG5ReceiptAdapter({ adapter, ledger, env = process.env, witnessVerifier = null } = {}) {
   if (env.TRUYN_G5_DURABLE_AZURE_RECEIPTS !== '1') return adapter;
   if (env.TRUYN_G5_AZURE_STORE_RESPONSES !== '1' || adapter?.name !== 'azure-openai-responses' ||
       typeof adapter.execute !== 'function' || typeof adapter.retrieveResponseReceipt !== 'function' ||
@@ -154,14 +162,25 @@ export function wrapRuntimeG5ReceiptAdapter({ adapter, ledger, env = process.env
   const model = env.AZURE_OPENAI_MODEL || env.AZURE_OPENAI_DEPLOYMENT;
   if (!text(model)) throw fault(503, 'durable_azure_receipt_model_required');
   const scopeDigest = sha256(JSON.stringify([endpoint.href.replace(/\/$/, ''), model]));
+  const correlated = env.TRUYN_G5_CORRELATED_RESPONSE_RECOVERY === '1';
+  if (correlated && (adapter.g5CorrelationVersion !== 1 || witnessVerifier?.version !== 1 ||
+      typeof witnessVerifier.lookupAndVerify !== 'function'))
+    throw fault(503, 'g5_independent_witness_configuration_required');
   return { ...adapter,
     async execute(input) {
       const binding = bindingFor(input.need, input.node);
       if (input.signal?.aborted) throw fault(409, 'effect_execution_cancelled');
-      const { executionToken } = await ledger.claimReceiptExecution(binding);
+      const { executionToken, correlationId } = await ledger.claimReceiptExecution(binding, correlated ? { scopeDigest } : {});
+      if (input.signal?.aborted) throw fault(409, 'effect_execution_cancelled');
       // Only the winner of this persisted CAS can issue the paid POST. Unknown
       // claim/write/create outcomes remain quarantined; no automatic retries.
-      const result = await adapter.execute(input);
+      // Internal correlation is never taken from the caller's NEED/policy.
+      const { g5Correlation: ignoredCorrelation, ...executionInput } = input;
+      const correlation = correlated ? { version: 1, correlationId, scopeDigest } : null;
+      const result = await adapter.execute({ ...executionInput, ...(correlation ? { g5Correlation: correlation } : {}) });
+      if (correlated && (result?.metadata?.g5Correlation?.correlationId !== correlationId ||
+          result.metadata.g5Correlation.scopeDigest !== scopeDigest))
+        throw fault(409, 'g5_independent_receipt_mismatch');
       if (result?.metadata?.provider !== 'azure-openai' || result.metadata.providerStoredResponse !== true ||
           result.metadata.providerResponseStatus !== 'completed' || typeof result.output !== 'string')
         throw fault(409, 'effect_receipt_unverified');
@@ -169,6 +188,11 @@ export function wrapRuntimeG5ReceiptAdapter({ adapter, ledger, env = process.env
         model: result.metadata.model, usage: result.metadata.usage, scopeDigest, outputDigest: sha256(result.output) });
       await ledger.captureEffectReceipt({ ...binding, executionToken, value });
       return { ...result, metadata: { ...result.metadata, providerReceiptDurablyCaptured: true } };
+    },
+    async recoverUnknownEffect({ need, node, signal } = {}) {
+      if (!correlated) throw fault(503, 'g5_independent_witness_configuration_required');
+      return recoverUnknownResponseFromWitness({ binding: bindingFor(need, node), scopeDigest,
+        ledger, adapter, witnessVerifier, signal });
     },
     async recoverStoredEffect({ need, node, signal } = {}) {
       const binding = bindingFor(need, node);

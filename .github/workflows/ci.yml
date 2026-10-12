@@ -282,6 +282,29 @@ jobs:
       - run: node scripts/check-class-d-five-patches.mjs
       - run: bash scripts/class-d-200-preflight-qualification.sh
       - run: git diff --check
+      - name: Preserve exact tested public source
+        if: startsWith(github.head_ref, 'g5/') || (github.event_name == 'push' && contains(github.event.head_commit.message, 'g5'))
+        shell: bash
+        env:
+          TESTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_REPOSITORY" = 'inn-media/truyn'
+          [[ "$TESTED_SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$TESTED_SOURCE_SHA"
+          out="$RUNNER_TEMP/truyn-g5-source"
+          mkdir -p "$out"
+          git archive --format=tar --prefix=truyn-source/ "$TESTED_SOURCE_SHA" | gzip -n > "$out/source.tar.gz"
+          digest="$(sha256sum "$out/source.tar.gz" | cut -d' ' -f1)"
+          jq -n --arg sha "$TESTED_SOURCE_SHA" --arg tree "$(git rev-parse HEAD^{tree})" --arg run "$GITHUB_RUN_ID" --arg digest "$digest" '{schema:"truyn.g5.tested-source/v1",sourceSha:$sha,treeSha:$tree,runId:$run,sha256:$digest,scope:"tracked-public-git-source-only",g5Admission:false}' > "$out/manifest.json"
+      - name: Upload exact G5 source snapshot
+        if: startsWith(github.head_ref, 'g5/') || (github.event_name == 'push' && contains(github.event.head_commit.message, 'g5'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-g5-source-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/truyn-g5-source/
+          if-no-files-found: error
+          retention-days: 7
   test:
     name: test
     if: always()
