@@ -1,0 +1,62 @@
+name: G5 bounded source candidate
+on:
+  push:
+    branches: [g5/shared-offer-directory-compaction-990-20261012]
+    paths: [.github/workflows/g5-source-candidate.yml, .github/g5-source-candidate.patch]
+permissions:
+  contents: write
+concurrency:
+  group: g5-source-candidate
+  cancel-in-progress: false
+jobs:
+  source:
+    if: github.repository == 'inn-media/truyn' && github.ref == 'refs/heads/g5/shared-offer-directory-compaction-990-20261012'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.sha }}', persist-credentials: false, fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Export exact public source without credentials or Git internals
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/g5-source"
+          git archive --format=tar.gz HEAD > "$RUNNER_TEMP/g5-source/source.tar.gz"
+          git rev-parse HEAD > "$RUNNER_TEMP/g5-source/source.sha"
+          sha256sum "$RUNNER_TEMP/g5-source/source.tar.gz" > "$RUNNER_TEMP/g5-source/source.tar.gz.sha256"
+      - name: Upload exact source
+        uses: actions/upload-artifact@v4
+        with:
+          name: g5-source-${{ github.sha }}
+          path: ${{ runner.temp }}/g5-source
+          if-no-files-found: error
+          retention-days: 7
+      - name: Apply only a reviewed G5 source patch on this branch
+        if: hashFiles('.github/g5-source-candidate.patch') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+          BRANCH: g5/shared-offer-directory-compaction-990-20261012
+        run: |
+          set -Eeuo pipefail
+          test "$REPOSITORY" = inn-media/truyn
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git apply --check .github/g5-source-candidate.patch
+          git apply --index .github/g5-source-candidate.patch
+          git diff --cached --name-only > "$RUNNER_TEMP/g5-paths"
+          python3 - "$RUNNER_TEMP/g5-paths" <<'PY'
+          import pathlib,re,sys
+          paths=pathlib.Path(sys.argv[1]).read_text().splitlines()
+          allowed=re.compile(r'^(network/relay/(server|g5-[a-z0-9-]+)\.js|runtime/g5-[a-z0-9-]+\.js|tests/g5-[a-z0-9-]+\.test\.js|docs/compatibility/TRUYN1_G5_[A-Z0-9_]+\.md)$')
+          assert paths and len(paths)<=12
+          assert all(allowed.fullmatch(p) for p in paths), paths
+          PY
+          git diff --cached --check
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --test tests/g5-offer-directory*.test.js
+          test "$(gh api "repos/$REPOSITORY/git/ref/heads/$BRANCH" --jq .object.sha)" = "$SOURCE_SHA"
+          git -c user.name='Iluco Mutcnas' -c user.email='197368050+ilucomutcnas@users.noreply.github.com' commit -m 'feat(g5): shared signed OFFER directory and permanent compacted tombstones' -m 'Signed-off-by: Iluco Mutcnas <197368050+ilucomutcnas@users.noreply.github.com>'
+          gh auth setup-git
+          git push origin "HEAD:refs/heads/$BRANCH"
