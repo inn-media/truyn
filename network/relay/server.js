@@ -126,6 +126,9 @@ export function createRelay({
   if (localDevelopmentMode && (productionMode || allowPublicRegistration || allowPublicDispatch)) {
     throw new Error('localDevelopmentMode cannot be combined with production or public relay access');
   }
+  if (lifecycleLedger?.kind === 'sqlite-single-host-v1' && (productionMode || allowPublicRegistration || allowPublicDispatch)) {
+    throw new Error('G5 production/public dispatch requires a cross-host durable ledger; local SQLite is forbidden');
+  }
   if (!Number.isInteger(maxQueuedEventsPerNode) || maxQueuedEventsPerNode < 1) throw new Error('maxQueuedEventsPerNode must be a positive integer');
   if (!Number.isFinite(maxSocketBufferedBytes) || maxSocketBufferedBytes < 1) throw new Error('maxSocketBufferedBytes must be positive');
   if (!Number.isFinite(commandKeepAliveTimeoutMs) || commandKeepAliveTimeoutMs < 1) throw new Error('commandKeepAliveTimeoutMs must be positive');

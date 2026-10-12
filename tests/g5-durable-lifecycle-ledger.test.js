@@ -136,7 +136,7 @@ test('G5 provider effect intent survives SIGKILL and rejects blind side-effect r
   assert.equal(child.signal, 'SIGKILL');
   const ledger = open(); t.after(() => ledger.close());
   assert.equal(ledger.getEffect('paid-opaque-1').status, 'started');
-  assert.equal(ledger.beginEffect({ id: 'paid-opaque-1', provider: 'provider', requester: 'alice', fingerprint: 'changed' }).acquired, false);
+  assert.throws(() => ledger.beginEffect({ id: 'paid-opaque-1', provider: 'provider', requester: 'alice', fingerprint: 'changed' }), error => error.publicCode === 'effect_identity_conflict');
   const marked = ledger.finishEffect({ id: 'paid-opaque-1', provider: 'provider', outcome: 'unknown' });
   assert.equal(marked.row.status, 'unknown');
   assert.equal(ledger.beginEffect({ id: 'paid-opaque-1', provider: 'provider', requester: 'alice', fingerprint: 'request-v1' }).acquired, false);
@@ -240,4 +240,34 @@ test('G5 signed OFFER REVOKE remains owner-idempotent after relay restart', asyn
   const repeated = await ownerB.revoke(offer.offerId, 'repeat-after-restart', { targetKind: 'offer' });
   assert.equal(repeated.idempotent, true);
   assert.equal(ledger.getOffer(offer.offerId).revoked, 1);
+});
+
+test('G5 public and production relay admission rejects single-host SQLite WAL',t=>{
+  const {open}=fixture(t);
+  const ledger=open();t.after(()=>ledger.close());
+  for(const config of [{productionMode:true},{allowPublicRegistration:true},{allowPublicDispatch:true}]) {
+    assert.throws(()=>createRelay({lifecycleLedger:ledger,...config}),/G5 production\/public dispatch requires a cross-host durable ledger/);
+  }
+  const local=createRelay({lifecycleLedger:ledger,localDevelopmentMode:true});
+  t.after(()=>local.close());
+});
+
+test('G5 SQLite effect ID conflicts on provider, requester and signed fingerprint fail closed across handles',t=>{
+  const {open}=fixture(t);
+  const first=open(),second=open();t.after(()=>{first.close();second.close();});
+  const input={id:'g5-canonical-paid-effect',provider:'provider-A',requester:'alice',fingerprint:'signed-fingerprint'};
+  assert.equal(first.beginEffect(input).acquired,true);
+  for(const altered of [
+    {...input,provider:'provider-B'},
+    {...input,requester:'mallory'},
+    {...input,fingerprint:'forged-signed-body'}
+  ]) {
+    assert.throws(()=>second.beginEffect(altered),e=>e.httpStatus===409&&e.publicCode==='effect_identity_conflict');
+    const stored=first.getEffect(input.id);
+    assert.deepEqual([stored.provider,stored.requester,stored.fingerprint],[input.provider,input.requester,input.fingerprint]);
+  }
+  assert.equal(second.beginEffect(input).acquired,false);
+  first.finishEffect({id:input.id,provider:input.provider,outcome:'unknown'});
+  assert.equal(second.beginEffect(input).acquired,false,'unreconciled external effect must never be retried');
+  assert.throws(()=>second.beginEffect({...input,fingerprint:'changed'}),e=>e.httpStatus===409);
 });
