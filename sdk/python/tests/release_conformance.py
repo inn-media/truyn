@@ -48,4 +48,19 @@ revoke = create_envelope(
     payload={'targetId': cancel_receipt['needId'], 'targetKind': 'need', 'reason': 'sdk_conformance_cancel'},
 )
 _request_json('POST', relay_url.rstrip('/') + '/v1/revoke', body={'envelope': revoke}, headers=requester._auth_headers())
+# Signed compact C/P/D native source execution on actual relay, no reference signer.
+base_context = requester.put_context([{'id': 'seed', 'text': 'original'}])
+assert base_context['ok'] is True and isinstance(base_context['cid'], str)
+child_context = requester.delta_context(base_context['cid'], [{'op': 'replace', 'id': 'seed', 'text': 'changed'}])
+assert child_context['ok'] is True and child_context['baseCid'] == base_context['cid'] and child_context['cid'] != base_context['cid']
+try:
+    provider.delta_context(base_context['cid'], [{'op': 'replace', 'id': 'seed', 'text': 'unauthorized'}])
+    raise AssertionError('context owner validation bypassed')
+except Exception as denied:
+    assert 'context_owner_required' in str(denied) or '403' in str(denied)
+try:
+    requester.compact_chain([{'capability': {'name': 'missing-stage-1'}}, {'capability': {'name': 'missing-stage-2'}}])
+    raise AssertionError('missing chain providers accepted')
+except Exception as denied:
+    assert 'no_matching_provider' in str(denied) or '404' in str(denied)
 print('PASS python developer-release conformance')

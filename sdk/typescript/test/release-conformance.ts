@@ -40,6 +40,16 @@ try {
   assert.equal((await requesterRecovery.recoverDurable()).some(e=>e.eventId==='result:'+receipt.needId),false);
   const cancelReceipt = await requester.need(capability, { cancel: true });
   await requester.runtime.revoke(cancelReceipt.needId, 'sdk_conformance_cancel', { targetKind: 'need' });
+  // Real native C/P/D package-source signing. Context persists as immutable CIDs.
+  const baseContext: any = await requester.putContext([{ id: 'seed', text: 'original' }]);
+  assert.equal(baseContext.ok, true);
+  assert.equal(typeof baseContext.cid, 'string');
+  const childContext: any = await requester.deltaContext(baseContext.cid, [{ op: 'replace', id: 'seed', text: 'changed' }]);
+  assert.equal(childContext.ok, true);
+  assert.equal(childContext.baseCid, baseContext.cid);
+  assert.notEqual(childContext.cid, baseContext.cid);
+  await assert.rejects(() => provider.deltaContext(baseContext.cid, [{ op: 'replace', id: 'seed', text: 'unauthorized' }]), /context_owner_required|403/);
+  await assert.rejects(() => requester.compactChain([{ capability: { name: 'missing-stage-1' } }, { capability: { name: 'missing-stage-2' } }]), /no_matching_provider|404/);
   process.stdout.write('PASS typescript developer-release conformance\n');
 } finally {
   provider.close();
