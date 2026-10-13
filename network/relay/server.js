@@ -9,6 +9,7 @@ import { classifyTruynError } from '../../core/protocol/normalized-errors.js';
 import { trustabilityLite } from '../../core/trust/index.js';
 import { applyContextDelta, buildContextDocument, retrieveContextBlocks } from '../../core/context/index.js';
 import { providerPolicyAllowsRequester, providerPolicyFromOffer } from '../../core/security/relay-provider-policy.js';
+import { authorizePaidNeedAtRelay } from '../../core/security/paid-need-admission.js';
 
 const MAX_CANCELLATION_REASON_CHARS = 256;
 
@@ -127,6 +128,7 @@ export function createRelay({
   maxSeenNeedIds = 262144,
   lifecycleLedger = null,
   lifecycleMaintenance = false,
+  paidNeedEnforcement = false,
   requestTtlMs = 15 * 60 * 1000,
   maxChains = 1024,
   allowedNodeIds = [],
@@ -151,6 +153,9 @@ export function createRelay({
   }
   if (lifecycleLedger?.kind === 'sqlite-single-host-v1' && (productionMode || allowPublicRegistration || allowPublicDispatch)) {
     throw new Error('G5 production/public dispatch requires a cross-host durable ledger; local SQLite is forbidden');
+  }
+  if (paidNeedEnforcement && (localDevelopmentMode || lifecycleLedger?.kind !== 'cosmos-multi-host-v1' || typeof lifecycleLedger.reserveNeed !== 'function')) {
+    throw new Error('Paid NEED dispatch requires a shared cross-host Cosmos ledger and server-side grant authority');
   }
   if (!Number.isSafeInteger(defaultProviderMaxInFlight) || defaultProviderMaxInFlight < 1) throw new Error('defaultProviderMaxInFlight must be a positive integer');
   if (!Number.isSafeInteger(selectionReservationMs) || selectionReservationMs < 1) throw new Error('selectionReservationMs must be a positive integer');
@@ -367,7 +372,7 @@ export function createRelay({
       (!capability || offer.capability === capability) &&
       (!requesterNodeId || offer.envelope.from !== requesterNodeId) &&
       isNodeFresh(offer.envelope.from, now) &&
-      (!requesterNodeId || localDevelopmentMode || providerPolicyAllowsRequester(offer.policy, requesterNodeId, {
+      (!requesterNodeId || (localDevelopmentMode && !paidNeedEnforcement) || providerPolicyAllowsRequester(offer.policy, requesterNodeId, {
         trustedRequesterNodeIds
       }))
     );
@@ -687,7 +692,12 @@ export function createRelay({
     return null;
   }
 
-  async function admitDirectNeedId({ id, requester, provider, fingerprint, capability, mode, policyDigest, scope = requester, delivery = null, envelope = null }) {
+  function paidGrant(match, requesterNodeId, capability) {
+    if (!paidNeedEnforcement) return null;
+    return authorizePaidNeedAtRelay({policy:match.policy,requesterNodeId,capability});
+  }
+
+  async function admitDirectNeedId({ id, requester, provider, fingerprint, capability, mode, policyDigest, scope = requester, delivery = null, envelope = null, paidAuthorization = null }) {
     if (requests.has(id) || (!lifecycleLedger && seenNeedIds.has(id))) throw httpError(409, 'duplicate_request');
     if (!lifecycleLedger && seenNeedIds.size >= maxSeenNeedIds) throw httpError(503, 'need_idempotency_capacity_reached');
     if (envelope) assertNeedAdmissionWindow(envelope);
@@ -697,7 +707,7 @@ export function createRelay({
       // receive 409 if that pending reservation ultimately fails before commit.
       // The ledger's unique CREATE/INSERT arbitrates cross-process contenders.
       // An ambiguous failure never grants permission to dispatch or retry work.
-      await lifecycleLedger.reserveNeed({ id, requester, provider, fingerprint, capability, mode, policyDigest, scope, delivery });
+      await lifecycleLedger.reserveNeed({ id, requester, provider, fingerprint, capability, mode, policyDigest, scope, delivery, paidAuthorization });
     } else {
       // In-memory mode has no await between duplicate check and insertion.
       // Retain every ID until process end; capacity exhaustion fails closed.
@@ -747,6 +757,9 @@ export function createRelay({
   }
 
   async function startChain({ requesterNodeId, frame, payload, waitMs, res = null, socket = null, requestReceivedAtMs = performance.now(), requestReceivedWallTime = new Date().toISOString(), requesterTransport = 'http' }) {
+    // CHAIN_STAGE lacks a per-stage durable paid reservation. Do not create
+    // an unmetered multi-provider bypass in strict paid mode.
+    if (paidNeedEnforcement) return { status: 403, body: { ok: false, error: 'paid_chain_durable_admission_required' } };
     if (!requesterCanDispatch(requesterNodeId)) return { status: 403, body: { ok: false, error: 'provider_access_denied' } };
     if (chains.has(frame.i)) return { status: 409, body: { ok: false, error: 'duplicate_chain' } };
     if (!Array.isArray(payload?.stages) || payload.stages.length < 2 || payload.stages.length > 8) return { status: 400, body: { ok: false, error: 'invalid_chain_stages' } };
@@ -1242,12 +1255,13 @@ export function createRelay({
         const capability = payload?.capability?.name || payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
         const match = (await matchingOffers({ capability, requesterNodeId, routing: payload?.policy?.routing, reserveFor: frame.i }))[0];
-        if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
+        if (!match) return json(res, paidNeedEnforcement ? 403 : 404, { ok: false, error: paidNeedEnforcement ? 'paid_need_denied' : 'no_matching_provider' });
+        const paidAuthorization = paidGrant(match, requesterNodeId, capability);
         await expireAbandonedFastRequests();
         if (!reserveFastTerminal(requesterNodeId)) { selectionReservations.delete(frame.i); return json(res, 429, { ok: false, error: 'terminal_backpressure' }); }
         try {
           pruneCompleted(requests, maxRequests);
-          await admitDirectNeedId({ id: frame.i, requester: requesterNodeId, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify([frame, payload])).digest('hex'), capability, mode: 'fast', policyDigest:createHash('sha256').update(JSON.stringify([match.policy,payload?.policy])).digest('hex'), delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', frame, payload, from: requesterNodeId } } });
+          await admitDirectNeedId({ id: frame.i, requester: requesterNodeId, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify([frame, payload])).digest('hex'), capability, mode: 'fast', policyDigest:createHash('sha256').update(JSON.stringify([match.policy,payload?.policy])).digest('hex'), paidAuthorization, delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', frame, payload, from: requesterNodeId } } });
         } catch (error) {
           const rollback = { requester: requesterNodeId, terminalReserved: true };
           releaseFastTerminal(rollback);
@@ -1353,10 +1367,11 @@ export function createRelay({
         const capability = envelope.payload?.capability?.name || envelope.payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
         const match = (await matchingOffers({ capability, requesterNodeId: envelope.from, routing: envelope.payload?.policy?.routing, reserveFor: envelope.id }))[0];
-        if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
+        if (!match) return json(res, paidNeedEnforcement ? 403 : 404, { ok: false, error: paidNeedEnforcement ? 'paid_need_denied' : 'no_matching_provider' });
+        const paidAuthorization = paidGrant(match, envelope.from, capability);
         pruneCompleted(requests, maxRequests);
         try {
-          await admitDirectNeedId({ id: envelope.id, requester: envelope.from, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'), capability, mode: 'legacy', policyDigest:createHash('sha256').update(JSON.stringify([match.policy,envelope.payload?.policy])).digest('hex'), delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', envelope } }, envelope });
+          await admitDirectNeedId({ id: envelope.id, requester: envelope.from, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'), capability, mode: 'legacy', policyDigest:createHash('sha256').update(JSON.stringify([match.policy,envelope.payload?.policy])).digest('hex'), paidAuthorization, delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', envelope } }, envelope });
         } catch (error) {
           selectionReservations.delete(envelope.id);
           throw error;
