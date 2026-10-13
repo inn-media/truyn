@@ -58,6 +58,8 @@ export async function verifyPaidNeedAtProvider({
   if (!record || record.status !== 'matched' ||
       record.requester !== need.from || record.provider !== providerNodeId ||
       record.capability !== capability ||
+      !/^[a-f0-9]{64}$/.test(need.paidFingerprint || '') ||
+      record.fingerprint !== need.paidFingerprint ||
       authorization?.contract !== PAID_NEED_CONTRACT ||
       authorization.status !== 'authorized' ||
       authorization.requesterNodeId !== need.from ||
