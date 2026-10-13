@@ -70,38 +70,38 @@ const ALLOWED_WORKFLOWS = new Set([
 const PINNED_D5000_WORKFLOWS = new Map([
   ['.github/workflows/d5000-attempt13-approved.yml', '64f07fe4d4d1c05cc7690aef4dbb853f4e6b67e1'],
   ['.github/workflows/d5000-attempt13-offline-qualification.yml', '692f7f70d5253cca78161e5964a2269552fc8d05'],
-  ['.github/workflows/d5000-attempt12-immutable-evidence-proof.yml', 'c3912186adaeed124fa9cbd6c183812787839582'],
-  ['.github/workflows/d5000-attempt12-approved.yml', 'ca4dbab00d826203d2f3a805859f768d03191cb1'],
-  ['.github/workflows/d5000-attempt11-approved.yml', '0e07bc13b690a0f8591f7f1ccd89bb9fa5f188c1'],
-  ['.github/workflows/d5000-attempt11-offline-qualification.yml', '4a05c698c0b667097804179a62eeec588910ae56'],
-  ['.github/workflows/d5000-attempt10-approved.yml', '560de76f49fff212e8c477e672787f7b70ca98b7'],
-  ['.github/workflows/d5000-attempt10-offline-qualification.yml', '479ca1634d35382aa4219a588f20564b86b37565'],
-  ['.github/workflows/d5000-attempt9-approved.yml', '7c86730ef36d7df5683d13200ed7bf5ff9586ff6'],
-  ['.github/workflows/d5000-attempt9-offline-qualification.yml', 'd079f1bd60cd4a5fbde96b28d7140f9d16aa9eb1'],
-  ['.github/workflows/d5000-attempt8-approved.yml', '7120635885e07dda9f07824de735edf9a2e5a0c4'],
-  ['.github/workflows/d5000-attempt8-offline-qualification.yml', 'a6499ff877c7c9eee40f229f7eb9b1bdc0b4dde1'],
-  ['.github/workflows/d5000-attempt7-approved.yml', '74b90b672c816981d7d836d93bb23a8d4f51b41b'],
-  ['.github/workflows/d5000-attempt7-offline-qualification.yml', '5764f8a97a806ba9b5f8f76cfc153fd38a3d0550'],
-  ['.github/workflows/d5000-attempt6-approved.yml', '73ec2330948a2af4e7a769b752e5c4e79acbb16f'],
-  ['.github/workflows/d5000-attempt6-offline-qualification.yml', '148579d0dfb23587f8209095c0e0de3c73eae473'],
-  ['.github/workflows/d5000-attempt5-approved.yml', 'a2953e8583ffa3b49c6101531c9d4412d5d0feb3'],
-  ['.github/workflows/d5000-attempt5-offline-qualification.yml', 'aeab1d4ece8f9fbe95f6a4bafafe26ef4bc7b8b3'],
-  ['.github/workflows/d5000-attempt4-approved.yml', '84d37d901e0344a2ad0ef651d5b3937f11831a10'],
-  ['.github/workflows/d5000-attempt4-offline-qualification.yml', 'a6283ab6fe70072cf97782b8da76371406826bb1'],
-  ['.github/workflows/d5000-bootstrap-scale-repair-qualification.yml', '7e66cf0578d768a7f8e0745ee3560d5e3b085353'],
-  ['.github/workflows/d5000-attempt3-approved.yml', '6ddc053b8ae4e588a26a0e964e97f1577c9a1379'],
-  ['.github/workflows/d5000-posix-sh-repair-qualification.yml', '1001bf41575be018e8c602883054adf1bd775d6e'],
-  ['.github/workflows/d5000-attempt2-retry1-approved.yml', 'a402af7871c794a00f8d86662e5c436751d503b9'],
-  ['.github/workflows/d5000-attempt2-retry1-qualification.yml', '38c45016bccbb57d7c34b7d4f57fde4f6845990a'],
-  ['.github/workflows/d5000-abort-37824934693.yml', '69f30f678d3cf7bcbd4e1270a353f10ebf682536'],
-  ['.github/workflows/d5000-attempt1.yml', 'a56e56234196eb97f771e70f1359e530bc6d0948'],
-  ['.github/workflows/d5000-attempt2-approved-only.yml', '33b202f6d1743045f19fe98fc212d41b2edc6dcc'],
-  ['.github/workflows/d5000-attempt2-clone-attempt1.yml', '555382b45caa4d3f31258d35f40dffba3f06f350'],
-  ['.github/workflows/d5000-exact-source-qualification.yml', 'c6f39ced94a9c48f660374ba4646e7b24d2b4098'],
-  ['.github/workflows/d5000-force-cancel-37824934693.yml', 'b2c7c49ab6b2c899f6994c6475db2cd606270be0'],
-  ['.github/workflows/d5000-p0-p1-repair-qualification.yml', '358e5879d84d5a39a060e90968616ed03cb30fea'],
-  ['.github/workflows/d5000-quota-only-20261008.yml', '3f1e77c01adea723e765be323851a6a0163d33f0'],
-  ['.github/workflows/d5000-sku-readonly-20261008.yml', '802f2805ac5a02e9875265759c8ccc1dcde470ec'],
+  ['archive/github-actions/d5000/d5000-attempt12-immutable-evidence-proof.yml', 'c3912186adaeed124fa9cbd6c183812787839582'],
+  ['archive/github-actions/d5000/d5000-attempt12-approved.yml', 'ca4dbab00d826203d2f3a805859f768d03191cb1'],
+  ['archive/github-actions/d5000/d5000-attempt11-approved.yml', '0e07bc13b690a0f8591f7f1ccd89bb9fa5f188c1'],
+  ['archive/github-actions/d5000/d5000-attempt11-offline-qualification.yml', '4a05c698c0b667097804179a62eeec588910ae56'],
+  ['archive/github-actions/d5000/d5000-attempt10-approved.yml', '560de76f49fff212e8c477e672787f7b70ca98b7'],
+  ['archive/github-actions/d5000/d5000-attempt10-offline-qualification.yml', '479ca1634d35382aa4219a588f20564b86b37565'],
+  ['archive/github-actions/d5000/d5000-attempt9-approved.yml', '7c86730ef36d7df5683d13200ed7bf5ff9586ff6'],
+  ['archive/github-actions/d5000/d5000-attempt9-offline-qualification.yml', 'd079f1bd60cd4a5fbde96b28d7140f9d16aa9eb1'],
+  ['archive/github-actions/d5000/d5000-attempt8-approved.yml', '7120635885e07dda9f07824de735edf9a2e5a0c4'],
+  ['archive/github-actions/d5000/d5000-attempt8-offline-qualification.yml', 'a6499ff877c7c9eee40f229f7eb9b1bdc0b4dde1'],
+  ['archive/github-actions/d5000/d5000-attempt7-approved.yml', '74b90b672c816981d7d836d93bb23a8d4f51b41b'],
+  ['archive/github-actions/d5000/d5000-attempt7-offline-qualification.yml', '5764f8a97a806ba9b5f8f76cfc153fd38a3d0550'],
+  ['archive/github-actions/d5000/d5000-attempt6-approved.yml', '73ec2330948a2af4e7a769b752e5c4e79acbb16f'],
+  ['archive/github-actions/d5000/d5000-attempt6-offline-qualification.yml', '148579d0dfb23587f8209095c0e0de3c73eae473'],
+  ['archive/github-actions/d5000/d5000-attempt5-approved.yml', 'a2953e8583ffa3b49c6101531c9d4412d5d0feb3'],
+  ['archive/github-actions/d5000/d5000-attempt5-offline-qualification.yml', 'aeab1d4ece8f9fbe95f6a4bafafe26ef4bc7b8b3'],
+  ['archive/github-actions/d5000/d5000-attempt4-approved.yml', '84d37d901e0344a2ad0ef651d5b3937f11831a10'],
+  ['archive/github-actions/d5000/d5000-attempt4-offline-qualification.yml', 'a6283ab6fe70072cf97782b8da76371406826bb1'],
+  ['archive/github-actions/d5000/d5000-bootstrap-scale-repair-qualification.yml', '7e66cf0578d768a7f8e0745ee3560d5e3b085353'],
+  ['archive/github-actions/d5000/d5000-attempt3-approved.yml', '6ddc053b8ae4e588a26a0e964e97f1577c9a1379'],
+  ['archive/github-actions/d5000/d5000-posix-sh-repair-qualification.yml', '1001bf41575be018e8c602883054adf1bd775d6e'],
+  ['archive/github-actions/d5000/d5000-attempt2-retry1-approved.yml', 'a402af7871c794a00f8d86662e5c436751d503b9'],
+  ['archive/github-actions/d5000/d5000-attempt2-retry1-qualification.yml', '38c45016bccbb57d7c34b7d4f57fde4f6845990a'],
+  ['archive/github-actions/d5000/d5000-abort-37824934693.yml', '69f30f678d3cf7bcbd4e1270a353f10ebf682536'],
+  ['archive/github-actions/d5000/d5000-attempt1.yml', 'a56e56234196eb97f771e70f1359e530bc6d0948'],
+  ['archive/github-actions/d5000/d5000-attempt2-approved-only.yml', '33b202f6d1743045f19fe98fc212d41b2edc6dcc'],
+  ['archive/github-actions/d5000/d5000-attempt2-clone-attempt1.yml', '555382b45caa4d3f31258d35f40dffba3f06f350'],
+  ['archive/github-actions/d5000/d5000-exact-source-qualification.yml', 'c6f39ced94a9c48f660374ba4646e7b24d2b4098'],
+  ['archive/github-actions/d5000/d5000-force-cancel-37824934693.yml', 'b2c7c49ab6b2c899f6994c6475db2cd606270be0'],
+  ['archive/github-actions/d5000/d5000-p0-p1-repair-qualification.yml', '358e5879d84d5a39a060e90968616ed03cb30fea'],
+  ['archive/github-actions/d5000/d5000-quota-only-20261008.yml', '3f1e77c01adea723e765be323851a6a0163d33f0'],
+  ['archive/github-actions/d5000/d5000-sku-readonly-20261008.yml', '802f2805ac5a02e9875265759c8ccc1dcde470ec'],
 ]);
 function gitBlobSha(content) {
   return createHash('sha1').update(`blob ${content.length}\0`).update(content).digest('hex');
@@ -133,3 +133,15 @@ test('published benchmark evidence is preserved and not replaced by stubs', asyn
 test('temporary D-1000 launcher workflows are never committed to the public workflow tree',async()=>{const files=await collect();const temporaryLaunchers=files.map(f=>f.relative).filter(r=>r.startsWith('.github/workflows/tmp-class-d1000-')).sort();assert.deepEqual(temporaryLaunchers,[],`Temporary D-1000 launchers must remain execution scaffolding only:\n${temporaryLaunchers.join('\n')}`)});
 test('D-200 acceptance launcher is frozen to the qualified exact-main evidence', async()=>{const content=await readFile(path.join(ROOT,'.github/workflows/d200-acceptance.yml'),'utf8');for(const marker of ['TESTED_COMMIT: e91c165c67c655deb80df4511ca346acb9f1f45b','TESTED_TREE_SHA: 3a402ba72502de12ed2277db3c9f472872f44b46',"EXACT_MAIN_CI_RUN: '35500410155'","EXACT_MAIN_FIVE_PATCH_RUN: '35500410293'","QUALIFIED_TREE_CODEQL_CHECK: '106050818849'",'QUALIFIED_TREE_CODEQL_SHA: 293e3cf5da54e58e37a8d3bb3c138b05bf03e36b','truyn-d200-e91c165c-qualified-single-shot'])assert.ok(content.includes(marker),`D-200 launcher lost qualified freeze marker: ${marker}`);assert.ok(content.includes('source scripts/d200-stage-isolated-campaign.sh'),'D-200 launcher must execute the stage-isolated campaign orchestrator');assert.ok(content.includes('commits/${QUALIFIED_TREE_CODEQL_SHA}" --jq .commit.tree.sha'),'D-200 launcher must bind CodeQL evidence to the exact tested tree')});
 test('public repository contains no known operational/cloud leakage or credential patterns',async()=>{const files=await collect();const violations=[];for(const file of files){if(file.relative===SELF)continue;if(file.relative.startsWith('.github/workflows/')&&!ALLOWED_WORKFLOWS.has(file.relative)&&!PINNED_D5000_WORKFLOWS.has(file.relative))violations.push(`${file.relative}: workflow is not on the public allowlist`);if(PINNED_D5000_WORKFLOWS.has(file.relative)){const bytes=await readFile(file.absolute);if(gitBlobSha(bytes)!==PINNED_D5000_WORKFLOWS.get(file.relative))violations.push(`${file.relative}: D-5000 workflow bytes changed from audited Git blob SHA`);}for(const fragment of forbiddenPathFragments)if(file.relative.includes(fragment))violations.push(`${file.relative}: forbidden operational path category`);for(const pattern of forbiddenPathPatterns)if(pattern.test(file.relative))violations.push(`${file.relative}: forbidden operational path pattern`);const ext=path.extname(file.relative).toLowerCase();if(!TEXT_EXTENSIONS.has(ext)&&!['DCO','Dockerfile','LICENSE','VERSION'].includes(path.basename(file.relative)))continue;let content;try{content=await readFile(file.absolute,'utf8')}catch{continue}const isBenchmarkEvidence=file.relative.startsWith(BENCHMARK_EVIDENCE_DIR);for(const marker of forbiddenLiteralMarkers){if(isBenchmarkEvidence&&marker==='github.com/inn-media/truyn/actions/runs/')continue;if(marker==='github.com/inn-media/truyn/actions/runs/'&&file.relative.endsWith('.md')){const nonPublicRunReferences=content.replace(/https:\/\/github\.com\/inn-media\/truyn\/actions\/runs\/[0-9]+(?=[)#\s]|$)/g,'');if(nonPublicRunReferences.includes(marker))violations.push(`${file.relative}: forbidden operational marker category outside exact public evidence URL`);continue;}if(STATIC_AZURE_OIDC_WORKFLOWS.has(file.relative)&&(marker==='AZURE_TENANT_ID'||marker==='AZURE_SUBSCRIPTION_ID')){const exact='${{ secrets.'+marker+' }}';const remainder=content.split(exact).join('');if(remainder.includes(marker))violations.push(`${file.relative}: forbidden operational marker category outside exact static secret reference`);continue;}if(content.includes(marker))violations.push(`${file.relative}: forbidden operational marker category`)}for(const pattern of forbiddenCredentialPatterns)if(pattern.test(content))violations.push(`${file.relative}: credential/private-key pattern detected`);for(const pattern of forbiddenTopologyPatterns)if(pattern.test(content))violations.push(`${file.relative}: live operational topology pattern detected`);if((file.relative.startsWith('benchmarks/')||file.relative.startsWith('scripts/'))&&EXECUTABLE_EXTENSIONS.has(ext))for(const pattern of forbiddenOperationalExecutablePatterns)if(pattern.test(content))violations.push(`${file.relative}: operational cloud credential/proxy code detected`)}assert.deepEqual(violations,[],`Public repository leakage guard failed:\n${violations.join('\n')}`)});
+
+// Historical campaigns must not regain executable GitHub Actions entrypoints.
+test('D-5000 retired workflows are inert, present and byte-identical to pinned evidence',async()=>{
+  const live=new Set(await readdir(path.join(ROOT,'.github/workflows')));
+  for(const [archived,sha] of PINNED_D5000_WORKFLOWS){
+    if(!archived.startsWith('archive/github-actions/d5000/'))continue;
+    const basename=path.basename(archived);
+    assert.ok(!live.has(basename),`Historical paid workflow restored to live Actions: ${basename}`);
+    const bytes=await readFile(path.join(ROOT,archived));
+    assert.equal(gitBlobSha(bytes),sha,`Historical workflow evidence changed: ${archived}`);
+  }
+});
