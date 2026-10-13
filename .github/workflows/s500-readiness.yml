@@ -1,0 +1,31 @@
+name: S-500 zero-inference readiness
+on:
+  push:
+    branches: [task/s500-readiness-attempt1-20261013]
+  pull_request:
+    paths: ['adapters/providers/**','network/relay/**','tests/s500-*','benchmarks/s500-dry-burst.mjs','.github/workflows/s500-readiness.yml']
+permissions: {contents: read}
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve qualification identity even on a failed check
+        run: |
+          mkdir -p artifacts
+          jq -n --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" '{sourceSha:$sha,runId:$run,paidCalls:0,scope:"zero-inference qualification"}' > artifacts/identity.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test tests/s500-*.test.js tests/cloud-providers.test.js tests/relay-load-cost-routing.test.js
+      - run: npm run test:security
+      - name: Complete signed 500 NEED burst without inference
+        run: |
+          mkdir -p artifacts
+          node benchmarks/s500-dry-burst.mjs > artifacts/s500-dry-burst.json
+          cat artifacts/s500-dry-burst.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: 's500-zero-inference-${{ github.sha }}', path: artifacts/, if-no-files-found: error}

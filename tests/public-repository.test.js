@@ -46,6 +46,8 @@ const ALLOWED_WORKFLOWS = new Set([
   '.github/workflows/n-series-public-admission-auto.yml',
   '.github/workflows/s-series-admission-gate.yml',
   '.github/workflows/s-series-frozen-candidate-qualification.yml',
+  // Zero-inference public relay/provider tests; no cloud credentials or mutation.
+  '.github/workflows/s500-readiness.yml',
   '.github/workflows/publish-npm.yml',
   '.github/workflows/publish-maven.yml',
   '.github/workflows/publish-nuget.yml',

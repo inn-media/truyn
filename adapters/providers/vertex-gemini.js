@@ -1,3 +1,4 @@
+import { estimateRequestTokens } from './common/provider-rate-governor.js';
 function extractText(response) {
   const parts = [];
   for (const candidate of response.candidates || []) for (const part of candidate?.content?.parts || []) if (typeof part?.text === 'string') parts.push(part.text);
@@ -57,7 +58,7 @@ function buildGenerationConfig(providerOptions) {
   return Object.keys(config).length ? config : null;
 }
 
-export function createVertexGeminiProvider({ projectId = process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT, location = process.env.GCP_REGION || process.env.GOOGLE_CLOUD_LOCATION || 'global', model = process.env.GEMINI_MODEL || 'gemini-2.5-flash', endpoint = process.env.VERTEX_API_ENDPOINT || 'https://aiplatform.googleapis.com', capabilities = ['review'], accessTokenProvider = googleMetadataAccessToken, fetchImpl = fetch, requestTimeoutMs = Number(process.env.VERTEX_GEMINI_REQUEST_TIMEOUT_MS || 120_000) } = {}) {
+export function createVertexGeminiProvider({ projectId = process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT, location = process.env.GCP_REGION || process.env.GOOGLE_CLOUD_LOCATION || 'global', model = process.env.GEMINI_MODEL || 'gemini-2.5-flash', endpoint = process.env.VERTEX_API_ENDPOINT || 'https://aiplatform.googleapis.com', capabilities = ['review'], accessTokenProvider = googleMetadataAccessToken, fetchImpl = fetch, requestTimeoutMs = Number(process.env.VERTEX_GEMINI_REQUEST_TIMEOUT_MS || 120_000), rateGovernor = null, rateGovernorKey = null } = {}) {
   if (!projectId) throw new Error('GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT is required');
   if (!location) throw new Error('GCP_REGION or GOOGLE_CLOUD_LOCATION is required');
   if (!model) throw new Error('GEMINI_MODEL is required');
@@ -79,9 +80,14 @@ export function createVertexGeminiProvider({ projectId = process.env.GCP_PROJECT
       if (signal?.aborted) onExternalAbort(); else signal?.addEventListener('abort', onExternalAbort, { once: true });
       const timeout = setTimeout(() => { timedOut = true; controller.abort(new Error('vertex_request_timeout')); }, requestTimeoutMs);
       let response;
+      let throttle = null;
       try {
-        response = await fetchImpl(`${endpoint.replace(/\/$/, '')}/v1/${modelPath}:generateContent`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: requestBody, signal: controller.signal });
+        const send = () => fetchImpl(`${endpoint.replace(/\/$/, '')}/v1/${modelPath}:generateContent`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: requestBody, signal: controller.signal });
+        if (rateGovernor) {
+          ({ response, telemetry: throttle } = await rateGovernor.run({ key: rateGovernorKey || `vertex-gemini:${location}:${model}`, estimatedTokens: estimateRequestTokens(requestBody, providerOptions.maxOutputTokens ?? 256), signal: controller.signal }, send));
+        } else response = await send();
       } catch (error) {
+        if (error?.code === 'provider_rate_limited') throw error;
         if (signal?.aborted) throw signal.reason || error;
         if (timedOut) throw new Error(`Vertex AI request timed out after ${requestTimeoutMs}ms`);
         if (controller.signal.aborted || error?.name === 'AbortError') throw error;
@@ -98,7 +104,7 @@ export function createVertexGeminiProvider({ projectId = process.env.GCP_PROJECT
       if (!body || typeof body !== 'object') throw new Error(`Vertex AI HTTP ${response.status}: invalid non-JSON response${raw ? ` (${safeBodyExcerpt(raw)})` : ''}`);
       const providerRequestBodyBytes = Buffer.byteLength(requestBody);
       const providerResponseBodyBytes = Buffer.byteLength(raw || JSON.stringify(body));
-      return { output: extractText(body), metadata: { provider: 'vertex-gemini', model, providerRequestId: response.headers?.get?.('x-request-id') || null, providerLatencyMs: Date.now() - startedAt, providerRequestBodyBytes, providerResponseBodyBytes, providerBodyBytes: providerRequestBodyBytes + providerResponseBodyBytes, thinkingBudget: providerOptions.thinkingBudget ?? null, thinkingLevel: providerOptions.thinkingLevel == null ? null : String(providerOptions.thinkingLevel).trim().toUpperCase(), responseMimeType: providerOptions.responseMimeType ?? null, maxOutputTokens: providerOptions.maxOutputTokens ?? null, requestTimeoutMs, usage: body.usageMetadata || null } };
+      return { output: extractText(body), metadata: { provider: 'vertex-gemini', model, providerRequestId: response.headers?.get?.('x-request-id') || null, providerLatencyMs: Date.now() - startedAt, providerRequestBodyBytes, providerResponseBodyBytes, providerBodyBytes: providerRequestBodyBytes + providerResponseBodyBytes, thinkingBudget: providerOptions.thinkingBudget ?? null, thinkingLevel: providerOptions.thinkingLevel == null ? null : String(providerOptions.thinkingLevel).trim().toUpperCase(), responseMimeType: providerOptions.responseMimeType ?? null, maxOutputTokens: providerOptions.maxOutputTokens ?? null, requestTimeoutMs, usage: body.usageMetadata || null, ...(throttle ? { providerThrottle: throttle } : {}) } };
     }
   };
 }

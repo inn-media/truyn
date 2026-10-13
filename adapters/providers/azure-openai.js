@@ -1,3 +1,5 @@
+import { estimateRequestTokens } from './common/provider-rate-governor.js';
+
 function extractText(response) {
   if (typeof response.output_text === 'string' && response.output_text.length) return response.output_text;
   const parts = [];
@@ -40,7 +42,9 @@ export function createAzureOpenAIProvider({
   capabilities = ['research'],
   accessTokenProvider = containerAppsManagedIdentityToken,
   fetchImpl = fetch,
-  persistResponses = process.env.TRUYN_G5_AZURE_STORE_RESPONSES === '1'
+  persistResponses = process.env.TRUYN_G5_AZURE_STORE_RESPONSES === '1',
+  rateGovernor = null,
+  rateGovernorKey = null
 } = {}) {
   if (!endpoint) throw new Error('AZURE_OPENAI_ENDPOINT is required');
   if (!model) throw new Error('AZURE_OPENAI_MODEL or AZURE_OPENAI_DEPLOYMENT is required');
@@ -100,13 +104,18 @@ export function createAzureOpenAIProvider({
       const requestBody = JSON.stringify({ model, input: prompt, store: persistResponses,
         ...(g5Correlation ? { metadata: { truyn_g5_version: '1',
           truyn_g5_correlation: g5Correlation.correlationId, truyn_g5_scope: g5Correlation.scopeDigest } } : {}) });
-      const response = await fetchImpl(`${endpoint.replace(/\/$/, '')}/openai/v1/responses`, {
+      const send = () => fetchImpl(`${endpoint.replace(/\/$/, '')}/openai/v1/responses`, {
         method: 'POST',
         redirect: 'error',
         headers,
         body: requestBody,
         signal
       });
+      // Only HTTP 429 is retried (request was not executed); G5 correlation stays valid.
+      const governed = rateGovernor
+        ? await rateGovernor.run({ key: rateGovernorKey || `azure-openai:${model}`, estimatedTokens: estimateRequestTokens(requestBody), signal }, send)
+        : { response: await send(), telemetry: null };
+      const { response } = governed;
       const body = await response.json();
       if (!response.ok) throw new Error(body?.error?.message || `Azure OpenAI HTTP ${response.status}`);
       if (g5Correlation && body?.status !== 'completed') throw new Error('g5_provider_response_not_completed');
@@ -127,7 +136,8 @@ export function createAzureOpenAIProvider({
           providerRequestBodyBytes,
           providerResponseBodyBytes,
           providerBodyBytes: providerRequestBodyBytes + providerResponseBodyBytes,
-          usage: body.usage || null
+          usage: body.usage || null,
+          ...(governed.telemetry ? { providerThrottle: governed.telemetry } : {})
         }
       };
     }
