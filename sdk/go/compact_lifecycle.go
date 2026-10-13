@@ -11,12 +11,13 @@ import (
  "math"
  "net/http"
  "net/url"
+ "strings"
 )
 
 // The direct compact profile signs exactly TCJ1([code, requestID, payload]).
 // It does not add a sixth JSON envelope type or permit unsigned cancellation.
 func (c *Client) compactFrame(code, id string, payload map[string]any) (map[string]any, error) {
- if id == "" || len(id)>4070 || (code!="N" && code!="R" && code!="T") {
+ if id == "" || len(id)>4070 || (code!="N" && code!="R" && code!="T" && code!="C" && code!="P" && code!="D") {
   return nil, NewError(InvalidArgument,"invalid compact request identity or kind",false)
  }
  if err:=c.identity.ensurePrivateKey(); err!=nil {return nil,err}
@@ -101,3 +102,38 @@ func (c *Client) PollCompact(ctx context.Context)([]map[string]any,error){
 // Keep errors in the SDK's normalized error family rather than raw transport
 // or provider exception strings. fmt is used by conformance assertion callers.
 var _ = fmt.Sprintf
+
+func compactNewID() (string,error){
+ b:=make([]byte,12);if _,err:=rand.Read(b);err!=nil{return "",err}
+ return base64.RawURLEncoding.EncodeToString(b),nil
+}
+
+// CompactChain is a signed C frame. No implicit retry: a timeout is ambiguous.
+func (c *Client) CompactChain(ctx context.Context,stages []map[string]any)(map[string]any,error){
+ if len(stages)<2||len(stages)>8{return nil,NewError(InvalidArgument,"invalid_chain_stages",false)}
+ id,err:=compactNewID();if err!=nil{return nil,err}
+ return c.sendCompact(ctx,"/v1/fast/chains","C",id,map[string]any{"stages":stages})
+}
+
+// PutContext signs P with this SDK's Ed25519 identity, not a relay-supplied signer.
+func (c *Client) PutContext(ctx context.Context,blocks []map[string]any,readers []string,metadata map[string]any)(map[string]any,error){
+ if len(blocks)==0{return nil,NewError(InvalidArgument,"context_blocks_required",false)}
+ if readers==nil{readers=[]string{}};if metadata==nil{metadata=map[string]any{}}
+ id,err:=compactNewID();if err!=nil{return nil,err}
+ r,err:=c.sendCompact(ctx,"/v1/contexts","P",id,map[string]any{"blocks":blocks,"readers":readers,"metadata":metadata})
+ if err!=nil{return nil,err}
+ if r["ok"]!=true||r["cid"]==nil{return nil,NewError(InvalidResponse,"invalid context PUT receipt",false)}
+ return r,nil
+}
+
+// DeltaContext creates immutable successor CID; caller owns commit/retry policy.
+func (c *Client) DeltaContext(ctx context.Context,baseCID string,ops []map[string]any,readers []string,metadata map[string]any)(map[string]any,error){
+ if strings.TrimSpace(baseCID)==""||len(ops)==0{return nil,NewError(InvalidArgument,"invalid context delta",false)}
+ if readers==nil{readers=[]string{}};if metadata==nil{metadata=map[string]any{}}
+ id,err:=compactNewID();if err!=nil{return nil,err}
+ r,err:=c.sendCompact(ctx,"/v1/contexts/"+url.PathEscape(baseCID)+"/delta","D",id,
+    map[string]any{"baseCid":baseCID,"ops":ops,"readers":readers,"metadata":metadata})
+ if err!=nil{return nil,err}
+ if r["ok"]!=true||r["baseCid"]!=baseCID||r["cid"]==nil{return nil,NewError(InvalidResponse,"invalid context DELTA receipt",false)}
+ return r,nil
+}

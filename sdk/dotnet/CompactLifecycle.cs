@@ -7,7 +7,7 @@ public sealed partial class TruynClient
     private async Task<JsonElement> SendCompactAsync(string path, string code, string requestId, object payload, CancellationToken cancellationToken)
     {
         Require(requestId, "requestId required");
-        if (requestId.Length > 4070 || code is not ("N" or "R" or "T")) throw new TruynException(TruynErrorCode.InvalidArgument, "invalid compact identity or kind", false);
+        if (requestId.Length > 4070 || code is not ("N" or "R" or "T" or "C" or "P" or "D")) throw new TruynException(TruynErrorCode.InvalidArgument, "invalid compact identity or kind", false);
         var signature = _identity.Sign(CanonicalJson.Serialize(new object[] { code, requestId, payload })).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         return await RequestAsync(HttpMethod.Post, path, new { frame = new { t = code, i = requestId, s = signature }, payload }, true, cancellationToken).ConfigureAwait(false);
     }
@@ -29,6 +29,43 @@ public sealed partial class TruynClient
     }
     public Task<JsonElement> CompactResultAsync(string requestId, object? output, IReadOnlyDictionary<string, object>? metadata = null, CancellationToken cancellationToken = default) =>
         SendCompactAsync("v1/fast/results", "R", requestId, new Dictionary<string, object?> { ["output"] = output, ["metadata"] = metadata ?? new Dictionary<string, object>() }, cancellationToken);
+
+    public Task<JsonElement> CompactChainAsync(IReadOnlyList<object> stages, CancellationToken cancellationToken = default)
+    {
+        if (stages is null || stages.Count < 2 || stages.Count > 8)
+            throw new TruynException(TruynErrorCode.InvalidArgument, "invalid_chain_stages", false);
+        return SendCompactAsync("v1/fast/chains", "C", Guid.NewGuid().ToString("N"),
+            new { stages }, cancellationToken);
+    }
+
+    public async Task<JsonElement> PutContextAsync(IReadOnlyList<object> blocks,
+        IReadOnlyList<string>? readers = null, IReadOnlyDictionary<string, object>? metadata = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (blocks is null || blocks.Count == 0)
+            throw new TruynException(TruynErrorCode.InvalidArgument, "context_blocks_required", false);
+        var receipt = await SendCompactAsync("v1/contexts", "P", Guid.NewGuid().ToString("N"),
+            new { blocks, readers = readers ?? Array.Empty<string>(), metadata = metadata ?? new Dictionary<string, object>() }, cancellationToken).ConfigureAwait(false);
+        if (!receipt.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True || String(receipt, "cid") is null)
+            throw Invalid("invalid context PUT receipt");
+        return receipt;
+    }
+
+    public async Task<JsonElement> DeltaContextAsync(string baseCid, IReadOnlyList<object> ops,
+        IReadOnlyList<string>? readers = null, IReadOnlyDictionary<string, object>? metadata = null,
+        CancellationToken cancellationToken = default)
+    {
+        Require(baseCid, "baseCid required");
+        if (ops is null || ops.Count == 0)
+            throw new TruynException(TruynErrorCode.InvalidArgument, "invalid_context_delta", false);
+        var receipt = await SendCompactAsync("v1/contexts/" + Uri.EscapeDataString(baseCid) + "/delta", "D",
+            Guid.NewGuid().ToString("N"),
+            new { baseCid, ops, readers = readers ?? Array.Empty<string>(), metadata = metadata ?? new Dictionary<string, object>() }, cancellationToken).ConfigureAwait(false);
+        if (!receipt.TryGetProperty("ok", out var ok) || ok.ValueKind != JsonValueKind.True ||
+            String(receipt, "baseCid") != baseCid || String(receipt, "cid") is null)
+            throw Invalid("invalid context DELTA receipt");
+        return receipt;
+    }
 
     public async Task<IReadOnlyList<CompactLifecycleEvent>> PollCompactAsync(CancellationToken cancellationToken = default)
     {

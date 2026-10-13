@@ -25,7 +25,7 @@ final class CompactLifecycle {
   private static Map<String,Object> map(Object... values){var m=new LinkedHashMap<String,Object>();for(int i=0;i<values.length;i+=2)m.put((String)values[i],values[i+1]);return m;}
   private static String text(Object value){return value instanceof String s&&!s.isBlank()?s:null;}
   private Map<String,Object> send(String path,String code,String id,Map<String,Object> payload){
-    if(id==null||id.isBlank()||id.length()>4070||!List.of("N","R","T").contains(code))throw new TruynException(TruynException.Code.INVALID_ARGUMENT,"invalid compact identity or kind",false);
+    if(id==null||id.isBlank()||id.length()>4070||!List.of("N","R","T","C","P","D").contains(code))throw new TruynException(TruynException.Code.INVALID_ARGUMENT,"invalid compact identity or kind",false);
     try{
       var signature=Base64.getUrlEncoder().withoutPadding().encodeToString(signer.sign(Json.stringify(List.of(code,id,payload)).getBytes(StandardCharsets.UTF_8)));
       return transport.request("POST",path,map("frame",map("t",code,"i",id,"s",signature),"payload",payload));
@@ -43,6 +43,23 @@ final class CompactLifecycle {
     return send("/v1/fast/partials","T",id,map("sequence",sequence,"delta",delta,"metadata",metadata==null?Map.of():metadata));
   }
   Map<String,Object> result(String id,Object output,Map<String,Object> metadata){return send("/v1/fast/results","R",id,map("output",output,"metadata",metadata==null?Map.of():metadata));}
+  Map<String,Object> chain(List<Map<String,Object>> stages){
+    if(stages==null||stages.size()<2||stages.size()>8)throw new TruynException(TruynException.Code.INVALID_ARGUMENT,"invalid_chain_stages",false);
+    return send("/v1/fast/chains","C",UUID.randomUUID().toString(),map("stages",stages));
+  }
+  Map<String,Object> putContext(List<Map<String,Object>> blocks,List<String> readers,Map<String,Object> metadata){
+    if(blocks==null||blocks.isEmpty())throw new TruynException(TruynException.Code.INVALID_ARGUMENT,"context_blocks_required",false);
+    var receipt=send("/v1/contexts","P",UUID.randomUUID().toString(),map("blocks",blocks,"readers",readers==null?List.of():readers,"metadata",metadata==null?Map.of():metadata));
+    if(!Boolean.TRUE.equals(receipt.get("ok"))||!(receipt.get("cid") instanceof String))throw invalid("invalid context PUT receipt");
+    return receipt;
+  }
+  Map<String,Object> deltaContext(String baseCid,List<Map<String,Object>> ops,List<String> readers,Map<String,Object> metadata){
+    if(baseCid==null||baseCid.isBlank()||ops==null||ops.isEmpty())throw new TruynException(TruynException.Code.INVALID_ARGUMENT,"invalid_context_delta",false);
+    var receipt=send("/v1/contexts/"+URLEncoder.encode(baseCid,StandardCharsets.UTF_8)+"/delta","D",UUID.randomUUID().toString(),
+        map("baseCid",baseCid,"ops",ops,"readers",readers==null?List.of():readers,"metadata",metadata==null?Map.of():metadata));
+    if(!Boolean.TRUE.equals(receipt.get("ok"))||!baseCid.equals(receipt.get("baseCid"))||!(receipt.get("cid") instanceof String))throw invalid("invalid context DELTA receipt");
+    return receipt;
+  }
   List<Map<String,Object>> poll(){
     var response=transport.request("GET","/v1/fast/events?nodeId="+URLEncoder.encode(nodeId,StandardCharsets.UTF_8)+"&waitMs=0",null);
     if(!(response.get("events") instanceof List<?> events)||events.size()>1024)throw invalid("invalid compact events");
