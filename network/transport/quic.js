@@ -286,6 +286,12 @@ export class TruynQuicTransport {
       const verification = verifyEnvelope(message.envelope);
       if (!verification.ok) { await writeJson(stream, { ok: false, error: verification.reason }); return; }
       if (message.envelope.from !== session.peerNodeId || message.envelope.publicKey !== session.peerPublicKey) { await writeJson(stream, { ok: false, error: 'quic_session_sender_mismatch' }); return; }
+      // Paid direct QUIC has no per-NEED payer grant, provider-side effect CAS
+      // and billing recheck yet. Reject before the handler and any paid call.
+      if (message.envelope.type === 'NEED' && this.paidNeedEnforcement) {
+        await writeJson(stream, { ok: false, error: 'paid_quic_durable_authorization_required' });
+        return;
+      }
       if (!this.envelopeHandler) { await writeJson(stream, { ok: false, error: 'no_envelope_handler' }); return; }
       try {
         const result = await this.inboundAdmission.run(async () => {
