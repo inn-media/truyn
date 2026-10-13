@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {qualify,LANGUAGES} from '../sdk/conformance/release-qualification/evaluate.mjs';
+import {ORDINARY,STREAMING} from '../sdk/conformance/lifecycle-peer/evaluate.mjs';
+const required=LANGUAGES.length*4*(ORDINARY.length+STREAMING.length);
 const freeze=JSON.parse(readFileSync(new URL('../spec/compatibility/truyn1-five-sdk-freeze.json',import.meta.url)));
 const context={sourceSha:'a'.repeat(40),sourceTree:'b'.repeat(40),runId:42,runAttempt:1,event:'pull_request'};
 const digest='c'.repeat(64),modes=['legacy','candidate'];
@@ -15,7 +17,7 @@ function input(){return {
  source:{schema:'truyn.source-native-lifecycle/v1',context,status:'PASS',sourceOnly:true,scenarios:20,
  securityScenarios:30,languages:LANGUAGES,lifecycleSha256:digest,stableProtocolDeclared:false},
  coverage:{schema:'truyn.p14.lifecycle-coverage/v1',sourceSha:context.sourceSha,status:'BLOCKED',
- expectedCases:540,observedCases:540,passed:539,blockers:[{case:'missing'}],
+ expectedCases:required,observedCases:required,passed:required-1,blockers:[{case:'missing'}],
  stableProtocolDeclared:false,productionCutoverAuthorized:false},
  suites:Object.fromEntries(['P11','P12','P13-FORMAT'].map(x=>[x,{passed:1,failed:0,logSha256:digest}])),
  receipts:Object.fromEntries(['report.json','lifecycle.json','source-lifecycle.json','p14-lifecycle-coverage.json'].map(x=>[x,digest]))
@@ -32,8 +34,8 @@ test('cross-SHA, duplicate cells, package tamper, native gaps and false suites f
   v=>v.matrix.packages[0].archiveSha256='invalid',
   v=>v.matrix.packages[0].context={...context,runId:43},
   v=>v.source.scenarios=19,
-  v=>v.coverage.expectedCases=539,
-  v=>v.coverage.passed=540,
+  v=>v.coverage.expectedCases=required-1,
+  v=>v.coverage.passed=required,
   v=>v.suites.P12.failed=1,
   v=>delete v.receipts['lifecycle.json'],
   v=>v.freeze.stableProtocolDeclared=true,

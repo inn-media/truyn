@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {ORDINARY,STREAMING} from '../lifecycle-peer/evaluate.mjs';
 const sha40=s=>/^[a-f0-9]{40}$/.test(s||'');
 const sha64=s=>/^[a-f0-9]{64}$/.test(s||'');
 export const LANGUAGES=['typescript','python','go','java','dotnet'];
@@ -53,9 +54,10 @@ export function qualify({context,freeze,matrix,source,coverage,suites,receipts})
   assert.equal(coverage?.schema,'truyn.p14.lifecycle-coverage/v1');
   assert.equal(coverage.sourceSha,context.sourceSha);
   assert.ok(['BLOCKED','PASS'].includes(coverage.status));
-  assert.equal(coverage.expectedCases,540);
-  assert.equal(coverage.observedCases,540);
-  assert.equal(coverage.passed+coverage.blockers.length,540);
+  const required=LANGUAGES.length*MODES.length*MODES.length*(ORDINARY.length+STREAMING.length);
+  assert.equal(coverage.expectedCases,required,'stale normative lifecycle matrix');
+  assert.equal(coverage.observedCases,required);
+  assert.equal(coverage.passed+coverage.blockers.length,required);
   assert.equal(coverage.stableProtocolDeclared,false);
   assert.equal(coverage.productionCutoverAuthorized,false);
   for(const name of ['P11','P12','P13-FORMAT']){
