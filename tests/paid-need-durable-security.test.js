@@ -180,3 +180,27 @@ test('missing, mismatched or unavailable authoritative payer state blocks provid
   await host.executeNeed(admitted,{controller:new AbortController(),nextSequence:0});
   assert.equal(calls,0);
 });
+
+test('two independent provider workers race on the same paid intent: at most one upstream call', { concurrency: false }, async t => {
+  const { provider, requester, ledger, store } = await setup(t);
+  const admitted = await requester.need(CAP, { input: 'concurrent-same-id' });
+  const durable = await ledger.getNeed(admitted.needId);
+  let upstream = 0;
+  const providerCall = async () => {
+    upstream++;
+    await new Promise(resolve => setTimeout(resolve, 10));
+    return {output:'one-charge'};
+  };
+  const first = buildHost(provider, ledger, requester.identity.nodeId, providerCall);
+  const second = buildHost(provider, store.ledger(), requester.identity.nodeId, providerCall);
+  first.sendTerminal = async () => ({ok:true});
+  second.sendTerminal = async () => ({ok:true});
+  const need = {
+    id: admitted.needId, from: requester.identity.nodeId, paidFingerprint: durable.fingerprint,
+    payload: {capability: CAP, input: {input:'concurrent-same-id'}}
+  };
+  const state = () => ({controller:new AbortController(),nextSequence:0});
+  await Promise.all([first.executeNeed(need,state()),second.executeNeed(need,state())]);
+  assert.equal(upstream,1);
+  assert.equal((await ledger.getEffect(admitted.needId)).status,'completed');
+});
