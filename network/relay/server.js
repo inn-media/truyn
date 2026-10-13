@@ -4,6 +4,7 @@ import { performance } from 'node:perf_hooks';
 import { WebSocket, WebSocketServer } from 'ws';
 import { compactStageRequestId, verifyCompactFrame, verifyEnvelope, PROTOCOL } from '../../core/protocol/index.js';
 import { negotiateProtocol } from '../../core/protocol/negotiation.js';
+import { assertNeedAdmissionWindow } from '../../core/protocol/need-admission.js';
 import { classifyTruynError } from '../../core/protocol/normalized-errors.js';
 import { trustabilityLite } from '../../core/trust/index.js';
 import { applyContextDelta, buildContextDocument, retrieveContextBlocks } from '../../core/context/index.js';
@@ -686,13 +687,23 @@ export function createRelay({
     return null;
   }
 
-  async function admitDirectNeedId({ id, requester, provider, fingerprint, capability, mode, policyDigest, scope = requester, delivery = null }) {
-    if (requests.has(id) || seenNeedIds.has(id) || await lifecycleLedger?.getNeed(id)) throw httpError(409, 'duplicate_request');
+  async function admitDirectNeedId({ id, requester, provider, fingerprint, capability, mode, policyDigest, scope = requester, delivery = null, envelope = null }) {
+    if (requests.has(id) || seenNeedIds.has(id)) throw httpError(409, 'duplicate_request');
     if (seenNeedIds.size >= maxSeenNeedIds) throw httpError(503, 'need_idempotency_capacity_reached');
+    if (envelope) assertNeedAdmissionWindow(envelope);
+    // Reserve the local slot synchronously. Even `await undefined` lets two
+    // HTTP/compact admissions pass the same in-memory check concurrently.
+    seenNeedIds.add(id);
     // SQLite reserveNeed is a cross-process atomic INSERT under BEGIN IMMEDIATE.
     // No provider event may be delivered before this succeeds.
-    await lifecycleLedger?.reserveNeed({ id, requester, provider, fingerprint, capability, mode, policyDigest, scope, delivery });
-    seenNeedIds.add(id);
+    try {
+      if (lifecycleLedger) await lifecycleLedger.reserveNeed({ id, requester, provider, fingerprint, capability, mode, policyDigest, scope, delivery });
+    } catch (error) {
+      // A subsequent attempt must consult/reserve the authoritative ledger
+      // again; an ambiguous commit is not converted into permission to dispatch.
+      seenNeedIds.delete(id);
+      throw error;
+    }
   }
 
   function pruneCompleted(map, maxSize) {
@@ -1339,13 +1350,14 @@ export function createRelay({
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         if (!requesterCanDispatch(envelope.from)) return json(res, 403, { ok: false, error: 'provider_access_denied' });
         if (requests.has(envelope.id) || seenNeedIds.has(envelope.id) || await lifecycleLedger?.getNeed(envelope.id)) return json(res, 409, { ok: false, error: 'duplicate_request' });
+        assertNeedAdmissionWindow(envelope);
         const capability = envelope.payload?.capability?.name || envelope.payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
         const match = (await matchingOffers({ capability, requesterNodeId: envelope.from, routing: envelope.payload?.policy?.routing, reserveFor: envelope.id }))[0];
         if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
         pruneCompleted(requests, maxRequests);
         try {
-          await admitDirectNeedId({ id: envelope.id, requester: envelope.from, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'), capability, mode: 'legacy', policyDigest:createHash('sha256').update(JSON.stringify([match.policy,envelope.payload?.policy])).digest('hex'), delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', envelope } } });
+          await admitDirectNeedId({ id: envelope.id, requester: envelope.from, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'), capability, mode: 'legacy', policyDigest:createHash('sha256').update(JSON.stringify([match.policy,envelope.payload?.policy])).digest('hex'), delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', envelope } }, envelope });
         } catch (error) {
           selectionReservations.delete(envelope.id);
           throw error;

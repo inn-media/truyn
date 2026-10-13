@@ -23,9 +23,13 @@ export class TruynNetworkNode {
     discoveryRefreshMaxRounds = 4, discoveryRefreshSeed = 'truyn-periodic-refresh',
     discoveryRefreshTargetConcurrency = 1, discoveryRefreshTimeoutMs = null, discoveryRefreshJitterRatio = 0.2,
     persistenceDebounceMs = 250, persistenceCheckpointMs = 1_000, needRouteBudgetMs = 11_000,
-    rpcLaneLimits = null, rpcPerPeerInFlight = null, rpcMaxClients = null, rpcClientIdleMs = null
+    rpcLaneLimits = null, rpcPerPeerInFlight = null, rpcMaxClients = null, rpcClientIdleMs = null,
+    lifecycleLedger = null, maxSeenNeedIds = 262144
   } = {}) {
     if (!tls?.key || !tls?.cert) throw new Error('network runtime TLS key/certificate are required');
+    // The legacy inbox explicitly retries ambiguous pending work. It cannot be
+    // combined with a durable no-redispatch claim or bypass that claim on restart.
+    if (lifecycleLedger && workInboxPath) throw new Error('durable_need_replay_incompatible_with_at_least_once_inbox');
     if (!Number.isFinite(peerRecordTtlMs) || peerRecordTtlMs <= 0) throw new Error('peerRecordTtlMs must be positive');
     const renewBeforeMs = peerRecordRenewBeforeMs == null
       ? Math.min(60_000, Math.max(50, Math.floor(peerRecordTtlMs / 5)))
@@ -211,7 +215,7 @@ export class TruynNetworkNode {
       else reconcile();
     };
     this.recordStore = new KademliaRecordStore({ onChange: onStateChange });
-    this.quic = new TruynQuicTransport({ identity, host, port, tls });
+    this.quic = new TruynQuicTransport({ identity, host, port, tls, lifecycleLedger, maxSeenNeedIds });
     this.discovery = new PeerDiscovery({ identity, k, alpha, onChange: onDiscoveryChange, onRecordAccepted });
     this.rpc = new QuicDiscoveryRpc({
       quicTransport: this.quic,
