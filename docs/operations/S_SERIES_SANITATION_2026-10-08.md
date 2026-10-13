@@ -1,5 +1,7 @@
 # S-Series Documentation Sanitation — 2026-10-08
 
+> **2026-10-13 status note:** this is a historical dated snapshot. Current S-Series authority is `S_SERIES_SANITATION_2026-10-13.md`; S-200 bounded six-provider scope is CLOSED / DOUBLE-CHECK VERIFIED by A14+A15 primary evidence plus independent fresh A17.
+
 ## Canonical result
 
 S-50 Attempt 3 is the accepted S-50 checkpoint.
