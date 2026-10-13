@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createSqliteLifecycleLedger } from '../network/relay/durable-lifecycle-ledger.js';
 import { createIdentity } from '../core/identity/index.js';
 import { createEnvelope, verifyEnvelope } from '../core/protocol/index.js';
 import { assertNeedAdmissionWindow } from '../core/protocol/need-admission.js';
@@ -55,4 +59,57 @@ test('G5 in-memory HTTP and compact concurrent admissions cannot both pass the r
   ]);
   assert.deepEqual(responses.map(x => x.status).sort(), [200, 409]);
   assert.equal((await p.poll()).events.length + (await p.pollCompact({ waitMs: 0 })).events.length, 1);
+});
+
+test('G5 async durable reservation failure never reports a provisional ID as committed 409', { timeout: 15000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'truyn-g5-pending-'));
+  const sqlite = createSqliteLifecycleLedger({ filePath: join(directory, 'ledger.sqlite') });
+  t.after(() => { sqlite.close(); rmSync(directory, { recursive: true, force: true }); });
+  let enterFirst, release;
+  const firstReserved = new Promise(resolve => { enterFirst = resolve; });
+  const pending = new Promise(resolve => { release = resolve; });
+  let arrivals = 0;
+  const lifecycleLedger = {
+    ...sqlite,
+    async reserveNeed() {
+      arrivals += 1;
+      if (arrivals === 1) enterFirst();
+      if (arrivals === 2) release();
+      await pending;
+      throw Object.assign(new Error('lifecycle_write_unavailable'), {
+        httpStatus: 503, publicCode: 'lifecycle_write_unavailable'
+      });
+    }
+  };
+  const relay = createRelay({ localDevelopmentMode: true, lifecycleLedger, maxSeenNeedIds: 1 });
+  const relayUrl = await relay.listen({ port: 0 });
+  t.after(() => relay.close());
+  const provider = new TruynNode({ relayUrl }), requester = new TruynNode({ relayUrl });
+  await provider.register(); await requester.register(); await provider.offer('g5.pending');
+  const payload = { capability: { name: 'g5.pending' }, input: {}, policy: {} };
+  const id = 'g5-pending-failed-id';
+  const post = async (path, body) => {
+    const response = await fetch(relayUrl + path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...requester.authHeaders() },
+      body: JSON.stringify(body)
+    });
+    return { status: response.status, body: await response.json() };
+  };
+  const first = post('/v1/needs', { envelope: requester.envelope('NEED', payload, { id }) });
+  await firstReserved;
+  // Without the fix, the second request receives a false duplicate while the
+  // first ledger reservation is still pending and eventually fails.
+  const deadline = setTimeout(() => release(), 1500);
+  const second = post('/v1/fast/needs?waitMs=0', {
+    frame: requester.compactFrame('NEED', payload, { id }), payload
+  });
+  const responses = await Promise.all([first, second]);
+  clearTimeout(deadline);
+  assert.equal(arrivals, 2, 'both requests must consult shared durable admission');
+  assert.deepEqual(responses.map(r => r.status), [503, 503]);
+  assert.deepEqual(responses.map(r => r.body.error), ['lifecycle_write_unavailable', 'lifecycle_write_unavailable']);
+  assert.equal((await provider.poll()).events.length, 0, 'no dispatch after precommit storage failure');
+  assert.equal((await provider.pollCompact({ waitMs: 0 })).events.length, 0);
+  assert.equal((await sqlite.getNeed(id)), null, 'failed reservation never created a durable tombstone');
 });

@@ -448,9 +448,9 @@ export function createRelay({
   function reserveFastTerminal(nodeId) {
     const queued = fastTerminalEvents.get(nodeId)?.length || 0;
     const reserved = fastTerminalReservations.get(nodeId) || 0;
-    // Queued terminal events stay bounded by maxQueuedEventsPerNode (queueFastTerminal);
-    // in-flight reservations are bounded separately.
-    if (queued >= maxQueuedEventsPerNode || queued + reserved >= maxFastTerminalReservationsPerRequester) return false;
+    // A reservation guarantees room for its eventual terminal event even when
+    // the requester pauses reads. Pending and queued terminals share one bound.
+    if (queued + reserved >= maxFastTerminalReservationsPerRequester) return false;
     fastTerminalReservations.set(nodeId, reserved + 1);
     return true;
   }
@@ -544,7 +544,7 @@ export function createRelay({
       return 'long-poll';
     }
     const terminalQueue = fastTerminalEvents.get(nodeId) || [];
-    if (terminalQueue.length >= maxQueuedEventsPerNode) return 'full';
+    if (terminalQueue.length >= maxFastTerminalReservationsPerRequester) return 'full';
     terminalQueue.push(event);
     fastTerminalEvents.set(nodeId, terminalQueue);
     return 'queued';
@@ -688,21 +688,20 @@ export function createRelay({
   }
 
   async function admitDirectNeedId({ id, requester, provider, fingerprint, capability, mode, policyDigest, scope = requester, delivery = null, envelope = null }) {
-    if (requests.has(id) || seenNeedIds.has(id)) throw httpError(409, 'duplicate_request');
-    if (seenNeedIds.size >= maxSeenNeedIds) throw httpError(503, 'need_idempotency_capacity_reached');
+    if (requests.has(id) || (!lifecycleLedger && seenNeedIds.has(id))) throw httpError(409, 'duplicate_request');
+    if (!lifecycleLedger && seenNeedIds.size >= maxSeenNeedIds) throw httpError(503, 'need_idempotency_capacity_reached');
     if (envelope) assertNeedAdmissionWindow(envelope);
-    // Reserve the local slot synchronously. Even `await undefined` lets two
-    // HTTP/compact admissions pass the same in-memory check concurrently.
-    seenNeedIds.add(id);
-    // SQLite reserveNeed is a cross-process atomic INSERT under BEGIN IMMEDIATE.
-    // No provider event may be delivered before this succeeds.
-    try {
-      if (lifecycleLedger) await lifecycleLedger.reserveNeed({ id, requester, provider, fingerprint, capability, mode, policyDigest, scope, delivery });
-    } catch (error) {
-      // A subsequent attempt must consult/reserve the authoritative ledger
-      // again; an ambiguous commit is not converted into permission to dispatch.
-      seenNeedIds.delete(id);
-      throw error;
+    if (lifecycleLedger) {
+      // Only the shared atomic ledger can decide durable admission. An in-flight
+      // local marker is NOT a committed request: a concurrent caller must not
+      // receive 409 if that pending reservation ultimately fails before commit.
+      // The ledger's unique CREATE/INSERT arbitrates cross-process contenders.
+      // An ambiguous failure never grants permission to dispatch or retry work.
+      await lifecycleLedger.reserveNeed({ id, requester, provider, fingerprint, capability, mode, policyDigest, scope, delivery });
+    } else {
+      // In-memory mode has no await between duplicate check and insertion.
+      // Retain every ID until process end; capacity exhaustion fails closed.
+      seenNeedIds.add(id);
     }
   }
 
