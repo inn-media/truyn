@@ -20,7 +20,13 @@ export function authorizePaidNeedAtRelay({ policy, requesterNodeId, capability }
   } catch {
     throw fault(503, 'paid_need_authority_unavailable');
   }
-  if (decision?.ok !== true || providerPolicy?.status !== 'active') throw fault(403, 'paid_need_denied');
+  // An authority can legitimately return network-wide grants for free/open
+  // capabilities. Never treat that as authorization to spend owner AI quota.
+  const paidModes = new Set(['self', 'private', 'shared']);
+  if (decision?.ok !== true || providerPolicy?.status !== 'active' ||
+      !paidModes.has(decision.mode) || providerPolicy.mode !== decision.mode ||
+      (decision.mode === 'shared' && !validId(decision.grantId)))
+    throw fault(403, 'paid_need_denied');
   if (!Number.isSafeInteger(authority.revision) || authority.revision < 0)
     throw fault(503, 'paid_need_authority_unconfirmed');
   return Object.freeze({
