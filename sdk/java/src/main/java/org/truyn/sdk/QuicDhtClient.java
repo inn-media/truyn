@@ -123,6 +123,10 @@ public final class QuicDhtClient implements AutoCloseable {
   }
 
   public static QuicDhtClient connect(String host,int port,File trustedCa,String expectedNodeId)throws Exception{
+    return connect(host,port,host,trustedCa,expectedNodeId);
+  }
+  public static QuicDhtClient connect(String host,int port,String serverName,File trustedCa,String expectedNodeId)throws Exception{
+    if(serverName==null||serverName.isBlank())throw new IllegalArgumentException("QUIC TLS peer hostname required");
     if(host==null||host.isBlank()||port<1||port>65535||trustedCa==null||
        !trustedCa.isFile())throw new IllegalArgumentException("QUIC trusted CA required");
     var identity=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
@@ -135,7 +139,8 @@ public final class QuicDhtClient implements AutoCloseable {
         .trustManager(trustedCa)
         .endpointIdentificationAlgorithm("HTTPS")
         .applicationProtocols("truyn/1").build();
-      var codec=new QuicClientCodecBuilder().sslContext(ssl)
+      // Supply the DNS identity to the native QUIC engine for HTTPS SAN verification.
+      var codec=new QuicClientCodecBuilder().sslEngineProvider(quic -> ssl.newEngine(quic.alloc(),serverName,port))
         .maxIdleTimeout(30,TimeUnit.SECONDS)
         .initialMaxData(10_000_000)
         .initialMaxStreamDataBidirectionalLocal(1_000_000).build();

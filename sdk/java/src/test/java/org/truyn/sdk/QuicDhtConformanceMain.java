@@ -7,7 +7,7 @@ public final class QuicDhtConformanceMain {
  public static void main(String[] args)throws Exception{
   if(args.length!=4)throw new IllegalArgumentException("host port cert expectedNodeId");
   String host=args[0],peer=args[3];
-  try(var client=QuicDhtClient.connect(host,Integer.parseInt(args[1]),new File(args[2]),peer)){
+  try(var client=QuicDhtClient.connect(host,Integer.parseInt(args[1]),"localhost",new File(args[2]),peer)){
    if(!client.ping())throw new AssertionError("native Java QUIC PING false");
    if(client.findNode(peer).stream().noneMatch(p->peer.equals(p.get("nodeId"))))
       throw new AssertionError("Java QUIC FIND_NODE missing signed peer");
@@ -29,7 +29,7 @@ public final class QuicDhtConformanceMain {
     if(!(expected.getCause() instanceof SecurityException))throw expected;
    }
   }
-  try(var unexpected=QuicDhtClient.connect(host,Integer.parseInt(args[1]),new File(args[2]),
+  try(var unexpected=QuicDhtClient.connect(host,Integer.parseInt(args[1]),"localhost",new File(args[2]),
      "truyn:node:"+"0".repeat(64))){
     throw new AssertionError("accepted a foreign QUIC peer");
   }catch(SecurityException ok){}
