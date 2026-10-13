@@ -55,7 +55,7 @@ function grantFor(providerId, requesterId) {
         : { ok: false, reason: 'not_entitled' };
     },
     getProviderPolicy(providerNodeId) {
-      return providerNodeId === providerId ? { status: 'active', mode: 'private' } : null;
+      return providerNodeId === providerId ? { status: 'active', mode: 'shared' } : null;
     }
   };
 }
