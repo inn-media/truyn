@@ -114,13 +114,18 @@ async function requestJson(connection:any, value:JSONObject):Promise<JSONObject>
 export class QuicDhtClient {
   readonly nodeId:string;
   readonly remoteNodeId:string;
-  private constructor(
-    readonly identity:QuicDhtIdentity,
-    private readonly socket:any,
-    private readonly client:any,
-    private readonly sessionId:string,
-    remoteNodeId:string
-  ){this.nodeId=identity.nodeId;this.remoteNodeId=remoteNodeId;}
+  readonly identity:QuicDhtIdentity;
+  private readonly socket:any;
+  private readonly client:any;
+  private readonly sessionId:string;
+  private constructor(identity:QuicDhtIdentity,socket:any,client:any,sessionId:string,remoteNodeId:string){
+    this.identity=identity;
+    this.socket=socket;
+    this.client=client;
+    this.sessionId=sessionId;
+    this.nodeId=identity.nodeId;
+    this.remoteNodeId=remoteNodeId;
+  }
   static async connect(options:QuicDhtConnectOptions):Promise<QuicDhtClient>{
     if(!options.host||!Number.isInteger(options.port)||options.port<1||options.port>65535||
        !options.ca||!options.ca.includes('BEGIN CERTIFICATE'))throw Error('quic_verified_tls_required');
