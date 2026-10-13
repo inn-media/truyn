@@ -14,6 +14,10 @@ jobs:
         with: {persist-credentials: false}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
+      - name: Preserve qualification identity even on a failed check
+        run: |
+          mkdir -p artifacts
+          jq -n --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" '{sourceSha:$sha,runId:$run,paidCalls:0,scope:"zero-inference qualification"}' > artifacts/identity.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --test tests/s500-*.test.js tests/cloud-providers.test.js tests/relay-load-cost-routing.test.js
       - run: npm run test:security
