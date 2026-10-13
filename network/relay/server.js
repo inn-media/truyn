@@ -164,6 +164,8 @@ export function createRelay({
 
   const ownerLifecycleMutations = new Set();
   const pendingNodeReservations = new Set();
+  const pendingEvictionNodeIds = new Set();
+  let pendingOfferReservations = 0;
   async function withOwnerLifecycleMutation(owner, operation) {
     if (!lifecycleMaintenance) return operation();
     if (ownerLifecycleMutations.has(owner)) throw httpError(409,'owner_lifecycle_operation_in_progress');
@@ -893,24 +895,31 @@ export function createRelay({
     return Number.isFinite(createdAt) && createdAt <= now + 30_000 && now - createdAt <= registrationFreshnessMs;
   }
 
-  function evictOneStaleNode(now = Date.now()) {
+  function findStaleNodeCandidate(now = Date.now()) {
     let candidate = null;
     for (const [nodeId, node] of nodes) {
-      if (ownerLifecycleMutations.has(nodeId) || connectedSocket(nodeId)) continue;
+      if (pendingEvictionNodeIds.has(nodeId) || ownerLifecycleMutations.has(nodeId) || connectedSocket(nodeId)) continue;
       const seen = Date.parse(node.lastSeenAt || '') || 0;
       if (now - seen <= nodeFreshnessMs) continue;
       if (!candidate || seen < candidate.seen) candidate = { nodeId, seen };
     }
-    if (!candidate) return false;
-    const node = nodes.get(candidate.nodeId);
-    if (node?.sessionToken) sessions.delete(node.sessionToken);
-    nodes.delete(candidate.nodeId);
-    events.delete(candidate.nodeId);
-    fastEvents.delete(candidate.nodeId);
-    fastTerminalEvents.delete(candidate.nodeId);
-    fastTerminalReservations.delete(candidate.nodeId);
-    stats.delete(candidate.nodeId);
-    for (const [offerId, offer] of offers) if (offer.envelope.from === candidate.nodeId) offers.delete(offerId);
+    return candidate?.nodeId || null;
+  }
+
+  function commitStaleNodeEviction(nodeId, now = Date.now()) {
+    if (!nodeId) return false;
+    const node = nodes.get(nodeId);
+    if (!node || ownerLifecycleMutations.has(nodeId) || connectedSocket(nodeId)) return false;
+    const seen = Date.parse(node.lastSeenAt || '') || 0;
+    if (now - seen <= nodeFreshnessMs) return false;
+    if (node.sessionToken) sessions.delete(node.sessionToken);
+    nodes.delete(nodeId);
+    events.delete(nodeId);
+    fastEvents.delete(nodeId);
+    fastTerminalEvents.delete(nodeId);
+    fastTerminalReservations.delete(nodeId);
+    stats.delete(nodeId);
+    for (const [offerId, offer] of offers) if (offer.envelope.from === nodeId) offers.delete(offerId);
     return true;
   }
 
@@ -966,9 +975,13 @@ export function createRelay({
         usedRegistrationIds.set(envelope.id, now + registrationFreshnessMs + 30_000);
         return await withOwnerLifecycleMutation(envelope.from, async () => {
           const needsNodeSlot = lifecycleMaintenance && !nodes.has(envelope.from);
+          let reservedEviction = null;
           if (needsNodeSlot) {
-            if (nodes.size + pendingNodeReservations.size >= maxNodes && !evictOneStaleNode(now))
-              return json(res,503,{ok:false,error:'node_capacity_reached'});
+            if (nodes.size + pendingNodeReservations.size >= maxNodes) {
+              reservedEviction = findStaleNodeCandidate(now);
+              if (!reservedEviction) return json(res,503,{ok:false,error:'node_capacity_reached'});
+              pendingEvictionNodeIds.add(reservedEviction);
+            }
             pendingNodeReservations.add(envelope.from);
           }
           try {
@@ -982,10 +995,12 @@ export function createRelay({
               return {envelope:saved,capability,policy:providerPolicyFromOffer(saved),revoked:false};
             });
             const existingOtherOffers = [...offers.values()].filter(offer => offer.envelope.from !== envelope.from).length;
-            if (lifecycleMaintenance && existingOtherOffers + recovered.length > maxOffers)
+            if (lifecycleMaintenance && existingOtherOffers + recovered.length + pendingOfferReservations > maxOffers)
               throw httpError(503,'offer_capacity_reached');
-            if (!nodes.has(envelope.from) && nodes.size >= maxNodes && !evictOneStaleNode(now))
-              return json(res, 503, { ok: false, error: 'node_capacity_reached' });
+            if (!nodes.has(envelope.from) && nodes.size >= maxNodes) {
+              if (!reservedEviction || !commitStaleNodeEviction(reservedEviction, Date.now()))
+                return json(res, 503, { ok: false, error: 'node_capacity_reached' });
+            }
             const previousToken = nodes.get(envelope.from)?.sessionToken;
             if (previousToken) sessions.delete(previousToken);
             const oldSocket = providerSockets.get(envelope.from);
@@ -993,9 +1008,10 @@ export function createRelay({
               providerSockets.delete(envelope.from);
               try { oldSocket.close(4001, 'session_replaced'); } catch {}
             }
+            const admittedAt = Date.now();
             const sessionToken = randomBytes(32).toString('base64url');
-            nodes.set(envelope.from, { nodeId: envelope.from, publicKey: envelope.publicKey, sessionToken, lastSeenAt: new Date(now).toISOString() });
-            sessions.set(sessionToken, { nodeId: envelope.from, expiresAt: now + sessionTtlMs });
+            nodes.set(envelope.from, { nodeId: envelope.from, publicKey: envelope.publicKey, sessionToken, lastSeenAt: new Date(admittedAt).toISOString() });
+            sessions.set(sessionToken, { nodeId: envelope.from, expiresAt: admittedAt + sessionTtlMs });
             if (lifecycleMaintenance) {
               for (const [offerId,offer] of offers) if (offer.envelope.from === envelope.from) offers.delete(offerId);
               for (const offer of recovered) offers.set(offer.envelope.id,offer);
@@ -1005,7 +1021,10 @@ export function createRelay({
             fastTerminalEvents.set(envelope.from, fastTerminalEvents.get(envelope.from) || []);
             stats.set(envelope.from, stats.get(envelope.from) || { successfulTasks: 0, failedTasks: 0 });
             return json(res, 200, { ok: true, nodeId: envelope.from, sessionToken, expiresInMs: sessionTtlMs, negotiatedProtocol: negotiated.protocol, negotiatedSemantics: negotiated.semantics });
-          } finally { if (needsNodeSlot) pendingNodeReservations.delete(envelope.from); }
+          } finally {
+            if (needsNodeSlot) pendingNodeReservations.delete(envelope.from);
+            if (reservedEviction) pendingEvictionNodeIds.delete(reservedEviction);
+          }
         });
       }
 
@@ -1027,14 +1046,19 @@ export function createRelay({
           const capability = envelope.payload?.capability?.name || envelope.payload?.capability;
           if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
           if (offers.has(envelope.id) || await lifecycleLedger?.getOffer(envelope.id)) return json(res, 409, { ok: false, error: 'duplicate_offer' });
-          if (offers.size >= maxOffers) return json(res, 503, { ok: false, error: 'offer_capacity_reached' });
+          if (offers.size + pendingOfferReservations >= maxOffers) return json(res, 503, { ok: false, error: 'offer_capacity_reached' });
           const policy = providerPolicyFromOffer(envelope);
-          await lifecycleLedger?.reserveOffer({ id: envelope.id, owner: envelope.from,
-            fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'),
-            ...(lifecycleMaintenance ? {envelope} : {}) });
-          offers.set(envelope.id, { envelope, capability, policy, revoked: false });
-          touch(envelope.from);
-          return json(res, 200, { ok: true, offerId: envelope.id });
+          pendingOfferReservations++;
+          try {
+            await lifecycleLedger?.reserveOffer({ id: envelope.id, owner: envelope.from,
+              fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'),
+              ...(lifecycleMaintenance ? {envelope} : {}) });
+            offers.set(envelope.id, { envelope, capability, policy, revoked: false });
+            touch(envelope.from);
+            return json(res, 200, { ok: true, offerId: envelope.id });
+          } finally {
+            pendingOfferReservations--;
+          }
         });
       }
 
