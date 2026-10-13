@@ -614,12 +614,17 @@ export function createCosmosLifecycleLedger({
         return {acquired:false,existing};
       }
     },
-    async finishEffect({id,provider,outcome}) {
+    async finishEffect({id,provider,outcome,observedTokens=null}) {
       if(!['completed','failed','unknown'].includes(outcome)) throw fault(400,'invalid_effect_outcome');
+      if(observedTokens!==null && (!Number.isSafeInteger(observedTokens) || observedTokens<0 || outcome!=='completed'))
+        throw fault(400,'invalid_effect_meter');
       return mutate('effect',id,doc=>{
         if(doc.provider!==provider) throw fault(403,'provider_mismatch');
         if(doc.status!=='started') return null;
-        doc.status=outcome;doc.terminalAt=new Date().toISOString();return doc;
+        doc.status=outcome;doc.terminalAt=new Date().toISOString();
+        // Provider-reported usage is durable evidence, not a vendor invoice.
+        if(observedTokens!==null) doc.observedTokens=observedTokens;
+        return doc;
       });
     },
     async acknowledgeDelivery({eventId,recipient}) {
