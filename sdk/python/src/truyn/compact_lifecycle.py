@@ -103,12 +103,20 @@ class CompactLifecycle:
                     raise invalid('invalid signed lifecycle envelope')
                 verified.append({**event, 'verification': {'ok': True}})
                 continue
-            code = {'NEED': 'N', 'RESULT': 'R', 'PARTIAL': 'T'}.get(kind)
+            chain_stage = kind == 'CHAIN_STAGE'
+            code = 'C' if chain_stage else {'NEED': 'N', 'RESULT': 'R', 'PARTIAL': 'T'}.get(kind)
             frame, payload, signer = event.get('frame'), event.get('payload'), event.get('from')
             if not code or not isinstance(frame, dict) or frame.get('t') != code or not isinstance(payload, dict) or not isinstance(signer, str) or not signer:
                 raise invalid('invalid direct compact event')
-            if event.get('signedType', kind) != kind or 'priorResult' in event:
-                raise invalid('CHAIN and compact translations are unsupported')
+            if chain_stage:
+                stages, index = payload.get('stages'), event.get('stageIndex')
+                if (event.get('signedType') != 'CHAIN' or not isinstance(stages, list) or
+                        not 2 <= len(stages) <= 8 or isinstance(index, bool) or
+                        not isinstance(index, int) or not 0 <= index < len(stages) or
+                        event.get('requestId') != str(frame.get('i', ''))[:15] + str(index)):
+                    raise invalid('CHAIN_STAGE unsigned correlation or signed profile mismatch')
+            elif event.get('signedType', kind) != kind or 'priorResult' in event:
+                raise invalid('compact translation unsupported')
             request_id, text = frame.get('i'), frame.get('s')
             if not isinstance(request_id, str) or not request_id or len(request_id) > 4070 or not isinstance(text, str) or len(text) != 86:
                 raise invalid('invalid compact signature shape')
@@ -126,9 +134,39 @@ class CompactLifecycle:
                 key.verify(signature, canonicalize([code, request_id, payload]).encode('utf-8'))
             except Exception as error:
                 raise invalid('compact signature or identity verification failed') from error
+            prior_verification = None
+            if chain_stage:
+                prior = event.get('priorResult')
+                if index == 0 and prior is not None:
+                    raise invalid('unexpected first CHAIN_STAGE prior')
+                if index > 0:
+                    if not isinstance(prior, dict) or prior.get('kind') != 'RESULT':
+                        raise invalid('missing signed prior CHAIN result')
+                    pf, pp, sender = prior.get('frame'), prior.get('payload'), prior.get('from')
+                    if (not isinstance(pf, dict) or pf.get('t') != 'R' or
+                            pf.get('i') != str(frame['i'])[:15] + str(index - 1) or
+                            not isinstance(pp, dict) or not isinstance(sender, str)):
+                        raise invalid('invalid prior CHAIN result shape')
+                    try:
+                        text = pf['s']
+                        sig = base64.b64decode(text + '==', altchars=b'-_', validate=True)
+                        if len(sig) != 64 or base64.urlsafe_b64encode(sig).decode('ascii').rstrip('=') != text:
+                            raise ValueError('prior result signature not canonical')
+                        signer = _request_json('GET', self.relay_url + '/v1/nodes/' + quote(sender, safe=''),
+                                               headers=self._auth_headers())
+                        pem = signer.get('publicKey', '')
+                        if signer.get('nodeId') != sender or node_id_from_public_key(pem) != sender:
+                            raise ValueError('prior result signer mismatch')
+                        key = serialization.load_pem_public_key(pem.encode('ascii'))
+                        if not isinstance(key, Ed25519PublicKey):
+                            raise ValueError('prior result signer not Ed25519')
+                        key.verify(sig, canonicalize(['R', pf['i'], pp]).encode('utf-8'))
+                    except Exception as error:
+                        raise invalid('prior CHAIN result crypto verification failed') from error
+                    prior_verification = {'ok': True, 'type': 'RESULT'}
             if kind == 'PARTIAL':
                 sequence = payload.get('sequence')
                 if isinstance(sequence, bool) or not isinstance(sequence, int) or not 0 <= sequence <= 9007199254740991 or 'delta' not in payload:
                     raise invalid('invalid signed PARTIAL payload')
-            verified.append({**event, 'verification': {'ok': True, 'type': kind}})
+            verified.append({**event, 'verification': {'ok': True, 'type': 'CHAIN' if chain_stage else kind}, 'priorVerification': prior_verification})
         return verified

@@ -63,4 +63,24 @@ try:
     raise AssertionError('missing chain providers accepted')
 except Exception as denied:
     assert 'no_matching_provider' in str(denied) or '404' in str(denied)
+import threading
+chain_results, chain_errors = [], []
+def run_chain():
+    try:
+        chain_results.append(requester.compact_chain([{'capability': {'name': capability}}, {'capability': {'name': capability}}]))
+    except Exception as e:
+        chain_errors.append(e)
+worker = threading.Thread(target=run_chain, daemon=True)
+worker.start()
+for n in range(2):
+    deadline = time.monotonic() + 8
+    stage = None
+    while time.monotonic() < deadline and stage is None:
+        stage = next((e for e in provider.poll_compact() if e['kind'] == 'CHAIN_STAGE'), None)
+        if stage is None: time.sleep(0.03)
+    assert stage and stage['verification']['ok'] is True
+    if n: assert stage['priorVerification']['ok'] is True
+    provider.compact_result(stage['requestId'], {'stage': n})
+worker.join(8)
+assert not worker.is_alive() and not chain_errors and chain_results[0]['ok'] is True and len(chain_results[0]['results']) == 2
 print('PASS python developer-release conformance')

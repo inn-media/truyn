@@ -57,4 +57,30 @@ func TestDeveloperReleaseConformance(t *testing.T) {
 	if childContext["ok"]!=true || childContext["baseCid"]!=baseCID || childContext["cid"]==baseCID {t.Fatal("invalid signed context delta")}
 	if _,err = provider.DeltaContext(ctx,baseCID,[]map[string]any{{"op":"replace","id":"seed","text":"unauthorized"}},nil,nil);err==nil {t.Fatal("context owner check bypassed")}
 	if _,err = requester.CompactChain(ctx,[]map[string]any{{"capability":map[string]any{"name":"missing-stage-1"}},{"capability":map[string]any{"name":"missing-stage-2"}}});err==nil {t.Fatal("missing chain providers accepted")}
+	responses:=make(chan struct{out map[string]any;err error},1)
+	go func(){
+		out,e:=requester.CompactChain(ctx,[]map[string]any{
+			{"capability":map[string]any{"name":capability}},
+			{"capability":map[string]any{"name":capability}},
+		})
+		responses<-struct{out map[string]any;err error}{out,e}
+	}()
+	for i:=0;i<2;i++{
+		var stage map[string]any
+		deadline:=time.Now().Add(8*time.Second)
+		for time.Now().Before(deadline)&&stage==nil{
+			events,e:=provider.PollCompact(ctx);if e!=nil{t.Fatal(e)}
+			for _,candidate:=range events{if candidate["kind"]=="CHAIN_STAGE"{stage=candidate;break}}
+			if stage==nil{time.Sleep(30*time.Millisecond)}
+		}
+		if stage==nil{t.Fatal("CHAIN_STAGE was not delivered")}
+		v,ok:=stage["verification"].(map[string]any);if !ok||v["ok"]!=true{t.Fatal("CHAIN signature invalid")}
+		if i==1{prior,ok:=stage["priorVerification"].(map[string]any);if !ok||prior["ok"]!=true{t.Fatal("prior RESULT not verified")}}
+		id,ok:=stage["requestId"].(string);if !ok||id==""{t.Fatal("invalid stage requestId")}
+		if _,e:=provider.CompactResult(ctx,id,map[string]any{"stage":i},nil);e!=nil{t.Fatal(e)}
+	}
+	select{case reply:=<-responses:
+		if reply.err!=nil||reply.out["ok"]!=true{t.Fatalf("CHAIN execution failed: %v %v",reply.out,reply.err)}
+		results,ok:=reply.out["results"].([]any);if !ok||len(results)!=2{t.Fatal("CHAIN terminal result invalid")}
+	case <-ctx.Done():t.Fatal("CHAIN completion deadline")}
 }

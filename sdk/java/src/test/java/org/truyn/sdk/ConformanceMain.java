@@ -83,6 +83,24 @@ public final class ConformanceMain {
     }catch(java.util.concurrent.CompletionException expected){
       if(!String.valueOf(expected.getCause()).contains("no_matching_provider")&&!String.valueOf(expected.getCause()).contains("404"))throw expected;
     }
+    var chainFuture=requester.compactChain(java.util.List.of(
+      Map.of("capability",Map.of("name",capability)),Map.of("capability",Map.of("name",capability))));
+    for(int step=0;step<2;step++){
+      Map<String,Object> stage=null;
+      long end=System.nanoTime()+java.time.Duration.ofSeconds(8).toNanos();
+      while(System.nanoTime()<end&&stage==null){
+        for(var e:provider.pollCompact())if("CHAIN_STAGE".equals(e.get("kind"))){stage=e;break;}
+        if(stage==null){try{Thread.sleep(30);}catch(InterruptedException e){Thread.currentThread().interrupt();throw new RuntimeException(e);}}
+      }
+      if(stage==null)throw new AssertionError("missing native CHAIN_STAGE");
+      if(!Boolean.TRUE.equals(((Map<?,?>)stage.get("verification")).get("ok")))throw new AssertionError("CHAIN signature unverified");
+      if(step==1 && !Boolean.TRUE.equals(((Map<?,?>)stage.get("priorVerification")).get("ok")))
+        throw new AssertionError("prior signed RESULT unverified");
+      provider.compactResult((String)stage.get("requestId"),Map.of("stage",step),Map.of()).join();
+    }
+    var done=chainFuture.join();
+    if(!Boolean.TRUE.equals(done.get("ok"))||((java.util.List<?>)done.get("results")).size()!=2)
+      throw new AssertionError("CHAIN result count");
     System.out.println("PASS java developer-release conformance");
   }
 }
