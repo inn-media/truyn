@@ -178,3 +178,33 @@ for (const crash of ['before-effect', 'after-effect']) {
     second.child.send('close'); await second.exit;
   });
 }
+
+test('strict paid QUIC denies real signed NEED before provider callback, across restart and replicas', { timeout: 20000 }, async t => {
+  const f = fixture(t), identity = createIdentity();
+  let paidCalls = 0;
+  const sharedLedger = f.ledger();
+  const a = await f.transport({ identity, lifecycleLedger: sharedLedger, paidNeedEnforcement: true },
+    () => { paidCalls++; return { output: 'would-spend' }; });
+  const b = await f.transport({ identity, lifecycleLedger: f.ledger(), paidNeedEnforcement: true },
+    () => { paidCalls++; return { output: 'would-spend' }; });
+  const client = await f.transport();
+  const signed = need(client, a, 'paid-quic-never-dispatch');
+  const [one, two] = await Promise.allSettled([
+    client.sendEnvelope(await connect(client, a), signed),
+    client.sendEnvelope(await connect(client, b), signed)
+  ]);
+  for (const item of [one, two]) {
+    assert.equal(item.status, 'rejected');
+    assert.equal(item.reason.code, 'paid_quic_durable_authorization_required');
+  }
+  assert.equal(paidCalls, 0);
+  assert.equal(sharedLedger.getNeed(signed.id), null);
+  await a.close(); await b.close();
+  const restarted = await f.transport({ identity, lifecycleLedger: f.ledger(), paidNeedEnforcement: true },
+    () => { paidCalls++; return {output: 'would-spend-after-restart'}; });
+  await assert.rejects(
+    client.sendEnvelope(await connect(client, restarted), signed),
+    error => error.code === 'paid_quic_durable_authorization_required'
+  );
+  assert.equal(paidCalls, 0);
+});
