@@ -1,0 +1,68 @@
+{
+  "schema": "truyn.public.s200-double-check/v1",
+  "date": "2026-10-13",
+  "status": "PASS_CLOSED_SIX_PROVIDER_DOUBLE_CHECK_VERIFIED",
+  "primary": {
+    "report": "S_SERIES_S200_2026-10-12.md",
+    "type": "A14+A15_COMPOSITE"
+  },
+  "doubleCheck": {
+    "attempt": 17,
+    "measuredWorkflowRun": 38300564788,
+    "qualifiedSourceSha": "4c5b13630aa3c2255203df93eee043bf15083d76",
+    "launchSha": "796029e6947649d9959074385c2b9241cebcd732",
+    "allScenariosFresh": true,
+    "historicalEvidenceAdopted": false,
+    "reconcileOnlyRun": 38371943412,
+    "artifactId": 11800135348,
+    "artifactSha256": "564f7166f2cb776a5c30aa3d3a5aab538fa07d0456274e82a905a9bb9ac60b00",
+    "suite": "PASS",
+    "cleanup": true
+  },
+  "providerFamilies": [
+    "GPT",
+    "Gemini",
+    "Grok",
+    "Llama",
+    "Mistral",
+    "Kimi"
+  ],
+  "scenarios": {
+    "ECON": "PASS",
+    "MIX": "PASS",
+    "XBORDER": "PASS",
+    "CHAIN": "PASS",
+    "CHURN": "PASS",
+    "COST-ROUTING": "PASS",
+    "CONTENTION": "PASS",
+    "LANG": "PASS"
+  },
+  "metrics": {
+    "econInputTokenReductionPct": 99.44967559279938,
+    "econComparablePricedProviderCostReductionPct": 99.35028075167753,
+    "xborderP95Ms": 2337,
+    "chainHopP95Ms": 2506,
+    "churnRecoveryP95Ms": 47105,
+    "costRoutingSavingsPct": 4.580800226212583,
+    "contentionE2eP95Ms": 8901,
+    "contentionNonProviderP95Ms": 2412,
+    "contentionCompletedPerSec": 16.14987080103359,
+    "contentionProviderRateLimitResponses": 0,
+    "econMixTruynP95Ms": 61648,
+    "econMixDirectP95Ms": 9943,
+    "econMixHttp429": 106
+  },
+  "comparisons": {
+    "a14ContentionE2eP95Ms": 19106,
+    "a14ContentionNonProviderP95Ms": 17897,
+    "a14CompletedPerSec": 8.249,
+    "s100ContentionNonProviderP95Ms": 5874
+  },
+  "limitations": [
+    "DeepSeek/seven-provider contract remains open",
+    "not physical 200-host WAN",
+    "not production SLO/Mainnet",
+    "cost figures are benchmark prices from measured tokens, not invoices",
+    "ECON/MIX GPT rate-limit tail remains"
+  ]
+}

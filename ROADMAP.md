@@ -2,7 +2,7 @@
 
 This roadmap records **current accepted maturity and the next bounded gates**. Normative protocol semantics live in `spec/`; canonical factual status lives in `docs/architecture/IMPLEMENTATION_STATUS.md`; measured evidence lives in `docs/benchmarks/`.
 
-**Snapshot:** 2026-10-09 (A-Series docs reconciliation)  
+**Snapshot:** 2026-10-13 (S-200 Double-Check reconciliation; other tracks retain their documented scopes)  
 **Protocol:** `TRUYN/1` draft (expanded CORE source merged; stable protocol and Mainnet remain gated)  
 **Stable A2A/MCP v1:** **not declared**
 
@@ -12,7 +12,7 @@ This roadmap records **current accepted maturity and the next bounded gates**. N
 |---|---|---|
 | Network | **Class C + D-100 + D-200 + D-500 + D-1000 + D-5000 accepted** | long-duration Production SLO/mainnet separate |
 | Physical Chaos F-Series | **FOUNDATION DEFINED / ATTEMPT 1 NOT LAUNCHED** | private fault-domain runner → physical episodes → independent reconciliation |
-| Semantic Scale (S-Series) | **S-10/20/50/100 accepted; S-200 six-provider composite CLOSED / 8-of-8 PASS** | seven-provider DeepSeek parity, WAN and S-500 independently OPEN; improve p95 tail latency |
+| Semantic Scale (S-Series) | **S-10/20/50/100 accepted; S-200 six-provider CLOSED / 8-of-8 PASS / DOUBLE-CHECK VERIFIED** | DeepSeek/seven-provider parity, physical WAN/SLO and S-500 OPEN; optimize GPT rate-limit capacity routing |
 | A-Series (Time × Reality) | **PUBLIC FOUNDATION MERGED / A-SOAK 1h NOT LAUNCHED** | immutable WAN runtime release + independent cloud/budget/teardown → A-SOAK → A-OPS → A-SLO → A-WIRE → A-NET → private A-MGMT |
 | D-5000 | **ACCEPTED / CLOSED / DOUBLE-CHECK VERIFIED**; Attempt 12 measured 15/15 PASS and immutable requalification, Attempt 13 official terminal PASS | preserve both immutable campaigns; 28-day SLO remains separate |
 | Efficiency Limits (E-Series) | **FOUNDATION DEFINED / no E result claim** | instrumentation + isolation qualification → E/DECOMPOSE → E/PER-RESULT → E/KNEE → E/DEGRADE |
@@ -82,7 +82,7 @@ Target ladder:
 - [x] **S-20** — accepted five-scenario gate: `ECON`, `MIX`, `COST-ROUTING`, `CONTENTION`, `LANG`; sanitized evidence: `docs/benchmarks/S_SERIES_S20_2026-10-07.md`.
 - [x] **S-50** — accepted full eight-scenario 50-node scale gate on Attempt 3; evidence: `docs/benchmarks/S_SERIES_S50_2026-10-08.md`.
 - [x] **S-100** — accepted full eight-scenario 100-node scale gate on Attempt 1; evidence: `docs/benchmarks/S_SERIES_S100_2026-10-08.md`.
-- [x] **S-200 (measured six-provider composite scope)** — Attempt 14 + 15 accepted, 8/8 scenario gates, 200 processes per MIX cohort; immutable [benchmark evidence](docs/benchmarks/S_SERIES_S200_2026-10-12.md). Seven-provider contract parity / WAN remain separate OPEN tasks.
+- [x] **S-200 (bounded six-provider scope)** — primary A14+A15 accepted plus independent fresh **Attempt 17 DOUBLE CHECK**, 8/8 scenario gates; repeatability confirmed. [Primary evidence](docs/benchmarks/S_SERIES_S200_2026-10-12.md) · [Double-Check evidence](docs/benchmarks/S_SERIES_S200_DOUBLE_CHECK_2026-10-13.md). Seven-provider DeepSeek parity / physical WAN/SLO remain separate OPEN tasks.
 - [ ] **S-500** — large semantic-network benchmark; preserve comparable `ECON`, `XBORDER` and `COST-ROUTING` evidence at minimum.
 
 Required live text-provider families are GPT, Gemini, Grok, DeepSeek, Llama, Mistral and Kimi. Scenario families are `ECON`, `MIX`, `XBORDER`, `CHAIN`, `CHURN`, `COST-ROUTING`, `CONTENTION`, `LANG`.
