@@ -17,8 +17,8 @@ for await (const line of createInterface({ input:process.stdin, crlfDelay:Infini
       }
       case 'offer': value=await p.offer(a.capability,a.metadata||{}); break;
       case 'need': value=await p.need(a.capability,{probe:true}); break;
-      case 'result': value=await p.result(a.needId,{answer:42});break;
-      case 'waitResult': { const result=await p.runtime.poll({waitMs:0}); const r=result.events.find((x:any)=>x.kind==='RESULT'&&x.envelope?.payload?.requestId===a.needId); if(!r)throw Error('missing_result');value={needId:a.needId,verified:r.verification?.ok===true};break; }
+      case 'result': value=await p.result(a.needId,a.output??{answer:42});break;
+      case 'waitResult': { const result=await p.runtime.poll({waitMs:0}); const r=result.events.find((x:any)=>x.kind==='RESULT'&&x.envelope?.payload?.requestId===a.needId); if(!r)throw Error('missing_result');value={needId:a.needId,verified:r.verification?.ok===true,...(a.includeOutput?{output:r.envelope.payload.output}:{})};break; }
       case 'nextNeed': { const result=await p.runtime.poll({waitMs:0});const r=result.events.find((x:any)=>x.kind==='NEED');if(!r)throw Error('missing_need');value={needId:r.envelope.id,verified:r.verification?.ok===true};break; }
       case 'cancel': value=await p.runtime.revoke(a.needId,'test_cancel',{targetKind:'need'});break;
       case 'withdraw': value=await p.runtime.revoke(a.offerId,'test_withdraw',{targetKind:'offer'});break;
@@ -35,6 +35,6 @@ for await (const line of createInterface({ input:process.stdin, crlfDelay:Infini
       default: throw Error('unsupported_action');
     }
     console.log(JSON.stringify({id:message.id,ok:true,value:value??null}));
-  } catch(error:any) {console.log(JSON.stringify({id:message?.id,ok:false,error:String(error?.body?.error||error?.message||error).slice(0,150)}));}
+  } catch(error:any) {console.log(JSON.stringify({id:message?.id,ok:false,code:error?.code??null,error:String(error?.body?.error||error?.message||error).slice(0,150)}));}
 }
 for(const p of peers.values())p.close();

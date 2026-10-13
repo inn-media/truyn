@@ -119,11 +119,21 @@ export class TruynNode {
       requiredSemantics
     });
     // Missing explicit confirmation is accepted for the historical TRUYN/1 baseline only.
-    if (!agreement.ok || (!hasGeneration && (requiredSemantics.length > 0 ||
+    if (!agreement.ok || hasGeneration !== hasSemantics ||
+      (hasGeneration && (result.negotiatedProtocol !== 'TRUYN/1' ||
+        !protocols.includes(result.negotiatedProtocol) ||
+        new Set(result.negotiatedSemantics).size !== result.negotiatedSemantics.length ||
+        result.negotiatedSemantics.some(value => !semantics.includes(value)))) ||
+      (!hasGeneration && (requiredSemantics.length > 0 ||
       (Array.isArray(result.negotiatedSemantics) ? result.negotiatedSemantics.length > 0 : result.negotiatedSemantics != null)))) {
       const error = new Error('version_mismatch');
       error.code = 'version_mismatch';
       error.reason = agreement.reason || 'missing_negotiation';
+      throw error;
+    }
+    if (typeof result.sessionToken !== 'string' || !result.sessionToken.trim()) {
+      const error = new Error('invalid_registration_response');
+      error.code = 'invalid_response';
       throw error;
     }
     this.sessionToken = result.sessionToken;

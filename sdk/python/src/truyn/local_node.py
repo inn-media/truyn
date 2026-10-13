@@ -197,8 +197,17 @@ class TruynLocalNodeClient(CompactLifecycle):
             },
         )
         result = _request_json('POST', self.relay_url + '/v1/register', body={'envelope': envelope})
+        # Fully legacy responses retain only the TRUYN/1 baseline. An explicit
+        # selection must be complete and cannot grant unadvertised semantics.
+        has_protocol = 'negotiatedProtocol' in result
+        has_semantics = 'negotiatedSemantics' in result
+        if (PROTOCOL not in protocols or has_protocol != has_semantics
+                or (has_protocol and (result['negotiatedProtocol'] != PROTOCOL
+                    or not isinstance(result['negotiatedSemantics'], list)
+                    or len(result['negotiatedSemantics']) != 0))):
+            raise TruynError({'code': 'version_mismatch', 'message': 'Invalid relay negotiation confirmation', 'retryable': False})
         token = result.get('sessionToken')
-        if not _nonempty(token):
+        if not _nonempty(token) or not token.strip():
             raise TruynError(normalize_error(client_kind='invalid_response', message='Relay returned an invalid registration response'))
         self.session_token = token
         return result

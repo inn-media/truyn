@@ -6,6 +6,8 @@ import {readFileSync,lstatSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {digest,validateBuildBundle,qualifyPackagedLifecycle} from '../conformance/lifecycle-peer/package-contract.mjs';
+import {validateRegistration} from '../conformance/registration-peer/contract.mjs';
+import {validateArtifactMatrix} from '../conformance/registration-peer/artifact-contract.mjs';
 
 export const TARGET_VERSIONS=Object.freeze({release:'0.1.0-alpha.3',typescript:'0.1.0-alpha.6',python:'0.1.0a3',goTag:'sdk/go/v0.1.0-alpha.3',protocol:'TRUYN/1',stableSdkApiVersion:'1',channel:'public-pre-release'});
 export const TARGET_PACKAGES=Object.freeze({npm:'0.1.0-alpha.6',pypi:'0.1.0a3',go:'v0.1.0-alpha.3',maven:'0.1.0-alpha.3',nuget:'0.1.0-alpha.3'});
@@ -58,7 +60,24 @@ export function validateNativeBundle(root,context,versions=TARGET_VERSIONS){
  expected.buildProofSha256=digest(buildBytes);
  assert.deepEqual(recorded,expected,'release_native_proof_mismatch');
  assert.equal(recorded.cases,80);assert.equal(recorded.securityCases,30);assert.equal(recorded.negotiationCases,10);
- return {schema:'truyn.native-release-bundle-validation/v1',status:'BUNDLE_VERIFIED_ONLY',context,packages,versions,manifestSha256:digest(manifestBytes),nativeProofSha256:digest(raw(resolve(root,'native-package-proof.json'))),cases:80,securityCases:30,negotiationCases:10,registryPublicationVerified:false,stableProtocolDeclared:false,productionCutoverAuthorized:false};
+ const registrationBytes=raw(resolve(root,'native-package-registration.json'));
+ const artifactBytes=raw(resolve(root,'native-package-artifacts.json'));
+ const registration=validateRegistration(JSON.parse(registrationBytes),context,buildBytes,{requireAll:true});
+ const artifacts=validateArtifactMatrix(JSON.parse(artifactBytes),context,buildBytes);
+ const format=json(resolve(root,'native-package-format-qualification.json'));
+ assert.equal(format.schema,'truyn.p11-p12-p13.exact-qualification/v1');
+ assert.deepEqual(format.context,context);assert.deepEqual(format.registration,registration);assert.deepEqual(format.artifacts,artifacts);
+ assert.equal(format.packagesReportSha256,digest(buildBytes));
+ assert.equal(format.registrationSha256,digest(registrationBytes));assert.equal(format.artifactsSha256,digest(artifactBytes));
+ assert.equal(format.P11,'SOURCE_BASELINE_QUALIFIED');assert.equal(format.P12,'BOUNDED_REFERENCE_QUALIFIED');assert.equal(format.P13_FORMAT,'RELEASE_ADMISSION_PENDING');
+ for(const flag of ['registryPublicationVerified','stableProtocolDeclared','productionCutoverAuthorized'])assert.equal(format[flag],false);
+ for(const gate of ['P11','P12','P13_FORMAT']){
+  const log=raw(resolve(root,'native-package-'+gate+'.tap'));
+  assert.equal(format.tests[gate].logSha256,digest(log));assert.equal(format.tests[gate].status,'PASS');
+  assert.equal(format.tests[gate].tests,Number(/^# tests (\d+)$/m.exec(log.toString())?.[1]));assert.ok(format.tests[gate].tests>0);
+  for(const marker of ['fail','skipped','todo'])assert.match(log.toString(),new RegExp('^# '+marker+' 0$','m'));
+ }
+ return {schema:'truyn.native-release-bundle-validation/v1',status:'BUNDLE_VERIFIED_ONLY',context,packages,versions,manifestSha256:digest(manifestBytes),nativeProofSha256:digest(raw(resolve(root,'native-package-proof.json'))),cases:80,securityCases:30,negotiationCases:10,registrationCases:registration.totalCases,artifactCases:artifacts.cases,formatProofSha256:digest(raw(resolve(root,'native-package-format-qualification.json'))),registryPublicationVerified:false,stableProtocolDeclared:false,productionCutoverAuthorized:false};
 }
 
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){

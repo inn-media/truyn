@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync,mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {fixture as registrationFixture,validateRegistration} from '../sdk/conformance/registration-peer/contract.mjs';
+import {validateArtifactMatrix} from '../sdk/conformance/registration-peer/artifact-contract.mjs';
 import {TARGET_VERSIONS,TARGET_PACKAGES,RELEASE_TAGS,validateNativeRequest,validateNativeBundle} from '../sdk/release/native-publication.mjs';
 import {LANGUAGES,MODES,SCENARIOS} from '../sdk/conformance/lifecycle-peer/matrix-contract.mjs';
 import {SECURITY_SCENARIOS} from '../sdk/conformance/lifecycle-peer/source-contract.mjs';
@@ -22,7 +24,14 @@ function fixture(root){
  const lifecycle={schema:'truyn.five-sdk-lifecycle/v1',context,status:'PASS',publishedSdkSourceSha:null,packagesReportSha256:digest(bytes(build)),outcomes:LANGUAGES.flatMap(language=>MODES.flatMap(provider=>MODES.flatMap(requester=>SCENARIOS.map(scenario=>({language,provider,requester,scenario,status:'PASS',assertions:12}))))),capabilities:LANGUAGES.map(language=>({language,mode:'candidate',cancel:true,withdraw:true,partial:true})),negotiation:LANGUAGES.flatMap(language=>MODES.map(mode=>({language,mode,status:'PASS'}))),sourceSecurity:LANGUAGES.flatMap(language=>SECURITY_SCENARIOS.map(scenario=>({language,scenario,status:'PASS',assertions:10}))),stableProtocolDeclared:false,productionCutoverAuthorized:false};
  const proof={...qualifyPackagedLifecycle(lifecycle,build,context),lifecycleSha256:digest(bytes(lifecycle)),buildProofSha256:digest(bytes(build))};
  for(const [name,value] of Object.entries({'manifest.json':manifest,'native-package-build.json':build,'native-package-lifecycle.json':lifecycle,'native-package-proof.json':proof}))writeFileSync(join(root,name),bytes(value));
- return {manifest,build,lifecycle,proof,names};
+ const cases=registrationFixture();
+ const registration={schema:'truyn.p11.native-registration/v1',context,fixtureSha256:cases.sha256,packagesReportSha256:digest(bytes(build)),status:'PASS',stableProtocolDeclared:false,productionCutoverAuthorized:false,outcomes:LANGUAGES.flatMap(language=>MODES.flatMap(mode=>cases.cases.map(c=>({language,mode,id:c.id,accepted:c.expected.ok,code:c.expected.code??null,requests:1,signatureVerified:true,status:'PASS'}))))};
+ const artifacts={schema:'truyn.p12.native-artifact-reference/v1',context,packagesReportSha256:digest(bytes(build)),status:'PASS',implicitFetches:0,stableProtocolDeclared:false,productionCutoverAuthorized:false,outcomes:LANGUAGES.flatMap(language=>MODES.flatMap(provider=>MODES.map(requester=>({language,provider,requester,status:'PASS',signatureVerified:true,referencePreserved:true,explicitResolverVerified:true,wrongDigestRejected:true,wrongSizeRejected:true,noResolverRejected:true,resolverCalls:1}))))};
+ const log='# tests 1\n# fail 0\n# skipped 0\n# todo 0\n';
+ const format={schema:'truyn.p11-p12-p13.exact-qualification/v1',context,packagesReportSha256:digest(bytes(build)),registration:validateRegistration(registration,context,bytes(build),{requireAll:true}),artifacts:validateArtifactMatrix(artifacts,context,bytes(build)),registrationSha256:digest(bytes(registration)),artifactsSha256:digest(bytes(artifacts)),P11:'SOURCE_BASELINE_QUALIFIED',P12:'BOUNDED_REFERENCE_QUALIFIED',P13_FORMAT:'RELEASE_ADMISSION_PENDING',registryPublicationVerified:false,stableProtocolDeclared:false,productionCutoverAuthorized:false,tests:Object.fromEntries(['P11','P12','P13_FORMAT'].map(g=>[g,{logSha256:digest(log),status:'PASS',tests:1}]))};
+ for(const [name,value] of Object.entries({'registration.json':registration,'artifacts.json':artifacts,'format-qualification.json':format}))writeFileSync(join(root,'native-package-'+name),bytes(value));
+ for(const gate of ['P11','P12','P13_FORMAT'])writeFileSync(join(root,'native-package-'+gate+'.tap'),log);
+ return {manifest,build,lifecycle,proof,names,registration,artifacts,format};
 }
 test('native publication requires an explicit one-shot exact-parent request with no stable or cloud authority',()=>{
  const report=validateNativeRequest(request(),options);assert.equal(report.status,'VALID_REQUEST_ONLY');assert.deepEqual(report.tags,RELEASE_TAGS);assert.equal(report.productionCutoverAuthorized,false);
@@ -38,6 +47,8 @@ test('independent native bundle validation requires post-merge SHA, exact bytes 
   assert.throws(()=>validateNativeBundle(root,{...context,sourceSha:'f'.repeat(40)}));
   for(const change of [x=>x.outcomes.pop(),x=>x.outcomes[0].status='BLOCKED',x=>x.sourceSecurity.pop(),x=>x.negotiation.pop()]){const l=structuredClone(f.lifecycle);change(l);writeFileSync(join(root,'native-package-lifecycle.json'),bytes(l));assert.throws(()=>validateNativeBundle(root,context));}
   writeFileSync(join(root,'native-package-lifecycle.json'),bytes(f.lifecycle));
+  const badRegistration=structuredClone(f.registration);badRegistration.outcomes.pop();writeFileSync(join(root,'native-package-registration.json'),bytes(badRegistration));assert.throws(()=>validateNativeBundle(root,context));
+  writeFileSync(join(root,'native-package-registration.json'),bytes(f.registration));
   writeFileSync(join(root,f.names[0]),'tampered-data');assert.throws(()=>validateNativeBundle(root,context),/package_bytes_mismatch/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });

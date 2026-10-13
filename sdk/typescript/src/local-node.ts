@@ -92,6 +92,9 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 function normalizedRuntimeError(error: any): TruynError {
   if (error instanceof TruynError) return error;
+  if (error?.code === 'version_mismatch' || error?.code === 'invalid_response') {
+    return new TruynError({ code: error.code, message: error.message, retryable: false });
+  }
   const httpStatus = Number.isFinite(error?.status) ? Number(error.status) : undefined;
   const relayCode = nonEmptyString(error?.body?.error) ? error.body.error : undefined;
   return new TruynError(normalizeError({

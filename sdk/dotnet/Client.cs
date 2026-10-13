@@ -53,6 +53,14 @@ public sealed partial class TruynClient : IAsyncDisposable
             ["name"] = name
         });
         var body = await RequestAsync(HttpMethod.Post, "v1/register", new { envelope }, false, cancellationToken).ConfigureAwait(false);
+        var hasProtocol = body.TryGetProperty("negotiatedProtocol", out var selected);
+        var hasSemantics = body.TryGetProperty("negotiatedSemantics", out var semantics);
+        var validSelection = !hasProtocol && !hasSemantics;
+        if (hasProtocol && hasSemantics)
+            validSelection = selected.ValueKind == JsonValueKind.String && selected.GetString() == Protocol
+                && semantics.ValueKind == JsonValueKind.Array && semantics.GetArrayLength() == 0;
+        if (!(Options.SupportedProtocols ?? new[] { Protocol }).Contains(Protocol) || !validSelection)
+            throw new TruynException(TruynErrorCode.VersionMismatch, "Invalid relay negotiation confirmation", false);
         if (!body.TryGetProperty("sessionToken", out var token) || token.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(token.GetString()))
             throw Invalid("Relay returned an invalid registration response");
         _sessionToken = token.GetString();

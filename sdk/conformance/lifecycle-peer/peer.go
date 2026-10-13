@@ -37,11 +37,12 @@ func main(){
   case "offer":
    meta:=map[string]any{};if m.Args["metadata"]!=nil{json.Unmarshal(m.Args["metadata"],&meta)};value,err=p.Offer(ctx,str("capability"),meta)
   case "need": value,err=p.Need(ctx,str("capability"),map[string]any{"probe":true},nil)
-  case "result": value,err=p.SendResult(ctx,str("needId"),map[string]any{"answer":42},nil)
+  case "result":
+   var output any=map[string]any{"answer":42};if m.Args["output"]!=nil{if err=json.Unmarshal(m.Args["output"],&output);err!=nil{break}};value,err=p.SendResult(ctx,str("needId"),output,nil)
   case "nextNeed":
    var r *truyn.NeedEvent;r,err=p.NextNeed(ctx);if err==nil{value=map[string]any{"needId":r.NeedID,"verified":r.Verification.Ok}}
   case "waitResult":
-   var r *truyn.ResultEvent;r,err=p.WaitForResult(ctx,str("needId"));if err==nil{value=map[string]any{"needId":r.NeedID,"verified":r.Verification.Ok}}
+   var r *truyn.ResultEvent;r,err=p.WaitForResult(ctx,str("needId"));if err==nil{row:=map[string]any{"needId":r.NeedID,"verified":r.Verification.Ok};if string(m.Args["includeOutput"])=="true"{row["output"]=r.Output};value=row}
   case "cancel": value,err=p.Revoke(ctx,str("needId"),"need","test_cancel")
   case "withdraw": value,err=p.Revoke(ctx,str("offerId"),"offer","test_withdraw")
   case "poll":
@@ -59,7 +60,7 @@ func main(){
    if err==nil{rows:=[]any{};for _,event:=range events{v,_:=event["verification"].(map[string]any);row:=map[string]any{"kind":event["kind"],"verified":v["ok"]==true};if payload,ok:=event["payload"].(map[string]any);ok{if seq,ok:=payload["sequence"];ok{row["sequence"]=seq}};rows=append(rows,row)};value=rows}
   default: err=fmt.Errorf("unsupported_action")
   }
-  cancel();out:=map[string]any{"id":m.ID,"ok":err==nil,"value":value};if err!=nil{out["error"]=err.Error()};data,_:=json.Marshal(out);fmt.Println(string(data))
+  cancel();out:=map[string]any{"id":m.ID,"ok":err==nil,"value":value};if err!=nil{out["error"]=err.Error();if normalized,ok:=err.(truyn.NormalizedError);ok{out["code"]=normalized.Code}};data,_:=json.Marshal(out);fmt.Println(string(data))
  }
  if scanner.Err()!=nil{panic(scanner.Err())}
 }

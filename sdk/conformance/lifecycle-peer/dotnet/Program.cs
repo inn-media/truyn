@@ -20,9 +20,9 @@ while((line=Console.ReadLine()) is not null){
     var meta=new Dictionary<string,object>();if(a.TryGetProperty("metadata",out var metadata))foreach(var v in metadata.EnumerateObject())meta[v.Name]=v.Value.Clone();
     value=await p!.OfferAsync(S("capability"),meta);break;
    case "need": var n=await p!.NeedAsync(S("capability"),new{probe=true});value=new{needId=n.NeedId,provider=n.Provider};break;
-   case "result": value=await p!.SendResultAsync(S("needId"),new{answer=42});break;
+   case "result": value=await p!.SendResultAsync(S("needId"),a.TryGetProperty("output",out var output)?(object)output.Clone():new{answer=42});break;
    case "nextNeed": var r=await p!.NextNeedAsync(TimeSpan.FromSeconds(3));value=new{needId=r.NeedId,verified=true};break;
-   case "waitResult": var s=await p!.WaitForResultAsync(S("needId"),TimeSpan.FromSeconds(3));value=new{needId=s.NeedId,verified=true};break;
+   case "waitResult": var s=await p!.WaitForResultAsync(S("needId"),TimeSpan.FromSeconds(3));value=a.TryGetProperty("includeOutput",out var includeOutput)&&includeOutput.GetBoolean()?(object)new{needId=s.NeedId,verified=true,output=s.Output}:new{needId=s.NeedId,verified=true};break;
    case "cancel": await p!.CancelNeedAsync(S("needId"),"test_cancel");break;
    case "withdraw": await p!.RevokeOfferAsync(S("offerId"));break;
    case "poll": value=(await p!.PollAsync()).Select(x=>new{kind=x.Kind,verified=x.Verified}).ToArray();break;
@@ -39,6 +39,6 @@ while((line=Console.ReadLine()) is not null){
    default: throw new InvalidOperationException("unsupported_action");
   }
   Console.WriteLine(JsonSerializer.Serialize(new{id,ok=true,value}));
- }catch(Exception e){Console.WriteLine(JsonSerializer.Serialize(new{id,ok=false,error=e.Message[..Math.Min(150,e.Message.Length)]}));}
+ }catch(Exception e){var code=e is TruynException t?t.Code switch{TruynErrorCode.VersionMismatch=>"version_mismatch",TruynErrorCode.InvalidResponse=>"invalid_response",_=>t.Code.ToString()}:null;Console.WriteLine(JsonSerializer.Serialize(new{id,ok=false,code,error=e.Message[..Math.Min(150,e.Message.Length)]}));}
 }
 foreach(var p in peers.Values)await p.DisposeAsync();

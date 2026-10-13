@@ -50,7 +50,19 @@ public final class TruynClient {
     return request("POST","/v1/lifecycle/deliveries/ack",map("eventId",eventId),true);
   });}
 
-  public void register(String name){Map<String,Object> payload=map("nodeId",nodeId,"algorithm","Ed25519","protocols",config.supportedProtocols(),"name",name);Map<String,Object> response=request("POST","/v1/register",map("envelope",envelope("IDENTITY",payload)),false);Object token=response.get("sessionToken");if(!(token instanceof String text)||text.isBlank())throw new TruynException(TruynException.Code.INVALID_RESPONSE,"relay returned an invalid registration response",false);sessionToken=text;}
+  public void register(String name){
+    Map<String,Object> payload=map("nodeId",nodeId,"algorithm","Ed25519","protocols",config.supportedProtocols(),"name",name);
+    Map<String,Object> response=request("POST","/v1/register",map("envelope",envelope("IDENTITY",payload)),false);
+    boolean hasProtocol=response.containsKey("negotiatedProtocol"),hasSemantics=response.containsKey("negotiatedSemantics");
+    boolean validSelection=!hasProtocol&&!hasSemantics;
+    if(hasProtocol&&hasSemantics)validSelection=PROTOCOL.equals(response.get("negotiatedProtocol"))
+      &&response.get("negotiatedSemantics") instanceof List<?> values&&values.isEmpty();
+    if(!config.supportedProtocols().contains(PROTOCOL)||!validSelection)
+      throw new TruynException(TruynException.Code.VERSION_MISMATCH,"invalid relay negotiation confirmation",false);
+    Object token=response.get("sessionToken");
+    if(!(token instanceof String text)||text.isBlank())throw new TruynException(TruynException.Code.INVALID_RESPONSE,"relay returned an invalid registration response",false);
+    sessionToken=text;
+  }
   public CompletableFuture<List<TruynModels.Offer>> discover(String capability){return future(()->{require(capability,"capability is required");Map<String,Object> response=request("GET","/v1/offers?capability="+URLEncoder.encode(capability,StandardCharsets.UTF_8),null,true);Object raw=response.get("offers");if(!(raw instanceof List<?> list))throw invalid("relay returned an invalid authorized discovery response");List<TruynModels.Offer> offers=new ArrayList<>();for(Object item:list)offers.add(offer(Json.object(item)));return List.copyOf(offers);});}
   public CompletableFuture<Map<String,Object>> offer(String capability,Map<String,Object> metadata){return future(()->{require(capability,"capability is required");return request("POST","/v1/offers",map("envelope",envelope("OFFER",map("capability",map("name",capability),"metadata",metadata==null?Map.of():metadata))),true);});}
   public CompletableFuture<TruynModels.Offer> publishOffer(TruynModels.Offer offer){Objects.requireNonNull(offer);return future(()->{request("POST","/v1/offers",map("envelope",offer),true);return offer;});}
