@@ -138,6 +138,7 @@ jobs:
           set -Eeuo pipefail
           node sdk/conformance/legacy-peer/run-matrix.mjs | tee "$RUNNER_TEMP/five-sdk-evidence/matrix.log"
           python3 scripts/verify-five-sdk-interop.py report --log "$RUNNER_TEMP/five-sdk-evidence/matrix.log" --receipts "$RUNNER_TEMP/five-sdk-evidence" --output "$RUNNER_TEMP/five-sdk-evidence/report.json"
+          TRUYN_LIFECYCLE_EVIDENCE_DIR="$RUNNER_TEMP/five-sdk-evidence" node sdk/conformance/lifecycle-peer/run-lifecycle.mjs
       - name: Upload exact-source package receipts and all 20 outcomes
         if: always()
         uses: actions/upload-artifact@v4
