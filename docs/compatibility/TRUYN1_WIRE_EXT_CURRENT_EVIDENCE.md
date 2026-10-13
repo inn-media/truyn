@@ -12,6 +12,8 @@ This record covers the remaining G4/GE1–GE3 wire work, not overall Stable TRUY
 
 ## Qualification authority
 
+[PR #1086](https://github.com/inn-media/truyn/pull/1086) records the exact accepted source and observed CI; do not infer acceptance from this candidate document alone.
+
 The branch/PR acceptance record must link the final exact SHA, full CI and the `WIRE_FREEZE_REPORT` emitted by the native SDK job. The report identifies the source and corpus digests and every language's observed results. Local Node/Python or aggregate green checks alone do not close this gate. A merged candidate needs its own postmerge checks; previous source results cannot qualify later commits.
 
 Current source is an opt-in implementation. Native high-level relay clients remain legacy unless the application uses the explicit negotiated envelope APIs. Release packaging and actual registry/private consumer admission are separate gates, with immutable artifacts and fresh compatibility evidence. The protobuf binary codec is deliberately outside the implemented JSON wire profile; this candidate does not declare it interoperable.
