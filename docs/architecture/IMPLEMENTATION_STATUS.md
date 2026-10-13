@@ -67,6 +67,22 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 
 **2026-10-14 focused correction — Agent Descriptor only.** The five first-party native SDK interface-validation gate was accepted in [public PR #1074](https://github.com/inn-media/truyn/pull/1074), merged source `2e1ae464c443348643a97ac459d007d69878558e`, with 95/95 source-native outcomes; [issue #615](https://github.com/inn-media/truyn/issues/615) records postmerge CI `38261657500` and CodeQL `38261656785`. This supersedes only the former *three interface-field validation gaps*, not the distinct historical nine-fixture reference-parser evidence, not all Agent Descriptor lifecycle/delegated-signing capabilities, and not Stable TRUYN/1. The above dated snapshot retains independent statuses for other programs.
 
+### TRUYN/1 release-blocker reconciliation (2026-10-14, no stable admission)
+
+The five published **pre-stable** SDK coordinates, a green public `main` CI, and source-only candidate checks are different gates. The following statuses are authoritative for this narrow release audit; they **do not** replace historical immutable evidence:
+
+| Gate | Verified scope | Unclosed release condition |
+| --- | --- | --- |
+| G4 `truyn.envelope.ext/1` | Optional signed extension is specified; [PR #1086](https://github.com/inn-media/truyn/pull/1086) contains candidate negotiated default-off runtime and GE1–GE3/five-SDK tests | PR remains unmerged; fresh exact-main five-SDK, published old/new matrix, negative vectors and postmerge release admission **OPEN** |
+| G5 / P6–P9 lifecycle | [Issue #990](https://github.com/inn-media/truyn/issues/990) remains OPEN; shared Cosmos paid-NEED/effect-fence candidate exists in public reference code ([security issue #1104](https://github.com/inn-media/truyn/issues/1104)) | Real independently proven two-host/restart/partition/provider-side effect/receipt finality and transport-wide five-SDK exact-SHA admission **NOT PROVEN**; provider with no idempotent POST guarantee must never blindly retry an ambiguous effect |
+| P11 version negotiation | Bounded pre-stable negotiation implemented; [PR #1085](https://github.com/inn-media/truyn/pull/1085) supplies five-SDK native refusal and old/new release-candidate matrices | New exact published package, all 280 native signed observation cases, final shared SHA and independent postmerge proof **OPEN** |
+| P12 references/artifacts | **Bounded strict object/artifact reference gate accepted** in [P12 certification](../compatibility/TRUYN1_P12_OBJECT_ARTIFACT_CERTIFICATION.md) | Expanded P11/P12/P13 release-generation package compatibility from PR #1085 is separate and **OPEN**; do not downgrade prior bounded P12 acceptance or infer full distributed OBJECT support |
+| P13-FORMAT | 180-day deprecation/rollback policy defined in [P13 format compatibility](../compatibility/P13_FORMAT_COMPATIBILITY.md) | Stable-generation five-SDK/new-old and exact published SHA/digest validation **OPEN**; P13-OPS live production cutover is independently **BLOCKED** |
+| Normative source provenance | Two approved original design SHA-256 values are recorded in [historical approval baseline](../compatibility/TRUYN1_EXPANDED_CORE_WIRE_FREEZE_APPROVAL_BASELINE.md); [PR #1089](https://github.com/inn-media/truyn/pull/1089) proposes English-only source-semantic derivatives | Original byte-identical `TRUYN_CORE_WIRE_TYPES.md`, `TRUYN_NON_CORE_WIRE_TYPES.md`, `TRUYN_ENVELOPE_EXT.md` are **not present** in current public `main`; do not invent them or silently promote RFC. [Class C issue #1098](https://github.com/inn-media/truyn/issues/1098) preserves the minimum 14-calendar-day review |
+| ATTEST terminology | [Signed JSON](../../spec/protocol/v1/attest.md) retains `support/contradict/uncertain`; abstract `SUPPORTS/DISPUTES/INCONCLUSIVE` are non-wire semantic labels, with versioned mapping | No new Protobuf signed-wire projection or change to historical signature byte domain admitted; Class C review remains open |
+
+**Stable TRUYN/1, a stable five-SDK release, production activation and Mainnet are not declared.** Any subsequent merge must bind all applicable gates to one exact source revision and to independently qualified immutable packages; new cloud/paid testing requires independent safety and cost authorization.
+
 Current cross-repository truth table: [Global Status Reconciliation](../operations/GLOBAL_STATUS_RECONCILIATION_2026-10-10.md).
 
 ## Network-scale acceptance boundary
