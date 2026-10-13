@@ -57,6 +57,8 @@ jobs:
       - run: npm run test:security
       - run: node scripts/check-d200-contract.mjs
       - run: node scripts/check-class-d-five-patches.mjs
+      - run: node scripts/check-documentation-language.mjs --self-test
+      - run: node scripts/check-documentation-language.mjs
       - run: node scripts/check-repository-hygiene.mjs
       - run: node scripts/check-open-private-boundary.mjs
       - run: git diff --check

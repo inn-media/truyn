@@ -158,3 +158,7 @@ Double-Check `CAMPAIGN_RC=0`, `EVALUATOR_RC=0`, `TERMINAL_RC=0`, `cleanup=true`,
 **Scope boundary:** this demonstrates repeatability of the specified 1,000-process Class-D scale acceptance. It does not establish long-duration production SLO compliance, private managed-production acceptance, or mainnet readiness. Public repository remains the authoritative source of benchmark/evaluator/evidence; private repository consumes only immutable identifiers and sanitized public metrics.
 
 [Documentation sanitation and repeatable checks — 2026-10-12](operations/DOCUMENTATION_SANITATION_2026-10-12.md).
+
+## Repository-wide English-only documentation
+
+English is the single mandatory documentation language in both TRUYN repositories. The policy is [Documentation Language Policy](governance/DOCUMENTATION_LANGUAGE_POLICY.md); the repository agent rule is in AGENTS.md. Full tracked-tree language validation runs in mandatory CI.

@@ -173,3 +173,7 @@ The repository is intentionally evolving quickly. Proposed protocol, descriptor,
 Stable-v1 technical maturity does not by itself prove neutral governance maturity. See the Governance & Standardization Gate in `ROADMAP.md`.
 
 See `ROADMAP.md`, `GOVERNANCE.md`, `SECURITY.md`, `DCO`, `spec/`, `sdk/`, `docs/governance/` and `docs/architecture/` for the current direction.
+
+## Mandatory English-only documentation
+
+All TRUYN documentation, issue/PR narratives, source comments and explanatory material must be in English only in both public and private repositories. See [Documentation Language Policy](docs/governance/DOCUMENTATION_LANGUAGE_POLICY.md) and the required full-tree language CI. Preserve exact-byte signed Unicode vectors as test data, not foreign-language prose.

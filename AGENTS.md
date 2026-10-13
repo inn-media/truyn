@@ -1,0 +1,5 @@
+# TRUYN Repository Agent Instructions
+
+**All documentation must be exclusively in English.** This rule applies to both inn-media/truyn and inn-media/truyn-platform, including READMEs, specifications, RFCs, ADRs, governance, changelogs, runbooks, source comments/docstrings, benchmark narratives, generated documentation and PR/issue descriptions. Translate any non-English input into accurate English before committing. See docs/governance/DOCUMENTATION_LANGUAGE_POLICY.md.
+
+Run node scripts/check-documentation-language.mjs --self-test and node scripts/check-documentation-language.mjs before proposing changes. Preserve foreign-language strings only as literal immutable Unicode interoperability/test data, not explanatory text. Never rewrite historic signatures, hashes, signed envelopes, registry codes, accepted benchmark evidence, network thresholds or active campaigns for editorial cleanup. English translations must have separate SHA-256 digests; the originals remain provenance, not current documentation.
