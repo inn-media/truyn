@@ -372,10 +372,23 @@ export function createCosmosLifecycleLedger({
     };},
     async getOffer(id){return get('offer',id);},
     async getEffect(id){return get('effect',id);},
-    async reserveNeed({id,requester,provider,fingerprint,capability,mode,scope,policyDigest,delivery=null}) {
+    async reserveNeed({id,requester,provider,fingerprint,capability,mode,scope,policyDigest,delivery=null,paidAuthorization=null}) {
       if (!validNeedId(id) || ![requester,provider,fingerprint,capability,mode,scope,policyDigest].every(nonempty)) throw fault(400,'invalid_lifecycle_reservation');
+      // Paid authority is co-committed with the original unique NEED ID.
+      // Never permit a later replay to add or rewrite payer/grant metadata.
+      if (paidAuthorization !== null &&
+          (paidAuthorization.contract !== 'truyn.paid.need/1' ||
+           paidAuthorization.status !== 'authorized' ||
+           paidAuthorization.requesterNodeId !== requester ||
+           paidAuthorization.providerNodeId !== provider ||
+           paidAuthorization.capability !== capability ||
+           paidAuthorization.payerNodeId !== provider ||
+           paidAuthorization.billingResponsibility !== 'provider-owner' ||
+           !Number.isSafeInteger(paidAuthorization.authorityRevision) ||
+           paidAuthorization.authorityRevision < 0))
+        throw fault(403, 'paid_need_authorization_invalid');
       const data={requester,provider,fingerprint,capability,mode,scope,policyDigest,status:'matched',
-        terminalAt:null,partialSequence:0,partialDigest:null,deliveries:[]};
+        paidAuthorization,terminalAt:null,partialSequence:0,partialDigest:null,deliveries:[]};
       if(delivery) appendDelivery({...data,logicalId:id},delivery,'NEED',provider);
       // appendDelivery mutates the temporary data object because its deliveries array is shared.
       return create('need',id,data);
@@ -601,12 +614,17 @@ export function createCosmosLifecycleLedger({
         return {acquired:false,existing};
       }
     },
-    async finishEffect({id,provider,outcome}) {
+    async finishEffect({id,provider,outcome,observedTokens=null}) {
       if(!['completed','failed','unknown'].includes(outcome)) throw fault(400,'invalid_effect_outcome');
+      if(observedTokens!==null && (!Number.isSafeInteger(observedTokens) || observedTokens<0 || outcome!=='completed'))
+        throw fault(400,'invalid_effect_meter');
       return mutate('effect',id,doc=>{
         if(doc.provider!==provider) throw fault(403,'provider_mismatch');
         if(doc.status!=='started') return null;
-        doc.status=outcome;doc.terminalAt=new Date().toISOString();return doc;
+        doc.status=outcome;doc.terminalAt=new Date().toISOString();
+        // Provider-reported usage is durable evidence, not a vendor invoice.
+        if(observedTokens!==null) doc.observedTokens=observedTokens;
+        return doc;
       });
     },
     async acknowledgeDelivery({eventId,recipient}) {

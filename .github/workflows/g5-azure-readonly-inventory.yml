@@ -25,6 +25,8 @@ jobs:
         with: {persist-credentials: false}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
+      - name: Install deterministic test-only dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prove source, scope and no-mutation contract before Azure authentication
         shell: bash
         run: |
@@ -33,6 +35,8 @@ jobs:
           test "$GITHUB_REF" = "refs/heads/main"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           node --test tests/g5-azure-inventory-workflow.test.js
+          # Strict paid NEED security probes are local, deterministic and never call AI providers.
+          node --test tests/paid-need-durable-security.test.js
           test -n "$AZURE_CLIENT_VALUE" && test -n "$AZURE_TENANT_VALUE" && test -n "$AZURE_SUBSCRIPTION_VALUE"
       - uses: azure/login@v2
         with:
