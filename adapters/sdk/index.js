@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { verifyEnvelope } from '../../core/protocol/index.js';
 import { createProviderAccessPolicy } from '../../core/security/provider-access.js';
+import { verifyPaidNeedAtProvider } from '../../core/security/paid-need-admission.js';
 
 const MAX_CANCELLATION_REASON_CHARS = 256;
 
@@ -144,7 +145,7 @@ export function createFunctionAdapter({ name = 'function-adapter', version = '0.
 }
 
 export class TruynAdapterHost {
-  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, executionDrainTimeoutMs = 5_000, accessPolicy, billingPolicy = null, effectLedger = null, recoveredResultFinalizer = null } = {}) {
+  constructor({ node, adapter, pollIntervalMs = 500, fastPath = false, longPollMs = 25_000, socketPath = false, socketReconnectDelayMs = 250, maxCancellationTombstones = 1024, maxConcurrentExecutions = 1, maxPendingExecutions = 256, executionDrainTimeoutMs = 5_000, accessPolicy, billingPolicy = null, effectLedger = null, recoveredResultFinalizer = null, requirePaidNeedLedger = false } = {}) {
     if (!node) throw new Error('node is required');
     this.node = node;
     this.adapter = validateAdapter(adapter);
@@ -163,6 +164,11 @@ export class TruynAdapterHost {
       throw new Error('effectLedger must implement beginEffect and finishEffect');
     }
     this.effectLedger = effectLedger;
+    this.requirePaidNeedLedger = requirePaidNeedLedger;
+    if (requirePaidNeedLedger && (!billingPolicy || effectLedger?.kind !== 'cosmos-multi-host-v1' ||
+        typeof effectLedger.getNeed !== 'function')) {
+      throw new Error('Paid provider must use the shared cross-host NEED authorization and effect ledger');
+    }
     if (recoveredResultFinalizer !== null && typeof recoveredResultFinalizer !== 'function')
       throw new Error('recoveredResultFinalizer must be a function');
     this.recoveredResultFinalizer = recoveredResultFinalizer;
@@ -295,13 +301,36 @@ export class TruynAdapterHost {
     const { signal } = state.controller;
     const capability = need.payload?.capability?.name || need.payload?.capability;
     if (!this.adapter.capabilities.some((item) => item.name === capability)) return;
-    const access = this.accessPolicy.authorize(need);
+    const access = await this.accessPolicy.authorize(need);
     if (!access?.ok) {
       if (signal.aborted) return;
       const metadata = { adapter: this.adapter.name, adapterVersion: this.adapter.version, latencyMs: 0, error: 'PROVIDER_ACCESS_DENIED', errorClass: 'authorization', accessDenied: true, accessMode: this.accessPolicy.mode, failed: true };
       if (need.chain) metadata.chainStage = need.stageIndex;
       await this.sendTerminal(need, null, metadata);
       return;
+    }
+    if (this.requirePaidNeedLedger) {
+      try {
+        await verifyPaidNeedAtProvider({
+          ledger: this.effectLedger,
+          need,
+          providerNodeId: this.node.identity.nodeId
+        });
+      } catch (error) {
+        if (signal.aborted) return;
+        const metadata = {
+          adapter: this.adapter.name,
+          adapterVersion: this.adapter.version,
+          latencyMs: 0,
+          error: 'PROVIDER_BILLING_DENIED',
+          errorClass: 'billing',
+          billingDenied: true,
+          billingReason: error.publicCode || 'paid_need_ledger_unavailable',
+          failed: true
+        };
+        await this.sendTerminal(need, null, metadata);
+        return;
+      }
     }
     // Provider-side durable intent is committed *before* billing authorization
     // or any external adapter.execute side effect. Reconnect/redelivery cannot
@@ -344,6 +373,13 @@ export class TruynAdapterHost {
       if (signal.aborted) {
         await settleBilling(billing, { outcome: 'cancelled', actualTokens: 0, reason: signal.reason?.message || 'request_cancelled' });
         return;
+      }
+      // Re-read authoritative relay admission immediately before the billable
+      // external call. A stale cache or disappeared ledger can never grant spend.
+      if (this.requirePaidNeedLedger) {
+        await verifyPaidNeedAtProvider({
+          ledger: this.effectLedger, need, providerNodeId: this.node.identity.nodeId
+        });
       }
       const execution = await this.adapter.execute({ capability, input, policy: need.payload?.policy || {}, need, node: this.node, signal, emitPartial: (delta, partialMetadata = {}) => this.sendPartial(need, state, delta, partialMetadata) });
       // The adapter invocation has returned. Persist its successful effect intent
