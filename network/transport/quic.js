@@ -121,6 +121,9 @@ export class TruynQuicTransport {
     tls,
     maxMessageBytes = 1_048_576,
     lifecycleLedger = null,
+    // Until a QUIC-paid executor participates in shared payer admission,
+    // effect CAS and provider-side recheck, refuse every direct paid NEED.
+    paidNeedEnforcement = false,
     maxSeenNeedIds = 262144,
     maxInboundInFlight = 64,
     maxInboundQueued = 256,
