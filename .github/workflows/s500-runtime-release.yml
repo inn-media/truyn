@@ -1,0 +1,65 @@
+name: S500 qualified runtime publication
+on:
+  push:
+    branches: [task/s500-runtime-release-20261013]
+    paths: [.github/workflows/s500-runtime-release.yml]
+permissions:
+  contents: write
+concurrency:
+  group: s500-runtime-release-6d413962
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_SHA: 6d4139622add2d9688b4e3e583a51af48bfa6a64
+      TAG: s-series-relay-6d4139622add2d9688b4e3e583a51af48bfa6a64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 6d4139622add2d9688b4e3e583a51af48bfa6a64
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify exact source and previous independent readiness
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/38385067409" > "$RUNNER_TEMP/readiness.json"
+          jq -e --arg sha "$SOURCE_SHA" '.head_sha==$sha and .conclusion=="success"' "$RUNNER_TEMP/readiness.json"
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test tests/s500-*.test.js tests/cloud-providers.test.js tests/relay-load-cost-routing.test.js
+      - name: Hold 500 signed NEEDs, then complete without inference
+        run: |
+          mkdir -p artifacts
+          node benchmarks/s500-dry-burst.mjs > artifacts/s500-dry-burst.json
+          cat artifacts/s500-dry-burst.json
+      - name: Create immutable source bundle and publish once
+        run: |
+          set -Eeuo pipefail
+          git archive --format=tar "$SOURCE_SHA" | gzip -n > artifacts/truyn-s-series-relay.tgz
+          sha256sum artifacts/truyn-s-series-relay.tgz > artifacts/truyn-s-series-relay.tgz.sha256
+          python - <<'PY'
+          import hashlib,json,os,pathlib
+          root=pathlib.Path('artifacts')
+          bundle=root/'truyn-s-series-relay.tgz'
+          manifest={'schema':'truyn.s-series.runtime-manifest/v1','sourceSha':os.environ['SOURCE_SHA'],'sha256':hashlib.sha256(bundle.read_bytes()).hexdigest(),'qualificationRun':38385067409,'publicationRun':os.environ['GITHUB_RUN_ID'],'paidCalls':0,'nodeTarget':500,'limits':{'fastTerminalReservations':1024,'queuedTerminalEvents':256}}
+          (root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+          print(json.dumps(manifest))
+          PY
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            mkdir "$RUNNER_TEMP/existing"
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/existing" --pattern manifest.json --pattern truyn-s-series-relay.tgz
+            test "$(sha256sum "$RUNNER_TEMP/existing/truyn-s-series-relay.tgz" | cut -d' ' -f1)" = "$(sha256sum artifacts/truyn-s-series-relay.tgz | cut -d' ' -f1)"
+            jq -e --arg sha "$SOURCE_SHA" '.sourceSha==$sha' "$RUNNER_TEMP/existing/manifest.json"
+            cp "$RUNNER_TEMP/existing/manifest.json" artifacts/manifest.json
+          else
+            gh release create "$TAG" artifacts/manifest.json artifacts/truyn-s-series-relay.tgz artifacts/truyn-s-series-relay.tgz.sha256 --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title "Qualified S500 relay 6d413962" --notes "Pinned public runtime with separated terminal reservations and opt-in provider governor. 500 signed NEED dry burst passed. No paid S500 acceptance or cloud deployment is claimed."
+          fi
+          sha256sum artifacts/manifest.json artifacts/truyn-s-series-relay.tgz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: s500-qualified-runtime-publication, path: artifacts/, if-no-files-found: error}
