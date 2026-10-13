@@ -67,3 +67,37 @@ test('S-500: invalid knobs fail closed', () => {
   assert.throws(() => createRelay({ localDevelopmentMode: true, maxFastTerminalReservationsPerRequester: 0 }), /maxFastTerminalReservationsPerRequester/);
   assert.throws(() => createRelay({ localDevelopmentMode: true, socketHeartbeatIntervalMs: 10 }), /socketHeartbeatIntervalMs/);
 });
+
+test('S-500: queued terminal results and outstanding reservations share one bounded capacity', async t => {
+  const depth = 2, capacity = 8;
+  const { relay, requester, providers: [provider] } = await setup(t,
+    [['bench.terminal', { capacity: { maxInFlight: 16 } }]],
+    { maxQueuedEventsPerNode: depth, maxFastTerminalReservationsPerRequester: capacity });
+  const expected = new Map();
+  const pending = [];
+  for (let i = 0; i < capacity; i++) {
+    // Drain only the provider's ordinary NEED queue. Keep every requester RESULT queued.
+    const receipt = await requester.compactNeed('bench.terminal', { i }, {}, { waitMs: 0 });
+    expected.set(receipt.needId, i);
+    const need = (await provider.pollCompact({ waitMs: 0 })).events;
+    assert.equal(need.length, 1);
+    assert.equal(need[0].frame.i, receipt.needId);
+    if (i < capacity - 2) await provider.compactResult(receipt.needId, { i });
+    else pending.push({ id: receipt.needId, i });
+  }
+  assert.equal(relay.state.fastTerminalEvents.get(requester.identity.nodeId).length, capacity - 2);
+  assert.equal(relay.state.fastTerminalReservations.get(requester.identity.nodeId), 2);
+  await assert.rejects(requester.compactNeed('bench.terminal', { overflow: true }, {}, { waitMs: 0 }), /terminal_backpressure|429/);
+  for (const p of pending) await provider.compactResult(p.id, { i: p.i });
+  assert.equal(relay.state.fastTerminalEvents.get(requester.identity.nodeId).length, capacity);
+  assert.equal(relay.state.fastTerminalReservations.get(requester.identity.nodeId) || 0, 0);
+  const results = (await requester.pollCompact({ waitMs: 0 })).events;
+  assert.equal(results.length, capacity);
+  assert.equal(new Set(results.map(e => e.frame.i)).size, capacity);
+  for (const event of results) {
+    assert(event.verification.ok);
+    assert.equal(event.payload.output.i, expected.get(event.frame.i));
+  }
+  const next = await requester.compactNeed('bench.terminal', { afterDrain: true }, {}, { waitMs: 0 });
+  assert(next.needId, 'reading the terminal queue must release admission capacity');
+});

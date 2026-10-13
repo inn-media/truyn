@@ -20,7 +20,7 @@ test('G5 worker without explicit isolated identity/config refuses before Azure c
 });
 
 test('G5 source guard preserves signatures, exact source and no blind effect reacquisition',()=>{
-  for(const marker of ["fingerprint:hash(canonicalize(envelope))","assert.deepEqual(verifyEnvelope(","effect_identity_conflict","duplicate_request","request_already_completed","acknowledgeDelivery","sourceSha,runId","paidProviderRequests:0","externalInvoiceVerified:false","azureVnetPartition:false"])
+  for(const marker of ["fingerprint:hash(canonicalize(envelope))","assert.deepEqual(verifyEnvelope(","effect_identity_conflict","duplicate_request","request_already_completed","acknowledgeDelivery","sourceSha,runId","paidProviderRequests:0","externalInvoiceVerified:false","azureVnetPartition:false","G5_EXPECT_CONNECTIVITY","azureVnetPartition:true","azureVnetHealed:true"])
     assert.ok(source.includes(marker),marker);
   assert.ok(source.includes("assert.equal(env.G5_TEST_DATABASE, 'g5-live-' + runId)"));
   assert.ok(source.includes("assert.equal(env.G5_TEST_CONTAINER, 'ledger')"));
