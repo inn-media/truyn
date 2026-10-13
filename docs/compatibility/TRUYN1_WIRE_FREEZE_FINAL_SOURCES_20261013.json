@@ -1,0 +1,48 @@
+{
+  "schema": "truyn.wire-freeze.final-source-manifest/1",
+  "status": "PROPOSAL_ONLY_NOT_WIRE_ADMITTED_NOT_STABLE",
+  "verifiedOn": "2026-10-13",
+  "repository": "inn-media/truyn",
+  "sourceMainSHA": "fc5e0533558df5978e62b8c33cb381460f5d7904",
+  "sourceAuthority": "docs/compatibility/TRUYN1_EXPANDED_CORE_WIRE_FREEZE_APPROVAL_BASELINE.md",
+  "acceptedBaselineFiles": [
+    {
+      "path": "docs/compatibility/TRUYN_WIRE_FREEZE_CORE_FINAL(1).md",
+      "uploadedName": "TRUYN_WIRE_FREEZE_CORE_FINAL(1)(1).md",
+      "sha256": "591e0f92d494626b32090223e4756f2f431a2ad6179074b0066902112ea9d121",
+      "bytes": 46732,
+      "gitBlobSha1": "fceaa7f3b4a07860867694f07e2eb7f325b507da",
+      "byteExact": true
+    },
+    {
+      "path": "docs/compatibility/TRUYN_WIRE_FREEZE_EXTENSIONS_FINAL(1).md",
+      "uploadedName": "TRUYN_WIRE_FREEZE_EXTENSIONS_FINAL(1)(1).md",
+      "sha256": "c345631992e3e96f84e67dcf48a85c15281f5912ae1bfd131c5f904b9da46e72",
+      "bytes": 56140,
+      "gitBlobSha1": "392458cc54e09e0db23fdfbbe2a9f60a998929aa",
+      "byteExact": true
+    }
+  ],
+  "remainingUnverifiedOriginalInputs": [
+    "TRUYN_CORE_WIRE_TYPES.md",
+    "TRUYN_NON_CORE_WIRE_TYPES.md",
+    "TRUYN_ENVELOPE_EXT.md"
+  ],
+  "note": "These two FINAL approved sources do not replace the three separately named original source documents. Their raw-byte SHA-256 values are not asserted here. Import those only after exact raw-byte access and validation.",
+  "governance": {
+    "rfcClass": "C",
+    "minimumReviewDays": 14,
+    "startsOn": "2026-10-13",
+    "promotion": "MANUAL_GOVERNANCE_ONLY"
+  },
+  "invariants": [
+    "MVP_TYPES_UNCHANGED",
+    "COMPACT_TYPES_UNCHANGED",
+    "ED25519_TCJ1_SIGNED_BYTES_UNCHANGED",
+    "NODE_ID_DERIVATION_UNCHANGED",
+    "REGISTRY_CODES_IMMUTABLE",
+    "EXTENSIONS_DEFAULT_OFF",
+    "NO_PRODUCTION_DEPLOYMENT",
+    "APPEND_ONLY_EVIDENCE"
+  ]
+}
