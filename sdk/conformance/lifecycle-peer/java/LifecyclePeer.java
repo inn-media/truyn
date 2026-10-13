@@ -25,11 +25,12 @@ public final class LifecyclePeer {
       boolean partial=names.containsAll(List.of("partial","compactNeed","compactResult","pollCompact"));
       value=Map.of("nodeId",p.nodeId(),"cancel",true,"withdraw",true,"partial",partial,"surface","client-api");
      }
+     case "reregister"->p.register(actor);
      case "offer"->value=p.offer((String)a.get("capability"),a.containsKey("metadata")?Json.object(a.get("metadata")):Map.of()).join();
      case "need"->{var r=p.need((String)a.get("capability"),Map.of("probe",true),Map.of()).join();value=Map.of("needId",r.needId(),"provider",r.provider());}
-     case "result"->value=p.sendResult((String)a.get("needId"),Map.of("answer",42),Map.of()).join();
+     case "result"->value=p.sendResult((String)a.get("needId"),a.getOrDefault("output",Map.of("answer",42)),Map.of()).join();
      case "nextNeed"->{var r=p.nextNeed(Duration.ofSeconds(3)).join();value=Map.of("needId",r.needId(),"verified",true);}
-     case "waitResult"->{var r=p.waitForResult((String)a.get("needId"),Duration.ofSeconds(3)).join();value=Map.of("needId",r.needId(),"verified",true);}
+     case "waitResult"->{var r=p.waitForResult((String)a.get("needId"),Duration.ofSeconds(3)).join();value=Boolean.TRUE.equals(a.get("includeOutput"))?Map.of("needId",r.needId(),"verified",true,"output",r.output()):Map.of("needId",r.needId(),"verified",true);}
      case "cancel"->p.cancelNeed((String)a.get("needId"),"test_cancel").join();
      case "withdraw"->p.revokeOffer((String)a.get("offerId")).join();
      case "poll"->{var rows=new ArrayList<Object>();for(var x:p.poll())rows.add(Map.of("kind",x.kind(),"verified",x.verified()));value=rows;}
@@ -45,7 +46,7 @@ public final class LifecyclePeer {
      default->throw new IllegalArgumentException("unsupported_action");
     }
     out.put("ok",true);out.put("value",value);
-   }catch(Exception e){out.put("ok",false);Throwable cause=e;while(cause.getCause()!=null)cause=cause.getCause();String error=String.valueOf(cause.getMessage());out.put("error",error.substring(0,Math.min(150,error.length())));}
+   }catch(Exception e){out.put("ok",false);Throwable cause=e;while(cause.getCause()!=null)cause=cause.getCause();if(cause instanceof TruynException t)out.put("code",t.code().wireValue());String error=String.valueOf(cause.getMessage());out.put("error",error.substring(0,Math.min(150,error.length())));}
    System.out.println(Json.stringify(out));System.out.flush();
   }
  }

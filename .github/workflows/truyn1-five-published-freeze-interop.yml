@@ -6,6 +6,12 @@ on:
     paths:
       - 'sdk/**'
       - 'core/protocol/**'
+      - 'core/object/**'
+      - 'node/**'
+      - 'migrations/**'
+      - 'spec/protocol/**'
+      - 'tests/p11-*.test.js'
+      - 'tests/truyn1-p12-*.test.js'
       - 'network/relay/**'
       - '.github/workflows/truyn1-five-published-freeze-interop.yml'
       - 'spec/compatibility/truyn1-five-sdk-*.json'
@@ -16,6 +22,12 @@ on:
     paths:
       - 'sdk/**'
       - 'core/protocol/**'
+      - 'core/object/**'
+      - 'node/**'
+      - 'migrations/**'
+      - 'spec/protocol/**'
+      - 'tests/p11-*.test.js'
+      - 'tests/truyn1-p12-*.test.js'
       - 'network/relay/**'
       - '.github/workflows/truyn1-five-published-freeze-interop.yml'
       - 'spec/compatibility/truyn1-five-sdk-*.json'
@@ -146,7 +158,9 @@ jobs:
           TRUYN_LEGACY_NPM_ROOT: /tmp/truyn-wire-legacy-npm
           TRUYN_LEGACY_PYTHON: /tmp/truyn-wire-legacy-py/bin/python
           TRUYN_CANDIDATE_PYTHON: /tmp/truyn-wire-candidate-py/bin/python
-        run: node sdk/conformance/lifecycle-peer/qualify-successor.mjs
+        run: |
+          node sdk/conformance/lifecycle-peer/qualify-successor.mjs
+          node sdk/conformance/registration-peer/qualify.mjs
       - name: Upload exact-source package receipts, 20 exchanges and native lifecycle findings
         if: always()
         uses: actions/upload-artifact@v4

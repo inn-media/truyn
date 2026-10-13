@@ -4,7 +4,9 @@ const [mode, relayUrl] = process.argv.slice(2);
 if (!['legacy','candidate'].includes(mode) || !relayUrl) throw Error('invalid_role_config');
 const module = mode === 'legacy'
   ? await import(resolve(process.env.TRUYN_LEGACY_NPM_ROOT!, 'node_modules/@truyn/sdk/dist/index.js'))
-  : await import('../../typescript/src/local-node.ts');
+  : process.env.TRUYN_CANDIDATE_NPM_ROOT
+    ? await import(resolve(process.env.TRUYN_CANDIDATE_NPM_ROOT, 'node_modules/@truyn/sdk/dist/index.js'))
+    : await import('../../typescript/src/local-node.ts');
 const peers = new Map<string, any>();
 for await (const line of createInterface({ input:process.stdin, crlfDelay:Infinity })) {
   let message:any;
@@ -15,10 +17,11 @@ for await (const line of createInterface({ input:process.stdin, crlfDelay:Infini
         p=await module.TruynLocalNodeClient.connect({relayUrl, name:a.actor, protocols:a.protocols||['TRUYN/1']}); peers.set(a.actor,p);
         value={nodeId:p.nodeId,cancel:typeof p.runtime.revoke==='function',withdraw:typeof p.runtime.revoke==='function',partial:typeof p.runtime.compactFrame==='function'&&typeof p.runtime.pollCompact==='function',surface:'exported-runtime'}; break;
       }
+      case 'reregister': value=await p.runtime.register({name:a.actor,protocols:['TRUYN/1']});break;
       case 'offer': value=await p.offer(a.capability,a.metadata||{}); break;
       case 'need': value=await p.need(a.capability,{probe:true}); break;
-      case 'result': value=await p.result(a.needId,{answer:42});break;
-      case 'waitResult': { const result=await p.runtime.poll({waitMs:0}); const r=result.events.find((x:any)=>x.kind==='RESULT'&&x.envelope?.payload?.requestId===a.needId); if(!r)throw Error('missing_result');value={needId:a.needId,verified:r.verification?.ok===true};break; }
+      case 'result': value=await p.result(a.needId,a.output??{answer:42});break;
+      case 'waitResult': { const result=await p.runtime.poll({waitMs:0}); const r=result.events.find((x:any)=>x.kind==='RESULT'&&x.envelope?.payload?.requestId===a.needId); if(!r)throw Error('missing_result');value={needId:a.needId,verified:r.verification?.ok===true,...(a.includeOutput?{output:r.envelope.payload.output}:{})};break; }
       case 'nextNeed': { const result=await p.runtime.poll({waitMs:0});const r=result.events.find((x:any)=>x.kind==='NEED');if(!r)throw Error('missing_need');value={needId:r.envelope.id,verified:r.verification?.ok===true};break; }
       case 'cancel': value=await p.runtime.revoke(a.needId,'test_cancel',{targetKind:'need'});break;
       case 'withdraw': value=await p.runtime.revoke(a.offerId,'test_withdraw',{targetKind:'offer'});break;
@@ -35,6 +38,6 @@ for await (const line of createInterface({ input:process.stdin, crlfDelay:Infini
       default: throw Error('unsupported_action');
     }
     console.log(JSON.stringify({id:message.id,ok:true,value:value??null}));
-  } catch(error:any) {console.log(JSON.stringify({id:message?.id,ok:false,error:String(error?.body?.error||error?.message||error).slice(0,150)}));}
+  } catch(error:any) {console.log(JSON.stringify({id:message?.id,ok:false,code:error?.code??null,error:String(error?.body?.error||error?.message||error).slice(0,150)}));}
 }
 for(const p of peers.values())p.close();

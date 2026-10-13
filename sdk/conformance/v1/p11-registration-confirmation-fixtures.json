@@ -1,0 +1,456 @@
+{
+  "schema": "truyn.p11.registration-confirmation/v1",
+  "profile": "TRUYN/1-baseline",
+  "scope": "Real SDK registration response validation; fully absent legacy negotiation grants baseline only. No TRUYN/2 implementation claim.",
+  "cases": [
+    {
+      "id": "current-baseline",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "legacy-baseline",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session"
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "lower-common-baseline",
+      "protocols": [
+        "TRUYN/999",
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "unknown-optional-response-field",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": [],
+        "futureOptional": {
+          "value": true
+        }
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "unadvertised-generation",
+      "protocols": [
+        "TRUYN/999"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "legacy-no-baseline",
+      "protocols": [
+        "TRUYN/999"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session"
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "unimplemented-shared-generation",
+      "protocols": [
+        "TRUYN/999",
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/999",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "protocol-null",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": null,
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "protocol-number",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": 1,
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "protocol-object",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": {},
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "protocol-array",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": [],
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "protocol-leading-zero",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/01",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "protocol-zero",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/0",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "protocol-unsafe",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/9007199254740992",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "protocol-whitespace",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": " TRUYN/1",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "missing-protocol",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "missing-semantics",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/1"
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "semantics-null",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": null
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "semantics-string",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": "core-envelope"
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "semantics-object",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": {}
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "semantics-invalid-element",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": [
+          null
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "semantics-unadvertised",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": [
+          "revoke-need"
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "semantics-duplicate",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "fixture-session",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": [
+          "revoke-need",
+          "revoke-need"
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "code": "version_mismatch"
+      }
+    },
+    {
+      "id": "token-null",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": null,
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "invalid_response"
+      }
+    },
+    {
+      "id": "token-empty",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "invalid_response"
+      }
+    },
+    {
+      "id": "token-whitespace",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": "  ",
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "invalid_response"
+      }
+    },
+    {
+      "id": "token-number",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "sessionToken": 12,
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "invalid_response"
+      }
+    },
+    {
+      "id": "missing-token",
+      "protocols": [
+        "TRUYN/1"
+      ],
+      "response": {
+        "ok": true,
+        "negotiatedProtocol": "TRUYN/1",
+        "negotiatedSemantics": []
+      },
+      "expected": {
+        "ok": false,
+        "code": "invalid_response"
+      }
+    }
+  ]
+}
