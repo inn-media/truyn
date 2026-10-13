@@ -34,13 +34,18 @@ test('S-200 canonical status, roadmap, indexes and seven-vendor contract remain 
  for(const path of ['README.md','ROADMAP.md','docs/README.md','docs/architecture/IMPLEMENTATION_STATUS.md',
   'docs/architecture/SEMANTIC_SCALE_S_SERIES.md','docs/benchmarks/README.md',
   'docs/operations/S_SERIES_EXECUTION_AND_TELEMETRY.md']) {
-   const s=read(path);assert.match(s,/S-200/,path);assert.match(s,/S_SERIES_S200_2026-10-12\.md/,path);
+   const s=read(path);assert.match(s,/S-200/,path);assert.match(s,/S_SERIES_S200_DOUBLE_CHECK_2026-10-13\.md/,path);
  }
+ const dc=JSON.parse(read('docs/benchmarks/evidence/S_SERIES_S200_DOUBLE_CHECK_2026-10-13.json'));
+ assert.equal(dc.status,'PASS_CLOSED_SIX_PROVIDER_DOUBLE_CHECK_VERIFIED');
+ assert.equal(dc.doubleCheck.attempt,17);
+ assert.equal(dc.doubleCheck.allScenariosFresh,true);
+ assert.equal(dc.doubleCheck.historicalEvidenceAdopted,false);
  const contract=read('docs/benchmarks/SEMANTIC_SCALE_S_SERIES_CONTRACT.md');
  assert.match(contract,/A full S-Series gate uses all seven text-provider families/);
  assert.match(contract,/\- DeepSeek;/);
  assert.match(contract,/seven-provider.*OPEN/i);
- const sanitized=read('docs/operations/S_SERIES_SANITATION_2026-10-12.md');
- assert.match(sanitized,/seven-provider/);
- assert.match(read('docs/architecture/IMPLEMENTATION_STATUS.md'),/S-200 6-provider 8\/8 COMPOSITE PASS/);
+ const primary=read('docs/operations/S_SERIES_SANITATION_2026-10-12.md');
+ assert.match(primary,/seven-provider/);
+ assert.match(read('docs/architecture/IMPLEMENTATION_STATUS.md'),/S-200 six-provider 8\/8 PASS \/ CLOSED \/ DOUBLE-CHECK VERIFIED/);
 });

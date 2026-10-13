@@ -1,8 +1,8 @@
 # TRUYN S-Series Execution Isolation and Telemetry
 
-Status: **S-10/20/50/100 ACCEPTED; six-family S-200 composite 8/8 PASS / CLOSED in measured scope; original seven-family S-200 + S-500 OPEN**  
+Status: **S-10/20/50/100 ACCEPTED; six-family S-200 8/8 PASS / CLOSED / DOUBLE-CHECK VERIFIED; original seven-family S-200 + physical WAN/SLO + S-500 OPEN**  
 Applies to: `S-10`, `S-20`, `S-50`, `S-100`, `S-200`, `S-500`  
-Documentation reconciliation: **2026-10-12** (A14+A15 scoped composite acceptance; historical blockwise notes below preserved as earlier execution model)
+Documentation reconciliation: **2026-10-13** (A14+A15 primary + independent fresh A17 Double-Check; historical blockwise notes below preserved as earlier execution model)
 
 This document defines the operational boundary for Semantic Scale execution without contaminating D/E/T/H/N benchmark evidence. The old status **`DEFINED / IMPLEMENTATION NOT STARTED` is obsolete**.
 
@@ -129,7 +129,7 @@ S-50 has real attempt history through **Attempt 15**. In particular:
 - Attempt 14, workflow run `35913581603`, is terminal FAILURE and immutable `NEVER_RERUN`;
 - Attempt 15, workflow run `35948814208`, is terminal FAILURE and immutable `NEVER_RERUN`; subsequent capacity/429 repair qualification does not rewrite that result.
 
-**S-10 Attempt 6 is accepted / PASS** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3, S-50 Attempt 3 and S-100 Attempt 1 are accepted / PASS** at their declared scopes. Public sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md`, `../benchmarks/S_SERIES_S20_2026-10-07.md`, `../benchmarks/S_SERIES_S50_2026-10-08.md` and `../benchmarks/S_SERIES_S100_2026-10-08.md`. **S-200 six-family A14+A15 composite is now accepted 8/8 in the recorded scope**; DeepSeek/seven-family contract, homogeneous one-run proof, physical WAN and S-500 remain independently OPEN. [S-200 evidence](../benchmarks/S_SERIES_S200_2026-10-12.md).
+**S-10 Attempt 6 is accepted / PASS** as the bounded ECON/MIX integration baseline. **S-20 Attempt 3, S-50 Attempt 3 and S-100 Attempt 1 are accepted / PASS** at their declared scopes. Public sanitized evidence: `../benchmarks/S_SERIES_S10_2026-10-07.md`, `../benchmarks/S_SERIES_S20_2026-10-07.md`, `../benchmarks/S_SERIES_S50_2026-10-08.md` and `../benchmarks/S_SERIES_S100_2026-10-08.md`. **S-200 six-family bounded scope is accepted 8/8 and DOUBLE-CHECK VERIFIED**: A14+A15 primary plus independent fresh A17. DeepSeek/seven-family contract, physical WAN/SLO and S-500 remain independently OPEN. [Double-Check evidence](../benchmarks/S_SERIES_S200_DOUBLE_CHECK_2026-10-13.md).
 
 ## 10. Current factual state
 
