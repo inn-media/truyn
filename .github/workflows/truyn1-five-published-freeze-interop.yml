@@ -11,6 +11,8 @@ on:
       - 'spec/compatibility/truyn1-five-sdk-*.json'
       - 'scripts/verify-five-sdk-interop.py'
       - 'tests/truyn1-five-*.test.js'
+      - 'tests/core-physical-quic-controls.test.js'
+      - 'tests/core-registry-physical-surfaces.test.js'
       - 'tests/fixtures/five-sdk-evidence-unit.py'
   pull_request:
     paths:
@@ -151,6 +153,10 @@ jobs:
         env:
           TRUYN_LIFECYCLE_EVIDENCE_DIR: ${{ runner.temp }}/five-sdk-evidence
         run: node sdk/conformance/release-qualification/run.mjs
+      - name: Qualify 11 real QUIC and signed compact surfaces by exact native SDK run
+        env:
+          TRUYN_LIFECYCLE_EVIDENCE_DIR: ${{ runner.temp }}/five-sdk-evidence
+        run: node sdk/conformance/core-registry/qualify-physical-surfaces.mjs
       - name: Upload exact-source package receipts, 20 exchanges and native lifecycle findings
         if: always()
         uses: actions/upload-artifact@v4

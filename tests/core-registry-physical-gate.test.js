@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+test('all eleven active physical rows and real run-bound native qualification stay mandatory and non-admitting',()=>{
+ const registry=JSON.parse(read('spec/registry/truyn-core-v1.json'));
+ const rows=registry.entries.filter(e=>e.admission==='existing_distinct_wire');
+ assert.equal(rows.length,11);
+ const evaluator=read('sdk/conformance/core-registry/physical-surface-evaluate.mjs');
+ const runner=read('sdk/conformance/core-registry/qualify-physical-surfaces.mjs');
+ const workflow=read('.github/workflows/truyn1-five-published-freeze-interop.yml');
+ assert.ok(evaluator.includes("status:'INVENTORY_COMPLETE_STABLE_BLOCKED'"));
+ assert.ok(evaluator.includes('sourceNativeBoundedPassed:15,blockedSdkCells:40'));
+ assert.ok(evaluator.includes('full provider-side exactly-once'));
+ assert.ok(runner.includes("'lifecycle.json'"));
+ assert.ok(runner.includes("'source-lifecycle.json'"));
+ assert.ok(runner.includes("'report.json'"));
+ assert.ok(runner.includes("tests/core-physical-quic-controls.test.js"));
+ assert.ok(workflow.includes('sdk/conformance/core-registry/qualify-physical-surfaces.mjs'));
+ assert.ok(workflow.includes('if: always()'));
+ assert.ok(read('sdk/conformance/core-registry/run.mjs').includes('stable_core_sdk_admission_blocked'));
+});
