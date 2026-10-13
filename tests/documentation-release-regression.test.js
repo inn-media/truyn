@@ -9,6 +9,8 @@ import { auditDocumentation, validateReleaseInventory, validateProtocolInventory
 const root = fileURLToPath(new URL('../', import.meta.url));
 const json = p => JSON.parse(readFileSync(new URL('../' + p, import.meta.url), 'utf8'));
 const release = () => [json('sdk/release/public-coordinates.json'), json('spec/compatibility/truyn1-five-sdk-freeze.json'), json('sdk/release/version.json')];
+const candidate = json('sdk/release/native-successor-candidate.json');
+const validateCurrentRelease = (current, freeze, versions) => validateReleaseInventory(current, freeze, versions, candidate);
 
 test('current five SDK coordinates, P1-P14 evidence inventory and documentation links agree', () => {
   const audit = auditDocumentation(root);
@@ -19,20 +21,20 @@ test('current five SDK coordinates, P1-P14 evidence inventory and documentation 
 });
 test('stale versions and false stable promotion fail the release documentation guard', () => {
   const [current, freeze, versions] = release();
-  assert.deepEqual(validateReleaseInventory(current, freeze, versions), []);
+  assert.deepEqual(validateCurrentRelease(current, freeze, versions), []);
   for (const id of ['npm', 'pypi', 'go', 'maven', 'nuget']) {
     const mutated = structuredClone(current);
     mutated.coordinates[id].coordinate += '-obsolete';
-    assert.ok(validateReleaseInventory(mutated, freeze, versions).some(x => x.startsWith('stale coordinate')));
+    assert.ok(validateCurrentRelease(mutated, freeze, versions).some(x => x.startsWith('stale coordinate')));
   }
-  assert.ok(validateReleaseInventory(current, { ...freeze, stableProtocolDeclared: true }, versions).length > 0);
+  assert.ok(validateCurrentRelease(current, { ...freeze, stableProtocolDeclared: true }, versions).length > 0);
 });
 test('five entries cannot hide a duplicated, missing or unknown SDK identity', () => {
   const [current, freeze, versions] = release();
   for (let omitted = 0; omitted < freeze.coordinates.length; omitted++) {
     const mutated = structuredClone(freeze);
     mutated.coordinates[omitted] = structuredClone(mutated.coordinates[(omitted + 1) % 5]);
-    assert.ok(validateReleaseInventory(current, mutated, versions).some(x => x.includes('distinct required SDK IDs')));
+    assert.ok(validateCurrentRelease(current, mutated, versions).some(x => x.includes('distinct required SDK IDs')));
   }
   const unknown = structuredClone(freeze);
   unknown.coordinates[0].id = 'unknown';
@@ -41,8 +43,8 @@ test('five entries cannot hide a duplicated, missing or unknown SDK identity', (
   assert.ok(validateReleaseInventory(current, missing, versions).length > 0);
   const wrongKey = structuredClone(current);
   wrongKey.coordinates.unknown = wrongKey.coordinates.nuget; delete wrongKey.coordinates.nuget;
-  assert.ok(validateReleaseInventory(wrongKey, freeze, versions).some(x => x.includes('registry keys')));
-  assert.ok(validateReleaseInventory(current, { ...freeze, coordinates: null }, versions).length > 0);
+  assert.ok(validateCurrentRelease(wrongKey, freeze, versions).some(x => x.includes('registry keys')));
+  assert.ok(validateCurrentRelease(current, { ...freeze, coordinates: null }, versions).length > 0);
 });
 test('each accepted coordinate requires its own canonical evidence pointer', () => {
   const [current, freeze, versions] = release();
@@ -51,11 +53,11 @@ test('each accepted coordinate requires its own canonical evidence pointer', () 
       const mutated = structuredClone(current);
       if (value === undefined) delete mutated.coordinates[key].evidence;
       else mutated.coordinates[key].evidence = value;
-      assert.ok(validateReleaseInventory(mutated, freeze, versions).some(x => x.includes('evidence pointer')));
+      assert.ok(validateCurrentRelease(mutated, freeze, versions).some(x => x.includes('evidence pointer')));
     }
   }
   const missing = structuredClone(current); delete missing.releaseEvidence;
-  assert.ok(validateReleaseInventory(missing, freeze, versions).length > 0);
+  assert.ok(validateCurrentRelease(missing, freeze, versions).length > 0);
 });
 test('accepted evidence must be an existing repository-local file, even when all pointers agree', () => {
   const directory = mkdtempSync(join(tmpdir(), 'truyn-doc-evidence-'));
@@ -114,13 +116,13 @@ test('current Descriptor documentation does not infer missing negative parity fr
 
 test('coordinated evidence substitution cannot replace the frozen registry ledger', () => {
   const [current, freeze, versions] = release();
-  assert.deepEqual(validateReleaseInventory(current, freeze, versions), []);
+  assert.deepEqual(validateCurrentRelease(current, freeze, versions), []);
   const changed = structuredClone(current);
   changed.releaseEvidence = 'README.md';
   for (const item of Object.values(changed.coordinates)) item.evidence = 'README.md';
   assert.deepEqual(validateEvidencePaths(root, [{ label: 'real but unrelated', path: 'README.md' }]), []);
-  assert.ok(validateReleaseInventory(changed, freeze, versions).includes('release evidence does not match frozen registry ledger'));
+  assert.ok(validateCurrentRelease(changed, freeze, versions).includes('release evidence does not match frozen registry ledger'));
   for (const value of [undefined, '', 'README.md']) {
-    assert.ok(validateReleaseInventory(current, { ...freeze, registryEvidence: value }, versions).includes('release evidence does not match frozen registry ledger'));
+    assert.ok(validateCurrentRelease(current, { ...freeze, registryEvidence: value }, versions).includes('release evidence does not match frozen registry ledger'));
   }
 });

@@ -54,8 +54,8 @@
       "name": "C# / .NET",
       "status": "implemented-developer-release-client",
       "root": "sdk/dotnet",
-      "sourceFiles": ["sdk/dotnet/Truyn.Sdk.csproj", "sdk/dotnet/Client.cs", "sdk/dotnet/Crypto.cs", "sdk/dotnet/Models.cs", "sdk/dotnet/AgentDescriptors.cs", "sdk/dotnet/TruynException.cs", "sdk/dotnet/conformance/Program.cs"],
-      "requiredMarkers": ["<PackageId>Truyn.Sdk</PackageId>", "public sealed class TruynClient", "ConnectAsync", "CancelNeedAsync", "AgentDescriptors", "Native Agent Descriptor retrieval", "record Identity", "record AgentDescriptor", "record OfferPayload", "record NeedPayload", "record ResultPayload", "record ArtifactRef", "record NormalizedError", "class StableSdkApi", "record ObjectPayload", "record ArtifactPayload", "record StreamItem", "TRUYN/1", "truyn.agent-descriptor/v1"],
+      "sourceFiles": ["sdk/dotnet/Truyn.Sdk.csproj", "sdk/dotnet/Client.cs", "sdk/dotnet/CompactLifecycle.cs", "sdk/dotnet/Crypto.cs", "sdk/dotnet/Models.cs", "sdk/dotnet/AgentDescriptors.cs", "sdk/dotnet/TruynException.cs", "sdk/dotnet/conformance/Program.cs"],
+      "requiredMarkers": ["<PackageId>Truyn.Sdk</PackageId>", "public sealed partial class TruynClient", "CompactNeedAsync", "PartialAsync", "CompactResultAsync", "ConnectAsync", "CancelNeedAsync", "AgentDescriptors", "Native Agent Descriptor retrieval", "record Identity", "record AgentDescriptor", "record OfferPayload", "record NeedPayload", "record ResultPayload", "record ArtifactRef", "record NormalizedError", "class StableSdkApi", "record ObjectPayload", "record ArtifactPayload", "record StreamItem", "TRUYN/1", "truyn.agent-descriptor/v1"],
       "publicDistribution": true,
       "publicDistributionChannel": "pre-release"
     }

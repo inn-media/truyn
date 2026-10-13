@@ -139,7 +139,15 @@ jobs:
           node sdk/conformance/legacy-peer/run-matrix.mjs | tee "$RUNNER_TEMP/five-sdk-evidence/matrix.log"
           python3 scripts/verify-five-sdk-interop.py report --log "$RUNNER_TEMP/five-sdk-evidence/matrix.log" --receipts "$RUNNER_TEMP/five-sdk-evidence" --output "$RUNNER_TEMP/five-sdk-evidence/report.json"
           TRUYN_LIFECYCLE_EVIDENCE_DIR="$RUNNER_TEMP/five-sdk-evidence" node sdk/conformance/lifecycle-peer/run-lifecycle.mjs
-      - name: Upload exact-source package receipts and all 20 outcomes
+      - name: Compile independent native lifecycle peers from verified packages and candidate
+        run: bash sdk/conformance/lifecycle-peer/build.sh
+      - name: Execute native lifecycle and require all five source successors to pass
+        env:
+          TRUYN_LEGACY_NPM_ROOT: /tmp/truyn-wire-legacy-npm
+          TRUYN_LEGACY_PYTHON: /tmp/truyn-wire-legacy-py/bin/python
+          TRUYN_CANDIDATE_PYTHON: /tmp/truyn-wire-candidate-py/bin/python
+        run: node sdk/conformance/lifecycle-peer/qualify-successor.mjs
+      - name: Upload exact-source package receipts, 20 exchanges and native lifecycle findings
         if: always()
         uses: actions/upload-artifact@v4
         with:

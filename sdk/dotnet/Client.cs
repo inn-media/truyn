@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Truyn.Sdk;
 
-public sealed class TruynClient : IAsyncDisposable
+public sealed partial class TruynClient : IAsyncDisposable
 {
     public const string Protocol = "TRUYN/1";
     public const string AgentDescriptorSchema = "truyn.agent-descriptor/v1";

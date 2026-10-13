@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - '.github/wire-freeze/release-request.json'
+      - '.github/wire-freeze/native-lifecycle-release-request.json'
 permissions:
   contents: write
   actions: write
@@ -27,21 +28,33 @@ jobs:
           set -Eeuo pipefail
           test "$GITHUB_RUN_ATTEMPT" = 1
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          request=.github/wire-freeze/release-request.json
-          jq -e --arg parent "$(git rev-parse HEAD^)" '
-            .schema=="truyn.wire-freeze-release-request/v1"
-            and .task=="truyn1-immutable-successor-publication-20261011"
-            and .intent=="publish-fresh-immutable-five-sdk-pre-releases"
-            and .exactParentSha==$parent
-            and .cloudMutationAllowed==false and .managedCanaryAllowed==false
-            and .mainnetAdmissionAllowed==false and .requireExactMainCI==true
-            and .requireHostedCodeQL==true and .requireNewImmutableTags==true
-            and .packages=={"npm":"0.1.0-alpha.5","pypi":"0.1.0a2","go":"v0.1.0-alpha.2","maven":"0.1.0-alpha.2","nuget":"0.1.0-alpha.2"}
-          ' "$request" >/dev/null
-          jq -e '.typescript=="0.1.0-alpha.5" and .python=="0.1.0a2" and .release=="0.1.0-alpha.2" and .goTag=="sdk/go/v0.1.0-alpha.2"' sdk/release/version.json >/dev/null
-          test "$(node -p "require('./sdk/typescript/package.json').version")" = '0.1.0-alpha.5'
+          native=.github/wire-freeze/native-lifecycle-release-request.json
+          if git diff --name-only HEAD^ HEAD -- "$native" | grep -Fxq "$native"; then
+            test "$(git diff --name-only HEAD^ HEAD | wc -l)" -eq 1
+            node sdk/release/native-publication.mjs request "$native" "$(git rev-parse HEAD^)" "$GITHUB_RUN_ATTEMPT" > "$RUNNER_TEMP/native-release-request-validation.json"
+            echo "RELEASE_REQUEST=$native" >> "$GITHUB_ENV"
+            echo 'NATIVE_LIFECYCLE_RELEASE=true' >> "$GITHUB_ENV"
+          else
+            request=.github/wire-freeze/release-request.json
+            git diff --name-only HEAD^ HEAD -- "$request" | grep -Fxq "$request"
+            jq -e --arg parent "$(git rev-parse HEAD^)" '
+              .schema=="truyn.wire-freeze-release-request/v1"
+              and .task=="truyn1-immutable-successor-publication-20261011"
+              and .intent=="publish-fresh-immutable-five-sdk-pre-releases"
+              and .exactParentSha==$parent
+              and .cloudMutationAllowed==false and .managedCanaryAllowed==false
+              and .mainnetAdmissionAllowed==false and .requireExactMainCI==true
+              and .requireHostedCodeQL==true and .requireNewImmutableTags==true
+              and .packages=={"npm":"0.1.0-alpha.5","pypi":"0.1.0a2","go":"v0.1.0-alpha.2","maven":"0.1.0-alpha.2","nuget":"0.1.0-alpha.2"}
+            ' "$request" >/dev/null
+            jq -e '.typescript=="0.1.0-alpha.5" and .python=="0.1.0a2" and .release=="0.1.0-alpha.2" and .goTag=="sdk/go/v0.1.0-alpha.2"' sdk/release/version.json >/dev/null
+            test "$(node -p "require('./sdk/typescript/package.json').version")" = '0.1.0-alpha.5'
+            echo "RELEASE_REQUEST=$request" >> "$GITHUB_ENV"
+            echo 'NATIVE_LIFECYCLE_RELEASE=false' >> "$GITHUB_ENV"
+          fi
           node scripts/check-dco.mjs "$(git rev-parse HEAD^)" "$GITHUB_SHA"
       - name: Wait for independently accepted exact-main CI and CodeQL
+        id: gates
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -67,7 +80,23 @@ jobs:
             sleep 15
           done
           test "$admitted" = true || { echo 'RELEASE_ABORT_NO_EXACT_MAIN_CI_CODEQL'; exit 73; }
+          echo "ci_run=$ci" >> "$GITHUB_OUTPUT"
+          echo "ci_attempt=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ci" --jq '.run_attempt')" >> "$GITHUB_OUTPUT"
           echo "TRUYN_IMMUTABLE_SDK_RELEASE_ADMITTED=$GITHUB_SHA"
+      - name: Independently verify all native lifecycle package evidence before any tag creation
+        if: env.NATIVE_LIFECYCLE_RELEASE == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUN: ${{ steps.gates.outputs.ci_run }}
+          CI_ATTEMPT: ${{ steps.gates.outputs.ci_attempt }}
+        run: |
+          set -Eeuo pipefail
+          directory="$RUNNER_TEMP/truyn-verified-native-release"
+          mkdir "$directory"
+          gh run download "$CI_RUN" --name "truyn-sdk-release-$CI_RUN" --dir "$directory"
+          node sdk/release/verify-release.mjs "$directory"
+          node sdk/release/native-publication.mjs bundle "$directory" "$GITHUB_SHA" "$(git rev-parse HEAD^{tree})" "$CI_RUN" "$CI_ATTEMPT" > "$RUNNER_TEMP/native-release-bundle-validation.json"
       - name: Create immutable SDK release tags and explicitly dispatch publisher workflows
         shell: bash
         env:
@@ -77,14 +106,13 @@ jobs:
           test -n "$GH_TOKEN"
           current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           test "$current" = "$GITHUB_SHA" || exit 74
-          tags=(
-            sdk/npm/v0.1.0-alpha.5
-            sdk/python/v0.1.0a2
-            sdk/go/v0.1.0-alpha.2
-            sdk/maven/v0.1.0-alpha.2
-            sdk/nuget/v0.1.0-alpha.2
-          )
-          # Fail before any mutation if a tag already exists, even at same SHA.
+          if [[ "$NATIVE_LIFECYCLE_RELEASE" == true ]]; then
+            test -s "$RUNNER_TEMP/native-release-bundle-validation.json"
+            tags=(sdk/npm/v0.1.0-alpha.6 sdk/python/v0.1.0a3 sdk/go/v0.1.0-alpha.3 sdk/maven/v0.1.0-alpha.3 sdk/nuget/v0.1.0-alpha.3)
+          else
+            tags=(sdk/npm/v0.1.0-alpha.5 sdk/python/v0.1.0a2 sdk/go/v0.1.0-alpha.2 sdk/maven/v0.1.0-alpha.2 sdk/nuget/v0.1.0-alpha.2)
+          fi
+          # A repeated or ambiguous release is reconciled, never force-retagged.
           for tag in "${tags[@]}"; do
             if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
               echo "RELEASE_ABORT_DUPLICATE_TAG=$tag"; exit 75
@@ -96,10 +124,18 @@ jobs:
             gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$GITHUB_SHA" >/dev/null
             echo "RELEASE_IMMUTABLE_TAG_CREATED=$tag sha=$GITHUB_SHA"
           done
-          # Tags created by GITHUB_TOKEN do not trigger tag-push Actions.
-          # Explicit workflow_dispatch is required and must run on the exact tag ref.
-          gh workflow run publish-npm.yml --ref sdk/npm/v0.1.0-alpha.5 -f release_tag=sdk/npm/v0.1.0-alpha.5
-          gh workflow run publish-sdk-alpha.yml --ref sdk/python/v0.1.0a2
-          gh workflow run publish-maven.yml --ref sdk/maven/v0.1.0-alpha.2
-          gh workflow run publish-nuget.yml --ref sdk/nuget/v0.1.0-alpha.2
-          echo "RELEASE_DISPATCHED_FOUR_REGISTRY_PUBLISHERS=YES go_module_tag=sdk/go/v0.1.0-alpha.2"
+          # Tags from GITHUB_TOKEN do not trigger tag-push Actions; dispatch the protected publishers explicitly.
+          gh workflow run publish-npm.yml --ref "${tags[0]}" -f release_tag="${tags[0]}"
+          gh workflow run publish-sdk-alpha.yml --ref "${tags[1]}"
+          gh workflow run publish-maven.yml --ref "${tags[3]}"
+          gh workflow run publish-nuget.yml --ref "${tags[4]}"
+          echo "RELEASE_DISPATCHED_FOUR_REGISTRY_PUBLISHERS=YES go_module_tag=${tags[2]}"
+          echo 'REGISTRY_PUBLICATION_AND_P14_ACCEPTANCE=NOT_INFERRED_FROM_DISPATCH'
+      - name: Preserve independently checked native release proof
+        if: always() && env.NATIVE_LIFECYCLE_RELEASE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-native-release-validation-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-release-*-validation.json
+          if-no-files-found: ignore
+          retention-days: 90

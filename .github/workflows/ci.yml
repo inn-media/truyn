@@ -278,7 +278,19 @@ jobs:
         env:
           TRUYN_RELEASE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: sdk/release/build-release.sh
-      - run: npm run test:full
+      - name: Run npm run test:full
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm run test:full 2>&1 | tee "$RUNNER_TEMP/truyn-full-qualification.log"
+      - name: Preserve failed full-qualification diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truyn-full-qualification-failure-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/truyn-full-qualification.log
+          if-no-files-found: ignore
+          retention-days: 14
       - run: node scripts/check-class-d-five-patches.mjs
       - run: bash scripts/class-d-200-preflight-qualification.sh
       - run: git diff --check

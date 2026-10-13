@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 
 from .descriptor import canonicalize, node_id_from_public_key
 from .errors import TruynError, normalize_error
+from .compact_lifecycle import CompactLifecycle
 
 PROTOCOL = 'TRUYN/1'
 MVP_TYPES = ('IDENTITY', 'OFFER', 'NEED', 'RESULT', 'REVOKE')
@@ -160,7 +161,7 @@ def _request_json(
     return decoded
 
 
-class TruynLocalNodeClient:
+class TruynLocalNodeClient(CompactLifecycle):
     def __init__(self, relay_url: str, identity: LocalIdentity | None = None):
         self.relay_url = _absolute_http_url(relay_url)
         self.identity = identity or create_local_identity()

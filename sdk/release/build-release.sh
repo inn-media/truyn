@@ -40,3 +40,9 @@ node "$ROOT/sdk/release/write-manifest.mjs" "$DIST"
 node "$ROOT/sdk/release/verify-release.mjs" "$DIST"
 bash "$ROOT/sdk/release/verify-public-maven.sh"
 bash "$ROOT/sdk/release/verify-public-nuget.sh"
+
+# Qualify the exact CI archive bytes, not a fresh later rebuild. Local builds
+# without Actions identity remain builds only, never accepted public releases.
+if [[ -f "$ROOT/sdk/release/native-successor-candidate.json" && "${GITHUB_ACTIONS:-}" == 'true' ]]; then
+  node "$ROOT/sdk/conformance/lifecycle-peer/qualify-packaged-successor.mjs"
+fi

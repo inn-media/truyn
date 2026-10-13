@@ -129,8 +129,8 @@ try {
   }catch(e){record(current,'FAIL',{reason:String(e.message).slice(0,1000)});throw e;}
   finally{for(const a of actors)await a.close();await relay.close();}
  }
- async function streamCase(pMode,rMode){
-  const language='typescript',relay=createRelay({localDevelopmentMode:true,maxQueuedEventsPerNode:1}),url=await relay.listen({port:0});const actors=[];let current='compact-setup';
+ async function streamCase(language,pMode,rMode){
+  const relay=createRelay({localDevelopmentMode:true,maxQueuedEventsPerNode:1}),url=await relay.listen({port:0});const actors=[];let current='compact-setup';
   const record=scenario=>rows.push({language,provider:pMode,requester:rMode,scenario,status:'PASS',surface:'public-bundled-runtime'});
   try{
    const p=await peer(language,pMode,url);actors.push(p);const r=await peer(language,rMode,url);actors.push(r);
@@ -153,13 +153,16 @@ try {
  }
  for(const language of languages)for(const pMode of modes)for(const rMode of modes){
   await runCase(language,pMode,rMode);
-  if(language==='typescript')await streamCase(pMode,rMode);
-  else for(const scenario of streaming)rows.push({language,provider:pMode,requester:rMode,scenario,status:'UNSUPPORTED',reason:'Native compactNeed/partial/pollCompact API not exposed by selected SDK pair; not PASS.'});
+  const providerSurface=surfaces.find(s=>s.language===language&&s.mode===pMode);
+  const requesterSurface=surfaces.find(s=>s.language===language&&s.mode===rMode);
+  assert.ok(providerSurface&&requesterSurface,'native lifecycle surface discovery required');
+  if(language==='typescript'&&providerSurface.compactApi===true&&requesterSurface.compactApi===true)await streamCase(language,pMode,rMode);
+  else for(const scenario of streaming)rows.push({language,provider:pMode,requester:rMode,scenario,status:'UNSUPPORTED',reason:'This published/source mixed-version harness does not execute compact lifecycle for the selected pair; not PASS. The native successor source/package harness is qualified separately.'});
  }
  const unique=new Set(rows.map(r=>[r.language,r.provider,r.requester,r.scenario].join(':')));
  assert.equal(unique.size,rows.length);assert.equal(rows.length,languages.length*modes.length*modes.length*(ordinary.length+streaming.length));
  for(const row of rows)assert.ok(['PASS','UNSUPPORTED'].includes(row.status));
- for(const language of languages.filter(x=>x!=='typescript'))for(const mode of modes){const found=surfaces.filter(s=>s.language===language&&s.mode===mode);assert.ok(found.length);assert.ok(found.every(s=>s.compactApi===false),'SDK gained compact API: run it, never retain obsolete unsupported waiver');}
+ for(const language of languages)for(const mode of modes){const found=surfaces.filter(s=>s.language===language&&s.mode===mode);assert.ok(found.length);assert.ok(found.every(s=>typeof s.compactApi==='boolean'),'every SDK mode must explicitly declare compact API support');}
  const unsupported=rows.filter(r=>r.status==='UNSUPPORTED');
  const report={schema:'truyn.five-sdk-lifecycle/v1',sourceSha:source,treeSha:tree,runId:process.env.GITHUB_RUN_ID||null,runAttempt:process.env.GITHUB_RUN_ATTEMPT||null,
   priorPackageProofSha256:sha256(priorBytes),frozenSdkSourceSha:'57971b134a41c3e3ea4b42f68e86a7d117036006',
