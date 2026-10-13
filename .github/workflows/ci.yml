@@ -135,6 +135,8 @@ jobs:
         working-directory: sdk/go
       - run: mvn -q -f sdk/java/pom.xml test
       - run: dotnet build sdk/dotnet/Truyn.Sdk.csproj --configuration Release --nologo
+      - name: Install native MsQuic for .NET QUIC/UDP conformance
+        run: bash sdk/conformance/quic-dht/install-msquic-ubuntu.sh
       - name: Five-language executable SDK conformance
         run: node sdk/conformance/run-five-language-e2e.mjs
       - name: Verify SDK release scanner wiring
@@ -275,6 +277,8 @@ jobs:
         working-directory: sdk/go
       - run: mvn -q -f sdk/java/pom.xml test
       - run: dotnet build sdk/dotnet/Truyn.Sdk.csproj --configuration Release --nologo
+      - name: Install native MsQuic for full SDK conformance
+        run: bash sdk/conformance/quic-dht/install-msquic-ubuntu.sh
       - run: node sdk/conformance/run-five-language-e2e.mjs
       - name: Build and verify SDK release packages
         env:
