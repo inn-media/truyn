@@ -447,9 +447,9 @@ export function createRelay({
   function reserveFastTerminal(nodeId) {
     const queued = fastTerminalEvents.get(nodeId)?.length || 0;
     const reserved = fastTerminalReservations.get(nodeId) || 0;
-    // Queued terminal events stay bounded by maxQueuedEventsPerNode (queueFastTerminal);
-    // in-flight reservations are bounded separately.
-    if (queued >= maxQueuedEventsPerNode || queued + reserved >= maxFastTerminalReservationsPerRequester) return false;
+    // A reservation guarantees room for its eventual terminal event even when
+    // the requester pauses reads. Pending and queued terminals share one bound.
+    if (queued + reserved >= maxFastTerminalReservationsPerRequester) return false;
     fastTerminalReservations.set(nodeId, reserved + 1);
     return true;
   }
@@ -543,7 +543,7 @@ export function createRelay({
       return 'long-poll';
     }
     const terminalQueue = fastTerminalEvents.get(nodeId) || [];
-    if (terminalQueue.length >= maxQueuedEventsPerNode) return 'full';
+    if (terminalQueue.length >= maxFastTerminalReservationsPerRequester) return 'full';
     terminalQueue.push(event);
     fastTerminalEvents.set(nodeId, terminalQueue);
     return 'queued';
