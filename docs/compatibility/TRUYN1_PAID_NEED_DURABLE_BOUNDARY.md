@@ -21,6 +21,7 @@ The production entrypoint refuses to start billable providers without Cosmos `ge
 - Release across **all replicas together** behind an explicit maintenance/admission barrier. Do not deploy strict provider first while relays still dispatch without paid grants; that causes deliberate fail-closed denials.
 - Protect Cosmos against deletion, TTL expiry, container recreation and incorrect partition key. Need/effect ID tombstones MUST outlive the replay threat, with bounded-capacity admission failure instead of recycling unproven identities.
 - Tokens consumed by a provider are not equivalent to financial settlement. Actual provider usage, pricing, adjustments, budgets, refund/reconciliation, downstream billing and cross-cloud invoice proofs remain separate private operational work.
+- The shared effect terminal durably stores bounded provider-reported `observedTokens` when available. Token telemetry is not proof of vendor billing; image/video pricing and actual cloud invoice reconciliation remain separate acceptance work.
 - A provider that does not support external idempotency cannot guarantee **exactly-once successful effect** across an ambiguous remote POST. The proven target is *at most one provider invocation initiated by compliant TRUYN workers* under a shared ledger; ambiguous outcomes require external recovery evidence, never an automatic re-POST.
 - Roll back by blocking new paid admissions or preserving immutable ledger state, never by disabling the provider guard and resuming on the same `NEED` ID.
 
