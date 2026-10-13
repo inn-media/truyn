@@ -160,6 +160,7 @@ test('one shared paid NEED survives provider restart and replica race, never dou
   }, {controller:new AbortController(),nextSequence:0});
   assert.equal(calls, 1);
   assert.equal((await ledger.getEffect(admitted.needId)).status, 'completed');
+  assert.equal((await ledger.getEffect(admitted.needId)).observedTokens, 5);
 });
 test('missing, mismatched or unavailable authoritative payer state blocks provider before upstream', { concurrency: false }, async t => {
   const { provider, requester, ledger, store } = await setup(t);
