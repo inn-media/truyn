@@ -1,52 +1,80 @@
 {
-  "schema": "truyn.wire-freeze.english-source-provenance/2",
-  "status": "ENGLISH_SOURCE_DERIVATIVE_PROPOSAL_ONLY_NOT_STABLE",
+  "schema": "truyn.wire-freeze.english-source-provenance/3",
+  "status": "COMPLETE_SOURCE_SEMANTIC_COVERAGE_WITH_OPEN_NORMATIVE_CONFLICTS_CLASS_C_REVIEW",
   "language": "en",
   "repository": "inn-media/truyn",
-  "originalApprovalDate": "2026-10-11",
-  "englishEditionDate": "2026-10-13",
-  "previousMain": "fc5e0533558df5978e62b8c33cb381460f5d7904",
-  "policy": "docs/governance/DOCUMENTATION_LANGUAGE_POLICY.md (policy PR #1090)",
-  "sources": [
+  "approvedOriginals": [
     {
-      "approvedInput": "TRUYN_WIRE_FREEZE_CORE_FINAL(1).md",
-      "originalLanguage": "ru",
-      "originalSha256": "591e0f92d494626b32090223e4756f2f431a2ad6179074b0066902112ea9d121",
-      "originalGitBlobSha1": "fceaa7f3b4a07860867694f07e2eb7f325b507da",
-      "englishEdition": "docs/compatibility/TRUYN_WIRE_FREEZE_CORE_FINAL_EN.md",
-      "englishGitBlobSha1": "9072e54e539f75f1a9cfee79c4c93b8e592a5c2e",
-      "notes": "Full immutable 80-entry CORE catalogue and architecture/compatibility summary. New English technical edition, not bytewise translation.",
-      "englishSha256": "5de2275e788241cdda2b6a08afcc98f252a5389fc0cea9634eb189fcd81f2071"
+      "source": "TRUYN_WIRE_FREEZE_CORE_FINAL(1).md",
+      "sha256": "591e0f92d494626b32090223e4756f2f431a2ad6179074b0066902112ea9d121",
+      "gitBlobSha1": "fceaa7f3b4a07860867694f07e2eb7f325b507da"
     },
     {
-      "approvedInput": "TRUYN_WIRE_FREEZE_EXTENSIONS_FINAL(1).md",
-      "originalLanguage": "ru",
-      "originalSha256": "c345631992e3e96f84e67dcf48a85c15281f5912ae1bfd131c5f904b9da46e72",
-      "originalGitBlobSha1": "392458cc54e09e0db23fdfbbe2a9f60a998929aa",
-      "englishEdition": "docs/compatibility/TRUYN_WIRE_FREEZE_EXTENSIONS_FINAL_EN.md",
-      "englishGitBlobSha1": "d808ec8c9e1988e19dd9d0de2c59c175c2e4e712",
-      "notes": "Full 10 EXTENSION + 4 PROFILE and 111 COMPOSED name catalogue, with English architecture/admission contracts. New technical edition, not bytewise translation.",
-      "englishSha256": "4025a17b36dedca18f8c8e0644956ebb00aaddd87f2879ef5af50a5d3193f22d"
+      "source": "TRUYN_WIRE_FREEZE_EXTENSIONS_FINAL(1).md",
+      "sha256": "c345631992e3e96f84e67dcf48a85c15281f5912ae1bfd131c5f904b9da46e72",
+      "gitBlobSha1": "392458cc54e09e0db23fdfbbe2a9f60a998929aa"
     }
   ],
-  "languageRequirements": {
-    "canonicalDocumentation": "English only",
-    "foreignLanguageSourceNotPublishedAsCurrentDocumentation": true,
-    "originalDigestsImmutable": true,
-    "englishEditsHaveDistinctBlobIds": true
-  },
-  "constraints": {
-    "rfcClass": "C",
-    "minimumReviewDays": 14,
-    "wireDefaultOff": true,
-    "legacySignedBytesUnchanged": true,
-    "noRuntimeOrDeploymentChange": true,
-    "noStableDeclaration": true
-  },
-  "sourceReferencesStillPending": [
-    "TRUYN_CORE_WIRE_TYPES.md",
-    "TRUYN_NON_CORE_WIRE_TYPES.md",
-    "TRUYN_ENVELOPE_EXT.md"
+  "derivedEnglishDocuments": [
+    {
+      "path": "docs/compatibility/TRUYN_WIRE_FREEZE_CORE_FINAL_EN.md",
+      "gitBlobSha1": "5d5aae0d5041260a5d0503debcd9c91981420e3d",
+      "sha256": "2f983fddb6e99a0fd6460fd7aa3a874de2d64750892207c31e065810297cc191",
+      "english": true,
+      "length": 17145
+    },
+    {
+      "path": "docs/compatibility/TRUYN_WIRE_FREEZE_EXTENSIONS_FINAL_EN.md",
+      "gitBlobSha1": "8bb7ffc47cad293df1e434594a16848c4208c52d",
+      "sha256": "b33e361aa400207946613ffbd75f273f7b5997c9e5cf580e8ba481f7ce614f8e",
+      "english": true,
+      "length": 13801
+    },
+    {
+      "path": "docs/compatibility/TRUYN_WIRE_FREEZE_CORE_SOURCE_PARITY_EN.md",
+      "gitBlobSha1": "3619d2887f49455e137f10113940303e4df1602e",
+      "sha256": "f6207b6938d14b2b5ca361909ebc1f23e2e8b073bbcb866bfb98a6ee64b974f3",
+      "english": true,
+      "length": 14885
+    },
+    {
+      "path": "docs/compatibility/TRUYN_WIRE_FREEZE_COMPOSED_SOURCE_PARITY_EN.md",
+      "gitBlobSha1": "6597c8f0f1aa401afdf0c5849e89e7c7dd50d658",
+      "sha256": "6f286cb961d628bf7eb2380c4e7a62d1ee56adf5965236b4ec734e95a17c7db9",
+      "english": true,
+      "length": 17506
+    },
+    {
+      "path": "docs/compatibility/TRUYN1_CLASS_C_WIRE_SOURCE_SEMANTIC_REVIEW.md",
+      "gitBlobSha1": "82a7531127d9e6addd7338d5366f8cda5095ac47",
+      "sha256": "b48568ceaafb549049d1ffcae67f64f2fe4ae9503c8ecc2ced715298f97b5c8a",
+      "english": true,
+      "length": 11212
+    }
   ],
-  "validation": "English editions have independent verified SHA-256 and Git blob IDs; their source-approved original SHA-256 receipts are preserved without claiming bytewise equivalence. Semantic review remains required."
+  "sourceCoverage": {
+    "coreRegistryRows": 80,
+    "coreCodeNameMatches": 80,
+    "sourceVsMachineShortDifferences": 41,
+    "nonCoreExtensionCandidates": 10,
+    "profileCandidates": 4,
+    "composedRows": 111,
+    "composedTranslatedFormMatches": 111,
+    "sourceConflictResolutions": 15
+  },
+  "outstandingInterpretiveGates": [
+    "C-ALIAS-01 original documentary Short vs frozen JSON registry Short",
+    "C-ERROR-02 OUTCOME proposal vs existing P10 normalized public codes",
+    "C-PROTO-03 conceptual ATTEST labels vs existing signed verdict strings"
+  ],
+  "review": {
+    "governanceClass": "C",
+    "minimumCalendarDays": 14,
+    "readyForDiscussionOnly": true,
+    "stableProtocolAdmitted": false,
+    "extensionWireAdmitted": false,
+    "releaseSDKsPublished": false,
+    "productionAuthorized": false
+  },
+  "notes": "English technical editions and explicit line/row-semantic parity tables are new derivative works with independent content hashes. The original source SHA-256 values are immutable provenance references, not claims of byte equivalence. Open source-vs-executable interpretation questions must be resolved through governance rather than hidden rewrites."
 }

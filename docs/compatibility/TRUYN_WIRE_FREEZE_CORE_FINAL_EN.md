@@ -147,3 +147,9 @@ The table below is generated directly from the frozen machine registry `spec/reg
 8. Stable Protocol is distinct from managed-service production cutover and Mainnet governance. P13-OPS, prolonged network SLO, security canary, A-SOAK and Production Trust Authority remain independent operational prerequisites.
 
 **No stable version, provider expenditure, private deployment or Mainnet admission is claimed by this English documentation.**
+
+## Source-fidelity review and approved-vs-executable Short aliases
+
+The full source-table semantic parity is maintained in [CORE source fidelity (80/80)](TRUYN_WIRE_FREEZE_CORE_SOURCE_PARITY_EN.md) and the [Class C semantic review](TRUYN1_CLASS_C_WIRE_SOURCE_SEMANTIC_REVIEW.md). This page uses unchanged **executable JSON registry Short aliases**. The approved original design used a different documentary Short naming scheme for 41 entries (for example A10 vs frozen registry A1). This is explicitly OPEN for governance interpretation. Do not infer a registry mutation, backward-incompatible rename, or normative approval from this English source edition.
+
+The original's detailed physical-form, field, TCJ1, ext, error/authority and release-admission rules are incorporated here and audited by section in the Class C review. Historical source bytes remain pinned to their original provenance; these English references have independent hashes.

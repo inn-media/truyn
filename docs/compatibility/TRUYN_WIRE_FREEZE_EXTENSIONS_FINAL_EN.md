@@ -136,3 +136,9 @@ Public TRUYN owns versioned candidate registries, schemas, SDK tests and wire co
 For each feature: review proposal → publish independent versioned experimental schema with default OFF → validate explicit authenticated negotiation → run native five-SDK and mixed old/new matrices → verify security, zero unauthorized calls, durable replay and legacy semantics → independently qualify exact HEAD and merged main → isolated shadow/canary → preserve a rollback path that stops emitting the extension while readers remain compatible. Never rewrite frozen historic D/S/T/E/N/H/A evidence or retroactively declare PASS.
 
 **This English technical reference is not a claim that the 14 candidates or 111 compositions have been deployed or admitted to the TRUYN/1 physical wire.**
+
+## Complete detailed source translation: compositions and Class C review
+
+The original approved design's complete 111-row composition catalogue with independently translated **purpose, form, and method for every entry** is preserved in [111-entry COMPOSED source parity](TRUYN_WIRE_FREEZE_COMPOSED_SOURCE_PARITY_EN.md). The 15 conflict resolutions, all 14 candidate-specific open questions, the cross-repository boundary and admission checks are reconciled in the [Class C source-semantic review](TRUYN1_CLASS_C_WIRE_SOURCE_SEMANTIC_REVIEW.md).
+
+These are English technical editions of the approved proposal, not proof that an optional extension/profile has been admitted, implemented, released or deployed. The public/managed source split and the five current signed Envelope kinds remain unchanged.
