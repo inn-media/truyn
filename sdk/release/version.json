@@ -1,8 +1,8 @@
 {
-  "release": "0.1.0-alpha.2",
-  "typescript": "0.1.0-alpha.5",
-  "python": "0.1.0a2",
-  "goTag": "sdk/go/v0.1.0-alpha.2",
+  "release": "0.1.0-alpha.3",
+  "typescript": "0.1.0-alpha.6",
+  "python": "0.1.0a3",
+  "goTag": "sdk/go/v0.1.0-alpha.3",
   "protocol": "TRUYN/1",
   "stableSdkApiVersion": "1",
   "channel": "public-pre-release"

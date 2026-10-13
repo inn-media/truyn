@@ -54,20 +54,23 @@ test('release gate rejects a tag whose version differs from the package manifest
   }
 });
 
-test('Maven and NuGet coordinates require accepted public evidence', async () => {
-  const coords = JSON.parse(await read('sdk/release/public-coordinates.json')).coordinates;
-  const release = JSON.parse(await read('sdk/release/version.json'));
-  const pom = await read('sdk/java/pom.xml');
-  const csproj = await read('sdk/dotnet/Truyn.Sdk.csproj');
-  assert.match(pom, new RegExp(`<version>${release.release.replaceAll('.', '\\.')}</version>`));
-  assert.match(csproj, new RegExp(`<Version>${release.release.replaceAll('.', '\\.')}</Version>`));
-  assert.equal(coords.maven.version, release.release);
+test('Maven and NuGet accepted coordinates remain bound to published evidence, not the next build', async () => {
+  const ledger = JSON.parse(await read('sdk/release/public-coordinates.json'));
+  const coords = ledger.coordinates;
+  const pins = JSON.parse(await read('spec/compatibility/truyn1-five-sdk-freeze.json'));
+  const coordinateByLanguage = new Map(pins.coordinates.map(row => [row.id, row.coordinate]));
+  assert.equal(coords.maven.coordinate, coordinateByLanguage.get('java'));
+  assert.equal(`${coords.nuget.package} ${coords.nuget.version}`, coordinateByLanguage.get('dotnet'));
+  for (const id of ['maven', 'nuget']) {
+    assert.equal(coords[id].publicationState, 'accepted');
+    assert.equal(coords[id].sourceSha, pins.frozenSourceSha);
+    const acceptedEvidence = await read(coords[id].evidence);
+    assert.ok(acceptedEvidence.includes(coords[id].sourceSha));
+    assert.ok(acceptedEvidence.includes(coords[id].version));
+  }
   const history = JSON.parse(await read('sdk/release/evidence/public-coordinates-developer-release-2026-09-23.json')).coordinates;
   assert.equal(history.maven.version, '0.1.0-alpha.1');
-  assert.equal(coords.nuget.version, release.release);
   assert.equal(history.nuget.version, '0.1.0-alpha.1');
-  assert.equal(coords.maven.publicationState, 'accepted');
-  assert.equal(coords.nuget.publicationState, 'accepted');
   const evidence = JSON.parse(await read('sdk/release/evidence/nuget-alpha1-2026-09-23.json'));
   assert.equal(evidence.coordinate, 'Truyn.Sdk@0.1.0-alpha.1');
   const publishing = await read('sdk/release/PUBLISHING.md');
@@ -76,6 +79,22 @@ test('Maven and NuGet coordinates require accepted public evidence', async () =>
   assert.match(publishing, /environment `sdk-release`/);
   assert.match(publishing, /package owner `truyn\.org`/);
   assert.match(publishing, /namespace `org\.truyn`/);
+});
+
+test('Maven and NuGet successor build versions are coherent but cannot claim predecessor publication', async () => {
+  const coords = JSON.parse(await read('sdk/release/public-coordinates.json')).coordinates;
+  const release = JSON.parse(await read('sdk/release/version.json'));
+  const candidate = JSON.parse(await read('sdk/release/native-successor-candidate.json'));
+  const pom = await read('sdk/java/pom.xml');
+  const csproj = await read('sdk/dotnet/Truyn.Sdk.csproj');
+  assert.match(pom, new RegExp(`<version>${release.release.replaceAll('.', '\\.')}</version>`));
+  assert.match(csproj, new RegExp(`<Version>${release.release.replaceAll('.', '\\.')}</Version>`));
+  assert.deepEqual(candidate.targetVersions, release);
+  assert.equal(candidate.publicationState, 'unpublished');
+  assert.equal(candidate.publicationAuthorizedByThisFile, false);
+  assert.equal(candidate.stableProtocolDeclared, false);
+  assert.notEqual(coords.maven.version, release.release);
+  assert.notEqual(coords.nuget.version, release.release);
 });
 
 test('NuGet package carries README, SourceLink metadata and excludes the nested conformance project', async () => {

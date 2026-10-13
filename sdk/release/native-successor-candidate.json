@@ -1,0 +1,20 @@
+{
+  "schema": "truyn.sdk-successor-candidate/v1",
+  "intent": "build-unpublished-native-lifecycle-successor",
+  "publicationState": "unpublished",
+  "predecessorSourceSha": "57971b134a41c3e3ea4b42f68e86a7d117036006",
+  "targetVersions": {
+    "release": "0.1.0-alpha.3",
+    "typescript": "0.1.0-alpha.6",
+    "python": "0.1.0a3",
+    "goTag": "sdk/go/v0.1.0-alpha.3",
+    "protocol": "TRUYN/1",
+    "stableSdkApiVersion": "1",
+    "channel": "public-pre-release"
+  },
+  "requiredSourceLifecycleCases": 20,
+  "requiredSourceSecurityCases": 30,
+  "stableProtocolDeclared": false,
+  "productionCutoverAuthorized": false,
+  "publicationAuthorizedByThisFile": false
+}

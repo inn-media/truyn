@@ -7,7 +7,8 @@ const yaml = readFileSync(new URL('../.github/workflows/publish-npm.yml', import
 test('npm trusted publisher manual retry is disabled by default and isolates tag bootstrap', () => {
   assert.match(yaml, /retry_existing_frozen:\n\s+description:/);
   assert.match(yaml, /retry_existing_frozen:[\s\S]*?default: false/);
-  assert.match(yaml, /github\.event_name == 'workflow_dispatch' && !inputs\.retry_existing_frozen/);
+  const bootstrap = yaml.slice(yaml.indexOf('  bootstrap-tag:'), yaml.indexOf('  publish:'));
+  assert.match(bootstrap, /if: github\.repository == 'inn-media\/truyn' && github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main' && !inputs\.retry_existing_frozen/);
   assert.match(yaml, /inputs\.retry_existing_frozen == true && inputs\.release_tag == 'sdk\/npm\/v0\.1\.0-alpha\.5'/);
 });
 

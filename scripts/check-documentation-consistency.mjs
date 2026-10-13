@@ -5,6 +5,7 @@ import { resolve, dirname, relative, isAbsolute } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { validateCandidateVersions } from '../sdk/release/validate-candidate-version.mjs';
 
 const ids = Object.freeze({ typescript: 'npm', python: 'pypi', go: 'go', java: 'maven', dotnet: 'nuget' });
 const normalize = value => String(value).replace(/^Truyn\.Sdk /, 'Truyn.Sdk@');
@@ -28,7 +29,7 @@ const acceptedGates = Object.freeze({
   P14: ['STABLE_ADMISSION_OPEN', pendingRecord]
 });
 
-export function validateReleaseInventory(current, freeze, versions) {
+export function validateReleaseInventory(current, freeze, versions, candidate = null) {
   const errors = [];
   const coordinates = Array.isArray(freeze?.coordinates) ? freeze.coordinates : [];
   const published = current?.coordinates && typeof current.coordinates === 'object' && !Array.isArray(current.coordinates) ? current.coordinates : {};
@@ -38,13 +39,18 @@ export function validateReleaseInventory(current, freeze, versions) {
   if (freeze?.stableProtocolDeclared !== false || current?.channel !== 'public-pre-release') errors.push('prerelease must not imply stable admission');
   if (!text(current?.releaseEvidence)) errors.push('missing current release evidence pointer');
   if (!text(freeze?.registryEvidence) || current?.releaseEvidence !== freeze.registryEvidence) errors.push('release evidence does not match frozen registry ledger');
+  // An explicit unpublished build candidate never changes accepted public pins.
+  // Missing/malformed candidate metadata preserves the original equality gate.
+  const candidateErrors = candidate === null ? [] : validateCandidateVersions(candidate, current, freeze, versions);
+  errors.push(...candidateErrors);
+  const unpublishedCandidate = candidate !== null && candidateErrors.length === 0;
   for (const [id, key] of Object.entries(ids)) {
     const item = coordinates.find(item => item?.id === id), actual = published[key];
     if (!item || !actual || !text(actual.coordinate) || normalize(actual.coordinate) !== normalize(item.coordinate)) errors.push(`stale coordinate: ${id}`);
     if (actual?.publicationState !== 'accepted' || actual?.sourceSha !== freeze?.frozenSourceSha) errors.push(`missing source/publication evidence: ${id}`);
     if (!text(actual?.evidence) || actual.evidence !== current?.releaseEvidence) errors.push(`missing or mismatched release evidence pointer: ${id}`);
     const expected = key === 'npm' ? versions?.typescript : key === 'pypi' ? versions?.python : key === 'go' ? versions?.goTag?.replace('sdk/go/', '') : versions?.release;
-    if (!text(expected) || actual?.version !== expected) errors.push(`build/public release version mismatch: ${id}`);
+    if (!text(expected) || (actual?.version !== expected && !unpublishedCandidate)) errors.push(`build/public release version mismatch: ${id}`);
   }
   return errors;
 }
@@ -93,13 +99,16 @@ export function auditDocumentation(root) {
   const current = json('sdk/release/public-coordinates.json');
   const freeze = json('spec/compatibility/truyn1-five-sdk-freeze.json');
   const inventory = json('docs/compatibility/protocol-rc-documentation-inventory.json');
-  const errors = [...validateReleaseInventory(current, freeze, json('sdk/release/version.json')), ...validateProtocolInventory(inventory)];
+  const candidatePath = 'sdk/release/native-successor-candidate.json';
+  const candidate = existsSync(resolve(root, candidatePath)) ? json(candidatePath) : null;
+  const errors = [...validateReleaseInventory(current, freeze, json('sdk/release/version.json'), candidate), ...validateProtocolInventory(inventory)];
   const evidence = [
     { label: 'current release', path: current.releaseEvidence },
     { label: 'frozen registry ledger', path: freeze.registryEvidence },
     { label: 'historical coordinates', path: current.historicalLedger },
     ...Object.values(ids).map(key => ({ label: key, path: current.coordinates?.[key]?.evidence }))
   ];
+  if (candidate !== null) evidence.push({ label: 'unpublished candidate', path: candidatePath });
   for (const gate of Array.isArray(inventory.gates) ? inventory.gates : []) {
     const paths = [...(Array.isArray(gate.normativePaths) ? gate.normativePaths : []), ...(Array.isArray(gate.executablePaths) ? gate.executablePaths : []), gate.acceptanceRecord];
     evidence.push(...paths.map(path => ({ label: gate.id, path })));
@@ -141,7 +150,7 @@ export function auditDocumentation(root) {
       }
     }
   }
-  return { schema: 'truyn.documentation-audit/v1', networkAccess: false, stableAdmission: false, markdownFiles, localLinks, errors, passed: errors.length === 0 };
+  return { schema: 'truyn.documentation-audit/v1', networkAccess: false, stableAdmission: false, unpublishedCandidate: candidate !== null, markdownFiles, localLinks, errors, passed: errors.length === 0 };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
