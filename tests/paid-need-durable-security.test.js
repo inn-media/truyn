@@ -155,7 +155,7 @@ test('one shared paid NEED survives provider restart and replica race, never dou
   // Re-initialize a host and a Cosmos client to simulate replica/restart.
   hostB.sendTerminal = async () => ({ok:true});
   await hostB.executeNeed({
-    id: admitted.needId, from: requester.identity.nodeId,
+    id: admitted.needId, from: requester.identity.nodeId, paidFingerprint: record.fingerprint,
     payload: { capability: {name:CAP}, input:{question:'prove at most one paid effect'} }
   }, {controller:new AbortController(),nextSequence:0});
   assert.equal(calls, 1);
@@ -170,8 +170,12 @@ test('missing, mismatched or unavailable authoritative payer state blocks provid
   await host.executeNeed(fabricated, {controller:new AbortController(),nextSequence:0});
   assert.equal(calls,0);
   const result = await requester.need(CAP,{question:'block on outage'});
-  const admitted = {id:result.needId,from:requester.identity.nodeId,payload:{capability:CAP,input:{question:'block on outage'}}};
+  const reserved = await ledger.getNeed(result.needId);
+  const admitted = {id:result.needId,from:requester.identity.nodeId,paidFingerprint:reserved.fingerprint,payload:{capability:CAP,input:{question:'block on outage'}}};
   await assert.rejects(verifyPaidNeedAtProvider({ledger,need:{...admitted,from:'spoofed'},providerNodeId:provider.identity.nodeId}),e=>e.publicCode==='paid_need_unverified');
+  // Even a correctly authenticated ID cannot replace the signed workload.
+  await host.executeNeed({...admitted, paidFingerprint: 'a'.repeat(64), payload:{capability:CAP,input:{question:'forged replacement'}}}, {controller:new AbortController(),nextSequence:0});
+  assert.equal(calls,0);
   store.disconnect();
   await host.executeNeed(admitted,{controller:new AbortController(),nextSequence:0});
   assert.equal(calls,0);
