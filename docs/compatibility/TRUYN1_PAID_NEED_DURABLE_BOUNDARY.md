@@ -18,6 +18,7 @@ The production entrypoint refuses to start billable providers without Cosmos `ge
 
 - Relay and provider MUST point to the **same Cosmos account/database/container**, with session consistency and independent managed identities having appropriately scoped rights.
 - Configure `TRUYN_G5_RELAY_LIFECYCLE_LEDGER=cosmos`, `TRUYN_G5_PROVIDER_EFFECT_LEDGER=cosmos`, their existing shared `TRUYN_G5_COSMOS_*` connection settings, and the independent server-side durable provider grant authority. Missing components intentionally result in unavailable/rejected workloads, not silent fallback.
+- Local CLI BYOK with an optional SQLite effect file and native P2P/QUIC execution are NOT qualified for this shared-paid profile. Never advertise paid TRUYN/1 protection on these paths until they route through an equivalent shared relay/provider admission and effect fence.
 - Release across **all replicas together** behind an explicit maintenance/admission barrier. Do not deploy strict provider first while relays still dispatch without paid grants; that causes deliberate fail-closed denials.
 - Protect Cosmos against deletion, TTL expiry, container recreation and incorrect partition key. Need/effect ID tombstones MUST outlive the replay threat, with bounded-capacity admission failure instead of recycling unproven identities.
 - Tokens consumed by a provider are not equivalent to financial settlement. Actual provider usage, pricing, adjustments, budgets, refund/reconciliation, downstream billing and cross-cloud invoice proofs remain separate private operational work.
