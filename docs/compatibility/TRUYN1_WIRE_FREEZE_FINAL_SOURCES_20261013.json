@@ -15,7 +15,8 @@
       "originalGitBlobSha1": "fceaa7f3b4a07860867694f07e2eb7f325b507da",
       "englishEdition": "docs/compatibility/TRUYN_WIRE_FREEZE_CORE_FINAL_EN.md",
       "englishGitBlobSha1": "9072e54e539f75f1a9cfee79c4c93b8e592a5c2e",
-      "notes": "Full immutable 80-entry CORE catalogue and architecture/compatibility summary. New English technical edition, not bytewise translation."
+      "notes": "Full immutable 80-entry CORE catalogue and architecture/compatibility summary. New English technical edition, not bytewise translation.",
+      "englishSha256": "5de2275e788241cdda2b6a08afcc98f252a5389fc0cea9634eb189fcd81f2071"
     },
     {
       "approvedInput": "TRUYN_WIRE_FREEZE_EXTENSIONS_FINAL(1).md",
@@ -24,7 +25,8 @@
       "originalGitBlobSha1": "392458cc54e09e0db23fdfbbe2a9f60a998929aa",
       "englishEdition": "docs/compatibility/TRUYN_WIRE_FREEZE_EXTENSIONS_FINAL_EN.md",
       "englishGitBlobSha1": "d808ec8c9e1988e19dd9d0de2c59c175c2e4e712",
-      "notes": "Full 10 EXTENSION + 4 PROFILE and 111 COMPOSED name catalogue, with English architecture/admission contracts. New technical edition, not bytewise translation."
+      "notes": "Full 10 EXTENSION + 4 PROFILE and 111 COMPOSED name catalogue, with English architecture/admission contracts. New technical edition, not bytewise translation.",
+      "englishSha256": "4025a17b36dedca18f8c8e0644956ebb00aaddd87f2879ef5af50a5d3193f22d"
     }
   ],
   "languageRequirements": {
@@ -46,5 +48,5 @@
     "TRUYN_NON_CORE_WIRE_TYPES.md",
     "TRUYN_ENVELOPE_EXT.md"
   ],
-  "validation": "Source-approved architecture editorial derivations require semantic review; the original raw SHA-256 values do NOT describe the English derivative files."
+  "validation": "English editions have independent verified SHA-256 and Git blob IDs; their source-approved original SHA-256 receipts are preserved without claiming bytewise equivalence. Semantic review remains required."
 }
