@@ -115,3 +115,58 @@ test('G5 maintenance: concurrent owner registration blocks REVOKE until recovery
   assert.equal(after.ok,true);
   assert.equal((await store.ledger().getOffer(published.offerId)).revoked,1);
 });
+
+
+test('G5 maintenance: failed recovery never evicts an existing stale node', {timeout:10000}, async t=>{
+  const store=maintenanceStore(),base=store.ledger();let restores=0;
+  const ledger={...base,async restoreOffers(args){
+    restores++;
+    if(restores===1)return base.restoreOffers(args);
+    const e=new Error('fixture outage');e.httpStatus=503;e.publicCode='lifecycle_ledger_unavailable';throw e;
+  }};
+  const instance=createRelay({localDevelopmentMode:true,lifecycleLedger:ledger,lifecycleMaintenance:true,maxNodes:1,nodeFreshnessMs:5});
+  t.after(()=>instance.close());
+  const url=await instance.listen({port:0});
+  const incumbent=new TruynNode({relayUrl:url});await incumbent.register();
+  await new Promise(resolve=>setTimeout(resolve,15));
+  const newcomer=new TruynNode({relayUrl:url});
+  await assert.rejects(()=>newcomer.register(),e=>e.status===503);
+  const advertised=await incumbent.offer('g5.incumbent-survives');
+  assert.ok(advertised.offerId,'failed newcomer recovery must not destroy incumbent session');
+});
+
+test('G5 maintenance: pending publication reserves relay-wide offer capacity against recovery', {timeout:10000}, async t=>{
+  const store=maintenanceStore(),base=store.ledger();
+  const recovering=new TruynNode({relayUrl:'http://unused'});
+  const saved=recovering.envelope('OFFER',{capability:{name:'g5.recovered-capacity'},metadata:{}},{id:'g5-recovered-capacity-offer'});
+  await base.reserveOffer({id:saved.id,owner:saved.from,fingerprint:(await import('node:crypto')).createHash('sha256').update(JSON.stringify(saved)).digest('hex'),envelope:saved});
+  let release,entered;
+  const blocked=new Promise(resolve=>{release=resolve;});
+  const started=new Promise(resolve=>{entered=resolve;});
+  let blockedOnce=false;
+  const ledger={...base,async reserveOffer(args){
+    if(args.owner!==recovering.identity.nodeId && !blockedOnce){blockedOnce=true;entered();await blocked;}
+    return base.reserveOffer(args);
+  }};
+  const instance=createRelay({localDevelopmentMode:true,lifecycleLedger:ledger,lifecycleMaintenance:true,maxOffers:1});
+  t.after(()=>instance.close());
+  const url=await instance.listen({port:0});
+  const publisher=new TruynNode({relayUrl:url});await publisher.register();
+  const publishing=publisher.offer('g5.pending-capacity');await started;
+  const peer=new TruynNode({relayUrl:url,identity:recovering.identity});
+  await assert.rejects(()=>peer.register(),e=>e.status===503);
+  release();await publishing;
+  assert.equal((await publisher.find('g5.pending-capacity')).offers.length,1);
+});
+
+test('G5 maintenance: session freshness and TTL start after slow durable recovery', {timeout:10000}, async t=>{
+  const store=maintenanceStore(),base=store.ledger();
+  const ledger={...base,async restoreOffers(args){await new Promise(resolve=>setTimeout(resolve,60));return base.restoreOffers(args);}};
+  const instance=createRelay({localDevelopmentMode:true,lifecycleLedger:ledger,lifecycleMaintenance:true,nodeFreshnessMs:20,sessionTtlMs:100});
+  t.after(()=>instance.close());
+  const url=await instance.listen({port:0});
+  const node=new TruynNode({relayUrl:url});await node.register();
+  await new Promise(resolve=>setTimeout(resolve,55));
+  const found=await node.find('g5.none');
+  assert.deepEqual(found.offers,[]);
+});
