@@ -8,7 +8,7 @@ import { configureRelayProviderGrantAuthority } from '../core/security/relay-pro
 import { createProviderAccessPolicy } from '../core/security/provider-access.js';
 import { createProviderBillingPolicy } from '../core/security/provider-billing.js';
 import { TruynAdapterHost, createFunctionAdapter } from '../adapters/sdk/index.js';
-import { verifyPaidNeedAtProvider } from '../core/security/paid-need-admission.js';
+import { verifyPaidNeedAtProvider, authorizePaidNeedAtRelay } from '../core/security/paid-need-admission.js';
 
 function sharedCosmos() {
   const documents = new Map();
@@ -204,4 +204,26 @@ test('two independent provider workers race on the same paid intent: at most one
   await Promise.all([first.executeNeed(need,state()),second.executeNeed(need,state())]);
   assert.equal(upstream,1);
   assert.equal((await ledger.getEffect(admitted.needId)).status,'completed');
+});
+
+test('paid relay refuses a durable network-wide grant even if authority says ok', () => {
+  const policy = {
+    providerNodeId: 'owner-paid-node',
+    providerGrantAuthority: {
+      durable: true,
+      revision: 3,
+      authorize() { return {ok:true,mode:'network'}; },
+      getProviderPolicy() { return {status:'active',mode:'network'}; }
+    }
+  };
+  assert.throws(
+    () => authorizePaidNeedAtRelay({policy,requesterNodeId:'foreign-node',capability:CAP}),
+    error => error.httpStatus===403 && error.publicCode==='paid_need_denied'
+  );
+  policy.providerGrantAuthority.authorize = () => ({ok:true,mode:'shared'});
+  policy.providerGrantAuthority.getProviderPolicy = () => ({status:'active',mode:'shared'});
+  assert.throws(
+    () => authorizePaidNeedAtRelay({policy,requesterNodeId:'foreign-node',capability:CAP}),
+    error => error.httpStatus===403 && error.publicCode==='paid_need_denied'
+  );
 });
