@@ -17,7 +17,7 @@ const runId = env.G5_TEST_RUN_ID;
 const sourceSha = env.G5_TEST_SOURCE_SHA;
 assert.match(runId || '', /^[0-9]{6,15}$/);
 assert.match(sourceSha || '', /^[0-9a-f]{40}$/);
-assert.ok(['A', 'B', 'child'].includes(role));
+assert.ok(['A', 'B', 'child', 'probe'].includes(role));
 assert.equal(env.G5_TEST_DATABASE, 'g5-live-' + runId);
 assert.equal(env.G5_TEST_CONTAINER, 'ledger');
 if (role === 'child') assert.equal(typeof process.send, 'function');
@@ -92,6 +92,20 @@ async function socketCutCheck(){
     assert.equal((await remote.getNeed(id)).status,'matched');
   }finally{await link.close();}
 }
+async function probeConnectivity(){
+  const expected=env.G5_EXPECT_CONNECTIVITY;
+  assert.ok(['up','down'].includes(expected));
+  if(expected==='down'){
+    await assert.rejects(()=>ledger.getNeed(id),e=>
+      e.publicCode==='lifecycle_ledger_unavailable' || e.publicCode==='lifecycle_ledger_auth_denied');
+    report({azureVnetPartition:true,connectivityExpectedDown:true,cosmosReadFailedClosed:true});
+    return;
+  }
+  const row=await waitFor(()=>ledger.getNeed(id),'probe-up');
+  assert.equal(row.requester,requester.nodeId);
+  assert.ok(['matched','completed'].includes(row.status));
+  report({azureVnetHealed:true,connectivityExpectedUp:true,cosmosReadRecovered:true,restoredSource:env.G5_EXPECT_RESTORED==='1'});
+}
 async function hostB(){
   await waitMarker('A-killed');const admitted=await ledger.getNeed(id);
   assert.equal(admitted.requester,requester.nodeId);assert.equal(admitted.fingerprint,reservation.fingerprint);
@@ -112,5 +126,13 @@ async function hostB(){
   assert.equal((await fresh.getNeed(id)).status,'completed');await mark('B-recovered');
   report({actualAzureWrite:true,remoteCrashRecovery:true,duplicateNeedRejected:true,effectIntentNotReacquired:true,conflictingSignerRejected:true,actualTcpCutAndHeal:true,azureVnetPartition:false,singleSignedTerminal:true,ackSurvivesNewClient:true});
 }
-try{await waitFor(async()=>{await ledger.getNeed(id+'-readiness');return true;},'rbac');if(role==='child')await childWork();else if(role==='A')await hostA();else await hostB();}
+try{
+  if(role==='probe') await probeConnectivity();
+  else {
+    await waitFor(async()=>{await ledger.getNeed(id+'-readiness');return true;},'rbac');
+    if(role==='child') await childWork();
+    else if(role==='A') await hostA();
+    else await hostB();
+  }
+}
 catch(e){console.error('G5_LIVE_FAIL='+JSON.stringify({role,sourceSha,runId,code:/^[a-zA-Z0-9_]{1,100}$/.test(e.publicCode||'')?e.publicCode:'assertion_or_transport_failure'}));process.exitCode=1;}
