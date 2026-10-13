@@ -12,6 +12,8 @@ import {createHash} from 'node:crypto';
 import {createRelay} from '../../../network/relay/server.js';
 import {TruynNode} from '../../../node/client.js';
 import {verifyEnvelope} from '../../../core/protocol/index.js';
+import {assertNeedAdmissionWindow} from '../../../core/protocol/need-admission.js';
+import {createSqliteLifecycleLedger} from '../../../network/relay/durable-lifecycle-ledger.js';
 import {evaluateLifecycle,ORDINARY,STREAMING} from './evaluate.mjs';
 import {verifyTerminalRace} from './race-evidence.mjs';
 const root=process.cwd(),here=resolve(root,'sdk/conformance/lifecycle-peer');
@@ -88,7 +90,10 @@ try {
  async function replay(relayUrl,request,transform=null){const bytes=transform?JSON.stringify(transform(JSON.parse(request.bytes))):request.bytes;const r=await fetch(relayUrl+request.path,{method:request.method,headers:request.headers,body:bytes});return{status:r.status,body:await r.json()};}
  async function drain(relayUrl,p){const reg=last(p,'/v1/register').reply;const r=await fetch(relayUrl+'/v1/events?nodeId='+encodeURIComponent(p.initial.value.nodeId),{headers:{authorization:'Bearer '+reg.sessionToken}});assert.equal(r.status,200);return(await r.json()).events;}
  async function runCase(language,pMode,rMode){
-  const relay=createRelay({localDevelopmentMode:true,maxQueuedEventsPerNode:8}),url=await relay.listen({port:0});
+  const storeDir=mkdtempSync(join(temp,'durable-')),filePath=join(storeDir,'lifecycle.sqlite');
+  const lifecycleLedger=createSqliteLifecycleLedger({filePath});
+  const relay=createRelay({localDevelopmentMode:true,maxQueuedEventsPerNode:8,lifecycleLedger}),url=await relay.listen({port:0});
+  let replica=null,replicaLedger=null;
   const actors=[];let current='setup';
   const record=(scenario,status='PASS',extra={})=>rows.push({language,provider:pMode,requester:rMode,scenario,status,...extra});
   try{
@@ -103,6 +108,32 @@ try {
    const n=await okay(r,'need',{capability:cap}),submitted=last(r,'/v1/needs');
    const work=await okay(p,'next');assert.equal(work.needId,n.needId);assert.equal(work.verified,true);
    current='need-replay';assert.equal((await replay(url,submitted)).status,409);assert.equal((await drain(url,p)).length,0);record(current);
+   current='need-acceptance-window';
+   const nativeEnvelope=JSON.parse(submitted.bytes).envelope;
+   assert.equal(verifyEnvelope(nativeEnvelope).ok,true,'original native SDK signature');
+   const createdAt=Date.parse(nativeEnvelope.createdAt);
+   for(const offset of [-30000,0,300000])assert.doesNotThrow(()=>assertNeedAdmissionWindow(nativeEnvelope,createdAt+offset));
+   for(const offset of [-30001,300001])assert.throws(()=>assertNeedAdmissionWindow(nativeEnvelope,createdAt+offset),/need_outside_acceptance_window/);
+   record(current);
+   current='durable-replica-replay';
+   replicaLedger=createSqliteLifecycleLedger({filePath});
+   replica=createRelay({localDevelopmentMode:true,lifecycleLedger:replicaLedger});
+   let replicaUrl=await replica.listen({port:0});
+   async function replicaReplay(targetUrl){
+    // Fresh relay sessions are created from this actual SDK's signed identity.
+    // No JS replacement signer and no session credential is persisted as proof.
+    const registration=await replay(targetUrl,last(r,'/v1/register'));
+    assert.equal(registration.status,200);
+    const response=await replay(targetUrl,{...submitted,headers:{'content-type':'application/json',authorization:'Bearer '+registration.body.sessionToken}});
+    assert.equal(response.status,409);assert.equal(response.body.error,'duplicate_request');
+    assert.equal(replica.state.requests.size,0,'no work recreated on another relay');
+   }
+   await replicaReplay(replicaUrl);record(current);
+   current='durable-restart-replay';
+   await replica.close();replicaLedger.close();
+   replicaLedger=createSqliteLifecycleLedger({filePath});
+   replica=createRelay({localDevelopmentMode:true,lifecycleLedger:replicaLedger});replicaUrl=await replica.listen({port:0});
+   await replicaReplay(replicaUrl);record(current);
    current='cross-transport-replay';
    // Separate adversarial identity, never a replacement signer for a tested SDK.
    const evil=new TruynNode({relayUrl:url});await evil.register();const payload={capability:{name:cap},input:{fixture:true},policy:{}};
@@ -127,7 +158,7 @@ try {
    record(current,'PASS',{relayRace:raceEvidence});
    current='version-mismatch';const before=relay.state.nodes.size,v=await peer(language,rMode,url,['TRUYN/99999']);actors.push(v);assert.equal(v.initial.ok,false);assert.equal(v.trace.at(-1).status,409);assert.equal(relay.state.nodes.size,before);record(current);
   }catch(e){record(current,'FAIL',{reason:String(e.message).slice(0,1000)});throw e;}
-  finally{for(const a of actors)await a.close();await relay.close();}
+  finally{for(const a of actors)await a.close();await replica?.close();replicaLedger?.close();await relay.close();lifecycleLedger.close();}
  }
  async function streamCase(language,pMode,rMode){
   const relay=createRelay({localDevelopmentMode:true,maxQueuedEventsPerNode:1}),url=await relay.listen({port:0});const actors=[];let current='compact-setup';

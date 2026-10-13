@@ -41,6 +41,8 @@ The initial `IDENTITY` registration path has an explicit interoperable freshness
 
 For other side-effecting core messages, the signed `id` and type-specific correlation state form the replay/idempotency key. A receiver MUST either reject an already-consumed message/correlation or return the already committed idempotent outcome; it MUST NOT repeat the provider-side side effect. RESULT, cancellation and streaming terminal-state rules further constrain replay by their own normative contracts.
 
+Signed direct NEED first admission uses the same inclusive 5-minute past / 30-second future window on HTTP and QUIC. This does not limit subsequent execution duration or terminal delivery. Compact NEED has no signed creation timestamp; it retains authenticated-session admission and the shared permanent single-use ID rule. The exact window, compact limitation, permanent tombstones, capacity behavior and durable adapter boundary are specified in [`lifecycle.md`](lifecycle.md). Timestamp expiry never authorizes reuse of an accepted ID.
+
 No separate unsigned requester-controlled nonce grants authority. Where a transport handshake defines a nonce (for example an authenticated session HELLO), that nonce is transport/session replay material and MUST remain bound to the signed handshake contract rather than becoming provider/account authority.
 
 Replay caches are bounded operational state. Resource exhaustion of a mandatory replay cache MUST fail closed for the affected acceptance path rather than silently disabling replay protection.

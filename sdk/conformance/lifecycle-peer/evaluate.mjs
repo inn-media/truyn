@@ -1,7 +1,7 @@
 // Independent coverage validation; this module never issues release authority.
 export const LANGUAGES=['typescript','python','go','java','dotnet'];
 export const MODES=['published','source'];
-export const ORDINARY=['offer-signature','offer-owner','need-replay','cross-transport-replay','cancel-owner','result-owner','withdrawal-preserves-work','result-delivery','duplicate-terminal','cancel-after-result','cancel-idempotent','late-result-after-cancel','replay-after-cancel','terminal-race','version-mismatch'];
+export const ORDINARY=['offer-signature','offer-owner','need-replay','need-acceptance-window','durable-replica-replay','durable-restart-replay','cross-transport-replay','cancel-owner','result-owner','withdrawal-preserves-work','result-delivery','duplicate-terminal','cancel-after-result','cancel-idempotent','late-result-after-cancel','replay-after-cancel','terminal-race','version-mismatch'];
 export const STREAMING=['sequence-gap','first-partial','identical-retry','conflicting-retry','backpressure','drain-ordered','retry-after-backpressure','terminal-after-stream','late-partial','duplicate-stream-result','foreign-partial','cancel-late-partial'];
 export function evaluateLifecycle(report,expected){
  if(report?.schema!=='truyn.five-sdk-lifecycle/v1'||!expected||

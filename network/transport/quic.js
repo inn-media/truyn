@@ -3,6 +3,7 @@ import { QUICSocket, QUICServer, QUICClient, events } from '@matrixai/quic';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { verifyEnvelope, PROTOCOL } from '../../core/protocol/index.js';
 import { BoundedAdmissionQueue } from '../admission/bounded-queue.js';
+import { createNeedReplayGuard } from '../admission/need-replay.js';
 import { sharedEventLoopMonitor } from '../admission/load-monitor.js';
 import { createSessionHello, createSessionAccept, verifySessionHello, verifySessionAccept, sessionHandshakeBinding, sessionId, SessionReplayCache } from '../sessions/authenticated-session.js';
 
@@ -119,6 +120,8 @@ export class TruynQuicTransport {
     port = 0,
     tls,
     maxMessageBytes = 1_048_576,
+    lifecycleLedger = null,
+    maxSeenNeedIds = 262144,
     maxInboundInFlight = 64,
     maxInboundQueued = 256,
     maxControlInFlight = 64,
@@ -134,6 +137,7 @@ export class TruynQuicTransport {
     if (!identity?.nodeId || !identity?.publicKeyPem || !identity?.privateKeyPem) throw new Error('QUIC transport identity is required');
     if (!tls?.key || !tls?.cert) throw new Error('QUIC server TLS key and certificate are required');
     this.identity = identity;
+    this.needReplay = createNeedReplayGuard({ provider: identity.nodeId, lifecycleLedger, maxSeenNeedIds });
     this.supportedProtocols = supportedProtocols;
     this.supportedSemantics = supportedSemantics;
     this.requiredSemantics = requiredSemantics;
@@ -279,11 +283,14 @@ export class TruynQuicTransport {
       if (message.envelope.from !== session.peerNodeId || message.envelope.publicKey !== session.peerPublicKey) { await writeJson(stream, { ok: false, error: 'quic_session_sender_mismatch' }); return; }
       if (!this.envelopeHandler) { await writeJson(stream, { ok: false, error: 'no_envelope_handler' }); return; }
       try {
-        const result = await this.inboundAdmission.run(() => this.envelopeHandler(message.envelope, {
-          peerNodeId: session.peerNodeId,
-          transport: 'quic',
-          connection
-        }));
+        const result = await this.inboundAdmission.run(async () => {
+          await this.needReplay.admit(message.envelope);
+          return this.envelopeHandler(message.envelope, {
+            peerNodeId: session.peerNodeId,
+            transport: 'quic',
+            connection
+          });
+        });
         await writeJson(stream, { ok: true, result: result ?? null });
       } catch (error) {
         await writeJson(stream, { ok: false, error: boundedHandlerError(error, 'quic_envelope_handler_failed') });
