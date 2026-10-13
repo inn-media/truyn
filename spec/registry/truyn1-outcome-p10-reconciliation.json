@@ -1,0 +1,42 @@
+{
+  "schema": "truyn.registry.outcome-to-p10-reconciliation/1",
+  "status": "CLASS_C_PROPOSAL_NOT_NEW_P10_CODE",
+  "source": "TRUYN_WIRE_FREEZE_CORE_FINAL(1).md",
+  "publicAuthority": "core/protocol/normalized-errors.js",
+  "stableCodeCount": 13,
+  "translations": [
+    {
+      "registrySemantic": "already_exists",
+      "registryCode": "52130000",
+      "existingPublicClass": "conflict",
+      "applicableWhen": "authoritatively detected duplicate or conflicting logical ID",
+      "currentImplementationEvidence": "duplicate_request -> conflict; HTTP 409 -> conflict",
+      "newPublicCode": false,
+      "retryable": false
+    },
+    {
+      "registrySemantic": "internal",
+      "registryCode": "52530000",
+      "existingPublicClass": "internal_error",
+      "applicableWhen": "accepted operation reports a bounded internal error or unclassified 5xx",
+      "currentImplementationEvidence": "HTTP 500 -> internal_error",
+      "newPublicCode": false,
+      "retryable": false
+    },
+    {
+      "registrySemantic": "unavailable",
+      "registryCode": "52420000",
+      "existingPublicClass": null,
+      "reserved": true,
+      "applicableWhen": "proposal-only semantic; do not accept as a P10 public error code",
+      "classificationRules": [
+        "Before authoritative application response, actual failed transport or session: transport_error; retry only if idempotent.",
+        "Authoritative response with known bounded capacity exhaustion: resource_exhausted using the recognized source/status.",
+        "Unknown authoritative 503/5xx: internal_error, non-retryable by default."
+      ],
+      "newPublicCode": false,
+      "retryable": false
+    }
+  ],
+  "constraint": "Never rewrite existing legacy transport responses. No arbitrary prose matching. A proposal label is not an accepted public source alias by itself. Unknown provider side effects require reconciliation before retry."
+}
