@@ -189,9 +189,12 @@ test('strict paid QUIC denies real signed NEED before provider callback, across 
     () => { paidCalls++; return { output: 'would-spend' }; });
   const client = await f.transport();
   const signed = need(client, a, 'paid-quic-never-dispatch');
+  // Establish both sessions before scheduling calls. Attach both rejection
+  // handlers synchronously so a fast DENIED cannot become unhandled rejection.
+  const [sessionA, sessionB] = await Promise.all([connect(client, a), connect(client, b)]);
   const [one, two] = await Promise.allSettled([
-    client.sendEnvelope(await connect(client, a), signed),
-    client.sendEnvelope(await connect(client, b), signed)
+    client.sendEnvelope(sessionA, signed),
+    client.sendEnvelope(sessionB, signed)
   ]);
   for (const item of [one, two]) {
     assert.equal(item.status, 'rejected');
