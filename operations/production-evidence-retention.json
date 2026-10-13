@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "component": "production-evidence-retention",
+  "deploymentId": "dc4518de-d1bf-4fce-b351-e43d7c152999",
+  "status": "immutable_audit_retention_required",
+  "scope": {
+    "evidenceClasses": [
+      "drill",
+      "pager",
+      "slo"
+    ],
+    "requiredPrefixes": [
+      "drill/",
+      "pager/",
+      "slo/"
+    ],
+    "operationalTelemetrySeparated": true
+  },
+  "retention": {
+    "minimumRequiredDays": 365,
+    "configuredDays": 365,
+    "significantlyLongerThanOperationalTelemetry": true,
+    "timeBasedRetentionRequired": true,
+    "policyStateRequired": "Locked",
+    "shorteningOrRemovalAllowed": false
+  },
+  "storage": {
+    "backendClass": "azure-blob",
+    "sku": "Standard_GRS",
+    "container": "acceptance-evidence",
+    "immutableStorageWithVersioning": true,
+    "blobVersioning": true,
+    "allowProtectedAppendWrites": false,
+    "allowSharedKeyAccess": false,
+    "defaultToOAuthAuthentication": true,
+    "allowBlobPublicAccess": false,
+    "networkDefaultAction": "Deny",
+    "azureServicesBypass": true,
+    "minimumTlsVersion": "TLS1_2"
+  },
+  "acceptance": {
+    "azurePolicyReadBackRequired": true,
+    "lockedStateReadBackRequired": true,
+    "retentionReadBackRequired": true,
+    "immutableDeleteDenialRequired": true,
+    "exactMainSourceShaRequired": true,
+    "sanitizedEvidenceRequired": true
+  },
+  "githubArtifact": {
+    "durableAuthority": false,
+    "convenienceOnly": true,
+    "retentionDays": 30
+  },
+  "invariant": "Drill, pager and SLO acceptance evidence must be kept in a dedicated Azure Blob immutable evidence store for at least 365 days. The default time-based immutability policy must be Locked, blob versioning and immutable storage with versioning must remain enabled, Shared Key and anonymous blob access must remain disabled, and live acceptance must prove a protected evidence object cannot be deleted while the retention policy is active."
+}
