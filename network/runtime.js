@@ -215,7 +215,7 @@ export class TruynNetworkNode {
       else reconcile();
     };
     this.recordStore = new KademliaRecordStore({ onChange: onStateChange });
-    this.quic = new TruynQuicTransport({ identity, host, port, tls, lifecycleLedger, maxSeenNeedIds });
+    this.quic = new TruynQuicTransport({ identity, host, port, tls, lifecycleLedger, maxSeenNeedIds, paidNeedEnforcement });
     this.discovery = new PeerDiscovery({ identity, k, alpha, onChange: onDiscoveryChange, onRecordAccepted });
     this.rpc = new QuicDiscoveryRpc({
       quicTransport: this.quic,
