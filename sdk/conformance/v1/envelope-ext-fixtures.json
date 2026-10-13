@@ -1,0 +1,2676 @@
+{
+  "schema": "truyn.envelope.ext.conformance/1",
+  "source": "Public RFC 8032 TEST 1; generated negatives, exact GE bytes in envelope-ge-source.json",
+  "cases": [
+    {
+      "id": "ext.valid",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.valid.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.empty",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {},
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "qpNjfmEiY3vkrSJeoM6A0H+GhdmhFS/dmNnDenjzp9OzmjHKPnq2WdRvPixvIhlUO/yllwYmY8pH9l1vSouOAw=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.empty.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {},
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "qpNjfmEiY3vkrSJeoM6A0H+GhdmhFS/dmNnDenjzp9OzmjHKPnq2WdRvPixvIhlUO/yllwYmY8pH9l1vSouOAw=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.known-critical",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "crit": [
+            "traceId",
+            "expiresAt",
+            "priority",
+            "contentType"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "M13gkQMvxsnoAKSGmQLhMm+rSpBB+ASPyqIG9P6InxFDHHjFrtX4lkuZYcU956um4Wd/CjJOpSR7U2aC7hr+AQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.known-critical.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "crit": [
+            "traceId",
+            "expiresAt",
+            "priority",
+            "contentType"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "M13gkQMvxsnoAKSGmQLhMm+rSpBB+ASPyqIG9P6InxFDHHjFrtX4lkuZYcU956um4Wd/CjJOpSR7U2aC7hr+AQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.unknown-optional",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "abc"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "MKwPwWZInzslgocT7/Y9zlXP/1xmbaeFDaHZHJzWGRwm8c0Gx6VI5wDmikbs0Oh9Pa1+BYXOJoMIpTEjHQ1SBw=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.unknown-optional.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "abc"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "MKwPwWZInzslgocT7/Y9zlXP/1xmbaeFDaHZHJzWGRwm8c0Gx6VI5wDmikbs0Oh9Pa1+BYXOJoMIpTEjHQ1SBw=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.critical-hint",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "priority": "critical"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "q9j7Vni5sfiRqPSe005HtrUBC+My5pn2nhJ2o47f3YWaHvgs427tVgTw5VQAe47RRcvpo6aqeQbvUKKGh4lsBA=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.critical-hint.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "priority": "critical"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "q9j7Vni5sfiRqPSe005HtrUBC+My5pn2nhJ2o47f3YWaHvgs427tVgTw5VQAe47RRcvpo6aqeQbvUKKGh4lsBA=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.null",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": null,
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "J3MpkEnOkSjZFUohB5eXwp0vi+ptiRT+GeyPzkShzHOVsiGhL8N50/KUYB0Oj2bFS6yEnekGmPH2SzONw5leDA=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext"
+      }
+    },
+    {
+      "id": "ext.null.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": null,
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "J3MpkEnOkSjZFUohB5eXwp0vi+ptiRT+GeyPzkShzHOVsiGhL8N50/KUYB0Oj2bFS6yEnekGmPH2SzONw5leDA=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.array",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": [],
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "chNfoqnZ5TuPagAIkEWKafJLRp/sApLMwoPj7/g54x5tpnvk081P8lGrIFFFl0mnLCGSAfnfojTPvewgoiJsCQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext"
+      }
+    },
+    {
+      "id": "ext.array.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": [],
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "chNfoqnZ5TuPagAIkEWKafJLRp/sApLMwoPj7/g54x5tpnvk081P8lGrIFFFl0mnLCGSAfnfojTPvewgoiJsCQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.string",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": "x",
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "G1CkTmaYyKh/ryqVrdnhUujTctQfec84/fbEl7QmOEHyjpdxv3Rv79qM1Rbbt+ceNFsmzOqAxXjPOT+oSD6tDw=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext"
+      }
+    },
+    {
+      "id": "ext.string.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": "x",
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "G1CkTmaYyKh/ryqVrdnhUujTctQfec84/fbEl7QmOEHyjpdxv3Rv79qM1Rbbt+ceNFsmzOqAxXjPOT+oSD6tDw=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.number-value",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "priority": 1
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "sJ73NjMX7F33/L9GZ0WfWWbdL/F9IVJkwmU6bBbgrrElN68dprLk8cL3QI6/yLqIGb3TZpEJErWbM5CbRXHdCg=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:priority"
+      }
+    },
+    {
+      "id": "ext.number-value.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "priority": 1
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "sJ73NjMX7F33/L9GZ0WfWWbdL/F9IVJkwmU6bBbgrrElN68dprLk8cL3QI6/yLqIGb3TZpEJErWbM5CbRXHdCg=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.nested-value",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": {}
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "7oLHE+fyPhrEZMDTu42ZLyQUygOKHbcELt7hfZoyJma1cobqoyHLzeEcl2aB7jvKAfRccdPqonZjnplR42p0BQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:future"
+      }
+    },
+    {
+      "id": "ext.nested-value.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": {}
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "7oLHE+fyPhrEZMDTu42ZLyQUygOKHbcELt7hfZoyJma1cobqoyHLzeEcl2aB7jvKAfRccdPqonZjnplR42p0BQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.bad-key",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "bad-key": "x"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "J6MbeT/6i5I5Emwljo75OzAhMnDKWtQrw7aOu5if8ldzb4scjxVopRU434EG1YbL+nP5DaZNT7nubIQ53ykoBg=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext"
+      }
+    },
+    {
+      "id": "ext.bad-key.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "bad-key": "x"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "J6MbeT/6i5I5Emwljo75OzAhMnDKWtQrw7aOu5if8ldzb4scjxVopRU434EG1YbL+nP5DaZNT7nubIQ53ykoBg=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.empty-value",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": ""
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "MczgVvctlplKodz6qbdj9EYO92FkI3QmSuwsAjQpwT5l8N9tn+prP/lotw2/nXg9KjkYqjs6w5LbA3D2IBAIDA=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:future"
+      }
+    },
+    {
+      "id": "ext.empty-value.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": ""
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "MczgVvctlplKodz6qbdj9EYO92FkI3QmSuwsAjQpwT5l8N9tn+prP/lotw2/nXg9KjkYqjs6w5LbA3D2IBAIDA=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.long-value",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "KiHLGz5n4XCIH5og05mHby2JaRF3U42Wcwp1/dDPTfJj5QPCbQXUVmjdWbONGoG2AKXZPMhD9uthPUX6l4d3BQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:future"
+      }
+    },
+    {
+      "id": "ext.long-value.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "KiHLGz5n4XCIH5og05mHby2JaRF3U42Wcwp1/dDPTfJj5QPCbQXUVmjdWbONGoG2AKXZPMhD9uthPUX6l4d3BQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.space",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "a b"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "qtMX4HRNYEp73XFQ4zJuFPcXl8MCFtb8BlYllfweD1qxzRPdH7DKMzMURXNV5JXicFGWLjdrU2E1voL8fnegDQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:future"
+      }
+    },
+    {
+      "id": "ext.space.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "a b"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "qtMX4HRNYEp73XFQ4zJuFPcXl8MCFtb8BlYllfweD1qxzRPdH7DKMzMURXNV5JXicFGWLjdrU2E1voL8fnegDQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.newline",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "a\n"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "N1Kl+pXiyn8INFdpg2GptDFepzHowQgVXjC3u2vC4zuHrRZx0gm9342kC3D6LgbMLoNV+5cDTxB2tIN4jn6XCA=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:future"
+      }
+    },
+    {
+      "id": "ext.newline.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "a\n"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "N1Kl+pXiyn8INFdpg2GptDFepzHowQgVXjC3u2vC4zuHrRZx0gm9342kC3D6LgbMLoNV+5cDTxB2tIN4jn6XCA=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.unicode",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "Bakı"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "mrJl5Pqwi0APp8IhZLJC79XMSXoGG7ap4/59Kwuk2yDOu1hCah2OtkKRdQVKmvXIwrwu4hDscD0cZ+6ruVQ0Dw=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:future"
+      }
+    },
+    {
+      "id": "ext.unicode.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "Bakı"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "mrJl5Pqwi0APp8IhZLJC79XMSXoGG7ap4/59Kwuk2yDOu1hCah2OtkKRdQVKmvXIwrwu4hDscD0cZ+6ruVQ0Dw=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.too-many-keys",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "k0": "a",
+          "k1": "a",
+          "k2": "a",
+          "k3": "a",
+          "k4": "a",
+          "k5": "a",
+          "k6": "a",
+          "k7": "a",
+          "k8": "a",
+          "k9": "a",
+          "k10": "a",
+          "k11": "a",
+          "k12": "a",
+          "k13": "a",
+          "k14": "a",
+          "k15": "a",
+          "k16": "a"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "hZPpH8BTKs4Q+g4ROQmSBkwB9Hr0HPnJOu4aQ9onFFT8HV/y5PxzsxqAxOibQwupDwh1jU7CSxi+xjk2z/r6AQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext"
+      }
+    },
+    {
+      "id": "ext.too-many-keys.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "k0": "a",
+          "k1": "a",
+          "k2": "a",
+          "k3": "a",
+          "k4": "a",
+          "k5": "a",
+          "k6": "a",
+          "k7": "a",
+          "k8": "a",
+          "k9": "a",
+          "k10": "a",
+          "k11": "a",
+          "k12": "a",
+          "k13": "a",
+          "k14": "a",
+          "k15": "a",
+          "k16": "a"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "hZPpH8BTKs4Q+g4ROQmSBkwB9Hr0HPnJOu4aQ9onFFT8HV/y5PxzsxqAxOibQwupDwh1jU7CSxi+xjk2z/r6AQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.too-many-bytes",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "k0": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k2": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k3": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k4": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k5": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k6": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k7": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "Yw3JFdj+VumMg2JOCSp0WktsVqHgPWY3MlA2MAbnmQVWrgcMzWuvnWapkiqPG8Zu5ZcBJ0HBdBnVQHc/A0MWCQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext"
+      }
+    },
+    {
+      "id": "ext.too-many-bytes.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "k0": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k2": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k3": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k4": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k5": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k6": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "k7": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "Yw3JFdj+VumMg2JOCSp0WktsVqHgPWY3MlA2MAbnmQVWrgcMzWuvnWapkiqPG8Zu5ZcBJ0HBdBnVQHc/A0MWCQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.trace-zero",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "traceId": "00000000000000000000000000000000"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "7y9GT++C79llr6LT7Q9xLNBIXLyiE0thcc0kFgxPJS/Ho7xiGOceWdF2H/HyNR4uIrAXQGmgNjMcIs71sqOlBg=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:traceId"
+      }
+    },
+    {
+      "id": "ext.trace-zero.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "traceId": "00000000000000000000000000000000"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "7y9GT++C79llr6LT7Q9xLNBIXLyiE0thcc0kFgxPJS/Ho7xiGOceWdF2H/HyNR4uIrAXQGmgNjMcIs71sqOlBg=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.trace-case",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "traceId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "YnzDqY5hQA1OEZTst7OcMS9ghMAgpF5Nhsco0X7LaV+amXrviZRGSZmtG5TM3aOua333UbPekOrsZUvf2mmYAg=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:traceId"
+      }
+    },
+    {
+      "id": "ext.trace-case.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "traceId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "YnzDqY5hQA1OEZTst7OcMS9ghMAgpF5Nhsco0X7LaV+amXrviZRGSZmtG5TM3aOua333UbPekOrsZUvf2mmYAg=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.expiry-format",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "expiresAt": "2026-10-11T12:00:30Z"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "HOjTZKdAkooLopKz/KnwtxtOzal2bM5yXWAoryKGg/RAyz2uwZ5HMOQYvNiEz8VQ3IbhJdGlghhPK2+iu1q5Aw=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:expiresAt"
+      }
+    },
+    {
+      "id": "ext.expiry-format.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "expiresAt": "2026-10-11T12:00:30Z"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "HOjTZKdAkooLopKz/KnwtxtOzal2bM5yXWAoryKGg/RAyz2uwZ5HMOQYvNiEz8VQ3IbhJdGlghhPK2+iu1q5Aw=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.expiry-calendar",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "expiresAt": "2026-02-30T12:00:30.000Z"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eX1BIQaiRmaWgCkLKPPU+qNuCV9cm3wX0yZjZ2+lnR4nIOV+74VbRQ7EBXp+1JieR2R4V+yjQF6FCCLcwCrqBg=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:expiresAt"
+      }
+    },
+    {
+      "id": "ext.expiry-calendar.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "expiresAt": "2026-02-30T12:00:30.000Z"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eX1BIQaiRmaWgCkLKPPU+qNuCV9cm3wX0yZjZ2+lnR4nIOV+74VbRQ7EBXp+1JieR2R4V+yjQF6FCCLcwCrqBg=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.expiry-not-after",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "expiresAt": "2026-10-11T12:00:00.000Z"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "kmFBuZKzVDt2i3nA5cJhFH49gYBGWtMJ6DtskhGpTSHf6UdNorKoqlYO3qcushCnzrjMcRVPZKcOk2mI/vxRAw=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:expiresAt"
+      }
+    },
+    {
+      "id": "ext.expiry-not-after.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "expiresAt": "2026-10-11T12:00:00.000Z"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "kmFBuZKzVDt2i3nA5cJhFH49gYBGWtMJ6DtskhGpTSHf6UdNorKoqlYO3qcushCnzrjMcRVPZKcOk2mI/vxRAw=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.expiry-skew-boundary",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720060000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.expiry-skew-boundary.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720060000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.expired",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720060001,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "deadline_exceeded",
+        "detail": "envelope_expired"
+      }
+    },
+    {
+      "id": "ext.expired.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720060001,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.priority-unknown",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "priority": "highest"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "lGV1uwttdkgGtOTQg4zaIhJomNr/KCXGD0zx01OBdSZXzNQHRE4ylunrKvLyTK6nmkOB4N4I2DdmHYZertsHAA=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:priority"
+      }
+    },
+    {
+      "id": "ext.priority-unknown.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "priority": "highest"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "lGV1uwttdkgGtOTQg4zaIhJomNr/KCXGD0zx01OBdSZXzNQHRE4ylunrKvLyTK6nmkOB4N4I2DdmHYZertsHAA=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.content-media",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "image/png"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "DakGDnhLerJoCmxTX2G5Ux/4hsxfE6CX8K5Nyq7Hlbfo8NEpk2Lii8siU3nXHTExU9U4K/2O7zaeQuiAHTO+Dg=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:contentType"
+      }
+    },
+    {
+      "id": "ext.content-media.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "image/png"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "DakGDnhLerJoCmxTX2G5Ux/4hsxfE6CX8K5Nyq7Hlbfo8NEpk2Lii8siU3nXHTExU9U4K/2O7zaeQuiAHTO+Dg=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.content-unknown",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=future/1"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "U6QWPScTkHcNSg+TC9wYczA92AqHzOR8xpOdT4+zwv1Gt1mBetaeiOxgSA1QRLghDPgFWJY/uMCbbw5p64N9AA=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "unimplemented",
+        "detail": "unsupported_content_type"
+      }
+    },
+    {
+      "id": "ext.content-unknown.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=future/1"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "U6QWPScTkHcNSg+TC9wYczA92AqHzOR8xpOdT4+zwv1Gt1mBetaeiOxgSA1QRLghDPgFWJY/uMCbbw5p64N9AA=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.crit-string",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "crit": "traceId"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "XHt6fa52m8uOtGWPgi11yhIviaF5o87eW52mDHYkbdfWHhvolcEab8u+2pQbE8WV+MMXzy+G1ERkFHe+a1WDAw=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:crit"
+      }
+    },
+    {
+      "id": "ext.crit-string.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "crit": "traceId"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "XHt6fa52m8uOtGWPgi11yhIviaF5o87eW52mDHYkbdfWHhvolcEab8u+2pQbE8WV+MMXzy+G1ERkFHe+a1WDAw=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.crit-number",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "crit": [
+            1
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "TAJnOe5W6e2qazlIwrHEZz9NIOvvRTbk3DtmvF8USw/EwiAp7LgXtRToZpKZj8IW8HHp/qCy7N/f55SSOv0PCA=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:crit"
+      }
+    },
+    {
+      "id": "ext.crit-number.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "crit": [
+            1
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "TAJnOe5W6e2qazlIwrHEZz9NIOvvRTbk3DtmvF8USw/EwiAp7LgXtRToZpKZj8IW8HHp/qCy7N/f55SSOv0PCA=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.crit-missing",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "crit": [
+            "future"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "9BSfyOaKXPj/7HFuv49d3oTKdA0wfFtS/QE6PSIgZzXHtQhI+z20rvycmLVCGCJVhu9THN5H/E2x0MmVShIxCw=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:crit"
+      }
+    },
+    {
+      "id": "ext.crit-missing.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "crit": [
+            "future"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "9BSfyOaKXPj/7HFuv49d3oTKdA0wfFtS/QE6PSIgZzXHtQhI+z20rvycmLVCGCJVhu9THN5H/E2x0MmVShIxCw=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.crit-self",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "crit": [
+            "crit"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "BMcDca9Pbu4XYqXL8FuJbH3+/hOnbVoap5619v9dll065Ob6k5Bani8eRp0Lkq5X3eB6fjFreNTL8aBURCmEDA=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:crit"
+      }
+    },
+    {
+      "id": "ext.crit-self.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "crit": [
+            "crit"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "BMcDca9Pbu4XYqXL8FuJbH3+/hOnbVoap5619v9dll065Ob6k5Bani8eRp0Lkq5X3eB6fjFreNTL8aBURCmEDA=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.crit-duplicate",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "crit": [
+            "traceId",
+            "traceId"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "F4IkvYdsjW/cjDvzcYVlrwjBT0l9jn8q8PIv+MocAPLM2r7OHouffqgIwqf81JLLNMr3dC7WB+Tm6qG52PEcAA=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_argument",
+        "detail": "invalid_ext:crit"
+      }
+    },
+    {
+      "id": "ext.crit-duplicate.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "crit": [
+            "traceId",
+            "traceId"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "F4IkvYdsjW/cjDvzcYVlrwjBT0l9jn8q8PIv+MocAPLM2r7OHouffqgIwqf81JLLNMr3dC7WB+Tm6qG52PEcAA=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.crit-unknown",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "abc",
+          "crit": [
+            "future"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "Xd6xlUhSexlgqMDbgvIdJQl2c9SuY4z0ziqf6MWRIfV5s2LLuTE96OcicNG8KKc7zWXBAY60HUY5Wwk+eAYrBg=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "version_mismatch",
+        "detail": "required_semantic_unavailable:future"
+      }
+    },
+    {
+      "id": "ext.crit-unknown.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "future": "abc",
+          "crit": [
+            "future"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "Xd6xlUhSexlgqMDbgvIdJQl2c9SuY4z0ziqf6MWRIfV5s2LLuTE96OcicNG8KKc7zWXBAY60HUY5Wwk+eAYrBg=="
+      },
+      "expected": {
+        "ok": true
+      }
+    },
+    {
+      "id": "ext.tampered.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "critical",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "ext.tampered",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "critical",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "ext.removed.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "ext.removed",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "ext.injected-crit.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "crit": [
+            "priority"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "ext.injected-crit",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "crit": [
+            "priority"
+          ]
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "crypto.payload-tampered.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "tampered"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "crypto.payload-tampered",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "tampered"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "crypto.base64-whitespace.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ==\n"
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "crypto.base64-whitespace",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ==\n"
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "crypto.base64-unpadded.legacy",
+      "negotiatedSemantics": [],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ"
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    },
+    {
+      "id": "crypto.base64-unpadded",
+      "negotiatedSemantics": [
+        "truyn.envelope.ext/1"
+      ],
+      "now": 1791720030000,
+      "envelope": {
+        "createdAt": "2026-10-11T12:00:00.000Z",
+        "ext": {
+          "contentType": "application/json;profile=truyn.need/1",
+          "expiresAt": "2026-10-11T12:00:30.000Z",
+          "priority": "normal",
+          "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+        },
+        "from": "truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9",
+        "id": "vec-e3-ext",
+        "payload": {
+          "capability": {
+            "name": "research"
+          },
+          "input": {
+            "query": "golden request"
+          },
+          "policy": {}
+        },
+        "protocol": "TRUYN/1",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+        "to": null,
+        "type": "NEED",
+        "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ"
+      },
+      "expected": {
+        "ok": false,
+        "reason": "invalid_signature"
+      }
+    }
+  ]
+}

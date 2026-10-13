@@ -18,7 +18,7 @@ Session `WELCOME/A20` names existing session `kind:"ACCEPT"`, and does not confl
 
 ## Envelope extension
 
-`ext` may be **optionally** emitted in a separately admitted `truyn.envelope.ext/1` profile. The `ext` value participates in the existing TCJ1 signature. No legacy sender is required to emit it and no legacy recipient may be assumed to enforce its lifetime or critical fields. `traceId`, `expiresAt`, `priority`, `contentType`, and `crit` semantics require verified negotiated support. Signed metadata grants neither tenant/provider authorization nor billing entitlement. Compression remains transport-scoped.
+`ext` may be **optionally** emitted in the explicitly negotiated [`truyn.envelope.ext/1` profile](../protocol/v1/envelope-ext.md). Source implementation and its exact-SHA qualification are separate from frozen package publication. The `ext` value participates in the existing TCJ1 signature. No legacy sender is required to emit it and no legacy recipient may be assumed to enforce its lifetime or critical fields. `traceId`, `expiresAt`, `priority`, `contentType`, and `crit` semantics require verified negotiated support. Signed metadata grants neither tenant/provider authorization nor billing entitlement. Compression remains transport-scoped.
 
 ## Conformance and promotion requirements
 

@@ -1,0 +1,23 @@
+{
+  "source": "TRUYN_ENVELOPE_EXT.md Appendix B (2026-10-11); public RFC 8032 test key only",
+  "cases": [
+    {
+      "id": "GE1",
+      "canonicalUnsigned": "{\"createdAt\":\"2026-10-11T12:00:00.000Z\",\"from\":\"truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9\",\"id\":\"vec-e1-ascii\",\"payload\":{\"capability\":{\"name\":\"research\"},\"input\":{\"query\":\"golden request\"},\"policy\":{}},\"protocol\":\"TRUYN/1\",\"publicKey\":\"-----BEGIN PUBLIC KEY-----\\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\\n-----END PUBLIC KEY-----\\n\",\"to\":null,\"type\":\"NEED\"}",
+      "canonicalUnsignedSha256": "1b54855095d77473504c3b25fa1dae0feb950ef86ae38babae24025d55aa8c25",
+      "signature": "wbxXwq+11SVV5Ia2f99l2iu+d0WK7CF60NodEnRCFwfDWBTM/yosSeVU9tBGNyfGbHlTRE/yFXEnYNERFwMFCw=="
+    },
+    {
+      "id": "GE2",
+      "canonicalUnsigned": "{\"createdAt\":\"2026-10-11T12:00:00.000Z\",\"from\":\"truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9\",\"id\":\"vec-e2-unicode-numbers\",\"payload\":{\"capability\":{\"name\":\"research\"},\"input\":{\"query\":\"R&D <b> 🚀 Bakı привет\",\"threshold\":0.5,\"topK\":42},\"policy\":{}},\"protocol\":\"TRUYN/1\",\"publicKey\":\"-----BEGIN PUBLIC KEY-----\\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\\n-----END PUBLIC KEY-----\\n\",\"to\":null,\"type\":\"NEED\"}",
+      "canonicalUnsignedSha256": "b7b1191fe3b23f38f45e93426a4c1ecb4ca9575dfb5206eccc61e71890db9eda",
+      "signature": "dL2FafbPIJHmvfuBohRG2NVuBrKE84vOuTLF+xdgIfLy0orS4qlfcdQkrkTI3u4sRzoWV6vtzTqPT4wnH9/cCA=="
+    },
+    {
+      "id": "GE3",
+      "canonicalUnsigned": "{\"createdAt\":\"2026-10-11T12:00:00.000Z\",\"ext\":{\"contentType\":\"application/json;profile=truyn.need/1\",\"expiresAt\":\"2026-10-11T12:00:30.000Z\",\"priority\":\"normal\",\"traceId\":\"4bf92f3577b34da6a3ce929d0e0e4736\"},\"from\":\"truyn:node:06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9\",\"id\":\"vec-e3-ext\",\"payload\":{\"capability\":{\"name\":\"research\"},\"input\":{\"query\":\"golden request\"},\"policy\":{}},\"protocol\":\"TRUYN/1\",\"publicKey\":\"-----BEGIN PUBLIC KEY-----\\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\\n-----END PUBLIC KEY-----\\n\",\"to\":null,\"type\":\"NEED\"}",
+      "canonicalUnsignedSha256": "64959ec7324b962c3e20f22879d7d92f1c38cb504a993340c6018583fe8b3581",
+      "signature": "eDZozfOc+puPQRBizgpPR7AcPy61gOZtFqXmWnyAs1z/TAq3HFRjtcqaM8iKZ9D5L4JN+cqzBKHUzTaFp9JOBQ=="
+    }
+  ]
+}

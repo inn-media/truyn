@@ -19,6 +19,9 @@ from .descriptor import canonicalize, node_id_from_public_key
 from .errors import TruynError, normalize_error
 from .compact_lifecycle import CompactLifecycle
 
+from .envelope_ext import validate_envelope_ext, ENVELOPE_EXT_SEMANTIC
+_EXT_ABSENT = object()
+
 PROTOCOL = 'TRUYN/1'
 MVP_TYPES = ('IDENTITY', 'OFFER', 'NEED', 'RESULT', 'REVOKE')
 
@@ -77,6 +80,8 @@ def create_envelope(
     to: str | None = None,
     id: str | None = None,
     created_at: str | None = None,
+    ext=_EXT_ABSENT,
+    negotiated_semantics=(),
 ) -> dict[str, Any]:
     if type not in MVP_TYPES:
         raise ValueError(f'Unsupported MVP message type: {type}')
@@ -95,6 +100,11 @@ def create_envelope(
         'publicKey': identity.public_key_pem,
         'payload': payload,
     }
+    if ext is not _EXT_ABSENT:
+        if ENVELOPE_EXT_SEMANTIC not in negotiated_semantics: raise ValueError('version_mismatch: ext emission requires negotiated support')
+        unsigned['ext'] = ext
+        checked = validate_envelope_ext(unsigned, negotiated_semantics=negotiated_semantics)
+        if not checked['ok']: raise ValueError(checked)
     private_key = serialization.load_pem_private_key(identity.private_key_pem.encode('ascii'), password=None)
     if not isinstance(private_key, Ed25519PrivateKey):
         raise ValueError('identity private key must be Ed25519')
@@ -102,7 +112,7 @@ def create_envelope(
     return {**unsigned, 'signature': base64.b64encode(signature).decode('ascii')}
 
 
-def verify_envelope(envelope: Any, allowed_types: tuple[str, ...] = MVP_TYPES) -> dict[str, Any]:
+def verify_envelope(envelope: Any, allowed_types: tuple[str, ...] = MVP_TYPES, *, negotiated_semantics=(), now=None) -> dict[str, Any]:
     if not isinstance(envelope, dict) or envelope.get('protocol') != PROTOCOL:
         return {'ok': False, 'reason': 'unsupported_protocol'}
     if envelope.get('type') not in allowed_types:
@@ -117,8 +127,10 @@ def verify_envelope(envelope: Any, allowed_types: tuple[str, ...] = MVP_TYPES) -
         if not isinstance(public_key, Ed25519PublicKey):
             return {'ok': False, 'reason': 'invalid_signature'}
         signature = base64.b64decode(envelope['signature'], validate=True)
+        if len(signature) != 64 or base64.b64encode(signature).decode('ascii') != envelope['signature']:
+            return {'ok': False, 'reason': 'invalid_signature'}
         public_key.verify(signature, canonicalize(unsigned_envelope(envelope)).encode('utf-8'))
-        return {'ok': True}
+        return validate_envelope_ext(envelope, negotiated_semantics=negotiated_semantics, now=now)
     except InvalidSignature:
         return {'ok': False, 'reason': 'invalid_signature'}
     except Exception:

@@ -21,7 +21,7 @@ A bounded core envelope MUST contain all of the following top-level fields:
 
 The bounded core message kinds are defined in `core.md` and MUST agree with the executable `MVP_TYPES` set.
 
-## Optional field
+## Optional fields
 
 `to` is optional routing/correlation metadata. The canonical runtime currently emits it explicitly as either a non-empty destination Node ID or `null`. A requester-controlled `to` value never grants provider authorization or tenant/billing authority.
 
@@ -49,13 +49,13 @@ The unsigned value is encoded as **TRUYN Canonical JSON v1 (TCJ1)**:
 1. JSON objects are serialized with member names sorted lexicographically by UTF-16 code units, recursively at every object depth.
 2. JSON arrays preserve their original order.
 3. Strings preserve Unicode scalar content and are encoded as UTF-8; only JSON-required escaping is emitted for quotation mark, reverse solidus and control characters U+0000 through U+001F. HTML characters such as `<`, `>` and `&` are not specially escaped.
-4. JSON numbers MUST be finite. `NaN`, positive/negative infinity and implementation-specific non-JSON numeric values are invalid. Numeric serialization MUST use a shortest round-trippable JSON representation and MUST NOT depend on locale.
+4. JSON numbers are finite IEEE-754 binary64 values and MUST use ECMAScript Number serialization (the number representation used by `JSON.stringify`), independent of locale. Use the shortest round-trippable decimal; integral floats omit `.0`; both signed zero values serialize as `0`. Nonzero absolute values in `[1e-6, 1e21)` use fixed notation; smaller/larger values use lowercase `e`, an explicit `+` for positive exponents, and no exponent leading zeros. Examples: `1.0 → 1`, `-0.0 → 0`, `0.000001 → 0.000001`, `1e-7 → 1e-7`, `2.5e-5 → 0.000025`, `1e21 → 1e+21`. `NaN`, infinities and non-JSON numeric types are invalid. Exact integers outside `[-9007199254740991, 9007199254740991]`, money and exact decimals SHOULD be strings in new versioned schemas; do not reinterpret, re-sign or retroactively reject historical finite-number envelopes on that basis. No alternate canonicalization verification fallback is allowed.
 5. No insignificant whitespace, byte-order mark, trailing newline, or other prefix/suffix bytes are emitted.
 6. JSON literals are exactly `true`, `false`, and `null`.
 
 The resulting UTF-8 byte sequence is the canonical signed representation. A verifier MUST reproduce the same bytes from the received unsigned envelope before signature verification. A language/runtime that cannot reproduce TCJ1 exactly MUST fail compatibility rather than invent a language-specific signing representation.
 
-Cross-language golden vectors are required before stable-v1 qualification; the current pre-stable SDK implementations must be reconciled to TCJ1 where their default JSON serializer differs.
+The immutable GE1–GE3 source bytes, SHA-256 digests and Ed25519 signatures are in `sdk/conformance/v1/envelope-ge-source.json`; executable signed cases append to `protocol-envelope-golden-fixtures.json`. All five source SDK paths consume them and the shared `envelope-ext-fixtures.json`. TypeScript delegates signing and verification to the bundled Node runtime; Python, Go, Java and .NET use their own native cryptography. `node sdk/conformance/run-wire-freeze.mjs` requires all five complete result sets on one clean source SHA. See `envelope-ext.md` for negotiated metadata validation.
 
 ## Signature algorithm and domain
 

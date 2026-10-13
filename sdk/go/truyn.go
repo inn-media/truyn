@@ -185,7 +185,7 @@ func VerifyEnvelope(envelope map[string]any) (bool, string) {
 		return false, "invalid_signature"
 	}
 	signature, err := base64.StdEncoding.DecodeString(sigText)
-	if err != nil {
+	if err != nil || len(signature) != 64 || base64.StdEncoding.EncodeToString(signature) != sigText {
 		return false, "invalid_signature"
 	}
 	unsigned := make(map[string]any)
