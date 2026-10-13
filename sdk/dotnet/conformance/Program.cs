@@ -107,4 +107,24 @@ try {
         new Dictionary<string, object> { ["capability"] = new Dictionary<string, object> { ["name"] = "missing-stage-2" } } });
     throw new InvalidOperationException("missing chain provider accepted");
 } catch (TruynException e) when (e.Message.Contains("no_matching_provider") || e.Message.Contains("404")) { }
+var chainTask=requester.CompactChainAsync(new object[] {
+    new Dictionary<string, object> { ["capability"] = new Dictionary<string, object> { ["name"] = capability } },
+    new Dictionary<string, object> { ["capability"] = new Dictionary<string, object> { ["name"] = capability } } });
+for (int step=0;step<2;step++)
+{
+    CompactLifecycleEvent? stage=null;
+    var deadline=DateTime.UtcNow.AddSeconds(8);
+    while(DateTime.UtcNow<deadline && stage is null)
+    {
+        stage=(await provider.PollCompactAsync()).FirstOrDefault(e=>e.Kind=="CHAIN_STAGE");
+        if(stage is null) await Task.Delay(30);
+    }
+    if(stage is null || !stage.Verified) throw new InvalidOperationException("missing signed CHAIN_STAGE");
+    if(step==1 && !stage.PriorVerified) throw new InvalidOperationException("prior RESULT not verified");
+    await provider.CompactResultAsync(stage.RequestId, new Dictionary<string, object>{ ["stage"] = step });
+}
+var chainDone=await chainTask;
+if(chainDone.GetProperty("ok").ValueKind!=System.Text.Json.JsonValueKind.True ||
+   chainDone.GetProperty("results").GetArrayLength()!=2)
+    throw new InvalidOperationException("invalid CHAIN terminal result");
 Console.WriteLine("PASS dotnet developer-release conformance");

@@ -71,11 +71,25 @@ final class CompactLifecycle {
         if(!List.of("NEED","RESULT","REVOKE").contains(kind)||!kind.equals(env.get("type"))||!envelopeVerifier.test(env))throw invalid("invalid signed lifecycle envelope");
         var verified=new LinkedHashMap<>(event);verified.put("verification",Map.of("ok",true));out.add(verified);continue;
       }
-      String code=Map.of("NEED","N","RESULT","R","PARTIAL","T").get(kind);
+      boolean chainStage="CHAIN_STAGE".equals(kind);
+      String code=Map.of("NEED","N","RESULT","R","PARTIAL","T","CHAIN_STAGE","C").get(kind);
       var frame=Json.object(event.get("frame"));var payload=Json.object(event.get("payload"));
       String id=text(frame.get("i")),signature=text(frame.get("s")),from=text(event.get("from"));
       if(code==null||!code.equals(frame.get("t"))||id==null||id.length()>4070||signature==null||signature.length()!=86||from==null)throw invalid("invalid direct compact event");
-      if(event.containsKey("signedType")&&!kind.equals(event.get("signedType"))||event.containsKey("priorResult"))throw invalid("compact translation or CHAIN unsupported");
+      int stageIndex=-1;
+      if(chainStage){
+        if(!"CHAIN".equals(event.get("signedType")))throw invalid("invalid CHAIN_STAGE signed type");
+        var stages=payload.get("stages");
+        var rawIndex=event.get("stageIndex");
+        if(!(stages instanceof List<?> list)||list.size()<2||list.size()>8||
+           !(rawIndex instanceof Number n)||!Double.isFinite(n.doubleValue())||
+           n.doubleValue()!=Math.floor(n.doubleValue())||n.intValue()<0||n.intValue()>=list.size())
+           throw invalid("invalid CHAIN_STAGE index");
+        stageIndex=((Number)rawIndex).intValue();
+        String stageId=id.substring(0,Math.min(id.length(),15))+stageIndex;
+        if(!stageId.equals(event.get("requestId")))throw invalid("CHAIN_STAGE correlation mismatch");
+      }else if((event.containsKey("signedType")&&!kind.equals(event.get("signedType")))||event.containsKey("priorResult"))
+        throw invalid("unsupported compact translation");
       try{
         byte[] sig=Base64.getUrlDecoder().decode(signature);
         if(sig.length!=64||!Base64.getUrlEncoder().withoutPadding().encodeToString(sig).equals(signature))throw invalid("noncanonical compact signature");
@@ -88,11 +102,41 @@ final class CompactLifecycle {
         verifier.update(Json.stringify(List.of(code,id,payload)).getBytes(StandardCharsets.UTF_8));
         if(!verifier.verify(sig))throw invalid("compact signature verification failed");
       }catch(TruynException e){throw e;}catch(Exception e){throw invalid("compact verification failed");}
+      if(chainStage){
+        var priorRaw=event.get("priorResult");
+        if(stageIndex==0 && priorRaw!=null)throw invalid("unexpected first CHAIN prior result");
+        if(stageIndex>0){
+          var prior=Json.object(priorRaw);
+          var priorFrame=Json.object(prior.get("frame"));
+          var priorPayload=Json.object(prior.get("payload"));
+          String priorSigner=text(prior.get("from")),sigText=text(priorFrame.get("s"));
+          String previousId=id.substring(0,Math.min(id.length(),15))+(stageIndex-1);
+          if(!"RESULT".equals(prior.get("kind"))||!"R".equals(priorFrame.get("t"))||
+             !previousId.equals(priorFrame.get("i"))||priorSigner==null||sigText==null)
+             throw invalid("invalid prior CHAIN result");
+          try{
+            byte[] priorSig=Base64.getUrlDecoder().decode(sigText);
+            if(priorSig.length!=64||!Base64.getUrlEncoder().withoutPadding().encodeToString(priorSig).equals(sigText))
+              throw invalid("invalid prior result signature encoding");
+            var priorIdentity=transport.request("GET","/v1/nodes/"+URLEncoder.encode(priorSigner,StandardCharsets.UTF_8),null);
+            String priorKey=text(priorIdentity.get("publicKey"));
+            if(priorKey==null||!priorSigner.equals(priorIdentity.get("nodeId")))throw invalid("prior signer identity mismatch");
+            byte[] der=Base64.getDecoder().decode(priorKey.replaceAll("-----BEGIN [^-]+-----","").replaceAll("-----END [^-]+-----","").replaceAll("\\s",""));
+            if(!("truyn:node:"+HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(der))).equals(priorSigner))
+              throw invalid("prior signer key mismatch");
+            var verifier=Signature.getInstance("Ed25519");
+            verifier.initVerify(KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(der)));
+            verifier.update(Json.stringify(List.of("R",previousId,priorPayload)).getBytes(StandardCharsets.UTF_8));
+            if(!verifier.verify(priorSig))throw invalid("prior CHAIN result signature failed");
+          }catch(TruynException e){throw e;}catch(Exception e){throw invalid("prior CHAIN crypto verification failed");}
+          event.put("priorVerification",Map.of("ok",true,"type","RESULT"));
+        }
+      }
       if("PARTIAL".equals(kind)){
         Object value=payload.get("sequence");
         if(!(value instanceof Number n)||!Double.isFinite(n.doubleValue())||n.doubleValue()<0||n.doubleValue()>9007199254740991L||Math.floor(n.doubleValue())!=n.doubleValue()||!payload.containsKey("delta"))throw invalid("invalid signed PARTIAL payload");
       }
-      var verified=new LinkedHashMap<>(event);verified.put("verification",Map.of("ok",true,"type",kind));out.add(verified);
+      var verified=new LinkedHashMap<>(event);verified.put("verification",Map.of("ok",true,"type",chainStage?"CHAIN":kind));out.add(verified);
     }
     return out;
   }

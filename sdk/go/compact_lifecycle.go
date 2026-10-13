@@ -72,13 +72,28 @@ func (c *Client) PollCompact(ctx context.Context)([]map[string]any,error){
    valid,_:=VerifyEnvelope(envelope);if !valid{return nil,NewError(InvalidResponse,"invalid signed lifecycle envelope",false)}
    event["verification"]=map[string]any{"ok":true};continue
   }
-  code:=map[string]string{"NEED":"N","RESULT":"R","PARTIAL":"T"}[kind]
+  chainStage:=kind=="CHAIN_STAGE"
+  code:=map[string]string{"NEED":"N","RESULT":"R","PARTIAL":"T","CHAIN_STAGE":"C"}[kind]
   frame,ok:=event["frame"].(map[string]any);payload,payloadOK:=event["payload"].(map[string]any)
   from,_:=event["from"].(string)
   if code=="" || !ok || !payloadOK || from=="" || frame["t"]!=code {return nil,NewError(InvalidResponse,"invalid direct compact event",false)}
-  if signed,exists:=event["signedType"];exists && signed!=kind{return nil,NewError(InvalidResponse,"unsupported compact translation",false)}
-  if _,exists:=event["priorResult"];exists{return nil,NewError(InvalidResponse,"CHAIN is outside direct compact profile",false)}
+  var chainIndex int
+  if chainStage {
+   if event["signedType"]!="CHAIN"{return nil,NewError(InvalidResponse,"invalid CHAIN_STAGE signed type",false)}
+   stages,ok:=payload["stages"].([]any);index,idxOK:=event["stageIndex"].(float64)
+   if !ok||len(stages)<2||len(stages)>8||!idxOK||index<0||index>=float64(len(stages))||math.Trunc(index)!=index{
+    return nil,NewError(InvalidResponse,"invalid CHAIN_STAGE index",false)
+   }
+   chainIndex=int(index)
+  }else{
+   if signed,exists:=event["signedType"];exists && signed!=kind{return nil,NewError(InvalidResponse,"unsupported compact translation",false)}
+   if _,exists:=event["priorResult"];exists{return nil,NewError(InvalidResponse,"unsupported compact prior result",false)}
+  }
   id,_:=frame["i"].(string);sigText,_:=frame["s"].(string)
+  if chainStage{
+   expected:=id;if len(expected)>15 {expected=expected[:15]};expected+=fmt.Sprint(chainIndex)
+   if event["requestId"]!=expected{return nil,NewError(InvalidResponse,"CHAIN_STAGE request correlation mismatch",false)}
+  }
   signature,err:=base64.RawURLEncoding.Strict().DecodeString(sigText)
   if id=="" || len(id)>4070 || err!=nil || len(signature)!=ed25519.SignatureSize || base64.RawURLEncoding.EncodeToString(signature)!=sigText{return nil,NewError(InvalidResponse,"invalid compact signature encoding",false)}
   var identity map[string]any
@@ -89,12 +104,44 @@ func (c *Client) PollCompact(ctx context.Context)([]map[string]any,error){
   if err!=nil{return nil,NewError(InvalidResponse,"invalid compact public key",false)}
   publicKey,ok:=key.(ed25519.PublicKey);if !ok{return nil,NewError(InvalidResponse,"compact signer is not Ed25519",false)}
   message,err:=canonicalJSON([]any{code,id,payload});if err!=nil || !ed25519.Verify(publicKey,message,signature){return nil,NewError(InvalidResponse,"compact signature verification failed",false)}
+  if chainStage {
+   prior:=event["priorResult"]
+   if chainIndex==0 && prior!=nil{return nil,NewError(InvalidResponse,"unexpected first CHAIN prior result",false)}
+   if chainIndex>0 {
+    p,ok:=prior.(map[string]any);if !ok||p["kind"]!="RESULT"{
+     return nil,NewError(InvalidResponse,"missing signed prior CHAIN result",false)
+    }
+    pf,pok:=p["frame"].(map[string]any);pp,payloadOK:=p["payload"].(map[string]any)
+    pfrom,fromOK:=p["from"].(string);if !pok||!payloadOK||!fromOK||pf["t"]!="R"{
+     return nil,NewError(InvalidResponse,"invalid prior CHAIN result shape",false)
+    }
+    prev:=id;if len(prev)>15{prev=prev[:15]};prev+=fmt.Sprint(chainIndex-1)
+    if pf["i"]!=prev{return nil,NewError(InvalidResponse,"wrong prior CHAIN correlation",false)}
+    signatureText,ok:=pf["s"].(string);if !ok{return nil,NewError(InvalidResponse,"missing prior CHAIN signature",false)}
+    priorSig,err:=base64.RawURLEncoding.Strict().DecodeString(signatureText)
+    if err!=nil||len(priorSig)!=ed25519.SignatureSize||base64.RawURLEncoding.EncodeToString(priorSig)!=signatureText{
+     return nil,NewError(InvalidResponse,"invalid prior CHAIN signature encoding",false)
+    }
+    var priorIdentity map[string]any
+    if err=c.requestJSON(ctx,http.MethodGet,"/v1/nodes/"+url.PathEscape(pfrom),nil,true,&priorIdentity);err!=nil{return nil,err}
+    priorKeyPEM,_:=priorIdentity["publicKey"].(string)
+    priorNodeID,err:=nodeIDFromPublicKeyPEM(priorKeyPEM)
+    if err!=nil||priorNodeID!=pfrom||priorIdentity["nodeId"]!=pfrom{return nil,NewError(InvalidResponse,"prior CHAIN signer mismatch",false)}
+    keyBlock,_:=pem.Decode([]byte(priorKeyPEM));if keyBlock==nil{return nil,NewError(InvalidResponse,"missing prior signer key",false)}
+    parsed,err:=x509.ParsePKIXPublicKey(keyBlock.Bytes);if err!=nil{return nil,NewError(InvalidResponse,"invalid prior signer key",false)}
+    key,ok:=parsed.(ed25519.PublicKey);if !ok{return nil,NewError(InvalidResponse,"invalid prior signer type",false)}
+    message,err:=canonicalJSON([]any{"R",prev,pp})
+    if err!=nil||!ed25519.Verify(key,message,priorSig){return nil,NewError(InvalidResponse,"prior CHAIN result signature mismatch",false)}
+    event["priorVerification"]=map[string]any{"ok":true,"type":"RESULT"}
+   }
+  }
   if kind=="PARTIAL" {
    seq,ok:=payload["sequence"].(float64)
    if !ok || math.IsNaN(seq) || math.IsInf(seq,0) || seq<0 || seq>9007199254740991 || math.Trunc(seq)!=seq{return nil,NewError(InvalidResponse,"invalid signed PARTIAL sequence",false)}
    if _,ok:=payload["delta"];!ok{return nil,NewError(InvalidResponse,"missing signed PARTIAL delta",false)}
   }
-  event["verification"]=map[string]any{"ok":true,"type":kind}
+  verifiedType:=kind;if chainStage{verifiedType="CHAIN"}
+  event["verification"]=map[string]any{"ok":true,"type":verifiedType}
  }
  return body.Events,nil
 }

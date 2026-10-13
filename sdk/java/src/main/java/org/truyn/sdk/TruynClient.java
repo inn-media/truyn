@@ -70,7 +70,10 @@ public final class TruynClient {
   public CompletableFuture<Map<String,Object>> compactNeed(String capability,Object input,Map<String,Object> policy){return future(()->compactLifecycle().need(capability,input,policy));}
   public CompletableFuture<Map<String,Object>> partial(String requestId,long sequence,Object delta,Map<String,Object> metadata){return future(()->compactLifecycle().partial(requestId,sequence,delta,metadata));}
   public CompletableFuture<Map<String,Object>> compactResult(String requestId,Object output,Map<String,Object> metadata){return future(()->compactLifecycle().result(requestId,output,metadata));}
-  public CompletableFuture<Map<String,Object>> compactChain(List<Map<String,Object>> stages){return future(()->compactLifecycle().chain(stages));}
+  // CHAIN waits on remote provider stages: the caller must keep polling while it runs.
+  public CompletableFuture<Map<String,Object>> compactChain(List<Map<String,Object>> stages){
+    return CompletableFuture.supplyAsync(()->compactLifecycle().chain(stages));
+  }
   public CompletableFuture<Map<String,Object>> putContext(List<Map<String,Object>> blocks,List<String> readers,Map<String,Object> metadata){return future(()->compactLifecycle().putContext(blocks,readers,metadata));}
   public CompletableFuture<Map<String,Object>> deltaContext(String baseCid,List<Map<String,Object>> ops,List<String> readers,Map<String,Object> metadata){return future(()->compactLifecycle().deltaContext(baseCid,ops,readers,metadata));}
   public List<Map<String,Object>> pollCompact(){return compactLifecycle().poll();}

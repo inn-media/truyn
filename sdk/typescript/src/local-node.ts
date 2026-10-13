@@ -341,6 +341,33 @@ export class TruynLocalNodeClient {
     return this.runtime.deltaContext(baseCid, ops, options);
   }
 
+  /** Verify signed compact events, including CHAIN_STAGE and signed prior RESULT. */
+  async pollCompact(options: { waitMs?: number } = {}): Promise<any[]> {
+    // The bundled runtime may already own an authenticated fast WebSocket.
+    // Do not poll the HTTP fallback while that socket is delivering signed events.
+    const socketActive = this.runtime.fastSocket?.readyState === 1;
+    const result = socketActive
+      ? { events: [await this.runtime.nextCompactSocketEvent({ timeoutMs: options.waitMs ?? 5000 })] }
+      : await this.runtime.pollCompact({ waitMs: options.waitMs ?? 0 });
+    if (!Array.isArray(result?.events)) throw new Error('invalid_compact_events');
+    for (const event of result.events) {
+      if (event?.verification?.ok !== true) throw new Error('compact_event_signature_invalid');
+      if (event.kind === 'CHAIN_STAGE') {
+        const idx = event.stageIndex;
+        const stages = event.payload?.stages;
+        if (!Number.isInteger(idx) || !Array.isArray(stages) || stages.length < 2 ||
+            stages.length > 8 || idx < 0 || idx >= stages.length ||
+            event.signedType !== 'CHAIN' || event.frame?.t !== 'C' ||
+            event.requestId !== (String(event.frame?.i).slice(0, 15) + idx.toString(36)) ||
+            (idx === 0 && event.priorResult != null) ||
+            (idx > 0 && event.priorVerification?.ok !== true)) {
+          throw new Error('invalid_signed_CHAIN_STAGE');
+        }
+      }
+    }
+    return result.events;
+  }
+
   async nextNeed(options: LocalNodeWaitOptions = {}): Promise<LocalNeedEvent> {
     const event = await this.waitForEvent((candidate) => candidate?.kind === 'NEED', options);
     if (!event?.verification?.ok) {

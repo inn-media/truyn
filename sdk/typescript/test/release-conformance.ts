@@ -50,6 +50,20 @@ try {
   assert.notEqual(childContext.cid, baseContext.cid);
   await assert.rejects(() => provider.deltaContext(baseContext.cid, [{ op: 'replace', id: 'seed', text: 'unauthorized' }]), /context_owner_required|403/);
   await assert.rejects(() => requester.compactChain([{ capability: { name: 'missing-stage-1' } }, { capability: { name: 'missing-stage-2' } }]), /no_matching_provider|404/);
+  const chainTask: Promise<any> = requester.compactChain([{ capability: { name: capability } }, { capability: { name: capability } }]) as Promise<any>;
+  for (let n = 0; n < 2; n++) {
+    let stage: any;
+    for (let attempt = 0; attempt < 8 && !stage; attempt++) {
+      const events = await provider.pollCompact({ waitMs: 2000 });
+      stage = events.find((e: any) => e.kind === 'CHAIN_STAGE');
+    }
+    assert.ok(stage && stage.verification.ok === true, 'signed CHAIN_STAGE required');
+    if (n) assert.equal(stage.priorVerification.ok, true);
+    await provider.runtime.compactResult(stage.requestId, { stage: n });
+  }
+  const finished = await chainTask;
+  assert.equal(finished.ok, true);
+  assert.equal(finished.results.length, 2);
   process.stdout.write('PASS typescript developer-release conformance\n');
 } finally {
   provider.close();
