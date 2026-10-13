@@ -32,3 +32,5 @@ from .stable_api import (
 )
 
 __all__ = [name for name in globals() if not name.startswith('_')]
+
+from .core_registry import CORE_REGISTRY, lookup_core_code, require_executable_core_code

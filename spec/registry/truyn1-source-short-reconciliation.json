@@ -1,0 +1,296 @@
+{
+  "schema": "truyn.registry.source-short-reconciliation/1",
+  "status": "CLASS_C_PROPOSAL_NOT_WIRE_ADMISSION",
+  "canonical": "spec/registry/truyn-core-v1.json",
+  "originalSourceSha256": "591e0f92d494626b32090223e4756f2f431a2ad6179074b0066902112ea9d121",
+  "rule": "The 80 original JSON registry CODE/name/short triples are immutable. Historical original-language Short is a documentation-only annotation selected by full eight-digit CODE; never accepted as a peer, wire, SDK or authorization token.",
+  "changedEntries": [
+    {
+      "code": "11000000",
+      "name": "HELLO",
+      "sourceDocumentShort": "A10",
+      "canonicalRegistryShort": "A1",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "12000000",
+      "name": "WELCOME",
+      "sourceDocumentShort": "A20",
+      "canonicalRegistryShort": "A2",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "13000000",
+      "name": "VERSION",
+      "sourceDocumentShort": "A30",
+      "canonicalRegistryShort": "A3",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "21000000",
+      "name": "PING",
+      "sourceDocumentShort": "B10",
+      "canonicalRegistryShort": "B1",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "22000000",
+      "name": "FIND_NODE",
+      "sourceDocumentShort": "B20",
+      "canonicalRegistryShort": "B2",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "23000000",
+      "name": "ANNOUNCE",
+      "sourceDocumentShort": "B30",
+      "canonicalRegistryShort": "B3",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "24000000",
+      "name": "STORE",
+      "sourceDocumentShort": "B40",
+      "canonicalRegistryShort": "B4",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "25000000",
+      "name": "FIND_VALUE",
+      "sourceDocumentShort": "B50",
+      "canonicalRegistryShort": "B5",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "26000000",
+      "name": "SYNC",
+      "sourceDocumentShort": "B60",
+      "canonicalRegistryShort": "B6",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "27000000",
+      "name": "ADVERTISE",
+      "sourceDocumentShort": "B70",
+      "canonicalRegistryShort": "B7",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "28000000",
+      "name": "DISCOVER",
+      "sourceDocumentShort": "B80",
+      "canonicalRegistryShort": "B8",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "31000000",
+      "name": "IDENTITY",
+      "sourceDocumentShort": "C10",
+      "canonicalRegistryShort": "C1",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "32000000",
+      "name": "OFFER",
+      "sourceDocumentShort": "C20",
+      "canonicalRegistryShort": "C2",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "33000000",
+      "name": "NEED",
+      "sourceDocumentShort": "C30",
+      "canonicalRegistryShort": "C3",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "34000000",
+      "name": "RESULT",
+      "sourceDocumentShort": "C40",
+      "canonicalRegistryShort": "C4",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "35000000",
+      "name": "REVOKE",
+      "sourceDocumentShort": "C50",
+      "canonicalRegistryShort": "C5",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "36000000",
+      "name": "CAPABILITY",
+      "sourceDocumentShort": "C60",
+      "canonicalRegistryShort": "C6",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "37000000",
+      "name": "COMMITMENT",
+      "sourceDocumentShort": "C70",
+      "canonicalRegistryShort": "C7",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "41000000",
+      "name": "C_NEED",
+      "sourceDocumentShort": "D10",
+      "canonicalRegistryShort": "D1",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "42000000",
+      "name": "C_RESULT",
+      "sourceDocumentShort": "D20",
+      "canonicalRegistryShort": "D2",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "43000000",
+      "name": "PARTIAL",
+      "sourceDocumentShort": "D30",
+      "canonicalRegistryShort": "D3",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "44000000",
+      "name": "CHAIN",
+      "sourceDocumentShort": "D40",
+      "canonicalRegistryShort": "D4",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "45000000",
+      "name": "CONTEXT_PUT",
+      "sourceDocumentShort": "D50",
+      "canonicalRegistryShort": "D5",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "46000000",
+      "name": "CONTEXT_DELTA",
+      "sourceDocumentShort": "D60",
+      "canonicalRegistryShort": "D6",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "51000000",
+      "name": "SUCCESS",
+      "sourceDocumentShort": "E10",
+      "canonicalRegistryShort": "E1",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "52000000",
+      "name": "ERROR",
+      "sourceDocumentShort": "E20",
+      "canonicalRegistryShort": "E2",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "61000000",
+      "name": "METRICS",
+      "sourceDocumentShort": "F10",
+      "canonicalRegistryShort": "F1",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "62000000",
+      "name": "HEALTH",
+      "sourceDocumentShort": "F20",
+      "canonicalRegistryShort": "F2",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "63000000",
+      "name": "TRACE",
+      "sourceDocumentShort": "F30",
+      "canonicalRegistryShort": "F3",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "64000000",
+      "name": "HEARTBEAT",
+      "sourceDocumentShort": "F40",
+      "canonicalRegistryShort": "F4",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "71000000",
+      "name": "OBJECT",
+      "sourceDocumentShort": "G10",
+      "canonicalRegistryShort": "G1",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "72000000",
+      "name": "STATE",
+      "sourceDocumentShort": "G20",
+      "canonicalRegistryShort": "G2",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "73000000",
+      "name": "DELTA",
+      "sourceDocumentShort": "G30",
+      "canonicalRegistryShort": "G3",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "74000000",
+      "name": "SUBSCRIBE",
+      "sourceDocumentShort": "G40",
+      "canonicalRegistryShort": "G4",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "81000000",
+      "name": "CLAIM",
+      "sourceDocumentShort": "H10",
+      "canonicalRegistryShort": "H1",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "82000000",
+      "name": "ATTEST",
+      "sourceDocumentShort": "H20",
+      "canonicalRegistryShort": "H2",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "83000000",
+      "name": "TRUST_RECEIPT",
+      "sourceDocumentShort": "H30",
+      "canonicalRegistryShort": "H3",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "84000000",
+      "name": "CHALLENGE",
+      "sourceDocumentShort": "H40",
+      "canonicalRegistryShort": "H4",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "85000000",
+      "name": "VERIFY",
+      "sourceDocumentShort": "H50",
+      "canonicalRegistryShort": "H5",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "86000000",
+      "name": "DISPUTE",
+      "sourceDocumentShort": "H60",
+      "canonicalRegistryShort": "H6",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    },
+    {
+      "code": "87000000",
+      "name": "PROOF",
+      "sourceDocumentShort": "H70",
+      "canonicalRegistryShort": "H7",
+      "mode": "PROVENANCE_ONLY_NOT_WIRE"
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const launcher = fs.readFileSync('.github/workflows/d5000-attempt8-approved.yml', 'utf8');
+const launcher = fs.readFileSync('archive/github-actions/d5000/d5000-attempt8-approved.yml', 'utf8');
 
 test('Attempt 8 installs QUIC runtime dependencies before all real-QUIC admission tests and before Azure login', () => {
   const setup = launcher.indexOf('uses: actions/setup-node@v4');

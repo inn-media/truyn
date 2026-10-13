@@ -72,3 +72,13 @@ Executable corpus: `sdk/conformance/v1/p10-error-mapping.json`. All five
 first-party SDKs consume the common matrix. The REST/MCP/A2A and WebSocket
 negative-surface contract is verified in `tests/p10-error-parity.test.js`.
 This is a bounded RC profile, **not** a TRUYN/1 stable-v1 declaration.
+
+## Class C source OUTCOME interoperability interpretation (proposal, not new P10 codes)
+
+The expanded A–I semantic CORE source contains registry descriptions `already_exists` (E213), `internal` (E253), and `unavailable` (E242). The **existing public set of 13 normalized P10 identifiers above remains exclusively authoritative**. The source terms are semantic documentation, **not new public error strings**:
+
+- `already_exists` describes the existing `conflict` class for an authoritative duplicate or incompatible logical ID. Existing `duplicate_request` and status 409 already normalize to `conflict`. No implicit safe replay.
+- `internal` describes the existing `internal_error` class; unknown application 5xx remains non-retryable unless a separately qualified idempotency policy proves safety.
+- `unavailable` is **reserved as a proposal**, not admitted to the P10 public error enumeration or `ALIASES`. An actual failed transport before authoritative response is `transport_error`; known capacity backpressure is `resource_exhausted`; unknown accepted 503/5xx remains `internal_error`. None of these guesses authorizes an external provider effect to run twice.
+
+The deterministic source-to-public interpretation is recorded in `spec/registry/truyn1-outcome-p10-reconciliation.json` and checked by `tests/documentation-status-wire-p10-resolution.test.js`. This is explanatory, opt-in RFC review material and changes **zero** previously emitted public wire values, 13 normalized codes, native JSON-RPC numerics or fixture contents. Follow the Class C review process before promoting these source mappings as accepted governance.
