@@ -81,6 +81,8 @@ async function runRelay() {
   const relay = createRelay({
     lifecycleLedger,
     lifecycleMaintenance: process.env.TRUYN_G5_LIFECYCLE_MAINTENANCE === '1',
+    // Public/production NEED dispatch cannot run without shared durable payer admission.
+    paidNeedEnforcement: relaySecurity.allowPublicDispatch || relaySecurity.productionMode,
     allowedNodeIds: csvSet(process.env.TRUYN_ALLOWED_NODE_IDS),
     trustedRequesterNodeIds: csvSet(process.env.TRUYN_TRUSTED_REQUESTER_NODE_IDS),
     allowPublicRegistration: relaySecurity.allowPublicRegistration,
@@ -207,6 +209,9 @@ async function runProvider() {
     accessPolicy,
     billingPolicy,
     effectLedger,
+    // All first-party cloud adapters spend real owner/BYOK quota.
+    // No opt-out in the production provider entrypoint.
+    requirePaidNeedLedger: true,
     recoveredResultFinalizer: createRuntimeG5RecoveredResultFinalizer({ env: process.env, ledger: effectLedger }),
     fastPath,
     socketPath,
