@@ -7,6 +7,12 @@ VERSION="$(node -p "require('$ROOT/sdk/release/version.json').release")"
 
 rm -rf "$DIST" "$ROOT/sdk/typescript/dist" "$ROOT/sdk/python/dist" "$ROOT/sdk/java/target" "$ROOT/sdk/dotnet/bin" "$ROOT/sdk/dotnet/obj"
 mkdir -p "$DIST"/{typescript,python,go,java,dotnet}
+# Stable distributions are forbidden until full expanded CORE native and format admission.
+# Existing immutable prerelease tags/packages are not modified or republished.
+case "$VERSION" in
+  *-alpha.*|*a[0-9]*|*-beta.*) ;;
+  *) node "$ROOT/sdk/conformance/core-registry/run.mjs" --stable ;;
+esac
 
 python -m pip install --disable-pip-version-check --quiet build==1.5.0
 

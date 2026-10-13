@@ -1,0 +1,15 @@
+# Expanded A–I CORE registry → five-SDK acceptance
+
+**Status:** 80/80 registry lookup conformance is mandatory in every source SDK. **Stable TRUYN/1 and new stable SDK releases remain NOT ADMITTED.** The 80 source rows include reserved `00000000`; the remaining 79 are the semantic taxonomy. This does **not** add 80 signed JSON message kinds.
+
+**Canonical matrix:** [core-registry-five-sdk-matrix.json](../../sdk/conformance/v1/core-registry-five-sdk-matrix.json). Each immutable eight-digit CODE maps to semantic object/class/form, physical wire representation or explicit non-admission, public API in all five SDKs, and distinct transmission/verification/execution status. It is generated from the approved [A–I source](../../spec/registry/truyn-core-v1.json). Each row is independently checked against the source at CI time; no missing, duplicate or renamed code can pass.
+
+**SDK API:** TypeScript `lookupCoreCode` / `requireExecutableCoreCode`; Python `lookup_core_code` / `require_executable_core_code`; Go `LookupCoreCode` / `RequireExecutableCoreCode`; Java `CoreRegistry.lookup` / `CoreRegistry.requireExecutable`; .NET `CoreRegistry.Lookup` / `CoreRegistry.RequireExecutable`.
+
+**Native executable gate:** `node sdk/conformance/core-registry/run.mjs`, invoked from the existing mandatory five-language conformance runner in the SDK release and full CI jobs. All five **actual SDK implementations** must return exactly the 80 source records and correct wire/alias mapping (400 recognition cells). They must reject execution for 75 non-baseline codes, plus invalid and unknown codes. The five baseline signed envelopes remain the only directly executable codes in the new registry facade; the existing full signed NEED/OFFER/RESULT etc. conformance remains separately required.
+
+**Qualification boundary:** a registered semantic family, QUIC method, compact code, embedded object, reserved code, or composed behavior is not automatically executable through every SDK. The matrix displays `EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS`, `DATA_OBJECT_ONLY`, `NOT_ADMITTED`, or equivalent instead of pretending that native transmission, verification and execution were proven. Required unsupported extensions must fail before any provider/network effect. Explicit negotiated profiles only; no authorization/billing permission from registry membership.
+
+**Stable-package guard:** the release build invokes `run.mjs --stable` for non-prerelease versions. It deliberately rejects promotion until independently verified native surface-level coverage, P13-FORMAT cross-version negative/positive released-package proofs, version-locked SDK provenance and exact merged-main gates all PASS. Five successful registry lookups do not substitute for complete protocol conformance. No stable package is published by this work.
+
+**Future additions:** change the canonical source registry by governed RFC, update all five SDKs/matrix and conformance simultaneously, negotiate additive optional semantics, and keep previously published package/tag bytes immutable. Current G4/G5/P11/P12/P13/P14 and operations acceptance remain independent.

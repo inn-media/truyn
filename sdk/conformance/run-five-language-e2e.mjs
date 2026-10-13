@@ -103,6 +103,8 @@ try {
   ], { env: descriptorEnv });
   await run('dotnet', ['run', '--configuration', 'Release', '--project', 'sdk/dotnet/conformance/Truyn.Sdk.Conformance.csproj', '--', relayUrl], { env: descriptorEnv });
   await run(process.execPath, ['sdk/conformance/run-descriptor-interface-parity.mjs']);
+  // Mandatory 80 registry entries × five real first-party language runtimes.
+  await run(process.execPath, ['sdk/conformance/core-registry/run.mjs']);
   process.stdout.write('PASS five-language executable conformance including signed Agent Descriptor lifecycle\n');
 } finally {
   await fixture.close();
