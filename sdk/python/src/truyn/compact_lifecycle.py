@@ -18,7 +18,7 @@ class CompactLifecycle:
     """Mixin for the existing local-node identity and authenticated transport."""
     def _compact_send(self, path: str, code: str, request_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         from .local_node import _request_json
-        if not isinstance(request_id, str) or not request_id or len(request_id) > 4070 or code not in ('N', 'R', 'T'):
+        if not isinstance(request_id, str) or not request_id or len(request_id) > 4070 or code not in ('N', 'R', 'T', 'C', 'P', 'D'):
             raise ValueError('invalid direct compact identity or kind')
         if node_id_from_public_key(self.identity.public_key_pem) != self.node_id:
             raise ValueError('compact identity key mismatch')
@@ -45,6 +45,33 @@ class CompactLifecycle:
 
     def compact_result(self, request_id: str, output: Any, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
         return self._compact_send('/v1/fast/results', 'R', request_id, {'output': output, 'metadata': metadata or {}})
+
+    def compact_chain(self, stages: list[dict[str, Any]]) -> dict[str, Any]:
+        if not isinstance(stages, list) or not 2 <= len(stages) <= 8:
+            raise ValueError('invalid_chain_stages')
+        return self._compact_send('/v1/fast/chains', 'C', secrets.token_urlsafe(12), {'stages': stages})
+
+    def put_context(self, blocks: list[dict[str, Any]], readers: list[str] | None = None,
+                    metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+        if not isinstance(blocks, list) or not blocks:
+            raise ValueError('context_blocks_required')
+        receipt = self._compact_send('/v1/contexts', 'P', secrets.token_urlsafe(12),
+                                     {'blocks': blocks, 'readers': readers or [], 'metadata': metadata or {}})
+        if receipt.get('ok') is not True or not isinstance(receipt.get('cid'), str):
+            raise invalid('invalid context PUT receipt')
+        return receipt
+
+    def delta_context(self, base_cid: str, ops: list[dict[str, Any]], readers: list[str] | None = None,
+                      metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+        if not isinstance(base_cid, str) or not base_cid or not isinstance(ops, list) or not ops:
+            raise ValueError('invalid_context_delta')
+        receipt = self._compact_send('/v1/contexts/' + quote(base_cid, safe='') + '/delta',
+                                     'D', secrets.token_urlsafe(12),
+                                     {'baseCid': base_cid, 'ops': ops, 'readers': readers or [],
+                                      'metadata': metadata or {}})
+        if receipt.get('ok') is not True or receipt.get('baseCid') != base_cid or not isinstance(receipt.get('cid'), str):
+            raise invalid('invalid context DELTA receipt')
+        return receipt
 
     def cancel_need(self, need_id: str, reason: str = 'cancelled_by_requester') -> dict[str, Any]:
         return self._revoke_lifecycle(need_id, 'need', reason)

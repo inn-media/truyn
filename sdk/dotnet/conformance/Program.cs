@@ -90,4 +90,21 @@ if ((await requester.RecoverDurableAsync()).Any(x => x.GetProperty("eventId").Ge
     throw new InvalidOperationException("ACKed signed result replayed");
 var cancelReceipt = await requester.NeedAsync(capability, new Dictionary<string, object> { ["cancel"] = true });
 await requester.CancelNeedAsync(cancelReceipt.NeedId, "sdk_conformance_cancel");
+// Signed compact P/D are real native SDK requests; foreign owner must be denied.
+var baseContext = await requester.PutContextAsync(new object[] { new Dictionary<string, object> { ["id"] = "seed", ["text"] = "original" } });
+var baseCid = baseContext.GetProperty("cid").GetString() ?? throw new InvalidOperationException("missing context CID");
+var childContext = await requester.DeltaContextAsync(baseCid, new object[] { new Dictionary<string, object> { ["op"] = "replace", ["id"] = "seed", ["text"] = "changed" } });
+if (childContext.GetProperty("ok").ValueKind != System.Text.Json.JsonValueKind.True ||
+    childContext.GetProperty("baseCid").GetString() != baseCid || childContext.GetProperty("cid").GetString() == baseCid)
+    throw new InvalidOperationException("context DELTA failed");
+try {
+    await provider.DeltaContextAsync(baseCid, new object[] { new Dictionary<string, object> { ["op"] = "replace", ["id"] = "seed", ["text"] = "unauthorized" } });
+    throw new InvalidOperationException("context owner bypassed");
+} catch (TruynException e) when (e.Message.Contains("context_owner_required") || e.Message.Contains("403")) { }
+try {
+    await requester.CompactChainAsync(new object[] {
+        new Dictionary<string, object> { ["capability"] = new Dictionary<string, object> { ["name"] = "missing-stage-1" } },
+        new Dictionary<string, object> { ["capability"] = new Dictionary<string, object> { ["name"] = "missing-stage-2" } } });
+    throw new InvalidOperationException("missing chain provider accepted");
+} catch (TruynException e) when (e.Message.Contains("no_matching_provider") || e.Message.Contains("404")) { }
 Console.WriteLine("PASS dotnet developer-release conformance");

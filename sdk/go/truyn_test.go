@@ -49,4 +49,12 @@ func TestDeveloperReleaseConformance(t *testing.T) {
 	cancelReceipt, err := requester.Need(ctx, capability, map[string]any{"cancel":true}, nil)
 	if err != nil { t.Fatal(err) }
 	if err := requester.CancelNeed(ctx, cancelReceipt.NeedID, "sdk_conformance_cancel"); err != nil { t.Fatal(err) }
+	baseContext, err := requester.PutContext(ctx, []map[string]any{{"id":"seed","text":"original"}}, nil, nil)
+	if err != nil { t.Fatal(err) }
+	baseCID, ok := baseContext["cid"].(string); if !ok || baseCID=="" {t.Fatal("missing signed context CID")}
+	childContext, err := requester.DeltaContext(ctx, baseCID, []map[string]any{{"op":"replace","id":"seed","text":"changed"}}, nil, nil)
+	if err != nil { t.Fatal(err) }
+	if childContext["ok"]!=true || childContext["baseCid"]!=baseCID || childContext["cid"]==baseCID {t.Fatal("invalid signed context delta")}
+	if _,err = provider.DeltaContext(ctx,baseCID,[]map[string]any{{"op":"replace","id":"seed","text":"unauthorized"}},nil,nil);err==nil {t.Fatal("context owner check bypassed")}
+	if _,err = requester.CompactChain(ctx,[]map[string]any{{"capability":map[string]any{"name":"missing-stage-1"}},{"capability":map[string]any{"name":"missing-stage-2"}}});err==nil {t.Fatal("missing chain providers accepted")}
 }

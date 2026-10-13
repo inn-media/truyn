@@ -65,6 +65,24 @@ public final class ConformanceMain {
     if(requester.recoverDurable(32).join().stream().anyMatch(x -> ("result:"+receipt.needId()).equals(x.get("eventId"))))throw new AssertionError("ACKed result replayed");
     TruynClient.NeedReceipt cancelReceipt = requester.need(capability, Map.of("cancel", true), Map.of()).join();
     requester.cancelNeed(cancelReceipt.needId(), "sdk_conformance_cancel").join();
+    // Source native C/P/D calls; verified signed requests reach the actual relay.
+    var baseContext = requester.putContext(java.util.List.of(Map.of("id","seed","text","original")),null,null).join();
+    String baseCid = (String) baseContext.get("cid");
+    if(baseCid==null||baseCid.isEmpty())throw new AssertionError("missing context cid");
+    var childContext=requester.deltaContext(baseCid,java.util.List.of(Map.of("op","replace","id","seed","text","changed")),null,null).join();
+    if(!Boolean.TRUE.equals(childContext.get("ok"))||!baseCid.equals(childContext.get("baseCid"))||baseCid.equals(childContext.get("cid")))throw new AssertionError("bad context delta");
+    try {
+      provider.deltaContext(baseCid,java.util.List.of(Map.of("op","replace","id","seed","text","unauthorized")),null,null).join();
+      throw new AssertionError("context owner bypass");
+    }catch(java.util.concurrent.CompletionException expected){
+      if(!String.valueOf(expected.getCause()).contains("context_owner_required")&&!String.valueOf(expected.getCause()).contains("403"))throw expected;
+    }
+    try{
+      requester.compactChain(java.util.List.of(Map.of("capability",Map.of("name","missing-stage-1")),Map.of("capability",Map.of("name","missing-stage-2")))).join();
+      throw new AssertionError("unknown CHAIN provider accepted");
+    }catch(java.util.concurrent.CompletionException expected){
+      if(!String.valueOf(expected.getCause()).contains("no_matching_provider")&&!String.valueOf(expected.getCause()).contains("404"))throw expected;
+    }
     System.out.println("PASS java developer-release conformance");
   }
 }

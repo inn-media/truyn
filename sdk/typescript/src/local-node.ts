@@ -322,6 +322,25 @@ export class TruynLocalNodeClient {
     });
   }
 
+  // Signed compact C/P/D operations use this SDK's bundled runtime identity.
+  // The server retains dispatch authorization; metadata never grants authority.
+  async compactChain(stages: Record<string, unknown>[]): Promise<unknown> {
+    if (!Array.isArray(stages) || stages.length < 2 || stages.length > 8)
+      throw new TypeError('invalid_chain_stages');
+    return this.runtime.compactChain(stages);
+  }
+
+  async putContext(blocks: Record<string, unknown>[], options: { readers?: string[]; metadata?: Record<string, unknown> } = {}): Promise<unknown> {
+    if (!Array.isArray(blocks) || blocks.length === 0) throw new TypeError('context_blocks_required');
+    return this.runtime.putContext(blocks, options);
+  }
+
+  async deltaContext(baseCid: string, ops: Record<string, unknown>[], options: { readers?: string[]; metadata?: Record<string, unknown> } = {}): Promise<unknown> {
+    if (typeof baseCid !== 'string' || !baseCid || !Array.isArray(ops) || ops.length === 0)
+      throw new TypeError('invalid_context_delta');
+    return this.runtime.deltaContext(baseCid, ops, options);
+  }
+
   async nextNeed(options: LocalNodeWaitOptions = {}): Promise<LocalNeedEvent> {
     const event = await this.waitForEvent((candidate) => candidate?.kind === 'NEED', options);
     if (!event?.verification?.ok) {
