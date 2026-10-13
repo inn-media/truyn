@@ -59,11 +59,13 @@ Historical evidence is immutable audit history. Open PRs, task branches, diagnos
 | npm alpha.5 | **Accepted immutable public release** | — |
 | Maven Central | **Accepted immutable public release — `org.truyn:truyn-sdk:0.1.0-alpha.2`** | — |
 | NuGet.org | **Accepted immutable public release — `Truyn.Sdk 0.1.0-alpha.2`** | — |
-| Agent Descriptor | **Bounded valid-profile and refresh/re-sign implemented** | omitted optional endpoint acceptance and invalid empty endpoint/type rejection are not yet proven across all five SDKs; full production lifecycle/delegated-signing and exact-SHA release qualification remain separate |
+| Agent Descriptor | **Bounded valid-profile, refresh/re-sign and five-SDK interface parity ACCEPTED** | PR #1074: 19 signed interface cases × 5 actual SDKs = 95/95; optional missing `endpoint` accepted, explicitly empty `endpoint` rejected, missing/empty `type` rejected. Full production lifecycle/delegated signing, stable package release and broader release gates remain OPEN |
 | Open 1.0 productization | **IN PROGRESS; S103 was a historical checkpoint, not current authoritative sprint** | reconcile issue #615 / task capsule and exact main; final G1–G34 reconciliation before stable 1.0 |
 | Live developer site | **OPEN** | deployment/liveness evidence |
 | Governance | **G1 / bootstrap Founding Stewardship** | external maintainers/TSC/neutral stewardship |
 | Mainnet | **Not productionized** | long-duration live ops + remaining S/security/reliability + release/governance gates |
+
+**2026-10-14 focused correction — Agent Descriptor only.** The five first-party native SDK interface-validation gate was accepted in [public PR #1074](https://github.com/inn-media/truyn/pull/1074), merged source `2e1ae464c443348643a97ac459d007d69878558e`, with 95/95 source-native outcomes; [issue #615](https://github.com/inn-media/truyn/issues/615) records postmerge CI `38261657500` and CodeQL `38261656785`. This supersedes only the former *three interface-field validation gaps*, not the distinct historical nine-fixture reference-parser evidence, not all Agent Descriptor lifecycle/delegated-signing capabilities, and not Stable TRUYN/1. The above dated snapshot retains independent statuses for other programs.
 
 Current cross-repository truth table: [Global Status Reconciliation](../operations/GLOBAL_STATUS_RECONCILIATION_2026-10-10.md).
 
