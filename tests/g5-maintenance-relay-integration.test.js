@@ -152,11 +152,12 @@ test('G5 maintenance: pending publication reserves relay-wide offer capacity aga
   t.after(()=>instance.close());
   const url=await instance.listen({port:0});
   const publisher=new TruynNode({relayUrl:url});await publisher.register();
+  const requester=new TruynNode({relayUrl:url});await requester.register();
   const publishing=publisher.offer('g5.pending-capacity');await started;
   const peer=new TruynNode({relayUrl:url,identity:recovering.identity});
   await assert.rejects(()=>peer.register(),e=>e.status===503);
   release();await publishing;
-  assert.equal((await publisher.find('g5.pending-capacity')).offers.length,1);
+  assert.equal((await requester.find('g5.pending-capacity')).offers.length,1);
 });
 
 test('G5 maintenance: session freshness and TTL start after slow durable recovery', {timeout:10000}, async t=>{
