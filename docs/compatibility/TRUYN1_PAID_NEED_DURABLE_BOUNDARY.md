@@ -43,3 +43,7 @@ The production entrypoint refuses to start billable providers without Cosmos `ge
 - `tests/paid-need-durable-security.test.js`
 
 See also `docs/compatibility/TRUYN1_G5_SQLITE_DURABLE_PROFILE.md`, `docs/compatibility/TRUYN1_G5_COSMOS_CANDIDATE.md` and `docs/assurance/README.md`.
+
+## QUIC security successor (strict paid mode)
+
+`TruynQuicTransport({ paidNeedEnforcement: true })` and `TruynNetworkNode({ paidNeedEnforcement: true })` reject every incoming signed direct QUIC `NEED` with `paid_quic_durable_authorization_required` before an application handler. It is a fail-closed quarantine, **not** a completed paid QUIC adapter: while an interoperable server-side grant + shared payer reservation + durable effect fence + provider pre-execute recheck is missing, no paid QUIC NEED may run. Unpaid/testnet QUIC remains enabled under its explicit non-paid profile. Deployments must not host owner-funded inference in a generic P2P handler that disables this strict guard. Test with real QUIC sockets in `tests/g5-quic-need-replay.test.js`. Public production admission remains blocked until transport wiring and cloud replica evidence are independently verified.

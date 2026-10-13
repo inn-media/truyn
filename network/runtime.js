@@ -24,7 +24,7 @@ export class TruynNetworkNode {
     discoveryRefreshTargetConcurrency = 1, discoveryRefreshTimeoutMs = null, discoveryRefreshJitterRatio = 0.2,
     persistenceDebounceMs = 250, persistenceCheckpointMs = 1_000, needRouteBudgetMs = 11_000,
     rpcLaneLimits = null, rpcPerPeerInFlight = null, rpcMaxClients = null, rpcClientIdleMs = null,
-    lifecycleLedger = null, maxSeenNeedIds = 262144
+    lifecycleLedger = null, maxSeenNeedIds = 262144, paidNeedEnforcement = false
   } = {}) {
     if (!tls?.key || !tls?.cert) throw new Error('network runtime TLS key/certificate are required');
     // The legacy inbox explicitly retries ambiguous pending work. It cannot be
@@ -215,7 +215,7 @@ export class TruynNetworkNode {
       else reconcile();
     };
     this.recordStore = new KademliaRecordStore({ onChange: onStateChange });
-    this.quic = new TruynQuicTransport({ identity, host, port, tls, lifecycleLedger, maxSeenNeedIds });
+    this.quic = new TruynQuicTransport({ identity, host, port, tls, lifecycleLedger, maxSeenNeedIds, paidNeedEnforcement });
     this.discovery = new PeerDiscovery({ identity, k, alpha, onChange: onDiscoveryChange, onRecordAccepted });
     this.rpc = new QuicDiscoveryRpc({
       quicTransport: this.quic,
