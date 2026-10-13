@@ -45,6 +45,7 @@ public sealed partial class TruynClient : IAsyncDisposable
 
     public async Task RegisterAsync(string? name = null, CancellationToken cancellationToken = default)
     {
+        _sessionToken = null;
         var envelope = Envelope("IDENTITY", new Dictionary<string, object?>
         {
             ["nodeId"] = _identity.NodeId,

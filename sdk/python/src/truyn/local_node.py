@@ -186,6 +186,7 @@ class TruynLocalNodeClient(CompactLifecycle):
         return self.identity.node_id
 
     def _register(self, *, name: str | None, protocols: list[str]) -> dict[str, Any]:
+        self.session_token = None
         envelope = create_envelope(
             type='IDENTITY',
             identity=self.identity,

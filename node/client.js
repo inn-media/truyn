@@ -87,6 +87,7 @@ export class TruynNode {
 
   async register({ name = null, protocols = ['TRUYN/1'], semantics = [], requiredSemantics = [] } = {}) {
     this.closeFastSocket();
+    this.sessionToken = null;
     const envelope = this.envelope('IDENTITY', {
       nodeId: this.identity.nodeId,
       algorithm: this.identity.algorithm,

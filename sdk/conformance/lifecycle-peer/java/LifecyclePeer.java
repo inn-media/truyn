@@ -25,6 +25,7 @@ public final class LifecyclePeer {
       boolean partial=names.containsAll(List.of("partial","compactNeed","compactResult","pollCompact"));
       value=Map.of("nodeId",p.nodeId(),"cancel",true,"withdraw",true,"partial",partial,"surface","client-api");
      }
+     case "reregister"->p.register(actor);
      case "offer"->value=p.offer((String)a.get("capability"),a.containsKey("metadata")?Json.object(a.get("metadata")):Map.of()).join();
      case "need"->{var r=p.need((String)a.get("capability"),Map.of("probe",true),Map.of()).join();value=Map.of("needId",r.needId(),"provider",r.provider());}
      case "result"->value=p.sendResult((String)a.get("needId"),a.getOrDefault("output",Map.of("answer",42)),Map.of()).join();

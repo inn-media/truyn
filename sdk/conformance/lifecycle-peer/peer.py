@@ -15,6 +15,7 @@ for line in sys.stdin:
             value = dict(nodeId=p.node_id, cancel=callable(getattr(p, 'cancel_need', None)),
                          withdraw=callable(getattr(p, 'revoke_offer', None)),
                          partial=all(callable(getattr(p, k, None)) for k in ('partial','compact_need','compact_result','poll_compact')), surface='client-api')
+        elif action == 'reregister': value = p._register(name=a['actor'], protocols=['TRUYN/1'])
         elif action == 'offer': value = p.offer(a['capability'], a.get('metadata', {}))
         elif action == 'need': value = p.need(a['capability'], {'probe':True})
         elif action == 'result': value = p.result(a['needId'], a.get('output', {'answer':42}))

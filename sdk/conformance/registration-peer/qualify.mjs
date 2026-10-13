@@ -34,7 +34,7 @@ assert.equal(execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),c
 assert.equal(execFileSync('git',['diff','HEAD','--name-only'],{encoding:'utf8'}).trim(),'');
 const report={schema:'truyn.p11-p12-p13.exact-qualification/v1',context,packagesReportSha256:digest(packageBytes),
   registration,artifacts,tests,registrationSha256:digest(registrationBytes),artifactsSha256:digest(artifactBytes),
-  P11:'SOURCE_BASELINE_QUALIFIED',P12:'BOUNDED_REFERENCE_QUALIFIED',P13_FORMAT:'RELEASE_ADMISSION_PENDING',
+  P11:'CANDIDATE_BASELINE_QUALIFIED',P12:'BOUNDED_REFERENCE_QUALIFIED',P13_FORMAT:'RELEASE_ADMISSION_PENDING',
   registryPublicationVerified:false,stableProtocolDeclared:false,productionCutoverAuthorized:false};
 writeFileSync(resolve(directory,'format-qualification.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx'});
 console.log(JSON.stringify(report));

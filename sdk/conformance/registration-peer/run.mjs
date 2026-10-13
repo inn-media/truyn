@@ -19,10 +19,11 @@ const directory = resolve(process.env.RUNNER_TEMP, 'five-sdk-evidence');
 const packageBytes = readFileSync(resolve(directory, 'report.json'));
 const packages = JSON.parse(packageBytes);
 assert.deepEqual(packages.context, context); assert.equal(packages.status, 'PASS'); assert.equal(packages.packages.length, 5);
-const cases = fixture(), outcomes = [];
+const cases = fixture(), outcomes = [], reRegistration = [];
 let active;
 const server = http.createServer(async (req, res) => {
   try {
+    if(req.url==='/v1/offers'&&active){active.protectedRequests++;for await(const _ of req){}res.writeHead(200,{'content-type':'application/json'}).end('{"offerId":"forbidden-stale-token-probe"}');return;}
     assert.equal(req.method,'POST'); assert.equal(req.url,'/v1/register'); assert.ok(active);
     const chunks=[]; let size=0;
     for await (const chunk of req) { size+=chunk.length; assert.ok(size<65536); chunks.push(chunk); }
@@ -49,10 +50,22 @@ try {
         const status=accepted===item.expected.ok&&(accepted||code===item.expected.code)?'PASS':'FAIL';
         outcomes.push({language,mode,id:item.id,accepted,code,requests:active.requests,signatureVerified:active.signatureVerified,status});
       }
+      if(mode==='candidate'){
+        const actor='reregister-stale-token';
+        active={item:cases.cases.find(c=>c.id==='current-baseline'),requests:0,signatureVerified:false,protectedRequests:0};
+        assert.equal((await peer.call('connect',{actor,protocols:['TRUYN/1']})).ok,true);
+        assert.equal(active.requests,1);assert.equal(active.signatureVerified,true);
+        active={item:cases.cases.find(c=>c.id==='protocol-leading-zero'),requests:0,signatureVerified:false,protectedRequests:0};
+        const retry=await peer.call('reregister',{actor});
+        assert.equal(retry.ok,false);assert.equal(retry.code,'version_mismatch');
+        const offer=await peer.call('offer',{actor,capability:'forbidden-stale-token'});
+        assert.equal(offer.ok,false);assert.equal(active.protectedRequests,0);
+        reRegistration.push({language,mode,registrationRequests:active.requests,signatureVerified:active.signatureVerified,protectedRequests:active.protectedRequests,rejected:true,status:'PASS'});
+      }
     } finally { peer.child.stdin.end(); if(peer.child.exitCode===null)peer.child.kill('SIGTERM'); }
   }
   const report={schema:'truyn.p11.native-registration/v1',context,fixtureSha256:cases.sha256,
-    packagesReportSha256:digest(packageBytes),outcomes,status:outcomes.every(r=>r.status==='PASS')?'PASS':'HISTORICAL_FAILURES',
+    packagesReportSha256:digest(packageBytes),outcomes,reRegistration,status:outcomes.every(r=>r.status==='PASS')?'PASS':'HISTORICAL_FAILURES',
     stableProtocolDeclared:false,productionCutoverAuthorized:false};
   writeFileSync(resolve(directory,'registration.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx'});
   const summary=validateRegistration(report,context,packageBytes,{requireAll:process.env.TRUYN_REGISTRATION_REQUIRE_ALL==='true'});

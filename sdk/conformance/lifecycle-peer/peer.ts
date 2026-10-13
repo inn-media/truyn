@@ -17,6 +17,7 @@ for await (const line of createInterface({ input:process.stdin, crlfDelay:Infini
         p=await module.TruynLocalNodeClient.connect({relayUrl, name:a.actor, protocols:a.protocols||['TRUYN/1']}); peers.set(a.actor,p);
         value={nodeId:p.nodeId,cancel:typeof p.runtime.revoke==='function',withdraw:typeof p.runtime.revoke==='function',partial:typeof p.runtime.compactFrame==='function'&&typeof p.runtime.pollCompact==='function',surface:'exported-runtime'}; break;
       }
+      case 'reregister': value=await p.runtime.register({name:a.actor,protocols:['TRUYN/1']});break;
       case 'offer': value=await p.offer(a.capability,a.metadata||{}); break;
       case 'need': value=await p.need(a.capability,{probe:true}); break;
       case 'result': value=await p.result(a.needId,a.output??{answer:42});break;

@@ -51,6 +51,7 @@ public final class TruynClient {
   });}
 
   public void register(String name){
+    sessionToken=null;
     Map<String,Object> payload=map("nodeId",nodeId,"algorithm","Ed25519","protocols",config.supportedProtocols(),"name",name);
     Map<String,Object> response=request("POST","/v1/register",map("envelope",envelope("IDENTITY",payload)),false);
     boolean hasProtocol=response.containsKey("negotiatedProtocol"),hasSemantics=response.containsKey("negotiatedSemantics");

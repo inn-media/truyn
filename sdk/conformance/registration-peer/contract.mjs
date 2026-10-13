@@ -35,6 +35,12 @@ export function validateRegistration(report, context, packageBytes, { requireAll
     if (requireAll || row.mode === 'candidate') assert.ok(matches, `registration failed: ${key}`);
   }
   const failed = report.outcomes.filter(r => r.status !== 'PASS');
+  assert.equal(report.reRegistration?.length,5);
+  assert.deepEqual(report.reRegistration.map(r=>r.language).sort(),[...LANGUAGES].sort());
+  for(const row of report.reRegistration){
+    assert.equal(row.mode,'candidate');assert.equal(row.registrationRequests,1);assert.equal(row.signatureVerified,true);
+    assert.equal(row.protectedRequests,0);assert.equal(row.rejected,true);assert.equal(row.status,'PASS');
+  }
   assert.equal(report.status, failed.length ? 'HISTORICAL_FAILURES' : 'PASS');
-  return { sourceCases: 140, totalCases: 280, historicalFailures: failed.length, sourceStatus: 'PASS' };
+  return { candidateCases: 140, totalCases: 280, reRegistrationCases:5, historicalFailures: failed.length, candidateStatus: 'PASS' };
 }

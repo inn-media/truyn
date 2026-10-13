@@ -16,6 +16,7 @@ while((line=Console.ReadLine()) is not null){
     p=await TruynClient.ConnectAsync(new TruynClientOptions(new Uri(args[1]),SupportedProtocols:protocols),S("actor"));peers[S("actor")]=p;
     var methods=typeof(TruynClient).GetMethods().Select(x=>x.Name).ToHashSet();
     value=new{nodeId=p.NodeId,cancel=true,withdraw=true,partial=new[]{"PartialAsync","CompactNeedAsync","CompactResultAsync","PollCompactAsync"}.All(methods.Contains),surface="client-api"};break;
+   case "reregister": await p!.RegisterAsync(S("actor"));break;
    case "offer":
     var meta=new Dictionary<string,object>();if(a.TryGetProperty("metadata",out var metadata))foreach(var v in metadata.EnumerateObject())meta[v.Name]=v.Value.Clone();
     value=await p!.OfferAsync(S("capability"),meta);break;

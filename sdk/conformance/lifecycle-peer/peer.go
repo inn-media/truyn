@@ -34,6 +34,7 @@ func main(){
    protocols:=[]string{"TRUYN/1"};if raw:=m.Args["protocols"];raw!=nil{json.Unmarshal(raw,&protocols)}
    p,err=truyn.Connect(ctx,truyn.ClientConfig{BaseURL:os.Args[2],SupportedProtocols:protocols},str("actor"))
    if err==nil{peers[str("actor")]=p;_,partial:=any(p).(compactAPI);value=map[string]any{"nodeId":p.NodeID(),"cancel":true,"withdraw":true,"partial":partial,"surface":"client-api"}}
+  case "reregister": err=p.Register(ctx,str("actor"))
   case "offer":
    meta:=map[string]any{};if m.Args["metadata"]!=nil{json.Unmarshal(m.Args["metadata"],&meta)};value,err=p.Offer(ctx,str("capability"),meta)
   case "need": value,err=p.Need(ctx,str("capability"),map[string]any{"probe":true},nil)

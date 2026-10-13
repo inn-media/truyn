@@ -70,7 +70,7 @@ export function validateNativeBundle(root,context,versions=TARGET_VERSIONS){
  assert.deepEqual(format.context,context);assert.deepEqual(format.registration,registration);assert.deepEqual(format.artifacts,artifacts);
  assert.equal(format.packagesReportSha256,digest(buildBytes));
  assert.equal(format.registrationSha256,digest(registrationBytes));assert.equal(format.artifactsSha256,digest(artifactBytes));
- assert.equal(format.P11,'SOURCE_BASELINE_QUALIFIED');assert.equal(format.P12,'BOUNDED_REFERENCE_QUALIFIED');assert.equal(format.P13_FORMAT,'RELEASE_ADMISSION_PENDING');
+ assert.equal(format.P11,'CANDIDATE_BASELINE_QUALIFIED');assert.equal(format.P12,'BOUNDED_REFERENCE_QUALIFIED');assert.equal(format.P13_FORMAT,'RELEASE_ADMISSION_PENDING');
  for(const flag of ['registryPublicationVerified','stableProtocolDeclared','productionCutoverAuthorized'])assert.equal(format[flag],false);
  for(const gate of ['P11','P12','P13_FORMAT']){
   const log=raw(resolve(root,'native-package-'+gate+'.tap'));

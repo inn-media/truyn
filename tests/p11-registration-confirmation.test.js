@@ -18,7 +18,7 @@ test('P11 all 28 confirmation vectors execute through real registration and cann
     for(const item of fixture().cases){
       active=item;const node=new TruynNode({relayUrl:`http://127.0.0.1:${server.address().port}`});
       if(item.expected.ok){await node.register({protocols:item.protocols});assert.equal(node.sessionToken,item.response.sessionToken,item.id);}
-      else {await assert.rejects(node.register({protocols:item.protocols}),e=>e.code===item.expected.code,item.id);assert.equal(node.sessionToken,null,item.id);}
+      else {node.sessionToken='previous-now-revoked-token';await assert.rejects(node.register({protocols:item.protocols}),e=>e.code===item.expected.code,item.id);assert.equal(node.sessionToken,null,item.id);}
     }
     assert.equal(requests,28);
   }finally{server.closeAllConnections();await new Promise(ok=>server.close(ok));}

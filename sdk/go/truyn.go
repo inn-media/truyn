@@ -294,6 +294,7 @@ func (c *Client) AcknowledgeDurable(ctx context.Context, eventID string) (map[st
 }
 
 func (c *Client) Register(ctx context.Context, name string) error {
+	c.sessionToken = ""
 	payload := map[string]any{
 		"nodeId": c.identity.NodeID,
 		"algorithm": c.identity.Algorithm,
