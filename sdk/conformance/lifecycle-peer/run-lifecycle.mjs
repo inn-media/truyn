@@ -156,8 +156,8 @@ try {
   const providerSurface=surfaces.find(s=>s.language===language&&s.mode===pMode);
   const requesterSurface=surfaces.find(s=>s.language===language&&s.mode===rMode);
   assert.ok(providerSurface&&requesterSurface,'native lifecycle surface discovery required');
-  if(providerSurface.compactApi===true&&requesterSurface.compactApi===true)await streamCase(language,pMode,rMode);
-  else for(const scenario of streaming)rows.push({language,provider:pMode,requester:rMode,scenario,status:'UNSUPPORTED',reason:'Native compactNeed/partial/pollCompact API not exposed by selected SDK pair; not PASS.'});
+  if(language==='typescript'&&providerSurface.compactApi===true&&requesterSurface.compactApi===true)await streamCase(language,pMode,rMode);
+  else for(const scenario of streaming)rows.push({language,provider:pMode,requester:rMode,scenario,status:'UNSUPPORTED',reason:'This published/source mixed-version harness does not execute compact lifecycle for the selected pair; not PASS. The native successor source/package harness is qualified separately.'});
  }
  const unique=new Set(rows.map(r=>[r.language,r.provider,r.requester,r.scenario].join(':')));
  assert.equal(unique.size,rows.length);assert.equal(rows.length,languages.length*modes.length*modes.length*(ordinary.length+streaming.length));
