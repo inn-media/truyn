@@ -29,7 +29,7 @@ function billingEstimate(need) {
   return Number.isInteger(value) && value > 0 ? value : null;
 }
 
-function reportedUsageTokens(metadata, fallback = 0) {
+function reportedUsageTokens(metadata, fallback = null) {
   const usage = metadata?.usage;
   const direct = [metadata?.totalTokens, usage?.total_tokens, usage?.totalTokens, usage?.totalTokenCount, usage?.total];
   for (const value of direct) if (Number.isSafeInteger(value) && value >= 0) return value;
@@ -45,7 +45,7 @@ function reportedUsageTokens(metadata, fallback = 0) {
       return present.reduce((sum, value) => sum + value, 0);
     }
   }
-  return Number.isSafeInteger(fallback) && fallback >= 0 ? fallback : 0;
+  return Number.isSafeInteger(fallback) && fallback >= 0 ? fallback : null;
 }
 
 async function settleBilling(billing, input) {
@@ -390,7 +390,9 @@ export class TruynAdapterHost {
       // proof that the external provider supports transactional exactly-once.
       const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
       const actualTokens = reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0);
-      if (this.effectLedger && !need.chain) await this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'completed', observedTokens: actualTokens });
+      // Never record zero as a measured usage value merely because provider telemetry is absent.
+      const observedTokens = reportedUsageTokens(normalized.metadata);
+      if (this.effectLedger && !need.chain) await this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'completed', observedTokens });
       if (signal.aborted) {
         await settleBilling(billing, { outcome: 'cancelled', actualTokens, reason: signal.reason?.message || 'request_cancelled' });
         billingSettled = typeof billing?.finalize === 'function';
