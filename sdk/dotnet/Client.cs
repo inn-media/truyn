@@ -248,7 +248,16 @@ public sealed partial class TruynClient : IAsyncDisposable
         return new Dictionary<string, object?>(unsigned) { ["signature"] = signature };
     }
 
-    private static bool VerifyEnvelope(JsonElement envelope)
+    public Dictionary<string, object?> CreateEnvelopeWithExt(string type, object payload, object? ext, IReadOnlyCollection<string> negotiatedSemantics)
+    {
+        if (!negotiatedSemantics.Contains(EnvelopeExtensions.Semantic)) throw new ArgumentException("version_mismatch: ext emission requires negotiated support");
+        var envelope = Envelope(type, payload); envelope.Remove("signature"); envelope["ext"] = ext;
+        var checkedExt = EnvelopeExtensions.Validate(JsonSerializer.SerializeToElement(envelope), negotiatedSemantics);
+        if (!checkedExt.Ok) throw new ArgumentException(checkedExt.Reason + ":" + checkedExt.Detail);
+        envelope["signature"] = _identity.Sign(CanonicalJson.Serialize(envelope)); return envelope;
+    }
+
+    public static bool VerifyEnvelope(JsonElement envelope)
     {
         try
         {

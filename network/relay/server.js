@@ -2,7 +2,7 @@ import http from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { WebSocket, WebSocketServer } from 'ws';
-import { compactStageRequestId, verifyCompactFrame, verifyEnvelope, PROTOCOL } from '../../core/protocol/index.js';
+import { compactStageRequestId, verifyCompactFrame, verifyEnvelope, validateEnvelopeExt, ENVELOPE_EXT_SEMANTIC, PROTOCOL } from '../../core/protocol/index.js';
 import { negotiateProtocol } from '../../core/protocol/negotiation.js';
 import { classifyTruynError } from '../../core/protocol/normalized-errors.js';
 import { trustabilityLite } from '../../core/trust/index.js';
@@ -111,6 +111,7 @@ function chainTraceSnapshot(chain) {
 }
 
 export function createRelay({
+  envelopeExtensions = false,
   nodeFreshnessMs = 15_000,
   sessionTtlMs = 60 * 60 * 1000,
   registrationFreshnessMs = 5 * 60 * 1000,
@@ -357,12 +358,13 @@ export function createRelay({
     });
     return ranked.map((item) => item.offer);
   }
-  async function matchingOffers({ capability = null, requesterNodeId = null, routing = null, reserveFor = null } = {}) {
+  async function matchingOffers({ capability = null, requesterNodeId = null, routing = null, reserveFor = null, requiredSemantics = [] } = {}) {
     const now = Date.now();
     // Preserve owner-only ACL and freshness BEFORE routing.
     const trustedRequesterNodeIds = [...trustedRequesters];
     const candidates=[...offersForCapability(capability)].filter((offer) =>
       !offer.revoked &&
+      requiredSemantics.every(semantic => nodes.get(offer.envelope.from)?.negotiatedSemantics?.includes(semantic)) &&
       (!capability || offer.capability === capability) &&
       (!requesterNodeId || offer.envelope.from !== requesterNodeId) &&
       isNodeFresh(offer.envelope.from, now) &&
@@ -389,6 +391,12 @@ export function createRelay({
       selectionReservations.set(reserveFor, { provider: ranked[0].envelope.from, expiresAt: Date.now() + selectionReservationMs });
     }
     return ranked;
+  }
+
+  function extensionContext(envelope, recipient) {
+    if (!Object.hasOwn(envelope, 'ext') || !nodes.get(envelope.from)?.negotiatedSemantics?.includes(ENVELOPE_EXT_SEMANTIC)) return {};
+    if (!nodes.get(recipient)?.negotiatedSemantics?.includes(ENVELOPE_EXT_SEMANTIC)) throw httpError(409, 'version_mismatch');
+    return { negotiatedSemantics: [ENVELOPE_EXT_SEMANTIC] };
   }
 
   function requesterCanDispatch(nodeId) {
@@ -1010,7 +1018,7 @@ export function createRelay({
       if (req.method === 'POST' && url.pathname === '/v1/register') {
         const { envelope } = await readJson(req, maxBodyBytes);
         const verification = verifyEnvelope(envelope, { allowedTypes: ['IDENTITY'] });
-        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
+        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason, ...(verification.detail ? { detail: verification.detail } : {}) });
         // Signed IDENTITY registration is the relay/WebSocket compatibility handshake.
         // Non-TRUYN adapter bindings (A2A/MCP) are not native protocol generations.
         const advert = envelope.payload && typeof envelope.payload === 'object' ? envelope.payload : {};
@@ -1023,11 +1031,13 @@ export function createRelay({
         const negotiated = negotiateProtocol({
           localProtocols: [PROTOCOL],
           remoteProtocols: declared.filter((v) => /^TRUYN\/\d+$/.test(v)),
-          localSemantics: [],
+          localSemantics: envelopeExtensions ? [ENVELOPE_EXT_SEMANTIC] : [],
           remoteSemantics: semantics,
           requiredSemantics
         });
         if (!negotiated.ok) return json(res, 409, { ok: false, error: negotiated.code, reason: negotiated.reason, ...(negotiated.missingSemantics ? { missingSemantics: negotiated.missingSemantics } : {}) });
+        const extCheck = validateEnvelopeExt(envelope, { negotiatedSemantics: negotiated.semantics });
+        if (!extCheck.ok) return json(res, 400, { ok: false, error: extCheck.reason, detail: extCheck.detail });
         if (!nodeCanRegister(envelope.from)) return json(res, 403, { ok: false, error: 'registration_denied' });
         const now = Date.now();
         cleanupRegistrationReplayCache(now);
@@ -1071,8 +1081,8 @@ export function createRelay({
             }
             const admittedAt = Date.now();
             const sessionToken = randomBytes(32).toString('base64url');
-            nodes.set(envelope.from, { nodeId: envelope.from, publicKey: envelope.publicKey, sessionToken, lastSeenAt: new Date(admittedAt).toISOString() });
-            sessions.set(sessionToken, { nodeId: envelope.from, expiresAt: admittedAt + sessionTtlMs });
+            nodes.set(envelope.from, { nodeId: envelope.from, publicKey: envelope.publicKey, sessionToken, negotiatedSemantics: negotiated.semantics, lastSeenAt: new Date(admittedAt).toISOString() });
+            sessions.set(sessionToken, { nodeId: envelope.from, expiresAt: admittedAt + sessionTtlMs, negotiatedSemantics: negotiated.semantics });
             if (lifecycleMaintenance) {
               for (const [offerId,offer] of offers) if (offer.envelope.from === envelope.from) dropOffer(offerId);
               for (const offer of recovered) putOffer(offer.envelope.id,offer);
@@ -1100,8 +1110,8 @@ export function createRelay({
 
       if (req.method === 'POST' && url.pathname === '/v1/offers') {
         const { envelope } = await readJson(req, maxBodyBytes);
-        const verification = verifyEnvelope(envelope, { allowedTypes: ['OFFER'] });
-        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
+        const verification = verifyEnvelope(envelope, { allowedTypes: ['OFFER'], negotiatedSemantics: sessions.get(bearer(req))?.negotiatedSemantics ?? [] });
+        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason, ...(verification.detail ? { detail: verification.detail } : {}) });
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         return await withOwnerLifecycleMutation(envelope.from, async () => {
           const capability = envelope.payload?.capability?.name || envelope.payload?.capability;
@@ -1147,7 +1157,7 @@ export function createRelay({
         const owner = nodes.get(ownerNodeId);
         const { frame, payload } = await readJson(req, maxBodyBytes);
         const verification = verifyCompactFrame(frame, payload, owner.publicKey, { allowedTypes: ['CONTEXT_PUT'] });
-        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
+        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason, ...(verification.detail ? { detail: verification.detail } : {}) });
         const document = buildContextDocument(payload?.blocks);
         const record = saveContext(ownerNodeId, document, { readers: payload?.readers || [], metadata: payload?.metadata || {} });
         touch(ownerNodeId);
@@ -1196,7 +1206,7 @@ export function createRelay({
           const owner = nodes.get(nodeId);
           const { frame, payload } = await readJson(req, maxBodyBytes);
           const verification = verifyCompactFrame(frame, payload, owner.publicKey, { allowedTypes: ['CONTEXT_DELTA'] });
-          if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
+          if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason, ...(verification.detail ? { detail: verification.detail } : {}) });
           if (payload?.baseCid !== cid) return json(res, 400, { ok: false, error: 'context_base_cid_mismatch' });
           const nextBlocks = applyContextDelta(record.blocks, payload?.ops);
           const document = buildContextDocument(nextBlocks);
@@ -1214,7 +1224,7 @@ export function createRelay({
         const requester = nodes.get(requesterNodeId);
         const { frame, payload } = await readJson(req, maxBodyBytes);
         const verification = verifyCompactFrame(frame, payload, requester.publicKey, { allowedTypes: ['CHAIN'] });
-        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
+        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason, ...(verification.detail ? { detail: verification.detail } : {}) });
         const started = await startChain({ requesterNodeId, frame, payload, waitMs: boundedWaitMs(url, 120_000), res, requestReceivedAtMs, requestReceivedWallTime, requesterTransport: 'http' });
         if (started) return json(res, started.status, started.body);
         return;
@@ -1227,7 +1237,7 @@ export function createRelay({
         const requester = nodes.get(requesterNodeId);
         const { frame, payload } = await readJson(req, maxBodyBytes);
         const verification = verifyCompactFrame(frame, payload, requester.publicKey, { allowedTypes: ['NEED'] });
-        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
+        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason, ...(verification.detail ? { detail: verification.detail } : {}) });
         if (requests.has(frame.i) || seenNeedIds.has(frame.i) || await lifecycleLedger?.getNeed(frame.i)) return json(res, 409, { ok: false, error: 'duplicate_request' });
         const capability = payload?.capability?.name || payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
@@ -1334,24 +1344,28 @@ export function createRelay({
 
       if (req.method === 'POST' && url.pathname === '/v1/needs') {
         const { envelope } = await readJson(req, maxBodyBytes);
-        const verification = verifyEnvelope(envelope, { allowedTypes: ['NEED'] });
-        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
+        const verification = verifyEnvelope(envelope, { allowedTypes: ['NEED'], negotiatedSemantics: sessions.get(bearer(req))?.negotiatedSemantics ?? [] });
+        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason, ...(verification.detail ? { detail: verification.detail } : {}) });
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         if (!requesterCanDispatch(envelope.from)) return json(res, 403, { ok: false, error: 'provider_access_denied' });
         if (requests.has(envelope.id) || seenNeedIds.has(envelope.id) || await lifecycleLedger?.getNeed(envelope.id)) return json(res, 409, { ok: false, error: 'duplicate_request' });
         const capability = envelope.payload?.capability?.name || envelope.payload?.capability;
         if (!capability || typeof capability !== 'string') return json(res, 400, { ok: false, error: 'invalid_capability' });
-        const match = (await matchingOffers({ capability, requesterNodeId: envelope.from, routing: envelope.payload?.policy?.routing, reserveFor: envelope.id }))[0];
+        const requiredSemantics = Object.hasOwn(envelope, 'ext') && sessions.get(bearer(req))?.negotiatedSemantics?.includes(ENVELOPE_EXT_SEMANTIC) ? [ENVELOPE_EXT_SEMANTIC] : [];
+        const match = (await matchingOffers({ capability, requesterNodeId: envelope.from, routing: envelope.payload?.policy?.routing, reserveFor: envelope.id, requiredSemantics }))[0];
+        if (!match && requiredSemantics.length) return json(res, 409, { ok: false, error: 'version_mismatch', detail: 'required_semantic_unavailable:truyn.envelope.ext/1' });
+        const beforeDispatch = validateEnvelopeExt(envelope, { negotiatedSemantics: requiredSemantics });
+        if (!beforeDispatch.ok) { selectionReservations.delete(envelope.id); return json(res, 400, { ok: false, error: beforeDispatch.reason, detail: beforeDispatch.detail }); }
         if (!match) return json(res, 404, { ok: false, error: 'no_matching_provider' });
         pruneCompleted(requests, maxRequests);
         try {
-          await admitDirectNeedId({ id: envelope.id, requester: envelope.from, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'), capability, mode: 'legacy', policyDigest:createHash('sha256').update(JSON.stringify([match.policy,envelope.payload?.policy])).digest('hex'), delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', envelope } } });
+          await admitDirectNeedId({ id: envelope.id, requester: envelope.from, provider: match.envelope.from, fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'), capability, mode: 'legacy', policyDigest:createHash('sha256').update(JSON.stringify([match.policy,envelope.payload?.policy])).digest('hex'), delivery: { recipient: match.envelope.from, kind: 'NEED', event: { kind: 'NEED', envelope, ...extensionContext(envelope, match.envelope.from) } } });
         } catch (error) {
           selectionReservations.delete(envelope.id);
           throw error;
         }
         markMatchedRequest({ needId: envelope.id, requester: envelope.from, provider: match.envelope.from, capability, createdAt: new Date().toISOString(), status: 'matched', mode: 'legacy' });
-        queue(match.envelope.from, { kind: 'NEED', envelope });
+        queue(match.envelope.from, { kind: 'NEED', envelope, ...extensionContext(envelope, match.envelope.from) });
         touch(envelope.from);
         return json(res, 200, { ok: true, needId: envelope.id, provider: match.envelope.from, providerTrust: trustFor(match.envelope.from) });
       }
@@ -1445,8 +1459,8 @@ export function createRelay({
 
       if (req.method === 'POST' && url.pathname === '/v1/results') {
         const { envelope } = await readJson(req, maxBodyBytes);
-        const verification = verifyEnvelope(envelope, { allowedTypes: ['RESULT'] });
-        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
+        const verification = verifyEnvelope(envelope, { allowedTypes: ['RESULT'], negotiatedSemantics: sessions.get(bearer(req))?.negotiatedSemantics ?? [] });
+        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason, ...(verification.detail ? { detail: verification.detail } : {}) });
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         const requestId = envelope.payload?.requestId;
         const request = requests.get(requestId);
@@ -1457,7 +1471,7 @@ export function createRelay({
           if (durable?.mode === 'legacy' && lifecycleLedger?.kind === 'cosmos-multi-host-v1') {
             await lifecycleLedger.transitionNeed({
               id: requestId, provider: envelope.from, to: 'completed',
-              delivery: { recipient: durable.requester, kind: 'RESULT', event: { kind: 'RESULT', envelope } }
+              delivery: { recipient: durable.requester, kind: 'RESULT', event: { kind: 'RESULT', envelope, ...extensionContext(envelope, durable.requester) } }
             });
             touch(envelope.from);
             return json(res, 200, { ok: true, requestId, transport: 'durable-outbox', recovered: true });
@@ -1468,8 +1482,9 @@ export function createRelay({
         if (request.provider !== envelope.from) return json(res, 403, { ok: false, error: 'provider_mismatch' });
         const terminalError = terminalRequestError(request);
         if (terminalError) return json(res, 409, { ok: false, error: terminalError });
-        const trust = await completeRequest(request, envelope.from, { recipient: request.requester, kind: 'RESULT', event: { kind: 'RESULT', envelope } });
-        const acceptedResult = { envelope, trust };
+        const extContext = extensionContext(envelope, request.requester);
+        const trust = await completeRequest(request, envelope.from, { recipient: request.requester, kind: 'RESULT', event: { kind: 'RESULT', envelope, ...extContext } });
+        const acceptedResult = { envelope, trust, ...extContext };
         request.result = acceptedResult;
         queue(request.requester, { kind: 'RESULT', ...acceptedResult });
         return json(res, 200, { ok: true, requestId, trust });
@@ -1477,8 +1492,8 @@ export function createRelay({
 
       if (req.method === 'POST' && url.pathname === '/v1/revoke') {
         const { envelope } = await readJson(req, maxBodyBytes);
-        const verification = verifyEnvelope(envelope, { allowedTypes: ['REVOKE'] });
-        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason });
+        const verification = verifyEnvelope(envelope, { allowedTypes: ['REVOKE'], negotiatedSemantics: sessions.get(bearer(req))?.negotiatedSemantics ?? [] });
+        if (!verification.ok) return json(res, 400, { ok: false, error: verification.reason, ...(verification.detail ? { detail: verification.detail } : {}) });
         if (!authenticateEnvelope(req, envelope)) return json(res, 401, { ok: false, error: 'unauthorized' });
         const targetId = envelope.payload?.targetId;
         if (!targetId || typeof targetId !== 'string') return json(res, 400, { ok: false, error: 'invalid_target_id' });
@@ -1505,7 +1520,7 @@ export function createRelay({
             const durable = await lifecycleLedger?.getNeed(targetId);
             if (!durable) return json(res, 404, { ok: false, error: 'target_not_found' });
             if (durable.requester !== envelope.from) return json(res, 403, { ok: false, error: 'not_request_owner' });
-            const outcome = await lifecycleLedger.transitionNeed({ id: targetId, requester: envelope.from, to: 'cancelled', delivery: { recipient: durable.provider, kind: 'REVOKE', event: { kind: 'REVOKE', targetKind: 'need', targetId, envelope, from: envelope.from } } });
+            const outcome = await lifecycleLedger.transitionNeed({ id: targetId, requester: envelope.from, to: 'cancelled', delivery: { recipient: durable.provider, kind: 'REVOKE', event: { kind: 'REVOKE', targetKind: 'need', targetId, envelope, from: envelope.from, ...extensionContext(envelope, durable.provider) } } });
             return json(res, 200, { ok: true, targetId, targetKind: 'need', cancelled: true, idempotent: !outcome.changed, provider: durable.provider, deliveryPending: true });
           }
           await expireFastRequest(request);
@@ -1513,7 +1528,7 @@ export function createRelay({
           if (request.requester !== envelope.from) return json(res, 403, { ok: false, error: 'not_request_owner' });
           if (request.status === 'completed') return json(res, 409, { ok: false, error: 'request_already_completed' });
           if (request.status === 'failed') return json(res, 409, { ok: false, error: 'request_failed' });
-          const cancellationEvent = { kind: 'REVOKE', targetKind: 'need', targetId, envelope, from: envelope.from };
+          const cancellationEvent = { kind: 'REVOKE', targetKind: 'need', targetId, envelope, from: envelope.from, ...extensionContext(envelope, request.provider) };
           if (request.status === 'cancelled') {
             const delivered = queueCancellation(request, cancellationEvent);
             touch(envelope.from);

@@ -236,7 +236,7 @@ export class TruynQuicTransport {
       const binding = sessionHandshakeBinding(message.hello);
       const accept = createSessionAccept({ identity: this.identity, hello: message.hello, transportBinding: binding, localProtocols: this.supportedProtocols, localSemantics: this.supportedSemantics, localRequiredSemantics: this.requiredSemantics });
       const id = sessionId(message.hello, accept);
-      this.serverSessions.set(connection, { id, peerNodeId: message.hello.nodeId, peerPublicKey: message.hello.publicKey, binding });
+      this.serverSessions.set(connection, { id, peerNodeId: message.hello.nodeId, peerPublicKey: message.hello.publicKey, negotiatedSemantics: verification.negotiated.semantics, binding });
       await writeJson(stream, { ok: true, accept, sessionId: id });
       return;
     }
@@ -274,16 +274,20 @@ export class TruynQuicTransport {
     }
 
     if (message?.kind === 'envelope') {
-      const verification = verifyEnvelope(message.envelope);
-      if (!verification.ok) { await writeJson(stream, { ok: false, error: verification.reason }); return; }
+      const verification = verifyEnvelope(message.envelope, { negotiatedSemantics: session.negotiatedSemantics });
+      if (!verification.ok) { await writeJson(stream, { ok: false, error: verification.reason, ...(verification.detail ? { detail: verification.detail } : {}) }); return; }
       if (message.envelope.from !== session.peerNodeId || message.envelope.publicKey !== session.peerPublicKey) { await writeJson(stream, { ok: false, error: 'quic_session_sender_mismatch' }); return; }
       if (!this.envelopeHandler) { await writeJson(stream, { ok: false, error: 'no_envelope_handler' }); return; }
       try {
-        const result = await this.inboundAdmission.run(() => this.envelopeHandler(message.envelope, {
-          peerNodeId: session.peerNodeId,
-          transport: 'quic',
-          connection
-        }));
+        const result = await this.inboundAdmission.run(() => {
+          const admitted = verifyEnvelope(message.envelope, { negotiatedSemantics: session.negotiatedSemantics });
+          if (!admitted.ok) throw new Error(admitted.reason);
+          return this.envelopeHandler(message.envelope, {
+            peerNodeId: session.peerNodeId,
+            transport: 'quic',
+            connection
+          });
+        });
         await writeJson(stream, { ok: true, result: result ?? null });
       } catch (error) {
         await writeJson(stream, { ok: false, error: boundedHandlerError(error, 'quic_envelope_handler_failed') });
@@ -319,7 +323,7 @@ export class TruynQuicTransport {
     if (!verification.ok) { await this.disconnect(client); throw new Error(`quic_session_accept_invalid:${verification.reason}`); }
     const expectedSessionId = sessionId(hello, response.accept);
     if (response.sessionId !== expectedSessionId) { await this.disconnect(client); throw new Error('quic_session_id_mismatch'); }
-    this.clientSessions.set(client.connection, { id: expectedSessionId, peerNodeId: response.accept.nodeId, peerPublicKey: response.accept.publicKey, binding });
+    this.clientSessions.set(client.connection, { id: expectedSessionId, peerNodeId: response.accept.nodeId, peerPublicKey: response.accept.publicKey, negotiatedSemantics: verification.negotiated.semantics, binding });
     return client;
   }
 
@@ -348,7 +352,7 @@ export class TruynQuicTransport {
   async sendEnvelope(client, envelope) {
     const session = this.clientSessions.get(client?.connection);
     if (!session) throw new Error('authenticated QUIC session is required');
-    const verification = verifyEnvelope(envelope);
+    const verification = verifyEnvelope(envelope, { negotiatedSemantics: session.negotiatedSemantics });
     if (!verification.ok) throw new Error(`invalid envelope: ${verification.reason}`);
     if (envelope.from !== this.identity.nodeId) throw new Error('outbound envelope sender mismatch');
     const response = await requestJson(client.connection, { kind: 'envelope', sessionId: session.id, envelope }, this.maxMessageBytes);

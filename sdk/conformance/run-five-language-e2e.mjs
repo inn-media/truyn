@@ -102,6 +102,7 @@ try {
     relayUrl
   ], { env: descriptorEnv });
   await run('dotnet', ['run', '--configuration', 'Release', '--project', 'sdk/dotnet/conformance/Truyn.Sdk.Conformance.csproj', '--', relayUrl], { env: descriptorEnv });
+  await run(process.execPath, ['sdk/conformance/run-wire-freeze.mjs']);
   await run(process.execPath, ['sdk/conformance/run-descriptor-interface-parity.mjs']);
   process.stdout.write('PASS five-language executable conformance including signed Agent Descriptor lifecycle\n');
 } finally {
