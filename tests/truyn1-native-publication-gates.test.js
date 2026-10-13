@@ -4,6 +4,7 @@ import {readFileSync,mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fixture as registrationFixture,validateRegistration} from '../sdk/conformance/registration-peer/contract.mjs';
+import {validateOldNew} from '../sdk/conformance/registration-peer/old-new-contract.mjs';
 import {validateArtifactMatrix} from '../sdk/conformance/registration-peer/artifact-contract.mjs';
 import {TARGET_VERSIONS,TARGET_PACKAGES,RELEASE_TAGS,validateNativeRequest,validateNativeBundle} from '../sdk/release/native-publication.mjs';
 import {LANGUAGES,MODES,SCENARIOS} from '../sdk/conformance/lifecycle-peer/matrix-contract.mjs';
@@ -31,7 +32,13 @@ function fixture(root){
  const format={schema:'truyn.p11-p12-p13.exact-qualification/v1',context,packagesReportSha256:digest(bytes(build)),registration:validateRegistration(registration,context,bytes(build),{requireAll:true}),artifacts:validateArtifactMatrix(artifacts,context,bytes(build)),registrationSha256:digest(bytes(registration)),artifactsSha256:digest(bytes(artifacts)),P11:'SOURCE_BASELINE_QUALIFIED',P12:'BOUNDED_REFERENCE_QUALIFIED',P13_FORMAT:'RELEASE_ADMISSION_PENDING',registryPublicationVerified:false,stableProtocolDeclared:false,productionCutoverAuthorized:false,tests:Object.fromEntries(['P11','P12','P13_FORMAT'].map(g=>[g,{logSha256:digest(log),status:'PASS',tests:1}]))};
  for(const [name,value] of Object.entries({'registration.json':registration,'artifacts.json':artifacts,'format-qualification.json':format}))writeFileSync(join(root,'native-package-'+name),bytes(value));
  for(const gate of ['P11','P12','P13_FORMAT'])writeFileSync(join(root,'native-package-'+gate+'.tap'),log);
- return {manifest,build,lifecycle,proof,names,registration,artifacts,format};
+ const pinBytes=read('spec/compatibility/truyn1-five-sdk-digests.json'),pins=JSON.parse(pinBytes).packages;
+ const inputs={schema:'truyn.old-new-package-inputs/v1',context,status:'PASS',packages:build.packages,buildProofSha256:digest(bytes(build)),publishedSdkSourceSha:'57971b134a41c3e3ea4b42f68e86a7d117036006',packageModes:{legacy:'verified-published-predecessor',candidate:'verified-new-build-archive'},predecessorReceipts:LANGUAGES.map(id=>({id,context,status:'PASS',pinsSha256:digest(pinBytes),coordinate:pins[id].coordinate,comparison:pins[id].mode,archiveSha256:pins[id].sha256??'e'.repeat(64),archiveBytes:pins[id].bytes??100,checkedPayloadFiles:pins[id].files?Object.keys(pins[id].files).length:null}))};
+ const oldRegistration={...registration,packagesReportSha256:digest(bytes(inputs))},oldArtifacts={...artifacts,packagesReportSha256:digest(bytes(inputs))},oldLifecycle={...lifecycle,packagesReportSha256:digest(bytes(inputs)),publishedSdkSourceSha:inputs.publishedSdkSourceSha};
+ for(const [name,value] of Object.entries({'report.json':inputs,'registration.json':oldRegistration,'artifacts.json':oldArtifacts,'lifecycle.json':oldLifecycle}))writeFileSync(join(root,'old-new-package-'+name),bytes(value));
+ const oldNew=validateOldNew(root,context,build,name=>readFileSync(join(root,'old-new-package-'+name)));
+ writeFileSync(join(root,'old-new-package-proof.json'),bytes(oldNew));
+ return {manifest,build,lifecycle,proof,names,registration,artifacts,format,inputs};
 }
 test('native publication requires an explicit one-shot exact-parent request with no stable or cloud authority',()=>{
  const report=validateNativeRequest(request(),options);assert.equal(report.status,'VALID_REQUEST_ONLY');assert.deepEqual(report.tags,RELEASE_TAGS);assert.equal(report.productionCutoverAuthorized,false);
@@ -49,6 +56,8 @@ test('independent native bundle validation requires post-merge SHA, exact bytes 
   writeFileSync(join(root,'native-package-lifecycle.json'),bytes(f.lifecycle));
   const badRegistration=structuredClone(f.registration);badRegistration.outcomes.pop();writeFileSync(join(root,'native-package-registration.json'),bytes(badRegistration));assert.throws(()=>validateNativeBundle(root,context));
   writeFileSync(join(root,'native-package-registration.json'),bytes(f.registration));
+  const wrongOrigin={...f.inputs,packageModes:{legacy:'source',candidate:'source'}};writeFileSync(join(root,'old-new-package-report.json'),bytes(wrongOrigin));assert.throws(()=>validateNativeBundle(root,context));
+  writeFileSync(join(root,'old-new-package-report.json'),bytes(f.inputs));
   writeFileSync(join(root,f.names[0]),'tampered-data');assert.throws(()=>validateNativeBundle(root,context),/package_bytes_mismatch/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });

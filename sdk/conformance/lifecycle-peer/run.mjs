@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import {spawn,execFileSync} from 'node:child_process';
-import {createInterface} from 'node:readline';
+import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
-import {delimiter,resolve} from 'node:path';
+import {resolve} from 'node:path';
 import {createRelay} from '../../../network/relay/server.js';
 import {LANGUAGES,MODES,SCENARIOS,validateLifecycle} from './matrix-contract.mjs';
+import {launchNativePeer} from './native-peer.mjs';
 import {SECURITY_SCENARIOS} from './source-contract.mjs';
 const sha=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 assert.equal(sha,process.env.TRUYN_EXPECTED_SOURCE_SHA,'exact lifecycle checkout required');
@@ -51,27 +51,12 @@ const proxy=http.createServer(async(req,res)=>{
 });
 await new Promise(r=>proxy.listen(0,'127.0.0.1',r));const relayUrl='http://127.0.0.1:'+proxy.address().port;
 const outcomes=[],negotiation=[],capabilities=[],sourceSecurity=[];const children=[];
-function launch(language,mode){
- let command,args;const root='sdk/conformance/lifecycle-peer/';
- if(language==='typescript'){command=process.execPath;args=['--experimental-strip-types',root+'peer.ts',mode,relayUrl];}
- if(language==='python'){command=mode==='legacy'?process.env.TRUYN_LEGACY_PYTHON:process.env.TRUYN_CANDIDATE_PYTHON;args=[root+'peer.py',mode,relayUrl];}
- if(language==='go'){command='/tmp/truyn-lifecycle-'+mode+'-go';args=[mode,relayUrl];}
- if(language==='java'){command='java';args=['-cp',(mode==='legacy'?process.env.TRUYN_LEGACY_JAVA_CP:process.env.TRUYN_CANDIDATE_JAVA_CP)+delimiter+'/tmp/truyn-lifecycle-'+mode+'-java','org.truyn.sdk.LifecyclePeer',mode,relayUrl];}
- if(language==='dotnet'){command='dotnet';args=[root+'dotnet/'+mode+'/bin/Release/net8.0/'+(mode==='legacy'?'LegacyLifecycle':'CandidateLifecycle')+'.dll',mode,relayUrl];}
- assert.ok(command,'language runner configured');const child=spawn(command,args,{stdio:['pipe','pipe','pipe'],env:process.env});children.push(child);
- let next=0,stderr='';const pending=new Map();child.stderr.on('data',d=>{stderr=(stderr+d).slice(-2000);});
- child.once('error',e=>{for(const p of pending.values()){clearTimeout(p.timer);p.reject(e);}pending.clear();});
- child.once('exit',()=>{for(const p of pending.values()){clearTimeout(p.timer);p.reject(Error('native_peer_exited:'+language+':'+stderr.slice(-150)));}pending.clear();});
- createInterface({input:child.stdout}).on('line',line=>{
-  let r;try{r=JSON.parse(line);}catch{return;}
-  const p=pending.get(r.id);if(p){pending.delete(r.id);clearTimeout(p.timer);p.resolve(r);}
- });
- return {call(action,args){return new Promise((resolve,reject)=>{const id=++next;const timer=setTimeout(()=>{pending.delete(id);reject(Error('native_peer_timeout:'+language+':'+action));},9000);pending.set(id,{resolve,reject,timer});child.stdin.write(JSON.stringify({id,action,args})+'\n');});},child};
-}
+
 let ordinal=0;
 try{
 for(const language of LANGUAGES){
- const peers=Object.fromEntries(MODES.map(mode=>[mode,launch(language,mode)]));
+ const peers=Object.fromEntries(MODES.map(mode=>[mode,launchNativePeer(language,mode,relayUrl)]));
+ for(const peer of Object.values(peers))children.push(peer.child);
  const traits={};
  try{
   for(const mode of MODES){

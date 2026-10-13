@@ -4,7 +4,9 @@ const [mode, relayUrl] = process.argv.slice(2);
 if (!['legacy','candidate'].includes(mode) || !relayUrl) throw Error('invalid_role_config');
 const module = mode === 'legacy'
   ? await import(resolve(process.env.TRUYN_LEGACY_NPM_ROOT!, 'node_modules/@truyn/sdk/dist/index.js'))
-  : await import('../../typescript/src/local-node.ts');
+  : process.env.TRUYN_CANDIDATE_NPM_ROOT
+    ? await import(resolve(process.env.TRUYN_CANDIDATE_NPM_ROOT, 'node_modules/@truyn/sdk/dist/index.js'))
+    : await import('../../typescript/src/local-node.ts');
 const peers = new Map<string, any>();
 for await (const line of createInterface({ input:process.stdin, crlfDelay:Infinity })) {
   let message:any;

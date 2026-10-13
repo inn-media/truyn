@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {digest,validateBuildBundle,qualifyPackagedLifecycle} from '../conformance/lifecycle-peer/package-contract.mjs';
 import {validateRegistration} from '../conformance/registration-peer/contract.mjs';
 import {validateArtifactMatrix} from '../conformance/registration-peer/artifact-contract.mjs';
+import {validateOldNew} from '../conformance/registration-peer/old-new-contract.mjs';
 
 export const TARGET_VERSIONS=Object.freeze({release:'0.1.0-alpha.3',typescript:'0.1.0-alpha.6',python:'0.1.0a3',goTag:'sdk/go/v0.1.0-alpha.3',protocol:'TRUYN/1',stableSdkApiVersion:'1',channel:'public-pre-release'});
 export const TARGET_PACKAGES=Object.freeze({npm:'0.1.0-alpha.6',pypi:'0.1.0a3',go:'v0.1.0-alpha.3',maven:'0.1.0-alpha.3',nuget:'0.1.0-alpha.3'});
@@ -77,7 +78,9 @@ export function validateNativeBundle(root,context,versions=TARGET_VERSIONS){
   assert.equal(format.tests[gate].tests,Number(/^# tests (\d+)$/m.exec(log.toString())?.[1]));assert.ok(format.tests[gate].tests>0);
   for(const marker of ['fail','skipped','todo'])assert.match(log.toString(),new RegExp('^# '+marker+' 0$','m'));
  }
- return {schema:'truyn.native-release-bundle-validation/v1',status:'BUNDLE_VERIFIED_ONLY',context,packages,versions,manifestSha256:digest(manifestBytes),nativeProofSha256:digest(raw(resolve(root,'native-package-proof.json'))),cases:80,securityCases:30,negotiationCases:10,registrationCases:registration.totalCases,artifactCases:artifacts.cases,formatProofSha256:digest(raw(resolve(root,'native-package-format-qualification.json'))),registryPublicationVerified:false,stableProtocolDeclared:false,productionCutoverAuthorized:false};
+ const oldNew=validateOldNew(root,context,build,name=>raw(resolve(root,'old-new-package-'+name)));
+ assert.deepEqual(json(resolve(root,'old-new-package-proof.json')),oldNew);
+ return {schema:'truyn.native-release-bundle-validation/v1',status:'BUNDLE_VERIFIED_ONLY',context,packages,versions,manifestSha256:digest(manifestBytes),nativeProofSha256:digest(raw(resolve(root,'native-package-proof.json'))),cases:80,securityCases:30,negotiationCases:10,registrationCases:registration.totalCases,artifactCases:artifacts.cases,oldNewPackageProofSha256:digest(raw(resolve(root,'old-new-package-proof.json'))),formatProofSha256:digest(raw(resolve(root,'native-package-format-qualification.json'))),registryPublicationVerified:false,stableProtocolDeclared:false,productionCutoverAuthorized:false};
 }
 
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){

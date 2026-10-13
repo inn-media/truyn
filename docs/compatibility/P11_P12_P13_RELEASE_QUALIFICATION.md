@@ -30,6 +30,8 @@ The original bounded reference profile already has accepted merged-main evidence
 
 The frozen-published workflow runs this after independent installation and byte verification of the five accepted old packages. Full SDK CI also runs it in isolated installations of the **actual newly built archives**. These second reports are retained in the SDK release bundle as `native-package-registration.json`, `native-package-artifacts.json`, `native-package-format-qualification.json` and three raw TAP logs. The protected publication verifier checks them before any tag creation.
 
+A third, direct **old published package ↔ new archive** matrix runs inside SDK CI. The new npm/wheel/JAR/NuGet installations and compiled Go module are preserved from the already verified archives; a separate clean room downloads and verifies all five frozen predecessors. All four provider/requester version directions execute again using package-only actors. `old-new-package-proof.json` binds both version inventories, predecessor archive/payload receipts, 280 registration observations, twenty artifact exchanges, 80 lifecycle observations and thirty new-package hostile-response cases. Old missing APIs or insecure confirmation behavior remain explicit historical failures/blockers; the newly packaged side must pass. No current-source client is substituted for the new package in this third matrix.
+
 Head and post-merge acceptance requires complete CI/security/SDK/full-qualification, affirmative hosted CodeQL, actual report/ZIP digest verification, and a fresh main reread. A green collection workflow with historical failures is not a released-SDK compatibility certificate.
 
 ## P13-FORMAT remains release-admission pending
