@@ -1,0 +1,46 @@
+{
+  "schema": "truyn.attest.signed-verdict-projection/1",
+  "status": "CLASS_C_PROPOSAL_NO_NEW_CRYPTO_DOMAIN",
+  "signedObject": "truyn-attest-v1",
+  "signedValuePath": "body.verdict",
+  "signedAuthority": "core/claims/index.js ATTEST_VERDICTS",
+  "protoAuthority": "proto/v1/attest.proto AttestationVerdict (semantic projection, not an admitted transport codec)",
+  "unspecified": {
+    "enumName": "ATTESTATION_UNSPECIFIED",
+    "enumValue": 0,
+    "signedValue": null,
+    "admission": "REJECT"
+  },
+  "entries": [
+    {
+      "enumName": "ATTESTATION_SUPPORTS",
+      "enumValue": 1,
+      "implementedSignedValue": "support",
+      "conceptualLabel": "SUPPORTS"
+    },
+    {
+      "enumName": "ATTESTATION_DISPUTES",
+      "enumValue": 2,
+      "implementedSignedValue": "contradict",
+      "conceptualLabel": "DISPUTES"
+    },
+    {
+      "enumName": "ATTESTATION_INCONCLUSIVE",
+      "enumValue": 3,
+      "implementedSignedValue": "uncertain",
+      "conceptualLabel": "INCONCLUSIVE"
+    }
+  ],
+  "order": "Always validate the unmodified signed JSON object and identity/claim/signed bytes BEFORE any read-only projection for a separately negotiated codec. Never rewrite body.verdict before cryptographic verification or derive an Ed25519 signature from protobuf serialization.",
+  "compatibility": {
+    "signatureDomainUnchanged": true,
+    "newWireType": false,
+    "protobufTransportAdmitted": false,
+    "legacySignedValuesAccepted": [
+      "support",
+      "contradict",
+      "uncertain"
+    ],
+    "uppercaseSignedValuesAccepted": false
+  }
+}

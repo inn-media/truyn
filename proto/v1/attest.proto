@@ -3,6 +3,11 @@ package truyn.v1;
 
 import "proto/v1/common.proto";
 
+// Semantic projection only: this schema is not a TRUYN/1 signed-wire codec.
+// Verify the original truyn-attest-v1 Ed25519/TCJ1 signed JSON body first.
+// Signed body.verdict remains exactly "support" (1), "contradict" (2),
+// or "uncertain" (3); the uppercase enum labels are not signed JSON aliases.
+// Unspecified (0) is never a valid signed verdict. No protobuf re-signing.
 enum AttestationVerdict {
   ATTESTATION_UNSPECIFIED = 0;
   ATTESTATION_SUPPORTS = 1;
