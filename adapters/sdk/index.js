@@ -388,9 +388,9 @@ export class TruynAdapterHost {
       // The adapter invocation has returned. Persist its successful effect intent
       // BEFORE any downstream billing/RESULT transport can fail. This is not
       // proof that the external provider supports transactional exactly-once.
-      if (this.effectLedger && !need.chain) await this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'completed' });
       const normalized = execution && typeof execution === 'object' && 'output' in execution ? execution : { output: execution, metadata: {} };
       const actualTokens = reportedUsageTokens(normalized.metadata, billing?.reservedTokens ?? billingEstimate(need) ?? 0);
+      if (this.effectLedger && !need.chain) await this.effectLedger.finishEffect({ id: need.id, provider: this.node.identity.nodeId, outcome: 'completed', observedTokens: actualTokens });
       if (signal.aborted) {
         await settleBilling(billing, { outcome: 'cancelled', actualTokens, reason: signal.reason?.message || 'request_cancelled' });
         billingSettled = typeof billing?.finalize === 'function';
