@@ -27,7 +27,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ inputs.candidate_sha }}
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -42,6 +42,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_SHA" == "$GITHUB_SHA" ]] || { echo "TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=dispatched_sha_mismatch" >&2; exit 28; }
           node scripts/verify-d-series-frozen-candidate-policy.mjs
           node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
           git fetch --no-tags origin main "$CANDIDATE_SHA"
