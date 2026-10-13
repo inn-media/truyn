@@ -1,0 +1,4509 @@
+{
+  "schema": "truyn.core-registry.five-sdk-coverage/v1",
+  "source": "spec/registry/truyn-core-v1.json",
+  "sourceRegistryStatus": "approved_architecture_candidate_not_wire_admission",
+  "wireGeneration": "TRUYN/1",
+  "scope": "80 semantic registry rows; not 80 new wire types",
+  "languages": [
+    "typescript",
+    "python",
+    "go",
+    "java",
+    "dotnet"
+  ],
+  "releaseRule": "Native recognition exactly 80/80 in each SDK; every current baseline supported, unadmitted code refuses execution; stable qualification additionally requires independent full per-surface parity, stable versioned releases and format/lifecycle gates.",
+  "stableSdkReleaseAuthorized": false,
+  "entries": [
+    {
+      "code": "00000000",
+      "short": null,
+      "name": "UNSPECIFIED",
+      "class": "reserved",
+      "semanticObject": "UNSPECIFIED",
+      "semanticForm": "reserved",
+      "admission": "reject_when_code_encoded",
+      "wireRepresentation": "none",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "10000000",
+      "short": "A00",
+      "name": "SESSION",
+      "class": "A",
+      "semanticObject": "SESSION",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "11000000",
+      "short": "A1",
+      "name": "HELLO",
+      "class": "A",
+      "semanticObject": "HELLO",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "12000000",
+      "short": "A2",
+      "name": "WELCOME",
+      "class": "A",
+      "semanticObject": "WELCOME",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "13000000",
+      "short": "A3",
+      "name": "VERSION",
+      "class": "A",
+      "semanticObject": "VERSION",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "20000000",
+      "short": "B00",
+      "name": "CONTROL",
+      "class": "B",
+      "semanticObject": "CONTROL",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "21000000",
+      "short": "B1",
+      "name": "PING",
+      "class": "B",
+      "semanticObject": "PING",
+      "semanticForm": "quic_control_method",
+      "admission": "existing_distinct_wire",
+      "wireRepresentation": "quic_rpc:dht.ping",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      },
+      "wireMethod": "dht.ping"
+    },
+    {
+      "code": "22000000",
+      "short": "B2",
+      "name": "FIND_NODE",
+      "class": "B",
+      "semanticObject": "FIND_NODE",
+      "semanticForm": "quic_control_method",
+      "admission": "existing_distinct_wire",
+      "wireRepresentation": "quic_rpc:dht.find-node",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      },
+      "wireMethod": "dht.find-node"
+    },
+    {
+      "code": "23000000",
+      "short": "B3",
+      "name": "ANNOUNCE",
+      "class": "B",
+      "semanticObject": "ANNOUNCE",
+      "semanticForm": "quic_control_method",
+      "admission": "existing_distinct_wire",
+      "wireRepresentation": "quic_rpc:peer.announce",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      },
+      "wireMethod": "peer.announce"
+    },
+    {
+      "code": "24000000",
+      "short": "B4",
+      "name": "STORE",
+      "class": "B",
+      "semanticObject": "STORE",
+      "semanticForm": "quic_control_method",
+      "admission": "existing_distinct_wire",
+      "wireRepresentation": "quic_rpc:dht.store",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      },
+      "wireMethod": "dht.store"
+    },
+    {
+      "code": "25000000",
+      "short": "B5",
+      "name": "FIND_VALUE",
+      "class": "B",
+      "semanticObject": "FIND_VALUE",
+      "semanticForm": "quic_control_method",
+      "admission": "existing_distinct_wire",
+      "wireRepresentation": "quic_rpc:dht.find-value",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      },
+      "wireMethod": "dht.find-value"
+    },
+    {
+      "code": "26000000",
+      "short": "B6",
+      "name": "SYNC",
+      "class": "B",
+      "semanticObject": "SYNC",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "27000000",
+      "short": "B7",
+      "name": "ADVERTISE",
+      "class": "B",
+      "semanticObject": "ADVERTISE",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "28000000",
+      "short": "B8",
+      "name": "DISCOVER",
+      "class": "B",
+      "semanticObject": "DISCOVER",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "30000000",
+      "short": "C00",
+      "name": "ENVELOPE",
+      "class": "C",
+      "semanticObject": "ENVELOPE",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "31000000",
+      "short": "C1",
+      "name": "IDENTITY",
+      "class": "C",
+      "semanticObject": "IDENTITY",
+      "semanticForm": "signed_envelope_v1",
+      "admission": "baseline",
+      "wireRepresentation": "signed_json_envelope:IDENTITY",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "sdk/conformance/run-five-language-e2e.mjs"
+      }
+    },
+    {
+      "code": "32000000",
+      "short": "C2",
+      "name": "OFFER",
+      "class": "C",
+      "semanticObject": "OFFER",
+      "semanticForm": "signed_envelope_v1",
+      "admission": "baseline",
+      "wireRepresentation": "signed_json_envelope:OFFER",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "sdk/conformance/run-five-language-e2e.mjs"
+      }
+    },
+    {
+      "code": "33000000",
+      "short": "C3",
+      "name": "NEED",
+      "class": "C",
+      "semanticObject": "NEED",
+      "semanticForm": "signed_envelope_v1",
+      "admission": "baseline",
+      "wireRepresentation": "signed_json_envelope:NEED",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "sdk/conformance/run-five-language-e2e.mjs"
+      }
+    },
+    {
+      "code": "34000000",
+      "short": "C4",
+      "name": "RESULT",
+      "class": "C",
+      "semanticObject": "RESULT",
+      "semanticForm": "signed_envelope_v1",
+      "admission": "baseline",
+      "wireRepresentation": "signed_json_envelope:RESULT",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "sdk/conformance/run-five-language-e2e.mjs"
+      }
+    },
+    {
+      "code": "35000000",
+      "short": "C5",
+      "name": "REVOKE",
+      "class": "C",
+      "semanticObject": "REVOKE",
+      "semanticForm": "signed_envelope_v1",
+      "admission": "baseline",
+      "wireRepresentation": "signed_json_envelope:REVOKE",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "BOUNDED_SIGNED_ENVELOPE",
+          "verification": "SIGNED_ENVELOPE_CONFORMANCE",
+          "execution": "BOUNDED_API",
+          "eligibleForExecution": true
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "sdk/conformance/run-five-language-e2e.mjs"
+      }
+    },
+    {
+      "code": "36000000",
+      "short": "C6",
+      "name": "CAPABILITY",
+      "class": "C",
+      "semanticObject": "CAPABILITY",
+      "semanticForm": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "embedded_object_or_descriptor",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "37000000",
+      "short": "C7",
+      "name": "COMMITMENT",
+      "class": "C",
+      "semanticObject": "COMMITMENT",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "37100000",
+      "short": "C71",
+      "name": "CONTRACT",
+      "class": "C",
+      "semanticObject": "CONTRACT",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "37200000",
+      "short": "C72",
+      "name": "ORDER",
+      "class": "C",
+      "semanticObject": "ORDER",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "37300000",
+      "short": "C73",
+      "name": "ACCEPT",
+      "class": "C",
+      "semanticObject": "ACCEPT",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "37400000",
+      "short": "C74",
+      "name": "REJECT",
+      "class": "C",
+      "semanticObject": "REJECT",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "37500000",
+      "short": "C75",
+      "name": "STATUS",
+      "class": "C",
+      "semanticObject": "STATUS",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "40000000",
+      "short": "D00",
+      "name": "COMPACT",
+      "class": "D",
+      "semanticObject": "COMPACT",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "41000000",
+      "short": "D1",
+      "name": "C_NEED",
+      "class": "D",
+      "semanticObject": "C_NEED",
+      "semanticForm": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "wireRepresentation": "signed_compact:N",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      },
+      "compactAlias": "N"
+    },
+    {
+      "code": "42000000",
+      "short": "D2",
+      "name": "C_RESULT",
+      "class": "D",
+      "semanticObject": "C_RESULT",
+      "semanticForm": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "wireRepresentation": "signed_compact:R",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      },
+      "compactAlias": "R"
+    },
+    {
+      "code": "43000000",
+      "short": "D3",
+      "name": "PARTIAL",
+      "class": "D",
+      "semanticObject": "PARTIAL",
+      "semanticForm": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "wireRepresentation": "signed_compact:T",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      },
+      "compactAlias": "T"
+    },
+    {
+      "code": "44000000",
+      "short": "D4",
+      "name": "CHAIN",
+      "class": "D",
+      "semanticObject": "CHAIN",
+      "semanticForm": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "wireRepresentation": "signed_compact:C",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      },
+      "compactAlias": "C"
+    },
+    {
+      "code": "45000000",
+      "short": "D5",
+      "name": "CONTEXT_PUT",
+      "class": "D",
+      "semanticObject": "CONTEXT_PUT",
+      "semanticForm": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "wireRepresentation": "signed_compact:P",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      },
+      "compactAlias": "P"
+    },
+    {
+      "code": "46000000",
+      "short": "D6",
+      "name": "CONTEXT_DELTA",
+      "class": "D",
+      "semanticObject": "CONTEXT_DELTA",
+      "semanticForm": "compact_runtime",
+      "admission": "existing_distinct_wire",
+      "wireRepresentation": "signed_compact:D",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EXISTING_WIRE_NOT_QUALIFIED_IN_ALL_SDKS",
+          "verification": "PENDING_NATIVE_SURFACE_CONFORMANCE",
+          "execution": "PENDING_NATIVE_SDK_INTERFACE",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      },
+      "compactAlias": "D"
+    },
+    {
+      "code": "50000000",
+      "short": "E00",
+      "name": "OUTCOME",
+      "class": "E",
+      "semanticObject": "OUTCOME",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "51000000",
+      "short": "E1",
+      "name": "SUCCESS",
+      "class": "E",
+      "semanticObject": "SUCCESS",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "51100000",
+      "short": "E11",
+      "name": "completed",
+      "class": "E",
+      "semanticObject": "completed",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "51200000",
+      "short": "E12",
+      "name": "queued",
+      "class": "E",
+      "semanticObject": "queued",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "51300000",
+      "short": "E13",
+      "name": "idempotent",
+      "class": "E",
+      "semanticObject": "idempotent",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "51400000",
+      "short": "E14",
+      "name": "degraded",
+      "class": "E",
+      "semanticObject": "degraded",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52000000",
+      "short": "E2",
+      "name": "ERROR",
+      "class": "E",
+      "semanticObject": "ERROR",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52100000",
+      "short": "E21",
+      "name": "REQUEST",
+      "class": "E",
+      "semanticObject": "REQUEST",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52110000",
+      "short": "E211",
+      "name": "invalid_argument",
+      "class": "E",
+      "semanticObject": "invalid_argument",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52120000",
+      "short": "E212",
+      "name": "not_found",
+      "class": "E",
+      "semanticObject": "not_found",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52130000",
+      "short": "E213",
+      "name": "already_exists",
+      "class": "E",
+      "semanticObject": "already_exists",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52200000",
+      "short": "E22",
+      "name": "ACCESS",
+      "class": "E",
+      "semanticObject": "ACCESS",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52210000",
+      "short": "E221",
+      "name": "unauthenticated",
+      "class": "E",
+      "semanticObject": "unauthenticated",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52220000",
+      "short": "E222",
+      "name": "permission_denied",
+      "class": "E",
+      "semanticObject": "permission_denied",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52300000",
+      "short": "E23",
+      "name": "COMPAT",
+      "class": "E",
+      "semanticObject": "COMPAT",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52310000",
+      "short": "E231",
+      "name": "version_mismatch",
+      "class": "E",
+      "semanticObject": "version_mismatch",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52320000",
+      "short": "E232",
+      "name": "unimplemented",
+      "class": "E",
+      "semanticObject": "unimplemented",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52400000",
+      "short": "E24",
+      "name": "TEMPORARY",
+      "class": "E",
+      "semanticObject": "TEMPORARY",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52410000",
+      "short": "E241",
+      "name": "resource_exhausted",
+      "class": "E",
+      "semanticObject": "resource_exhausted",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52420000",
+      "short": "E242",
+      "name": "unavailable",
+      "class": "E",
+      "semanticObject": "unavailable",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52500000",
+      "short": "E25",
+      "name": "UNKNOWN_OUTCOME",
+      "class": "E",
+      "semanticObject": "UNKNOWN_OUTCOME",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52510000",
+      "short": "E251",
+      "name": "deadline_exceeded",
+      "class": "E",
+      "semanticObject": "deadline_exceeded",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52520000",
+      "short": "E252",
+      "name": "transport_error",
+      "class": "E",
+      "semanticObject": "transport_error",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52530000",
+      "short": "E253",
+      "name": "internal",
+      "class": "E",
+      "semanticObject": "internal",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52600000",
+      "short": "E26",
+      "name": "TERMINAL",
+      "class": "E",
+      "semanticObject": "TERMINAL",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52610000",
+      "short": "E261",
+      "name": "invalid_response",
+      "class": "E",
+      "semanticObject": "invalid_response",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "52620000",
+      "short": "E262",
+      "name": "cancelled",
+      "class": "E",
+      "semanticObject": "cancelled",
+      "semanticForm": "outcome_semantics",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "outcome_semantics",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "60000000",
+      "short": "F00",
+      "name": "TELEMETRY",
+      "class": "F",
+      "semanticObject": "TELEMETRY",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "61000000",
+      "short": "F1",
+      "name": "METRICS",
+      "class": "F",
+      "semanticObject": "METRICS",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "62000000",
+      "short": "F2",
+      "name": "HEALTH",
+      "class": "F",
+      "semanticObject": "HEALTH",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "63000000",
+      "short": "F3",
+      "name": "TRACE",
+      "class": "F",
+      "semanticObject": "TRACE",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "64000000",
+      "short": "F4",
+      "name": "HEARTBEAT",
+      "class": "F",
+      "semanticObject": "HEARTBEAT",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "70000000",
+      "short": "G00",
+      "name": "DATA",
+      "class": "G",
+      "semanticObject": "DATA",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "71000000",
+      "short": "G1",
+      "name": "OBJECT",
+      "class": "G",
+      "semanticObject": "OBJECT",
+      "semanticForm": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "embedded_object_or_descriptor",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "72000000",
+      "short": "G2",
+      "name": "STATE",
+      "class": "G",
+      "semanticObject": "STATE",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "73000000",
+      "short": "G3",
+      "name": "DELTA",
+      "class": "G",
+      "semanticObject": "DELTA",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "74000000",
+      "short": "G4",
+      "name": "SUBSCRIBE",
+      "class": "G",
+      "semanticObject": "SUBSCRIBE",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "80000000",
+      "short": "H00",
+      "name": "TRUST",
+      "class": "H",
+      "semanticObject": "TRUST",
+      "semanticForm": "semantic_family_or_surface",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "semantic_family_not_new_wire_type",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "81000000",
+      "short": "H1",
+      "name": "CLAIM",
+      "class": "H",
+      "semanticObject": "CLAIM",
+      "semanticForm": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "embedded_object_or_descriptor",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "82000000",
+      "short": "H2",
+      "name": "ATTEST",
+      "class": "H",
+      "semanticObject": "ATTEST",
+      "semanticForm": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "embedded_object_or_descriptor",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "83000000",
+      "short": "H3",
+      "name": "TRUST_RECEIPT",
+      "class": "H",
+      "semanticObject": "TRUST_RECEIPT",
+      "semanticForm": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "embedded_object_or_descriptor",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "84000000",
+      "short": "H4",
+      "name": "CHALLENGE",
+      "class": "H",
+      "semanticObject": "CHALLENGE",
+      "semanticForm": "composed_behavior",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "composed_behavior",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "85000000",
+      "short": "H5",
+      "name": "VERIFY",
+      "class": "H",
+      "semanticObject": "VERIFY",
+      "semanticForm": "composed_behavior",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "composed_behavior",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "86000000",
+      "short": "H6",
+      "name": "DISPUTE",
+      "class": "H",
+      "semanticObject": "DISPUTE",
+      "semanticForm": "composed_behavior",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "composed_behavior",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "87000000",
+      "short": "H7",
+      "name": "PROOF",
+      "class": "H",
+      "semanticObject": "PROOF",
+      "semanticForm": "embedded_object_or_descriptor",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "embedded_object_or_descriptor",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "EMBEDDED_DATA_NOT_UNIVERSAL_OPERATION",
+          "verification": "PROFILE_SPECIFIC_NOT_ALL_QUALIFIED",
+          "execution": "DATA_OBJECT_ONLY",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    },
+    {
+      "code": "90000000",
+      "short": "I00",
+      "name": "COMPUTE",
+      "class": "I",
+      "semanticObject": "COMPUTE",
+      "semanticForm": "reserved_unadmitted_semantic",
+      "admission": "role_scoped_or_opt_in",
+      "wireRepresentation": "not_admitted",
+      "sdkApi": {
+        "typescript": {
+          "api": "lookupCoreCode / requireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "python": {
+          "api": "lookup_core_code / require_executable_core_code",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "go": {
+          "api": "LookupCoreCode / RequireExecutableCoreCode",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "java": {
+          "api": "CoreRegistry.lookup / CoreRegistry.requireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        },
+        "dotnet": {
+          "api": "CoreRegistry.Lookup / CoreRegistry.RequireExecutable",
+          "recognition": "REQUIRED_NATIVE_80_ROW_PROOF",
+          "transmission": "NOT_ADMITTED_AS_SEPARATE_WIRE",
+          "verification": "NOT_APPLICABLE_TO_NONWIRE_ENTRY",
+          "execution": "NOT_ADMITTED",
+          "eligibleForExecution": false
+        }
+      },
+      "tests": {
+        "recognition": "sdk/conformance/core-registry/run.mjs",
+        "wire": "PROFILE_SPECIFIC_CONFORMANCE_PENDING"
+      }
+    }
+  ]
+}
