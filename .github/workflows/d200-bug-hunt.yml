@@ -1,7 +1,7 @@
 name: D-Series Sanitation Swarm
 
+# Completed D-Series: omit automatic PR sanitation swarm; explicit/manual/reusable only.
 on:
-  pull_request: {}
   workflow_dispatch:
     inputs:
       source_sha:

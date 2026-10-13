@@ -1,71 +1,46 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-
-const workflow = fs.readFileSync('.github/workflows/d-series-admission-gate.yml', 'utf8');
-
-test('D-Series automatically re-runs only cheap Admission when main moves', () => {
-  for (const marker of [
-    'push:',
-    'branches: [main]',
-    "github.event_name == 'push'",
-    'actions/workflows/d-series-frozen-candidate-qualification.yml/runs?status=success&per_page=100',
-    'pulls?state=open&per_page=100',
-    '.github/workflows/d*-acceptance.yml',
-    'TESTED_COMMIT:',
-    'controller_candidates',
-    'active_candidates',
-    'seen_candidates',
-    'd-series-qualification-manifest-${candidate_run}',
-    'gh run download',
-    'no_controller_referenced_open_candidate',
-    'ambiguous_controller_candidates',
-    'controller_candidate_missing_qualification',
-    'authority=current_acceptance_controller',
-    'AUTO_RECHECK',
-    "if: steps.q.outputs.eligible == 'true'",
-    'd-series-qualification-manifest.mjs admission',
-    '.decision.targetedBlocks[]?',
-    'main_moved_during_admission'
-  ]) assert.ok(workflow.includes(marker), marker);
-
-  assert.ok(!workflow.includes('workflow_dispatch d-series-blockwise-preflight'));
-  assert.ok(!workflow.includes('workflow_dispatch d200-bug-hunt'));
-  assert.ok(!workflow.includes('automatic full rerun'));
+const read = p => fs.readFileSync(p, 'utf8');
+const closure = JSON.parse(read('config/d-series-legacy-automation-retirement.json'));
+const onBlock = name => {
+  const source = read(name);
+  const at = source.indexOf('\non:\n');
+  assert.ok(at >= 0, 'missing workflow trigger: ' + name);
+  return source.slice(at + 5).split('\npermissions:')[0];
+};
+test('legacy automatic Class-D cascade is closed permanently', () => {
+  assert.equal(closure.state, 'CLOSED_MANUAL_ONLY');
+  assert.equal(closure.automaticTriggersDisabled.length, 5);
+  for (const filename of closure.automaticTriggersDisabled) {
+    assert.match(onBlock(filename), /^  workflow_dispatch:/m);
+    assert.doesNotMatch(onBlock(filename), /^  (?:push|pull_request|workflow_run|schedule|repository_dispatch):/m);
+  }
+  for (const filename of closure.automaticTriggersDisabled.slice(3))
+    assert.match(onBlock(filename), /^  workflow_call:/m);
 });
-
-test('automatic main-movement Admission is fail-closed and ignores arbitrary qualified PR heads', () => {
-  assert.match(workflow, /TESTED_COMMIT/);
-  assert.match(workflow, /controller_candidates/);
-  assert.match(workflow, /active_candidates/);
-  assert.match(workflow, /seen_candidates/);
-  assert.match(workflow, /\[\[ "\$candidate" == "\$head" \]\]/);
-  assert.match(workflow, /target_candidate/);
-  assert.match(workflow, /matched_run/);
-  assert.match(workflow, /\.expired==false/);
-  assert.match(workflow, /\.run_attempt==1/);
-  assert.match(workflow, /length==1/);
-  assert.match(workflow, /exit 23/);
-  assert.match(workflow, /exit 24/);
-  assert.match(workflow, /pull-requests: read/);
-  assert.ok(!workflow.includes('ambiguous_active_qualifications'));
+test('manual D candidate admission continues to fail closed', () => {
+  const gate = read('.github/workflows/d-series-admission-gate.yml');
+  const qualifier = read('.github/workflows/d-series-frozen-candidate-qualification.yml');
+  const self = read('.github/workflows/d-series-candidate-self-admission.yml');
+  for (const marker of ['qualification_run_id:', 'qualification_manifest_missing_after_attempt', 'exit 25', 'd-series-qualification-manifest.mjs admission', 'finalize-d-series-admission.mjs'])
+    assert.ok(gate.includes(marker), marker);
+  for (const marker of ['candidate_sha:', 'swarm_run_id:', 'blockwise_run_id:', 'Build automatic D qualification manifest', 'Upload immutable candidate qualification manifest'])
+    assert.ok(qualifier.includes(marker), marker);
+  assert.ok(self.includes('CANDIDATE_SHA: $' + '{{ inputs.candidate_sha }}'));
+  assert.ok(self.includes('event=workflow_dispatch'));
+  assert.ok(!self.includes('github.event.pull_request.head.sha'));
 });
-
-
-test('upstream successful but candidate-not-ready qualification does not create false red admission', () => {
-  assert.match(workflow, /upstream_candidate_pair_not_ready/);
-  assert.match(workflow, /qualification_manifest_missing_after_attempt/);
-  assert.match(workflow, /\.name=="freeze-candidate-evidence"/);
-  assert.match(workflow, /"Build automatic D qualification manifest" and \.conclusion=="skipped"/);
-  assert.match(workflow, /"Upload immutable candidate qualification manifest" and \.conclusion=="skipped"/);
-  assert.match(workflow, /"Resolve candidate and exact successful evidence" and \.conclusion=="success"/);
-  assert.match(workflow, /upstream_artifacts/);
-  assert.match(workflow, /\.size_in_bytes\/\/0\)>0/);
-  assert.match(workflow, /exit 25/);
-  assert.match(workflow, /if \[\[ "\$GITHUB_EVENT_NAME" == workflow_run \]\]/);
-  // Strict manual/push admission still requires the uniquely valid manifest and
-  // actual candidate qualification; never grant an unqualified candidate PASS.
-  assert.match(workflow, /if \[\[ "\$eligible" == true \]\]; then/);
-  assert.match(workflow, /length==1/);
-  assert.match(workflow, /controller_candidate_missing_qualification/);
+test('accepted D-Series identities are preserved; new campaigns require separate admission', () => {
+  assert.deepEqual(closure.accepted.map(x => x.scale), ['D-200', 'D-500', 'D-1000', 'D-5000']);
+  for (const item of closure.accepted) {
+    assert.equal(item.status, 'ACCEPTED_CLOSED');
+    assert.match(item.primaryRun, /^[0-9]+$/);
+    assert.ok(fs.existsSync(item.authoritativeDocumentation));
+  }
+  assert.equal(closure.futureCandidateRequiresNewExplicitQualification,true);
+  assert.equal(closure.immutableEvidenceUnchanged,true);
+  assert.equal(closure.acceptanceThresholdsUnchanged,true);
+  assert.equal(closure.manualPaidBenchmarkLaunchAuthorized,false);
+  assert.equal(JSON.parse(read('config/d-series-frozen-candidate-policy.json')).state,'LOCKED');
 });
