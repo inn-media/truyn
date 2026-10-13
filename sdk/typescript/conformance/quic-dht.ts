@@ -4,7 +4,7 @@ import {QuicDhtClient} from '../src/quic-dht.ts';
 
 const [host,portText,certPath,nodeId]=process.argv.slice(2);
 if(!host||!portText||!certPath||!nodeId)throw Error('host port certificate peerNodeId required');
-const opts={host,port:Number(portText),ca:readFileSync(certPath,'utf8'),expectedNodeId:nodeId};
+const opts={host,port:Number(portText),serverName:'localhost',ca:readFileSync(certPath,'utf8'),expectedNodeId:nodeId};
 const client=await QuicDhtClient.connect(opts);
 try{
   assert.equal(await client.ping(),true);
