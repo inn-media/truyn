@@ -80,6 +80,7 @@ async function runRelay() {
   const backchannelEnabled = backchannelConfig.protectedProviderNodeIds.length > 0;
   const relay = createRelay({
     lifecycleLedger,
+    lifecycleMaintenance: process.env.TRUYN_G5_LIFECYCLE_MAINTENANCE === '1',
     allowedNodeIds: csvSet(process.env.TRUYN_ALLOWED_NODE_IDS),
     trustedRequesterNodeIds: csvSet(process.env.TRUYN_TRUSTED_REQUESTER_NODE_IDS),
     allowPublicRegistration: relaySecurity.allowPublicRegistration,
