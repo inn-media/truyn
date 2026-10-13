@@ -139,6 +139,8 @@ export class TruynQuicTransport {
   } = {}) {
     if (!identity?.nodeId || !identity?.publicKeyPem || !identity?.privateKeyPem) throw new Error('QUIC transport identity is required');
     if (!tls?.key || !tls?.cert) throw new Error('QUIC server TLS key and certificate are required');
+    if (typeof paidNeedEnforcement !== 'boolean') throw new Error('paidNeedEnforcement must be boolean');
+    this.paidNeedEnforcement = paidNeedEnforcement;
     this.identity = identity;
     this.needReplay = createNeedReplayGuard({ provider: identity.nodeId, lifecycleLedger, maxSeenNeedIds });
     this.supportedProtocols = supportedProtocols;
