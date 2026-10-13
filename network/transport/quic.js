@@ -121,6 +121,9 @@ export class TruynQuicTransport {
     tls,
     maxMessageBytes = 1_048_576,
     lifecycleLedger = null,
+    // Until a QUIC-paid executor participates in shared payer admission,
+    // effect CAS and provider-side recheck, refuse every direct paid NEED.
+    paidNeedEnforcement = false,
     maxSeenNeedIds = 262144,
     maxInboundInFlight = 64,
     maxInboundQueued = 256,
@@ -136,6 +139,8 @@ export class TruynQuicTransport {
   } = {}) {
     if (!identity?.nodeId || !identity?.publicKeyPem || !identity?.privateKeyPem) throw new Error('QUIC transport identity is required');
     if (!tls?.key || !tls?.cert) throw new Error('QUIC server TLS key and certificate are required');
+    if (typeof paidNeedEnforcement !== 'boolean') throw new Error('paidNeedEnforcement must be boolean');
+    this.paidNeedEnforcement = paidNeedEnforcement;
     this.identity = identity;
     this.needReplay = createNeedReplayGuard({ provider: identity.nodeId, lifecycleLedger, maxSeenNeedIds });
     this.supportedProtocols = supportedProtocols;
@@ -281,6 +286,12 @@ export class TruynQuicTransport {
       const verification = verifyEnvelope(message.envelope);
       if (!verification.ok) { await writeJson(stream, { ok: false, error: verification.reason }); return; }
       if (message.envelope.from !== session.peerNodeId || message.envelope.publicKey !== session.peerPublicKey) { await writeJson(stream, { ok: false, error: 'quic_session_sender_mismatch' }); return; }
+      // Paid direct QUIC has no per-NEED payer grant, provider-side effect CAS
+      // and billing recheck yet. Reject before the handler and any paid call.
+      if (message.envelope.type === 'NEED' && this.paidNeedEnforcement) {
+        await writeJson(stream, { ok: false, error: 'paid_quic_durable_authorization_required' });
+        return;
+      }
       if (!this.envelopeHandler) { await writeJson(stream, { ok: false, error: 'no_envelope_handler' }); return; }
       try {
         const result = await this.inboundAdmission.run(async () => {
