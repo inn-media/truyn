@@ -240,7 +240,10 @@ export class TruynAdapterHost {
     if (event.kind === 'NEED') {
       if (!event.verification?.ok) return null;
       const compact = Boolean(event.frame);
-      return compact ? { id: event.frame.i, from: event.from, payload: event.payload, compact: true } : event.envelope;
+      const fingerprint = createHash('sha256').update(JSON.stringify(compact ? [event.frame, event.payload] : event.envelope)).digest('hex');
+      return compact
+        ? { id: event.frame.i, from: event.from, payload: event.payload, compact: true, paidFingerprint: fingerprint }
+        : { ...event.envelope, paidFingerprint: fingerprint };
     }
     if (event.kind === 'CHAIN_STAGE') {
       if (!event.verification?.ok) return null;
