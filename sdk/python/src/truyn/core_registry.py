@@ -1,5 +1,6 @@
 """Immutable A-I semantic codes. Registry recognition never authorizes dispatch."""
 from typing import Optional
+from types import MappingProxyType
 _DATA = (
     "00000000||UNSPECIFIED|reserved|reserved|reject_when_code_encoded|none",
     "10000000|A00|SESSION|A|semantic_family_or_surface|role_scoped_or_opt_in|semantic_family_not_new_wire_type",
@@ -84,6 +85,7 @@ _DATA = (
 )
 CORE_REGISTRY = tuple(dict(zip(("code", "short", "name", "className", "form", "admission", "wire"),
     (lambda p: (p[0], p[1] or None, *p[2:]))(line.split("|")))) for line in _DATA)
+CORE_REGISTRY = tuple(MappingProxyType(entry) for entry in CORE_REGISTRY)
 _BY_CODE = {entry["code"]: entry for entry in CORE_REGISTRY}
 
 def lookup_core_code(code: object) -> Optional[dict]:

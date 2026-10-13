@@ -92,7 +92,7 @@ const coreRegistryData = `00000000||UNSPECIFIED|reserved|reserved|reject_when_co
 86000000|H6|DISPUTE|H|composed_behavior|role_scoped_or_opt_in|composed_behavior
 87000000|H7|PROOF|H|embedded_object_or_descriptor|role_scoped_or_opt_in|embedded_object_or_descriptor
 90000000|I00|COMPUTE|I|reserved_unadmitted_semantic|role_scoped_or_opt_in|not_admitted`
-var CoreRegistry = func() []CoreRegistryEntry {
+var coreRegistry = func() []CoreRegistryEntry {
  out := make([]CoreRegistryEntry,0,80)
  for _,line := range strings.Split(coreRegistryData,"\n") {
   p:=strings.Split(line,"|")
@@ -102,8 +102,8 @@ var CoreRegistry = func() []CoreRegistryEntry {
  return out
 }()
 var coreRegistryByCode=func() map[string]CoreRegistryEntry {
- m:=make(map[string]CoreRegistryEntry,len(CoreRegistry))
- for _,entry:=range CoreRegistry {if _,ok:=m[entry.Code];ok{panic("duplicate_core_code")};m[entry.Code]=entry}
+ m:=make(map[string]CoreRegistryEntry,len(coreRegistry))
+ for _,entry:=range coreRegistry {if _,ok:=m[entry.Code];ok{panic("duplicate_core_code")};m[entry.Code]=entry}
  return m
 }()
 func LookupCoreCode(code string)(CoreRegistryEntry,bool){
@@ -119,3 +119,6 @@ func RequireExecutableCoreCode(code string)(CoreRegistryEntry,error){
  }
  return x,nil
 }
+
+// AllCoreRegistryEntries returns a defensive copy; callers cannot rewrite the normative table.
+func AllCoreRegistryEntries() []CoreRegistryEntry { return append([]CoreRegistryEntry(nil),coreRegistry...) }
