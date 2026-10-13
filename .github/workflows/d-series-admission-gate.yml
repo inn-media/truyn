@@ -1,12 +1,8 @@
 name: D-Series Admission Gate
 
+# Historical main-push and workflow_run D-Series admission is retired after accepted D-Series closure.
+# Manual-only admission preserves the unchanged exact-SHA/fail-closed qualification rules.
 on:
-  push:
-    branches: [main]
-  workflow_run:
-    workflows:
-      - D-Series Frozen Candidate Qualification
-    types: [completed]
   workflow_dispatch:
     inputs:
       qualification_run_id:

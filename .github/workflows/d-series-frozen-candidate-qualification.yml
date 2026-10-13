@@ -1,11 +1,8 @@
 name: D-Series Frozen Candidate Qualification
 
+# Completed D-Series must not spawn new qualification runs from every historical PR.
+# Run only with explicit exact candidate and immutable two-lane evidence.
 on:
-  workflow_run:
-    workflows:
-      - D-Series Sanitation Swarm
-      - D-Series Blockwise Preflight
-    types: [completed]
   workflow_dispatch:
     inputs:
       candidate_sha:

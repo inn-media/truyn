@@ -1,27 +1,20 @@
 name: D-Series Candidate Self-Admission
 
+# Completed D-Series: disable automatic PR self-admission; explicit exact SHA only.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - '.github/workflows/d-series-frozen-candidate-qualification.yml'
-      - '.github/workflows/d-series-admission-gate.yml'
-      - '.github/workflows/d-series-candidate-self-admission.yml'
-      - 'scripts/d-series-qualification-manifest.mjs'
-      - 'scripts/finalize-d-series-admission.mjs'
-      - 'scripts/verify-d-series-frozen-candidate-policy.mjs'
-      - 'scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs'
-      - 'scripts/verify-d-series-admission-run.sh'
-      - 'config/d-series-frozen-candidate-policy.json'
-      - 'config/d-series-swarm-blockwise-architecture-lock.json'
-      - 'tests/d-series-frozen-candidate-admission.test.js'
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact candidate SHA; requires the existing fail-closed D-Series evidence
+        required: true
+        type: string
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: d-series-candidate-self-admission-${{ github.event.pull_request.head.sha }}
+  group: d-series-candidate-self-admission-${{ inputs.candidate_sha }}
   cancel-in-progress: true
 
 jobs:
@@ -34,7 +27,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -45,10 +38,11 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
         run: |
           set -Eeuo pipefail
           [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_SHA" == "$GITHUB_SHA" ]] || { echo "TRUYN_D_SERIES_SELF_ADMISSION=FAIL reason=dispatched_sha_mismatch" >&2; exit 28; }
           node scripts/verify-d-series-frozen-candidate-policy.mjs
           node scripts/verify-d-series-swarm-blockwise-architecture-lock.mjs
           git fetch --no-tags origin main "$CANDIDATE_SHA"
@@ -58,7 +52,7 @@ jobs:
           swarm=''
           blockwise=''
           for _ in $(seq 1 120); do
-            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${CANDIDATE_SHA}&event=pull_request&per_page=100")"
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${CANDIDATE_SHA}&event=workflow_dispatch&per_page=100")"
             swarm="$(jq -r --arg sha "$CANDIDATE_SHA" '[.workflow_runs[] | select(.name=="D-Series Sanitation Swarm" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$sha and ((.head_commit.id // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
             blockwise="$(jq -r --arg sha "$CANDIDATE_SHA" '[.workflow_runs[] | select(.name=="D-Series Blockwise Preflight" and .status=="completed" and .conclusion=="success" and .run_attempt==1 and .head_sha==$sha and ((.head_commit.id // .head_sha)==$sha))] | sort_by(.updated_at) | last | .id // empty' <<<"$runs")"
             if [[ "$swarm" =~ ^[1-9][0-9]+$ && "$blockwise" =~ ^[1-9][0-9]+$ ]]; then
@@ -85,7 +79,7 @@ jobs:
       - name: Build candidate-owned qualification manifest
         shell: bash
         env:
-          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
           BASE_SHA: ${{ steps.evidence.outputs.base }}
           SWARM_RUN_ID: ${{ steps.evidence.outputs.swarm }}
           BLOCKWISE_RUN_ID: ${{ steps.evidence.outputs.blockwise }}
@@ -107,7 +101,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
           BASE_SHA: ${{ steps.evidence.outputs.base }}
         run: |
           set -Eeuo pipefail
@@ -158,7 +152,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
           ADMISSION_CURRENT_MAIN_SHA: ${{ steps.plan.outputs.current_main }}
           ADMISSION_INTEGRATION_TREE_SHA: ${{ steps.plan.outputs.integration_tree }}
         run: |

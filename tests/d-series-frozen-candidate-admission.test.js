@@ -189,7 +189,7 @@ test('candidate-side self-admission closes admission-contract bootstrap without 
   const workflow = read('.github/workflows/d-series-candidate-self-admission.yml');
   for (const marker of [
     'name: D-Series Candidate Self-Admission',
-    'pull_request:',
+    'workflow_dispatch:',
     'Wait for exact immutable Swarm and Blockwise evidence',
     '.head_sha==$sha',
     '(.head_commit.id // .head_sha)==$sha',
