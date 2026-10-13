@@ -45,3 +45,9 @@ Describe exact-SHA tests, CI, CodeQL, boundary checks, compatibility evidence, a
 - [ ] I have read `DCO` and `docs/governance/CONTRIBUTION_IP_POLICY.md`.
 
 The checkbox is a reminder only. The authoritative certification is the author-matching `Signed-off-by` trailer on every contribution commit and CI verifies it.
+
+## English-only documentation checklist
+
+- [ ] All documentation, code comments, explanatory text, release notes and PR text are in English only.
+- [ ] No untranslated non-English design sources or bilingual documents are added; immutable signed Unicode test cases remain unmodified.
+- [ ] Full tracked-documentation language guard PASS is present for this exact commit.
