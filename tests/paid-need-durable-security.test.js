@@ -51,7 +51,7 @@ function grantFor(providerId, requesterId) {
     revision: 7,
     authorize({ providerNodeId, requesterNodeId, capability }) {
       return providerNodeId === providerId && requesterNodeId === requesterId && capability === CAP
-        ? { ok: true, grantId: 'owner-paid-private-1' }
+        ? { ok: true, mode: 'shared', grantId: 'owner-paid-private-1' }
         : { ok: false, reason: 'not_entitled' };
     },
     getProviderPolicy(providerNodeId) {
