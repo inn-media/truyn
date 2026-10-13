@@ -1,6 +1,6 @@
 package truyn
 
-import "strings"
+import ("strings"; "fmt")
 
 // CoreRegistryEntry describes a semantic registry code, not a new wire type.
 type CoreRegistryEntry struct {
