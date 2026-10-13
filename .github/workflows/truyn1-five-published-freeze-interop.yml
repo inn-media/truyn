@@ -147,6 +147,10 @@ jobs:
           TRUYN_LEGACY_PYTHON: /tmp/truyn-wire-legacy-py/bin/python
           TRUYN_CANDIDATE_PYTHON: /tmp/truyn-wire-candidate-py/bin/python
         run: node sdk/conformance/lifecycle-peer/qualify-successor.mjs
+      - name: Qualify P11/P12 bounded source and report P13-FORMAT release gaps at exact SHA
+        env:
+          TRUYN_LIFECYCLE_EVIDENCE_DIR: ${{ runner.temp }}/five-sdk-evidence
+        run: node sdk/conformance/release-qualification/run.mjs
       - name: Upload exact-source package receipts, 20 exchanges and native lifecycle findings
         if: always()
         uses: actions/upload-artifact@v4
