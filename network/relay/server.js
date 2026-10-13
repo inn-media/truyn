@@ -138,7 +138,12 @@ export function createRelay({
   defaultProviderMaxInFlight = 8,
   selectionReservationMs = 60_000,
   expirySweepIntervalMs = 250,
-  maxConcurrentOfferLedgerReads = 8
+  maxConcurrentOfferLedgerReads = 8,
+  // S-500: one requester may legitimately hold more in-flight fast NEEDs than a
+  // provider's queue depth. Default preserves the historical coupling.
+  maxFastTerminalReservationsPerRequester = maxQueuedEventsPerNode,
+  socketHeartbeatIntervalMs = 10_000,
+  maxProviderCooldownMs = 120_000
 } = {}) {
   if (localDevelopmentMode && (productionMode || allowPublicRegistration || allowPublicDispatch)) {
     throw new Error('localDevelopmentMode cannot be combined with production or public relay access');
@@ -151,6 +156,9 @@ export function createRelay({
   if (!Number.isSafeInteger(expirySweepIntervalMs) || expirySweepIntervalMs < 1) throw new Error('expirySweepIntervalMs must be a positive integer');
   if (!Number.isInteger(maxConcurrentOfferLedgerReads) || maxConcurrentOfferLedgerReads < 1 || maxConcurrentOfferLedgerReads > 32) throw new Error('maxConcurrentOfferLedgerReads must be 1..32');
   if (!Number.isInteger(maxQueuedEventsPerNode) || maxQueuedEventsPerNode < 1) throw new Error('maxQueuedEventsPerNode must be a positive integer');
+  if (!Number.isSafeInteger(maxFastTerminalReservationsPerRequester) || maxFastTerminalReservationsPerRequester < 1) throw new Error('maxFastTerminalReservationsPerRequester must be a positive integer');
+  if (!Number.isSafeInteger(socketHeartbeatIntervalMs) || socketHeartbeatIntervalMs < 250) throw new Error('socketHeartbeatIntervalMs must be an integer >= 250');
+  if (!Number.isSafeInteger(maxProviderCooldownMs) || maxProviderCooldownMs < 0) throw new Error('maxProviderCooldownMs must be a non-negative integer');
   if (!Number.isFinite(maxSocketBufferedBytes) || maxSocketBufferedBytes < 1) throw new Error('maxSocketBufferedBytes must be positive');
   if (!Number.isFinite(commandKeepAliveTimeoutMs) || commandKeepAliveTimeoutMs < 1) throw new Error('commandKeepAliveTimeoutMs must be positive');
   if (!Number.isFinite(commandHeadersTimeoutMs) || commandHeadersTimeoutMs <= commandKeepAliveTimeoutMs) throw new Error('commandHeadersTimeoutMs must exceed commandKeepAliveTimeoutMs');
@@ -176,6 +184,43 @@ export function createRelay({
   const nodes = new Map();
   const sessions = new Map();
   const offers = new Map();
+  // Secondary index capability -> offerId set; matching is O(offers for capability),
+  // not O(all offers) per NEED (quadratic under an N-node burst).
+  const offersByCapability = new Map();
+  function indexOffer(offerId, offer) {
+    let set = offersByCapability.get(offer.capability);
+    if (!set) offersByCapability.set(offer.capability, set = new Set());
+    set.add(offerId);
+  }
+  function unindexOffer(offerId) {
+    const offer = offers.get(offerId);
+    if (!offer) return;
+    const set = offersByCapability.get(offer.capability);
+    set?.delete(offerId);
+    if (set && set.size === 0) offersByCapability.delete(offer.capability);
+  }
+  function putOffer(offerId, offer) {
+    unindexOffer(offerId);
+    offers.set(offerId, offer);
+    indexOffer(offerId, offer);
+  }
+  function dropOffer(offerId) {
+    unindexOffer(offerId);
+    offers.delete(offerId);
+  }
+  function offersForCapability(capability) {
+    if (!capability) return offers.values();
+    const ids = offersByCapability.get(capability);
+    if (!ids) return [];
+    const list = [];
+    for (const id of ids) { const offer = offers.get(id); if (offer) list.push(offer); }
+    return list;
+  }
+  // Provider-signalled cooldown (e.g. upstream 429 Retry-After). A provider can only
+  // deprioritise itself, so this is not an amplification or steering vector.
+  const providerCooldownUntil = new Map();
+  // Socket loss timestamps: deprioritise (never exclude) providers whose socket just dropped.
+  const socketLostAt = new Map();
   const events = new Map();
   const fastEvents = new Map();
   const fastTerminalEvents = new Map();
@@ -296,10 +341,15 @@ export function createRelay({
       // Requester ceiling is a hard eligibility constraint, including unknown prices.
       if (ceiling != null && !(cost <= ceiling)) continue;
       const capacity = offerCapacity(offer);
-      const utilization = (loads.get(offer.envelope.from) || 0) / capacity;
-      ranked.push({ offer, cost, utilization, saturated: utilization >= 1, tie: Math.random() });
+      const provider = offer.envelope.from;
+      const utilization = (loads.get(provider) || 0) / capacity;
+      const cooling = (providerCooldownUntil.get(provider) || 0) > now;
+      const detached = socketLostAt.has(provider) && !connectedSocket(provider);
+      ranked.push({ offer, cost, utilization, saturated: utilization >= 1 || cooling, cooling, degraded: detached, tie: Math.random() });
     }
     ranked.sort((a, b) => {
+      if (a.degraded !== b.degraded) return a.degraded ? 1 : -1;
+      if (a.cooling !== b.cooling) return a.cooling ? 1 : -1;
       if (a.saturated !== b.saturated) return a.saturated ? 1 : -1;
       if (a.saturated || mode === 'latency')
         return (a.utilization - b.utilization) || (a.cost - b.cost) || (a.tie - b.tie);
@@ -310,13 +360,14 @@ export function createRelay({
   async function matchingOffers({ capability = null, requesterNodeId = null, routing = null, reserveFor = null } = {}) {
     const now = Date.now();
     // Preserve owner-only ACL and freshness BEFORE routing.
-    const candidates=[...offers.values()].filter((offer) =>
+    const trustedRequesterNodeIds = [...trustedRequesters];
+    const candidates=[...offersForCapability(capability)].filter((offer) =>
       !offer.revoked &&
       (!capability || offer.capability === capability) &&
       (!requesterNodeId || offer.envelope.from !== requesterNodeId) &&
       isNodeFresh(offer.envelope.from, now) &&
       (!requesterNodeId || localDevelopmentMode || providerPolicyAllowsRequester(offer.policy, requesterNodeId, {
-        trustedRequesterNodeIds: [...trustedRequesters]
+        trustedRequesterNodeIds
       }))
     );
     if(lifecycleLedger?.kind==='cosmos-multi-host-v1' && candidates.length>128)
@@ -396,7 +447,9 @@ export function createRelay({
   function reserveFastTerminal(nodeId) {
     const queued = fastTerminalEvents.get(nodeId)?.length || 0;
     const reserved = fastTerminalReservations.get(nodeId) || 0;
-    if (queued + reserved >= maxQueuedEventsPerNode) return false;
+    // Queued terminal events stay bounded by maxQueuedEventsPerNode (queueFastTerminal);
+    // in-flight reservations are bounded separately.
+    if (queued >= maxQueuedEventsPerNode || queued + reserved >= maxFastTerminalReservationsPerRequester) return false;
     fastTerminalReservations.set(nodeId, reserved + 1);
     return true;
   }
@@ -834,6 +887,13 @@ export function createRelay({
     return { status: 200, body: { ok: true, requestId: frame.i, sequence: payload.sequence, transport } };
   }
 
+  function noteProviderCooldown(providerNodeId, payload) {
+    const raw = payload?.metadata?.capacity?.cooldownMs;
+    if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return;
+    const until = Date.now() + Math.min(maxProviderCooldownMs, Math.floor(raw));
+    if (until > (providerCooldownUntil.get(providerNodeId) || 0)) providerCooldownUntil.set(providerNodeId, until);
+  }
+
   async function processFastResult(providerNodeId, frame, payload, receivedAtMs = performance.now()) {
     const provider = nodes.get(providerNodeId);
     if (!provider || !nodeSessionActive(providerNodeId)) return { status: 401, body: { ok: false, error: 'unauthorized' } };
@@ -873,6 +933,7 @@ export function createRelay({
       else closeChain(chain, 200, { ok: true, chainId: chain.chainId, results: chain.results, providers: chain.providers, providerTrust: chain.providerTrust });
       return { status: 200, body: { ok: true, requestId: frame.i, chainId: request.chainId } };
     }
+    noteProviderCooldown(providerNodeId, payload);
     const durableResult = { kind: 'RESULT', frame, payload, from: providerNodeId };
     const trust = await completeRequest(request, providerNodeId, { recipient: request.requester, kind: 'RESULT', event: durableResult });
     const event = { ...durableResult, trust };
@@ -919,7 +980,7 @@ export function createRelay({
     fastTerminalEvents.delete(nodeId);
     fastTerminalReservations.delete(nodeId);
     stats.delete(nodeId);
-    for (const [offerId, offer] of offers) if (offer.envelope.from === nodeId) offers.delete(offerId);
+    for (const [offerId, offer] of offers) if (offer.envelope.from === nodeId) dropOffer(offerId);
     return true;
   }
 
@@ -1013,8 +1074,8 @@ export function createRelay({
             nodes.set(envelope.from, { nodeId: envelope.from, publicKey: envelope.publicKey, sessionToken, lastSeenAt: new Date(admittedAt).toISOString() });
             sessions.set(sessionToken, { nodeId: envelope.from, expiresAt: admittedAt + sessionTtlMs });
             if (lifecycleMaintenance) {
-              for (const [offerId,offer] of offers) if (offer.envelope.from === envelope.from) offers.delete(offerId);
-              for (const offer of recovered) offers.set(offer.envelope.id,offer);
+              for (const [offerId,offer] of offers) if (offer.envelope.from === envelope.from) dropOffer(offerId);
+              for (const offer of recovered) putOffer(offer.envelope.id,offer);
             }
             events.set(envelope.from, events.get(envelope.from) || []);
             fastEvents.set(envelope.from, fastEvents.get(envelope.from) || []);
@@ -1053,7 +1114,7 @@ export function createRelay({
             await lifecycleLedger?.reserveOffer({ id: envelope.id, owner: envelope.from,
               fingerprint: createHash('sha256').update(JSON.stringify(envelope)).digest('hex'),
               ...(lifecycleMaintenance ? {envelope} : {}) });
-            offers.set(envelope.id, { envelope, capability, policy, revoked: false });
+            putOffer(envelope.id, { envelope, capability, policy, revoked: false });
             touch(envelope.from);
             return json(res, 200, { ok: true, offerId: envelope.id });
           } finally {
@@ -1558,6 +1619,7 @@ export function createRelay({
       try { previous.close(4001, 'socket_replaced'); } catch {}
     }
     providerSockets.set(nodeId, socket);
+    socketLostAt.delete(nodeId);
     socket.isAlive = true;
     touch(nodeId);
     const legacyQueued = events.get(nodeId) || [];
@@ -1629,7 +1691,10 @@ export function createRelay({
       }
     });
     socket.on('close', () => {
-      if (providerSockets.get(nodeId) === socket) providerSockets.delete(nodeId);
+      if (providerSockets.get(nodeId) === socket) {
+        providerSockets.delete(nodeId);
+        socketLostAt.set(nodeId, Date.now());
+      }
     });
     socket.on('error', () => {});
   });
@@ -1644,13 +1709,17 @@ export function createRelay({
       }
       if (socket.isAlive === false) {
         providerSockets.delete(nodeId);
+        socketLostAt.set(nodeId, Date.now());
         socket.terminate();
         continue;
       }
       socket.isAlive = false;
       try { socket.ping(); } catch {}
     }
-  }, 10_000);
+    const cutoff = Date.now();
+    for (const [nodeId, until] of providerCooldownUntil) if (until <= cutoff) providerCooldownUntil.delete(nodeId);
+    for (const [nodeId, at] of socketLostAt) if (!nodes.has(nodeId) || cutoff - at > registrationFreshnessMs) socketLostAt.delete(nodeId);
+  }, socketHeartbeatIntervalMs);
   heartbeat.unref?.();
 
   return {

@@ -1,4 +1,5 @@
 import { azureProviderHeaders, containerAppsManagedIdentityToken } from './common/azure-auth.js';
+import { estimateRequestTokens } from './common/provider-rate-governor.js';
 
 function extractChatText(body) {
   const content = body?.choices?.[0]?.message?.content;
@@ -15,7 +16,9 @@ export function createAzureFoundryProvider({
   apiKey = process.env.AZURE_FOUNDRY_API_KEY,
   capabilities = ['reasoning.general'],
   accessTokenProvider = containerAppsManagedIdentityToken,
-  fetchImpl = fetch
+  fetchImpl = fetch,
+  rateGovernor = null,
+  rateGovernorKey = null
 } = {}) {
   if (!endpoint) throw new Error('AZURE_FOUNDRY_ENDPOINT or AZURE_OPENAI_ENDPOINT is required');
   if (!deployment) throw new Error('AZURE_FOUNDRY_DEPLOYMENT is required');
@@ -45,12 +48,16 @@ export function createAzureFoundryProvider({
         resource: process.env.AZURE_FOUNDRY_TOKEN_RESOURCE || 'https://cognitiveservices.azure.com/',
         signal
       });
-      const response = await fetchImpl(`${endpoint.replace(/\/$/, '')}/openai/v1/chat/completions`, {
+      const send = () => fetchImpl(`${endpoint.replace(/\/$/, '')}/openai/v1/chat/completions`, {
         method: 'POST',
         headers,
         body: requestBody,
         signal
       });
+      const governed = rateGovernor
+        ? await rateGovernor.run({ key: rateGovernorKey || `azure-foundry:${deployment}`, estimatedTokens: estimateRequestTokens(requestBody, request.max_tokens), signal }, send)
+        : { response: await send(), telemetry: null };
+      const { response } = governed;
       const body = await response.json();
       if (!response.ok) throw new Error(body?.error?.message || body?.message || `Azure Foundry HTTP ${response.status}`);
 
@@ -69,7 +76,8 @@ export function createAzureFoundryProvider({
           providerRequestBodyBytes,
           providerResponseBodyBytes,
           providerBodyBytes: providerRequestBodyBytes + providerResponseBodyBytes,
-          usage: body.usage || null
+          usage: body.usage || null,
+          ...(governed.telemetry ? { providerThrottle: governed.telemetry } : {})
         }
       };
     }
