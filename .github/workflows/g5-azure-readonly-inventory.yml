@@ -25,6 +25,8 @@ jobs:
         with: {persist-credentials: false}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
+      - name: Install deterministic test-only dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prove source, scope and no-mutation contract before Azure authentication
         shell: bash
         run: |
