@@ -1,5 +1,7 @@
 using Truyn.Sdk;
 
+if (args.Length == 1 && args[0] == "--wire-freeze") { WireFreezeConformance.Run(); return; }
+
 if (args.Length == 1 && args[0] == "--descriptor-interfaces") { await DescriptorInterfaceConformance.RunAsync(); return; }
 
 if (args.Length == 5 && args[0] == "--quic-dht") {

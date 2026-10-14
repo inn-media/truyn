@@ -109,6 +109,7 @@ try {
   await run(process.execPath, ['sdk/conformance/quic-dht/run-typescript.mjs']);
   await run(process.execPath, ['sdk/conformance/quic-dht/run-go.mjs']);
   await run(process.execPath, ['sdk/conformance/quic-dht/run-java.mjs']);
+  await run(process.execPath, ['sdk/conformance/run-wire-freeze.mjs']);
   await run(process.execPath, ['sdk/conformance/run-descriptor-interface-parity.mjs']);
   // Mandatory 80 registry entries × five real first-party language runtimes.
   await run(process.execPath, ['sdk/conformance/core-registry/run.mjs']);

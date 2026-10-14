@@ -1,3 +1,5 @@
+import { validateEnvelopeExt, ENVELOPE_EXT_SEMANTIC } from './envelope-ext.js';
+export { validateEnvelopeExt, ENVELOPE_EXT_SEMANTIC, envelopePriority } from './envelope-ext.js';
 import { createHash, randomBytes, randomUUID, sign as cryptoSign, verify as cryptoVerify, createPublicKey } from 'node:crypto';
 
 export const PROTOCOL = 'TRUYN/1';
@@ -117,7 +119,7 @@ export function unsignedEnvelope(envelope) {
   return unsigned;
 }
 
-export function createEnvelope({ type, from, payload, privateKeyPem, publicKeyPem, to = null, id = randomUUID(), createdAt = new Date().toISOString() }) {
+export function createEnvelope({ type, from, payload, privateKeyPem, publicKeyPem, to = null, id = randomUUID(), createdAt = new Date().toISOString(), ext, negotiatedSemantics = [] }) {
   if (!MVP_TYPES.includes(type)) {
     throw new Error(`Unsupported MVP message type: ${type}`);
   }
@@ -148,11 +150,17 @@ export function createEnvelope({ type, from, payload, privateKeyPem, publicKeyPe
     payload
   };
 
+  if (ext !== undefined) {
+    if (!negotiatedSemantics.includes(ENVELOPE_EXT_SEMANTIC)) throw new Error('version_mismatch: ext emission requires negotiated support');
+    unsigned.ext = ext;
+    const checked = validateEnvelopeExt(unsigned, { negotiatedSemantics });
+    if (!checked.ok) throw new Error(`${checked.reason}: ${checked.detail}`);
+  }
   const signature = cryptoSign(null, Buffer.from(canonicalize(unsigned)), privateKeyPem).toString('base64');
   return { ...unsigned, signature };
 }
 
-export function verifyEnvelope(envelope, { allowedTypes = MVP_TYPES } = {}) {
+export function verifyEnvelope(envelope, { allowedTypes = MVP_TYPES, ...extensionOptions } = {}) {
   if (!envelope || envelope.protocol !== PROTOCOL) {
     return { ok: false, reason: 'unsupported_protocol' };
   }
@@ -194,7 +202,7 @@ export function verifyEnvelope(envelope, { allowedTypes = MVP_TYPES } = {}) {
       envelope.publicKey,
       signature
     );
-    return ok ? { ok: true } : { ok: false, reason: 'invalid_signature' };
+    return ok ? validateEnvelopeExt(envelope, extensionOptions) : { ok: false, reason: 'invalid_signature' };
   } catch {
     // An invalid public key, non-JSON value or invalid signature cannot dispatch.
     return { ok: false, reason: 'invalid_signature' };

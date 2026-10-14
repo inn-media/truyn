@@ -1,3 +1,4 @@
+// Semantic projection only; signed JSON authority and compatibility are defined in proto/README.md.
 syntax = "proto3";
 package truyn.v1;
 
