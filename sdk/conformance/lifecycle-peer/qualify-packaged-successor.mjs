@@ -4,6 +4,7 @@ import {spawnSync,execFileSync} from 'node:child_process';
 import {readFileSync,writeFileSync,mkdtempSync,mkdirSync,rmSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {digest,validateBuildBundle,qualifyPackagedLifecycle} from './package-contract.mjs';
+import {qualifyOldNewPackages} from '../registration-peer/old-new-packages.mjs';
 const dist=resolve('sdk/release/dist');
 const sourceSha=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 assert.equal(sourceSha,process.env.TRUYN_RELEASE_SOURCE_SHA,'package producer must check out its declared exact SHA');
@@ -21,6 +22,8 @@ const execute=(command,args)=>{const r=spawnSync(command,args,{env,stdio:'inheri
 try{
  execute('bash',['sdk/conformance/lifecycle-peer/prepare-packaged.sh']);
  execute(process.execPath,['sdk/conformance/lifecycle-peer/run.mjs']);
+ env.TRUYN_REGISTRATION_REQUIRE_ALL='true';
+ execute(process.execPath,['sdk/conformance/registration-peer/qualify.mjs']);
  const raw=readFileSync(join(evidence,'lifecycle.json'));const lifecycle=JSON.parse(raw);
  const report=qualifyPackagedLifecycle(lifecycle,build,context);
  report.lifecycleSha256=digest(raw);report.buildProofSha256=digest(readFileSync(join(evidence,'report.json')));
@@ -28,5 +31,9 @@ try{
  validateBuildBundle(manifest,context,versions,dist);assert.equal(digest(readFileSync(join(dist,'manifest.json'))),build.manifestSha256);
  const outputs={'native-package-proof.json':JSON.stringify(report,null,2)+'\n','native-package-lifecycle.json':raw,'native-package-build.json':JSON.stringify(build,null,2)+'\n'};
  for(const [name,value] of Object.entries(outputs))writeFileSync(join(dist,name),value,{flag:'wx'});
+ for(const name of ['registration.json','artifacts.json','format-qualification.json','P11.tap','P12.tap','P13_FORMAT.tap'])
+  writeFileSync(join(dist,'native-package-'+name),readFileSync(join(evidence,name)),{flag:'wx'});
+ qualifyOldNewPackages(stage,dist,build,env);
+ validateBuildBundle(manifest,context,versions,dist);
  console.log(JSON.stringify(report));
 }finally{rmSync(stage,{recursive:true,force:true});}
