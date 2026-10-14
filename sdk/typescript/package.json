@@ -32,11 +32,13 @@
     "url": "https://github.com/inn-media/truyn/issues"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean --out-dir dist --target node22 --platform node --external ws",
+    "build": "tsup src/index.ts --format esm --dts --clean --out-dir dist --target node22 --platform node --external ws --external @matrixai/quic --external @matrixai/logger",
     "test": "node --experimental-strip-types --test test/*.test.ts"
   },
   "dependencies": {
-    "ws": "8.21.1"
+    "ws": "8.21.1",
+    "@matrixai/logger": "4.0.3",
+    "@matrixai/quic": "2.0.9"
   },
   "devDependencies": {
     "tsup": "8.5.1",

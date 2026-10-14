@@ -32,6 +32,12 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.build.outputTimestamp>2026-08-29T00:00:00Z</project.build.outputTimestamp>
   </properties>
+  <dependencies>
+    <!-- Patched native QUIC stack. Includes hostname verification correction (>=4.2.18). -->
+    <dependency><groupId>io.netty</groupId><artifactId>netty-codec-classes-quic</artifactId><version>4.2.19.Final</version></dependency>
+    <dependency><groupId>io.netty</groupId><artifactId>netty-transport</artifactId><version>4.2.19.Final</version></dependency>
+    <dependency><groupId>io.netty</groupId><artifactId>netty-codec-native-quic</artifactId><version>4.2.19.Final</version><classifier>linux-x86_64</classifier><scope>runtime</scope></dependency>
+  </dependencies>
   <build>
     <resources>
       <resource>
