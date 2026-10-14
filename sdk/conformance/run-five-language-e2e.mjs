@@ -103,6 +103,12 @@ try {
   ], { env: descriptorEnv });
   await run('dotnet', ['run', '--configuration', 'Release', '--project', 'sdk/dotnet/conformance/Truyn.Sdk.Conformance.csproj', '--', relayUrl], { env: descriptorEnv });
   await run(process.execPath, ['sdk/conformance/quic-dht/run-dotnet.mjs']);
+  // Five actual first-party native QUIC/UDP stacks; no reference-runtime proxy.
+  await run('python', ['-m', 'pip', 'install', '--quiet', '-e', './sdk/python[quic]']);
+  await run(process.execPath, ['sdk/conformance/quic-dht/run-python.mjs']);
+  await run(process.execPath, ['sdk/conformance/quic-dht/run-typescript.mjs']);
+  await run(process.execPath, ['sdk/conformance/quic-dht/run-go.mjs']);
+  await run(process.execPath, ['sdk/conformance/quic-dht/run-java.mjs']);
   await run(process.execPath, ['sdk/conformance/run-descriptor-interface-parity.mjs']);
   // Mandatory 80 registry entries × five real first-party language runtimes.
   await run(process.execPath, ['sdk/conformance/core-registry/run.mjs']);

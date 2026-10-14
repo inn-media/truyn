@@ -5,3 +5,4 @@ export * from './client.ts';
 export * from './local-node.ts';
 export * from './stable-api.ts';
 export * from './core-registry.ts';
+export * from './quic-dht.ts';
