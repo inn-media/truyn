@@ -34,6 +34,7 @@ export class TruynNode {
     this.relayUrl = relayUrl.replace(/\/$/, '');
     this.identity = identity;
     this.sessionToken = null;
+    this.negotiatedSemantics = [];
     this.identityCache = new Map([[identity.nodeId, identity.publicKeyPem]]);
     this.fastSocket = null;
     this.fastSocketConnectPromise = null;
@@ -50,8 +51,16 @@ export class TruynNode {
       privateKeyPem: this.identity.privateKeyPem,
       publicKeyPem: this.identity.publicKeyPem,
       payload,
-      ...extra
+      ...extra,
+      negotiatedSemantics: this.negotiatedSemantics
     });
+  }
+
+  verifyEventEnvelope(event, allowedTypes) {
+    // Authenticated relay event context, not an untrusted signed metadata claim.
+    const semantics = event.negotiatedSemantics ?? [];
+    if (!Array.isArray(semantics) || semantics.some(s => !this.negotiatedSemantics.includes(s))) return { ok: false, reason: 'version_mismatch' };
+    return verifyEnvelope(event.envelope, { ...(allowedTypes ? { allowedTypes } : {}), negotiatedSemantics: semantics });
   }
 
   compactFrame(type, payload, extra = {}) {
@@ -138,6 +147,7 @@ export class TruynNode {
       throw error;
     }
     this.sessionToken = result.sessionToken;
+    this.negotiatedSemantics = agreement.semantics;
     return result;
   }
 
@@ -163,13 +173,13 @@ export class TruynNode {
     return result;
   }
 
-  async need(capability, input, policy = {}) {
+  async need(capability, input, policy = {}, extensions = {}) {
     this.requireSession('sending a NEED');
     const envelope = this.envelope('NEED', {
       capability: { name: capability },
       input,
       policy
-    });
+    }, extensions);
     return requestJson(`${this.relayUrl}/v1/needs`, {
       method: 'POST',
       headers: this.authHeaders(),
@@ -288,14 +298,14 @@ export class TruynNode {
     };
   }
 
-  async result(requestId, output, metadata = {}) {
+  async result(requestId, output, metadata = {}, extensions = {}) {
     this.requireSession('sending a RESULT');
     const envelope = this.envelope('RESULT', {
       requestId,
       output,
       completedAt: new Date().toISOString(),
       metadata
-    });
+    }, extensions);
     return requestJson(`${this.relayUrl}/v1/results`, {
       method: 'POST',
       headers: this.authHeaders(),
@@ -413,7 +423,7 @@ export class TruynNode {
   async verifyCompactEvent(event) {
     if (event?.envelope) {
       const allowedType = event.kind || event.envelope.type;
-      const verification = verifyEnvelope(event.envelope, { allowedTypes: [allowedType] });
+      const verification = this.verifyEventEnvelope(event, [allowedType]);
       return { ...event, verification, priorVerification: null };
     }
     const publicKey = await this.resolveIdentity(event.from);
@@ -603,7 +613,7 @@ export class TruynNode {
         const publicKey = await this.resolveIdentity(event.from);
         verification = verifyCompactFrame(event.frame, event.payload, publicKey, { allowedTypes: [event.kind] });
       } else if (event?.envelope) {
-        verification = verifyEnvelope(event.envelope, { allowedTypes: [event.kind] });
+        verification = this.verifyEventEnvelope(event, [event.kind]);
       }
       if (!verification?.ok) throw new Error('durable_event_signature_invalid');
       return { ...entry, verification };
@@ -623,7 +633,7 @@ export class TruynNode {
     this.requireSession('polling');
     const boundedWait = Math.max(0, Math.min(120_000, Math.floor(Number(waitMs) || 0)));
     const result = await requestJson(`${this.relayUrl}/v1/events?nodeId=${encodeURIComponent(this.identity.nodeId)}&waitMs=${boundedWait}`, { headers: this.authHeaders() });
-    return { ...result, events: result.events.map((event) => ({ ...event, verification: verifyEnvelope(event.envelope) })) };
+    return { ...result, events: result.events.map((event) => ({ ...event, verification: this.verifyEventEnvelope(event) })) };
   }
 
   async pollCompact({ waitMs = 25_000 } = {}) {

@@ -54,7 +54,8 @@ internal sealed class LocalIdentity
             signer.Init(false, publicKey);
             var bytes = message.ToArray();
             signer.BlockUpdate(bytes, 0, bytes.Length);
-            return signer.VerifySignature(Convert.FromBase64String(signature));
+            var decoded = Convert.FromBase64String(signature);
+            return decoded.Length == 64 && Convert.ToBase64String(decoded) == signature && signer.VerifySignature(decoded);
         }
         catch
         {
