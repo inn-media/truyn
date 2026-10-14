@@ -32,3 +32,15 @@ No successful verification of missing/invalid SHA-256, missing/invalid byte size
 - P12 acceptance does not imply other protocol RC gaps P1–P11/P13–P14, Stable TRUYN/1, stable A2A/MCP v1, paid provider authorization, or Mainnet qualification.
 - The GitHub CodeQL advisory for this PR was **neutral**, with a preexisting missing Rust default-setup configuration; it is not represented as a successful CodeQL scan. The independently executing mandatory-security-safety job did PASS. General hosted CodeQL coverage remains a separate repository/security configuration concern.
 - **Final certification condition:** the documentation successor head passes required CI/DCO/security and exact-head full qualification; the merged main receives its own successful required post-merge CI. Do not mark this requirement satisfied from the first run alone.
+
+## Exact merged-main reconciliation — 2026-10-13
+
+The earlier final-condition wording above describes the original candidate checkpoint. The bounded P12 profile has now been independently rechecked on merged main `2a2d47af6d37a4c25cf3049f7bbf020e77d91eab`, tree `1e217815bc747434d58decb52ff5660ca3b90b36`:
+
+- [CI 38418301639](https://github.com/inn-media/truyn/actions/runs/38418301639): all eight mandatory security, component, regression, integration, network, SDK, full-qualification and aggregate jobs SUCCESS. Push DCO is intentionally not a replacement for pre-merge DCO.
+- [Hosted CodeQL 38418302364](https://github.com/inn-media/truyn/actions/runs/38418302364): all seven language/configuration jobs SUCCESS, including Rust. This is separate new evidence; the historical neutral advisory above stays neutral.
+- [Exact old/source SDK run 38418301549](https://github.com/inn-media/truyn/actions/runs/38418301549): five immutable package receipts and 20 signed NEED/RESULT exchanges PASS. Its broader lifecycle limitations do not become P12 transport acceptance.
+
+**Bounded P12 source acceptance remains CLOSED at that exact revision.** Any implementation successor must earn its own head and post-merge qualification. The new `sdk/conformance/registration-peer/artifacts.mjs` supplements source tests with twenty real signed reference roundtrips across five languages and all four old/new provider/requester combinations. It checks preserved reference metadata, zero implicit URL fetches, one explicit resolver call and digest/size corruption rejection in the reference verifier. It does not claim five independent native materialization implementations or generalized OBJECT transport.
+
+[Joint qualification procedure and remaining release boundaries](P11_P12_P13_RELEASE_QUALIFICATION.md).

@@ -294,6 +294,7 @@ func (c *Client) AcknowledgeDurable(ctx context.Context, eventID string) (map[st
 }
 
 func (c *Client) Register(ctx context.Context, name string) error {
+	c.sessionToken = ""
 	payload := map[string]any{
 		"nodeId": c.identity.NodeID,
 		"algorithm": c.identity.Algorithm,
@@ -311,8 +312,20 @@ func (c *Client) Register(ctx context.Context, name string) error {
 	if err := c.requestJSON(ctx, http.MethodPost, "/v1/register", map[string]any{"envelope": envelope}, false, &body); err != nil {
 		return err
 	}
+	selected, hasProtocol := body["negotiatedProtocol"]
+	semantics, hasSemantics := body["negotiatedSemantics"]
+	baseline := false
+	for _, protocol := range c.config.SupportedProtocols { if protocol == Protocol { baseline = true } }
+	validSelection := !hasProtocol && !hasSemantics
+	if hasProtocol && hasSemantics {
+		values, ok := semantics.([]any)
+		validSelection = selected == Protocol && ok && len(values) == 0
+	}
+	if !baseline || !validSelection {
+		return NewError(VersionMismatch, "invalid relay negotiation confirmation", false)
+	}
 	token, ok := body["sessionToken"].(string)
-	if !ok || token == "" {
+	if !ok || strings.TrimSpace(token) == "" {
 		return NewError(InvalidResponse, "relay returned an invalid registration response", false)
 	}
 	c.sessionToken = token
